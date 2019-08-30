@@ -41,8 +41,8 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     public abstract static class LeafOnly<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<VS, AB>>
             extends ValuesSourceAggregationBuilder<VS, AB> {
 
-        protected LeafOnly(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
-            super(name, valuesSourceType, targetValueType);
+        protected LeafOnly(String name, ValuesSourceFamily valuesSourceFamily, ValueType targetValueType) {
+            super(name, valuesSourceFamily, targetValueType);
         }
 
         protected LeafOnly(LeafOnly<VS, AB> clone, Builder factoriesBuilder, Map<String, Object> metaData) {
@@ -56,16 +56,16 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         /**
          * Read an aggregation from a stream that does not serialize its targetValueType. This should be used by most subclasses.
          */
-        protected LeafOnly(StreamInput in, ValuesSourceType valuesSourceType, ValueType targetValueType) throws IOException {
-            super(in, valuesSourceType, targetValueType);
+        protected LeafOnly(StreamInput in, ValuesSourceFamily valuesSourceFamily, ValueType targetValueType) throws IOException {
+            super(in, valuesSourceFamily, targetValueType);
         }
 
         /**
          * Read an aggregation from a stream that serializes its targetValueType. This should only be used by subclasses that override
          * {@link #serializeTargetValueType(Version)} to return true.
          */
-        protected LeafOnly(StreamInput in, ValuesSourceType valuesSourceType) throws IOException {
-            super(in, valuesSourceType);
+        protected LeafOnly(StreamInput in, ValuesSourceFamily valuesSourceFamily) throws IOException {
+            super(in, valuesSourceFamily);
         }
 
         @Override
@@ -75,7 +75,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         }
     }
 
-    private final ValuesSourceType valuesSourceType;
+    private final ValuesSourceFamily valuesSourceFamily;
     private final ValueType targetValueType;
     private String field = null;
     private Script script = null;
@@ -85,19 +85,19 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     private ZoneId timeZone = null;
     protected ValuesSourceConfig<VS> config;
 
-    protected ValuesSourceAggregationBuilder(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
+    protected ValuesSourceAggregationBuilder(String name, ValuesSourceFamily valuesSourceFamily, ValueType targetValueType) {
         super(name);
-        if (valuesSourceType == null) {
+        if (valuesSourceFamily == null) {
             throw new IllegalArgumentException("[valuesSourceType] must not be null: [" + name + "]");
         }
-        this.valuesSourceType = valuesSourceType;
+        this.valuesSourceFamily = valuesSourceFamily;
         this.targetValueType = targetValueType;
     }
 
     protected ValuesSourceAggregationBuilder(ValuesSourceAggregationBuilder<VS, AB> clone,
                                              Builder factoriesBuilder, Map<String, Object> metaData) {
         super(clone, factoriesBuilder, metaData);
-        this.valuesSourceType = clone.valuesSourceType;
+        this.valuesSourceFamily = clone.valuesSourceFamily;
         this.targetValueType = clone.targetValueType;
         this.field = clone.field;
         this.valueType = clone.valueType;
@@ -114,10 +114,10 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
      * constructor, providing the old, constant value for TargetValueType and override {@link #serializeTargetValueType(Version)} to return
      * true only for versions that support the serialization.
      */
-    protected ValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType, ValueType targetValueType)
+    protected ValuesSourceAggregationBuilder(StreamInput in, ValuesSourceFamily valuesSourceFamily, ValueType targetValueType)
             throws IOException {
         super(in);
-        this.valuesSourceType = valuesSourceType;
+        this.valuesSourceFamily = valuesSourceFamily;
         if (serializeTargetValueType(in.getVersion())) {
             this.targetValueType = in.readOptionalWriteable(ValueType::readFromStream);
         } else {
@@ -130,11 +130,11 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
      * Read an aggregation from a stream that serializes its targetValueType. This should only be used by subclasses that override
      * {@link #serializeTargetValueType(Version)} to return true.
      */
-    protected ValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType) throws IOException {
+    protected ValuesSourceAggregationBuilder(StreamInput in, ValuesSourceFamily valuesSourceFamily) throws IOException {
         super(in);
         // TODO: Can we get rid of this constructor and always use the three value version? Does this assert provide any value?
         assert serializeTargetValueType(in.getVersion()) : "Wrong read constructor called for subclass that serializes its targetValueType";
-        this.valuesSourceType = valuesSourceType;
+        this.valuesSourceFamily = valuesSourceFamily;
         this.targetValueType = in.readOptionalWriteable(ValueType::readFromStream);
         read(in);
     }
@@ -322,7 +322,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
      * @param script - The user supplied script
      * @return The ValuesSourceType we expect this script to yield.
      */
-    protected ValuesSourceType resolveScriptAny(Script script) {
+    protected ValuesSourceFamily resolveScriptAny(Script script) {
         return ValuesSourceType.BYTES;
     }
 
@@ -376,7 +376,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), field, format, missing, script,
-            targetValueType, timeZone, valueType, valuesSourceType);
+            targetValueType, timeZone, valueType, valuesSourceFamily);
     }
 
     @Override
@@ -385,7 +385,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         ValuesSourceAggregationBuilder<?, ?> other = (ValuesSourceAggregationBuilder<?, ?>) obj;
-        return Objects.equals(valuesSourceType, other.valuesSourceType)
+        return Objects.equals(valuesSourceFamily, other.valuesSourceFamily)
             && Objects.equals(field, other.field)
             && Objects.equals(format, other.format)
             && Objects.equals(missing, other.missing)

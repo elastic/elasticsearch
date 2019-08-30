@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceFamily;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -55,7 +56,7 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
 
     public static class Factory extends InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> {
         @Override
-        public ValuesSourceType getValueSourceType() {
+        public ValuesSourceFamily getValueSourceType() {
             return ValuesSourceType.GEOPOINT;
         }
 

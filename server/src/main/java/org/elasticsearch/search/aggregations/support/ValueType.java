@@ -53,7 +53,7 @@ public enum ValueType implements Writeable {
     RANGE((byte) 10, "range", "range", ValuesSourceType.RANGE, BinaryDVIndexFieldData.class, DocValueFormat.RAW);
 
     final String description;
-    final ValuesSourceType valuesSourceType;
+    final ValuesSourceFamily valuesSourceFamily;
     final Class<? extends IndexFieldData> fieldDataType;
     final DocValueFormat defaultFormat;
     private final byte id;
@@ -61,12 +61,12 @@ public enum ValueType implements Writeable {
 
     public static final ParseField VALUE_TYPE = new ParseField("value_type", "valueType");
 
-    ValueType(byte id, String description, String preferredName, ValuesSourceType valuesSourceType,
+    ValueType(byte id, String description, String preferredName, ValuesSourceFamily valuesSourceFamily,
             Class<? extends IndexFieldData> fieldDataType, DocValueFormat defaultFormat) {
         this.id = id;
         this.description = description;
         this.preferredName = preferredName;
-        this.valuesSourceType = valuesSourceType;
+        this.valuesSourceFamily = valuesSourceFamily;
         this.fieldDataType = fieldDataType;
         this.defaultFormat = defaultFormat;
     }
@@ -75,12 +75,12 @@ public enum ValueType implements Writeable {
         return preferredName;
     }
 
-    public ValuesSourceType getValuesSourceType() {
-        return valuesSourceType;
+    public ValuesSourceFamily getValuesSourceType() {
+        return valuesSourceFamily;
     }
 
     public boolean isA(ValueType valueType) {
-        return valueType.valuesSourceType == valuesSourceType &&
+        return valueType.valuesSourceFamily == valuesSourceFamily &&
                 valueType.fieldDataType.isAssignableFrom(fieldDataType);
     }
 

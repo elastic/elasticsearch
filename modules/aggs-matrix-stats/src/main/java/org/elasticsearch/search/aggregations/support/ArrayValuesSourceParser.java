@@ -64,11 +64,11 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
     }
 
     private boolean formattable = false;
-    private ValuesSourceType valuesSourceType = null;
+    private ValuesSourceFamily valuesSourceFamily = null;
     private ValueType targetValueType = null;
 
-    private ArrayValuesSourceParser(boolean formattable, ValuesSourceType valuesSourceType, ValueType targetValueType) {
-        this.valuesSourceType = valuesSourceType;
+    private ArrayValuesSourceParser(boolean formattable, ValuesSourceFamily valuesSourceFamily, ValueType targetValueType) {
+        this.valuesSourceFamily = valuesSourceFamily;
         this.targetValueType = targetValueType;
         this.formattable = formattable;
     }
@@ -139,7 +139,7 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
             }
         }
 
-        ArrayValuesSourceAggregationBuilder<VS, ?> factory = createFactory(aggregationName, this.valuesSourceType, this.targetValueType,
+        ArrayValuesSourceAggregationBuilder<VS, ?> factory = createFactory(aggregationName, this.valuesSourceFamily, this.targetValueType,
             otherOptions);
         if (fields != null) {
             factory.fields(fields);
@@ -183,7 +183,7 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
      *
      * @param aggregationName
      *            the name of the aggregation
-     * @param valuesSourceType
+     * @param valuesSourceFamily
      *            the type of the {@link ValuesSource}
      * @param targetValueType
      *            the target type of the final value output by the aggregation
@@ -194,14 +194,14 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
      * @return the created factory
      */
     protected abstract ArrayValuesSourceAggregationBuilder<VS, ?> createFactory(String aggregationName,
-                                                                                ValuesSourceType valuesSourceType,
+                                                                                ValuesSourceFamily valuesSourceFamily,
                                                                                 ValueType targetValueType,
                                                                                 Map<ParseField, Object> otherOptions);
 
     /**
      * Allows subclasses of {@link ArrayValuesSourceParser} to parse extra
      * parameters and store them in a {@link Map} which will later be passed to
-     * {@link #createFactory(String, ValuesSourceType, ValueType, Map)}.
+     * {@link #createFactory(String, ValuesSourceFamily, ValueType, Map)}.
      *
      * @param aggregationName
      *            the name of the aggregation
@@ -214,7 +214,7 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
      * @param otherOptions
      *            a {@link Map} of options to be populated by successive calls
      *            to this method which will then be passed to the
-     *            {@link #createFactory(String, ValuesSourceType, ValueType, Map)}
+     *            {@link #createFactory(String, ValuesSourceFamily, ValueType, Map)}
      *            method
      * @return <code>true</code> if the current token was correctly parsed,
      *         <code>false</code> otherwise

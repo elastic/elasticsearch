@@ -36,7 +36,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import java.io.IOException;
 import java.util.Locale;
 
-public enum ValuesSourceType implements Writeable {
+public enum ValuesSourceType implements Writeable, ValuesSourceFamily {
     ANY {
         @Override
         public ValuesSource getEmpty() {
@@ -194,11 +194,11 @@ public enum ValuesSourceType implements Writeable {
         }
     };
 
-    public static ValuesSourceType fromString(String name) {
+    public static ValuesSourceFamily fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
     }
 
-    public static ValuesSourceType fromStream(StreamInput in) throws IOException {
+    public static ValuesSourceFamily fromStream(StreamInput in) throws IOException {
         return in.readEnum(ValuesSourceType.class);
     }
 
@@ -212,11 +212,4 @@ public enum ValuesSourceType implements Writeable {
         return name().toLowerCase(Locale.ROOT);
     }
 
-    public abstract ValuesSource getEmpty();
-
-    public abstract ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType);
-
-    public abstract ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script);
-
-    public abstract ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing);
 }

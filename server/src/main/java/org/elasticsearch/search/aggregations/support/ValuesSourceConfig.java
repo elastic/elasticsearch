@@ -66,7 +66,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         Object missing,
         ZoneId timeZone,
         String format,
-        Function<Script, ValuesSourceType> resolveScriptAny
+        Function<Script, ValuesSourceFamily> resolveScriptAny
     ) {
 
         if (field == null) {
@@ -75,15 +75,15 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
                 config.format(resolveFormat(null, valueType, timeZone));
                 return config;
             }
-            ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : ValuesSourceType.ANY;
-            if (valuesSourceType == ValuesSourceType.ANY) {
+            ValuesSourceFamily valuesSourceFamily = valueType != null ? valueType.getValuesSourceType() : ValuesSourceType.ANY;
+            if (valuesSourceFamily == ValuesSourceType.ANY) {
                 // the specific value source type is undefined, but for scripts,
                 // we need to have a specific value source
                 // type to know how to handle the script values, so we fallback
                 // on Bytes
-                valuesSourceType = resolveScriptAny.apply(script);
+                valuesSourceFamily = resolveScriptAny.apply(script);
             }
-            ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
+            ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceFamily);
             config.missing(missing);
             config.timezone(timeZone);
             config.format(resolveFormat(format, valueType, timeZone));
@@ -94,8 +94,8 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
 
         MappedFieldType fieldType = context.fieldMapper(field);
         if (fieldType == null) {
-            ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : ValuesSourceType.ANY;
-            ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
+            ValuesSourceFamily valuesSourceFamily = valueType != null ? valueType.getValuesSourceType() : ValuesSourceType.ANY;
+            ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceFamily);
             config.missing(missing);
             config.timezone(timeZone);
             config.format(resolveFormat(format, valueType, timeZone));
@@ -157,7 +157,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return valueFormat;
     }
 
-    private final ValuesSourceType valueSourceType;
+    private final ValuesSourceFamily valueSourceType;
     private FieldContext fieldContext;
     private AggregationScript.LeafFactory script;
     private ValueType scriptValueType;
@@ -166,11 +166,11 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     private Object missing;
     private ZoneId timeZone;
 
-    public ValuesSourceConfig(ValuesSourceType valueSourceType) {
+    public ValuesSourceConfig(ValuesSourceFamily valueSourceType) {
         this.valueSourceType = valueSourceType;
     }
 
-    public ValuesSourceType valueSourceType() {
+    public ValuesSourceFamily valueSourceType() {
         return valueSourceType;
     }
 

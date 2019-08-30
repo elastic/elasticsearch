@@ -54,6 +54,20 @@ sudo bin/elasticsearch-plugin install analysis-icu
 This command will install the version of the plugin that matches your
 Elasticsearch version and also show a progress bar while downloading.
 
+[float]
+=== Mandatory Plugins
+
+If you rely on some plugins, you can define mandatory plugins by adding
+`plugin.mandatory` setting to the `config/elasticsearch.yml` file, for
+example:
+
+[source,yaml]
+--------------------------------------------------
+plugin.mandatory: analysis-icu,lang-js
+--------------------------------------------------
+
+For safety reasons, a node will not start if it is missing a mandatory plugin.
+
 [[plugin-management-custom-url]]
 === Custom URL or file system
 
@@ -229,17 +243,3 @@ The default location of the `plugins` directory depends on which package you ins
 * {ref}/zip-windows.html#windows-layout[Directory layout of Windows `.zip` archives]
 * {ref}/deb.html#deb-layout[Directory layout of Debian package]
 * {ref}/rpm.html#rpm-layout[Directory layout of RPM]
-
-[float]
-=== Mandatory Plugins
-
-If you rely on some plugins, you can define mandatory plugins by adding
-`plugin.mandatory` setting to the `config/elasticsearch.yml` file, for
-example:
-
-[source,yaml]
---------------------------------------------------
-plugin.mandatory: analysis-icu,lang-js
---------------------------------------------------
-
-For safety reasons, a node will not start if it is missing a mandatory plugin.

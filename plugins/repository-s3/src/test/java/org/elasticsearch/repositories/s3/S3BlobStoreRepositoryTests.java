@@ -18,9 +18,13 @@
  */
 package org.elasticsearch.repositories.s3;
 
+import com.amazonaws.http.AmazonHttpClient;
+import com.amazonaws.services.s3.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
+import org.apache.http.HttpStatus;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -53,6 +57,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.Matchers.nullValue;
@@ -70,7 +75,11 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
 
     @Before
     public void setUpHttpServer() {
-        httpServer.createContext("/bucket", new InternalHttpHandler());
+        HttpHandler handler = new InternalHttpHandler();
+        if (randomBoolean()) {
+            handler = new ErroneousHttpHandler(handler, randomIntBetween(2, 3));
+        }
+        httpServer.createContext("/bucket", handler);
     }
 
     @AfterClass
@@ -114,6 +123,7 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
         return Settings.builder()
             .put(Settings.builder()
                 .put(S3ClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace("test").getKey(), endpoint)
+                // Disable chunked encoding as it simplifies a lot the request parsing on the httpServer side
                 .put(S3ClientSettings.DISABLE_CHUNKED_ENCODING.getConcreteSettingForNamespace("test").getKey(), true)
                 .build())
             .put(super.nodeSettings(nodeOrdinal))
@@ -130,7 +140,6 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
         @Override
         public List<Setting<?>> getSettings() {
             final List<Setting<?>> settings = new ArrayList<>(super.getSettings());
-            // Disable chunked encoding as it simplifies a lot the request parsing on the httpServer side
             settings.add(S3ClientSettings.DISABLE_CHUNKED_ENCODING);
             return settings;
         }
@@ -227,6 +236,52 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
             } finally {
                 exchange.close();
             }
+        }
+    }
+
+    /**
+     * HTTP handler that injects random S3 service errors
+     *
+     * Note: it is not a good idea to allow this handler to simulate too many errors as it would
+     * slow down the test suite and/or could trigger SDK client request throttling (and request
+     * would fail before reaching the max retry attempts - this can be mitigated by disabling
+     * {@link S3ClientSettings#USE_THROTTLE_RETRIES_SETTING})
+     */
+    @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
+    private static class ErroneousHttpHandler implements HttpHandler {
+
+        // first key is the remote address, second key is the HTTP request unique id provided by the AWS SDK client,
+        // value is the number of times the request has been seen
+        private final Map<String, AtomicInteger> requests;
+        private final HttpHandler delegate;
+        private final int maxErrorsPerRequest;
+
+        private ErroneousHttpHandler(final HttpHandler delegate, final int maxErrorsPerRequest) {
+            this.requests = new ConcurrentHashMap<>();
+            this.delegate = delegate;
+            this.maxErrorsPerRequest = maxErrorsPerRequest;
+            assert maxErrorsPerRequest > 1;
+        }
+
+        @Override
+        public void handle(final HttpExchange exchange) throws IOException {
+            final String requestId = exchange.getRequestHeaders().getFirst(AmazonHttpClient.HEADER_SDK_TRANSACTION_ID);
+            assert Strings.hasText(requestId);
+
+            final int count = requests.computeIfAbsent(requestId, req -> new AtomicInteger(0)).incrementAndGet();
+            if (count >= maxErrorsPerRequest || randomBoolean()) {
+                requests.remove(requestId);
+                delegate.handle(exchange);
+            } else {
+                handleAsError(exchange, requestId);
+            }
+        }
+
+        private void handleAsError(final HttpExchange exchange, final String requestId) throws IOException {
+            Streams.readFully(exchange.getRequestBody());
+            exchange.getResponseHeaders().add(Headers.REQUEST_ID, requestId);
+            exchange.sendResponseHeaders(HttpStatus.SC_INTERNAL_SERVER_ERROR, -1);
+            exchange.close();
         }
     }
 }

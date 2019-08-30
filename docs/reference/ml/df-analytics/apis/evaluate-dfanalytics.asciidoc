@@ -46,13 +46,14 @@ packages together commonly used metrics for various analyses.
 
 `query`::
   (Optional, object) Query used to select data from the index.
-  The {es} query domain-specific language (DSL). This value corresponds to the query
-  object in an {es} search POST body. By default, this property has the following
-  value: `{"match_all": {}}`.
+  The {es} query domain-specific language (DSL). This value corresponds to the 
+  query object in an {es} search POST body. By default, this property has the 
+  following value: `{"match_all": {}}`.
 
 `evaluation`::
-  (Required, object) Defines the type of evaluation you want to perform. For example: 
-  `binary_soft_classification`. See <<ml-evaluate-dfanalytics-resources>>.
+  (Required, object) Defines the type of evaluation you want to perform. For 
+  example: `binary_soft_classification`. See 
+  <<ml-evaluate-dfanalytics-resources>>.
   
 ////
 [[ml-evaluate-dfanalytics-results]]

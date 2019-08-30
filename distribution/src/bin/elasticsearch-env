@@ -39,7 +39,7 @@ ES_CLASSPATH="$ES_HOME/lib/*"
 if [ ! -z "$JAVA_HOME" ]; then
   JAVA="$JAVA_HOME/bin/java"
   if [ ! -x "$JAVA" ]; then
-    echo "could not find java JAVA_HOME at $JAVA" >&2
+    echo "could not find java in JAVA_HOME at $JAVA" >&2
     exit 1
   fi
 

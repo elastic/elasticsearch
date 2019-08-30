@@ -111,7 +111,7 @@ public class GeoHashGridValuesSourceBuilder extends CompositeValuesSourceBuilder
             CellIdSource cellIdSource = new CellIdSource(geoPoint, precision, Geohash::longEncode);
             return new CompositeValuesSourceConfig(name, fieldType, cellIdSource, DocValueFormat.GEOHASH, order(), missingBucket());
         } else {
-            throw new IllegalArgumentException("invalid source, expected numeric, got " + orig.getClass().getSimpleName());
+            throw new IllegalArgumentException("invalid source, expected geo_point, got " + orig.getClass().getSimpleName());
         }
     }
 }

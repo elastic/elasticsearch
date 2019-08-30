@@ -68,7 +68,11 @@ public class CompositeValuesSourceParserHelper {
             code = 1;
         } else if (builder.getClass() == HistogramValuesSourceBuilder.class) {
             code = 2;
-        } else if (builder.getClass() == GeoHashGridValuesSourceBuilder.class && out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        } else if (builder.getClass() == GeoHashGridValuesSourceBuilder.class) {
+            if (out.getVersion().before(Version.V_8_0_0)) {
+                throw new IOException("Attempting to serialize [" + builder.getClass().getSimpleName()
+                    + "] to a node with unsupported version [" + out.getVersion() + "]");
+            }
             code = 3;
         } else {
             throw new IOException("invalid builder type: " + builder.getClass().getSimpleName());

@@ -46,7 +46,6 @@ public class GeoHashGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     static {
         PARSER = new ObjectParser<>(GeoHashGridValuesSourceBuilder.TYPE);
         PARSER.declareInt(GeoHashGridValuesSourceBuilder::precision, new ParseField("precision"));
-        PARSER.declareInt(GeoHashGridValuesSourceBuilder::shardSize, new ParseField("shard_size"));
         CompositeValuesSourceParserHelper.declareValuesSourceFields(PARSER, ValueType.NUMERIC);
     }
 
@@ -55,7 +54,6 @@ public class GeoHashGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     }
 
     private int precision = GeoHashGridAggregationBuilder.DEFAULT_PRECISION;
-    private int shardSize = -1;
 
     GeoHashGridValuesSourceBuilder(String name) {
         super(name);
@@ -64,7 +62,6 @@ public class GeoHashGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     GeoHashGridValuesSourceBuilder(StreamInput in) throws IOException {
         super(in);
         this.precision = in.readInt();
-        this.shardSize = in.readInt();
     }
 
     public GeoHashGridValuesSourceBuilder precision(int precision) {
@@ -72,21 +69,14 @@ public class GeoHashGridValuesSourceBuilder extends CompositeValuesSourceBuilder
         return this;
     }
 
-    public GeoHashGridValuesSourceBuilder shardSize(int shardSize) {
-        this.shardSize = shardSize;
-        return this;
-    }
-
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeInt(precision);
-        out.writeInt(shardSize);
     }
 
     @Override
     protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field("precision", precision);
-        builder.field("shard_size", shardSize);
     }
 
     @Override
@@ -96,7 +86,7 @@ public class GeoHashGridValuesSourceBuilder extends CompositeValuesSourceBuilder
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), precision, shardSize);
+        return Objects.hash(super.hashCode(), precision);
     }
 
     @Override
@@ -105,7 +95,7 @@ public class GeoHashGridValuesSourceBuilder extends CompositeValuesSourceBuilder
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         GeoHashGridValuesSourceBuilder other = (GeoHashGridValuesSourceBuilder) obj;
-        return precision == other.precision && shardSize == other.shardSize;
+        return precision == other.precision;
     }
 
     @Override

@@ -20,7 +20,7 @@ public class SillyModel implements Model {
 
     private static final String TARGET_FIELD = "hotdog_or_not";
 
-    private Random random;
+    private final Random random;
 
     public SillyModel() {
         random = Randomness.get();

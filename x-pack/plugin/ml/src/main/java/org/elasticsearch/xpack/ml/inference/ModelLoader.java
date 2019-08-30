@@ -10,7 +10,11 @@ import java.util.Map;
 
 public interface ModelLoader {
     /**
-     *  Load the model with the given {@code modelId} and {@code config}
+     *  Load the model with the given {@code modelId} and {@code config}.
+     *
+     *  Model specific config should can read from {@code config} and should
+     *  be removed from the map e.g with the use of {@link org.elasticsearch.ingest.ConfigurationUtils}
+     *
      *
      * @param modelId        The Id of the model to load
      * @param processorTag   The ingest processor tag
@@ -22,9 +26,12 @@ public interface ModelLoader {
 
     /**
      * Inference processors must remove their configuration from the {@code config} map.
-     * For the case when a model has already been loaded
+     * In the case when a model has already been loaded and {@link #load(String, String, boolean, Map)}
+     * will not be called this use this method to strip the model specific config from the map.
      *
-     * This method should be used when {@link #load(String, String, boolean, Map)} isn't.
+     * This method should only be used if {@link #load(String, String, boolean, Map)} isn't
+     * called on the same {@code config} as {@link #load(String, String, boolean, Map)} will
+     * also remove the processor's configuration from the map.
      *
      * @param processorTag  The ingest processor tag
      * @param config        The ingest pipeline config

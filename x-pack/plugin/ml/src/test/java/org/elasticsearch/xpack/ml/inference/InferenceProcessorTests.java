@@ -23,16 +23,17 @@ public class InferenceProcessorTests extends ESTestCase {
 
     public void testFactory() throws Exception {
         String processorTag = randomAlphaOfLength(10);
+        String modelType = "test";
         
         Model mockModel = mock(Model.class);
         ModelLoader mockLoader = mock(ModelLoader.class);
         when(mockLoader.load(eq("k2"), eq(processorTag), eq(false), any())).thenReturn(mockModel);
 
-        InferenceProcessor.Factory factory = new InferenceProcessor.Factory(Map.of("test", mockLoader));
+        InferenceProcessor.Factory factory = new InferenceProcessor.Factory(Collections.singletonMap(modelType, mockLoader));
 
         Map<String, Object> config = new HashMap<>();
         config.put("model_id", "k2");
-        config.put("model_type", "test");
+        config.put("model_type", modelType);
 
         InferenceProcessor processor = factory.create(Collections.emptyMap(), processorTag, config);
         assertThat(processor.getTag(), equalTo(processorTag));

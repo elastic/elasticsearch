@@ -11,7 +11,6 @@ import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
@@ -43,8 +42,7 @@ public class InferenceProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) {
-        assert false : "The async override of execute() must be used";
-        return null;
+        throw new UnsupportedOperationException("The async override execute(document, handler) must be used");
     }
 
     @Override
@@ -54,11 +52,11 @@ public class InferenceProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
-        private Map<String, Model> loadedModels;
-        private Map<String, ModelLoader> modelLoaders;
+        private final Map<String, Model> loadedModels;
+        private final Map<String, ModelLoader> modelLoaders;
 
         public Factory(Map<String, ModelLoader> modelLoaders) {
-            loadedModels = new ConcurrentHashMap<>();
+            this.loadedModels = new ConcurrentHashMap<>();
             this.modelLoaders = modelLoaders;
         }
 

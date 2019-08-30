@@ -20,7 +20,7 @@ public interface Model {
      * be called either with the updated (or new) document or an {@code Exception}.
      *
      * @param document  Document to infer on
-     * @param handler   The handler must be called
+     * @param handler   The handler that must be called
      */
     void infer(IngestDocument document, BiConsumer<IngestDocument, Exception> handler);
 }

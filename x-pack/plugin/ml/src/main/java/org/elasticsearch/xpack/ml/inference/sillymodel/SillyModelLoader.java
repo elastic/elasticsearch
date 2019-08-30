@@ -58,7 +58,7 @@ public class SillyModelLoader implements ModelLoader {
     }
 
 
-    public void load(String id, String index, ActionListener<Model> listener) {
+    private void load(String id, String index, ActionListener<Model> listener) {
         client.prepareGet(index, null, id).execute(ActionListener.wrap(
                 response -> {
                     if (response.isExists()) {

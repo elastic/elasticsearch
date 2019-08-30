@@ -103,7 +103,7 @@ If you need to see the generated JSON content, you can use the
 
 [source,java]
 --------------------------------------------------
-String json = builder.string();
+String json = builder.getOutputStream().toString();
 --------------------------------------------------
 
 

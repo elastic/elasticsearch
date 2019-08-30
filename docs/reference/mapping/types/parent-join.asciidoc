@@ -90,7 +90,7 @@ For instance the following example shows how to index two `child` documents:
 
 [source,js]
 --------------------------------------------------
-PUT my_index/_doc/3?routing=1?refresh <1>
+PUT my_index/_doc/3?routing=1&refresh <1>
 {
   "text": "This is an answer",
   "my_join_field": {
@@ -99,7 +99,7 @@ PUT my_index/_doc/3?routing=1?refresh <1>
   }
 }
 
-PUT my_index/_doc/4?routing=1?refresh
+PUT my_index/_doc/4?routing=1&refresh
 {
   "text": "This is another answer",
   "my_join_field": {

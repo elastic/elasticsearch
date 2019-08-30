@@ -22,14 +22,11 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TotalHitCountCollector;
-import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.TestUtil;
@@ -88,13 +85,9 @@ public class SearchCancellationTests extends ESTestCase {
                 throw new TaskCancelledException("cancelled");
             }
         });
-        LeafReaderContext leafContext = reader.leaves().get(0);
-        final Weight weight = searcher.createWeight(new MatchAllDocsQuery(), ScoreMode.COMPLETE, 1f);
-        searcher.searchLeaf(searcher.getIndexReader().leaves().get(0), weight, collector);
-        assertThat(collector.getTotalHits(), equalTo(leafContext.reader().numDocs()));
+        searcher.search(new MatchAllDocsQuery(), collector);
+        assertThat(collector.getTotalHits(), equalTo(reader.numDocs()));
         cancelled.set(true);
-        expectThrows(TaskCancelledException.class,
-            () -> searcher.searchLeaf(searcher.getIndexReader().leaves().get(0), weight, collector));
         expectThrows(TaskCancelledException.class,
             () -> searcher.search(new MatchAllDocsQuery(), collector));
     }

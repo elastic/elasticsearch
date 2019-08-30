@@ -28,6 +28,7 @@ import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConjunctionDISI;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
@@ -54,6 +55,7 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.profile.query.QueryTimingType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -138,6 +140,17 @@ public class ContextIndexSearcher extends IndexSearcher {
         }
     }
 
+    public void search(List<LeafReaderContext> leaves, Weight weight, CollectorManager manager) throws IOException {
+        final List<Collector> collectors = new ArrayList<>(leaves.size());
+        for (LeafReaderContext ctx : leaves) {
+            final Collector collector = manager.newCollector();
+            //TODO: setMinCompetitveScore between Collectors
+            searchLeaf(ctx, weight, collector);
+            collectors.add(collector);
+        }
+        manager.reduce(collectors);
+    }
+
     @Override
     protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
         for (LeafReaderContext ctx : leaves) { // search each subreader
@@ -151,7 +164,7 @@ public class ContextIndexSearcher extends IndexSearcher {
      * {@link LeafCollector#collect(int)} is called for every matching document in
      * the provided <code>ctx</code>.
      */
-    public void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
+    private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
         checkCancelled();
         weight = wrapWeight(weight);
         final LeafCollector leafCollector;
@@ -227,6 +240,7 @@ public class ContextIndexSearcher extends IndexSearcher {
             return weight;
         }
     }
+
 
     private static BitSet getSparseBitSetOrNull(Bits liveDocs) {
         if (liveDocs instanceof SparseFixedBitSet) {

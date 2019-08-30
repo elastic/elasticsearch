@@ -62,7 +62,8 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
         auditor = mock(Auditor.class);
         taskHandler = mock(Consumer.class);
-        datafeedJobBuilder = new DatafeedJobBuilder(client, Settings.EMPTY, xContentRegistry(), auditor, System::currentTimeMillis, "test_node");
+        datafeedJobBuilder = 
+            new DatafeedJobBuilder(client, Settings.EMPTY, xContentRegistry(), auditor, System::currentTimeMillis, "test_node");
 
         jobResultsProvider = mock(JobResultsProvider.class);
         Mockito.doAnswer(invocationOnMock -> {

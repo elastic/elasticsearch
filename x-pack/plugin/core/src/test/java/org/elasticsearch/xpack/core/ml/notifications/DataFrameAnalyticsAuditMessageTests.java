@@ -17,7 +17,7 @@ public class DataFrameAnalyticsAuditMessageTests extends AbstractXContentTestCas
 
     public void testGetJobType() {
         DataFrameAnalyticsAuditMessage message = createTestInstance();
-        assertThat(message.getJobType(), equalTo("ml_analytics"));
+        assertThat(message.getJobType(), equalTo("data_frame_analytics"));
     }
     
     @Override

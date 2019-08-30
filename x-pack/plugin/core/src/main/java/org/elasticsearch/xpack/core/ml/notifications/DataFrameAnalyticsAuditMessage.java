@@ -25,7 +25,7 @@ public class DataFrameAnalyticsAuditMessage extends AbstractAuditMessage {
 
     @Override
     public final String getJobType() {
-        return "ml_analytics";
+        return "data_frame_analytics";
     }
 
     @Override

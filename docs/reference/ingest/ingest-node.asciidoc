@@ -959,7 +959,7 @@ Also there are several APIs in order to manage and execute enrich policies:
 
 * <<put-policy-api,Put policy api>>.
 * <<get-enrich-policy-api,Get enrich policy api>>.
-* <<delete-policy-api,Delete policy api>>.
+* <<delete-enrich-policy-api,Delete policy api>>.
 * <<execute-policy-api,Execute policy api>>.
 
 If security is enabled then the user managing enrich policies will need to have
@@ -1041,30 +1041,6 @@ Request:
 [source,js]
 --------------------------------------------------
 POST /_enrich/policy/my-policy/_execute
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-Response:
-
-[source,js]
---------------------------------------------------
-{
-    "acknowledged": true
-}
---------------------------------------------------
-// TESTRESPONSE
-
-[[delete-policy-api]]
-===== Delete Policy API
-
-The delete policy api allows a policy to be removed by id.
-
-Request:
-
-[source,js]
---------------------------------------------------
-DELETE /_enrich/policy/my-policy
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

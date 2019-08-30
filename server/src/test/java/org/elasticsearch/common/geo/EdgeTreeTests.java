@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -112,10 +111,10 @@ public class EdgeTreeTests extends ESTestCase {
             }
             builder = LegacyGeoShapeQueryProcessor.geometryToShapeBuilder(testPolygon);
             Rectangle box = builder.buildS4J().getBoundingBox();
-            int minXBox = GeoEncodingUtils.encodeLongitude(box.getMinX());
-            int minYBox = GeoEncodingUtils.encodeLatitude(box.getMinY());
-            int maxXBox = GeoEncodingUtils.encodeLongitude(box.getMaxX());
-            int maxYBox = GeoEncodingUtils.encodeLatitude(box.getMaxY());
+            int minXBox = TestCoordinateEncoder.INSTANCE.encodeX(box.getMinX());
+            int minYBox = TestCoordinateEncoder.INSTANCE.encodeY(box.getMinY());
+            int maxXBox = TestCoordinateEncoder.INSTANCE.encodeX(box.getMaxX());
+            int maxYBox = TestCoordinateEncoder.INSTANCE.encodeY(box.getMaxY());
 
             double[] x = testPolygon.getPolygon().getLons();
             double[] y = testPolygon.getPolygon().getLats();

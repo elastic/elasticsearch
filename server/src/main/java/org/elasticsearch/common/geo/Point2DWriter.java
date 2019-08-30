@@ -42,10 +42,10 @@ public class Point2DWriter extends ShapeTreeWriter {
         this.coordinateEncoder = coordinateEncoder;
         double top = Double.NEGATIVE_INFINITY;
         double bottom = Double.POSITIVE_INFINITY;
-        double negLeft = Double.NEGATIVE_INFINITY;
-        double negRight = Double.POSITIVE_INFINITY;
-        double posLeft = Double.NEGATIVE_INFINITY;
-        double posRight = Double.POSITIVE_INFINITY;
+        double negLeft = Double.POSITIVE_INFINITY;
+        double negRight = Double.NEGATIVE_INFINITY;
+        double posLeft = Double.POSITIVE_INFINITY;
+        double posRight = Double.NEGATIVE_INFINITY;
         coords = new double[x.length * K];
         for (int i = 0; i < x.length; i++) {
             double xi = x[i];

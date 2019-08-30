@@ -171,7 +171,6 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     @After
     public void tearDownAndVerifyCommonStuff() throws Exception {
         client.close();
-        terminate(threadPool);
     }
 
     /**

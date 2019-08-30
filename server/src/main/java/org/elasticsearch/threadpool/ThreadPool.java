@@ -192,8 +192,6 @@ public class ThreadPool implements Scheduler, Closeable {
         this.builders = Collections.unmodifiableMap(builders);
 
         threadContext = new ThreadContext(settings);
-        // adds the context to the DeprecationLogger so that it does not need to be injected everywhere
-        DeprecationLogger.setThreadContext(threadContext);
 
         final Map<String, ExecutorHolder> executors = new HashMap<>();
         for (final Map.Entry<String, ExecutorBuilder> entry : builders.entrySet()) {
@@ -221,6 +219,9 @@ public class ThreadPool implements Scheduler, Closeable {
         TimeValue estimatedTimeInterval = ESTIMATED_TIME_INTERVAL_SETTING.get(settings);
         this.cachedTimeThread = new CachedTimeThread(EsExecutors.threadName(settings, "[timer]"), estimatedTimeInterval.millis());
         this.cachedTimeThread.start();
+
+        // adds the context to the DeprecationLogger so that it does not need to be injected everywhere
+        DeprecationLogger.setThreadContext(threadContext);
     }
 
     /**

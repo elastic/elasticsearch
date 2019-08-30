@@ -198,7 +198,7 @@ GET /_search
 
 It is also possible to use stored scripts. Here is a simple stored script:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_scripts/convert_currency
 {

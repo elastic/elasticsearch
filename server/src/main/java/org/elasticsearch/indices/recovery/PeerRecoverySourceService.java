@@ -135,9 +135,9 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
     final class OngoingRecoveries {
 
-        private final List<ActionListener<Void>> emptyListeners = new ArrayList<>();
-
         private final Map<IndexShard, ShardRecoveryContext> ongoingRecoveries = new HashMap<>();
+
+        private List<ActionListener<Void>> emptyListeners = new ArrayList<>();
 
         synchronized RecoverySourceHandler addNewRecovery(StartRecoveryRequest request, IndexShard shard) {
             final ShardRecoveryContext shardContext = ongoingRecoveries.computeIfAbsent(shard, s -> new ShardRecoveryContext());
@@ -158,8 +158,11 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 ongoingRecoveries.remove(shard);
             }
             if (ongoingRecoveries.isEmpty()) {
-                ActionListener.onResponse(emptyListeners, null);
-                emptyListeners.clear();
+                if (emptyListeners != null) {
+                    final List<ActionListener<Void>> onEmptyListeners = emptyListeners;
+                    emptyListeners = null;
+                    ActionListener.onResponse(onEmptyListeners, null);
+                }
             }
         }
 
@@ -188,6 +191,9 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     return;
                 }
                 future = new PlainActionFuture<>();
+                if (emptyListeners == null) {
+                    emptyListeners = new ArrayList<>();
+                }
                 emptyListeners.add(future);
             }
             FutureUtils.get(future);

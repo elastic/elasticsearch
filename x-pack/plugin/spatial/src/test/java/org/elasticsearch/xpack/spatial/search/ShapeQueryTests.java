@@ -227,6 +227,7 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
         assertHitCount(result, numDocs);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45628")
     public void testFieldAlias() {
         SearchResponse response = client().prepareSearch(INDEX)
             .setQuery(new ShapeQueryBuilder("alias", queryGeometry).relation(ShapeRelation.INTERSECTS))

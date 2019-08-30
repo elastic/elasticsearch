@@ -48,6 +48,7 @@ import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.EstimateMemoryUsageResponse;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameResponse;
 import org.elasticsearch.client.ml.FindFileStructureRequest;
@@ -138,6 +139,7 @@ import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsStats;
 import org.elasticsearch.client.ml.dataframe.OutlierDetection;
 import org.elasticsearch.client.ml.dataframe.QueryConfig;
+import org.elasticsearch.client.ml.dataframe.Regression;
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.BinarySoftClassification;
@@ -177,7 +179,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.TaskId;
-import org.hamcrest.CoreMatchers;
 import org.junit.After;
 
 import java.io.IOException;
@@ -194,11 +195,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.core.Is.is;
 
 public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
@@ -2921,16 +2924,28 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .build();
             // end::put-data-frame-analytics-dest-config
 
-            // tag::put-data-frame-analytics-analysis-default
+            // tag::put-data-frame-analytics-outlier-detection-default
             DataFrameAnalysis outlierDetection = OutlierDetection.createDefault(); // <1>
-            // end::put-data-frame-analytics-analysis-default
+            // end::put-data-frame-analytics-outlier-detection-default
 
-            // tag::put-data-frame-analytics-analysis-customized
+            // tag::put-data-frame-analytics-outlier-detection-customized
             DataFrameAnalysis outlierDetectionCustomized = OutlierDetection.builder() // <1>
                 .setMethod(OutlierDetection.Method.DISTANCE_KNN) // <2>
                 .setNNeighbors(5) // <3>
                 .build();
-            // end::put-data-frame-analytics-analysis-customized
+            // end::put-data-frame-analytics-outlier-detection-customized
+
+            // tag::put-data-frame-analytics-regression
+            DataFrameAnalysis regression = Regression.builder("my_dependent_variable") // <1>
+                .setLambda(1.0) // <2>
+                .setGamma(5.5) // <3>
+                .setEta(5.5) // <4>
+                .setMaximumNumberTrees(50) // <5>
+                .setFeatureBagFraction(0.4) // <6>
+                .setPredictionFieldName("my_prediction_field_name") // <7>
+                .setTrainingPercent(50.0) // <8>
+                .build();
+            // end::put-data-frame-analytics-regression
 
             // tag::put-data-frame-analytics-analyzed-fields
             FetchSourceContext analyzedFields =
@@ -2941,12 +2956,14 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::put-data-frame-analytics-analyzed-fields
 
             // tag::put-data-frame-analytics-config
-            DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder("my-analytics-config") // <1>
+            DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+                .setId("my-analytics-config") // <1>
                 .setSource(sourceConfig) // <2>
                 .setDest(destConfig) // <3>
                 .setAnalysis(outlierDetection) // <4>
                 .setAnalyzedFields(analyzedFields) // <5>
                 .setModelMemoryLimit(new ByteSizeValue(5, ByteSizeUnit.MB)) // <6>
+                .setDescription("this is an example description") // <7>
                 .build();
             // end::put-data-frame-analytics-config
 
@@ -3174,16 +3191,16 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         BulkRequest bulkRequest =
             new BulkRequest(indexName)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .add(new IndexRequest().source(XContentType.JSON, "label", false, "p", 0.1)) // #0
-                .add(new IndexRequest().source(XContentType.JSON, "label", false, "p", 0.2)) // #1
-                .add(new IndexRequest().source(XContentType.JSON, "label", false, "p", 0.3)) // #2
-                .add(new IndexRequest().source(XContentType.JSON, "label", false, "p", 0.4)) // #3
-                .add(new IndexRequest().source(XContentType.JSON, "label", false, "p", 0.7)) // #4
-                .add(new IndexRequest().source(XContentType.JSON, "label", true,  "p", 0.2)) // #5
-                .add(new IndexRequest().source(XContentType.JSON, "label", true,  "p", 0.3)) // #6
-                .add(new IndexRequest().source(XContentType.JSON, "label", true,  "p", 0.4)) // #7
-                .add(new IndexRequest().source(XContentType.JSON, "label", true,  "p", 0.8)) // #8
-                .add(new IndexRequest().source(XContentType.JSON, "label", true,  "p", 0.9)); // #9
+                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", false, "p", 0.1)) // #0
+                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", false, "p", 0.2)) // #1
+                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", false, "p", 0.3)) // #2
+                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", false, "p", 0.4)) // #3
+                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", false, "p", 0.7)) // #4
+                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", true,  "p", 0.2)) // #5
+                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", true,  "p", 0.3)) // #6
+                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", true,  "p", 0.4)) // #7
+                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", true,  "p", 0.8)) // #8
+                .add(new IndexRequest().source(XContentType.JSON, "dataset", "blue", "label", true,  "p", 0.9)); // #9
         RestHighLevelClient client = highLevelClient();
         client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
         client.bulk(bulkRequest, RequestOptions.DEFAULT);
@@ -3191,14 +3208,15 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::evaluate-data-frame-request
             EvaluateDataFrameRequest request = new EvaluateDataFrameRequest( // <1>
                 indexName, // <2>
-                new BinarySoftClassification( // <3>
-                    "label", // <4>
-                    "p", // <5>
-                    // Evaluation metrics // <6>
-                    PrecisionMetric.at(0.4, 0.5, 0.6), // <7>
-                    RecallMetric.at(0.5, 0.7), // <8>
-                    ConfusionMatrixMetric.at(0.5), // <9>
-                    AucRocMetric.withCurve())); // <10>
+                new QueryConfig(QueryBuilders.termQuery("dataset", "blue")),  // <3>
+                new BinarySoftClassification( // <4>
+                    "label", // <5>
+                    "p", // <6>
+                    // Evaluation metrics // <7>
+                    PrecisionMetric.at(0.4, 0.5, 0.6), // <8>
+                    RecallMetric.at(0.5, 0.7), // <9>
+                    ConfusionMatrixMetric.at(0.5), // <10>
+                    AucRocMetric.withCurve())); // <11>
             // end::evaluate-data-frame-request
 
             // tag::evaluate-data-frame-execute
@@ -3219,14 +3237,15 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 metrics.stream().map(m -> m.getMetricName()).collect(Collectors.toList()),
                 containsInAnyOrder(PrecisionMetric.NAME, RecallMetric.NAME, ConfusionMatrixMetric.NAME, AucRocMetric.NAME));
             assertThat(precision, closeTo(0.6, 1e-9));
-            assertThat(confusionMatrix.getTruePositives(), CoreMatchers.equalTo(2L));  // docs #8 and #9
-            assertThat(confusionMatrix.getFalsePositives(), CoreMatchers.equalTo(1L));  // doc #4
-            assertThat(confusionMatrix.getTrueNegatives(), CoreMatchers.equalTo(4L));  // docs #0, #1, #2 and #3
-            assertThat(confusionMatrix.getFalseNegatives(), CoreMatchers.equalTo(3L));  // docs #5, #6 and #7
+            assertThat(confusionMatrix.getTruePositives(), equalTo(2L));  // docs #8 and #9
+            assertThat(confusionMatrix.getFalsePositives(), equalTo(1L));  // doc #4
+            assertThat(confusionMatrix.getTrueNegatives(), equalTo(4L));  // docs #0, #1, #2 and #3
+            assertThat(confusionMatrix.getFalseNegatives(), equalTo(3L));  // docs #5, #6 and #7
         }
         {
             EvaluateDataFrameRequest request = new EvaluateDataFrameRequest(
                 indexName,
+                new QueryConfig(QueryBuilders.termQuery("dataset", "blue")),
                 new BinarySoftClassification(
                     "label",
                     "p",
@@ -3256,6 +3275,72 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::evaluate-data-frame-execute-async
             client.machineLearning().evaluateDataFrameAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::evaluate-data-frame-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testEstimateMemoryUsage() throws Exception {
+        createIndex("estimate-test-source-index");
+        BulkRequest bulkRequest =
+            new BulkRequest("estimate-test-source-index")
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < 10; ++i) {
+            bulkRequest.add(new IndexRequest().source(XContentType.JSON, "timestamp", 123456789L, "total", 10L));
+        }
+        RestHighLevelClient client = highLevelClient();
+        client.bulk(bulkRequest, RequestOptions.DEFAULT);
+        {
+            // tag::estimate-memory-usage-request
+            DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+                .setSource(DataFrameAnalyticsSource.builder().setIndex("estimate-test-source-index").build())
+                .setAnalysis(OutlierDetection.createDefault())
+                .build();
+            PutDataFrameAnalyticsRequest request = new PutDataFrameAnalyticsRequest(config); // <1>
+            // end::estimate-memory-usage-request
+
+            // tag::estimate-memory-usage-execute
+            EstimateMemoryUsageResponse response = client.machineLearning().estimateMemoryUsage(request, RequestOptions.DEFAULT);
+            // end::estimate-memory-usage-execute
+
+            // tag::estimate-memory-usage-response
+            ByteSizeValue expectedMemoryWithoutDisk = response.getExpectedMemoryWithoutDisk(); // <1>
+            ByteSizeValue expectedMemoryWithDisk = response.getExpectedMemoryWithDisk(); // <2>
+            // end::estimate-memory-usage-response
+
+            // We are pretty liberal here as this test does not aim at verifying concrete numbers but rather end-to-end user workflow.
+            ByteSizeValue lowerBound = new ByteSizeValue(1, ByteSizeUnit.KB);
+            ByteSizeValue upperBound = new ByteSizeValue(1, ByteSizeUnit.GB);
+            assertThat(expectedMemoryWithoutDisk, allOf(greaterThan(lowerBound), lessThan(upperBound)));
+            assertThat(expectedMemoryWithDisk, allOf(greaterThan(lowerBound), lessThan(upperBound)));
+        }
+        {
+            DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder()
+                .setSource(DataFrameAnalyticsSource.builder().setIndex("estimate-test-source-index").build())
+                .setAnalysis(OutlierDetection.createDefault())
+                .build();
+            PutDataFrameAnalyticsRequest request = new PutDataFrameAnalyticsRequest(config);
+            // tag::estimate-memory-usage-execute-listener
+            ActionListener<EstimateMemoryUsageResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(EstimateMemoryUsageResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::estimate-memory-usage-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::estimate-memory-usage-execute-async
+            client.machineLearning().estimateMemoryUsageAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::estimate-memory-usage-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
@@ -3624,7 +3709,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     private static final DataFrameAnalyticsConfig DF_ANALYTICS_CONFIG =
-        DataFrameAnalyticsConfig.builder("my-analytics-config")
+        DataFrameAnalyticsConfig.builder()
+            .setId("my-analytics-config")
             .setSource(DataFrameAnalyticsSource.builder()
                 .setIndex("put-test-source-index")
                 .build())

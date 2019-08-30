@@ -406,7 +406,20 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         DataFrameTransformStats stats = statsResponse.getTransformsStats().get(0);
         assertEquals(DataFrameTransformStats.State.STOPPED, stats.getState());
 
-        DataFrameIndexerTransformStats zeroIndexerStats = new DataFrameIndexerTransformStats(0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
+        DataFrameIndexerTransformStats zeroIndexerStats = new DataFrameIndexerTransformStats(
+            0L,
+            0L,
+            0L,
+            0L,
+            0L,
+            0L,
+            0L,
+            0L,
+            0L,
+            0L,
+            0.0,
+            0.0,
+            0.0);
         assertEquals(zeroIndexerStats, stats.getIndexerStats());
 
         // start the transform

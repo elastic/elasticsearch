@@ -368,8 +368,10 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
             boolean runConnect = false;
             final ActionListener<Void> listener =
                 ContextPreservingActionListener.wrapPreservingContext(connectListener, threadPool.getThreadContext());
+            boolean closed;
             synchronized (mutex) {
-                if (closed.get()) {
+                closed = this.closed.get();
+                if (closed) {
                     assert listeners.isEmpty();
                 } else {
                     if (listeners.size() >= MAX_LISTENERS) {
@@ -382,7 +384,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                     runConnect = listeners.size() == 1;
                 }
             }
-            if (closed.get()) {
+            if (closed) {
                 connectListener.onFailure(new AlreadyClosedException("connect handler is already closed"));
                 return;
             }

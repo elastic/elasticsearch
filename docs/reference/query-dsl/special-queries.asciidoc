@@ -31,6 +31,8 @@ A query that allows to modify the score of a sub-query with a script.
 <<query-dsl-wrapper-query,`wrapper` query>>::
 A query that accepts other queries as json or yaml string.
 
+<<query-dsl-pinned-query,`pinned` query>>::
+A query that promotes selected documents over others matching a given query.
 
 include::distance-feature-query.asciidoc[]
 
@@ -45,3 +47,5 @@ include::script-query.asciidoc[]
 include::script-score-query.asciidoc[]
 
 include::wrapper-query.asciidoc[]
+
+include::pinned-query.asciidoc[]

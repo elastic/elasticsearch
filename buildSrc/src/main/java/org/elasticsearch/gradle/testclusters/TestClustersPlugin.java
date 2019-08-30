@@ -19,7 +19,6 @@
 package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
-import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.ReaperPlugin;
 import org.elasticsearch.gradle.ReaperService;
 import org.gradle.api.NamedDomainObjectContainer;
@@ -76,8 +75,6 @@ public class TestClustersPlugin implements Plugin<Project> {
     }
 
     private NamedDomainObjectContainer<ElasticsearchCluster> createTestClustersContainerExtension(Project project) {
-        NamedDomainObjectContainer<ElasticsearchDistribution> distros = DistributionDownloadPlugin.getContainer(project);
-
         // Create an extensions that allows describing clusters
         NamedDomainObjectContainer<ElasticsearchCluster> container = project.container(
             ElasticsearchCluster.class,
@@ -86,7 +83,6 @@ public class TestClustersPlugin implements Plugin<Project> {
                 name,
                 project,
                 reaper,
-                i -> distros.create(name + "-" + i),
                 new File(project.getBuildDir(), "testclusters")
             )
         );

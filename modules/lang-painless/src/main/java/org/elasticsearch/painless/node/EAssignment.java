@@ -75,7 +75,10 @@ public final class EAssignment extends AExpression {
     @Override
     void extractVariables(Set<String> variables) {
         lhs.extractVariables(variables);
-        rhs.extractVariables(variables);
+
+        if (rhs != null) {
+            rhs.extractVariables(variables);
+        }
     }
 
     @Override

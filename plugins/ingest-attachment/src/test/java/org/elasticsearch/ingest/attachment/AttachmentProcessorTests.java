@@ -216,8 +216,8 @@ public class AttachmentProcessorTests extends ESTestCase {
 
     // See (https://issues.apache.org/jira/browse/COMPRESS-432) for information
     // about the issue that causes a zip file to hang in Tika versions prior to 1.18.
-    public void testZipFileDoesNotHang() {
-        expectThrows(Exception.class, () -> parseDocument("bad_tika.zip", processor));
+    public void testZipFileDoesNotHang() throws Exception {
+        parseDocument("bad_tika.zip", processor);
     }
 
     public void testParseAsBytesArray() throws Exception {

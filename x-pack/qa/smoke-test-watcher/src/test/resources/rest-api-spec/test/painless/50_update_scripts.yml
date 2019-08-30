@@ -80,6 +80,8 @@
 "Test condition scripts are updated on execution":
   - skip:
       features: warnings
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/45582"
 
   - do:
       cluster.health:

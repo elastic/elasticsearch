@@ -1,5 +1,8 @@
 [[cat-nodes]]
-=== cat nodes
+=== cat nodes API
+++++
+<titleabbrev>cat nodes</titleabbrev>
+++++
 
 Returns information about a cluster's nodes.
 

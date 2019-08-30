@@ -295,6 +295,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-start-data-frame-analytics>>
 * <<{upid}-stop-data-frame-analytics>>
 * <<{upid}-evaluate-data-frame>>
+* <<{upid}-estimate-memory-usage>>
 * <<{upid}-put-filter>>
 * <<{upid}-get-filters>>
 * <<{upid}-update-filter>>
@@ -346,6 +347,7 @@ include::ml/delete-data-frame-analytics.asciidoc[]
 include::ml/start-data-frame-analytics.asciidoc[]
 include::ml/stop-data-frame-analytics.asciidoc[]
 include::ml/evaluate-data-frame.asciidoc[]
+include::ml/estimate-memory-usage.asciidoc[]
 include::ml/put-filter.asciidoc[]
 include::ml/get-filters.asciidoc[]
 include::ml/update-filter.asciidoc[]

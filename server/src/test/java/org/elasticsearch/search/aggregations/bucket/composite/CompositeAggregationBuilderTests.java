@@ -56,9 +56,6 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
         if (randomBoolean()) {
             geoHash.precision(randomIntBetween(1, 12));
         }
-        if (randomBoolean()) {
-            geoHash.shardSize(randomIntBetween(0, 10_000));
-        }
         return geoHash;
     }
 

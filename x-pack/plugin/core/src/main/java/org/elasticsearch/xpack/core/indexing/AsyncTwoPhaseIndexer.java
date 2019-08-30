@@ -158,10 +158,13 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                         if (r) {
                             nextSearch(ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure));
                         } else {
-                            // If our state is INDEXING then transition to STARTED
-                            // Calling finishAndCheckState here covers the scenarios when
-                            // The indexer was aborted or stopped between the transition to INDEXING and now
-                            finishAndCheckState();
+                            // If we transition to `STOPPED` this means the previous state was `STOPPING`.
+                            // This is because we are guaranteed to originally been in an INDEXING state if `stop` is called.
+                            // Treat this like a `checkState` call that is transitioning to a STOPPED state.
+                            if (finishAndSetState() == IndexerState.STOPPED) {
+                                logger.info("Indexer job encountered [" + IndexerState.STOPPING + "] state, halting indexer.");
+                                doSaveState(getState(), getPosition(), () -> {});
+                            }
                         }
                     },
                     this::finishWithFailure));
@@ -458,41 +461,6 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             // Anything other than indexing, aborting or stopping is unanticipated
             logger.warn("Encountered unexpected state [" + currentState + "] while indexing");
             throw new IllegalStateException("Indexer job encountered an illegal state [" + currentState + "]");
-        }
-    }
-
-    /**
-     * This method is an atomic combination of `finishAndSetState` and `checkState`
-     */
-    private void finishAndCheckState() {
-        AtomicBoolean callOnStop = new AtomicBoolean(false);
-        AtomicBoolean callOnAbort = new AtomicBoolean(false);
-        state.updateAndGet(prev -> {
-            callOnAbort.set(false);
-            callOnStop.set(false);
-            switch (prev) {
-                case INDEXING:
-                    return IndexerState.STARTED;
-                case STOPPING:
-                    callOnStop.set(true);
-                    return IndexerState.STOPPED;
-                case ABORTING:
-                    callOnAbort.set(true);
-                    return IndexerState.ABORTING;
-                case STOPPED:
-                    return IndexerState.STOPPED;
-                default:
-                    // any other state is unanticipated at this point
-                    throw new IllegalStateException("Indexer job encountered an illegal state [" + prev + "]");
-            }
-        });
-
-        if (callOnStop.get()) {
-            onStop();
-            logger.info("Indexer job encountered [" + IndexerState.STOPPING + "] state, halting indexer.");
-            doSaveState(finishAndSetState(), getPosition(), () -> {});
-        } else if (callOnAbort.get()) {
-            onAbort();
         }
     }
 

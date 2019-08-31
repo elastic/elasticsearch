@@ -287,8 +287,7 @@ public class Archives {
             if (Files.exists(Paths.get("/usr/share/java/jayatanaag.jar"))) {
                 sh.getEnv().put("JAVA_TOOL_OPTIONS", "-javaagent:/usr/share/java/jayatanaag.jar");
             }
-            sh.run("sudo -E -u " + ARCHIVE_OWNER + " " +
-                bin.elasticsearch + " -d -p " + installation.home.resolve("elasticsearch.pid") +
+            sh.run("sudo -E -u " + ARCHIVE_OWNER + " " + bin.elasticsearch + " -d -p " + pidFile +
                 " <<<'" + keystorePassword + "'");
         });
 
@@ -300,7 +299,7 @@ public class Archives {
                 "$password = ConvertTo-SecureString 'vagrant' -AsPlainText -Force; " +
                 "$processInfo = New-Object System.Diagnostics.ProcessStartInfo; " +
                 "$processInfo.FileName = '" + bin.elasticsearch + "'; " +
-                "$processInfo.Arguments = '-p " + installation.home.resolve("elasticsearch.pid") + "'; " +
+                "$processInfo.Arguments = '-p " + pidFile + "'; " +
                 "$processInfo.Username = 'vagrant'; " +
                 "$processInfo.Password = $password; " +
                 "$processInfo.RedirectStandardOutput = $true; " +

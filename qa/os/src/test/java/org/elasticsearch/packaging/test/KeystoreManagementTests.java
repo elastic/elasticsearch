@@ -116,23 +116,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Archives.stopElasticsearch(installation);
     }
 
-    private void setKeystorePassword(String password) throws Exception {
-        final Installation.Executables bin = installation.executables();
-
-        // set the password by passing it to stdin twice
-        Platforms.onLinux(() ->
-            selectOnPackaging(
-                () -> sh.run("echo $\'" + password + LINE_SEP + password + LINE_SEP + "\' | "
-                    + bin.elasticsearchKeystore + " passwd"),
-                () -> sh.run("echo $\'" + password + LINE_SEP + password + LINE_SEP + "\' | sudo -u " + ARCHIVE_OWNER + " "
-                    + bin.elasticsearchKeystore + " passwd")
-            )
-        );
-        Platforms.onWindows(() -> {
-            sh.run("echo \"" + password + "`r`n" + password + "`r`n\" | " + bin.elasticsearchKeystore + " passwd");
-        });
-    }
-
     @Test(timeout = 5 * 60 * 1000)
     public void test41wrongKeystorePasswordOnStandardInput() throws Exception {
         assumeTrue("packages will use systemd, which doesn't handle stdin",
@@ -198,22 +181,28 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         try {
             if (isWindows) {
+                // check shell file encoding
+                Shell.Result r1 = sh.run("cmd /c chcp");
+                assertThat(r1.stdout, containsString("Active code page: 437"));
+
                 Files.write(esEnv,
-                    ("set ES_KEYSTORE_PASSPHRASE_FILE=\"" + esKeystorePassphraseFile.toString() + "\"" +
-                        LINE_SEP)
+                    (LINE_SEP + "set ES_KEYSTORE_PASSPHRASE_FILE=C:" + esKeystorePassphraseFile.toString() + LINE_SEP)
                         .getBytes(StandardCharsets.UTF_8),
                     StandardOpenOption.APPEND);
+                Files.createFile(esKeystorePassphraseFile);
+                sh.run("echo \"" + password + "\" | Out-File " +
+                    "-Encoding \"ASCII\" -FilePath \"" + esKeystorePassphraseFile.toString() + "\"");
             } else {
                 assert distribution.platform == Distribution.Platform.LINUX || distribution.platform == Distribution.Platform.DARWIN;
                 Files.write(esEnv,
                     ("ES_KEYSTORE_PASSPHRASE_FILE=" + esKeystorePassphraseFile.toString() + LINE_SEP)
                         .getBytes(StandardCharsets.UTF_8),
                     StandardOpenOption.APPEND);
+                Files.createFile(esKeystorePassphraseFile);
+                Files.write(esKeystorePassphraseFile,
+                    (password + LINE_SEP).getBytes(StandardCharsets.UTF_8),
+                    StandardOpenOption.WRITE);
             }
-            Files.createFile(esKeystorePassphraseFile);
-            Files.write(esKeystorePassphraseFile,
-                (password + LINE_SEP).getBytes(StandardCharsets.UTF_8),
-                StandardOpenOption.WRITE);
 
             startElasticsearch();
             ServerUtils.runElasticsearchTests();
@@ -238,25 +227,29 @@ public class KeystoreManagementTests extends PackagingTestCase {
         try {
             if (isWindows) {
                 Files.write(esEnv,
-                    ("set ES_KEYSTORE_PASSPHRASE_FILE=\"config\\eks\"" + LINE_SEP)
+                    (LINE_SEP + "set ES_KEYSTORE_PASSPHRASE_FILE=C:" + esKeystorePassphraseFile.toString() + LINE_SEP)
                         .getBytes(StandardCharsets.UTF_8),
                     StandardOpenOption.APPEND);
+                Files.createFile(esKeystorePassphraseFile);
+                sh.run("echo \"wrongpassword\" | Out-File " +
+                    "-Encoding \"ASCII\" -FilePath \"" + esKeystorePassphraseFile.toString() + "\"");
             } else {
                 assert distribution.platform == Distribution.Platform.LINUX || distribution.platform == Distribution.Platform.DARWIN;
                 Files.write(esEnv,
                     ("ES_KEYSTORE_PASSPHRASE_FILE=" + esKeystorePassphraseFile.toString() + LINE_SEP)
                         .getBytes(StandardCharsets.UTF_8),
                     StandardOpenOption.APPEND);
+                Files.createFile(esKeystorePassphraseFile);
+                Files.write(esKeystorePassphraseFile,
+                    ("wrongpassword" + LINE_SEP).getBytes(StandardCharsets.UTF_8),
+                    StandardOpenOption.WRITE);
             }
-            Files.createFile(esKeystorePassphraseFile);
-            Files.write(esKeystorePassphraseFile,
-                ("wrongpassword" + LINE_SEP).getBytes(StandardCharsets.UTF_8),
-                StandardOpenOption.WRITE);
 
             assertElasticsearchFailsToStart();
         } finally {
             Files.write(esEnv, originalEnvFile);
             rm(esKeystorePassphraseFile);
+            rmKeystoreIfExists();
         }
     }
 
@@ -287,6 +280,23 @@ public class KeystoreManagementTests extends PackagingTestCase {
         if (Files.exists(keystore)) {
             FileUtils.rm(keystore);
         }
+    }
+
+    private void setKeystorePassword(String password) throws Exception {
+        final Installation.Executables bin = installation.executables();
+
+        // set the password by passing it to stdin twice
+        Platforms.onLinux(() ->
+            selectOnPackaging(
+                () -> sh.run("echo $\'" + password + LINE_SEP + password + LINE_SEP + "\' | "
+                    + bin.elasticsearchKeystore + " passwd"),
+                () -> sh.run("echo $\'" + password + LINE_SEP + password + LINE_SEP + "\' | sudo -u " + ARCHIVE_OWNER + " "
+                    + bin.elasticsearchKeystore + " passwd")
+            )
+        );
+        Platforms.onWindows(() -> {
+            sh.run("echo \"" + password + "`r`n" + password + "`r`n\" | " + bin.elasticsearchKeystore + " passwd");
+        });
     }
 
     private void assertPasswordProtectedKeystore() {

@@ -209,7 +209,7 @@ public class Shell {
 
                 while ((line = reader.readLine()) != null) {
                     appendable.append(line);
-                    appendable.append("\n");
+                    appendable.append(System.lineSeparator());
                 }
 
             } catch (IOException e) {

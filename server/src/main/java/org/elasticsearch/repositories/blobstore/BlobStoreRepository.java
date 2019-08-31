@@ -928,13 +928,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             final List<BlobStoreIndexShardSnapshot.FileInfo> indexCommitPointFiles = new ArrayList<>();
             ArrayList<BlobStoreIndexShardSnapshot.FileInfo> filesToSnapshot = new ArrayList<>();
-            store.incRef();
             final Collection<String> fileNames;
             final Store.MetadataSnapshot metadataFromStore;
             // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
             try {
-                logger.trace(
-                    "[{}] [{}] Loading store metadata using index commit [{}]", shardId, snapshotId, snapshotIndexCommit);
+                logger.trace("[{}] [{}] Loading store metadata using index commit [{}]", shardId, snapshotId, snapshotIndexCommit);
                 metadataFromStore = store.getMetadata(snapshotIndexCommit);
                 fileNames = snapshotIndexCommit.getFileNames();
             } catch (IOException e) {

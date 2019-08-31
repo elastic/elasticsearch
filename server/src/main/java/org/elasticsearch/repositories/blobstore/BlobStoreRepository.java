@@ -1249,6 +1249,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                               IndexShardSnapshotStatus snapshotStatus, Store store) throws IOException {
         final BlobContainer shardContainer = shardContainer(indexId, shardId);
         final String file = fileInfo.physicalName();
+        checkAborted(fileInfo, shardId, snapshotId, snapshotStatus);
         store.incRef();
         try (IndexInput indexInput = store.openVerifyingInput(file, IOContext.READONCE, fileInfo.metadata())) {
             for (int i = 0; i < fileInfo.numberOfParts(); i++) {
@@ -1263,22 +1264,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 inputStream = new FilterInputStream(inputStream) {
                     @Override
                     public int read() throws IOException {
-                        checkAborted();
+                        checkAborted(fileInfo, shardId, snapshotId, snapshotStatus);
                         return super.read();
                     }
 
                     @Override
                     public int read(byte[] b, int off, int len) throws IOException {
-                        checkAborted();
+                        checkAborted(fileInfo, shardId, snapshotId, snapshotStatus);
                         return super.read(b, off, len);
-                    }
-
-                    private void checkAborted() {
-                        if (snapshotStatus.isAborted()) {
-                            logger.debug("[{}] [{}] Aborted on the file [{}], exiting", shardId,
-                                snapshotId, fileInfo.physicalName());
-                            throw new IndexShardSnapshotFailedException(shardId, "Aborted");
-                        }
                     }
                 };
                 shardContainer.writeBlob(fileInfo.partName(i), inputStream, partBytes, true);
@@ -1291,6 +1284,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             throw t;
         } finally {
             store.decRef();
+        }
+    }
+
+    private void checkAborted(BlobStoreIndexShardSnapshot.FileInfo fileInfo, ShardId shardId, SnapshotId snapshotId,
+                              IndexShardSnapshotStatus snapshotStatus) {
+        if (snapshotStatus.isAborted()) {
+            logger.debug("[{}] [{}] Aborted on the file [{}], exiting", shardId,
+                snapshotId, fileInfo.physicalName());
+            throw new IndexShardSnapshotFailedException(shardId, "Aborted");
         }
     }
 

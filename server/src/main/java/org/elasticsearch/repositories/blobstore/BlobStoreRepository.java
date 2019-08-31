@@ -1304,31 +1304,4 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
         }
     }
-
-    /**
-     * Checks if snapshot file already exists in the list of blobs
-     * @param fileInfo file to check
-     * @param blobs list of blobs
-     * @return true if file exists in the list of blobs
-     */
-    private static boolean snapshotFileExistsInBlobs(BlobStoreIndexShardSnapshot.FileInfo fileInfo, Map<String, BlobMetaData> blobs) {
-        BlobMetaData blobMetaData = blobs.get(fileInfo.name());
-        if (blobMetaData != null) {
-            return blobMetaData.length() == fileInfo.length();
-        } else if (blobs.containsKey(fileInfo.partName(0))) {
-            // multi part file sum up the size and check
-            int part = 0;
-            long totalSize = 0;
-            while (true) {
-                blobMetaData = blobs.get(fileInfo.partName(part++));
-                if (blobMetaData == null) {
-                    break;
-                }
-                totalSize += blobMetaData.length();
-            }
-            return totalSize == fileInfo.length();
-        }
-        // no file, not exact and not multipart
-        return false;
-    }
 }

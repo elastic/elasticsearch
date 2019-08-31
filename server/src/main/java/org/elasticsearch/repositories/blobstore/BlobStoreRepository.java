@@ -110,6 +110,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
@@ -898,12 +899,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final ShardId shardId = store.shardId();
         final long startTime = threadPool.absoluteTimeInMillis();
         final StepListener<Void> snapshotDoneListener = new StepListener<>();
+        snapshotDoneListener.whenComplete(v -> store.decRef(), e -> store.decRef());
         snapshotDoneListener.whenComplete(listener::onResponse, e -> {
             snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), ExceptionsHelper.detailedMessage(e));
             listener.onFailure(e instanceof IndexShardSnapshotFailedException ? (IndexShardSnapshotFailedException) e
                 : new IndexShardSnapshotFailedException(store.shardId(), e));
         });
         try {
+            store.incRef();
             logger.debug("[{}] [{}] snapshot to [{}] ...", shardId, snapshotId, metadata.name());
 
             final BlobContainer shardContainer = shardContainer(indexId, shardId);
@@ -928,18 +931,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             store.incRef();
             final Collection<String> fileNames;
             final Store.MetadataSnapshot metadataFromStore;
+            // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
             try {
-                // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
-                try {
-                    logger.trace(
-                        "[{}] [{}] Loading store metadata using index commit [{}]", shardId, snapshotId, snapshotIndexCommit);
-                    metadataFromStore = store.getMetadata(snapshotIndexCommit);
-                    fileNames = snapshotIndexCommit.getFileNames();
-                } catch (IOException e) {
-                    throw new IndexShardSnapshotFailedException(shardId, "Failed to get store file metadata", e);
-                }
-            } finally {
-                store.decRef();
+                logger.trace(
+                    "[{}] [{}] Loading store metadata using index commit [{}]", shardId, snapshotId, snapshotIndexCommit);
+                metadataFromStore = store.getMetadata(snapshotIndexCommit);
+                fileNames = snapshotIndexCommit.getFileNames();
+            } catch (IOException e) {
+                throw new IndexShardSnapshotFailedException(shardId, "Failed to get store file metadata", e);
             }
             int indexIncrementalFileCount = 0;
             int indexTotalNumberOfFiles = 0;
@@ -1048,16 +1047,25 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final GroupedActionListener<Void> filesListener =
                 new GroupedActionListener<>(allFilesUploadedListener, indexIncrementalFileCount);
             final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+            final AtomicBoolean alreadyFailed = new AtomicBoolean();
             for (BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo : filesToSnapshot) {
                 executor.execute(new ActionRunnable<>(filesListener) {
                     @Override
                     protected void doRun() {
                         try {
-                            snapshotFile(snapshotFileInfo, indexId, shardId, snapshotId, snapshotStatus, store);
+                            if (alreadyFailed.get() == false) {
+                                snapshotFile(snapshotFileInfo, indexId, shardId, snapshotId, snapshotStatus, store);
+                            }
                             filesListener.onResponse(null);
                         } catch (IOException e) {
                             throw new IndexShardSnapshotFailedException(shardId, "Failed to perform snapshot (index files)", e);
                         }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        alreadyFailed.set(true);
+                        super.onFailure(e);
                     }
                 });
             }
@@ -1249,7 +1257,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                               IndexShardSnapshotStatus snapshotStatus, Store store) throws IOException {
         final BlobContainer shardContainer = shardContainer(indexId, shardId);
         final String file = fileInfo.physicalName();
-        checkAborted(fileInfo, shardId, snapshotId, snapshotStatus);
         store.incRef();
         try (IndexInput indexInput = store.openVerifyingInput(file, IOContext.READONCE, fileInfo.metadata())) {
             for (int i = 0; i < fileInfo.numberOfParts(); i++) {
@@ -1264,14 +1271,22 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 inputStream = new FilterInputStream(inputStream) {
                     @Override
                     public int read() throws IOException {
-                        checkAborted(fileInfo, shardId, snapshotId, snapshotStatus);
+                        checkAborted();
                         return super.read();
                     }
 
                     @Override
                     public int read(byte[] b, int off, int len) throws IOException {
-                        checkAborted(fileInfo, shardId, snapshotId, snapshotStatus);
+                        checkAborted();
                         return super.read(b, off, len);
+                    }
+
+                    private void checkAborted() {
+                        if (snapshotStatus.isAborted()) {
+                            logger.debug("[{}] [{}] Aborted on the file [{}], exiting", shardId,
+                                snapshotId, fileInfo.physicalName());
+                            throw new IndexShardSnapshotFailedException(shardId, "Aborted");
+                        }
                     }
                 };
                 shardContainer.writeBlob(fileInfo.partName(i), inputStream, partBytes, true);
@@ -1284,15 +1299,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             throw t;
         } finally {
             store.decRef();
-        }
-    }
-
-    private void checkAborted(BlobStoreIndexShardSnapshot.FileInfo fileInfo, ShardId shardId, SnapshotId snapshotId,
-                              IndexShardSnapshotStatus snapshotStatus) {
-        if (snapshotStatus.isAborted()) {
-            logger.debug("[{}] [{}] Aborted on the file [{}], exiting", shardId,
-                snapshotId, fileInfo.physicalName());
-            throw new IndexShardSnapshotFailedException(shardId, "Aborted");
         }
     }
 

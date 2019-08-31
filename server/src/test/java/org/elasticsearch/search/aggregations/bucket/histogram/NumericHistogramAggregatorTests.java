@@ -34,10 +34,9 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
-
 import static org.hamcrest.Matchers.containsString;
 
-public class HistogramAggregatorTests extends AggregatorTestCase {
+public class NumericHistogramAggregatorTests extends AggregatorTestCase {
 
     public void testLongs() throws Exception {
         try (Directory dir = newDirectory();
@@ -295,6 +294,44 @@ public class HistogramAggregatorTests extends AggregatorTestCase {
                 assertEquals(2, histogram.getBuckets().get(1).getDocCount());
                 assertEquals(5 + Math.PI, histogram.getBuckets().get(2).getKey());
                 assertEquals(1, histogram.getBuckets().get(2).getDocCount());
+                assertTrue(AggregationInspectionHelper.hasValue(histogram));
+            }
+        }
+    }
+
+    public void testRandomOffset() throws Exception {
+        try (Directory dir = newDirectory();
+             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            // Note, these values are carefully chosen to ensure that no matter what offset we pick, no two can end up in the same bucket
+            for (double value : new double[] {9.3, 3.2, -5}) {
+                Document doc = new Document();
+                doc.add(new SortedNumericDocValuesField("field", NumericUtils.doubleToSortableLong(value)));
+                w.addDocument(doc);
+            }
+
+            final double offset = randomDouble();
+            final double interval = 5;
+            final double expectedOffset = offset % interval;
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
+                .field("field")
+                .interval(interval)
+                .offset(offset);
+            MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
+            fieldType.setName("field");
+            try (IndexReader reader = w.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                assertEquals(3, histogram.getBuckets().size());
+
+                assertEquals(-10 + expectedOffset, histogram.getBuckets().get(0).getKey());
+                assertEquals(1, histogram.getBuckets().get(0).getDocCount());
+
+                assertEquals(expectedOffset, histogram.getBuckets().get(1).getKey());
+                assertEquals(1, histogram.getBuckets().get(1).getDocCount());
+
+                assertEquals(5 + expectedOffset, histogram.getBuckets().get(2).getKey());
+                assertEquals(1, histogram.getBuckets().get(2).getDocCount());
+
                 assertTrue(AggregationInspectionHelper.hasValue(histogram));
             }
         }

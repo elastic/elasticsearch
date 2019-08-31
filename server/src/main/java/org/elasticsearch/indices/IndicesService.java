@@ -729,6 +729,11 @@ public class IndicesService extends AbstractLifecycleComponent
                 recoveryStats.addTotals(indexShard.recoveryStats());
             }
         }
+
+        @Override
+        public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+
+        }
     }
 
     /**

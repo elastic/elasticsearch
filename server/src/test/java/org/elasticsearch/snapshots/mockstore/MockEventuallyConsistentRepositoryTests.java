@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.snapshots.mockstore;
 
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -62,7 +63,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
     public void testReadAfterWriteConsistently() throws IOException {
         MockEventuallyConsistentRepository.Context blobStoreContext = new MockEventuallyConsistentRepository.Context();
         try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
-            new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY), environment,
+            new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
             xContentRegistry(), mock(ThreadPool.class), blobStoreContext)) {
             repository.start();
             final BlobContainer blobContainer = repository.blobStore().blobContainer(repository.basePath());
@@ -82,7 +83,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
     public void testReadAfterWriteAfterReadThrows() throws IOException {
         MockEventuallyConsistentRepository.Context blobStoreContext = new MockEventuallyConsistentRepository.Context();
         try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
-            new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY), environment,
+            new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
             xContentRegistry(), mock(ThreadPool.class), blobStoreContext)) {
             repository.start();
             final BlobContainer blobContainer = repository.blobStore().blobContainer(repository.basePath());
@@ -98,7 +99,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
     public void testReadAfterDeleteAfterWriteThrows() throws IOException {
         MockEventuallyConsistentRepository.Context blobStoreContext = new MockEventuallyConsistentRepository.Context();
         try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
-            new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY), environment,
+            new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
             xContentRegistry(), mock(ThreadPool.class), blobStoreContext)) {
             repository.start();
             final BlobContainer blobContainer = repository.blobStore().blobContainer(repository.basePath());
@@ -116,7 +117,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
     public void testOverwriteRandomBlobFails() throws IOException {
         MockEventuallyConsistentRepository.Context blobStoreContext = new MockEventuallyConsistentRepository.Context();
         try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
-            new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY), environment,
+            new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
             xContentRegistry(), mock(ThreadPool.class), blobStoreContext)) {
             repository.start();
             final BlobContainer container = repository.blobStore().blobContainer(repository.basePath());
@@ -133,7 +134,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
     public void testOverwriteShardSnapBlobFails() throws IOException {
         MockEventuallyConsistentRepository.Context blobStoreContext = new MockEventuallyConsistentRepository.Context();
         try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
-            new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY), environment,
+            new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
             xContentRegistry(), mock(ThreadPool.class), blobStoreContext)) {
             repository.start();
             final BlobContainer container =
@@ -151,26 +152,26 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
     public void testOverwriteSnapshotInfoBlob() {
         MockEventuallyConsistentRepository.Context blobStoreContext = new MockEventuallyConsistentRepository.Context();
         try (BlobStoreRepository repository = new MockEventuallyConsistentRepository(
-            new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY), environment,
+            new RepositoryMetaData("testRepo", "mockEventuallyConsistent", Settings.EMPTY),
             xContentRegistry(), mock(ThreadPool.class), blobStoreContext)) {
             repository.start();
 
             // We create a snap- blob for snapshot "foo" in the first generation
             final SnapshotId snapshotId = new SnapshotId("foo", UUIDs.randomBase64UUID());
             repository.finalizeSnapshot(snapshotId, Collections.emptyList(), 1L, null, 5, Collections.emptyList(),
-                -1L, false, Collections.emptyMap());
+                -1L, false, MetaData.EMPTY_META_DATA, Collections.emptyMap());
 
             // We try to write another snap- blob for "foo" in the next generation. It fails because the content differs.
             final AssertionError assertionError = expectThrows(AssertionError.class,
                 () -> repository.finalizeSnapshot(
                     snapshotId, Collections.emptyList(), 1L, null, 6, Collections.emptyList(),
-                 0, false, Collections.emptyMap()));
+                 0, false, MetaData.EMPTY_META_DATA, Collections.emptyMap()));
             assertThat(assertionError.getMessage(), equalTo("\nExpected: <6>\n     but: was <5>"));
 
             // We try to write yet another snap- blob for "foo" in the next generation.
             // It passes cleanly because the content of the blob except for the timestamps.
             repository.finalizeSnapshot(snapshotId, Collections.emptyList(), 1L, null, 5, Collections.emptyList(),
-                0, false, Collections.emptyMap());
+                0, false, MetaData.EMPTY_META_DATA, Collections.emptyMap());
         }
     }
 

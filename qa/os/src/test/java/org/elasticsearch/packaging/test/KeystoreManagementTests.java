@@ -181,28 +181,22 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         try {
             if (isWindows) {
-                // check shell file encoding
-                Shell.Result r1 = sh.run("cmd /c chcp");
-                assertThat(r1.stdout, containsString("Active code page: 437"));
-
                 Files.write(esEnv,
                     (LINE_SEP + "set ES_KEYSTORE_PASSPHRASE_FILE=C:" + esKeystorePassphraseFile.toString() + LINE_SEP)
                         .getBytes(StandardCharsets.UTF_8),
                     StandardOpenOption.APPEND);
-                Files.createFile(esKeystorePassphraseFile);
-                sh.run("echo \"" + password + "\" | Out-File " +
-                    "-Encoding \"ASCII\" -FilePath \"" + esKeystorePassphraseFile.toString() + "\"");
             } else {
                 assert distribution.platform == Distribution.Platform.LINUX || distribution.platform == Distribution.Platform.DARWIN;
                 Files.write(esEnv,
                     ("ES_KEYSTORE_PASSPHRASE_FILE=" + esKeystorePassphraseFile.toString() + LINE_SEP)
                         .getBytes(StandardCharsets.UTF_8),
                     StandardOpenOption.APPEND);
-                Files.createFile(esKeystorePassphraseFile);
-                Files.write(esKeystorePassphraseFile,
-                    (password + LINE_SEP).getBytes(StandardCharsets.UTF_8),
-                    StandardOpenOption.WRITE);
             }
+
+            Files.createFile(esKeystorePassphraseFile);
+            Files.write(esKeystorePassphraseFile,
+                (password + LINE_SEP).getBytes(StandardCharsets.UTF_8),
+                StandardOpenOption.WRITE);
 
             startElasticsearch();
             ServerUtils.runElasticsearchTests();
@@ -230,26 +224,23 @@ public class KeystoreManagementTests extends PackagingTestCase {
                     (LINE_SEP + "set ES_KEYSTORE_PASSPHRASE_FILE=C:" + esKeystorePassphraseFile.toString() + LINE_SEP)
                         .getBytes(StandardCharsets.UTF_8),
                     StandardOpenOption.APPEND);
-                Files.createFile(esKeystorePassphraseFile);
-                sh.run("echo \"wrongpassword\" | Out-File " +
-                    "-Encoding \"ASCII\" -FilePath \"" + esKeystorePassphraseFile.toString() + "\"");
             } else {
                 assert distribution.platform == Distribution.Platform.LINUX || distribution.platform == Distribution.Platform.DARWIN;
                 Files.write(esEnv,
                     ("ES_KEYSTORE_PASSPHRASE_FILE=" + esKeystorePassphraseFile.toString() + LINE_SEP)
                         .getBytes(StandardCharsets.UTF_8),
                     StandardOpenOption.APPEND);
-                Files.createFile(esKeystorePassphraseFile);
-                Files.write(esKeystorePassphraseFile,
-                    ("wrongpassword" + LINE_SEP).getBytes(StandardCharsets.UTF_8),
-                    StandardOpenOption.WRITE);
             }
+
+            Files.createFile(esKeystorePassphraseFile);
+            Files.write(esKeystorePassphraseFile,
+                ("wrongpassword" + LINE_SEP).getBytes(StandardCharsets.UTF_8),
+                StandardOpenOption.WRITE);
 
             assertElasticsearchFailsToStart();
         } finally {
             Files.write(esEnv, originalEnvFile);
             rm(esKeystorePassphraseFile);
-            rmKeystoreIfExists();
         }
     }
 

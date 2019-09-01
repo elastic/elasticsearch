@@ -312,6 +312,9 @@ public class Archives {
                 "$process = New-Object System.Diagnostics.Process; " +
                 "$process.StartInfo = $processInfo; " +
                 "$process.Start() | Out-Null; " +
+                // begin asynchronous draining of stderr and stdout - prevent cmd from hanging
+                "$process.BeginOutputReadLine(); " +
+                "$process.BeginErrorReadLine(); " +
                 "$process.StandardInput.WriteLine('" + keystorePassword + "'); " +
                 "$process.Id;"
             );

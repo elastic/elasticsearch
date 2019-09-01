@@ -144,23 +144,23 @@ DELETE /twitter/_doc/1?timeout=5m
 [[docs-delete-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-seq-no]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=if_seq_no]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-primary-term]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=if_primary_term]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-pipeline]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=pipeline]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-refresh]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=refresh]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-routing]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=routing]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-version]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-version-type]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=version_type]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-wait-for-active-shards]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
 [[docs-delete-api-example]]
 ==== {api-examples-title}

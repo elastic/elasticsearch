@@ -20,6 +20,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
@@ -351,14 +352,15 @@ public class FileRolesStoreTests extends ESTestCase {
             assertEquals(1, modifiedRoles.size());
             assertTrue(modifiedRoles.contains("role5"));
             final TransportRequest request = mock(TransportRequest.class);
+            final Authentication authentication = mock(Authentication.class);
             descriptors = store.roleDescriptors(Collections.singleton("role5"));
             assertThat(descriptors, notNullValue());
             assertEquals(1, descriptors.size());
             Role role = Role.builder(descriptors.iterator().next(), null).build();
             assertThat(role, notNullValue());
             assertThat(role.names(), equalTo(new String[] { "role5" }));
-            assertThat(role.cluster().check("cluster:monitor/foo/bar", request), is(true));
-            assertThat(role.cluster().check("cluster:admin/foo/bar", request), is(false));
+            assertThat(role.cluster().check("cluster:monitor/foo/bar", request, authentication), is(true));
+            assertThat(role.cluster().check("cluster:admin/foo/bar", request, authentication), is(false));
 
             // truncate to remove some
             final Set<String> truncatedFileRolesModified = new HashSet<>();

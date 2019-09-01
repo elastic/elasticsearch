@@ -46,22 +46,20 @@ automatically if it doesn't exist. For more information, see <<index-creation>>.
 [[docs-update-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-seq-no]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=if_seq_no]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-primary-term]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=if_primary_term]
 
 `lang`::
 (Optional, string) The script language. Default: `painless`.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-refresh]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=refresh]
 
 `retry_on_conflict`::
 (Optional, integer) Specify how many times should the operation be retried when
  a conflict occurs. Default: 0.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-refresh]
-
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-routing]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=routing]
 
 `_source`::
 (Optional, list) Set to `false` to disable source retrieval (default: `true`).
@@ -75,7 +73,7 @@ You can also specify a comma-separated list of the fields you want to retrieve.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=doc-wait-for-active-shards]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
 [[update-api-example]]
 ==== {api-examples-title}

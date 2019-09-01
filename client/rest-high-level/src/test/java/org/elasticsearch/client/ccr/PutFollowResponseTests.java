@@ -21,6 +21,7 @@ package org.elasticsearch.client.ccr;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 
 import java.io.IOException;
@@ -30,7 +31,7 @@ import static org.hamcrest.Matchers.is;
 public class PutFollowResponseTests extends AbstractResponseTestCase<PutFollowAction.Response, PutFollowResponse> {
 
     @Override
-    protected PutFollowAction.Response createServerTestInstance() {
+    protected PutFollowAction.Response createServerTestInstance(XContentType xContentType) {
         return new PutFollowAction.Response(randomBoolean(), randomBoolean(), randomBoolean());
     }
 

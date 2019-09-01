@@ -85,11 +85,15 @@ public class UpdateHelper {
      * noop).
      */
     @SuppressWarnings("unchecked")
-    protected Result prepare(ShardId shardId, UpdateRequest request, boolean canUseIfSeqNo, GetResult getResult, LongSupplier nowInMillis) {
+    final Result prepare(ShardId shardId, UpdateRequest request, boolean canUseIfSeqNo, GetResult getResult, LongSupplier nowInMillis) {
         if (getResult.isExists() == false) {
             // If the document didn't exist, execute the update request as an upsert
             return prepareUpsert(shardId, request, getResult, nowInMillis);
-        } else if (getResult.internalSourceRef() == null) {
+        }
+        // Documents indexed a mixed cluster between 6.x and 5.x do not have sequence numbers but have primary terms.
+        // We have to fallback using the legacy versioning for updates of those documents.
+        canUseIfSeqNo &= getResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
+        if (getResult.internalSourceRef() == null) {
             // no source, we can't do anything, throw a failure...
             throw new DocumentSourceMissingException(shardId, request.type(), request.id());
         } else if (request.script() == null && request.doc() != null) {

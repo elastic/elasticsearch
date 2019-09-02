@@ -26,14 +26,14 @@ resources, which is why {es} tries to avoid this where possible.
 
 {es} keeps track of the operations it expects to need to replay in future using
 a mechanism called _shard history retention leases_. Each process that might
-need operations to be replayed must first takes out a shard history retention
-lease. For example, this process might be a replica of a shard or it might be a
-shard of a follower index when using {ccr}. Each retention lease keeps track of
-the sequence number of the first operation that the process has not received.
-As the process receives operations, it increases the sequence number contained
-in its retention lease to indicate that it will not need to replay those
-operations in future. {es} can discard soft-deleted operations once they are not
-being held by any retention lease.
+need operations to be replayed must first creates a shard history retention
+lease for itself. For example, this process might be a replica of a shard or it
+might be a shard of a follower index when using {ccr}. Each retention lease
+keeps track of the sequence number of the first operation that the process has
+not received. As the process receives operations, it increases the sequence
+number contained in its retention lease to indicate that it will not need to
+replay those operations in future. {es} can discard soft-deleted operations
+once they are not being held by any retention lease.
 
 If a process crashes then it cannot update its retention lease any more, which
 means that {es} will preserve any new operations so they can be replayed when

@@ -134,7 +134,8 @@ A `{regression}` configuration object has the following properties:
 
 `dependent_variable`::
   (Required, string) Defines which field of the {dataframe} is to be predicted. 
-  The data type of the field must be numeric.
+  The data type of the field must be numeric. It is also known as continuous 
+  target variable.
 
 `eta`::
   (Optional, double) The shrinkage applied to the weights. 
@@ -186,11 +187,3 @@ PUT _ml/data_frame/analytics/wine_quality_white
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:setup_wine_quality_white]
-
-
-[discrete]
-[[regression-resources-response]]
-==== {regression-cap} response object
-
-`is_training`::
-  (boolean) If `true`, the row was used for training the {regression} model.

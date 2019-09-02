@@ -230,7 +230,8 @@ public class EncryptedRepository extends BlobStoreRepository {
                 SecretKey dataEncryptionKey = generateRandomSecretKey();
                 byte[] wrappedDataEncryptionKey = wrapKey(dataEncryptionKey, this.masterSecretKey);
                 try (InputStream stream = new ByteArrayInputStream(wrappedDataEncryptionKey)) {
-                    this.encryptionMetadataBlobContainer.writeBlob(blobName, stream, wrappedDataEncryptionKey.length, failIfAlreadyExists);
+                    // failIfAlreadyExists=true for encryption metadata because overwriting metadata is disastrous
+                    this.encryptionMetadataBlobContainer.writeBlob(blobName, stream, wrappedDataEncryptionKey.length, true);
                 }
                 Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
                 cipher.init(Cipher.ENCRYPT_MODE, dataEncryptionKey, gcmParameterSpec);

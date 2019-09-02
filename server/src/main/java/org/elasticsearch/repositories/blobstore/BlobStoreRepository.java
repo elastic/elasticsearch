@@ -200,7 +200,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private final BlobPath basePath;
 
     protected BlobStoreRepository(BlobStoreRepository other) {
-        this(other.metadata, other.settings, other.namedXContentRegistry, other.threadPool, other.basePath);
+        this(other.metadata, other.namedXContentRegistry, other.threadPool, other.basePath);
     }
 
     /**

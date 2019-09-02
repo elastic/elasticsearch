@@ -150,7 +150,7 @@ A `{regression}` configuration object has the following properties:
   
 `lambda`::
   (Optional, double) A regularization parameters associated with tree training. 
-  It is the L2 regularisation term which applies to leaf weights of the 
+  It is the L2 regularization term which applies to leaf weights of the 
   individual trees in the forest. It aims to prevent overfitting.
   
 `maximum_number_trees`::

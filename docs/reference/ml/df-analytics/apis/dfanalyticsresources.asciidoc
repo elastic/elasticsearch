@@ -162,7 +162,7 @@ A `{regression}` configuration object has the following properties:
   Defaults to `<dependent_variable>_prediction`.
   
 `training_percent`::
-  (Optional, integer) Defines what percentage of data frame rows that are 
+  (Optional, integer) Defines what percentage of the data rows that are 
   eligible for training. Defaults to `100`.
   `100`.
 

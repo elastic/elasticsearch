@@ -81,9 +81,9 @@ public class FilterRepository implements Repository {
     @Override
     public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards,
                                          List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState,
-                                         Map<String, Object> userMetadata) {
+                                         MetaData metaData, Map<String, Object> userMetadata) {
         return in.finalizeSnapshot(snapshotId, indices, startTime, failure, totalShards, shardFailures, repositoryStateId,
-            includeGlobalState, userMetadata);
+            includeGlobalState, metaData, userMetadata);
     }
 
     @Override
@@ -121,13 +121,11 @@ public class FilterRepository implements Repository {
         return in.isReadOnly();
     }
 
-
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
-        in.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus);
+                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, ActionListener<Void> listener) {
+        in.snapshotShard(store, mapperService, snapshotId, indexId, snapshotIndexCommit, snapshotStatus, listener);
     }
-
     @Override
     public void restoreShard(Store store, SnapshotId snapshotId,
                              Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {

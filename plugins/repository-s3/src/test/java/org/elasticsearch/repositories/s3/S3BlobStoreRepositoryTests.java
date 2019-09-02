@@ -284,4 +284,18 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
             exchange.close();
         }
     }
+
+    // override here to mute only for S3, please remove this overload when un-muting
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/46218")
+    @Override
+    public void testSnapshotAndRestore() throws Exception {
+        super.testSnapshotAndRestore();
+    }
+
+    // override here to mute only for S3, pleaseremove this overload when un-muting
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/46219")
+    @Override
+    public void testMultipleSnapshotAndRollback() throws Exception {
+        super.testMultipleSnapshotAndRollback();
+    }
 }

@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 
+import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
@@ -56,13 +57,12 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
         return plugins;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/46174")
     public void testPinnedPromotions() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1",
                         jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")
                                 .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject())
-                .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 2)));
+                .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", randomIntBetween(2, 5))));
 
         int numRelevantDocs = randomIntBetween(1, 100);
         for (int i = 0; i < numRelevantDocs; i++) {
@@ -102,6 +102,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
             int from = randomIntBetween(0, numRelevantDocs);
             int size = randomIntBetween(10, 100);
             SearchResponse searchResponse = client().prepareSearch().setQuery(pqb).setTrackTotalHits(true).setSize(size).setFrom(from)
+                    .setSearchType(DFS_QUERY_THEN_FETCH)
                     .get();
 
             long numHits = searchResponse.getHits().getTotalHits().value;

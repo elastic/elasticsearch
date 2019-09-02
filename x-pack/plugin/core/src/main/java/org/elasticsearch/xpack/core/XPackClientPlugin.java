@@ -55,7 +55,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.dataframe.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.TimeSyncConfig;
-import org.elasticsearch.xpack.core.datascience.DataScienceFeatureSetUsage;
+import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
@@ -555,8 +555,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.FROZEN_INDICES, FrozenIndicesFeatureSetUsage::new),
                 // Spatial
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SPATIAL, SpatialFeatureSetUsage::new),
-                // data science
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_SCIENCE, DataScienceFeatureSetUsage::new)
+                // analytics
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ANALYTICS, AnalyticsFeatureSetUsage::new)
         );
     }
 

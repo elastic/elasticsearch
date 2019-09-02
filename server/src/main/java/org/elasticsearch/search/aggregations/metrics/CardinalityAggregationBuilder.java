@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -96,7 +97,7 @@ public final class CardinalityAggregationBuilder
     }
 
     @Override
-    protected boolean serializeTargetValueType() {
+    protected boolean serializeTargetValueType(Version version) {
         return true;
     }
 

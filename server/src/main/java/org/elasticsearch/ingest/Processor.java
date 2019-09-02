@@ -128,7 +128,7 @@ public interface Processor {
         public final BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler;
 
         /**
-         * Provides access to the client
+         * Provides access to the node client
          */
         public final Client client;
 

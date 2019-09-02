@@ -139,6 +139,7 @@ import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsStats;
 import org.elasticsearch.client.ml.dataframe.OutlierDetection;
 import org.elasticsearch.client.ml.dataframe.QueryConfig;
+import org.elasticsearch.client.ml.dataframe.Regression;
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.BinarySoftClassification;
@@ -2923,16 +2924,28 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .build();
             // end::put-data-frame-analytics-dest-config
 
-            // tag::put-data-frame-analytics-analysis-default
+            // tag::put-data-frame-analytics-outlier-detection-default
             DataFrameAnalysis outlierDetection = OutlierDetection.createDefault(); // <1>
-            // end::put-data-frame-analytics-analysis-default
+            // end::put-data-frame-analytics-outlier-detection-default
 
-            // tag::put-data-frame-analytics-analysis-customized
+            // tag::put-data-frame-analytics-outlier-detection-customized
             DataFrameAnalysis outlierDetectionCustomized = OutlierDetection.builder() // <1>
                 .setMethod(OutlierDetection.Method.DISTANCE_KNN) // <2>
                 .setNNeighbors(5) // <3>
                 .build();
-            // end::put-data-frame-analytics-analysis-customized
+            // end::put-data-frame-analytics-outlier-detection-customized
+
+            // tag::put-data-frame-analytics-regression
+            DataFrameAnalysis regression = Regression.builder("my_dependent_variable") // <1>
+                .setLambda(1.0) // <2>
+                .setGamma(5.5) // <3>
+                .setEta(5.5) // <4>
+                .setMaximumNumberTrees(50) // <5>
+                .setFeatureBagFraction(0.4) // <6>
+                .setPredictionFieldName("my_prediction_field_name") // <7>
+                .setTrainingPercent(50.0) // <8>
+                .build();
+            // end::put-data-frame-analytics-regression
 
             // tag::put-data-frame-analytics-analyzed-fields
             FetchSourceContext analyzedFields =

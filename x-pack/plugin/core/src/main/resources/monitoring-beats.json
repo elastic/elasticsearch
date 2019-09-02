@@ -246,6 +246,89 @@
                 },
                 "apm-server": {
                   "properties": {
+                    "root": {
+                      "properties": {
+                        "unset": {
+                          "type": "long"
+                        },
+                        "request": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "response": {
+                          "properties": {
+                            "errors": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                },
+                                "validate": {
+                                  "type": "long"
+                                },
+                                "decode": {
+                                  "type": "long"
+                                },
+                                "method": {
+                                  "type": "long"
+                                },
+                                "closed": {
+                                  "type": "long"
+                                },
+                                "forbidden": {
+                                  "type": "long"
+                                },
+                                "unavailable": {
+                                  "type": "long"
+                                },
+                                "toolarge": {
+                                  "type": "long"
+                                },
+                                "queue": {
+                                  "type": "long"
+                                },
+                                "invalidquery": {
+                                  "type": "long"
+                                },
+                                "ratelimit": {
+                                  "type": "long"
+                                },
+                                "internal": {
+                                  "type": "long"
+                                },
+                                "notfound": {
+                                  "type": "long"
+                                },
+                                "unauthorized": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "valid": {
+                              "properties": {
+                                "ok": {
+                                  "type": "long"
+                                },
+                                "accepted": {
+                                  "type": "long"
+                                },
+                                "notmodified": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    },
                     "acm": {
                       "properties": {
                         "response": {

@@ -149,7 +149,7 @@ A `{regression}` configuration object has the following properties:
   training will prefer smaller trees. It aims to prevent overfitting.
   
 `lambda`::
-  (Optional, double) A regularisation parameters associated with tree training. 
+  (Optional, double) A regularization parameters associated with tree training. 
   It is the L2 regularisation term which applies to leaf weights of the 
   individual trees in the forest. It aims to prevent overfitting.
   

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -38,7 +39,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class GetPolicyResponseTests extends AbstractResponseTestCase<GetEnrichPolicyAction.Response, GetPolicyResponse> {
 
     @Override
-    protected GetEnrichPolicyAction.Response createServerTestInstance(XContentType xContentType) throws IOException {
+    protected GetEnrichPolicyAction.Response createServerTestInstance(XContentType xContentType) {
         int numPolicies = randomIntBetween(0, 8);
         Map<String, EnrichPolicy> policies = new HashMap<>(numPolicies);
         for (int i = 0; i < numPolicies; i++) {
@@ -75,18 +76,20 @@ public class GetPolicyResponseTests extends AbstractResponseTestCase<GetEnrichPo
         }
     }
 
-    private static EnrichPolicy createRandomEnrichPolicy(XContentType xContentType) throws IOException {
-        XContentBuilder builder = XContentBuilder.builder(xContentType.xContent());
-        builder.startObject();
-        builder.endObject();
-        BytesReference querySource = BytesArray.bytes(builder);
-
-        return new EnrichPolicy(
-            randomAlphaOfLength(4),
-            randomBoolean() ? new EnrichPolicy.QuerySource(querySource, xContentType) : null,
-            Arrays.asList(generateRandomStringArray(8, 4, false, false)),
-            randomAlphaOfLength(4),
-            Arrays.asList(generateRandomStringArray(8, 4, false, false))
-        );
+    private static EnrichPolicy createRandomEnrichPolicy(XContentType xContentType){
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+            builder.startObject();
+            builder.endObject();
+            BytesReference querySource = BytesArray.bytes(builder);
+            return new EnrichPolicy(
+                randomAlphaOfLength(4),
+                randomBoolean() ? new EnrichPolicy.QuerySource(querySource, xContentType) : null,
+                Arrays.asList(generateRandomStringArray(8, 4, false, false)),
+                randomAlphaOfLength(4),
+                Arrays.asList(generateRandomStringArray(8, 4, false, false))
+            );
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 }

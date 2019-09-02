@@ -137,9 +137,11 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
         private final Map<IndexShard, ShardRecoveryContext> ongoingRecoveries = new HashMap<>();
 
-        private List<ActionListener<Void>> emptyListeners = new ArrayList<>();
+        @Nullable
+        private List<ActionListener<Void>> emptyListeners;
 
         synchronized RecoverySourceHandler addNewRecovery(StartRecoveryRequest request, IndexShard shard) {
+            assert lifecycle.started();
             final ShardRecoveryContext shardContext = ongoingRecoveries.computeIfAbsent(shard, s -> new ShardRecoveryContext());
             RecoverySourceHandler handler = shardContext.addNewRecovery(request, shard);
             shard.recoveryStats().incCurrentAsSource();

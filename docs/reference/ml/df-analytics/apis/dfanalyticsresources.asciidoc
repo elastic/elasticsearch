@@ -144,7 +144,7 @@ A `{regression}` configuration object has the following properties:
   selecting a random bag for each candidate split. 
 
 `gamma`::
-  (Optional, double) A regularisation parameter associated with tree training. 
+  (Optional, double) A regularization parameter associated with tree training. 
   Defines a linear penalty associated with tree size. A higher value means 
   training will prefer smaller trees. It aims to prevent overfitting.
   

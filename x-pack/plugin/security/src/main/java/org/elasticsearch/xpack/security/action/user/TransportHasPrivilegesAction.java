@@ -5,19 +5,23 @@
  */
 package org.elasticsearch.xpack.security.action.user;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
@@ -36,15 +40,20 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
     private final ThreadPool threadPool;
     private final AuthorizationService authorizationService;
     private final NativePrivilegeStore privilegeStore;
+    private final SecurityContext securityContext;
+    private final NamedXContentRegistry xContentRegistry;
 
     @Inject
     public TransportHasPrivilegesAction(ThreadPool threadPool, TransportService transportService,
                                         ActionFilters actionFilters, AuthorizationService authorizationService,
-                                        NativePrivilegeStore privilegeStore) {
+                                        NativePrivilegeStore privilegeStore, SecurityContext context,
+                                        NamedXContentRegistry xContentRegistry) {
         super(HasPrivilegesAction.NAME, transportService, actionFilters, HasPrivilegesRequest::new);
         this.threadPool = threadPool;
         this.authorizationService = authorizationService;
         this.privilegeStore = privilegeStore;
+        this.xContentRegistry = xContentRegistry;
+        this.securityContext = context;
     }
 
     @Override
@@ -56,6 +65,15 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
         if (user.principal().equals(username) == false) {
             listener.onFailure(new IllegalArgumentException("users may only check the privileges of their own account"));
             return;
+        }
+
+        if (request.indexPrivileges() != null) {
+            try {
+                DLSRoleQueryValidator.validateQueryField(request.indexPrivileges(), xContentRegistry);
+            } catch (ElasticsearchException | IllegalArgumentException e) {
+                listener.onFailure(e);
+                return;
+            }
         }
 
         resolveApplicationPrivileges(request, ActionListener.wrap(applicationPrivilegeDescriptors ->

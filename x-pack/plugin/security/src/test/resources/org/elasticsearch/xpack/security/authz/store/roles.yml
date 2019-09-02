@@ -65,7 +65,7 @@ role_query_fields:
       privileges:
         - READ
       query:
-        match_all:
+        match_all: {}
       field_security:
         grant:
           - foo

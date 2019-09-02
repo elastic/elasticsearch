@@ -26,4 +26,4 @@ GET /_search
 ==== Top-level parameters for `ids`
 
 `values`::
-An array of <<mapping-id-field, document IDs>>.
+(Required, array of strings) An array of <<mapping-id-field, document IDs>>.

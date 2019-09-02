@@ -352,7 +352,8 @@ POST _reindex
     "type": "user"
   },
   "dest": {
-    "index": "users"
+    "index": "users",
+    "type": "_doc"
   }
 }
 
@@ -363,7 +364,8 @@ POST _reindex
     "type": "tweet"
   },
   "dest": {
-    "index": "tweets"
+    "index": "tweets",
+    "type": "_doc"
   }
 }
 ----
@@ -438,7 +440,7 @@ documents to it using typeless `index` calls, and load documents with typeless
 `get` calls.
 
 [float]
-==== Indices APIs
+==== Index APIs
 
 Index creation, index template, and mapping APIs support a new `include_type_name`
 URL parameter that specifies whether mapping definitions in requests and responses
@@ -718,7 +720,7 @@ indices.
 ==== Mixed-version clusters
 
 In a cluster composed of both 6.8 and 7.0 nodes, the parameter
-`include_type_name` should be specified in indices APIs like index
+`include_type_name` should be specified in index APIs like index
 creation. This is because the parameter has a different default between
 6.8 and 7.0, so the same mapping definition will not be valid for both
 node versions.

@@ -6,7 +6,7 @@
 <titleabbrev>Get influencers</titleabbrev>
 ++++
 
-Retrieves job results for one or more influencers.
+Retrieves {anomaly-job} results for one or more influencers.
 
 [[ml-get-influencer-request]]
 ==== {api-request-title}
@@ -27,7 +27,7 @@ privileges. See {stack-ov}/security-privileges.html[Security privileges] and
 ==== {api-path-parms-title}
 
 `<job_id>`::
-  (Required, string) Identifier for the job.
+  (Required, string) Identifier for the {anomaly-job}.
 
 [[ml-get-influencer-request-body]]
 ==== {api-request-body-title}

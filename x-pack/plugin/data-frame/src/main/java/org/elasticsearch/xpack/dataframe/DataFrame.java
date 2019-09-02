@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
 import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.action.UpdateDataFrameTransformAction;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.dataframe.action.TransportDeleteDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.TransportGetDataFrameTransformsAction;
@@ -60,6 +61,7 @@ import org.elasticsearch.xpack.dataframe.action.TransportPutDataFrameTransformAc
 import org.elasticsearch.xpack.dataframe.action.TransportStartDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.action.TransportStartDataFrameTransformTaskAction;
 import org.elasticsearch.xpack.dataframe.action.TransportStopDataFrameTransformAction;
+import org.elasticsearch.xpack.dataframe.action.TransportUpdateDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
@@ -71,6 +73,7 @@ import org.elasticsearch.xpack.dataframe.rest.action.RestPreviewDataFrameTransfo
 import org.elasticsearch.xpack.dataframe.rest.action.RestPutDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestStartDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.rest.action.RestStopDataFrameTransformAction;
+import org.elasticsearch.xpack.dataframe.rest.action.RestUpdateDataFrameTransformAction;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformPersistentTasksExecutor;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 
@@ -133,13 +136,14 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
         }
 
         return Arrays.asList(
-                new RestPutDataFrameTransformAction(settings, restController),
-                new RestStartDataFrameTransformAction(settings, restController),
-                new RestStopDataFrameTransformAction(settings, restController),
-                new RestDeleteDataFrameTransformAction(settings, restController),
-                new RestGetDataFrameTransformsAction(settings, restController),
-                new RestGetDataFrameTransformsStatsAction(settings, restController),
-                new RestPreviewDataFrameTransformAction(settings, restController)
+                new RestPutDataFrameTransformAction(restController),
+                new RestStartDataFrameTransformAction(restController),
+                new RestStopDataFrameTransformAction(restController),
+                new RestDeleteDataFrameTransformAction(restController),
+                new RestGetDataFrameTransformsAction(restController),
+                new RestGetDataFrameTransformsStatsAction(restController),
+                new RestPreviewDataFrameTransformAction(restController),
+                new RestUpdateDataFrameTransformAction(restController)
         );
     }
 
@@ -157,7 +161,8 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
                 new ActionHandler<>(DeleteDataFrameTransformAction.INSTANCE, TransportDeleteDataFrameTransformAction.class),
                 new ActionHandler<>(GetDataFrameTransformsAction.INSTANCE, TransportGetDataFrameTransformsAction.class),
                 new ActionHandler<>(GetDataFrameTransformsStatsAction.INSTANCE, TransportGetDataFrameTransformsStatsAction.class),
-                new ActionHandler<>(PreviewDataFrameTransformAction.INSTANCE, TransportPreviewDataFrameTransformAction.class)
+                new ActionHandler<>(PreviewDataFrameTransformAction.INSTANCE, TransportPreviewDataFrameTransformAction.class),
+                new ActionHandler<>(UpdateDataFrameTransformAction.INSTANCE, TransportUpdateDataFrameTransformAction.class)
                 );
     }
 
@@ -182,7 +187,9 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
         }
         dataFrameAuditor.set(new DataFrameAuditor(client, clusterService.getNodeName()));
         dataFrameTransformsConfigManager.set(new DataFrameTransformsConfigManager(client, xContentRegistry));
-        dataFrameTransformsCheckpointService.set(new DataFrameTransformsCheckpointService(client, dataFrameTransformsConfigManager.get()));
+        dataFrameTransformsCheckpointService.set(new DataFrameTransformsCheckpointService(client,
+                                                                                          dataFrameTransformsConfigManager.get(),
+                                                                                          dataFrameAuditor.get()));
 
         return Arrays.asList(dataFrameTransformsConfigManager.get(), dataFrameAuditor.get(), dataFrameTransformsCheckpointService.get());
     }
@@ -191,7 +198,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
         return templates -> {
             try {
-                templates.put(DataFrameInternalIndex.INDEX_TEMPLATE_NAME, DataFrameInternalIndex.getIndexTemplateMetaData());
+                templates.put(DataFrameInternalIndex.LATEST_INDEX_VERSIONED_NAME, DataFrameInternalIndex.getIndexTemplateMetaData());
             } catch (IOException e) {
                 logger.error("Error creating data frame index template", e);
             }
@@ -230,6 +237,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
                 settingsModule.getSettings()));
     }
 
+    @Override
     public List<Setting<?>> getSettings() {
         return Collections.singletonList(DataFrameTransformTask.NUM_FAILURE_RETRIES_SETTING);
     }

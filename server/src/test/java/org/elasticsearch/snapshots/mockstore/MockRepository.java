@@ -30,6 +30,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Setting;
@@ -330,14 +331,20 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public void delete() throws IOException {
+            public DeleteResult delete() throws IOException {
+                DeleteResult deleteResult = DeleteResult.ZERO;
                 for (BlobContainer child : children().values()) {
-                    child.delete();
+                    deleteResult = deleteResult.add(child.delete());
                 }
-                for (String blob : listBlobs().values().stream().map(BlobMetaData::name).collect(Collectors.toList())) {
+                final Map<String, BlobMetaData> blobs = listBlobs();
+                long deleteBlobCount = blobs.size();
+                long deleteByteCount = 0L;
+                for (String blob : blobs.values().stream().map(BlobMetaData::name).collect(Collectors.toList())) {
                     deleteBlobIgnoringIfNotExists(blob);
+                    deleteByteCount += blobs.get(blob).length();
                 }
                 blobStore().blobContainer(path().parent()).deleteBlob(path().toArray()[path().toArray().length - 1]);
+                return deleteResult.add(deleteBlobCount, deleteByteCount);
             }
 
             @Override

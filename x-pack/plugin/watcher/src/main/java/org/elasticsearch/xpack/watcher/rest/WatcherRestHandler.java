@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.rest;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
@@ -16,10 +15,6 @@ import java.io.IOException;
 public abstract class WatcherRestHandler extends BaseRestHandler {
 
     protected static String URI_BASE = "/_xpack";
-
-    public WatcherRestHandler(Settings settings) {
-        super(settings);
-    }
 
     @Override
     public final RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {

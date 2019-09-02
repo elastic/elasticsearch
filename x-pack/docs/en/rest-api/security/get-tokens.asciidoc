@@ -7,11 +7,14 @@
 
 Creates a bearer token for access without requiring basic authentication.
 
-==== Request
+[[security-api-get-token-request]]
+==== {api-request-title}
 
 `POST /_security/oauth2/token` 
 
-==== Description
+
+[[security-api-get-token-desc]]
+==== {api-description-title}
 
 The tokens are created by the {es} Token Service, which is automatically enabled
 when you configure TLS on the HTTP interface. See <<tls-http>>. Alternatively,
@@ -35,7 +38,8 @@ If you want to invalidate a token immediately, you can do so by using the
 <<security-api-invalidate-token,invalidate token API>>.
 
 
-==== Request Body
+[[security-api-get-token-request-body]]
+==== {api-request-body-title}
 
 The following parameters can be specified in the body of a POST request and
 pertain to creating a token:
@@ -71,7 +75,8 @@ supported grant type.
 grant type, this parameter is required. This parameter is not valid with any
 other supported grant type.
 
-==== Examples
+[[security-api-get-token-example]]
+==== {api-examples-title}
 
 The following example obtains a token using the `client_credentials` grant type,
 which simply creates a token as the authenticated user:

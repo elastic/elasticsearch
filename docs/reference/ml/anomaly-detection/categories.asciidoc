@@ -68,8 +68,8 @@ we do not want the detailed SQL to be considered in the message categorization.
 This particular categorization filter removes the SQL statement from the categorization
 algorithm.
 
-If your data is stored in {es}, you can create an advanced job with these same
-properties:
+If your data is stored in {es}, you can create an advanced {anomaly-job} with
+these same properties:
 
 [role="screenshot"]
 image::images/ml-category-advanced.jpg["Advanced job configuration options related to categorization"]
@@ -209,7 +209,7 @@ letters in tokens whereas the `ml_classic` tokenizer does, although that could
 be fixed by using more complex regular expressions.
 
 For more information about the `categorization_analyzer` property, see
-{ref}/ml-job-resource.html#ml-categorizationanalyzer[Categorization Analyzer].
+{ref}/ml-job-resource.html#ml-categorizationanalyzer[Categorization analyzer].
 
 NOTE: To add the `categorization_analyzer` property in {kib}, you must use the
 **Edit JSON** tab and copy the `categorization_analyzer` object from one of the

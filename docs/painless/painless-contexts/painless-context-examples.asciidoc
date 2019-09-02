@@ -48,7 +48,7 @@ PUT /seats
   "mappings": {
     "properties": {
       "theatre":  { "type": "keyword" },
-      "play":     { "type": "text"    },
+      "play":     { "type": "keyword" },
       "actors":   { "type": "text"    },
       "row":      { "type": "integer" },
       "number":   { "type": "integer" },
@@ -72,7 +72,7 @@ seat data is indexed.
 +
 [source,js]
 ----
-curl -XPOST localhost:9200/seats/seat/_bulk?pipeline=seats -H "Content-Type: application/x-ndjson" --data-binary "@/<local-file-path>/seats.json"
+curl -XPOST "localhost:9200/seats/_bulk?pipeline=seats" -H "Content-Type: application/x-ndjson" --data-binary "@/<local-file-path>/seats.json"
 ----
 // NOTCONSOLE
 

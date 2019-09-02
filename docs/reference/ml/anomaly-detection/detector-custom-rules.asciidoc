@@ -16,17 +16,18 @@ Let us see how those can be configured by examples.
 
 ==== Specifying custom rule scope
 
-Let us assume we are configuring a job in order to detect DNS data exfiltration.
-Our data contain fields "subdomain" and "highest_registered_domain".
-We can use a detector that looks like `high_info_content(subdomain) over highest_registered_domain`.
-If we run such a job it is possible that we discover a lot of anomalies on 
-frequently used domains that we have reasons to trust. As security analysts, we 
-are not interested in such anomalies. Ideally, we could instruct the detector to 
-skip results for domains that we consider safe. Using a rule with a scope allows 
-us to achieve this.
+Let us assume we are configuring an {anomaly-job} in order to detect DNS data
+exfiltration. Our data contain fields "subdomain" and "highest_registered_domain".
+We can use a detector that looks like
+`high_info_content(subdomain) over highest_registered_domain`. If we run such a
+job, it is possible that we discover a lot of anomalies on frequently used
+domains that we have reasons to trust. As security analysts, we are not
+interested in such anomalies. Ideally, we could instruct the detector to skip
+results for domains that we consider safe. Using a rule with a scope allows us
+to achieve this.
 
 First, we need to create a list of our safe domains. Those lists are called 
-_filters_ in {ml}. Filters can be shared across jobs.
+_filters_ in {ml}. Filters can be shared across {anomaly-jobs}.
 
 We create our filter using the {ref}/ml-put-filter.html[put filter API]:
 
@@ -41,8 +42,8 @@ PUT _ml/filters/safe_domains
 // CONSOLE
 // TEST[skip:needs-licence]
 
-Now, we can create our job specifying a scope that uses the `safe_domains` 
-filter for the `highest_registered_domain` field:
+Now, we can create our {anomaly-job} specifying a scope that uses the
+`safe_domains`  filter for the `highest_registered_domain` field:
 
 [source,js]
 ----------------------------------
@@ -139,8 +140,8 @@ example, 0.02. Given our knowledge about how CPU utilization behaves we might
 determine that anomalies with such small actual values are not interesting for 
 investigation.
 
-Let us now configure a job with a rule that will skip results where CPU 
-utilization is less than 0.20.
+Let us now configure an {anomaly-job} with a rule that will skip results where
+CPU utilization is less than 0.20.
 
 [source,js]
 ----------------------------------
@@ -214,18 +215,18 @@ PUT _ml/anomaly_detectors/rule_with_range
 ==== Custom rules in the life-cycle of a job
 
 Custom rules only affect results created after the rules were applied.
-Let us imagine that we have configured a job and it has been running
+Let us imagine that we have configured an {anomaly-job} and it has been running
 for some time. After observing its results we decide that we can employ
 rules in order to get rid of some uninteresting results. We can use
-the {ref}/ml-update-job.html[update job API] to do so. However, the rule we 
-added will only be in effect for any results created from the moment we added 
-the rule onwards. Past results will remain unaffected.
+the {ref}/ml-update-job.html[update {anomaly-job} API] to do so. However, the
+rule we added will only be in effect for any results created from the moment we
+added  the rule onwards. Past results will remain unaffected.
 
-==== Using custom rules VS filtering data
+==== Using custom rules vs. filtering data
 
 It might appear like using rules is just another way of filtering the data
-that feeds into a job. For example, a rule that skips results when the
-partition field value is in a filter sounds equivalent to having a query
+that feeds into an {anomaly-job}. For example, a rule that skips results when
+the partition field value is in a filter sounds equivalent to having a query
 that filters out such documents. But it is not. There is a fundamental
 difference. When the data is filtered before reaching a job it is as if they
 never existed for the job. With rules, the data still reaches the job and

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
@@ -23,8 +22,6 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchRespon
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 
-import java.io.IOException;
-
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -35,8 +32,7 @@ public class RestAckWatchAction extends WatcherRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestAckWatchAction.class));
 
-    public RestAckWatchAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestAckWatchAction(RestController controller) {
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
             POST, "/_watcher/watch/{id}/_ack", this,
@@ -58,7 +54,7 @@ public class RestAckWatchAction extends WatcherRestHandler {
     }
 
     @Override
-    public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client) throws IOException {
+    public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client) {
         AckWatchRequest ackWatchRequest = new AckWatchRequest(request.param("id"));
         String[] actions = request.paramAsStringArray("actions", null);
         if (actions != null) {

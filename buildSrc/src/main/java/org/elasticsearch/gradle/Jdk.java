@@ -83,9 +83,13 @@ public class Jdk implements Buildable, Iterable<File> {
         return configuration;
     }
 
+    public String getPath() {
+        return configuration.getSingleFile().toString();
+    }
+
     @Override
     public String toString() {
-        return configuration.getSingleFile().toString();
+        return getPath();
     }
 
     @Override

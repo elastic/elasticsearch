@@ -39,7 +39,6 @@ import org.elasticsearch.cluster.ack.CreateIndexClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetaData.State;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -294,8 +293,6 @@ public class MetaDataCreateIndexService {
                 List<IndexTemplateMetaData> templates =
                         MetaDataIndexTemplateService.findTemplates(currentState.metaData(), request.index());
 
-                Map<String, Map<String, String>> customs = new HashMap<>();
-
                 // add the request mapping
                 Map<String, Map<String, Object>> mappings = new HashMap<>();
 
@@ -304,7 +301,10 @@ public class MetaDataCreateIndexService {
                 List<String> templateNames = new ArrayList<>();
 
                 for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
-                    mappings.put(entry.getKey(), MapperService.parseMapping(xContentRegistry, entry.getValue()));
+                    Map<String, Object> mapping = MapperService.parseMapping(xContentRegistry, entry.getValue());
+                    assert mapping.size() == 1 : mapping;
+                    assert entry.getKey().equals(mapping.keySet().iterator().next()) : entry.getKey() + " != " + mapping;
+                    mappings.put(entry.getKey(), mapping);
                 }
 
                 final Index recoverFromIndex = request.recoverFrom();
@@ -542,11 +542,7 @@ public class MetaDataCreateIndexService {
                     indexMetaDataBuilder.putAlias(aliasMetaData);
                 }
 
-                for (Map.Entry<String, Map<String, String>> customEntry : customs.entrySet()) {
-                    indexMetaDataBuilder.putCustom(customEntry.getKey(), customEntry.getValue());
-                }
-
-                indexMetaDataBuilder.state(request.state());
+                indexMetaDataBuilder.state(IndexMetaData.State.OPEN);
 
                 final IndexMetaData indexMetaData;
                 try {
@@ -577,13 +573,11 @@ public class MetaDataCreateIndexService {
 
                 ClusterState updatedState = ClusterState.builder(currentState).blocks(blocks).metaData(newMetaData).build();
 
-                if (request.state() == State.OPEN) {
-                    RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
-                        .addAsNew(updatedState.metaData().index(request.index()));
-                    updatedState = allocationService.reroute(
-                        ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build(),
-                        "index [" + request.index() + "] created");
-                }
+                RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
+                    .addAsNew(updatedState.metaData().index(request.index()));
+                updatedState = allocationService.reroute(
+                    ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build(),
+                    "index [" + request.index() + "] created");
                 removalExtraInfo = "cleaning up after validating index on master";
                 removalReason = IndexRemovalReason.NO_LONGER_ASSIGNED;
                 return updatedState;
@@ -626,11 +620,11 @@ public class MetaDataCreateIndexService {
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ClusterState state) {
         validateIndexName(request.index(), state);
-        validateIndexSettings(request.index(), request.settings(), state, forbidPrivateIndexSettings);
+        validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings);
     }
 
-    public void validateIndexSettings(String indexName, final Settings settings, final ClusterState clusterState,
-                                      final boolean forbidPrivateIndexSettings) throws IndexCreationException {
+    public void validateIndexSettings(String indexName, final Settings settings, final boolean forbidPrivateIndexSettings)
+            throws IndexCreationException {
         List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings);
 
         if (validationErrors.isEmpty() == false) {
@@ -736,9 +730,16 @@ public class MetaDataCreateIndexService {
 
     }
 
+    static void validateCloneIndex(ClusterState state, String sourceIndex,
+                                   Set<String> targetIndexMappingsTypes, String targetIndexName,
+                                   Settings targetIndexSettings) {
+        IndexMetaData sourceMetaData = validateResize(state, sourceIndex, targetIndexMappingsTypes, targetIndexName, targetIndexSettings);
+        IndexMetaData.selectCloneShard(0, sourceMetaData, IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
+    }
+
     static IndexMetaData validateResize(ClusterState state, String sourceIndex,
-                                           Set<String> targetIndexMappingsTypes, String targetIndexName,
-                                           Settings targetIndexSettings) {
+                                        Set<String> targetIndexMappingsTypes, String targetIndexName,
+                                        Settings targetIndexSettings) {
         if (state.metaData().hasIndex(targetIndexName)) {
             throw new ResourceAlreadyExistsException(state.metaData().index(targetIndexName).getIndex());
         }
@@ -790,6 +791,9 @@ public class MetaDataCreateIndexService {
                 .put("index.allocation.max_retries", 1);
         } else if (type == ResizeType.SPLIT) {
             validateSplitIndex(currentState, resizeSourceIndex.getName(), mappingKeys, resizeIntoName, indexSettingsBuilder.build());
+            indexSettingsBuilder.putNull(initialRecoveryIdFilter);
+        } else if (type == ResizeType.CLONE) {
+            validateCloneIndex(currentState, resizeSourceIndex.getName(), mappingKeys, resizeIntoName, indexSettingsBuilder.build());
             indexSettingsBuilder.putNull(initialRecoveryIdFilter);
         } else {
             throw new IllegalStateException("unknown resize type is " + type);

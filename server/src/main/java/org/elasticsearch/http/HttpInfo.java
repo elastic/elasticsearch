@@ -45,7 +45,7 @@ public class HttpInfo implements Writeable, ToXContentFragment {
 
     private final BoundTransportAddress address;
     private final long maxContentLength;
-    private final boolean cnameInPublishHost;
+    private final boolean cnameInPublishHostProperty;
 
     public HttpInfo(StreamInput in) throws IOException {
         this(new BoundTransportAddress(in), in.readLong(), CNAME_IN_PUBLISH_HOST);
@@ -55,10 +55,10 @@ public class HttpInfo implements Writeable, ToXContentFragment {
         this(address, maxContentLength, CNAME_IN_PUBLISH_HOST);
     }
 
-    HttpInfo(BoundTransportAddress address, long maxContentLength, boolean cnameInPublishHost) {
+    HttpInfo(BoundTransportAddress address, long maxContentLength, boolean cnameInPublishHostProperty) {
         this.address = address;
         this.maxContentLength = maxContentLength;
-        this.cnameInPublishHost = cnameInPublishHost;
+        this.cnameInPublishHostProperty = cnameInPublishHostProperty;
     }
 
     @Override
@@ -83,13 +83,11 @@ public class HttpInfo implements Writeable, ToXContentFragment {
         String publishAddressString = publishAddress.toString();
         String hostString = publishAddress.address().getHostString();
         if (InetAddresses.isInetAddress(hostString) == false) {
-            if (cnameInPublishHost) {
-                publishAddressString = hostString + '/' + publishAddress.toString();
-            } else {
+            publishAddressString = hostString + '/' + publishAddress.toString();
+            if (cnameInPublishHostProperty) {
                 deprecationLogger.deprecated(
-                    "[http.publish_host] was printed as [ip:port] instead of [hostname/ip:port]. "
-                        + "This format is deprecated and will change to [hostname/ip:port] in a future version. "
-                        + "Use -Des.http.cname_in_publish_address=true to enforce non-deprecated formatting."
+                        "es.http.cname_in_publish_address system property is deprecated and no longer affects http.publish_address " +
+                                "formatting. Remove this property to get rid of this deprecation warning."
                 );
             }
         }

@@ -70,6 +70,9 @@ public class XPackLicenseState {
             "Creating and Starting rollup jobs will no longer be allowed.",
             "Stopping/Deleting existing jobs, RollupCaps API and RollupSearch continue to function."
         });
+        messages.put(XPackField.ANALYTICS, new String[] {
+            "Aggregations provided by Analytics plugin are no longer usable."
+        });
         EXPIRATION_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -726,6 +729,31 @@ public class XPackLicenseState {
         boolean licensed = operationMode == OperationMode.TRIAL || operationMode == OperationMode.PLATINUM;
 
         return licensed && localStatus.active;
+    }
+
+    /**
+     * Determine if Spatial features should be enabled.
+     * <p>
+     * Spatial features are available in for all license types except
+     * {@link OperationMode#MISSING}
+     *
+     * @return {@code true} as long as the license is valid. Otherwise
+     *         {@code false}.
+     */
+    public boolean isSpatialAllowed() {
+        // status is volatile
+        Status localStatus = status;
+        // Should work on all active licenses
+        return localStatus.active;
+    }
+
+    /**
+     * Analytics is always available as long as there is a valid license
+     *
+     * @return true if the license is active
+     */
+    public synchronized boolean isAnalyticsAllowed() {
+        return status.active;
     }
 
     public synchronized boolean isTrialLicense() {

@@ -18,6 +18,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -533,5 +534,11 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 
     protected static Hasher getFastStoredHashAlgoForTests() {
         return Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
+    }
+
+    protected class TestRestHighLevelClient extends RestHighLevelClient {
+        public TestRestHighLevelClient() {
+            super(getRestClient(), client -> {}, Collections.emptyList());
+        }
     }
 }

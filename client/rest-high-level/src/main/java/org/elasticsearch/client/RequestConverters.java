@@ -554,7 +554,8 @@ final class RequestConverters {
             .withRefresh(reindexRequest.isRefresh())
             .withTimeout(reindexRequest.getTimeout())
             .withWaitForActiveShards(reindexRequest.getWaitForActiveShards())
-            .withRequestsPerSecond(reindexRequest.getRequestsPerSecond());
+            .withRequestsPerSecond(reindexRequest.getRequestsPerSecond())
+            .withSlices(reindexRequest.getSlices());
 
         if (reindexRequest.getScrollTime() != null) {
             params.putParam("scroll", reindexRequest.getScrollTime());
@@ -893,6 +894,10 @@ final class RequestConverters {
 
         Params withRouting(String routing) {
             return putParam("routing", routing);
+        }
+
+        Params withSlices(int slices) {
+            return putParam("slices", String.valueOf(slices));
         }
 
         Params withStoredFields(String[] storedFields) {

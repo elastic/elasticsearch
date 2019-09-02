@@ -4,14 +4,13 @@
 :response: PutJobResponse
 --
 [id="{upid}-{api}"]
-=== Put Job API
+=== Put {anomaly-job} API
 
-The Put Job API can be used to create a new {ml} job
-in the cluster. The API accepts a +{request}+ object
+Creates a new {anomaly-job} in the cluster. The API accepts a +{request}+ object
 as a request and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Put Job Request
+==== Put {anomaly-job} request
 
 A +{request}+ requires the following argument:
 
@@ -19,12 +18,12 @@ A +{request}+ requires the following argument:
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> The configuration of the {ml} job to create as a `Job`
+<1> The configuration of the {anomaly-job} to create as a `Job`
 
 [id="{upid}-{api}-config"]
-==== Job Configuration
+==== Job configuration
 
-The `Job` object contains all the details about the {ml} job
+The `Job` object contains all the details about the {anomaly-job}
 configuration.
 
 A `Job` requires the following arguments:
@@ -39,9 +38,9 @@ include-tagged::{doc-tests-file}[{api}-config]
 <4> Optionally, a human-readable description
 
 [id="{upid}-{api}-analysis-config"]
-==== Analysis Configuration
+==== Analysis configuration
 
-The analysis configuration of the {ml} job is defined in the `AnalysisConfig`.
+The analysis configuration of the {anomaly-job} is defined in the `AnalysisConfig`.
 `AnalysisConfig` reflects all the configuration
 settings that can be defined using the REST API.
 
@@ -86,7 +85,7 @@ include-tagged::{doc-tests-file}[{api}-analysis-config]
 <3> The bucket span
 
 [id="{upid}-{api}-data-description"]
-==== Data Description
+==== Data description
 
 After defining the analysis config, the next thing to define is the
 data description, using a `DataDescription` instance. `DataDescription`

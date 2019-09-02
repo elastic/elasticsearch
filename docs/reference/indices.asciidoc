@@ -12,9 +12,11 @@ index settings, aliases, mappings, and index templates.
 * <<indices-delete-index>>
 * <<indices-get-index>>
 * <<indices-exists>>
+* <<indices-close>>
 * <<indices-open-close>>
 * <<indices-shrink-index>>
 * <<indices-split-index>>
+* <<indices-clone-index>>
 * <<indices-rollover-index>>
 * <<freeze-index-api>>
 * <<unfreeze-index-api>>
@@ -32,6 +34,9 @@ index settings, aliases, mappings, and index templates.
 [float]
 [[alias-management]]
 === Alias management:
+* <<indices-add-alias>>
+* <<indices-get-alias>>
+* <<indices-alias-exists>>
 * <<indices-aliases>>
 
 [float]
@@ -40,6 +45,12 @@ index settings, aliases, mappings, and index templates.
 * <<indices-update-settings>>
 * <<indices-get-settings>>
 * <<indices-analyze>>
+
+[float]
+[[index-templates]]
+=== Index templates:
+* <<indices-delete-template>>
+* <<indices-template-exists>>
 * <<indices-templates>>
 
 [float]
@@ -66,11 +77,15 @@ include::indices/get-index.asciidoc[]
 
 include::indices/indices-exists.asciidoc[]
 
+include::indices/close.asciidoc[]
+
 include::indices/open-close.asciidoc[]
 
 include::indices/shrink-index.asciidoc[]
 
 include::indices/split-index.asciidoc[]
+
+include::indices/clone-index.asciidoc[]
 
 include::indices/rollover-index.asciidoc[]
 
@@ -86,6 +101,12 @@ include::indices/get-field-mapping.asciidoc[]
 
 include::indices/types-exists.asciidoc[]
 
+include::indices/add-alias.asciidoc[]
+
+include::indices/get-alias.asciidoc[]
+
+include::indices/alias-exists.asciidoc[]
+
 include::indices/aliases.asciidoc[]
 
 include::indices/update-settings.asciidoc[]
@@ -93,6 +114,10 @@ include::indices/update-settings.asciidoc[]
 include::indices/get-settings.asciidoc[]
 
 include::indices/analyze.asciidoc[]
+
+include::indices/delete-index-template.asciidoc[]
+
+include::indices/template-exists.asciidoc[]
 
 include::indices/templates.asciidoc[]
 

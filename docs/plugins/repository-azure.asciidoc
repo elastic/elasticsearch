@@ -121,8 +121,8 @@ The Azure repository supports following settings:
 `chunk_size`::
 
     Big files can be broken down into chunks during snapshotting if needed.
-    The chunk size can be specified in bytes or by using size value notation,
-    i.e. `1g`, `10m`, `5k`. Defaults to `64m` (64m max)
+    Specify the chunk size as a value and unit, for example:
+    `10MB`, `5KB`, `500B`. Defaults to `64MB` (64MB max).
 
 `compress`::
 
@@ -154,7 +154,7 @@ PUT _snapshot/my_backup2
     "settings": {
         "container": "backup-container",
         "base_path": "backups",
-        "chunk_size": "32m",
+        "chunk_size": "32MB",
         "compress": true
     }
 }

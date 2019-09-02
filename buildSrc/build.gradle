@@ -71,6 +71,10 @@ sourceSets {
     minimumRuntime { }
 }
 
+configurations {
+  reaper
+}
+
 compileMinimumRuntimeJava {
     targetCompatibility = 8
     sourceCompatibility = 8
@@ -130,6 +134,10 @@ if (project == rootProject) {
       mavenLocal()
     }
   }
+  dependencies {
+    // add this so the runtime classpath so Gradle will properly track it as a build runtime classpath input
+    runtimeOnly project('reaper')
+  }
   // only run tests as build-tools
   test.enabled = false
 }
@@ -145,8 +153,10 @@ if (project != rootProject) {
   apply plugin: 'nebula.maven-base-publish'
   apply plugin: 'nebula.maven-scm'
 
-  targetCompatibility = '10'
-  sourceCompatibility = '10'
+  allprojects {
+    targetCompatibility = 10
+    sourceCompatibility = 10
+  }
 
   // groovydoc succeeds, but has some weird internal exception...
   groovydoc.enabled = false
@@ -162,9 +172,11 @@ if (project != rootProject) {
 
   configurations {
     distribution
+    reaper
   }
 
   dependencies {
+    reaper project('reaper')
     distribution project(':distribution:archives:windows-zip')
     distribution project(':distribution:archives:oss-windows-zip')
     distribution project(':distribution:archives:darwin-tar')
@@ -176,6 +188,9 @@ if (project != rootProject) {
   // for external projects we want to remove the marker file indicating we are running the Elasticsearch project
   processResources {
       exclude 'buildSrc.marker'
+      into('META-INF') {
+          from configurations.reaper
+      }
   }
 
   String localDownloads = "${rootProject.buildDir}/local-downloads"

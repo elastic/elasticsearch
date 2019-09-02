@@ -179,8 +179,13 @@ public class SamlRealmTests extends SamlTestCase {
         final boolean useNameId = randomBoolean();
         final boolean principalIsEmailAddress = randomBoolean();
         final Boolean populateUserMetadata = randomFrom(Boolean.TRUE, Boolean.FALSE, null);
-
-        AuthenticationResult result = performAuthentication(roleMapper, useNameId, principalIsEmailAddress, populateUserMetadata, false);
+        final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
+        AuthenticationResult result = performAuthentication(roleMapper, useNameId, principalIsEmailAddress, populateUserMetadata, false,
+            authenticatingRealm);
+        assertThat(result, notNullValue());
+        assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
+        assertThat(result.getUser().principal(), equalTo(useNameId ? "clint.barton" : "cbarton"));
+        assertThat(result.getUser().email(), equalTo("cbarton@shield.gov"));
         assertThat(result.getUser().roles(), arrayContainingInAnyOrder("superuser"));
         if (populateUserMetadata == Boolean.FALSE) {
             // TODO : "saml_nameid" should be null too, but the logout code requires it for now.
@@ -208,16 +213,29 @@ public class SamlRealmTests extends SamlTestCase {
 
         final boolean useNameId = randomBoolean();
         final boolean principalIsEmailAddress = randomBoolean();
-
-        AuthenticationResult result = performAuthentication(roleMapper, useNameId, principalIsEmailAddress, null, true);
+        final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
+        AuthenticationResult result = performAuthentication(roleMapper, useNameId, principalIsEmailAddress, null, true,
+            authenticatingRealm);
+        assertThat(result, notNullValue());
+        assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
+        assertThat(result.getUser().principal(), equalTo(useNameId ? "clint.barton" : "cbarton"));
+        assertThat(result.getUser().email(), equalTo("cbarton@shield.gov"));
         assertThat(result.getUser().roles(), arrayContainingInAnyOrder("lookup_user_role"));
         assertThat(result.getUser().fullName(), equalTo("Clinton Barton"));
         assertThat(result.getUser().metadata().entrySet(), Matchers.iterableWithSize(1));
         assertThat(result.getUser().metadata().get("is_lookup"), Matchers.equalTo(true));
     }
 
+    public void testAuthenticateWithWrongRealmName() throws Exception {
+        AuthenticationResult result = performAuthentication(mock(UserRoleMapper.class), randomBoolean(), randomBoolean(), null, true,
+            REALM_NAME+randomAlphaOfLength(8));
+        assertThat(result, notNullValue());
+        assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
+    }
+
     private AuthenticationResult performAuthentication(UserRoleMapper roleMapper, boolean useNameId, boolean principalIsEmailAddress,
-                                                       Boolean populateUserMetadata, boolean useAuthorizingRealm) throws Exception {
+                                                       Boolean populateUserMetadata, boolean useAuthorizingRealm,
+                                                       String authenticatingRealm) throws Exception {
         final EntityDescriptor idp = mockIdp();
         final SpConfiguration sp = new SpConfiguration("<sp>", "https://saml/", null, null, null, Collections.emptyList());
         final SamlAuthenticator authenticator = mock(SamlAuthenticator.class);
@@ -255,7 +273,7 @@ public class SamlRealmTests extends SamlTestCase {
         final SamlRealm realm = buildRealm(config, roleMapper, authenticator, logoutHandler, idp, sp);
         initializeRealms(realm, lookupRealm);
 
-        final SamlToken token = new SamlToken(new byte[0], Collections.singletonList("<id>"));
+        final SamlToken token = new SamlToken(new byte[0], Collections.singletonList("<id>"), authenticatingRealm);
 
         final SamlAttributes attributes = new SamlAttributes(
                 new SamlNameId(NameIDType.PERSISTENT, nameIdValue, idp.getEntityID(), sp.getEntityId(), null),
@@ -269,13 +287,7 @@ public class SamlRealmTests extends SamlTestCase {
 
         final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         realm.authenticate(token, future);
-        final AuthenticationResult result = future.get();
-        assertThat(result, notNullValue());
-        assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
-        assertThat(result.getUser().principal(), equalTo(userPrincipal));
-        assertThat(result.getUser().email(), equalTo("cbarton@shield.gov"));
-
-        return result;
+        return future.get();
     }
 
     private void initializeRealms(Realm... realms) {
@@ -370,7 +382,8 @@ public class SamlRealmTests extends SamlTestCase {
         final RealmConfig config = buildConfig(realmSettings);
 
         final SamlRealm realm = buildRealm(config, roleMapper, authenticator, logoutHandler, idp, sp);
-        final SamlToken token = new SamlToken(new byte[0], Collections.singletonList("<id>"));
+        final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
+        final SamlToken token = new SamlToken(new byte[0], Collections.singletonList("<id>"), authenticatingRealm);
 
         for (String mail : Arrays.asList("john@your-corp.example.com", "john@mycorp.example.com.example.net", "john")) {
             final SamlAttributes attributes = new SamlAttributes(

@@ -18,8 +18,8 @@ Starts one or more {dfeeds}.
 [[ml-start-datafeed-prereqs]]
 ==== {api-prereq-title}
 
-* Before you can start a {dfeed}, the job must be open. Otherwise, an error
-occurs.
+* Before you can start a {dfeed}, the {anomaly-job} must be open. Otherwise, an
+error occurs.
 * If {es} {security-features} are enabled, you must have `manage_ml` or `manage`
 cluster privileges to use this API. See
 {stack-ov}/security-privileges.html[Security privileges].
@@ -36,7 +36,8 @@ If you want to analyze from the beginning of a dataset, you can specify any date
 earlier than that beginning date.
 
 If you do not specify a start time and the {dfeed} is associated with a new
-job, the analysis starts from the earliest time for which data is available.
+{anomaly-job}, the analysis starts from the earliest time for which data is
+available.
 
 When you start a {dfeed}, you can also specify an end time. If you do so, the
 job analyzes data from the start time until the end time, at which point the

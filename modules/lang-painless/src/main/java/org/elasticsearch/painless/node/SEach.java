@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
@@ -49,6 +50,15 @@ public class SEach extends AStatement {
         this.name = Objects.requireNonNull(name);
         this.expression = Objects.requireNonNull(expression);
         this.block = block;
+    }
+
+    @Override
+    void storeSettings(CompilerSettings settings) {
+        expression.storeSettings(settings);
+
+        if (block != null) {
+            block.storeSettings(settings);
+        }
     }
 
     @Override

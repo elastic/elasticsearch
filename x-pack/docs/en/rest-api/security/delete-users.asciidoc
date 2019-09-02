@@ -7,28 +7,31 @@
 
 Deletes users from the native realm. 
 
-==== Request
+[[security-api-delete-user-request]]
+==== {api-request-title}
 
 `DELETE /_security/user/<username>` 
 
-==== Description
+[[security-api-delete-user-prereqs]]
+==== {api-prereq-title}
+
+* To use this API, you must have at least the `manage_security` cluster privilege.
+
+[[security-api-delete-user-desc]]
+==== {api-description-title}
 
 For more information about the native realm, see 
 {stack-ov}/realms.html[Realms] and <<configuring-native-realm>>. 
 
-==== Path Parameters
+[[security-api-delete-user-path-params]]
+==== {api-path-parms-title}
 
-`username` (required)::
-  (string) An identifier for the user. 
-
-//==== Request Body
-
-==== Authorization
-
-To use this API, you must have at least the `manage_security` cluster privilege.
+`username`::
+  (Required, string) An identifier for the user. 
 
 
-==== Examples
+[[security-api-delete-user-example]]
+==== {api-examples-title}
 
 The following example deletes the user `jacknich`:
 

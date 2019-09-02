@@ -35,6 +35,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.MockTransportClient;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 
 import java.io.IOException;
@@ -77,6 +78,7 @@ public final class ExternalTestCluster extends TestCluster {
             .put(additionalSettings)
             .put("node.name", InternalTestCluster.TRANSPORT_CLIENT_PREFIX + EXTERNAL_CLUSTER_PREFIX + counter.getAndIncrement())
             .put("client.transport.ignore_cluster_name", true)
+            .put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange())
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir);
         boolean addMockTcpTransport = additionalSettings.get(NetworkModule.TRANSPORT_TYPE_KEY) == null;
 

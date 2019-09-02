@@ -25,7 +25,7 @@ indices.
 
 ==== Request Parameters
 
-include::{docdir}/rest-api/timeoutparms.asciidoc[]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 ==== Authorization
 

@@ -72,6 +72,20 @@ public class DiskThresholdSettings {
     private volatile TimeValue rerouteInterval;
     private volatile Double freeDiskThresholdFloodStage;
     private volatile ByteSizeValue freeBytesThresholdFloodStage;
+    private static final boolean autoReleaseIndexEnabled;
+    public static final String AUTO_RELEASE_INDEX_ENABLED_KEY = "es.disk.auto_release_flood_stage_block";
+
+    static {
+        final String property = System.getProperty(AUTO_RELEASE_INDEX_ENABLED_KEY);
+        if (property == null) {
+            autoReleaseIndexEnabled = true;
+        } else if (Boolean.FALSE.toString().equals(property)){
+            autoReleaseIndexEnabled = false;
+        } else {
+            throw new IllegalArgumentException(AUTO_RELEASE_INDEX_ENABLED_KEY + " may only be unset or set to [false] but was [" +
+                property + "]");
+        }
+    }
 
     public DiskThresholdSettings(Settings settings, ClusterSettings clusterSettings) {
         final String lowWatermark = CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.get(settings);
@@ -284,6 +298,10 @@ public class DiskThresholdSettings {
 
     public ByteSizeValue getFreeBytesThresholdFloodStage() {
         return freeBytesThresholdFloodStage;
+    }
+
+    public boolean isAutoReleaseIndexEnabled() {
+        return autoReleaseIndexEnabled;
     }
 
     public boolean includeRelocations() {

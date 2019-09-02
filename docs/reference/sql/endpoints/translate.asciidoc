@@ -25,9 +25,6 @@ Which returns:
     "size" : 10,
     "docvalue_fields" : [
         {
-            "field": "page_count"
-        },
-        {
             "field": "release_date",
             "format": "epoch_millis"
         }
@@ -35,7 +32,8 @@ Which returns:
     "_source": {
         "includes": [
             "author",
-            "name"
+            "name",
+            "page_count"
         ],
         "excludes": []
     },

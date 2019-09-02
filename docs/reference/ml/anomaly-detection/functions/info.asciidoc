@@ -29,7 +29,7 @@ These functions support the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties, see
-{ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects].
+{ref}/ml-job-resource.html#ml-detectorconfig[Detector configuration objects].
 
 .Example 1: Analyzing subdomain strings with the info_content function
 [source,js]
@@ -42,9 +42,9 @@ For more information about those properties, see
 --------------------------------------------------
 // NOTCONSOLE
 
-If you use this `info_content` function in a detector in your job, it models
-information that is present in the `subdomain` string. It detects anomalies
-where the information content is unusual compared to the other
+If you use this `info_content` function in a detector in your {anomaly-job}, it
+models information that is present in the `subdomain` string. It detects
+anomalies where the information content is unusual compared to the other
 `highest_registered_domain` values. An anomaly could indicate an abuse of the
 DNS protocol, such as malicious command and control activity.
 
@@ -63,8 +63,8 @@ choice.
 --------------------------------------------------
 // NOTCONSOLE
 
-If you use this `high_info_content` function in a detector in your job, it
-models information content that is held in the DNS query string. It detects
+If you use this `high_info_content` function in a detector in your {anomaly-job},
+it models information content that is held in the DNS query string. It detects
 `src_ip` values where the information content is unusually high compared to
 other `src_ip` values. This example is similar to the example for the
 `info_content` function, but it reports anomalies only where the amount of
@@ -81,8 +81,8 @@ information content is higher than expected.
 --------------------------------------------------
 // NOTCONSOLE
 
-If you use this `low_info_content` function in a detector in your job, it models
-information content that is present in the message string for each
+If you use this `low_info_content` function in a detector in your {anomaly-job},
+it models information content that is present in the message string for each
 `logfilename`. It detects anomalies where the information content is low
 compared to its past behavior. For example, this function detects unusually low
 amounts of information in a collection of rolling log files. Low information

@@ -33,13 +33,11 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
     private final long recoveryId;
     private final ShardId shardId;
     private final int totalTranslogOps;
-    private final boolean fileBasedRecovery;
 
-    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId, int totalTranslogOps, boolean fileBasedRecovery) {
+    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId, int totalTranslogOps) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.totalTranslogOps = totalTranslogOps;
-        this.fileBasedRecovery = fileBasedRecovery;
     }
 
     RecoveryPrepareForTranslogOperationsRequest(StreamInput in) throws IOException {
@@ -50,10 +48,8 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
         if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
             in.readLong(); // maxUnsafeAutoIdTimestamp
         }
-        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-            fileBasedRecovery = in.readBoolean();
-        } else {
-            fileBasedRecovery = true;
+        if (in.getVersion().onOrAfter(Version.V_6_2_0) && in.getVersion().before(Version.V_7_4_0)) {
+            in.readBoolean(); // was fileBasedRecovery
         }
     }
 
@@ -69,13 +65,6 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
         return totalTranslogOps;
     }
 
-    /**
-     * Whether or not the recovery is file based
-     */
-    public boolean isFileBasedRecovery() {
-        return fileBasedRecovery;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -85,8 +74,8 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
         if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
             out.writeLong(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP); // maxUnsafeAutoIdTimestamp
         }
-        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
-            out.writeBoolean(fileBasedRecovery);
+        if (out.getVersion().onOrAfter(Version.V_6_2_0) && out.getVersion().before(Version.V_7_4_0)) {
+            out.writeBoolean(true); // was fileBasedRecovery
         }
     }
 }

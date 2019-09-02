@@ -6,6 +6,11 @@
 <titleabbrev>Deprecation info</titleabbrev>
 ++++
 
+IMPORTANT: Use this API to check for deprecated configuration before performing
+a major version upgrade. You should run it on the the last minor version of the
+major version you are upgrading from, as earlier minor versions may not include
+all deprecations.
+
 The deprecation API is to be used to retrieve information about different
 cluster, node, and index level settings that use deprecated features that will
 be removed or changed in the next major version.

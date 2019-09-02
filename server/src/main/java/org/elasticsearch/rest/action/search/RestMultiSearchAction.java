@@ -67,7 +67,6 @@ public class RestMultiSearchAction extends BaseRestHandler {
     private final boolean allowExplicitIndex;
 
     public RestMultiSearchAction(Settings settings, RestController controller) {
-        super(settings);
         controller.registerHandler(GET, "/_msearch", this);
         controller.registerHandler(POST, "/_msearch", this);
         controller.registerHandler(GET, "/{index}/_msearch", this);

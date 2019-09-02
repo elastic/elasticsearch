@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -32,7 +31,7 @@ public class RestSearchTemplateActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        new RestSearchTemplateAction(Settings.EMPTY, controller());
+        new RestSearchTemplateAction(controller());
     }
 
     public void testTypeInPath() {

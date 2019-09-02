@@ -69,7 +69,7 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
             builder.field("version", nodeInfo.getVersion());
             builder.field("build_flavor", nodeInfo.getBuild().flavor().displayName());
             builder.field("build_type", nodeInfo.getBuild().type().displayName());
-            builder.field("build_hash", nodeInfo.getBuild().shortHash());
+            builder.field("build_hash", nodeInfo.getBuild().hash());
             if (nodeInfo.getTotalIndexingBuffer() != null) {
                 builder.humanReadableField("total_indexing_buffer", "total_indexing_buffer_in_bytes", nodeInfo.getTotalIndexingBuffer());
             }

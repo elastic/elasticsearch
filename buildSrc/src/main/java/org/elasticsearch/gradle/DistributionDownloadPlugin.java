@@ -203,12 +203,16 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
         String extension = distribution.getType().toString();
         String classifier = "x86_64";
-        if (distribution.getType() == Type.ARCHIVE) {
+        if (distribution.getVersion().before("7.0.0")) {
+            classifier = null; // no platform specific distros before 7.0
+        } else if (distribution.getType() == Type.ARCHIVE) {
             extension = distribution.getPlatform() == Platform.WINDOWS ? "zip" : "tar.gz";
             classifier = distribution.getPlatform() + "-" + classifier;
+        } else if (distribution.getType() == Type.DEB) {
+            classifier = "amd64";
         }
         return FAKE_IVY_GROUP + ":elasticsearch" + (distribution.getFlavor() == Flavor.OSS ? "-oss:" : ":")
-            + distribution.getVersion() + ":" + classifier + "@" + extension;
+            + distribution.getVersion() + (classifier == null ? "" : ":" + classifier) + "@" + extension;
     }
 
     private static Dependency projectDependency(Project project, String projectPath, String projectConfig) {

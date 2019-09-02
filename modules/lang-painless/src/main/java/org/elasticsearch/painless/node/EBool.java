@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -45,6 +46,12 @@ public final class EBool extends AExpression {
         this.operation = Objects.requireNonNull(operation);
         this.left = Objects.requireNonNull(left);
         this.right = Objects.requireNonNull(right);
+    }
+
+    @Override
+    void storeSettings(CompilerSettings settings) {
+        left.storeSettings(settings);
+        right.storeSettings(settings);
     }
 
     @Override

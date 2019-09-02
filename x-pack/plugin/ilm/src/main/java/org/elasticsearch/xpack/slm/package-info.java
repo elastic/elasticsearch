@@ -13,7 +13,7 @@
  * feature set.
  * This package contains the primary execution logic and most of the user facing
  * surface area for the plugin, but not everything. The model objects for the cluster state as well as several supporting classes are
- * contained in the {@link org.elasticsearch.xpack.core.snapshotlifecycle} package.
+ * contained in the {@link org.elasticsearch.xpack.core.slm} package.
  *
  * <p>{@link org.elasticsearch.xpack.slm.SnapshotLifecycleService} maintains an internal
  * {@link org.elasticsearch.xpack.core.scheduler.SchedulerEngine SchedulerEngine} that handles scheduling snapshots. The service
@@ -35,5 +35,5 @@ package org.elasticsearch.xpack.slm;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
-import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryStore;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore;

@@ -141,7 +141,7 @@ public class ClusterFormationFailureHelper {
             final String discoveryWillContinueDescription = String.format(Locale.ROOT,
                 "discovery will continue using %s from hosts providers and %s from last-known cluster state; " +
                     "node term %d, last-accepted version %d in term %d",
-                resolvedAddresses, clusterStateNodes, currentTerm, clusterState.version(), clusterState.term());
+                resolvedAddresses, clusterStateNodes, currentTerm, clusterState.getVersionOrMetaDataVersion(), clusterState.term());
 
             final String discoveryStateIgnoringQuorum = String.format(Locale.ROOT, "have discovered %s; %s",
                 foundPeers, discoveryWillContinueDescription);
@@ -191,7 +191,8 @@ public class ClusterFormationFailureHelper {
             foundPeers.forEach(voteCollection::addVote);
             final String isQuorumOrNot
                 = electionStrategy.isElectionQuorum(clusterState.nodes().getLocalNode(), currentTerm, clusterState.term(),
-                    clusterState.version(), clusterState.getLastCommittedConfiguration(), clusterState.getLastAcceptedConfiguration(),
+                    clusterState.getVersionOrMetaDataVersion(), clusterState.getLastCommittedConfiguration(),
+                    clusterState.getLastAcceptedConfiguration(),
                     voteCollection) ? "is a quorum" : "is not a quorum";
 
             return String.format(Locale.ROOT,

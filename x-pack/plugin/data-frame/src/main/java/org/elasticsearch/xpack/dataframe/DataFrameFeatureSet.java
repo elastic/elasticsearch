@@ -105,7 +105,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
             listener.onResponse(new DataFrameFeatureSetUsage(available(),
                 enabled(),
                 Collections.emptyMap(),
-                DataFrameIndexerTransformStats.withDefaultTransformId()));
+                new DataFrameIndexerTransformStats()));
             return;
         }
 
@@ -139,7 +139,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
                     listener.onResponse(new DataFrameFeatureSetUsage(available(),
                         enabled(),
                         transformsCountByState,
-                        DataFrameIndexerTransformStats.withDefaultTransformId()));
+                        new DataFrameIndexerTransformStats()));
                     return;
                 }
                 transformsCountByState.merge(DataFrameTransformTaskState.STOPPED.value(), totalTransforms - taskCount, Long::sum);
@@ -154,7 +154,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
             }
         );
 
-        SearchRequest totalTransformCount = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME)
+        SearchRequest totalTransformCount = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME_PATTERN)
             .setTrackTotalHits(true)
             .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), DataFrameTransformConfig.NAME))))
@@ -179,7 +179,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
                 statisticsList.add(0L);
             }
         }
-        return DataFrameIndexerTransformStats.withDefaultTransformId(statisticsList.get(0),  // numPages
+        return new DataFrameIndexerTransformStats(statisticsList.get(0),  // numPages
             statisticsList.get(1),  // numInputDocuments
             statisticsList.get(2),  // numOutputDocuments
             statisticsList.get(3),  // numInvocations
@@ -196,7 +196,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
             .filter(QueryBuilders.termQuery(DataFrameField.INDEX_DOC_TYPE.getPreferredName(),
                     DataFrameTransformStoredDoc.NAME)));
 
-        SearchRequestBuilder requestBuilder = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME)
+        SearchRequestBuilder requestBuilder = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME_PATTERN)
             .setSize(0)
             .setQuery(queryBuilder);
 
@@ -216,7 +216,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
             },
             failure -> {
                 if (failure instanceof ResourceNotFoundException) {
-                    statsListener.onResponse(DataFrameIndexerTransformStats.withDefaultTransformId());
+                    statsListener.onResponse(new DataFrameIndexerTransformStats());
                 } else {
                     statsListener.onFailure(failure);
                 }

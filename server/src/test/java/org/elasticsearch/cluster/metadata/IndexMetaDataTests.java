@@ -203,8 +203,7 @@ public class IndexMetaDataTests extends ESTestCase {
         assertEquals(IndexMetaData.selectShrinkShards(shard, shrink, numTargetShards),
             IndexMetaData.selectRecoverFromShards(shard, shrink, numTargetShards));
 
-        assertEquals("can't select recover from shards if both indices have the same number of shards",
-            expectThrows(IllegalArgumentException.class, () -> IndexMetaData.selectRecoverFromShards(0, shrink, 32)).getMessage());
+        IndexMetaData.selectRecoverFromShards(0, shrink, 32);
     }
 
     public void testSelectSplitShard() {

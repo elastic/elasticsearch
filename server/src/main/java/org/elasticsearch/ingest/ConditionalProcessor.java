@@ -38,7 +38,7 @@ import org.elasticsearch.script.IngestConditionalScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 
-public class ConditionalProcessor extends AbstractProcessor {
+public class ConditionalProcessor extends AbstractProcessor implements WrappingProcessor {
 
     private static final Map<String, String> DEPRECATIONS;
     static {
@@ -98,7 +98,7 @@ public class ConditionalProcessor extends AbstractProcessor {
                 new DeprecationMap(ingestDocument.getSourceAndMetadata(), DEPRECATIONS, "conditional-processor")));
     }
 
-    Processor getProcessor() {
+    public Processor getInnerProcessor() {
         return processor;
     }
 

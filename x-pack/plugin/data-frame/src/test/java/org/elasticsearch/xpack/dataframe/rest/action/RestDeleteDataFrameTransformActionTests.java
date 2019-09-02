@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.dataframe.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -23,8 +22,8 @@ import static org.mockito.Mockito.mock;
 public class RestDeleteDataFrameTransformActionTests extends ESTestCase {
 
     public void testBodyRejection() throws Exception {
-        final RestDeleteDataFrameTransformAction handler = new RestDeleteDataFrameTransformAction(Settings.EMPTY,
-                mock(RestController.class));
+        final RestDeleteDataFrameTransformAction handler = new RestDeleteDataFrameTransformAction(
+            mock(RestController.class));
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
             {

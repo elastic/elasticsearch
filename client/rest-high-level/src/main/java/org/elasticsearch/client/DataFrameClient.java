@@ -33,6 +33,8 @@ import org.elasticsearch.client.dataframe.StartDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StartDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformResponse;
+import org.elasticsearch.client.dataframe.UpdateDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.UpdateDataFrameTransformResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -86,6 +88,51 @@ public final class DataFrameClient {
                 AcknowledgedResponse::fromXContent,
                 listener,
                 Collections.emptySet());
+    }
+
+    /**
+     * Updates an existing Data Frame Transform
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/update-data-frame-transform.html">
+     *     Create data frame transform documentation</a>
+     *
+     * @param request The UpdateDataFrameTransformRequest containing the
+     * {@link org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigUpdate}.
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return An UpdateDataFrameTransformResponse object containing the updated configuration
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public UpdateDataFrameTransformResponse updateDataFrameTransform(UpdateDataFrameTransformRequest request,
+                                                                     RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            DataFrameRequestConverters::updateDataFrameTransform,
+            options,
+            UpdateDataFrameTransformResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Updates an existing Data Frame Transform asynchronously and notifies listener on completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/update-data-frame-transform.html">
+     *     Create data frame transform documentation</a>
+     *
+     * @param request The UpdateDataFrameTransformRequest containing the
+     * {@link org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigUpdate}.
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void updateDataFrameTransformAsync(UpdateDataFrameTransformRequest request,
+                                              RequestOptions options,
+                                              ActionListener<UpdateDataFrameTransformResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            DataFrameRequestConverters::updateDataFrameTransform,
+            options,
+            UpdateDataFrameTransformResponse::fromXContent,
+            listener,
+            Collections.emptySet());
     }
 
     /**

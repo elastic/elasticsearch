@@ -63,7 +63,7 @@ public class DataFrameAnalyticsManager {
     public void execute(DataFrameAnalyticsTask task, DataFrameAnalyticsState currentState) {
         ActionListener<DataFrameAnalyticsConfig> reindexingStateListener = ActionListener.wrap(
             config -> reindexDataframeAndStartAnalysis(task, config),
-            task::markAsFailed
+            error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
         );
 
         // With config in hand, determine action to take
@@ -126,21 +126,31 @@ public class DataFrameAnalyticsManager {
         // Reindexing is complete; start analytics
         ActionListener<RefreshResponse> refreshListener = ActionListener.wrap(
             refreshResponse -> {
+                if (task.isStopping()) {
+                    LOGGER.debug("[{}] Stopping before starting analytics process", config.getId());
+                    return;
+                }
                 task.setReindexingTaskId(null);
                 startAnalytics(task, config, false);
             },
-            task::markAsFailed
+            error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
         );
 
         // Refresh to ensure copied index is fully searchable
         ActionListener<BulkByScrollResponse> reindexCompletedListener = ActionListener.wrap(
-            bulkResponse ->
+            bulkResponse -> {
+                if (task.isStopping()) {
+                    LOGGER.debug("[{}] Stopping before refreshing destination index", config.getId());
+                    return;
+                }
+                task.setReindexingFinished();
                 ClientHelper.executeAsyncWithOrigin(client,
                     ClientHelper.ML_ORIGIN,
                     RefreshAction.INSTANCE,
                     new RefreshRequest(config.getDest().getIndex()),
-                    refreshListener),
-            task::markAsFailed
+                    refreshListener);
+            },
+            error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
         );
 
         // Reindex
@@ -187,6 +197,9 @@ public class DataFrameAnalyticsManager {
     }
 
     private void startAnalytics(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config, boolean isTaskRestarting) {
+        // Ensure we mark reindexing is finished for the case we are recovering a task that had finished reindexing
+        task.setReindexingFinished();
+
         // Update state to ANALYZING and start process
         ActionListener<DataFrameDataExtractorFactory> dataExtractorFactoryListener = ActionListener.wrap(
             dataExtractorFactory -> {
@@ -196,21 +209,21 @@ public class DataFrameAnalyticsManager {
                     updatedTask -> processManager.runJob(task, config, dataExtractorFactory,
                         error -> {
                             if (error != null) {
-                                task.markAsFailed(error);
+                                task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage());
                             } else {
                                 task.markAsCompleted();
                             }
                         }),
-                    task::markAsFailed
+                    error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
                 ));
             },
-            task::markAsFailed
+            error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
         );
 
         // TODO This could fail with errors. In that case we get stuck with the copied index.
         // We could delete the index in case of failure or we could try building the factory before reindexing
         // to catch the error early on.
-        DataFrameDataExtractorFactory.create(client, config, isTaskRestarting, dataExtractorFactoryListener);
+        DataFrameDataExtractorFactory.createForDestinationIndex(client, config, isTaskRestarting, dataExtractorFactoryListener);
     }
 
     public void stop(DataFrameAnalyticsTask task) {

@@ -8,14 +8,11 @@ package org.elasticsearch.license;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.rest.XPackRestHandler;
-
-import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -24,8 +21,7 @@ public class RestPutLicenseAction extends XPackRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPutLicenseAction.class));
 
-    RestPutLicenseAction(Settings settings, RestController controller) {
-        super(settings);
+    RestPutLicenseAction(RestController controller) {
         // TODO: remove POST endpoint?
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
@@ -43,7 +39,7 @@ public class RestPutLicenseAction extends XPackRestHandler {
     }
 
     @Override
-    public RestChannelConsumer doPrepareRequest(final RestRequest request, final XPackClient client) throws IOException {
+    public RestChannelConsumer doPrepareRequest(final RestRequest request, final XPackClient client) {
         if (request.hasContent() == false) {
             throw new IllegalArgumentException("The license must be provided in the request body");
         }

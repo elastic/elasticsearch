@@ -14,6 +14,7 @@ import org.elasticsearch.common.joda.JodaDeprecationPatterns;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -27,6 +28,8 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 
 public class IndexDeprecationChecksTests extends ESTestCase {
     public void testOldIndicesCheck() {
@@ -381,5 +384,32 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             }
         }
         mappingBuilder.endObject();
+    }
+
+    public void testTranslogRetentionSettings() {
+        Settings.Builder settings = settings(Version.CURRENT);
+        settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomPositiveTimeValue());
+        settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 1024) + "b");
+        IndexMetaData indexMetaData = IndexMetaData.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
+        assertThat(issues, contains(
+            new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "translog retention settings are ignored",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-translog.html",
+                "translog retention settings [index.translog.retention.size] and [index.translog.retention.age] are ignored " +
+                    "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)")
+        ));
+    }
+
+    public void testDefaultTranslogRetentionSettings() {
+        Settings.Builder settings = settings(Version.CURRENT);
+        if (randomBoolean()) {
+            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), randomPositiveTimeValue());
+            settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 1024) + "b");
+            settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false);
+        }
+        IndexMetaData indexMetaData = IndexMetaData.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
+        assertThat(issues, empty());
     }
 }

@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
 import org.elasticsearch.xpack.ccr.action.CcrRequests;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
+import org.elasticsearch.xpack.ccr.action.ShardFollowTaskCleaner;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTasksExecutor;
 import org.elasticsearch.xpack.ccr.action.TransportCcrStatsAction;
 import org.elasticsearch.xpack.ccr.action.TransportDeleteAutoFollowPatternAction;
@@ -184,6 +185,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             ccrLicenseChecker,
             restoreSourceService,
             new CcrRepositoryManager(settings, clusterService, client),
+            new ShardFollowTaskCleaner(clusterService, threadPool, client),
             new AutoFollowCoordinator(
                 settings,
                 client,
@@ -248,20 +250,20 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
         return Arrays.asList(
                 // stats API
-                new RestFollowStatsAction(settings, restController),
-                new RestCcrStatsAction(settings, restController),
-                new RestFollowInfoAction(settings, restController),
+                new RestFollowStatsAction(restController),
+                new RestCcrStatsAction(restController),
+                new RestFollowInfoAction(restController),
                 // follow APIs
-                new RestPutFollowAction(settings, restController),
-                new RestResumeFollowAction(settings, restController),
-                new RestPauseFollowAction(settings, restController),
-                new RestUnfollowAction(settings, restController),
+                new RestPutFollowAction(restController),
+                new RestResumeFollowAction(restController),
+                new RestPauseFollowAction(restController),
+                new RestUnfollowAction(restController),
                 // auto-follow APIs
-                new RestDeleteAutoFollowPatternAction(settings, restController),
-                new RestPutAutoFollowPatternAction(settings, restController),
-                new RestGetAutoFollowPatternAction(settings, restController),
+                new RestDeleteAutoFollowPatternAction(restController),
+                new RestPutAutoFollowPatternAction(restController),
+                new RestGetAutoFollowPatternAction(restController),
                 // forget follower API
-                new RestForgetFollowerAction(settings, restController));
+                new RestForgetFollowerAction(restController));
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {

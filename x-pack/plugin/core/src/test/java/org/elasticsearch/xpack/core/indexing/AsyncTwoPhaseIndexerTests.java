@@ -88,10 +88,10 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void onStart(long now, ActionListener<Void> listener) {
+        protected void onStart(long now, ActionListener<Boolean> listener) {
             assertThat(step, equalTo(0));
             ++step;
-            listener.onResponse(null);
+            listener.onResponse(true);
         }
 
         @Override
@@ -186,9 +186,9 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void onStart(long now, ActionListener<Void> listener) {
+        protected void onStart(long now, ActionListener<Boolean> listener) {
             started = true;
-            listener.onResponse(null);
+            listener.onResponse(true);
         }
 
         @Override
@@ -270,10 +270,10 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void onStart(long now, ActionListener<Void> listener) {
+        protected void onStart(long now, ActionListener<Boolean> listener) {
             assertThat(step, equalTo(0));
             ++step;
-            listener.onResponse(null);
+            listener.onResponse(true);
         }
 
         @Override
@@ -393,7 +393,6 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
-            assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
             assertTrue(awaitBusy(() -> isFinished.get()));
             indexer.assertCounters();
         } finally {

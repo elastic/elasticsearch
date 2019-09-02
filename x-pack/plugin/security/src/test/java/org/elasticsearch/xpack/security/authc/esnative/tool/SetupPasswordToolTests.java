@@ -350,7 +350,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
             fail("Should have thrown exception");
         } catch (UserException e) {
             assertEquals(ExitCodes.OK, e.exitCode);
-            assertThat(terminal.getOutput(), Matchers.containsString("Your cluster health is currently RED."));
+            assertThat(terminal.getErrorOutput(), Matchers.containsString("Your cluster health is currently RED."));
         }
     }
 

@@ -19,10 +19,12 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -386,6 +388,34 @@ public class EsExecutorsTests extends ESTestCase {
             latch.countDown();
             terminate(executor);
         }
+    }
+
+    public void testNodeProcessorsBound() {
+        runProcessorsBoundTest(EsExecutors.NODE_PROCESSORS_SETTING);
+    }
+
+    public void testProcessorsBound() {
+        runProcessorsBoundTest(EsExecutors.PROCESSORS_SETTING);
+    }
+
+    private void runProcessorsBoundTest(final Setting<Integer> processorsSetting) {
+        final int available = Runtime.getRuntime().availableProcessors();
+        final int processors = randomIntBetween(available + 1, Integer.MAX_VALUE);
+        final Settings settings = Settings.builder().put(processorsSetting.getKey(), processors).build();
+        processorsSetting.get(settings);
+        final Setting<?>[] deprecatedSettings;
+        if (processorsSetting.getProperties().contains(Setting.Property.Deprecated)) {
+            deprecatedSettings = new Setting<?>[]{processorsSetting};
+        } else {
+            deprecatedSettings = new Setting<?>[0];
+        }
+        final String expectedWarning = String.format(
+            Locale.ROOT,
+            "setting [%s] to value [%d] which is more than available processors [%d] is deprecated",
+            processorsSetting.getKey(),
+            processors,
+            available);
+        assertSettingDeprecationsAndWarnings(deprecatedSettings, expectedWarning);
     }
 
 }

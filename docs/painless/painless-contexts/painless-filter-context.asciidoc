@@ -43,7 +43,7 @@ all available theatre seats for evening performances that are under $18.
 
 [source,js]
 ----
-GET evening/_search
+GET seats/_search
 {
     "query": {
         "bool" : {

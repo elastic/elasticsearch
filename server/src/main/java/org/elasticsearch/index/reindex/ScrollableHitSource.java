@@ -21,6 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Nullable;
@@ -71,23 +72,28 @@ public abstract class ScrollableHitSource {
     }
 
     public final void start() {
-        doStart(response -> {
-           setScroll(response.getScrollId());
-           logger.debug("scroll returned [{}] documents with a scroll id of [{}]", response.getHits().size(), response.getScrollId());
-           onResponse(response);
-        });
+        doStart(createRetryListener(this::doStart));
     }
-    protected abstract void doStart(Consumer<? super Response> onResponse);
 
-    final void startNextScroll(TimeValue extraKeepAlive) {
-        doStartNextScroll(scrollId.get(), extraKeepAlive, response -> {
-            setScroll(response.getScrollId());
-            onResponse(response);
-        });
+    private RetryListener createRetryListener(Consumer<RejectAwareActionListener<Response>> retryHandler) {
+        Consumer<RejectAwareActionListener<Response>> countingRetryHandler = listener -> {
+            countSearchRetry.run();
+            retryHandler.accept(listener);
+        };
+        return new RetryListener(logger, threadPool, backoffPolicy, countingRetryHandler,
+            ActionListener.wrap(this::onResponse, fail));
     }
-    protected abstract void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, Consumer<? super Response> onResponse);
+
+    // package private for tests.
+    final void startNextScroll(TimeValue extraKeepAlive) {
+        startNextScroll(extraKeepAlive, createRetryListener(listener -> startNextScroll(extraKeepAlive, listener)));
+    }
+    private void startNextScroll(TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
+        doStartNextScroll(scrollId.get(), extraKeepAlive, searchListener);
+    }
 
     private void onResponse(Response response) {
+        logger.debug("scroll returned [{}] documents with a scroll id of [{}]", response.getHits().size(), response.getScrollId());
         setScroll(response.getScrollId());
         onResponse.accept(new AsyncResponse() {
             private AtomicBoolean alreadyDone = new AtomicBoolean();
@@ -112,6 +118,12 @@ public abstract class ScrollableHitSource {
             cleanup(onCompletion);
         }
     }
+
+    // following is the SPI to be implemented.
+    protected abstract void doStart(RejectAwareActionListener<Response> searchListener);
+
+    protected abstract void doStartNextScroll(String scrollId, TimeValue extraKeepAlive,
+                                              RejectAwareActionListener<Response> searchListener);
 
     /**
      * Called to clear a scroll id.

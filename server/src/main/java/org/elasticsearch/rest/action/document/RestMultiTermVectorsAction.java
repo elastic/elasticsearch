@@ -25,7 +25,6 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -43,8 +42,7 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " +
         "Specifying types in multi term vector requests is deprecated.";
 
-    public RestMultiTermVectorsAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestMultiTermVectorsAction(RestController controller) {
         controller.registerHandler(GET, "/_mtermvectors", this);
         controller.registerHandler(POST, "/_mtermvectors", this);
         controller.registerHandler(GET, "/{index}/_mtermvectors", this);

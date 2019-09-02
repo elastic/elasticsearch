@@ -41,7 +41,8 @@ public class DeprecationChecks {
 
     static List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> NODE_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
-            // STUB
+            NodeDeprecationChecks::checkPidfile,
+            NodeDeprecationChecks::checkProcessors
         ));
 
     static List<Function<IndexMetaData, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
@@ -49,7 +50,8 @@ public class DeprecationChecks {
             IndexDeprecationChecks::oldIndicesCheck,
             IndexDeprecationChecks::tooManyFieldsCheck,
             IndexDeprecationChecks::chainedMultiFieldsCheck,
-            IndexDeprecationChecks::deprecatedDateTimeFormat
+            IndexDeprecationChecks::deprecatedDateTimeFormat,
+            IndexDeprecationChecks::translogRetentionSettingCheck
         ));
 
     static List<BiFunction<DatafeedConfig, NamedXContentRegistry, DeprecationIssue>> ML_SETTINGS_CHECKS =

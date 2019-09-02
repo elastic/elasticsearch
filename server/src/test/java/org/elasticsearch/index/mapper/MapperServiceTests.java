@@ -57,7 +57,6 @@ import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.startsWith;
 
 public class MapperServiceTests extends ESSingleNodeTestCase {
 
@@ -296,36 +295,6 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                             .mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         });
         assertEquals("Limit of total fields [" + numberOfNonAliasFields + "] in index [test2] has been exceeded", e.getMessage());
-    }
-
-    public void testForbidMultipleTypes() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
-        MapperService mapperService = createIndex("test").mapperService();
-        mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
-
-        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type2").endObject().endObject());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> mapperService.merge("type2", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE));
-        assertThat(e.getMessage(), startsWith("Rejecting mapping update to [test] as the final mapping would have more than 1 type: "));
-    }
-
-    /**
-     * This test checks that the multi-type validation is done before we do any other kind of validation on the mapping that's added,
-     * see https://github.com/elastic/elasticsearch/issues/29313
-     */
-    public void testForbidMultipleTypesWithConflictingMappings() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field1").field("type", "integer_range")
-            .endObject().endObject().endObject().endObject());
-        MapperService mapperService = createIndex("test").mapperService();
-        mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
-
-        String mapping2 = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type2")
-            .startObject("properties").startObject("field1").field("type", "integer")
-            .endObject().endObject().endObject().endObject());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> mapperService.merge("type2", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE));
-        assertThat(e.getMessage(), startsWith("Rejecting mapping update to [test] as the final mapping would have more than 1 type: "));
     }
 
     public void testDefaultMappingIsRejectedOn7() throws IOException {

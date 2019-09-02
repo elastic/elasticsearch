@@ -61,8 +61,8 @@ import static org.hamcrest.Matchers.is;
 
 public class ClusterApplierServiceTests extends ESTestCase {
 
-    protected static ThreadPool threadPool;
-    protected TimedClusterApplierService clusterApplierService;
+    private static ThreadPool threadPool;
+    private TimedClusterApplierService clusterApplierService;
 
     @BeforeClass
     public static void createThreadPool() {
@@ -192,13 +192,15 @@ public class ClusterApplierServiceTests extends ESTestCase {
                         "test2",
                         ClusterApplierService.class.getCanonicalName(),
                         Level.WARN,
-                        "*cluster state applier task [test2] took [32s] which is above the warn threshold of *"));
+                        "*cluster state applier task [test2] took [32s] which is above the warn threshold of [*]: " +
+                            "[running task [test2]] took [*"));
         mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                         "test4",
                         ClusterApplierService.class.getCanonicalName(),
                         Level.WARN,
-                        "*cluster state applier task [test3] took [34s] which is above the warn threshold of *"));
+                        "*cluster state applier task [test3] took [34s] which is above the warn threshold of [*]: " +
+                            "[running task [test3]] took [*"));
 
         Logger clusterLogger = LogManager.getLogger(ClusterApplierService.class);
         Loggers.addAppender(clusterLogger, mockAppender);
@@ -273,7 +275,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
         mockAppender.assertAllExpectationsMatched();
     }
 
-    public void testLocalNodeMasterListenerCallbacks() throws Exception {
+    public void testLocalNodeMasterListenerCallbacks() {
         TimedClusterApplierService timedClusterApplierService = createTimedClusterService(false);
 
         AtomicBoolean isMaster = new AtomicBoolean();
@@ -493,7 +495,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
     static class TimedClusterApplierService extends ClusterApplierService {
 
         final ClusterSettings clusterSettings;
-        public volatile Long currentTimeOverride = null;
+        volatile Long currentTimeOverride = null;
 
         TimedClusterApplierService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
             super("test_node", settings, clusterSettings, threadPool);

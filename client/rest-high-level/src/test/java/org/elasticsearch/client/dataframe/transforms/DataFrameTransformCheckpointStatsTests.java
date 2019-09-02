@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.dataframe.transforms;
 
-import org.elasticsearch.client.core.IndexerState;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 
@@ -41,7 +40,6 @@ public class DataFrameTransformCheckpointStatsTests extends ESTestCase {
 
     public static DataFrameTransformCheckpointStats randomDataFrameTransformCheckpointStats() {
         return new DataFrameTransformCheckpointStats(randomLongBetween(1, 1_000_000),
-            randomBoolean() ? null : randomFrom(IndexerState.values()),
             randomBoolean() ? null : DataFrameIndexerPositionTests.randomDataFrameIndexerPosition(),
             randomBoolean() ? null : DataFrameTransformProgressTests.randomInstance(),
             randomLongBetween(1, 1_000_000), randomLongBetween(0, 1_000_000));
@@ -50,9 +48,6 @@ public class DataFrameTransformCheckpointStatsTests extends ESTestCase {
     public static void toXContent(DataFrameTransformCheckpointStats stats, XContentBuilder builder) throws IOException {
         builder.startObject();
         builder.field(DataFrameTransformCheckpointStats.CHECKPOINT.getPreferredName(), stats.getCheckpoint());
-        if (stats.getIndexerState() != null) {
-            builder.field(DataFrameTransformCheckpointStats.INDEXER_STATE.getPreferredName(), stats.getIndexerState().value());
-        }
         if (stats.getPosition() != null) {
             builder.field(DataFrameTransformCheckpointStats.POSITION.getPreferredName());
             DataFrameIndexerPositionTests.toXContent(stats.getPosition(), builder);

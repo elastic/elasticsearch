@@ -7,30 +7,33 @@
 
 Removes role mappings.
 
-==== Request
+[[security-api-delete-role-mapping-request]]
+==== {api-request-title}
 
 `DELETE /_security/role_mapping/<name>` 
 
-==== Description
+[[security-api-delete-role-mapping-prereqs]]
+==== {api-prereq-title}
+
+* To use this API, you must have at least the `manage_security` cluster privilege.
+
+[[security-api-delete-role-mapping-desc]]
+==== {api-description-title}
 
 Role mappings define which roles are assigned to each user. For more information, 
 see {stack-ov}/mapping-roles.html[Mapping users and groups to roles]. 
 
-==== Path Parameters
+[[security-api-delete-role-mapping-path-params]]
+==== {api-path-parms-title}
 
 `name`::
  (string) The distinct name that identifies the role mapping. The name is
   used solely as an identifier to facilitate interaction via the API; it does
   not affect the behavior of the mapping in any way.
 
-//==== Request Body
 
-==== Authorization
-
-To use this API, you must have at least the `manage_security` cluster privilege.
-
-
-==== Examples
+[[security-api-delete-role-mapping-example]]
+==== {api-examples-title}
 
 The following example delete a role mapping:
 

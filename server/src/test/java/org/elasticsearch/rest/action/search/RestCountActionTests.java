@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.test.rest.RestActionTestCase;
@@ -33,7 +32,7 @@ public class RestCountActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        new RestCountAction(Settings.EMPTY, controller());
+        new RestCountAction(controller());
     }
 
     public void testTypeInPath() {

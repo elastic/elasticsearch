@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.watcher.rest.action;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
@@ -24,7 +23,6 @@ import org.elasticsearch.xpack.core.security.rest.RestRequestFilter;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
 
@@ -37,8 +35,7 @@ public class RestPutWatchAction extends WatcherRestHandler implements RestReques
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPutWatchAction.class));
 
-    public RestPutWatchAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestPutWatchAction(RestController controller) {
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
             POST, "/_watcher/watch/{id}", this,
@@ -54,7 +51,7 @@ public class RestPutWatchAction extends WatcherRestHandler implements RestReques
     }
 
     @Override
-    protected RestChannelConsumer doPrepareRequest(final RestRequest request, WatcherClient client) throws IOException {
+    protected RestChannelConsumer doPrepareRequest(final RestRequest request, WatcherClient client) {
         PutWatchRequest putWatchRequest =
                 new PutWatchRequest(request.param("id"), request.content(), request.getXContentType());
         putWatchRequest.setVersion(request.paramAsLong("version", Versions.MATCH_ANY));

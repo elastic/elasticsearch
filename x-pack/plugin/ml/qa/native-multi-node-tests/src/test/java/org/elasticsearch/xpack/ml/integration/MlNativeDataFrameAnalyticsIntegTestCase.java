@@ -5,10 +5,11 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
@@ -16,17 +17,21 @@ import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
+import org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction;
 
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Base class of ML integration tests that use a native data_frame_analytics process
@@ -43,7 +48,8 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     private void cleanUpAnalytics() {
         for (DataFrameAnalyticsConfig config : analytics) {
             try {
-                deleteAnalytics(config.getId());
+                assertThat(deleteAnalytics(config.getId()).isAcknowledged(), is(true));
+                assertThat(searchStoredProgress(config.getId()).getHits().getTotalHits().value, equalTo(0L));
             } catch (Exception e) {
                 // ignore
             }
@@ -97,22 +103,52 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         return response.getResponse().results();
     }
 
-    protected List<String> generateData(long timestamp, TimeValue bucketSpan, int bucketCount,
-                                      Function<Integer, Integer> timeToCountFunction) throws IOException {
-        List<String> data = new ArrayList<>();
-        long now = timestamp;
-        for (int bucketIndex = 0; bucketIndex < bucketCount; bucketIndex++) {
-            for (int count = 0; count < timeToCountFunction.apply(bucketIndex); count++) {
-                Map<String, Object> record = new HashMap<>();
-                record.put("time", now);
-                data.add(createJsonRecord(record));
-            }
-            now += bucketSpan.getMillis();
-        }
-        return data;
+    protected static DataFrameAnalyticsConfig buildOutlierDetectionAnalytics(String id, String[] sourceIndex, String destIndex,
+                                                                             @Nullable String resultsField) {
+        DataFrameAnalyticsConfig.Builder configBuilder = new DataFrameAnalyticsConfig.Builder();
+        configBuilder.setId(id);
+        configBuilder.setSource(new DataFrameAnalyticsSource(sourceIndex, null));
+        configBuilder.setDest(new DataFrameAnalyticsDest(destIndex, resultsField));
+        configBuilder.setAnalysis(new OutlierDetection());
+        return configBuilder.build();
     }
 
-    protected static String createJsonRecord(Map<String, Object> keyValueMap) throws IOException {
-        return Strings.toString(JsonXContent.contentBuilder().map(keyValueMap)) + "\n";
+    protected void assertState(String id, DataFrameAnalyticsState state) {
+        List<GetDataFrameAnalyticsStatsAction.Response.Stats> stats = getAnalyticsStats(id);
+        assertThat(stats.size(), equalTo(1));
+        assertThat(stats.get(0).getId(), equalTo(id));
+        assertThat(stats.get(0).getState(), equalTo(state));
+    }
+
+    protected void assertProgress(String id, int reindexing, int loadingData, int analyzing, int writingResults) {
+        List<GetDataFrameAnalyticsStatsAction.Response.Stats> stats = getAnalyticsStats(id);
+        List<PhaseProgress> progress = stats.get(0).getProgress();
+        assertThat(stats.size(), equalTo(1));
+        assertThat(stats.get(0).getId(), equalTo(id));
+        assertThat(progress.size(), equalTo(4));
+        assertThat(progress.get(0).getPhase(), equalTo("reindexing"));
+        assertThat(progress.get(1).getPhase(), equalTo("loading_data"));
+        assertThat(progress.get(2).getPhase(), equalTo("analyzing"));
+        assertThat(progress.get(3).getPhase(), equalTo("writing_results"));
+        assertThat(progress.get(0).getProgressPercent(), equalTo(reindexing));
+        assertThat(progress.get(1).getProgressPercent(), equalTo(loadingData));
+        assertThat(progress.get(2).getProgressPercent(), equalTo(analyzing));
+        assertThat(progress.get(3).getProgressPercent(), equalTo(writingResults));
+    }
+
+    protected SearchResponse searchStoredProgress(String id) {
+        return client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
+            .setQuery(QueryBuilders.idsQuery().addIds(TransportStartDataFrameAnalyticsAction.DataFrameAnalyticsTask.progressDocId(id)))
+            .get();
+    }
+
+    protected static DataFrameAnalyticsConfig buildRegressionAnalytics(String id, String[] sourceIndex, String destIndex,
+                                                                       @Nullable String resultsField, Regression regression) {
+        DataFrameAnalyticsConfig.Builder configBuilder = new DataFrameAnalyticsConfig.Builder();
+        configBuilder.setId(id);
+        configBuilder.setSource(new DataFrameAnalyticsSource(sourceIndex, null));
+        configBuilder.setDest(new DataFrameAnalyticsDest(destIndex, resultsField));
+        configBuilder.setAnalysis(regression);
+        return configBuilder.build();
     }
 }

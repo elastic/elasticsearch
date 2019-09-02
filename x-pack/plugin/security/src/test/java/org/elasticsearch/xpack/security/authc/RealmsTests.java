@@ -48,6 +48,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -110,6 +111,7 @@ public class RealmsTests extends ESTestCase {
         }
 
         assertThat(realms.getUnlicensedRealms(), empty());
+        assertThat(realms.getUnlicensedRealms(), sameInstance(realms.getUnlicensedRealms()));
     }
 
     public void testWithSettingsWhereDifferentRealmsHaveSameOrder() throws Exception {
@@ -150,6 +152,7 @@ public class RealmsTests extends ESTestCase {
         }
 
         assertThat(realms.getUnlicensedRealms(), empty());
+        assertThat(realms.getUnlicensedRealms(), sameInstance(realms.getUnlicensedRealms()));
     }
 
     public void testWithSettingsWithMultipleInternalRealmsOfSameType() throws Exception {
@@ -185,6 +188,7 @@ public class RealmsTests extends ESTestCase {
         assertThat(iter.hasNext(), is(false));
 
         assertThat(realms.getUnlicensedRealms(), empty());
+        assertThat(realms.getUnlicensedRealms(), sameInstance(realms.getUnlicensedRealms()));
     }
 
     public void testUnlicensedWithOnlyCustomRealms() throws Exception {
@@ -220,6 +224,7 @@ public class RealmsTests extends ESTestCase {
         }
 
         assertThat(realms.getUnlicensedRealms(), empty());
+        assertThat(realms.getUnlicensedRealms(), sameInstance(realms.getUnlicensedRealms()));
 
         when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.DEFAULT);
 
@@ -303,6 +308,7 @@ public class RealmsTests extends ESTestCase {
         }
         assertThat(types, contains("ldap", "type_0"));
         assertThat(realms.getUnlicensedRealms(), empty());
+        assertThat(realms.getUnlicensedRealms(), sameInstance(realms.getUnlicensedRealms()));
 
         when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.DEFAULT);
         iter = realms.iterator();

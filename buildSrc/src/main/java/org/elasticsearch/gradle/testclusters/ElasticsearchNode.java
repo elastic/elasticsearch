@@ -25,6 +25,7 @@ import org.elasticsearch.gradle.LazyPropertyMap;
 import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.PropertyNormalization;
+import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.http.WaitForHttpResource;
@@ -104,10 +105,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         "is a pre-release version of Elasticsearch",
         "max virtual memory areas vm.max_map_count"
     );
+    private static final String HOSTNAME_OVERRIDE = "LinuxDarwinHostname";
+    private static final String COMPUTERNAME_OVERRIDE = "WindowsComputername";
 
     private final String path;
     private final String name;
     private final Project project;
+    private final ReaperService reaper;
     private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
     private final Path workingDir;
 
@@ -142,11 +146,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private Function<String, String> nameCustomization = Function.identity();
     private boolean isWorkingDirConfigured = false;
 
-    ElasticsearchNode(String path, String name, Project project, File workingDirBase,
+    ElasticsearchNode(String path, String name, Project project, ReaperService reaper, File workingDirBase,
                       ElasticsearchDistribution distribution) {
         this.path = path;
         this.name = name;
         this.project = project;
+        this.reaper = reaper;
         this.workingDir = workingDirBase.toPath().resolve(safeName(name)).toAbsolutePath();
         this.distribution = distribution;
         confPathRepo = workingDir.resolve("repo");
@@ -213,6 +218,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     public void plugin(URI plugin) {
         requireNonNull(plugin, "Plugin name can't be null");
         checkFrozen();
+        if (plugins.contains(plugin)) {
+            throw new TestClustersException("Plugin already configured for installation " + plugin);
+        }
         this.plugins.add(plugin);
     }
 
@@ -598,6 +606,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // Windows requires this as it defaults to `c:\windows` despite ES_TMPDIR
         defaultEnv.put("TMP", tmpDir.toString());
 
+        // Override the system hostname variables for testing
+        defaultEnv.put("HOSTNAME", HOSTNAME_OVERRIDE);
+        defaultEnv.put("COMPUTERNAME", COMPUTERNAME_OVERRIDE);
+
         Set<String> commonKeys = new HashSet<>(environment.keySet());
         commonKeys.retainAll(defaultEnv.keySet());
         if (commonKeys.isEmpty() == false) {
@@ -632,6 +644,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         } catch (IOException e) {
             throw new TestClustersException("Failed to start ES process for " + this, e);
         }
+        reaper.registerPid(toString(), esProcess.pid());
     }
 
     @Override
@@ -717,6 +730,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         if (processHandle.isAlive()) {
             throw new TestClustersException("Was not able to terminate elasticsearch process for " + this);
         }
+
+        reaper.unregister(toString());
     }
 
     private void logProcessInfo(String prefix, ProcessHandle.Info info) {

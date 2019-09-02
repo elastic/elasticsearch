@@ -8,24 +8,13 @@
 Removes 
 {stack-ov}/security-privileges.html#application-privileges[application privileges].
 
-==== Request
+[[security-api-delete-privilege-request]]
+==== {api-request-title}
 
 `DELETE /_security/privilege/<application>/<privilege>` 
 
-//==== Description
-
-==== Path Parameters
-
-`application` (required)::
-  (string) The name of the application. Application privileges are always
-  associated with exactly one application.
-
-`privilege` (required)::
-  (string) The name of the privilege.
-
-// ==== Request Body
-
-==== Authorization
+[[security-api-delete-privilege-prereqs]]
+==== {api-prereq-title}
 
 To use this API, you must have either:
 
@@ -33,7 +22,18 @@ To use this API, you must have either:
 - the _"Manage Application Privileges"_ global privilege for the application being referenced
   in the request
 
-==== Examples
+[[security-api-delete-privilege-path-params]]
+==== {api-path-parms-title}
+
+`application`::
+  (Required, string) The name of the application. Application privileges are
+  always associated with exactly one application.
+
+`privilege`::
+  (Required, string) The name of the privilege.
+
+[[security-api-delete-privilege-example]]
+==== {api-examples-title}
 
 The following example deletes the `read` application privilege from the 
 `myapp` application:

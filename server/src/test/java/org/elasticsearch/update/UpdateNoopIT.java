@@ -29,6 +29,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -36,16 +37,16 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class UpdateNoopIT extends ESIntegTestCase {
     public void testSingleField() throws Exception {
-        updateAndCheckSource(1, fields("bar", "baz"));
-        updateAndCheckSource(1, fields("bar", "baz"));
-        updateAndCheckSource(2, fields("bar", "bir"));
-        updateAndCheckSource(2, fields("bar", "bir"));
-        updateAndCheckSource(3, fields("bar", "foo"));
-        updateAndCheckSource(4, fields("bar", null));
-        updateAndCheckSource(4, fields("bar", null));
-        updateAndCheckSource(5, fields("bar", "foo"));
+        updateAndCheckSource(0, 1, fields("bar", "baz"));
+        updateAndCheckSource(0, 1, fields("bar", "baz"));
+        updateAndCheckSource(1, 2, fields("bar", "bir"));
+        updateAndCheckSource(1, 2, fields("bar", "bir"));
+        updateAndCheckSource(2, 3, fields("bar", "foo"));
+        updateAndCheckSource(3, 4, fields("bar", null));
+        updateAndCheckSource(3, 4, fields("bar", null));
+        updateAndCheckSource(4, 5, fields("bar", "foo"));
         // detect_noop defaults to true
-        updateAndCheckSource(5, null, fields("bar", "foo"));
+        updateAndCheckSource(4, 5, null, fields("bar", "foo"));
 
         assertEquals(4, totalNoopUpdates());
     }
@@ -55,36 +56,36 @@ public class UpdateNoopIT extends ESIntegTestCase {
         String key1 = 1 + randomAlphaOfLength(3);
         String key2 = 2 + randomAlphaOfLength(3);
         String key3 = 3 + randomAlphaOfLength(3);
-        updateAndCheckSource(1, fields(key1, "foo", key2, "baz"));
-        updateAndCheckSource(1, fields(key1, "foo", key2, "baz"));
-        updateAndCheckSource(2, fields(key1, "foo", key2, "bir"));
-        updateAndCheckSource(2, fields(key1, "foo", key2, "bir"));
-        updateAndCheckSource(3, fields(key1, "foo", key2, "foo"));
-        updateAndCheckSource(4, fields(key1, "foo", key2, null));
-        updateAndCheckSource(4, fields(key1, "foo", key2, null));
-        updateAndCheckSource(5, fields(key1, "foo", key2, "foo"));
-        updateAndCheckSource(6, fields(key1, null, key2, "foo"));
-        updateAndCheckSource(6, fields(key1, null, key2, "foo"));
-        updateAndCheckSource(7, fields(key1, null, key2, null));
-        updateAndCheckSource(7, fields(key1, null, key2, null));
-        updateAndCheckSource(8, fields(key1, null, key2, null, key3, null));
+        updateAndCheckSource(0, 1, fields(key1, "foo", key2, "baz"));
+        updateAndCheckSource(0, 1, fields(key1, "foo", key2, "baz"));
+        updateAndCheckSource(1, 2, fields(key1, "foo", key2, "bir"));
+        updateAndCheckSource(1, 2, fields(key1, "foo", key2, "bir"));
+        updateAndCheckSource(2, 3, fields(key1, "foo", key2, "foo"));
+        updateAndCheckSource(3, 4, fields(key1, "foo", key2, null));
+        updateAndCheckSource(3, 4, fields(key1, "foo", key2, null));
+        updateAndCheckSource(4, 5, fields(key1, "foo", key2, "foo"));
+        updateAndCheckSource(5, 6, fields(key1, null, key2, "foo"));
+        updateAndCheckSource(5, 6, fields(key1, null, key2, "foo"));
+        updateAndCheckSource(6, 7, fields(key1, null, key2, null));
+        updateAndCheckSource(6, 7, fields(key1, null, key2, null));
+        updateAndCheckSource(7, 8, fields(key1, null, key2, null, key3, null));
 
         assertEquals(5, totalNoopUpdates());
     }
 
     public void testArrayField() throws Exception {
-        updateAndCheckSource(1, fields("bar", "baz"));
-        updateAndCheckSource(2, fields("bar", new String[] {"baz", "bort"}));
-        updateAndCheckSource(2, fields("bar", new String[] {"baz", "bort"}));
-        updateAndCheckSource(3, fields("bar", "bir"));
-        updateAndCheckSource(3, fields("bar", "bir"));
-        updateAndCheckSource(4, fields("bar", new String[] {"baz", "bort"}));
-        updateAndCheckSource(4, fields("bar", new String[] {"baz", "bort"}));
-        updateAndCheckSource(5, fields("bar", new String[] {"bir", "bort"}));
-        updateAndCheckSource(5, fields("bar", new String[] {"bir", "bort"}));
-        updateAndCheckSource(6, fields("bar", new String[] {"bir", "for"}));
-        updateAndCheckSource(6, fields("bar", new String[] {"bir", "for"}));
-        updateAndCheckSource(7, fields("bar", new String[] {"bir", "for", "far"}));
+        updateAndCheckSource(0, 1, fields("bar", "baz"));
+        updateAndCheckSource(1, 2, fields("bar", new String[] {"baz", "bort"}));
+        updateAndCheckSource(1, 2, fields("bar", new String[] {"baz", "bort"}));
+        updateAndCheckSource(2, 3, fields("bar", "bir"));
+        updateAndCheckSource(2, 3, fields("bar", "bir"));
+        updateAndCheckSource(3, 4, fields("bar", new String[] {"baz", "bort"}));
+        updateAndCheckSource(3, 4, fields("bar", new String[] {"baz", "bort"}));
+        updateAndCheckSource(4, 5, fields("bar", new String[] {"bir", "bort"}));
+        updateAndCheckSource(4, 5, fields("bar", new String[] {"bir", "bort"}));
+        updateAndCheckSource(5, 6, fields("bar", new String[] {"bir", "for"}));
+        updateAndCheckSource(5, 6, fields("bar", new String[] {"bir", "for"}));
+        updateAndCheckSource(6, 7, fields("bar", new String[] {"bir", "for", "far"}));
 
         assertEquals(5, totalNoopUpdates());
     }
@@ -94,42 +95,42 @@ public class UpdateNoopIT extends ESIntegTestCase {
         String key1 = 1 + randomAlphaOfLength(3);
         String key2 = 2 + randomAlphaOfLength(3);
         String key3 = 3 + randomAlphaOfLength(3);
-        updateAndCheckSource(1, XContentFactory.jsonBuilder().startObject()
+        updateAndCheckSource(0, 1, XContentFactory.jsonBuilder().startObject()
                 .startObject("test")
                     .field(key1, "foo")
                     .field(key2, "baz")
                 .endObject().endObject());
-        updateAndCheckSource(1, XContentFactory.jsonBuilder().startObject()
+        updateAndCheckSource(0, 1, XContentFactory.jsonBuilder().startObject()
                 .startObject("test")
                     .field(key1, "foo")
                     .field(key2, "baz")
                 .endObject().endObject());
-        updateAndCheckSource(2, XContentFactory.jsonBuilder().startObject()
+        updateAndCheckSource(1, 2, XContentFactory.jsonBuilder().startObject()
                 .startObject("test")
                     .field(key1, "foo")
                     .field(key2, "bir")
                 .endObject().endObject());
-        updateAndCheckSource(2, XContentFactory.jsonBuilder().startObject()
+        updateAndCheckSource(1, 2, XContentFactory.jsonBuilder().startObject()
                 .startObject("test")
                     .field(key1, "foo")
                     .field(key2, "bir")
                 .endObject().endObject());
-        updateAndCheckSource(3, XContentFactory.jsonBuilder().startObject()
+        updateAndCheckSource(2, 3, XContentFactory.jsonBuilder().startObject()
                 .startObject("test")
                     .field(key1, "foo")
                     .field(key2, "foo")
                 .endObject().endObject());
-        updateAndCheckSource(4, XContentFactory.jsonBuilder().startObject()
+        updateAndCheckSource(3, 4, XContentFactory.jsonBuilder().startObject()
                 .startObject("test")
                     .field(key1, "foo")
                     .field(key2, (Object) null)
                 .endObject().endObject());
-        updateAndCheckSource(4, XContentFactory.jsonBuilder().startObject()
+        updateAndCheckSource(3, 4, XContentFactory.jsonBuilder().startObject()
                 .startObject("test")
                     .field(key1, "foo")
                     .field(key2, (Object) null)
                 .endObject().endObject());
-        updateAndCheckSource(5, XContentFactory.jsonBuilder().startObject()
+        updateAndCheckSource(4, 5, XContentFactory.jsonBuilder().startObject()
                 .startObject("test")
                     .field(key1, "foo")
                     .field(key2, (Object) null)
@@ -140,63 +141,63 @@ public class UpdateNoopIT extends ESIntegTestCase {
     }
 
     public void testMapAndField() throws Exception {
-        updateAndCheckSource(1, XContentFactory.jsonBuilder().startObject()
+        updateAndCheckSource(0, 1, XContentFactory.jsonBuilder().startObject()
                 .field("f", "foo")
                 .startObject("m")
                     .field("mf1", "foo")
                     .field("mf2", "baz")
                 .endObject()
                 .endObject());
-        updateAndCheckSource(1, XContentFactory.jsonBuilder().startObject()
+        updateAndCheckSource(0, 1, XContentFactory.jsonBuilder().startObject()
                 .field("f", "foo")
                 .startObject("m")
                     .field("mf1", "foo")
                     .field("mf2", "baz")
                 .endObject()
                 .endObject());
-        updateAndCheckSource(2, XContentFactory.jsonBuilder().startObject()
+        updateAndCheckSource(1, 2, XContentFactory.jsonBuilder().startObject()
                 .field("f", "foo")
                 .startObject("m")
                     .field("mf1", "foo")
                     .field("mf2", "bir")
                 .endObject()
                 .endObject());
-        updateAndCheckSource(2, XContentFactory.jsonBuilder().startObject()
+        updateAndCheckSource(1, 2, XContentFactory.jsonBuilder().startObject()
                 .field("f", "foo")
                 .startObject("m")
                     .field("mf1", "foo")
                     .field("mf2", "bir")
                 .endObject()
                 .endObject());
-        updateAndCheckSource(3, XContentFactory.jsonBuilder().startObject()
+        updateAndCheckSource(2, 3, XContentFactory.jsonBuilder().startObject()
                 .field("f", "foo")
                 .startObject("m")
                     .field("mf1", "foo")
                     .field("mf2", "foo")
                 .endObject()
                 .endObject());
-        updateAndCheckSource(4, XContentFactory.jsonBuilder().startObject()
+        updateAndCheckSource(3, 4, XContentFactory.jsonBuilder().startObject()
                 .field("f", "bar")
                 .startObject("m")
                     .field("mf1", "foo")
                     .field("mf2", "foo")
                 .endObject()
                 .endObject());
-        updateAndCheckSource(4, XContentFactory.jsonBuilder().startObject()
+        updateAndCheckSource(3, 4, XContentFactory.jsonBuilder().startObject()
                 .field("f", "bar")
                 .startObject("m")
                     .field("mf1", "foo")
                     .field("mf2", "foo")
                 .endObject()
                 .endObject());
-        updateAndCheckSource(5, XContentFactory.jsonBuilder().startObject()
+        updateAndCheckSource(4, 5, XContentFactory.jsonBuilder().startObject()
                 .field("f", "baz")
                 .startObject("m")
                     .field("mf1", "foo")
                     .field("mf2", "foo")
                 .endObject()
                 .endObject());
-        updateAndCheckSource(6, XContentFactory.jsonBuilder().startObject()
+        updateAndCheckSource(5, 6, XContentFactory.jsonBuilder().startObject()
                 .field("f", "bop")
                 .startObject("m")
                     .field("mf1", "foo")
@@ -212,16 +213,16 @@ public class UpdateNoopIT extends ESIntegTestCase {
      * its true by default.
      */
     public void testTotallyEmpty() throws Exception {
-        updateAndCheckSource(1, XContentFactory.jsonBuilder().startObject()
+        updateAndCheckSource(0, 1, XContentFactory.jsonBuilder().startObject()
                 .field("f", "foo")
                 .startObject("m")
                     .field("mf1", "foo")
                     .field("mf2", "baz")
                 .endObject()
                 .endObject());
-        update(true, 1, XContentFactory.jsonBuilder().startObject().endObject());
-        update(false, 2, XContentFactory.jsonBuilder().startObject().endObject());
-        update(null, 2, XContentFactory.jsonBuilder().startObject().endObject());
+        update(true, 0, 1, XContentFactory.jsonBuilder().startObject().endObject());
+        update(false, 1, 2, XContentFactory.jsonBuilder().startObject().endObject());
+        update(null, 1, 2, XContentFactory.jsonBuilder().startObject().endObject());
     }
 
     private XContentBuilder fields(Object... fields) throws IOException {
@@ -235,16 +236,16 @@ public class UpdateNoopIT extends ESIntegTestCase {
         return builder;
     }
 
-    private void updateAndCheckSource(long expectedVersion, XContentBuilder xContentBuilder) {
-        updateAndCheckSource(expectedVersion, true, xContentBuilder);
+    private void updateAndCheckSource(long expectedSeqNo, long expectedVersion, XContentBuilder xContentBuilder) {
+        updateAndCheckSource(expectedSeqNo, expectedVersion, true, xContentBuilder);
     }
 
-    private void updateAndCheckSource(long expectedVersion, Boolean detectNoop, XContentBuilder xContentBuilder) {
-        UpdateResponse updateResponse = update(detectNoop, expectedVersion, xContentBuilder);
+    private void updateAndCheckSource(long expectedSeqNo, long expectedVersion, Boolean detectNoop, XContentBuilder xContentBuilder) {
+        UpdateResponse updateResponse = update(detectNoop, expectedSeqNo, expectedVersion, xContentBuilder);
         assertEquals(updateResponse.getGetResult().sourceRef().utf8ToString(), BytesReference.bytes(xContentBuilder).utf8ToString());
     }
 
-    private UpdateResponse update(Boolean detectNoop, long expectedVersion, XContentBuilder xContentBuilder) {
+    private UpdateResponse update(Boolean detectNoop, long expectedSeqNo, long expectedVersion, XContentBuilder xContentBuilder) {
         UpdateRequestBuilder updateRequest = client().prepareUpdate("test", "type1", "1")
                 .setDoc(xContentBuilder)
                 .setDocAsUpsert(true)
@@ -254,7 +255,8 @@ public class UpdateNoopIT extends ESIntegTestCase {
         }
         UpdateResponse updateResponse = updateRequest.get();
         assertThat(updateResponse.getGetResult(), notNullValue());
-        assertEquals(expectedVersion, updateResponse.getVersion());
+        assertThat(updateResponse.getSeqNo(), equalTo(expectedSeqNo));
+        assertThat(updateResponse.getVersion(), equalTo(expectedVersion));
         return updateResponse;
     }
 

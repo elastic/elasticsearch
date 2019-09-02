@@ -52,6 +52,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 class MinAggregator extends NumericMetricsAggregator.SingleValue {
+    private static final int MAX_BKD_LOOKUPS = 1024;
 
     final ValuesSource.Numeric valuesSource;
     final DocValueFormat format;
@@ -212,6 +213,8 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
         final Number[] result = new Number[1];
         try {
             pointValues.intersect(new PointValues.IntersectVisitor() {
+                private short lookupCounter = 0;
+
                 @Override
                 public void visit(int docID) {
                     throw new UnsupportedOperationException();
@@ -222,6 +225,9 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
                     if (liveDocs.get(docID)) {
                         result[0] = converter.apply(packedValue);
                         // this is the first leaf with a live doc so the value is the minimum for this segment.
+                        throw new CollectionTerminatedException();
+                    }
+                    if (++lookupCounter > MAX_BKD_LOOKUPS) {
                         throw new CollectionTerminatedException();
                     }
                 }

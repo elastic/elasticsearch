@@ -26,13 +26,13 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -47,6 +47,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -66,9 +67,12 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
 
     private final NamedXContentRegistry namedXContentRegistry;
 
-    public MockEventuallyConsistentRepository(RepositoryMetaData metadata, Environment environment,
-        NamedXContentRegistry namedXContentRegistry, ThreadPool threadPool, Context context) {
-        super(metadata, environment.settings(), false, namedXContentRegistry, threadPool);
+    public MockEventuallyConsistentRepository(
+        RepositoryMetaData metadata,
+        NamedXContentRegistry namedXContentRegistry,
+        ThreadPool threadPool,
+        Context context) {
+        super(metadata,false, namedXContentRegistry, threadPool);
         this.context = context;
         this.namedXContentRegistry = namedXContentRegistry;
     }
@@ -219,13 +223,20 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             }
 
             @Override
-            public void delete() {
+            public DeleteResult delete() {
                 ensureNotClosed();
                 final String thisPath = path.buildAsString();
+                final AtomicLong bytesDeleted = new AtomicLong(0L);
+                final AtomicLong blobsDeleted = new AtomicLong(0L);
                 synchronized (context.actions) {
                     consistentView(context.actions).stream().filter(action -> action.path.startsWith(thisPath))
-                        .forEach(a -> context.actions.add(new BlobStoreAction(Operation.DELETE, a.path)));
+                        .forEach(a -> {
+                            context.actions.add(new BlobStoreAction(Operation.DELETE, a.path));
+                            bytesDeleted.addAndGet(a.data.length);
+                            blobsDeleted.incrementAndGet();
+                        });
                 }
+                return new DeleteResult(blobsDeleted.get(), bytesDeleted.get());
             }
 
             @Override

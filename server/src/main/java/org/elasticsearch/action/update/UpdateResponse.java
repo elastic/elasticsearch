@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
@@ -50,8 +49,8 @@ public class UpdateResponse extends DocWriteResponse {
      * Constructor to be used when a update didn't translate in a write.
      * For example: update script with operation set to none
      */
-    public UpdateResponse(ShardId shardId, String type, String id, long version, Result result) {
-        this(new ShardInfo(0, 0), shardId, type, id, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, version, result);
+    public UpdateResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, Result result) {
+        this(new ShardInfo(0, 0), shardId, type, id, seqNo, primaryTerm, version, result);
     }
 
     public UpdateResponse(
@@ -152,10 +151,10 @@ public class UpdateResponse extends DocWriteResponse {
         @Override
         public UpdateResponse build() {
             UpdateResponse update;
-            if (shardInfo != null && seqNo != null) {
+            if (shardInfo != null) {
                 update = new UpdateResponse(shardInfo, shardId, type, id, seqNo, primaryTerm, version, result);
             } else {
-                update = new UpdateResponse(shardId, type, id, version, result);
+                update = new UpdateResponse(shardId, type, id, seqNo, primaryTerm, version, result);
             }
             if (getResult != null) {
                 update.setGetResult(new GetResult(update.getIndex(), update.getType(), update.getId(),

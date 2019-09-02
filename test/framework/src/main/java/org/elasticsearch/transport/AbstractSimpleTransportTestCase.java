@@ -92,7 +92,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.test.transport.MockTransportService.getPortRange;
+import static org.elasticsearch.test.ESTestCase.getPortRange;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -134,13 +134,25 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         super.setUp();
         threadPool = new TestThreadPool(getClass().getName());
         clusterSettingsA = new ClusterSettings(Settings.EMPTY, getSupportedSettings());
-        Settings connectionSettings = Settings.builder()
+        final Settings.Builder connectionSettingsBuilder = Settings.builder()
             .put(TransportSettings.CONNECTIONS_PER_NODE_RECOVERY.getKey(), 1)
             .put(TransportSettings.CONNECTIONS_PER_NODE_BULK.getKey(), 1)
             .put(TransportSettings.CONNECTIONS_PER_NODE_REG.getKey(), 2)
             .put(TransportSettings.CONNECTIONS_PER_NODE_STATE.getKey(), 1)
-            .put(TransportSettings.CONNECTIONS_PER_NODE_PING.getKey(), 1)
-            .build();
+            .put(TransportSettings.CONNECTIONS_PER_NODE_PING.getKey(), 1);
+
+        connectionSettingsBuilder.put(TransportSettings.TCP_KEEP_ALIVE.getKey(), randomBoolean());
+        if (randomBoolean()) {
+            connectionSettingsBuilder.put(TransportSettings.TCP_KEEP_IDLE.getKey(), randomIntBetween(1, 1000));
+        }
+        if (randomBoolean()) {
+            connectionSettingsBuilder.put(TransportSettings.TCP_KEEP_INTERVAL.getKey(), randomIntBetween(1, 1000));
+        }
+        if (randomBoolean()) {
+            connectionSettingsBuilder.put(TransportSettings.TCP_KEEP_COUNT.getKey(), randomIntBetween(1, 10));
+        }
+
+        final Settings connectionSettings = connectionSettingsBuilder.build();
 
         serviceA = buildService("TS_A",  version0, clusterSettingsA, connectionSettings); // this one supports dynamic tracer updates
         nodeA = serviceA.getLocalNode();
@@ -1618,12 +1630,37 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         }
                     });
 
+                latch.await();
                 assertFalse(requestProcessed.get());
 
                 service.acceptIncomingRequests();
-                assertBusy(() -> assertTrue(requestProcessed.get()));
 
-                latch.await();
+                CountDownLatch latch2 = new CountDownLatch(1);
+                serviceA.sendRequest(connection, "internal:action", new TestRequest(), TransportRequestOptions.EMPTY,
+                    new TransportResponseHandler<TestResponse>() {
+                        @Override
+                        public TestResponse read(StreamInput in) throws IOException {
+                            return new TestResponse(in);
+                        }
+
+                        @Override
+                        public void handleResponse(TestResponse response) {
+                            latch2.countDown();
+                        }
+
+                        @Override
+                        public void handleException(TransportException exp) {
+                            latch2.countDown();
+                        }
+
+                        @Override
+                        public String executor() {
+                            return ThreadPool.Names.SAME;
+                        }
+                    });
+
+                latch2.await();
+                assertBusy(() -> assertTrue(requestProcessed.get()));
             }
         }
     }
@@ -1875,8 +1912,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testTimeoutPerConnection() throws IOException {
-        assumeTrue("Works only on BSD network stacks and apparently windows",
-            Constants.MAC_OS_X || Constants.FREE_BSD || Constants.WINDOWS);
+        assumeTrue("Works only on BSD network stacks", Constants.MAC_OS_X || Constants.FREE_BSD);
         try (ServerSocket socket = new MockServerSocket()) {
             // note - this test uses backlog=1 which is implementation specific ie. it might not work on some TCP/IP stacks
             // on linux (at least newer ones) the listen(addr, backlog=1) should just ignore new connections if the queue is full which
@@ -1995,8 +2031,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             DiscoveryNode node =
                 new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
             ConnectTransportException exception = expectThrows(ConnectTransportException.class, () -> serviceA.connectToNode(node));
-            assertTrue(exception.getCause() instanceof TransportException);
-            assertEquals("handshake failed because connection reset", exception.getCause().getMessage());
+            assertThat(exception.getCause(), instanceOf(IllegalStateException.class));
+            assertEquals("handshake failed", exception.getCause().getMessage());
         }
 
         ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
@@ -2497,7 +2533,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertTrue(profileBoundAddresses.get("some_profile").publishAddress().getPort() < 9000);
             assertTrue(profileBoundAddresses.get("some_other_profile").publishAddress().getPort() >= 8700);
             assertTrue(profileBoundAddresses.get("some_other_profile").publishAddress().getPort() < 8800);
-            assertEquals(profileBoundAddresses.get("some_profile").boundAddresses().length, 1);
+            assertTrue(profileBoundAddresses.get("some_profile").boundAddresses().length >= 1);
             if (doIPV6) {
                 assertTrue(profileBoundAddresses.get("some_other_profile").boundAddresses().length >= 2);
                 int ipv4 = 0;
@@ -2514,7 +2550,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertTrue("num ipv4 is wrong: " + ipv4, ipv4 >= 1);
                 assertTrue("num ipv6 is wrong: " + ipv6, ipv6 >= 1);
             } else {
-                assertEquals(profileBoundAddresses.get("some_other_profile").boundAddresses().length, 1);
+                assertTrue(profileBoundAddresses.get("some_other_profile").boundAddresses().length >= 1);
             }
             assertTrue(profileBoundAddresses.get("some_other_profile").publishAddress().address().getAddress() instanceof Inet4Address);
         }
@@ -2525,6 +2561,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         Settings globalSettings = Settings.builder()
             .put("network.tcp.no_delay", enable)
             .put("network.tcp.keep_alive", enable)
+            .put("network.tcp.keep_idle", "42")
+            .put("network.tcp.keep_interval", "7")
+            .put("network.tcp.keep_count", "13")
             .put("network.tcp.reuse_address", enable)
             .put("network.tcp.send_buffer_size", "43000b")
             .put("network.tcp.receive_buffer_size", "42000b")
@@ -2535,6 +2574,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         Settings globalSettings2 = Settings.builder()
             .put("network.tcp.no_delay", !enable)
             .put("network.tcp.keep_alive", !enable)
+            .put("network.tcp.keep_idle", "43")
+            .put("network.tcp.keep_interval", "8")
+            .put("network.tcp.keep_count", "14")
             .put("network.tcp.reuse_address", !enable)
             .put("network.tcp.send_buffer_size", "4b")
             .put("network.tcp.receive_buffer_size", "3b")
@@ -2545,6 +2587,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         Settings transportSettings = Settings.builder()
             .put("transport.tcp.no_delay", enable)
             .put("transport.tcp.keep_alive", enable)
+            .put("transport.tcp.keep_idle", "42")
+            .put("transport.tcp.keep_interval", "7")
+            .put("transport.tcp.keep_count", "13")
             .put("transport.tcp.reuse_address", enable)
             .put("transport.tcp.send_buffer_size", "43000b")
             .put("transport.tcp.receive_buffer_size", "42000b")
@@ -2557,6 +2602,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         Settings transportSettings2 = Settings.builder()
             .put("transport.tcp.no_delay", !enable)
             .put("transport.tcp.keep_alive", !enable)
+            .put("transport.tcp.keep_idle", "43")
+            .put("transport.tcp.keep_interval", "8")
+            .put("transport.tcp.keep_count", "14")
             .put("transport.tcp.reuse_address", !enable)
             .put("transport.tcp.send_buffer_size", "5b")
             .put("transport.tcp.receive_buffer_size", "6b")
@@ -2568,6 +2616,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         Settings defaultProfileSettings = Settings.builder()
             .put("transport.profiles.default.tcp.no_delay", enable)
             .put("transport.profiles.default.tcp.keep_alive", enable)
+            .put("transport.profiles.default.tcp.keep_idle", "42")
+            .put("transport.profiles.default.tcp.keep_interval", "7")
+            .put("transport.profiles.default.tcp.keep_count", "13")
             .put("transport.profiles.default.tcp.reuse_address", enable)
             .put("transport.profiles.default.tcp.send_buffer_size", "43000b")
             .put("transport.profiles.default.tcp.receive_buffer_size", "42000b")
@@ -2581,6 +2632,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         Settings profileSettings = Settings.builder()
             .put("transport.profiles.some_profile.tcp.no_delay", enable)
             .put("transport.profiles.some_profile.tcp.keep_alive", enable)
+            .put("transport.profiles.some_profile.tcp.keep_idle", "42")
+            .put("transport.profiles.some_profile.tcp.keep_interval", "7")
+            .put("transport.profiles.some_profile.tcp.keep_count", "13")
             .put("transport.profiles.some_profile.tcp.reuse_address", enable)
             .put("transport.profiles.some_profile.tcp.send_buffer_size", "43000b")
             .put("transport.profiles.some_profile.tcp.receive_buffer_size", "42000b")
@@ -2602,6 +2656,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         assertEquals(enable, settings.tcpNoDelay);
         assertEquals(enable, settings.tcpKeepAlive);
+        assertEquals(42, settings.tcpKeepIdle);
+        assertEquals(7, settings.tcpKeepInterval);
+        assertEquals(13, settings.tcpKeepCount);
         assertEquals(enable, settings.reuseAddress);
         assertEquals(43000, settings.sendBufferSize.getBytes());
         assertEquals(42000, settings.receiveBufferSize.getBytes());

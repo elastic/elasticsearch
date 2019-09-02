@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -52,6 +53,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -105,8 +107,8 @@ public class CreateIndexIT extends ESIntegTestCase {
         }
         try {
             prepareCreate("test")
-                    .addMapping("type1", jsonBuilder())
-                    .addMapping("type1", jsonBuilder());
+                    .addMapping("type1", jsonBuilder().startObject().endObject())
+                    .addMapping("type1", jsonBuilder().startObject().endObject());
             fail("did not hit expected exception");
         } catch (IllegalStateException ise) {
             // expected
@@ -145,6 +147,14 @@ public class CreateIndexIT extends ESIntegTestCase {
         MappingMetaData metadata = mappings.get("_doc");
         assertNotNull(metadata);
         assertTrue(metadata.sourceAsMap().isEmpty());
+    }
+
+    public void testMappingParamAndNestedMismatch() throws Exception {
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> prepareCreate("test")
+                .addMapping("type1", XContentFactory.jsonBuilder().startObject()
+                        .startObject("type2").endObject()
+                    .endObject()).get());
+        assertThat(e.getMessage(), startsWith("Failed to parse mapping [type1]: Root mapping definition has unsupported parameters"));
     }
 
     public void testEmptyMappings() throws Exception {

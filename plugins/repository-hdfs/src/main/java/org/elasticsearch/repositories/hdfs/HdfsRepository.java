@@ -67,9 +67,12 @@ public final class HdfsRepository extends BlobStoreRepository {
     // TODO: why 100KB?
     private static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(100, ByteSizeUnit.KB);
 
-    public HdfsRepository(RepositoryMetaData metadata, Environment environment,
-                          NamedXContentRegistry namedXContentRegistry, ThreadPool threadPool) {
-        super(metadata, environment.settings(), metadata.settings().getAsBoolean("compress", false), namedXContentRegistry, threadPool);
+    public HdfsRepository(
+        final RepositoryMetaData metadata,
+        final Environment environment,
+        final NamedXContentRegistry namedXContentRegistry,
+        final ThreadPool threadPool) {
+        super(metadata, metadata.settings().getAsBoolean("compress", false), namedXContentRegistry, threadPool);
 
         this.environment = environment;
         this.chunkSize = metadata.settings().getAsBytesSize("chunk_size", null);

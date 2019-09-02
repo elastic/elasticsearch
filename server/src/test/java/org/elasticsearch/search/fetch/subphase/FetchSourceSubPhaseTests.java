@@ -119,6 +119,17 @@ public class FetchSourceSubPhaseTests extends ESTestCase {
                 "for index [index]", exception.getMessage());
     }
 
+    public void testNestedSourceWithSourceDisabled() {
+        FetchSubPhase.HitContext hitContext = hitExecute(null, true, null, null,
+            new SearchHit.NestedIdentity("nested1", 0, null));
+        assertNull(hitContext.hit().getSourceAsMap());
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> hitExecute(null, true, "field1", null, new SearchHit.NestedIdentity("nested1", 0, null)));
+        assertEquals("unable to fetch fields from _source field: _source is disabled in the mappings " +
+            "for index [index]", e.getMessage());
+    }
+
     private FetchSubPhase.HitContext hitExecute(XContentBuilder source, boolean fetchSource, String include, String exclude) {
         return hitExecute(source, fetchSource, include, exclude, null);
     }

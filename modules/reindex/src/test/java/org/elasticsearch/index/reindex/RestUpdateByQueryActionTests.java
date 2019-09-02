@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -37,7 +36,7 @@ public class RestUpdateByQueryActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestUpdateByQueryAction(Settings.EMPTY, controller());
+        action = new RestUpdateByQueryAction(controller());
     }
 
     public void testTypeInPath() throws IOException  {

@@ -76,7 +76,7 @@ public class FsRepository extends BlobStoreRepository {
      */
     public FsRepository(RepositoryMetaData metadata, Environment environment, NamedXContentRegistry namedXContentRegistry,
                         ThreadPool threadPool) {
-        super(metadata, environment.settings(), calculateCompress(metadata, environment), namedXContentRegistry, threadPool);
+        super(metadata, calculateCompress(metadata, environment), namedXContentRegistry, threadPool);
         this.environment = environment;
         String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
         if (location.isEmpty()) {

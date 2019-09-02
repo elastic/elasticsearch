@@ -334,44 +334,46 @@
                         "response": {
                           "properties": {
                             "errors": {
-                              "count": {
-                                "type": "long"
-                              },
-                              "closed": {
-                                "type": "long"
-                              },
-                              "unauthorized": {
-                                "type": "long"
-                              },
-                              "forbidden": {
-                                "type": "long"
-                              },
-                              "internal": {
-                                 "type": "long"
-                              },
-                              "notfound": {
-                                "type": "long"
-                              },
-                              "ratelimit": {
-                                "type": "long"
-                              },
-                              "invalidquery": {
-                                "type": "long"
-                              },
-                               "method": {
-                                "type": "long"
-                              },
-                              "unavailable": {
-                                "type": "long"
-                              },
-                              "toolarge": {
-                                "type": "long"
-                              },
-                              "queue": {
-                                "type": "long"
-                              },
-                              "validate": {
-                                "type": "long"
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                },
+                                "closed": {
+                                  "type": "long"
+                                },
+                                "unauthorized": {
+                                  "type": "long"
+                                },
+                                "forbidden": {
+                                  "type": "long"
+                                },
+                                "internal": {
+                                   "type": "long"
+                                },
+                                "notfound": {
+                                  "type": "long"
+                                },
+                                "ratelimit": {
+                                  "type": "long"
+                                },
+                                "invalidquery": {
+                                  "type": "long"
+                                },
+                                 "method": {
+                                  "type": "long"
+                                },
+                                "unavailable": {
+                                   "type": "long"
+                                },
+                                "toolarge": {
+                                  "type": "long"
+                                },
+                                "queue": {
+                                  "type": "long"
+                                },
+                                "validate": {
+                                  "type": "long"
+                                }
                               }
                             },
                             "valid": {

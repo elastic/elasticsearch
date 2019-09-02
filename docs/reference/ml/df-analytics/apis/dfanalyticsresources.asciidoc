@@ -154,7 +154,7 @@ A `{regression}` configuration object has the following properties:
   individual trees in the forest. It aims to prevent overfitting.
   
 `maximum_number_trees`::
-  (Optional, integer) Defines the maximum number of trees the forest will be 
+  (Optional, integer) Defines the maximum number of trees the forest is 
   allowed to contain. The maximum value is 2000.
   
 `prediction_field_name`::

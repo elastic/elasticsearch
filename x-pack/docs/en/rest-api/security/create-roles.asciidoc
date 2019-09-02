@@ -24,14 +24,12 @@ privilege.
 [[security-api-put-role-desc]]
 ==== {api-description-title}
 
-The role management APIs are generally the preferred way to manage roles, rather
-than using
-{stack-ov}/defining-roles.html#roles-management-file[file-based role management].
-This create or update roles API cannot update roles that are defined in roles
-files.
+The role management APIs are generally the preferred way to manage roles, rather than using
+{stack-ov}/defining-roles.html#roles-management-file[file-based role management]. The create
+or update roles API cannot update roles that are defined in roles files.
 
-For more information about the native realm, see 
-{stack-ov}/realms.html[Realms] and <<configuring-native-realm>>. 
+For more information about the native realm, see
+{stack-ov}/realms.html[Realms] and <<configuring-native-realm>>.
 
 
 [[security-api-put-role-path-params]]

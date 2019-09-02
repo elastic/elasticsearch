@@ -97,7 +97,7 @@ public class TerminalTests extends ESTestCase {
         assertFalse(terminal.promptYesNo("Answer?", true));
     }
 
-    public void testReadTwiceFromSystemTerminal() throws Exception {
+    public void testTerminalReusesBufferedReaders() throws Exception {
         Terminal.SystemTerminal terminal = new Terminal.SystemTerminal();
         BufferedReader reader1 = terminal.getReader();
         BufferedReader reader2 = terminal.getReader();

@@ -508,14 +508,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
-            try {
-                adminClient().performRequest(new Request("DELETE", "*"));
-            } catch (ResponseException e) {
-                // 404 here just means we had no indexes
-                if (e.getResponse().getStatusLine().getStatusCode() != 404) {
-                    throw e;
-                }
-            }
+            wipeAllIndices();
         }
 
         // wipe index templates
@@ -556,6 +549,20 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         assertThat("Found in progress snapshots [" + inProgressSnapshots.get() + "].", inProgressSnapshots.get(), anEmptyMap());
+    }
+
+    protected static void wipeAllIndices() throws IOException {
+        try {
+            final Response response = adminClient().performRequest(new Request("DELETE", "*"));
+            try (InputStream is = response.getEntity().getContent()) {
+                assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
+            }
+        } catch (ResponseException e) {
+            // 404 here just means we had no indexes
+            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                throw e;
+            }
+        }
     }
 
     /**

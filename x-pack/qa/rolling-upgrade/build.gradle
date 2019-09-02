@@ -46,8 +46,7 @@ processTestResources {
 
 task copyTestNodeKeyMaterial(type: Copy) {
     from project(':x-pack:plugin:core').files('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
-            'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt',
-            'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
+            'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt')
     into outputDir
 }
 
@@ -73,6 +72,10 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
             setting 'xpack.security.authc.token.enabled', 'true'
             setting 'xpack.security.authc.token.timeout', '60m'
             setting 'xpack.security.audit.enabled', 'true'
+            setting 'xpack.security.transport.ssl.key', 'testnode.pem'
+            setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
+            keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+
             if (bwcVersion.onOrAfter('7.0.0')) {
                 setting 'xpack.security.authc.realms.file.file1.order', '0'
                 setting 'xpack.security.authc.realms.native.native1.order', '1'
@@ -87,17 +90,6 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
             }
 
             user username: "test_user", password: "x-pack-test-password"
-
-            rootProject.globalInfo.ready {
-                if (project.inFipsJvm) {
-                    setting 'xpack.security.transport.ssl.key', 'testnode.pem'
-                    setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
-                    keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
-                } else {
-                    setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
-                    setting 'xpack.security.transport.ssl.keystore.password', 'testnode'
-                }
-            }
 
             extraConfigFile 'testnode.jks', file("$outputDir/testnode.jks")
             extraConfigFile 'testnode.pem', file("$outputDir/testnode.pem")

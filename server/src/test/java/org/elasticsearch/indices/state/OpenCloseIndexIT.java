@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -351,11 +352,13 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         }
     }
 
-    public void testTranslogStats()  {
+    public void testTranslogStats() throws Exception {
         final String indexName = "test";
         createIndex(indexName, Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .build());
+        boolean softDeletesEnabled = IndexSettings.INDEX_SOFT_DELETES_SETTING.get(
+            client().admin().indices().prepareGetSettings(indexName).get().getIndexToSettings().get(indexName));
 
         final int nbDocs = randomIntBetween(0, 50);
         int uncommittedOps = 0;
@@ -371,17 +374,23 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
             }
         }
 
-        IndicesStatsResponse stats = client().admin().indices().prepareStats(indexName).clear().setTranslog(true).get();
-        assertThat(stats.getIndex(indexName), notNullValue());
-        assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(), equalTo(nbDocs));
-        assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().getUncommittedOperations(), equalTo(uncommittedOps));
+        final int uncommittedTranslogOps = uncommittedOps;
+        assertBusy(() -> {
+            IndicesStatsResponse stats = client().admin().indices().prepareStats(indexName).clear().setTranslog(true).get();
+            assertThat(stats.getIndex(indexName), notNullValue());
+            assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(), equalTo(
+                softDeletesEnabled ? uncommittedTranslogOps : nbDocs));
+            assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().getUncommittedOperations(), equalTo(uncommittedTranslogOps));
+        });
 
         assertAcked(client().admin().indices().prepareClose("test"));
 
         IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
-        stats = client().admin().indices().prepareStats(indexName).setIndicesOptions(indicesOptions).clear().setTranslog(true).get();
+        IndicesStatsResponse stats = client().admin().indices().prepareStats(indexName).setIndicesOptions(indicesOptions)
+            .clear().setTranslog(true).get();
         assertThat(stats.getIndex(indexName), notNullValue());
-        assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(), equalTo(nbDocs));
+        assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(),
+            equalTo(softDeletesEnabled ? 0 : nbDocs));
         assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().getUncommittedOperations(), equalTo(0));
     }
 }

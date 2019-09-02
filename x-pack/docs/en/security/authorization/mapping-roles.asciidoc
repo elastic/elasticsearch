@@ -28,6 +28,11 @@ you are able to map users to both API-managed roles and file-managed roles
 NOTE: The PKI, LDAP, Kerberos and SAML realms support using
 <<authorization_realms, authorization realms>> as an alternative to role mapping.
 
+NOTE: When <<anonymous-access, anonymous access>> is enabled, the roles
+of the anonymous user are assigned to all the other users as well.
+
+NOTE: Users with no roles assigned will be unauthorized for any action.
+
 [[mapping-roles-api]]
 ==== Using the role mapping API
 

@@ -37,9 +37,11 @@ task bwcTest {
 }
 
 tasks.register("copyTestNodeKeyMaterial", Copy) {
-    from project(':x-pack:plugin:core').files('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
-            'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt',
-            'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
+    from project(':x-pack:plugin:core')
+            .files(
+                    'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
+                    'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt'
+            )
     into outputDir
 }
 
@@ -67,7 +69,7 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
     testClusters {
         "${baseName}" {
             testDistribution = "DEFAULT"
-            versions = [ bwcVersion.toString(), project.version ]
+            versions = [bwcVersion.toString(), project.version]
             numberOfNodes = 2
             setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
             javaHome = project.file(project.ext.runtimeJavaHome)
@@ -87,16 +89,9 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
             keystore 'xpack.watcher.encryption_key', file("${project.projectDir}/src/test/resources/system_key")
             setting 'xpack.watcher.encrypt_sensitive_data', 'true'
 
-            rootProject.globalInfo.ready {
-                if (project.inFipsJvm) {
-                    setting 'xpack.security.transport.ssl.key', 'testnode.pem'
-                    setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
-                    keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
-                } else {
-                    setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
-                    setting 'xpack.security.transport.ssl.keystore.password', 'testnode'
-                }
-            }
+            setting 'xpack.security.transport.ssl.key', 'testnode.pem'
+            setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
+            keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
         }
     }
 
@@ -113,6 +108,7 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
         exclude 'org/elasticsearch/upgrades/FullClusterRestartSettingsUpgradeIT.class'
         exclude 'org/elasticsearch/upgrades/QueryBuilderBWCIT.class'
     }
+
 
     tasks.register("${baseName}#upgradedClusterTest", RestTestRunnerTask) {
         mustRunAfter(precommit)
@@ -154,4 +150,3 @@ task bwcTestSnapshots {
 }
 
 check.dependsOn(bwcTestSnapshots)
-

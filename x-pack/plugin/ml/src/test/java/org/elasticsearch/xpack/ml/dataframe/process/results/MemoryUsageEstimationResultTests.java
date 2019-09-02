@@ -39,13 +39,13 @@ public class MemoryUsageEstimationResultTests extends AbstractXContentTestCase<M
 
     public void testConstructor_NullValues() {
         MemoryUsageEstimationResult result = new MemoryUsageEstimationResult(null, null);
-        assertThat(result.getExpectedMemoryUsageWithOnePartition(), nullValue());
-        assertThat(result.getExpectedMemoryUsageWithMaxPartitions(), nullValue());
+        assertThat(result.getExpectedMemoryWithoutDisk(), nullValue());
+        assertThat(result.getExpectedMemoryWithDisk(), nullValue());
     }
 
     public void testConstructor() {
         MemoryUsageEstimationResult result = new MemoryUsageEstimationResult(new ByteSizeValue(2048), new ByteSizeValue(1024));
-        assertThat(result.getExpectedMemoryUsageWithOnePartition(), equalTo(new ByteSizeValue(2048)));
-        assertThat(result.getExpectedMemoryUsageWithMaxPartitions(), equalTo(new ByteSizeValue(1024)));
+        assertThat(result.getExpectedMemoryWithoutDisk(), equalTo(new ByteSizeValue(2048)));
+        assertThat(result.getExpectedMemoryWithDisk(), equalTo(new ByteSizeValue(1024)));
     }
 }

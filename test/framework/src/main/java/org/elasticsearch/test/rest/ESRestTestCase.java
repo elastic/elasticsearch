@@ -190,7 +190,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
         return cluster;
     }
-    
+
     /**
      * Helper class to check warnings in REST responses with sensitivity to versions
      * used in the target cluster.
@@ -199,14 +199,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         Set<String> requiredSameVersionClusterWarnings = new HashSet<>();
         Set<String> allowedWarnings = new HashSet<>();
         final Set<Version> testNodeVersions;
-        
+
         public VersionSensitiveWarningsHandler(Set<Version> nodeVersions) {
             this.testNodeVersions = nodeVersions;
         }
 
         /**
          * Adds to the set of warnings that are all required in responses if the cluster
-         * is formed from nodes all running the exact same version as the client. 
+         * is formed from nodes all running the exact same version as the client.
          * @param requiredWarnings a set of required warnings
          */
         public void current(String... requiredWarnings) {
@@ -214,11 +214,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         /**
-         * Adds to the set of warnings that are permissible (but not required) when running 
+         * Adds to the set of warnings that are permissible (but not required) when running
          * in mixed-version clusters or those that differ in version from the test client.
          * @param allowedWarnings optional warnings that will be ignored if received
          */
-        public void compatible(String... allowedWarnings) {            
+        public void compatible(String... allowedWarnings) {
             this.allowedWarnings.addAll(Arrays.asList(allowedWarnings));
         }
 
@@ -239,15 +239,15 @@ public abstract class ESRestTestCase extends ESTestCase {
                 return false;
             }
         }
-        
+
         private boolean isExclusivelyTargetingCurrentVersionCluster() {
             assertFalse("Node versions running in the cluster are missing", testNodeVersions.isEmpty());
-            return testNodeVersions.size() == 1 && 
+            return testNodeVersions.size() == 1 &&
                     testNodeVersions.iterator().next().equals(Version.CURRENT);
-        } 
-        
+        }
+
     }
-    
+
     public static RequestOptions expectVersionSpecificWarnings(Consumer<VersionSensitiveWarningsHandler> expectationsSetter) {
         Builder builder = RequestOptions.DEFAULT.toBuilder();
         VersionSensitiveWarningsHandler warningsHandler = new VersionSensitiveWarningsHandler(nodeVersions);
@@ -508,14 +508,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
-            try {
-                adminClient().performRequest(new Request("DELETE", "*"));
-            } catch (ResponseException e) {
-                // 404 here just means we had no indexes
-                if (e.getResponse().getStatusLine().getStatusCode() != 404) {
-                    throw e;
-                }
-            }
+            wipeAllIndices();
         }
 
         // wipe index templates
@@ -556,6 +549,20 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         assertThat("Found in progress snapshots [" + inProgressSnapshots.get() + "].", inProgressSnapshots.get(), anEmptyMap());
+    }
+
+    protected static void wipeAllIndices() throws IOException {
+        try {
+            final Response response = adminClient().performRequest(new Request("DELETE", "*"));
+            try (InputStream is = response.getEntity().getContent()) {
+                assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
+            }
+        } catch (ResponseException e) {
+            // 404 here just means we had no indexes
+            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                throw e;
+            }
+        }
     }
 
     /**

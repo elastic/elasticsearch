@@ -242,8 +242,8 @@ public class CertificateToolTests extends ESTestCase {
                 () -> CertificateTool.parseAndValidateFile(terminal, instanceFile));
         assertThat(exception.getMessage(), containsString("invalid configuration"));
         assertThat(exception.getMessage(), containsString(instanceFile.toString()));
-        assertThat(terminal.getOutput(), containsString("THIS=not a,valid DN"));
-        assertThat(terminal.getOutput(), containsString("could not be converted to a valid DN"));
+        assertThat(terminal.getErrorOutput(), containsString("THIS=not a,valid DN"));
+        assertThat(terminal.getErrorOutput(), containsString("could not be converted to a valid DN"));
     }
 
     public void testGeneratingCsr() throws Exception {

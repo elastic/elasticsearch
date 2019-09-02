@@ -1,0 +1,34 @@
+{
+  "snapshot.cleanup_repository": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
+    "stability": "stable",
+    "url": {
+      "paths": [
+        {
+          "path": "/_snapshot/{repository}/_cleanup",
+          "methods": [
+            "POST"
+          ],
+          "parts": {
+            "repository": {
+              "type": "string",
+              "required" : true,
+              "description": "A repository name"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "master_timeout": {
+        "type" : "time",
+        "description" : "Explicit operation timeout for connection to master node"
+      },
+      "timeout": {
+        "type" : "time",
+        "description" : "Explicit operation timeout"
+      }
+    },
+    "body": {}
+  }
+}

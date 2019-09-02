@@ -18,9 +18,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
-import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -70,17 +68,18 @@ public class RSquaredTests extends AbstractSerializingTestCase<RSquared> {
 
         RSquared rSquared = new RSquared();
         EvaluationMetricResult result = rSquared.evaluate(aggs);
-        assertThat(result, is(nullValue()));
+        assertThat(result, equalTo(new RSquared.Result(0.0)));
     }
 
     public void testEvaluate_GivenMissingAggs() {
+        EvaluationMetricResult zeroResult = new RSquared.Result(0.0);
         Aggregations aggs = new Aggregations(Collections.singletonList(
             createSingleMetricAgg("some_other_single_metric_agg", 0.2377)
         ));
 
         RSquared rSquared = new RSquared();
         EvaluationMetricResult result = rSquared.evaluate(aggs);
-        assertThat(result, is(nullValue()));
+        assertThat(result, equalTo(zeroResult));
 
         aggs = new Aggregations(Arrays.asList(
             createSingleMetricAgg("some_other_single_metric_agg", 0.2377),
@@ -88,7 +87,7 @@ public class RSquaredTests extends AbstractSerializingTestCase<RSquared> {
         ));
 
         result = rSquared.evaluate(aggs);
-        assertThat(result, is(nullValue()));
+        assertThat(result, equalTo(zeroResult));
 
         aggs = new Aggregations(Arrays.asList(
             createSingleMetricAgg("some_other_single_metric_agg", 0.2377),
@@ -96,7 +95,7 @@ public class RSquaredTests extends AbstractSerializingTestCase<RSquared> {
         ));
 
         result = rSquared.evaluate(aggs);
-        assertThat(result, is(nullValue()));
+        assertThat(result, equalTo(zeroResult));
     }
 
     private static NumericMetricsAggregation.SingleValue createSingleMetricAgg(String name, double value) {

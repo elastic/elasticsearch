@@ -9,11 +9,11 @@ Returns cluster nodes information.
 
 `GET /_nodes` +
 
-`GET /_nodes/{node_id}` +
+`GET /_nodes/<node_id>` +
 
-`GET /_nodes/{metric}` +
+`GET /_nodes/<metric>` +
 
-`GET /_nodes/{node_id}/{metric}`
+`GET /_nodes/<node_id>/<metric>`
 
 
 [[cluster-nodes-info-api-desc]]
@@ -29,7 +29,7 @@ By default, it returns all attributes and core settings for a node.
 [[cluster-nodes-info-api-path-params]]
 ==== {api-path-parms-title}
 
-`{metric}`::
+`<metric>`::
 		(Optional, string) Limits the information returned to the specific metrics. 
 		A comma-separated list of the following options:
 +

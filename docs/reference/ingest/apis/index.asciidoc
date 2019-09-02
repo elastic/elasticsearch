@@ -1,0 +1,15 @@
+[[ingest-apis]]
+== Ingest APIs
+
+The following ingest APIs are available for managing pipelines:
+
+* <<put-pipeline-api>> to add or update a pipeline
+* <<get-pipeline-api>> to return a specific pipeline
+* <<delete-pipeline-api>> to delete a pipeline
+* <<simulate-pipeline-api>> to simulate a call to a pipeline
+
+
+include::put-pipeline.asciidoc[]
+include::get-pipeline.asciidoc[]
+include::delete-pipeline.asciidoc[]
+include::simulate-pipeline.asciidoc[]

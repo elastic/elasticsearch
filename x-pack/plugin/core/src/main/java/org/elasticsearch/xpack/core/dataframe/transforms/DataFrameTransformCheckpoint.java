@@ -291,8 +291,14 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
             }
         }
 
-        for (long[] v : newCheckpoint.indicesCheckpoints.values()) {
-            newCheckPointSum += Arrays.stream(v).sum();
+        for (Entry<String, long[]> entry : newCheckpoint.indicesCheckpoints.entrySet()) {
+            newCheckPointSum += Arrays.stream(entry.getValue()).sum();
+            if (oldCheckpoint.indicesCheckpoints.containsKey(entry.getKey()) == false) {
+                // Sequence numbers start at 0 rather than 1, so if there's no corresponding value
+                // to subtract then operations behind needs to be the total number of operations on
+                // the new index and that needs to account for sequence number 0
+                newCheckPointSum += entry.getValue().length;
+            }
         }
 
         // this should not be possible

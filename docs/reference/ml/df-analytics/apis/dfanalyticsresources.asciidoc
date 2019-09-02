@@ -164,7 +164,6 @@ A `{regression}` configuration object has the following properties:
 `training_percent`::
   (Optional, integer) Defines what percentage of the data rows that are 
   eligible for training. Defaults to `100`.
-  `100`.
 
 
 [source,js]

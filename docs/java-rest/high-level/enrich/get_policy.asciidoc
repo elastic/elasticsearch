@@ -10,7 +10,8 @@
 [id="{upid}-{api}-request"]
 ==== Request
 
-The Get Policy API allows to retrieve an enrich policy by name.
+The Get Policy API allows to retrieve an enrich policy by name
+or all policies if no name is provided.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

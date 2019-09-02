@@ -40,7 +40,7 @@ public final class NamedPolicy {
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<NamedPolicy, String> PARSER = new ConstructingObjectParser<>(
         "policy",
-        false,
+        true,
         (args, policyType) -> new NamedPolicy(
             policyType,
             (String) args[0],

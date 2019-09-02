@@ -30,6 +30,7 @@ public final class GetPolicyResponse {
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<GetPolicyResponse, Void> PARSER = new ConstructingObjectParser<>(
         "get_policy_response",
+        true,
         args -> new GetPolicyResponse((List<NamedPolicy>) args[0])
     );
 

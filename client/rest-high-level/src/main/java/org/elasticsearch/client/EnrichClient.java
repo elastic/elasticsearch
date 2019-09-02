@@ -163,11 +163,12 @@ public final class EnrichClient {
      * @param request the {@link PutPolicyRequest}
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void getPolicyAsync(GetPolicyRequest request,
+    public Cancellable getPolicyAsync(GetPolicyRequest request,
                                RequestOptions options,
                                ActionListener<GetPolicyResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             EnrichRequestConverters::getPolicy,
             options,

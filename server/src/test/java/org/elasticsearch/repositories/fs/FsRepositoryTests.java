@@ -100,9 +100,9 @@ public class FsRepositoryTests extends ESTestCase {
             IndexId indexId = new IndexId(idxSettings.getIndex().getName(), idxSettings.getUUID());
 
             IndexCommit indexCommit = Lucene.getIndexCommit(Lucene.readSegmentInfos(store.directory()), store.directory());
-            final PlainActionFuture<Void> future1 = PlainActionFuture.newFuture();
+            final PlainActionFuture<String> future1 = PlainActionFuture.newFuture();
             runGeneric(threadPool, () -> {
-                IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing();
+                IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing("-1");
                 repository.snapshotShard(store, null, snapshotId, indexId, indexCommit,
                     snapshotStatus, future1);
                 future1.actionGet();
@@ -127,9 +127,9 @@ public class FsRepositoryTests extends ESTestCase {
             SnapshotId incSnapshotId = new SnapshotId("test1", "test1");
             IndexCommit incIndexCommit = Lucene.getIndexCommit(Lucene.readSegmentInfos(store.directory()), store.directory());
             Collection<String> commitFileNames = incIndexCommit.getFileNames();
-            final PlainActionFuture<Void> future2 = PlainActionFuture.newFuture();
+            final PlainActionFuture<String> future2 = PlainActionFuture.newFuture();
             runGeneric(threadPool, () -> {
-                IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing();
+                IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing("-1");
                 repository.snapshotShard(store, null, incSnapshotId, indexId, incIndexCommit, snapshotStatus, future2);
                 future2.actionGet();
                 IndexShardSnapshotStatus.Copy copy = snapshotStatus.asCopy();

@@ -159,7 +159,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure,
+        public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, Map<IndexId, String[]> indices, long startTime, String failure,
                                              int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                                              boolean includeGlobalState, MetaData metaData, Map<String, Object> userMetadata) {
             return null;
@@ -202,7 +202,7 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         @Override
         public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId, IndexCommit
-            snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, ActionListener<Void> listener) {
+            snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, ActionListener<String> listener) {
 
         }
 

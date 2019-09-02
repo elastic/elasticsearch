@@ -22,6 +22,7 @@ package org.elasticsearch.repositories;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -56,7 +57,7 @@ public final class RepositoryData {
      * An instance initialized for an empty repository.
      */
     public static final RepositoryData EMPTY = new RepositoryData(EMPTY_REPO_GEN,
-        Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
+        Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
 
     /**
      * The generational id of the index file from which the repository data was read.
@@ -79,21 +80,22 @@ public final class RepositoryData {
      */
     private final Map<IndexId, Set<SnapshotId>> indexSnapshots;
 
-    private final Map<IndexId, long[]> shardGenerations;
+    private final Map<IndexId, String[]> shardGenerations;
 
     public RepositoryData(long genId, Map<String, SnapshotId> snapshotIds, Map<String, SnapshotState> snapshotStates,
-                          Map<IndexId, Set<SnapshotId>> indexSnapshots) {
+                          Map<IndexId, Set<SnapshotId>> indexSnapshots, Map<IndexId,String[]> shardGenerations) {
         this.genId = genId;
         this.snapshotIds = Collections.unmodifiableMap(snapshotIds);
         this.snapshotStates = Collections.unmodifiableMap(snapshotStates);
         this.indices = Collections.unmodifiableMap(indexSnapshots.keySet().stream()
             .collect(Collectors.toMap(IndexId::getName, Function.identity())));
         this.indexSnapshots = Collections.unmodifiableMap(indexSnapshots);
-        this.shardGenerations = Collections.emptyMap();
+        this.shardGenerations = Collections.unmodifiableMap(shardGenerations);
+        assert indexSnapshots.keySet().equals(shardGenerations.keySet());
     }
 
     protected RepositoryData copy() {
-        return new RepositoryData(genId, snapshotIds, snapshotStates, indexSnapshots);
+        return new RepositoryData(genId, snapshotIds, snapshotStates, indexSnapshots, shardGenerations);
     }
 
     /**
@@ -104,7 +106,7 @@ public final class RepositoryData {
     }
 
     public String getShardGen(IndexId indexId, ShardId shardId) {
-        final long[] generations = shardGenerations.get(indexId);
+        final String[] generations = shardGenerations.get(indexId);
         if (generations == null) {
             return null;
         }
@@ -113,7 +115,7 @@ public final class RepositoryData {
             throw new IllegalArgumentException(
                 "Index [" + indexId + "] only has [" + generations.length + "] shards but requested shard [" + shardId + "]");
         }
-        return String.valueOf(generations[shardNum]);
+        return generations[shardNum];
     }
 
     /**
@@ -145,7 +147,7 @@ public final class RepositoryData {
      */
     public RepositoryData addSnapshot(final SnapshotId snapshotId,
                                       final SnapshotState snapshotState,
-                                      final List<IndexId> snapshottedIndices) {
+                                      final Map<IndexId, String[]> shardGenerations) {
         if (snapshotIds.containsKey(snapshotId.getUUID())) {
             // if the snapshot id already exists in the repository data, it means an old master
             // that is blocked from the cluster is trying to finalize a snapshot concurrently with
@@ -157,10 +159,10 @@ public final class RepositoryData {
         Map<String, SnapshotState> newSnapshotStates = new HashMap<>(snapshotStates);
         newSnapshotStates.put(snapshotId.getUUID(), snapshotState);
         Map<IndexId, Set<SnapshotId>> allIndexSnapshots = new HashMap<>(indexSnapshots);
-        for (final IndexId indexId : snapshottedIndices) {
+        for (final IndexId indexId : shardGenerations.keySet()) {
             allIndexSnapshots.computeIfAbsent(indexId, k -> new LinkedHashSet<>()).add(snapshotId);
         }
-        return new RepositoryData(genId, snapshots, newSnapshotStates, allIndexSnapshots);
+        return new RepositoryData(genId, snapshots, newSnapshotStates, allIndexSnapshots, shardGenerations);
     }
 
     /**
@@ -173,7 +175,7 @@ public final class RepositoryData {
         if (newGeneration == genId) {
             return this;
         }
-        return new RepositoryData(newGeneration, this.snapshotIds, this.snapshotStates, this.indexSnapshots);
+        return new RepositoryData(newGeneration, this.snapshotIds, this.snapshotStates, this.indexSnapshots, this.shardGenerations);
     }
 
     /**
@@ -207,7 +209,11 @@ public final class RepositoryData {
             indexSnapshots.put(indexId, set);
         }
 
-        return new RepositoryData(genId, newSnapshotIds, newSnapshotStates, indexSnapshots);
+        final Map<IndexId, String[]> newGenerations = new HashMap<>();
+        for (IndexId indexId : indexSnapshots.keySet()) {
+            newGenerations.put(indexId, shardGenerations.get(indexId));
+        }
+        return new RepositoryData(genId, newSnapshotIds, newSnapshotStates, indexSnapshots, newGenerations);
     }
 
     /**
@@ -288,6 +294,7 @@ public final class RepositoryData {
 
     private static final String SNAPSHOTS = "snapshots";
     private static final String INDICES = "indices";
+    private static final String SHARDS = "shards";
     private static final String INDEX_ID = "id";
     private static final String NAME = "name";
     private static final String UUID = "uuid";
@@ -325,6 +332,13 @@ public final class RepositoryData {
             builder.endObject();
         }
         builder.endObject();
+
+        builder.startObject(SHARDS);
+        for (final IndexId indexId : getIndices().values()) {
+            builder.array(indexId.getId(), shardGenerations.get(indexId));
+        }
+        builder.endObject();
+
         builder.endObject();
         return builder;
     }
@@ -336,6 +350,7 @@ public final class RepositoryData {
         final Map<String, SnapshotId> snapshots = new HashMap<>();
         final Map<String, SnapshotState> snapshotStates = new HashMap<>();
         final Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>();
+        final Map<String, String[]> shardStatus = new HashMap<>();
 
         if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
             while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
@@ -428,6 +443,20 @@ public final class RepositoryData {
                         assert indexId != null;
                         indexSnapshots.put(indexId, snapshotIds);
                     }
+                } else if (SHARDS.equals(field)) {
+                    while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                        while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
+                            final String indexId = parser.currentName();
+                            if (parser.nextToken() != XContentParser.Token.START_ARRAY) {
+                                throw new ElasticsearchParseException("start array expected [shards]");
+                            }
+                            final Collection<String> generations = new ArrayList<>();
+                            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                                generations.add(parser.textOrNull());
+                            }
+                            shardStatus.put(indexId, generations.toArray(Strings.EMPTY_ARRAY));
+                        }
+                    }
                 } else {
                     throw new ElasticsearchParseException("unknown field name  [" + field + "]");
                 }
@@ -435,7 +464,11 @@ public final class RepositoryData {
         } else {
             throw new ElasticsearchParseException("start object expected");
         }
-        return new RepositoryData(genId, snapshots, snapshotStates, indexSnapshots);
+        final Map<IndexId, String[]> shardGenerations = new HashMap<>();
+        final Map<String, IndexId> indexLookup =
+            indexSnapshots.keySet().stream().collect(Collectors.toMap(IndexId::getId, Function.identity()));
+        shardStatus.forEach((indexId, gens) -> shardGenerations.put(indexLookup.get(indexId), gens));
+        return new RepositoryData(genId, snapshots, snapshotStates, indexSnapshots, shardGenerations);
     }
 
 }

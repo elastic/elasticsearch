@@ -158,19 +158,19 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
 
             // We create a snap- blob for snapshot "foo" in the first generation
             final SnapshotId snapshotId = new SnapshotId("foo", UUIDs.randomBase64UUID());
-            repository.finalizeSnapshot(snapshotId, Collections.emptyList(), 1L, null, 5, Collections.emptyList(),
+            repository.finalizeSnapshot(snapshotId, Collections.emptyMap(), 1L, null, 5, Collections.emptyList(),
                 -1L, false, MetaData.EMPTY_META_DATA, Collections.emptyMap());
 
             // We try to write another snap- blob for "foo" in the next generation. It fails because the content differs.
             final AssertionError assertionError = expectThrows(AssertionError.class,
                 () -> repository.finalizeSnapshot(
-                    snapshotId, Collections.emptyList(), 1L, null, 6, Collections.emptyList(),
+                    snapshotId, Collections.emptyMap(), 1L, null, 6, Collections.emptyList(),
                  0, false, MetaData.EMPTY_META_DATA, Collections.emptyMap()));
             assertThat(assertionError.getMessage(), equalTo("\nExpected: <6>\n     but: was <5>"));
 
             // We try to write yet another snap- blob for "foo" in the next generation.
             // It passes cleanly because the content of the blob except for the timestamps.
-            repository.finalizeSnapshot(snapshotId, Collections.emptyList(), 1L, null, 5, Collections.emptyList(),
+            repository.finalizeSnapshot(snapshotId, Collections.emptyMap(), 1L, null, 5, Collections.emptyList(),
                 0, false, MetaData.EMPTY_META_DATA, Collections.emptyMap());
         }
     }

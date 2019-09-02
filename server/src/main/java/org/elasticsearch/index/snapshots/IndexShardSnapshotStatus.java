@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.snapshots;
 
-import org.apache.lucene.util.SetOnce;
-
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -60,9 +58,9 @@ public class IndexShardSnapshotStatus {
     }
 
     private final AtomicReference<Stage> stage;
+    private final AtomicReference<String> generation;
     private long startTime;
     private long totalTime;
-    private SetOnce<String> newGeneration;
     private int incrementalFileCount;
     private int totalFileCount;
     private int processedFileCount;
@@ -74,8 +72,10 @@ public class IndexShardSnapshotStatus {
 
     private IndexShardSnapshotStatus(final Stage stage, final long startTime, final long totalTime,
                                      final int incrementalFileCount, final int totalFileCount, final int processedFileCount,
-                                     final long incrementalSize, final long totalSize, final long processedSize, final String failure) {
+                                     final long incrementalSize, final long totalSize, final long processedSize, final String failure,
+                                     final String generation) {
         this.stage = new AtomicReference<>(Objects.requireNonNull(stage));
+        this.generation = new AtomicReference<>(generation);
         this.startTime = startTime;
         this.totalTime = totalTime;
         this.incrementalFileCount = incrementalFileCount;
@@ -119,7 +119,7 @@ public class IndexShardSnapshotStatus {
             throw new IllegalStateException("Unable to move the shard snapshot status to [DONE]: " +
                 "expecting [FINALIZE] but got [" + stage.get() + "]");
         }
-        this.newGeneration.set(newGeneration);
+        this.generation.set(newGeneration);
         return asCopy();
     }
 
@@ -137,8 +137,8 @@ public class IndexShardSnapshotStatus {
         }
     }
 
-    public String getNewGeneration() {
-        return newGeneration.get();
+    public String generation() {
+        return generation.get();
     }
 
     public boolean isAborted() {
@@ -166,8 +166,8 @@ public class IndexShardSnapshotStatus {
             indexVersion, failure);
     }
 
-    public static IndexShardSnapshotStatus newInitializing() {
-        return new IndexShardSnapshotStatus(Stage.INIT, 0L, 0L, 0, 0, 0, 0, 0, 0, null);
+    public static IndexShardSnapshotStatus newInitializing(String generation) {
+        return new IndexShardSnapshotStatus(Stage.INIT, 0L, 0L, 0, 0, 0, 0, 0, 0, null, generation);
     }
 
     public static IndexShardSnapshotStatus newFailed(final String failure) {
@@ -175,15 +175,15 @@ public class IndexShardSnapshotStatus {
         if (failure == null) {
             throw new IllegalArgumentException("A failure description is required for a failed IndexShardSnapshotStatus");
         }
-        return new IndexShardSnapshotStatus(Stage.FAILURE, 0L, 0L, 0, 0, 0, 0, 0, 0, failure);
+        return new IndexShardSnapshotStatus(Stage.FAILURE, 0L, 0L, 0, 0, 0, 0, 0, 0, failure, null);
     }
 
     public static IndexShardSnapshotStatus newDone(final long startTime, final long totalTime,
                                                    final int incrementalFileCount, final int fileCount,
-                                                   final long incrementalSize, final long size) {
+                                                   final long incrementalSize, final long size, String generation) {
         // The snapshot is done which means the number of processed files is the same as total
         return new IndexShardSnapshotStatus(Stage.DONE, startTime, totalTime, incrementalFileCount, fileCount, incrementalFileCount,
-            incrementalSize, size, incrementalSize, null);
+            incrementalSize, size, incrementalSize, null, generation);
     }
 
     /**

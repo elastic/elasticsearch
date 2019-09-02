@@ -126,19 +126,19 @@ public interface Repository extends LifecycleComponent {
      * <p>
      * This method is called on master after all shards are snapshotted.
      *
-     * @param snapshotId    snapshot id
-     * @param indices       list of indices in the snapshot
-     * @param startTime     start time of the snapshot
-     * @param failure       global failure reason or null
-     * @param totalShards   total number of shards
-     * @param shardFailures list of shard failures
-     * @param repositoryStateId the unique id identifying the state of the repository when the snapshot began
+     * @param snapshotId         snapshot id
+     * @param shardGenerations   map of indices in snapshot to snapshot shard generation
+     * @param startTime          start time of the snapshot
+     * @param failure            global failure reason or null
+     * @param totalShards        total number of shards
+     * @param shardFailures      list of shard failures
+     * @param repositoryStateId  the unique id identifying the state of the repository when the snapshot began
      * @param includeGlobalState include cluster global state
      * @return snapshot description
      */
-    SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards,
-                                  List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState,
-                                  MetaData clusterMetaData, Map<String, Object> userMetadata);
+    SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, Map<IndexId, String[]> shardGenerations, long startTime, String failure,
+                                  int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
+                                  boolean includeGlobalState, MetaData clusterMetaData, Map<String, Object> userMetadata);
 
     /**
      * Deletes snapshot
@@ -209,7 +209,7 @@ public interface Repository extends LifecycleComponent {
      * @param listener            listener invoked on completion
      */
     void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                       IndexShardSnapshotStatus snapshotStatus, ActionListener<Void> listener);
+                       IndexShardSnapshotStatus snapshotStatus, ActionListener<String> listener);
 
     /**
      * Restores snapshot of the shard.

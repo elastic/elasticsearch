@@ -90,15 +90,15 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     }
 
     @Override
-    public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards,
-        List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState, MetaData metaData,
-        Map<String, Object> userMetadata) {
+    public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, Map<IndexId, String[]> shardGenerations, long startTime, String failure,
+                                         int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
+                                         boolean includeGlobalState, MetaData metaData, Map<String, Object> userMetadata) {
         // we process the index metadata at snapshot time. This means if somebody tries to restore
         // a _source only snapshot with a plain repository it will be just fine since we already set the
         // required engine, that the index is read-only and the mapping to a default mapping
         try {
-            return super.finalizeSnapshot(snapshotId, indices, startTime, failure, totalShards, shardFailures, repositoryStateId,
-                includeGlobalState, metadataToSnapshot(indices, metaData), userMetadata);
+            return super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
+                includeGlobalState, metadataToSnapshot(new ArrayList<>(shardGenerations.keySet()), metaData), userMetadata);
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
@@ -133,7 +133,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
 
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, ActionListener<Void> listener) {
+                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, ActionListener<String> listener) {
         if (mapperService.documentMapper() != null // if there is no mapping this is null
             && mapperService.documentMapper().sourceMapper().isComplete() == false) {
             listener.onFailure(

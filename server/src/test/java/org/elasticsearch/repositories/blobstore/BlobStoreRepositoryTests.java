@@ -22,6 +22,7 @@ package org.elasticsearch.repositories.blobstore;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -43,10 +44,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -242,9 +243,9 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         for (int i = 0; i < numSnapshots; i++) {
             SnapshotId snapshotId = new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID());
             int numIndices = inclIndices ? randomIntBetween(0, 20) : 0;
-            List<IndexId> indexIds = new ArrayList<>(numIndices);
+            Map<IndexId, String[]> indexIds = new HashMap<>();
             for (int j = 0; j < numIndices; j++) {
-                indexIds.add(new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID()));
+                indexIds.put(new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID()), Strings.EMPTY_ARRAY);
             }
             repoData = repoData.addSnapshot(snapshotId,
                 randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED), indexIds);

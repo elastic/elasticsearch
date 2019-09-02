@@ -27,9 +27,7 @@ import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
-import org.junit.Ignore;
 import org.junit.Rule;
-import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import java.nio.charset.StandardCharsets;
@@ -96,8 +94,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assertThat(result.stdout, containsString("keystore.seed"));
     }
 
-    // TODO[wrb]: remove all timeouts before merging PR
-    @Test(timeout = 5 * 60 * 1000)
     public void test40keystorePasswordOnStandardInput() throws Exception {
         assumeTrue("packages will use systemd, which doesn't handle stdin",
             distribution.isArchive());
@@ -116,7 +112,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Archives.stopElasticsearch(installation);
     }
 
-    @Test(timeout = 5 * 60 * 1000)
     public void test41wrongKeystorePasswordOnStandardInput() throws Exception {
         assumeTrue("packages will use systemd, which doesn't handle stdin",
             distribution.isArchive());
@@ -129,8 +124,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Archives.runElasticsearch(installation, sh, "wrong");
     }
 
-    @Ignore
-    @Test(timeout = 5 * 60 * 1000)
     public void test42keystorePasswordOnTty() throws Exception {
         assumeTrue("expect command isn't on Windows",
             distribution.platform != Distribution.Platform.WINDOWS);
@@ -147,8 +140,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Archives.stopElasticsearch(installation);
     }
 
-    @Ignore
-    @Test(timeout = 5 * 60 * 1000)
     public void test43wrongKeystorePasswordOnTty() throws Exception {
         assumeTrue("expect command isn't on Windows",
             distribution.platform != Distribution.Platform.WINDOWS);
@@ -163,7 +154,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Archives.runElasticsearchWithTty(installation, sh, "wrong");
     }
 
-    @Test(timeout = 5 * 60 * 1000)
     public void test50keystorePasswordFromFile() throws Exception {
         String password = "keystorepass";
         Path esKeystorePassphraseFile = installation.config.resolve("eks");
@@ -207,7 +197,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
         }
     }
 
-    @Test(timeout = 5 * 60 * 1000)
     public void test51wrongKeystorePasswordFromFile() throws Exception {
         Path esKeystorePassphraseFile = installation.config.resolve("eks");
         boolean isWindows = distribution.platform.equals(Distribution.Platform.WINDOWS);

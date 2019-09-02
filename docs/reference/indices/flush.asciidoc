@@ -67,19 +67,20 @@ POST _flush
 ==== Synced Flush
 
 {es} keeps track of which shards have received indexing activity recently, and
-considers shards that have not received any indexing operations for 5 minutes
-to be inactive. When a shard is inactive {es} performs a special kind of flush
+considers shards that have not received any indexing operations for 5 minutes to
+be inactive. When a shard is inactive {es} performs a special kind of flush
 known as a _synced flush_. A synced flush performs a normal
-<<indices-flush,flush>> on each copy of the shard, and then adds a unique
-marker known as the `sync_id` to each copy to indicate that these copies have
-identical Lucene indices.
+<<indices-flush,flush>> on each copy of the shard, and then adds a unique marker
+known as the `sync_id` to each copy to indicate that these copies have identical
+Lucene indices.
 
 When allocating shard copies, {es} must ensure that each replica contains the
 same data as the primary. If the shard copies have been synced-flushed and the
 replica shares a `sync_id` with the primary then {es} knows that the two copies
 have identical Lucene indices. This means there is no need to copy any segment
 files from the primary to the replica, which saves a good deal of time during
-recovery or restarts.
+recovery or restarts. Comparing the `sync_id` markers of the two copies is a
+very quick way to check whether the two copies have identical contents.
 
 This is particularly useful for clusters having lots of indices which are very
 rarely updated, such as with time-based indices. Without the synced flush

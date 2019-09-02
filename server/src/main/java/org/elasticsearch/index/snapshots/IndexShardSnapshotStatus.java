@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.snapshots;
 
+import org.apache.lucene.util.SetOnce;
+
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -60,6 +62,7 @@ public class IndexShardSnapshotStatus {
     private final AtomicReference<Stage> stage;
     private long startTime;
     private long totalTime;
+    private SetOnce<String> newGeneration;
     private int incrementalFileCount;
     private int totalFileCount;
     private int processedFileCount;
@@ -109,13 +112,14 @@ public class IndexShardSnapshotStatus {
         return asCopy();
     }
 
-    public synchronized Copy moveToDone(final long endTime) {
+    public synchronized Copy moveToDone(final long endTime, final String newGeneration) {
         if (stage.compareAndSet(Stage.FINALIZE, Stage.DONE)) {
             this.totalTime = Math.max(0L, endTime - startTime);
         } else {
             throw new IllegalStateException("Unable to move the shard snapshot status to [DONE]: " +
                 "expecting [FINALIZE] but got [" + stage.get() + "]");
         }
+        this.newGeneration.set(newGeneration);
         return asCopy();
     }
 
@@ -131,6 +135,10 @@ public class IndexShardSnapshotStatus {
             this.totalTime = Math.max(0L, endTime - startTime);
             this.failure = failure;
         }
+    }
+
+    public String getNewGeneration() {
+        return newGeneration.get();
     }
 
     public boolean isAborted() {

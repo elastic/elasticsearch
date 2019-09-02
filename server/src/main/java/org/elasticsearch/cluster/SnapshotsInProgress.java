@@ -249,20 +249,26 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     public static class ShardSnapshotStatus {
         private final ShardState state;
         private final String nodeId;
+
+        @Nullable
+        private final String generation;
+
+        @Nullable
         private final String reason;
 
-        public ShardSnapshotStatus(String nodeId) {
-            this(nodeId, ShardState.INIT);
+        public ShardSnapshotStatus(String nodeId, String generation) {
+            this(nodeId, ShardState.INIT, generation);
         }
 
-        public ShardSnapshotStatus(String nodeId, ShardState state) {
-            this(nodeId, state, null);
+        public ShardSnapshotStatus(String nodeId, ShardState state, String generation) {
+            this(nodeId, state, null, generation);
         }
 
-        public ShardSnapshotStatus(String nodeId, ShardState state, String reason) {
+        public ShardSnapshotStatus(String nodeId, ShardState state, String reason, String generation) {
             this.nodeId = nodeId;
             this.state = state;
             this.reason = reason;
+            this.generation = generation;
             // If the state is failed we have to have a reason for this failure
             assert state.failed() == false || reason != null;
         }
@@ -270,6 +276,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public ShardSnapshotStatus(StreamInput in) throws IOException {
             nodeId = in.readOptionalString();
             state = ShardState.fromValue(in.readByte());
+            generation = in.readOptionalString();
             reason = in.readOptionalString();
         }
 
@@ -281,6 +288,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return nodeId;
         }
 
+        public String generation() {
+            return this.generation;
+        }
+
         public String reason() {
             return reason;
         }
@@ -288,6 +299,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(nodeId);
             out.writeByte(state.value);
+            out.writeOptionalString(generation);
             out.writeOptionalString(reason);
         }
 

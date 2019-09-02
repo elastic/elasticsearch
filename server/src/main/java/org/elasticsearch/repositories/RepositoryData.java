@@ -25,6 +25,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 
@@ -78,6 +79,7 @@ public final class RepositoryData {
      */
     private final Map<IndexId, Set<SnapshotId>> indexSnapshots;
 
+    private final Map<IndexId, long[]> shardGenerations;
 
     public RepositoryData(long genId, Map<String, SnapshotId> snapshotIds, Map<String, SnapshotState> snapshotStates,
                           Map<IndexId, Set<SnapshotId>> indexSnapshots) {
@@ -87,6 +89,7 @@ public final class RepositoryData {
         this.indices = Collections.unmodifiableMap(indexSnapshots.keySet().stream()
             .collect(Collectors.toMap(IndexId::getName, Function.identity())));
         this.indexSnapshots = Collections.unmodifiableMap(indexSnapshots);
+        this.shardGenerations = Collections.emptyMap();
     }
 
     protected RepositoryData copy() {
@@ -98,6 +101,19 @@ public final class RepositoryData {
      */
     public long getGenId() {
         return genId;
+    }
+
+    public String getShardGen(IndexId indexId, ShardId shardId) {
+        final long[] generations = shardGenerations.get(indexId);
+        if (generations == null) {
+            return null;
+        }
+        final int shardNum = shardId.getId();
+        if (generations.length < shardNum) {
+            throw new IllegalArgumentException(
+                "Index [" + indexId + "] only has [" + generations.length + "] shards but requested shard [" + shardId + "]");
+        }
+        return String.valueOf(generations[shardNum]);
     }
 
     /**

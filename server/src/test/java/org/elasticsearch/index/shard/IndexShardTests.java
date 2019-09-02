@@ -79,10 +79,12 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.DeleteResult;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
@@ -4130,5 +4132,40 @@ public class IndexShardTests extends IndexShardTestCase {
         assertTrue(readonlyShard.recoverFromStore());
         assertThat(readonlyShard.docStats().getCount(), equalTo(numDocs));
         closeShards(readonlyShard);
+    }
+
+    public void testCloseShardWhileEngineIsWarming() throws Exception {
+        CountDownLatch warmerStarted = new CountDownLatch(1);
+        CountDownLatch warmerBlocking = new CountDownLatch(1);
+        IndexShard shard = newShard(true, Settings.EMPTY, config -> {
+            Engine.Warmer warmer = reader -> {
+                try {
+                    warmerStarted.countDown();
+                    warmerBlocking.await();
+                    config.getWarmer().warm(reader);
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+            };
+            EngineConfig configWithWarmer = new EngineConfig(config.getShardId(), config.getAllocationId(), config.getThreadPool(),
+                config.getIndexSettings(), warmer, config.getStore(), config.getMergePolicy(), config.getAnalyzer(),
+                config.getSimilarity(), new CodecService(null, logger), config.getEventListener(), config.getQueryCache(),
+                config.getQueryCachingPolicy(), config.getTranslogConfig(), config.getFlushMergesAfter(),
+                config.getExternalRefreshListener(), config.getInternalRefreshListener(), config.getIndexSort(),
+                config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
+                config.getPrimaryTermSupplier(), config.getTombstoneDocSupplier());
+            return new InternalEngine(configWithWarmer);
+        });
+        Thread recoveryThread = new Thread(() -> expectThrows(AlreadyClosedException.class, () -> recoverShardFromStore(shard)));
+        recoveryThread.start();
+        try {
+            warmerStarted.await();
+            shard.close("testing", false);
+            assertThat(shard.state, equalTo(IndexShardState.CLOSED));
+        } finally {
+            warmerBlocking.countDown();
+        }
+        recoveryThread.join();
+        shard.store().close();
     }
 }

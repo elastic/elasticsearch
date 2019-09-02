@@ -189,6 +189,9 @@ public class Realms implements Iterable<Realm> {
             if (factory == null) {
                 throw new IllegalArgumentException("unknown realm type [" + identifier.getType() + "] for realm [" + identifier + "]");
             }
+            if (realms.stream().anyMatch(r -> r.name().equals(identifier.getName()))) {
+                throw new IllegalArgumentException("multiple realms configured with the same name [" + identifier.getName() + "] ");
+            }
             RealmConfig config = new RealmConfig(identifier, settings, env, threadContext);
             if (!config.enabled()) {
                 if (logger.isDebugEnabled()) {

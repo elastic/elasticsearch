@@ -84,7 +84,7 @@ public class EncryptedRepository extends BlobStoreRepository {
 
     @Override
     protected BlobStore createBlobStore() throws Exception {
-        return new EncryptedBlobStoreDecorator(this.delegatedRepository.blobStore(), this.masterSecretKey);
+        return new EncryptedBlobStoreDecorator(this.delegatedRepository.blobStore(), this.masterSecretKey, this.provider);
     }
 
     @Override

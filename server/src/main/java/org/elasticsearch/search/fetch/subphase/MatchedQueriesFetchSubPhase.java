@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.search.fetch.subphase;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Matches;
@@ -25,42 +27,41 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.index.query.NamedQuery;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Comparator;
 
 public final class MatchedQueriesFetchSubPhase implements FetchSubPhase {
 
     @Override
-    public void hitExecute(SearchContext context, HitContext hitContext) throws IOException {
+    public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
 
         if ((context.parsedQuery() == null || context.parsedQuery().matchNamedQueries() == false) && (
             context.parsedPostFilter() == null || context.parsedPostFilter().matchNamedQueries() == false)) {
             return;
         }
 
-        Weight w = getWeight(context, hitContext);
-        Matches m = w.matches(hitContext.readerContext(), hitContext.docId());
-
-        if (m == null) {
-            return;
-        }
-
-        for (NamedQuery.NamedMatches nm : NamedQuery.findNamedMatches(m)) {
-            hitContext.hit().addMatchedQuery(nm.getName());
-        }
-
-    }
-
-    private Weight getWeight(SearchContext context, HitContext hitContext) throws IOException {
-        if (hitContext.cache().containsKey("weight")) {
-            return (Weight) hitContext.cache().get("weight");
-        }
         Query q = getQuery(context);
         Weight w = context.searcher().createWeight(context.searcher().rewrite(q), ScoreMode.COMPLETE_NO_SCORES, 1);
-        hitContext.cache().put("weight", w);
-        return w;
+        SearchHit[] sortedHits = hits.clone();
+        Arrays.sort(sortedHits, Comparator.comparingInt(SearchHit::docId));
+        for (SearchHit hit : sortedHits) {
+            int ord = ReaderUtil.subIndex(hit.docId(), context.searcher().getTopReaderContext().leaves());
+            LeafReaderContext ctx = context.searcher().getTopReaderContext().leaves().get(ord);
+            int doc = hit.docId() - ctx.docBase;
+            Matches m = w.matches(ctx, doc);
+            if (m == null) {
+                continue;
+            }
+
+            for (NamedQuery.NamedMatches nm : NamedQuery.findNamedMatches(m)) {
+                hit.addMatchedQuery(nm.getName());
+            }
+        }
     }
 
     private Query getQuery(SearchContext context) {

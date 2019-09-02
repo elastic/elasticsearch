@@ -329,6 +329,82 @@
                         }
                       }
                     },
+                    "sourcemap": {
+                      "properties": {
+                        "response": {
+                          "errors": {
+                            "count": {
+                              "type": "long"
+                            },
+                            "closed": {
+                              "type": "long"
+                            },
+                            "unauthorized": {
+                              "type": "long"
+                            },
+                            "forbidden": {
+                              "type": "long"
+                            },
+                            "internal": {
+                              "type": "long"
+                            },
+                            "notfound": {
+                              "type": "long"
+                            },
+                            "ratelimit": {
+                              "type": "long"
+                            },
+                            "invalidquery": {
+                              "type": "long"
+                            },
+                            "method": {
+                              "type": "long"
+                            },
+                            "unavailable": {
+                              "type": "long"
+                            },
+                            "toolarge": {
+                              "type": "long"
+                            },
+                            "queue": {
+                              "type": "long"
+                            },
+                            "validate": {
+                              "type": "long"
+                            }
+                          },
+                          "valid": {
+                            "properties": {
+                              "accepted": {
+                                "type": "long"
+                              },
+                              "notmodified": {
+                                "type": "long"
+                              },
+                              "count": {
+                                "type": "long"
+                              },
+                              "ok": {
+                                "type": "long"
+                              }
+                            }
+                          },
+                          "count": {
+                            "type": "long"
+                          }
+                        },
+                        "unset": {
+                          "type": "long"
+                        },
+                        "request": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    },
                     "acm": {
                       "properties": {
                         "response": {

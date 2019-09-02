@@ -1167,8 +1167,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             throw new IndexShardSnapshotException(snapshotShardId, "Failed to list content of shard directory", e);
         }
 
+        final String shardGen = repositoryData.getShardGen(indexId, snapshotShardId);
         Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(
-            blobs.keySet(), shardContainer, repositoryData.getShardGen(indexId, snapshotShardId));
+            blobs.keySet(), shardContainer, shardGen == null ? null : Long.toString(Long.parseLong(shardGen) - 1L));
         BlobStoreIndexShardSnapshots snapshots = tuple.v1();
         long fileListGeneration = tuple.v2();
 

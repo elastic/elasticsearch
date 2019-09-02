@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -191,6 +192,7 @@ public final class RepositoryData {
         Map<String, SnapshotState> newSnapshotStates = new HashMap<>(snapshotStates);
         newSnapshotStates.remove(snapshotId.getUUID());
         Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>();
+        Set<IndexId> updatedIndices = new HashSet<>();
         for (final IndexId indexId : indices.values()) {
             Set<SnapshotId> set;
             Set<SnapshotId> snapshotIds = this.indexSnapshots.get(indexId);
@@ -203,6 +205,7 @@ public final class RepositoryData {
                 }
                 set = new LinkedHashSet<>(snapshotIds);
                 set.remove(snapshotId);
+                updatedIndices.add(indexId);
             } else {
                 set = snapshotIds;
             }
@@ -211,7 +214,17 @@ public final class RepositoryData {
 
         final Map<IndexId, String[]> newGenerations = new HashMap<>();
         for (IndexId indexId : indexSnapshots.keySet()) {
-            newGenerations.put(indexId, shardGenerations.get(indexId));
+            final String[] previousGenerations = shardGenerations.get(indexId);
+            if (updatedIndices.contains(indexId)) {
+                assert previousGenerations != null;
+                final String[] updatedGenerations = new String[previousGenerations.length];
+                for (int i = 0; i < previousGenerations.length; i++) {
+                    updatedGenerations[i] = Long.toString(Long.parseLong(previousGenerations[i]) + 1);
+                }
+                newGenerations.put(indexId, updatedGenerations);
+            } else {
+                newGenerations.put(indexId, previousGenerations);
+            }
         }
         return new RepositoryData(genId, newSnapshotIds, newSnapshotStates, indexSnapshots, newGenerations);
     }

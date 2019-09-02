@@ -200,7 +200,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         config.put("policy_name", "majestic");
         config.put("field", "host");
         config.put("target_field", "entry");
-        config.put("max_matches", randomBoolean() ? between(-2048, 0) : between(1043, 2048));
+        config.put("max_matches", randomBoolean() ? between(-2048, 0) : between(129, 2048));
 
         Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(Collections.emptyMap(), "_tag", config));
         assertThat(e.getMessage(), equalTo("[max_matches] should be between 1 and 1024"));

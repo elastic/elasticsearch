@@ -306,7 +306,7 @@ public class Archives {
             // this starts the server in the background. the -d flag is unsupported on windows
             // these tests run as Administrator. we don't want to run the server as Administrator, so we provide the current user's
             // username and password to the process which has the effect of starting it not as Administrator.
-            Shell.Result r = sh.run(
+            sh.run(
                 "$password = ConvertTo-SecureString 'vagrant' -AsPlainText -Force; " +
                 "$processInfo = New-Object System.Diagnostics.ProcessStartInfo; " +
                 "$processInfo.FileName = '" + bin.elasticsearch + "'; " +

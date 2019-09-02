@@ -373,5 +373,4 @@ public class PackageTests extends PackagingTestCase {
 
         stopElasticsearch(sh);
     }
-
 }

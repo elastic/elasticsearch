@@ -34,7 +34,7 @@ public class GetStoredScriptResponseTests extends AbstractSerializingTestCase<Ge
 
     @Override
     protected GetStoredScriptResponse doParseInstance(XContentParser parser) throws IOException {
-        return GetStoredScriptResponse.fromXContentPre80(parser);
+        return GetStoredScriptResponse.fromXContent(parser);
     }
 
     @Override

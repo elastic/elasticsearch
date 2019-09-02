@@ -163,7 +163,7 @@ A `{regression}` configuration object has the following properties:
   
 `training_percent`::
   (Optional, integer) Defines what percentage of data frame rows that are 
-  eligible for training are actually going to be used for training. Defaults to 
+  eligible for training. Defaults to `100`.
   `100`.
 
 

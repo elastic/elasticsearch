@@ -1049,6 +1049,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final GroupedActionListener<Void> filesListener =
                 new GroupedActionListener<>(allFilesUploadedListener, indexIncrementalFileCount);
             final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+            // Flag to signal that the snapshot has been aborted/failed so we can stop any further blob uploads from starting
             final AtomicBoolean alreadyFailed = new AtomicBoolean();
             for (BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo : filesToSnapshot) {
                 executor.execute(new ActionRunnable<>(filesListener) {

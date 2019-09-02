@@ -22,28 +22,34 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.search.Queries;
 
+import java.util.Collections;
+import java.util.List;
+
 /**
  * The result of parsing a query.
  */
 public class ParsedQuery {
     private final Query query;
+    private final List<Query> nestedQueries;
     private final boolean matchNamedQueries;
 
     /**
      * Store the query and filters.
-     *
-     * @param query
+     *  @param query
      *            the query
+     * @param nestedQueries
+     *            any nested queries
      * @param matchNamedQueries
      *            {@code true} if the search should generate Matches
      */
-    public ParsedQuery(Query query, boolean matchNamedQueries) {
+    public ParsedQuery(Query query, List<Query> nestedQueries, boolean matchNamedQueries) {
         this.query = query;
+        this.nestedQueries = nestedQueries;
         this.matchNamedQueries = matchNamedQueries;
     }
 
     public ParsedQuery(Query query) {
-        this(query, false);
+        this(query, Collections.emptyList(), false);
     }
 
     /**
@@ -57,7 +63,11 @@ public class ParsedQuery {
         return this.matchNamedQueries;
     }
 
+    public List<Query> getNestedQueries() {
+        return this.nestedQueries;
+    }
+
     public static ParsedQuery parsedMatchAllQuery() {
-        return new ParsedQuery(Queries.newMatchAllQuery(), false);
+        return new ParsedQuery(Queries.newMatchAllQuery(), Collections.emptyList(), false);
     }
 }

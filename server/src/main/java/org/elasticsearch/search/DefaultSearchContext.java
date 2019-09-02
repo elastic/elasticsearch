@@ -252,7 +252,7 @@ final class DefaultSearchContext extends SearchContext {
         }
         if (queryBoost() != AbstractQueryBuilder.DEFAULT_BOOST) {
             parsedQuery(new ParsedQuery(new FunctionScoreQuery(query(), new WeightFactorFunction(queryBoost)),
-                parsedQuery().matchNamedQueries()));
+                parsedQuery().getNestedQueries(), parsedQuery().matchNamedQueries()));
         }
         this.query = buildFilteredQuery(query);
         if (rewrite) {

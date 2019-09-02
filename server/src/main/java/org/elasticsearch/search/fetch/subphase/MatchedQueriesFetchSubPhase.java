@@ -57,6 +57,20 @@ public final class MatchedQueriesFetchSubPhase implements FetchSubPhase {
         if (hitContext.cache().containsKey("weight")) {
             return (Weight) hitContext.cache().get("weight");
         }
+        Query q = getQuery(context);
+        Weight w = context.searcher().createWeight(context.searcher().rewrite(q), ScoreMode.COMPLETE_NO_SCORES, 1);
+        hitContext.cache().put("weight", w);
+        return w;
+    }
+
+    private Query getQuery(SearchContext context) {
+        if (context.isNested()) {
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            for (Query q : context.parsedQuery().getNestedQueries()) {
+                builder.add(q, BooleanClause.Occur.SHOULD);
+            }
+            return builder.build();
+        }
         Query q = context.parsedQuery().query();
         // If the query has a named post filter then we need to include that as well
         if (context.parsedPostFilter() != null && context.parsedPostFilter().matchNamedQueries()) {
@@ -65,9 +79,7 @@ public final class MatchedQueriesFetchSubPhase implements FetchSubPhase {
                 .add(context.parsedPostFilter().query(), BooleanClause.Occur.FILTER)
                 .build();
         }
-        Weight w = context.searcher().createWeight(context.searcher().rewrite(q), ScoreMode.COMPLETE_NO_SCORES, 1);
-        hitContext.cache().put("weight", w);
-        return w;
+        return q;
     }
 
 }

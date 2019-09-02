@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
@@ -102,8 +103,18 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
         if (highlightBuilder != null) {
             subSearchContext.highlight(highlightBuilder.build(context.getQueryShardContext()));
         }
+        subSearchContext.setNested(checkNested(parent));
         return new TopHitsAggregator(context.fetchPhase(), subSearchContext, name, context, parent,
                 pipelineAggregators, metaData);
+    }
+
+    private static boolean checkNested(Aggregator parent) {
+        for (Aggregator a = parent; a != null; a = a.parent()) {
+            if (a instanceof NestedAggregator) {
+                return true;
+            }
+        }
+        return false;
     }
 
 }

@@ -88,6 +88,7 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     private Map<Lifetime, List<Releasable>> clearables = null;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private InnerHitsContext innerHitsContext;
+    private boolean isNested = false;
 
     protected SearchContext() {
         super("search_context");
@@ -346,6 +347,14 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
      * Return a handle over the profilers for the current search request, or {@code null} if profiling is not enabled.
      */
     public abstract Profilers getProfilers();
+
+    public boolean isNested() {
+        return isNested;
+    }
+
+    public void setNested(boolean isNested) {
+        this.isNested = isNested;
+    }
 
     /**
      * Schedule the release of a resource. The time when {@link Releasable#close()} will be called on this object

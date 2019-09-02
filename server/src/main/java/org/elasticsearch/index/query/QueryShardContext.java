@@ -58,6 +58,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -87,6 +88,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private final SetOnce<Boolean> frozen = new SetOnce<>();
     private final Index fullyQualifiedIndex;
 
+    private List<Query> nestedQueries = new ArrayList<>();
     private boolean matchNamedQueries = false;
     private boolean allowUnmappedFields;
     private boolean mapUnmappedFieldAsString;
@@ -180,6 +182,14 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public boolean matchNamedQueries() {
         return this.matchNamedQueries;
+    }
+
+    public void addNestedQuery(Query query) {
+        nestedQueries.add(query);
+    }
+
+    public List<Query> getNestedQueries() {
+        return this.nestedQueries;
     }
 
     /**
@@ -282,7 +292,7 @@ public class QueryShardContext extends QueryRewriteContext {
         reset();
         try {
             QueryBuilder rewriteQuery = Rewriteable.rewrite(queryBuilder, this, true);
-            return new ParsedQuery(filterOrQuery.apply(rewriteQuery), matchNamedQueries);
+            return new ParsedQuery(filterOrQuery.apply(rewriteQuery), nestedQueries, matchNamedQueries);
         } catch(QueryShardException | ParsingException e ) {
             throw e;
         } catch(Exception e) {

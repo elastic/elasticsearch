@@ -130,7 +130,16 @@ public class GetStoredScriptResponse extends ActionResponse implements ToXConten
         return builder;
     }
 
+    /**
+     * The original format is the default prior to 8.0 and needed for backwards compatibility
+     * @see #fromXContentNewFormat(XContentParser)
+     */
+    @Deprecated
     public static GetStoredScriptResponse fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
+    }
+
+    public static GetStoredScriptResponse fromXContentNewFormat(XContentParser parser) throws IOException {
         final Map<String, StoredScriptSource> storedScripts = new HashMap<>();
         for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -163,14 +172,6 @@ public class GetStoredScriptResponse extends ActionResponse implements ToXConten
 
         builder.endObject();
         return builder;
-    }
-
-    /**
-     * Used to test backwards compatibility since the original format is the default prior to 8.0
-     */
-    @Deprecated
-    public static GetStoredScriptResponse fromXContentPre80(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
     }
 
     @Override

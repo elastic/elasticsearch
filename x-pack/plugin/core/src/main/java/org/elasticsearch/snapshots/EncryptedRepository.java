@@ -40,6 +40,7 @@ import java.io.InputStream;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Map;
 import java.util.function.Function;
@@ -59,20 +60,26 @@ public class EncryptedRepository extends BlobStoreRepository {
 
     private static final Setting<String> DELEGATE_TYPE = new Setting<>("delegate_type", "", Function.identity(),
             Setting.Property.NodeScope);
-    private static final Setting<String> PASSWORD = new Setting<>("password", "", Function.identity(),
-            Setting.Property.NodeScope);
     private static final String ENCRYPTION_METADATA_PREFIX = "encryption-metadata-";
     // always the same IV because the key is randomly generated anew (Key-IV pair is never repeated)
     private static final GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(128, new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 });
 
+    private static final Setting<String> PASSWORD = new Setting<>("password", "", Function.identity());
+    private static final Setting<String> CHUNK_SIZE = new Setting<>("chunk_size", "16mb", Function.identity());
+    private static final Setting<String> PROVIDER = new Setting<>("provider", "SunJCE", Function.identity());
+
     private final BlobStoreRepository delegatedRepository;
     private final SecretKey masterSecretKey;
 
+    private final ByteSizeValue chunkSize;
+    private final String provider;
 
-    protected EncryptedRepository(BlobStoreRepository delegatedRepository, SecretKey masterSecretKey) {
+    protected EncryptedRepository(BlobStoreRepository delegatedRepository, SecretKey masterSecretKey, String chunkSize, String provider) {
         super(delegatedRepository);
         this.delegatedRepository = delegatedRepository;
         this.masterSecretKey = masterSecretKey;
+        this.chunkSize = ByteSizeValue.parseBytesSizeValue(chunkSize, "encrypted blob store repository max chunk size");
+        this.provider = provider;
     }
 
     @Override
@@ -99,7 +106,7 @@ public class EncryptedRepository extends BlobStoreRepository {
     }
 
     protected ByteSizeValue chunkSize() {
-        return ByteSizeValue.parseBytesSizeValue("16mb", "encrypted blob store repository max chunk size");
+        return this.chunkSize;
     }
 
     private static SecretKey generateSecretKeyFromPassword(String password) throws NoSuchAlgorithmException, InvalidKeySpecException {
@@ -161,7 +168,9 @@ public class EncryptedRepository extends BlobStoreRepository {
                 if (false == (delegatedRepository instanceof BlobStoreRepository)) {
                     throw new IllegalArgumentException("Unsupported type " + DELEGATE_TYPE.getKey());
                 }
-                return new EncryptedRepository((BlobStoreRepository)delegatedRepository, secretKey);
+                String chunkSize = CHUNK_SIZE.get(metaData.settings());
+                String provider = PROVIDER.get(metaData.settings());
+                return new EncryptedRepository((BlobStoreRepository)delegatedRepository, secretKey, chunkSize, provider);
             }
         };
     }
@@ -170,10 +179,12 @@ public class EncryptedRepository extends BlobStoreRepository {
 
         private final BlobStore delegatedBlobStore;
         private final SecretKey masterSecretKey;
+        private final String provider;
 
-        EncryptedBlobStoreDecorator(BlobStore blobStore, SecretKey masterSecretKey) {
+        EncryptedBlobStoreDecorator(BlobStore blobStore, SecretKey masterSecretKey, String provider) {
             this.delegatedBlobStore = blobStore;
             this.masterSecretKey = masterSecretKey;
+            this.provider = provider;
         }
 
         @Override
@@ -189,7 +200,7 @@ public class EncryptedRepository extends BlobStoreRepository {
                 encryptionMetadataBlobPath = encryptionMetadataBlobPath.add(pathComponent);
             }
             return new EncryptedBlobContainerDecorator(this.delegatedBlobStore.blobContainer(path),
-                    this.delegatedBlobStore.blobContainer(encryptionMetadataBlobPath), this.masterSecretKey);
+                    this.delegatedBlobStore.blobContainer(encryptionMetadataBlobPath), this.masterSecretKey, this.provider);
         }
     }
 
@@ -198,12 +209,14 @@ public class EncryptedRepository extends BlobStoreRepository {
         private final BlobContainer delegatedBlobContainer;
         private final BlobContainer encryptionMetadataBlobContainer;
         private final SecretKey masterSecretKey;
+        private final String provider;
 
         EncryptedBlobContainerDecorator(BlobContainer delegatedBlobContainer, BlobContainer encryptionMetadataBlobContainer,
-                SecretKey masterSecretKey) {
+                SecretKey masterSecretKey, String provider) {
             this.delegatedBlobContainer = delegatedBlobContainer;
             this.encryptionMetadataBlobContainer = encryptionMetadataBlobContainer;
             this.masterSecretKey = masterSecretKey;
+            this.provider = provider;
         }
 
         @Override
@@ -216,10 +229,11 @@ public class EncryptedRepository extends BlobStoreRepository {
             final BytesReference dataDecryptionKeyBytes = Streams.readFully(this.encryptionMetadataBlobContainer.readBlob(blobName));
             try {
                 SecretKey dataDecryptionKey = unwrapKey(BytesReference.toBytes(dataDecryptionKeyBytes), this.masterSecretKey);
-                Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+                Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding", this.provider);
                 cipher.init(Cipher.DECRYPT_MODE, dataDecryptionKey, gcmParameterSpec);
                 return new CipherInputStream(this.delegatedBlobContainer.readBlob(blobName), cipher);
-            } catch (InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException | InvalidAlgorithmParameterException e) {
+            } catch (InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException | InvalidAlgorithmParameterException
+                    | NoSuchProviderException e) {
                 throw new IOException(e);
             }
         }
@@ -230,14 +244,13 @@ public class EncryptedRepository extends BlobStoreRepository {
                 SecretKey dataEncryptionKey = generateRandomSecretKey();
                 byte[] wrappedDataEncryptionKey = wrapKey(dataEncryptionKey, this.masterSecretKey);
                 try (InputStream stream = new ByteArrayInputStream(wrappedDataEncryptionKey)) {
-                    // failIfAlreadyExists=true for encryption metadata because overwriting metadata is disastrous
-                    this.encryptionMetadataBlobContainer.writeBlob(blobName, stream, wrappedDataEncryptionKey.length, true);
+                    this.encryptionMetadataBlobContainer.writeBlob(blobName, stream, wrappedDataEncryptionKey.length, failIfAlreadyExists);
                 }
-                Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+                Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding", this.provider);
                 cipher.init(Cipher.ENCRYPT_MODE, dataEncryptionKey, gcmParameterSpec);
                 this.delegatedBlobContainer.writeBlob(blobName, new CipherInputStream(inputStream, cipher), blobSize, failIfAlreadyExists);
             } catch (NoSuchAlgorithmException | InvalidKeyException | NoSuchPaddingException | IllegalBlockSizeException
-                    | InvalidAlgorithmParameterException e) {
+                    | InvalidAlgorithmParameterException | NoSuchProviderException e) {
                 throw new IOException(e);
             }
         }

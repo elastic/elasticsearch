@@ -31,4 +31,10 @@ public interface AnalyticsProcess<ProcessResult> extends NativeProcess {
      * a SIGPIPE
      */
     void consumeAndCloseOutputStream();
+
+    /**
+     *
+     * @return the process config
+     */
+    AnalyticsProcessConfig getConfig();
 }

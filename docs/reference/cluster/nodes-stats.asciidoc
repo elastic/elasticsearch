@@ -9,15 +9,15 @@ Returns cluster nodes statistics.
 
 `GET /_nodes/stats` +
 
-`GET /_nodes/{node_id}/stats` +
+`GET /_nodes/<node_id>/stats` +
 
-`GET/_nodes/stats/{metric}` +
+`GET/_nodes/stats/<metric>` +
 
-`GET/_nodes/{node_id}/stats/{metric}` +
+`GET/_nodes/<node_id>/stats/<metric>` +
 
-`GET /_nodes/stats/{metric}/{index_metric}` +
+`GET /_nodes/stats/<metric>/<index_metric>` +
 
-`GET /_nodes/{node_id}/stats/{metric}/{index_metric}`
+`GET /_nodes/<node_id>/stats/<metric>/<index_metric>`
 
 
 [[cluster-nodes-stats-api-desc]]
@@ -35,7 +35,7 @@ using metrics.
 ==== {api-path-parms-title}
 
 
-`{metric}`::
+`<metric>`::
     (Optional, string) Limits the information returned to the specific metrics. 
     A comma-separated list of the following options: 
 +
@@ -83,7 +83,7 @@ using metrics.
       communication.
 --
 
-`{index_metric}`::
+`<index_metric>`::
     (Optional, string) Limit the information returned for `indices` metric to 
     the specific index metrics. It can be used only if `indices` (or `all`) 
     metric is specified. Supported metrics are:

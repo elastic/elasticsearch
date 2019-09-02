@@ -56,7 +56,9 @@ public final class SCatch extends AStatement {
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        block.storeSettings(settings);
+        if (block != null) {
+            block.storeSettings(settings);
+        }
     }
 
     @Override
@@ -115,7 +117,7 @@ public final class SCatch extends AStatement {
 
         writer.visitTryCatchBlock(begin, end, jump, MethodWriter.getType(variable.clazz).getInternalName());
 
-        if (exception != null && !block.allEscape) {
+        if (exception != null && (block == null || !block.allEscape)) {
             writer.goTo(exception);
         }
     }

@@ -20,23 +20,24 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongHash;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.EmptyBucketInfo;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -46,15 +47,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-/**
- * An aggregator for numeric values. For a given {@code interval},
- * {@code offset} and {@code value}, it returns the highest number that can be
- * written as {@code interval * x + offset} and yet is less than or equal to
- * {@code value}.
- */
-class HistogramAggregator extends BucketsAggregator {
-
-    private final ValuesSource.Numeric valuesSource;
+public class RangeHistogramAggregator extends BucketsAggregator {
+    private final ValuesSource.Range valuesSource;
     private final DocValueFormat formatter;
     private final double interval, offset;
     private final BucketOrder order;
@@ -64,11 +58,11 @@ class HistogramAggregator extends BucketsAggregator {
 
     private final LongHash bucketOrds;
 
-    HistogramAggregator(String name, AggregatorFactories factories, double interval, double offset,
-            BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
-            @Nullable ValuesSource.Numeric valuesSource, DocValueFormat formatter,
-            SearchContext context, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+    RangeHistogramAggregator(String name, AggregatorFactories factories, double interval, double offset,
+                             BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
+                             @Nullable ValuesSource.Range valuesSource, DocValueFormat formatter,
+                             SearchContext context, Aggregator parent,
+                             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
         super(name, factories, context, parent, pipelineAggregators, metaData);
         if (interval <= 0) {
@@ -88,50 +82,60 @@ class HistogramAggregator extends BucketsAggregator {
     }
 
     @Override
-    public ScoreMode scoreMode() {
-        if (valuesSource != null && valuesSource.needsScores()) {
-            return ScoreMode.COMPLETE;
-        }
-        return super.scoreMode();
-    }
-
-    @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-
-        final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
+        final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+        final RangeType rangeType = valuesSource.rangeType();
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 assert bucket == 0;
                 if (values.advanceExact(doc)) {
+                    // Is it possible for valuesCount to be > 1 here? Multiple ranges are encoded into the same BytesRef in the binary doc
+                    // values, so it isn't clear what we'd be iterating over.
                     final int valuesCount = values.docValueCount();
-
+                    assert valuesCount == 1 : "Value count for ranges should always be 1";
                     double previousKey = Double.NEGATIVE_INFINITY;
-                    for (int i = 0; i < valuesCount; ++i) {
-                        double value = values.nextValue();
-                        double key = Math.floor((value - offset) / interval);
-                        assert key >= previousKey;
-                        if (key == previousKey) {
-                            continue;
+
+                    for (int i = 0; i < valuesCount; i++) {
+                        BytesRef encodedRanges = values.nextValue();
+                        List<RangeFieldMapper.Range> ranges = rangeType.decodeRanges(encodedRanges);
+                        double previousFrom = Double.NEGATIVE_INFINITY;
+                        for (RangeFieldMapper.Range range : ranges) {
+                            final Double from = rangeType.doubleValue(range.getFrom());
+                            // The encoding should ensure that this assert is always true.
+                            assert from >= previousFrom : "Start of range not >= previous start";
+                            final Double to = rangeType.doubleValue(range.getTo());
+                            final double startKey = Math.floor((from - offset) / interval);
+                            final double endKey = Math.floor((to - offset) / interval);
+                            for (double  key = startKey > previousKey ? startKey : previousKey; key <= endKey; key++) {
+                                if (key == previousKey) {
+                                    continue;
+                                }
+                                // Bucket collection identical to NumericHistogramAggregator, could be refactored
+                                long bucketOrd = bucketOrds.add(Double.doubleToLongBits(key));
+                                if (bucketOrd < 0) { // already seen
+                                    bucketOrd = -1 - bucketOrd;
+                                    collectExistingBucket(sub, doc, bucketOrd);
+                                } else {
+                                    collectBucket(sub, doc, bucketOrd);
+                                }
+                            }
+                            if (endKey > previousKey) {
+                                previousKey = endKey;
+                            }
                         }
-                        long bucketOrd = bucketOrds.add(Double.doubleToLongBits(key));
-                        if (bucketOrd < 0) { // already seen
-                            bucketOrd = -1 - bucketOrd;
-                            collectExistingBucket(sub, doc, bucketOrd);
-                        } else {
-                            collectBucket(sub, doc, bucketOrd);
-                        }
-                        previousKey = key;
+
                     }
                 }
             }
         };
     }
 
+    // TODO: buildAggregation and buildEmptyAggregation are literally just copied out of NumericHistogramAggregator.  We could refactor
+    // this to an abstract super class, if we wanted to.  Might be overkill.
     @Override
     public InternalAggregation buildAggregation(long bucket) throws IOException {
         assert bucket == 0;
@@ -146,22 +150,22 @@ class HistogramAggregator extends BucketsAggregator {
         // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
         CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator(this));
 
-        EmptyBucketInfo emptyBucketInfo = null;
+        InternalHistogram.EmptyBucketInfo emptyBucketInfo = null;
         if (minDocCount == 0) {
-            emptyBucketInfo = new EmptyBucketInfo(interval, offset, minBound, maxBound, buildEmptySubAggregations());
+            emptyBucketInfo = new InternalHistogram.EmptyBucketInfo(interval, offset, minBound, maxBound, buildEmptySubAggregations());
         }
         return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, pipelineAggregators(),
-                metaData());
+            metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        EmptyBucketInfo emptyBucketInfo = null;
+        InternalHistogram.EmptyBucketInfo emptyBucketInfo = null;
         if (minDocCount == 0) {
-            emptyBucketInfo = new EmptyBucketInfo(interval, offset, minBound, maxBound, buildEmptySubAggregations());
+            emptyBucketInfo = new InternalHistogram.EmptyBucketInfo(interval, offset, minBound, maxBound, buildEmptySubAggregations());
         }
         return new InternalHistogram(name, Collections.emptyList(), order, minDocCount, emptyBucketInfo, formatter, keyed,
-                pipelineAggregators(), metaData());
+            pipelineAggregators(), metaData());
     }
 
     @Override

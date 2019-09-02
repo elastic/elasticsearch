@@ -2,8 +2,7 @@
 ================================================
 
 When you extract the zip or tarball packages, the `elasticsearch-n.n.n`
-directory contains the {es} `config`, `data`, `logs` and
-`plugins` directories.
+directory contains the {es} `config`, `data`, and `logs` directories.
 
 We recommend moving these directories out of the {es} directory
 so that there is no chance of deleting them when you upgrade {es}.

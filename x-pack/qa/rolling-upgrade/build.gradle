@@ -83,8 +83,7 @@ task bwcTest {
 
 task copyTestNodeKeyMaterial(type: Copy) {
     from project(':x-pack:plugin:core').files('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
-            'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt',
-            'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
+            'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt')
     into outputDir
 }
 
@@ -122,18 +121,11 @@ for (Version version : bwcVersions.wireCompatible) {
         setting 'xpack.security.authc.token.enabled', 'true'
         setting 'xpack.security.authc.token.timeout', '60m'
         setting 'xpack.security.audit.enabled', 'true'
-        rootProject.globalInfo.ready {
-            if (project.inFipsJvm) {
-                setting 'xpack.security.transport.ssl.key', 'testnode.pem'
-                setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
-                keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
-            } else {
-                setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
-                setting 'xpack.security.transport.ssl.keystore.password', 'testnode'
-            }
-        }
+        setting 'xpack.security.transport.ssl.key', 'testnode.pem'
+        setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
+        keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+      
         dependsOn copyTestNodeKeyMaterial
-        extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
         extraConfigFile 'testnode.pem', new File(outputDir + '/testnode.pem')
         extraConfigFile 'testnode.crt', new File(outputDir + '/testnode.crt')
         if (version.onOrAfter('7.0.0')) {
@@ -188,22 +180,15 @@ for (Version version : bwcVersions.wireCompatible) {
             setting 'xpack.security.enabled', 'true'
             setting 'xpack.security.transport.ssl.enabled', 'true'
             setting 'xpack.security.authc.token.timeout', '60m'
-            rootProject.globalInfo.ready {
-                if (project.inFipsJvm) {
-                    setting 'xpack.security.transport.ssl.key', 'testnode.pem'
-                    setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
-                    keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
-                } else {
-                    setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
-                    setting 'xpack.security.transport.ssl.keystore.password', 'testnode'
-                }
-            }
+            setting 'xpack.security.transport.ssl.key', 'testnode.pem'
+            setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
+            keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+                
             setting 'node.attr.upgraded', 'true'
             setting 'xpack.security.authc.token.enabled', 'true'
             setting 'xpack.security.audit.enabled', 'true'
             setting 'node.name', "upgraded-node-${stopNode}"
             dependsOn copyTestNodeKeyMaterial
-            extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
             extraConfigFile 'testnode.pem', new File(outputDir + '/testnode.pem')
             extraConfigFile 'testnode.crt', new File(outputDir + '/testnode.crt')
             if (version.onOrAfter('7.0.0')) {

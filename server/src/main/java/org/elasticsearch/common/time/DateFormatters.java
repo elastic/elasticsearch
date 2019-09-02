@@ -59,11 +59,15 @@ public class DateFormatters {
         .toFormatter(IsoLocale.ROOT);
 
     private static final DateTimeFormatter STRICT_YEAR_MONTH_DAY_FORMATTER = new DateTimeFormatterBuilder()
-        .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
+        .appendValue(ChronoField.YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
+        .optionalStart()
         .appendLiteral("-")
         .appendValue(MONTH_OF_YEAR, 2, 2, SignStyle.NOT_NEGATIVE)
+        .optionalStart()
         .appendLiteral('-')
         .appendValue(DAY_OF_MONTH, 2, 2, SignStyle.NOT_NEGATIVE)
+        .optionalEnd()
+        .optionalEnd()
         .toFormatter(IsoLocale.ROOT);
 
     private static final DateTimeFormatter STRICT_HOUR_MINUTE_SECOND_FORMATTER = new DateTimeFormatterBuilder()
@@ -796,7 +800,7 @@ public class DateFormatters {
 
     private static final DateTimeFormatter ISO_WEEK_DATE = new DateTimeFormatterBuilder()
             .parseCaseInsensitive()
-            .appendValue(IsoFields.WEEK_BASED_YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
+            .appendValue(IsoFields.WEEK_BASED_YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
             .appendLiteral("-W")
             .appendValue(IsoFields.WEEK_OF_WEEK_BASED_YEAR, 2)
             .appendLiteral('-')
@@ -924,11 +928,13 @@ public class DateFormatters {
 
     private static final DateTimeFormatter DATE_FORMATTER = new DateTimeFormatterBuilder()
         .appendValue(ChronoField.YEAR, 1, 5, SignStyle.NORMAL)
+        .optionalStart()
         .appendLiteral('-')
         .appendValue(MONTH_OF_YEAR, 1, 2, SignStyle.NOT_NEGATIVE)
         .optionalStart()
         .appendLiteral('-')
         .appendValue(DAY_OF_MONTH, 1, 2, SignStyle.NOT_NEGATIVE)
+        .optionalEnd()
         .optionalEnd()
         .toFormatter(IsoLocale.ROOT);
 

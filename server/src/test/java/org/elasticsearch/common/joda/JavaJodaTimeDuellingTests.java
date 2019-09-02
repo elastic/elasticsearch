@@ -44,9 +44,101 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         return false;
     }
 
+    // strict parsing differs in enforcing length of year, month, day.
+    // not related to ResolverStyle which is always strict
+    public void testStrictLengthParsing() {
+        //Year has to be 4digits, or padded with 0
+        assertParseException("99999", "strict_date_optional_time");
+        assertJavaTimeParseException("99999", "strict_date_optional_time_nanos");
+        assertJavaTimeParseException("99999", "iso8601");
+
+        assertParseException("123", "strict_date_optional_time");
+        assertJavaTimeParseException("123", "strict_date_optional_time_nanos");
+        assertJavaTimeParseException("123", "iso8601");
+
+        assertSameDate("99999", "date_optional_time");
+        assertSameDate("123", "date_optional_time");
+
+        // Month has to be 2digits or padded with 0
+        assertParseException("2001-1", "strict_date_optional_time");
+        assertJavaTimeParseException("2001-1", "strict_date_optional_time_nanos");
+        assertJavaTimeParseException("2001-1", "iso8601");
+
+        assertSameDate("2001-1", "date_optional_time");
+
+        // Day has to be 2digits or padded with 0
+        assertParseException("2001-01-1", "strict_date_optional_time");
+        assertJavaTimeParseException("2001-01-1", "strict_date_optional_time_nanos");
+        assertJavaTimeParseException("20001-01-1", "iso8601");
+
+        assertSameDate("2001-01-1", "date_optional_time");
+
+        // Hour has to be 2 digits or padded with 0
+        assertParseException("2001-01-1T1", "strict_date_optional_time");
+        assertJavaTimeParseException("2001-01-1T1", "strict_date_optional_time_nanos");
+        assertJavaTimeParseException("20001-01-1T1", "iso8601");
+
+        assertSameDate("2001-01-1T1", "date_optional_time");
+
+        // Minute has to be 2 digits or padded with 0
+        assertParseException("2001-01-1T01:1", "strict_date_optional_time");
+        assertJavaTimeParseException("2001-01-1T101:1", "strict_date_optional_time_nanos");
+        assertJavaTimeParseException("20001-01-1T01:1", "iso8601");
+
+        assertSameDate("2001-01-1T01:1", "date_optional_time");
+
+        // Second has to be 2 digits or padded with 0
+        assertParseException("2001-01-1T01:01:1", "strict_date_optional_time");
+        assertJavaTimeParseException("2001-01-1T101:01:1", "strict_date_optional_time_nanos");
+        assertJavaTimeParseException("20001-01-1T01:01:1", "iso8601");
+
+        assertSameDate("2001-01-1T01:01:1", "date_optional_time");
+
+
+        // WeekYear has to be 4digits or padded with 0
+        assertParseException("+99999-W01-1", "strict_week_date");
+        assertSameDate("+99999-W01-1", "week_date");
+
+        // Week of weekyear has to be 2digits in both strict and non strict version.
+        // Day has to be min 1 digit in both strict and non strict version.
+        assertSameDate("9999-W01-1", "strict_week_date");
+        assertSameDate("9999-W01-1", "week_date");
+
+        // Ordinal has the same requirements for both strict and non strict
+        assertSameDate("2011-123", "strict_ordinal_date");
+        assertSameDate("2011-123", "ordinal_date");
+    }
+
+    private void assertSameDateAs(String input, String javaPattern, String jodaPattern) {
+        DateFormatter javaFormatter = DateFormatter.forPattern(javaPattern);
+        DateFormatter jodaFormatter = Joda.forPattern(jodaPattern);
+        assertSameDate(input, javaPattern, jodaFormatter, javaFormatter);
+    }
+
+    // date_optional part of a parser names "strict_date_optional_time" or "date_optional"time
+    // means that date part can be partially parsed.
+    public void testPartialParsing() {
+        assertSameDateAs("2001", "strict_date_optional_time_nanos", "strict_date_optional_time");
+        assertSameDateAs("2001-01", "strict_date_optional_time_nanos", "strict_date_optional_time");
+        assertSameDateAs("2001-01-01", "strict_date_optional_time_nanos", "strict_date_optional_time");
+
+        assertSameDate("2001", "strict_date_optional_time");
+        assertSameDate("2001-01", "strict_date_optional_time");
+        assertSameDate("2001-01-01", "strict_date_optional_time");
+
+        assertSameDate("2001", "date_optional_time");
+        assertSameDate("2001-01", "date_optional_time");
+        assertSameDate("2001-01-01", "date_optional_time");
+
+
+        assertSameDateAs("2001", "iso8601", "strict_date_optional_time");
+        assertSameDateAs("2001-01", "iso8601", "strict_date_optional_time");
+        assertSameDateAs("2001-01-01", "iso8601", "strict_date_optional_time");
+    }
+
     public void testDayOfWeek() {
         //7 (ok joda) vs 1 (java by default) but 7 with customized org.elasticsearch.common.time.IsoLocale.ISO8601
-        ZonedDateTime now = LocalDateTime.of(2009,11,15,1,32,8,328402)
+        ZonedDateTime now = LocalDateTime.of(2009, 11, 15, 1, 32, 8, 328402)
                                          .atZone(ZoneOffset.UTC); //Sunday
         DateFormatter jodaFormatter = Joda.forPattern("e").withLocale(Locale.ROOT).withZone(ZoneOffset.UTC);
         DateFormatter javaFormatter = DateFormatter.forPattern("8e").withZone(ZoneOffset.UTC);
@@ -55,7 +147,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
     public void testStartOfWeek() {
         //2019-21 (ok joda) vs 2019-22 (java by default) but 2019-21 with customized org.elasticsearch.common.time.IsoLocale.ISO8601
-        ZonedDateTime now = LocalDateTime.of(2019,5,26,1,32,8,328402)
+        ZonedDateTime now = LocalDateTime.of(2019, 5, 26, 1, 32, 8, 328402)
                                          .atZone(ZoneOffset.UTC);
         DateFormatter jodaFormatter = Joda.forPattern("xxxx-ww").withLocale(Locale.ROOT).withZone(ZoneOffset.UTC);
         DateFormatter javaFormatter = DateFormatter.forPattern("8YYYY-ww").withZone(ZoneOffset.UTC);
@@ -63,7 +155,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     //these parsers should allow both ',' and '.' as a decimal point
-    public void testDecimalPointParsing(){
+    public void testDecimalPointParsing() {
         assertSameDate("2001-01-01T00:00:00.123Z", "strict_date_optional_time");
         assertSameDate("2001-01-01T00:00:00,123Z", "strict_date_optional_time");
 
@@ -419,14 +511,14 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("2012-W1-1", "weekyear_week_day");
     }
 
-    public void testCompositeParsing(){
+    public void testCompositeParsing() {
         //in all these examples the second pattern will be used
         assertSameDate("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS");
         assertSameDate("2014-06-06T12:01:02.123", "strictDateTimeNoMillis||yyyy-MM-dd'T'HH:mm:ss.SSS");
         assertSameDate("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss+HH:MM||yyyy-MM-dd'T'HH:mm:ss.SSS");
     }
 
-    public void testExceptionWhenCompositeParsingFails(){
+    public void testExceptionWhenCompositeParsingFails() {
         assertParseException("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SS");
     }
 
@@ -812,7 +904,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
             jodaTimeOut += ".0";
         }
         String message = String.format(Locale.ROOT, "expected string representation to be equal for format [%s]: joda [%s], java [%s]",
-                format, jodaTimeOut, javaTimeOut);
+            format, jodaTimeOut, javaTimeOut);
         assertThat(message, javaTimeOut, is(jodaTimeOut));
     }
 

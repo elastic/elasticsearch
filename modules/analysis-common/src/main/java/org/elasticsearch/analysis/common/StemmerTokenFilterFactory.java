@@ -34,6 +34,7 @@ import org.apache.lucene.analysis.en.EnglishPossessiveFilter;
 import org.apache.lucene.analysis.en.KStemFilter;
 import org.apache.lucene.analysis.en.PorterStemFilter;
 import org.apache.lucene.analysis.es.SpanishLightStemFilter;
+import org.apache.lucene.analysis.es.SpanishMinimalStemFilter;
 import org.apache.lucene.analysis.fi.FinnishLightStemFilter;
 import org.apache.lucene.analysis.fr.FrenchLightStemFilter;
 import org.apache.lucene.analysis.fr.FrenchMinimalStemFilter;
@@ -243,6 +244,8 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
             return new SnowballFilter(tokenStream, new SpanishStemmer());
         } else if ("light_spanish".equalsIgnoreCase(language) || "lightSpanish".equalsIgnoreCase(language)) {
             return new SpanishLightStemFilter(tokenStream);
+        } else if ("minimal_spanish".equalsIgnoreCase(language) || "minimalSpanish".equalsIgnoreCase(language)) {
+            return new SpanishMinimalStemFilter(tokenStream);
 
             // Sorani Kurdish stemmer
         } else if ("sorani".equalsIgnoreCase(language)) {

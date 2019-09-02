@@ -101,6 +101,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("russianlightstem", StemmerTokenFilterFactory.class);
         filters.put("soranistem", StemmerTokenFilterFactory.class);
         filters.put("spanishlightstem", StemmerTokenFilterFactory.class);
+        filters.put("spanishminimalstem", StemmerTokenFilterFactory.class);
         filters.put("swedishlightstem", StemmerTokenFilterFactory.class);
         filters.put("stemmeroverride", StemmerOverrideTokenFilterFactory.class);
         filters.put("kstem", KStemTokenFilterFactory.class);

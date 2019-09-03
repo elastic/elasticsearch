@@ -10,15 +10,6 @@ Executes an existing enrich policy.
 
 [source,js]
 ----
-PUT /_enrich/policy/my-policy
-{
-    "match": {
-        "indices": "users",
-        "match_field": "email",
-        "enrich_fields": ["first_name", "last_name", "address", "city", "zip", "state"]
-    }
-}
-
 PUT /users/_doc/1?refresh
 {
     "email": "mardy.brown@email.me",
@@ -32,6 +23,15 @@ PUT /users/_doc/1?refresh
     "phone1":"504-621-8927",
     "phone2": "504-845-1427",
     "web": "mardy-brown.me"
+}
+
+PUT /_enrich/policy/my-policy
+{
+    "match": {
+        "indices": "users",
+        "match_field": "email",
+        "enrich_fields": ["first_name", "last_name", "address", "city", "zip", "state"]
+    }
 }
 ----
 // CONSOLE

@@ -9,6 +9,8 @@ Deletes an existing enrich policy and its enrich index.
 ////
 [source,js]
 ----
+PUT /users
+
 PUT /_enrich/policy/my-policy
 {
     "match": {

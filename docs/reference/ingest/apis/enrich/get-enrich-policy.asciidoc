@@ -9,6 +9,8 @@ Returns information about an enrich policy.
 ////
 [source,js]
 ----
+PUT /users
+
 PUT /_enrich/policy/my-policy
 {
     "match": {

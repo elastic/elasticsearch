@@ -6,6 +6,14 @@
 
 Creates an enrich policy.
 
+////
+[source,js]
+----
+PUT /users
+----
+// CONSOLE
+////
+
 [source,js]
 ----
 PUT /_enrich/policy/my-policy
@@ -18,7 +26,7 @@ PUT /_enrich/policy/my-policy
 }
 ----
 // CONSOLE
-// TESTSETUP
+// TEST[continued]
 
 
 [[put-enrich-policy-api-request]]

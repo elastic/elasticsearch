@@ -16,7 +16,7 @@ PUT /_enrich/policy/my-policy
     "match": {
         "indices": "users",
         "match_field": "email",
-        "enrich_fields": ["first_name", "last_name", "address", "city", "zip", "state"]
+        "enrich_fields": ["first_name", "last_name", "city", "zip", "state"]
     }
 }
 ----
@@ -81,7 +81,6 @@ The API returns the following response:
                 "enrich_fields" : [
                     "first_name",
                     "last_name",
-                    "address",
                     "city",
                     "zip",
                     "state"
@@ -118,7 +117,6 @@ The API returns the following response:
                 "enrich_fields" : [
                     "first_name",
                     "last_name",
-                    "address",
                     "city",
                     "zip",
                     "state"

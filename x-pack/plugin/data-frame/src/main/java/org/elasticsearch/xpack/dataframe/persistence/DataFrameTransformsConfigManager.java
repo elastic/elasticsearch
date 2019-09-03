@@ -227,7 +227,8 @@ public class DataFrameTransformsConfigManager {
                 .id(DataFrameTransformConfig.documentId(transformConfig.getId()))
                 .source(source);
             if (seqNoPrimaryTermAndIndex != null) {
-                indexRequest.setIfSeqNo(seqNoPrimaryTermAndIndex.seqNo).setIfPrimaryTerm(seqNoPrimaryTermAndIndex.primaryTerm);
+                indexRequest.setIfSeqNo(seqNoPrimaryTermAndIndex.getSeqNo())
+                    .setIfPrimaryTerm(seqNoPrimaryTermAndIndex.getPrimaryTerm());
             }
             executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(r -> {
                 listener.onResponse(true);
@@ -433,21 +434,31 @@ public class DataFrameTransformsConfigManager {
         }));
     }
 
-    public void putOrUpdateTransformStoredDoc(DataFrameTransformStoredDoc stats, ActionListener<Boolean> listener) {
+    public void putOrUpdateTransformStoredDoc(DataFrameTransformStoredDoc stats,
+                                              SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
+                                              ActionListener<SeqNoPrimaryTermAndIndex> listener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = stats.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
 
             IndexRequest indexRequest = new IndexRequest(DataFrameInternalIndex.LATEST_INDEX_NAME)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .id(DataFrameTransformStoredDoc.documentId(stats.getId()))
-                .opType(DocWriteRequest.OpType.INDEX)
                 .source(source);
-
+            if (seqNoPrimaryTermAndIndex != null &&
+                seqNoPrimaryTermAndIndex.getIndex().equals(DataFrameInternalIndex.LATEST_INDEX_NAME)) {
+                indexRequest.opType(DocWriteRequest.OpType.INDEX)
+                    .setIfSeqNo(seqNoPrimaryTermAndIndex.getSeqNo())
+                    .setIfPrimaryTerm(seqNoPrimaryTermAndIndex.getPrimaryTerm());
+            } else {
+                // If the index is NOT the latest or we are null, that means we have not created this doc before
+                // so, it should be a create option without the seqNo and primaryTerm set
+                indexRequest.opType(DocWriteRequest.OpType.CREATE);
+            }
             executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
-                r -> listener.onResponse(true),
+                r -> listener.onResponse(SeqNoPrimaryTermAndIndex.fromIndexResponse(r)),
                 e -> listener.onFailure(new RuntimeException(
-                    DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_FAILED_TO_PERSIST_STATS, stats.getId()),
-                    e))
+                        DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_FAILED_TO_PERSIST_STATS, stats.getId()),
+                        e))
             ));
         } catch (IOException e) {
             // not expected to happen but for the sake of completeness
@@ -457,13 +468,15 @@ public class DataFrameTransformsConfigManager {
         }
     }
 
-    public void getTransformStoredDoc(String transformId, ActionListener<DataFrameTransformStoredDoc> resultListener) {
+    public void getTransformStoredDoc(String transformId,
+                                      ActionListener<Tuple<DataFrameTransformStoredDoc, SeqNoPrimaryTermAndIndex>> resultListener) {
         QueryBuilder queryBuilder = QueryBuilders.termQuery("_id", DataFrameTransformStoredDoc.documentId(transformId));
         SearchRequest searchRequest = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME_PATTERN)
             .setQuery(queryBuilder)
             // use sort to get the last
             .addSort("_index", SortOrder.DESC)
             .setSize(1)
+            .seqNoAndPrimaryTerm(true)
             .request();
 
         executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.<SearchResponse>wrap(
@@ -473,11 +486,14 @@ public class DataFrameTransformsConfigManager {
                         DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_UNKNOWN_TRANSFORM_STATS, transformId)));
                     return;
                 }
-                BytesReference source = searchResponse.getHits().getHits()[0].getSourceRef();
+                SearchHit searchHit = searchResponse.getHits().getHits()[0];
+                BytesReference source = searchHit.getSourceRef();
                 try (InputStream stream = source.streamInput();
                     XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                         .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
-                    resultListener.onResponse(DataFrameTransformStoredDoc.fromXContent(parser));
+                    resultListener.onResponse(
+                        Tuple.tuple(DataFrameTransformStoredDoc.fromXContent(parser),
+                        SeqNoPrimaryTermAndIndex.fromSearchHit(searchHit)));
                 } catch (Exception e) {
                     logger.error(DataFrameMessages.getMessage(DataFrameMessages.FAILED_TO_PARSE_TRANSFORM_STATISTICS_CONFIGURATION,
                             transformId), e);
@@ -594,29 +610,5 @@ public class DataFrameTransformsConfigManager {
             }
         }
         return new Tuple<>(status, reason);
-    }
-
-    public static class SeqNoPrimaryTermAndIndex {
-        private final long seqNo;
-        private final long primaryTerm;
-        private final String index;
-
-        public SeqNoPrimaryTermAndIndex(long seqNo, long primaryTerm, String index) {
-            this.seqNo = seqNo;
-            this.primaryTerm = primaryTerm;
-            this.index = index;
-        }
-
-        public long getSeqNo() {
-            return seqNo;
-        }
-
-        public long getPrimaryTerm() {
-            return primaryTerm;
-        }
-
-        public String getIndex() {
-            return index;
-        }
     }
 }

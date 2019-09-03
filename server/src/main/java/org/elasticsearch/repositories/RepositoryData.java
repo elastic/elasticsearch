@@ -92,7 +92,8 @@ public final class RepositoryData {
             .collect(Collectors.toMap(IndexId::getName, Function.identity())));
         this.indexSnapshots = Collections.unmodifiableMap(indexSnapshots);
         this.shardGenerations = Collections.unmodifiableMap(shardGenerations);
-        assert indexSnapshots.keySet().equals(shardGenerations.keySet());
+        assert indexSnapshots.keySet().equals(shardGenerations.keySet()) :
+            "[" + indexSnapshots + "] does not contain the same keys as [" + shardGenerations + "]";
     }
 
     protected RepositoryData copy() {
@@ -390,6 +391,8 @@ public final class RepositoryData {
         final Map<String, SnapshotId> snapshots = new HashMap<>();
         final Map<String, SnapshotState> snapshotStates = new HashMap<>();
         final Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>();
+
+        boolean containedShardGens = false;
         final Map<String, String[]> shardStatus = new HashMap<>();
 
         if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
@@ -484,6 +487,7 @@ public final class RepositoryData {
                         indexSnapshots.put(indexId, snapshotIds);
                     }
                 } else if (SHARDS.equals(field)) {
+                    containedShardGens = true;
                     while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                         while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
                             final String indexId = parser.currentName();
@@ -504,11 +508,19 @@ public final class RepositoryData {
         } else {
             throw new ElasticsearchParseException("start object expected");
         }
-        final Map<IndexId, String[]> shardGenerations = new HashMap<>();
-        final Map<String, IndexId> indexLookup =
-            indexSnapshots.keySet().stream().collect(Collectors.toMap(IndexId::getId, Function.identity()));
-        shardStatus.forEach((indexId, gens) -> shardGenerations.put(indexLookup.get(indexId), gens));
+        final Map<IndexId, String[]> shardGenerations;
+        if (containedShardGens) {
+            shardGenerations = new HashMap<>();
+            final Map<String, IndexId> indexLookup =
+                indexSnapshots.keySet().stream().collect(Collectors.toMap(IndexId::getId, Function.identity()));
+            shardStatus.forEach((indexId, gens) -> {
+                final IndexId idx = indexLookup.get(indexId);
+                assert idx != null;
+                shardGenerations.put(idx, gens);
+            });
+        } else {
+            shardGenerations = indexSnapshots.keySet().stream().collect(Collectors.toMap(Function.identity(), i -> Strings.EMPTY_ARRAY));
+        }
         return new RepositoryData(genId, snapshots, snapshotStates, indexSnapshots, shardGenerations);
     }
-
 }

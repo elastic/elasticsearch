@@ -32,6 +32,7 @@ import org.elasticsearch.snapshots.SnapshotState;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -98,6 +99,25 @@ public final class RepositoryData {
 
     protected RepositoryData copy() {
         return new RepositoryData(genId, snapshotIds, snapshotStates, indexSnapshots, shardGenerations);
+    }
+
+    public Map<IndexId, Map<Integer, String>> obsoleteShardGenerations(RepositoryData previous) {
+        final Map<IndexId, Map<Integer, String>> result = new HashMap<>();
+        previous.shardGenerations.forEach(((indexId, oldGens) -> {
+            final String[] updatedGenerations = shardGenerations.get(indexId);
+            final Map<Integer, String> obsoleteShardIndices = new HashMap<>();
+            if (updatedGenerations != null) {
+                if (Arrays.equals(updatedGenerations, oldGens) == false) {
+                    for (int i = 0; i < oldGens.length; i++) {
+                        if (updatedGenerations[i] != null && oldGens[i] != null && oldGens[i].equals(updatedGenerations[i]) == false) {
+                            obsoleteShardIndices.put(i, oldGens[i]);
+                        }
+                    }
+                }
+                result.put(indexId, obsoleteShardIndices);
+            }
+        }));
+        return result;
     }
 
     /**

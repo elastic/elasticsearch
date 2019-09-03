@@ -627,10 +627,19 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
 
         try {
+            final RepositoryData existingRepositoryData = getRepositoryData();
             final RepositoryData updatedRepositoryData =
-                getRepositoryData().addSnapshot(snapshotId, blobStoreSnapshot.state(), shardGenerations);
+                existingRepositoryData.addSnapshot(snapshotId, blobStoreSnapshot.state(), shardGenerations);
             snapshotFormat.write(blobStoreSnapshot, blobContainer(), snapshotId.getUUID(), false);
             writeIndexGen(updatedRepositoryData, repositoryStateId);
+            // TODO: Below cleanup needs some bulk delete operation
+            for (Map.Entry<IndexId, Map<Integer, String>> entry
+                : updatedRepositoryData.obsoleteShardGenerations(existingRepositoryData).entrySet()) {
+                for (final Map.Entry<Integer, String> shardEntry : entry.getValue().entrySet()) {
+                    shardContainer(entry.getKey(), shardEntry.getKey())
+                        .deleteBlobIgnoringIfNotExists(INDEX_FILE_PREFIX + shardEntry.getValue());
+                }
+            }
         } catch (FileAlreadyExistsException ex) {
             // if another master was elected and took over finalizing the snapshot, it is possible
             // that both nodes try to finalize the snapshot and write to the same blobs, so we just
@@ -679,7 +688,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private BlobContainer shardContainer(IndexId indexId, ShardId shardId) {
-        return blobStore().blobContainer(indicesPath().add(indexId.getId()).add(Integer.toString(shardId.getId())));
+        return shardContainer(indexId, shardId.getId());
+    }
+
+    private BlobContainer shardContainer(IndexId indexId, int shardId) {
+        return blobStore().blobContainer(indicesPath().add(indexId.getId()).add(Integer.toString(shardId)));
     }
 
     /**

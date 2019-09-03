@@ -118,17 +118,19 @@
  *
  * <p>Creating a snapshot in the repository happens in the three steps described in detail below.</p>
  *
- * <h3>Initializing a Snapshot in the Repository</h3>
+ * <h3>Initializing a Snapshot in the Repository (Mixed Version Clusters only)</h3>
  *
- * <p>Creating a snapshot in the repository starts with a call to {@link org.elasticsearch.repositories.Repository#initializeSnapshot} which
- * the blob store repository implements via the following actions:</p>
+ * <p>In mixed version clusters that contain a node older than
+ * {@link org.elasticsearch.snapshots.SnapshotsService#NO_REPO_INITIALIZE_VERSION}, creating a snapshot in the repository starts with a
+ * call to {@link org.elasticsearch.repositories.Repository#initializeSnapshot} which the blob store repository implements via the
+ * following actions:</p>
  * <ol>
  * <li>Verify that no snapshot by the requested name exists.</li>
  * <li>Write a blob containing the cluster metadata to the root of the blob store repository at {@code /meta-${snapshot-uuid}.dat}</li>
  * <li>Write the metadata for each index to a blob in that index's directory at
  * {@code /indices/${index-snapshot-uuid}/meta-${snapshot-uuid}.dat}</li>
  * </ol>
- * TODO: This behavior is problematic, adjust these docs once https://github.com/elastic/elasticsearch/issues/41581 is fixed
+ * TODO: Remove this section once BwC logic it references is removed
  *
  * <h3>Writing Shard Data (Segments)</h3>
  *
@@ -164,6 +166,9 @@
  * to finalizing the snapshot by invoking {@link org.elasticsearch.repositories.Repository#finalizeSnapshot}. This method executes the
  * following actions in order:</p>
  * <ol>
+ * <li>Write a blob containing the cluster metadata to the root of the blob store repository at {@code /meta-${snapshot-uuid}.dat}</li>
+ * <li>Write the metadata for each index to a blob in that index's directory at
+ * {@code /indices/${index-snapshot-uuid}/meta-${snapshot-uuid}.dat}</li>
  * <li>Write the {@link org.elasticsearch.snapshots.SnapshotInfo} blob for the given snapshot to the key {@code /snap-${snapshot-uuid}.dat}
  * directly under the repository root.</li>
  * <li>Write an updated {@code RepositoryData} blob to the key {@code /index-${N+1}} using the {@code N} determined when initializing the

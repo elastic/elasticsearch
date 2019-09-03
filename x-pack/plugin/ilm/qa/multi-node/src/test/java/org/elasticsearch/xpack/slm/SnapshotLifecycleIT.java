@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.slm;
 
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -45,6 +46,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/46205")
 public class SnapshotLifecycleIT extends ESRestTestCase {
 
     @Override

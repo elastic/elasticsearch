@@ -51,6 +51,7 @@ import static java.time.temporal.ChronoField.MINUTE_OF_HOUR;
 import static java.time.temporal.ChronoField.MONTH_OF_YEAR;
 import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
+import static java.time.temporal.ChronoField.YEAR_OF_ERA;
 
 public class DateFormatters {
 
@@ -1910,15 +1911,26 @@ public class DateFormatters {
     }
 
     private static LocalDate getLocaldate(TemporalAccessor accessor) {
+        int year = getYear(accessor);
         if (accessor.isSupported(MONTH_OF_YEAR)) {
             if (accessor.isSupported(DAY_OF_MONTH)) {
-                return LocalDate.of(1970, accessor.get(MONTH_OF_YEAR), accessor.get(DAY_OF_MONTH));
+                return LocalDate.of(year, accessor.get(MONTH_OF_YEAR), accessor.get(DAY_OF_MONTH));
             } else {
-                return LocalDate.of(1970, accessor.get(MONTH_OF_YEAR), 1);
+                return LocalDate.of(year, accessor.get(MONTH_OF_YEAR), 1);
             }
         }
 
         return LOCALDATE_EPOCH;
+    }
+
+    private static int getYear(TemporalAccessor accessor) {
+        if(accessor.isSupported(ChronoField.YEAR)){
+            return accessor.get(ChronoField.YEAR);
+        }
+        if(accessor.isSupported(YEAR_OF_ERA)){
+            return accessor.get(YEAR_OF_ERA);
+        }
+        return 1970;
     }
 
     @SuppressForbidden(reason = "ZonedDateTime.of is fine here")

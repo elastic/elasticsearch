@@ -40,6 +40,7 @@ import static java.time.temporal.ChronoField.MINUTE_OF_DAY;
 import static java.time.temporal.ChronoField.MONTH_OF_YEAR;
 import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_DAY;
+import static java.time.temporal.ChronoField.YEAR_OF_ERA;
 
 enum DateFormat {
     Iso8601 {
@@ -100,7 +101,7 @@ enum DateFormat {
                 TemporalAccessor accessor = formatter.parse(text);
                 // if there is no year, we fall back to the current one and
                 // fill the rest of the date up with the parsed date
-                if (accessor.isSupported(ChronoField.YEAR) == false) {
+                if (accessor.isSupported(ChronoField.YEAR) == false && accessor.isSupported(YEAR_OF_ERA) == false) {
                     int year = LocalDate.now(ZoneOffset.UTC).getYear();
                     ZonedDateTime newTime = Instant.EPOCH.atZone(ZoneOffset.UTC).withYear(year);
                     for (ChronoField field : FIELDS) {

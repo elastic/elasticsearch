@@ -20,7 +20,6 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
@@ -260,6 +259,7 @@ public class JavaDateMathParserTests extends ESTestCase {
         assertDateEquals(datetime, "1418248078", "2014-12-10T21:47:58.000");
 
         // a timestamp before 10000 is a year
+        assertDateMathEquals("999", "1970-01-01T00:00:00.999Z");
         assertDateMathEquals("9999", "1970-01-01T00:00:09.999Z");
         // 10000 is also a year, breaking bwc, used to be a timestamp
         assertDateMathEquals("10000", "1970-01-01T00:00:10.000Z");

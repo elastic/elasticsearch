@@ -62,6 +62,7 @@ public class DateProcessorTests extends ESTestCase {
 
     public void testJavaPatternMultipleFormats() {
         List<String> matchFormats = new ArrayList<>();
+        matchFormats.add("uuuu dd MM");
         matchFormats.add("yyyy dd MM");
         matchFormats.add("dd/MM/yyyy");
         matchFormats.add("dd-MM-yyyy");

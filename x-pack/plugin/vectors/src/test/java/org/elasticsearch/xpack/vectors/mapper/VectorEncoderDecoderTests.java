@@ -58,8 +58,8 @@ public class VectorEncoderDecoderTests extends ESTestCase {
         );
     }
 
-    public void testSparseVectorEncodingDecodingBefore7_4() {
-        Version indexVersion = Version.V_7_3_0;
+    public void testSparseVectorEncodingDecodingBefore_V_7_5_0() {
+        Version indexVersion = Version.V_7_4_0;
         int dimCount = randomIntBetween(0, 100);
         float[] expectedValues = new float[dimCount];
         int[] expectedDims = randomUniqueDims(dimCount);

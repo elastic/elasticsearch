@@ -165,7 +165,7 @@ public final class VectorEncoderDecoder {
     /**
      * Decodes the last 4 bytes of the encoded vector, which contains the vector magnitude.
      * NOTE: this function can only be called on vectors from an index version greater than or
-     * equal to 7.4.0, since vectors created prior to that do not store the magnitude.
+     * equal to 7.5.0, since vectors created prior to that do not store the magnitude.
      */
     public static float decodeVectorMagnitude(Version indexVersion, BytesRef vectorBR) {
         assert indexVersion.onOrAfter(Version.V_7_5_0);

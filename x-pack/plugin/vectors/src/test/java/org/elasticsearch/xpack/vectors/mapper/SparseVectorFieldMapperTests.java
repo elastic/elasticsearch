@@ -117,9 +117,9 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
     }
 
-    public void testAddDocumentsToIndexBefore_V_7_4_0() throws Exception {
-        Version indexVersion = Version.V_7_3_0;
-        IndexService indexService = createIndex("test-index7_3",
+    public void testAddDocumentsToIndexBefore_V_7_5_0() throws Exception {
+        Version indexVersion = Version.V_7_4_0;
+        IndexService indexService = createIndex("test-index7_4",
             Settings.builder().put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), indexVersion).build());
         DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
@@ -135,7 +135,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
 
         int[] indexedDims = {65535, 50, 2};
         float[] indexedValues = {0.5f, 1800f, -34567.11f};
-        ParsedDocument doc1 = mapper.parse(new SourceToParse("test-index7_3", "_doc", "1", BytesReference
+        ParsedDocument doc1 = mapper.parse(new SourceToParse("test-index7_4", "_doc", "1", BytesReference
             .bytes(XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("my-sparse-vector")

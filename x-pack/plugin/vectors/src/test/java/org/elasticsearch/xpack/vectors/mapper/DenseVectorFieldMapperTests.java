@@ -107,9 +107,9 @@ public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
         );
     }
 
-    public void testAddDocumentsToIndexBefore_V_7_4_0() throws Exception {
-        Version indexVersion = Version.V_7_3_0;
-        IndexService indexService = createIndex("test-index7_3",
+    public void testAddDocumentsToIndexBefore_V_7_5_0() throws Exception {
+        Version indexVersion = Version.V_7_4_0;
+        IndexService indexService = createIndex("test-index7_4",
             Settings.builder().put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), indexVersion).build());
         DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
@@ -123,7 +123,7 @@ public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
             .endObject());
         DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
         float[] validVector = {-12.1f, 100.7f, -4};
-        ParsedDocument doc1 = mapper.parse(new SourceToParse("test-index7_3", "_doc", "1", BytesReference
+        ParsedDocument doc1 = mapper.parse(new SourceToParse("test-index7_4", "_doc", "1", BytesReference
             .bytes(XContentFactory.jsonBuilder()
                 .startObject()
                 .startArray("my-dense-vector").value(validVector[0]).value(validVector[1]).value(validVector[2]).endArray()

@@ -33,7 +33,7 @@ import static org.mockito.Mockito.when;
 public class ScoreScriptUtilsTests extends ESTestCase {
 
     public void testDenseVectorFunctions() {
-        testDenseVectorFunctions(Version.V_7_3_0);
+        testDenseVectorFunctions(Version.V_7_4_0);
         testDenseVectorFunctions(Version.CURRENT);
     }
 
@@ -91,7 +91,7 @@ public class ScoreScriptUtilsTests extends ESTestCase {
     }
 
     public void testSparseVectorFunctions() {
-        testSparseVectorFunctions(Version.V_7_3_0);
+        testSparseVectorFunctions(Version.V_7_4_0);
         testSparseVectorFunctions(Version.CURRENT);
     }
 

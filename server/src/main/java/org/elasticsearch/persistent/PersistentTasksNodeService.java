@@ -183,7 +183,8 @@ public class PersistentTasksNodeService implements ClusterStateListener {
 
         boolean processed = false;
         try {
-            task.init(persistentTasksService, taskManager, logger, taskInProgress.getId(), taskInProgress.getAllocationId());
+            task.init(persistentTasksService, taskManager, taskInProgress.getId(),
+                taskInProgress.getAllocationId(), taskInProgress.getState());
             logger.trace("Persistent task [{}] with id [{}] and allocation id [{}] was created", task.getAction(),
                     task.getPersistentTaskId(), task.getAllocationId());
             try {

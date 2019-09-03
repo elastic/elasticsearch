@@ -22,7 +22,9 @@ import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -82,7 +84,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
                                                      PersistentTasksCustomMetaData.PersistentTask<RollupJob> persistentTask,
                                                      Map<String, String> headers) {
             return new RollupJobTask(id, type, action, parentTaskId, persistentTask.getParams(),
-                    (RollupJobStatus) persistentTask.getState(), client, schedulerEngine, threadPool, headers);
+                client, schedulerEngine, threadPool, headers);
         }
     }
 
@@ -150,22 +152,33 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
     private final RollupJob job;
     private final SchedulerEngine schedulerEngine;
     private final ThreadPool threadPool;
-    private final RollupIndexer indexer;
+    private final Client client;
+    private RollupIndexer indexer;
 
-    RollupJobTask(long id, String type, String action, TaskId parentTask, RollupJob job, RollupJobStatus state,
+    RollupJobTask(long id, String type, String action, TaskId parentTask, RollupJob job,
                   Client client, SchedulerEngine schedulerEngine, ThreadPool threadPool, Map<String, String> headers) {
         super(id, type, action, RollupField.NAME + "_" + job.getConfig().getId(), parentTask, headers);
         this.job = job;
         this.schedulerEngine = schedulerEngine;
         this.threadPool = threadPool;
+        this.client = client;
+    }
+
+    @Override
+    protected void init(PersistentTasksService persistentTasksService, TaskManager taskManager,
+                        String persistentTaskId, long allocationId, PersistentTaskState persistentTaskState) {
+        super.init(persistentTasksService, taskManager, persistentTaskId, allocationId, persistentTaskState);
 
         // If status is not null, we are resuming rather than starting fresh.
         Map<String, Object> initialPosition = null;
         IndexerState initialState = IndexerState.STOPPED;
+
+        RollupJobStatus state = (RollupJobStatus) persistentTaskState;
+
         if (state != null) {
             final IndexerState existingState = state.getIndexerState();
             logger.debug("We have existing state, setting state to [" + existingState + "] " +
-                    "and current position to [" + state.getPosition() + "] for job [" + job.getConfig().getId() + "]");
+                "and current position to [" + state.getPosition() + "] for job [" + job.getConfig().getId() + "]");
             if (existingState.equals(IndexerState.INDEXING)) {
                 /*
                  * If we were indexing, we have to reset back to STARTED otherwise the indexer will be "stuck" thinking
@@ -187,7 +200,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
 
         }
         this.indexer = new ClientRollupPageManager(job, initialState, initialPosition,
-                new ParentTaskAssigningClient(client, new TaskId(getPersistentTaskId())));
+            new ParentTaskAssigningClient(client, new TaskId(getPersistentTaskId())));
     }
 
     @Override

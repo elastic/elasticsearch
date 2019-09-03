@@ -138,7 +138,8 @@ automatically. You can modify this setting to explicitly allow or block
 automatic creation of indices that match specified patterns, or set it to
 `false` to disable automatic index creation entirely. Specify a
 comma-separated list of patterns you want to allow, or prefix each pattern with
-`+` or `-` to indicate whether it should be allowed or blocked.
+`+` or `-` to indicate whether it should be allowed or blocked.  When a list is
+specified, the default behaviour is to disallow.
 
 [source,js]
 --------------------------------------------------

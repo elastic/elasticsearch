@@ -17,6 +17,8 @@
  * under the License.
  */
 
+import org.elasticsearch.gradle.test.RestIntegTestTask
+
 /*
  TODOs:
    * fix permissions such that only netty4 can open sockets etc?
@@ -60,6 +62,22 @@ integTestRunner {
      */
     systemProperty 'es.set.netty.runtime.available.processors', 'false'
 }
+
+TaskProvider<Test> pooledTest = tasks.register("pooledTest", Test) {
+  include '**/*Tests.class'
+  systemProperty 'es.set.netty.runtime.available.processors', 'false'
+  systemProperty 'io.netty.allocator.type', 'pooled'
+}
+// TODO: we can't use task avoidance here because RestIntegTestTask does the testcluster creation
+RestIntegTestTask pooledIntegTest = tasks.create("pooledIntegTest", RestIntegTestTask) {
+  runner {
+    systemProperty 'es.set.netty.runtime.available.processors', 'false'
+  }
+}
+testClusters.pooledIntegTest {
+  systemProperty 'io.netty.allocator.type', 'pooled'
+}
+check.dependsOn(pooledTest, pooledIntegTest)
 
 thirdPartyAudit {
     ignoreMissingClasses (

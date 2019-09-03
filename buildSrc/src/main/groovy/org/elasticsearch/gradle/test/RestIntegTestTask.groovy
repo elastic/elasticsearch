@@ -236,7 +236,7 @@ class RestIntegTestTask extends DefaultTask {
         }
         project.dependencies {
             restSpec ClasspathUtils.isElasticsearchProject() ? project.project(':rest-api-spec') :
-                    "org.elasticsearch.rest-api-spec:${VersionProperties.elasticsearch}"
+                    "org.elasticsearch:rest-api-spec:${VersionProperties.elasticsearch}"
         }
         Task copyRestSpec = project.tasks.findByName('copyRestSpec')
         if (copyRestSpec != null) {

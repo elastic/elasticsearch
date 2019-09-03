@@ -129,11 +129,11 @@ public final class RepositoryData {
 
     public String getShardGen(IndexId indexId, ShardId shardId) {
         final String[] generations = shardGenerations.get(indexId);
-        if (generations == null) {
+        if (generations == null || generations.length == 0) {
             return null;
         }
         final int shardNum = shardId.getId();
-        if (generations.length < shardNum) {
+        if (generations.length < shardNum - 1) {
             throw new IllegalArgumentException(
                 "Index [" + indexId + "] only has [" + generations.length + "] shards but requested shard [" + shardId + "]");
         }
@@ -203,8 +203,9 @@ public final class RepositoryData {
     private static boolean assertShardGensUpdateConsistent(Map<IndexId, String[]> previous, Map<IndexId, String[]> updated) {
         previous.forEach((indexId, gens) -> {
             final String[] newGens = updated.get(indexId);
-            assert newGens == null || newGens.length == gens.length;
-            if (newGens != null) {
+            assert newGens == null || gens.length == 0
+                || newGens.length == gens.length : "Previous " + Arrays.asList(gens) + ", updated " + Arrays.asList(newGens);
+            if (newGens != null && gens.length != 0) {
                 for (int i = 0; i < newGens.length; i++) {
                     assert (newGens[i] == null && gens[i] != null) == false;
                 }

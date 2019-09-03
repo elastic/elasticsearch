@@ -28,6 +28,7 @@ DELETE /_enrich/policy/my-policy
 --------------------------------------------------
 // CONSOLE
 
+
 [[delete-enrich-policy-api-request]]
 ==== {api-request-title}
 
@@ -38,6 +39,7 @@ DELETE /_enrich/policy/my-policy
 ==== {api-prereq-title}
 
 include::put-enrich-policy.asciidoc[tag=enrich-policy-api-prereqs]
+
 
 [[delete-enrich-policy-api-desc]]
 ==== {api-description-title}

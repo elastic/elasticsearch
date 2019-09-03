@@ -54,6 +54,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=enrich-policy]
 [[get-enrich-policy-api-example]]
 ==== {api-examples-title}
 
+
 [[get-enrich-policy-api-single-ex]]
 ===== Get a single policy
 
@@ -89,6 +90,7 @@ The API returns the following response:
 }
 --------------------------------------------------
 // TESTRESPONSE
+
 
 [[get-enrich-policy-api-all-ex]]
 ===== Get all policies

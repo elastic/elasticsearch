@@ -37,6 +37,7 @@ If you use {es} {security-features}, you must have:
 * The `enrich_user` {stack-ov}/built-in-roles.html[built-in role]
 // end::enrich-policy-api-prereqs[]
 
+
 [[put-enrich-policy-api-desc]]
 ==== {api-description-title}
 
@@ -55,6 +56,7 @@ An enrich policy contains:
 * *Enrich fields*, fields appended to incoming documents
   from matching documents
 // end::enrich-policy-def
+
 
 ===== Update an enrich policy
 
@@ -76,6 +78,7 @@ Instead, you can:
 .   Use the <<delete-enrich-policy-api, delete enrich policy API>>
     to delete the previous enrich policy.
 // end::update-enrich-policy
+
 
 [[put-enrich-policy-api-path-params]]
 ==== {api-path-parms-title}

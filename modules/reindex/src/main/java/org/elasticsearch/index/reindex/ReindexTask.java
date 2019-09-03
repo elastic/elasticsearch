@@ -57,6 +57,7 @@ public class ReindexTask extends AllocatedPersistentTask {
     private final Reindexer reindexer;
     private final TaskId taskId;
     private final BulkByScrollTask childTask;
+    private final Semaphore semaphore = new Semaphore(1);
     private volatile long currentTerm = -1;
     private volatile long currentSeqNo = -1;
 
@@ -192,9 +193,12 @@ public class ReindexTask extends AllocatedPersistentTask {
 
         ReindexTaskIndexState reindexState = new ReindexTaskIndexState(reindexRequest, getAllocationId(), response, null,
             (RestStatus) null, null);
+        // TODO: Maybe just normal acquire
+        semaphore.acquireUninterruptibly();
         reindexIndexClient.updateReindexTaskDoc(getPersistentTaskId(), reindexState, currentTerm, currentSeqNo, new ActionListener<>() {
             @Override
             public void onResponse(ReindexTaskIndexStateWithSeq taskState) {
+                semaphore.release();
                 currentTerm = taskState.getPrimaryTerm();
                 currentSeqNo = taskState.getSeqNo();
                 updatePersistentTaskState(new ReindexJobState(taskId, ReindexJobState.Status.DONE), new ActionListener<>() {
@@ -228,6 +232,7 @@ public class ReindexTask extends AllocatedPersistentTask {
 
             @Override
             public void onFailure(Exception ex) {
+                semaphore.release();
                 logger.info("Failed to write result to reindex index", ex);
                 updateClusterStateToFailed(shouldStoreResult, ReindexJobState.Status.FAILED_TO_WRITE_TO_REINDEX_INDEX, ex);
             }
@@ -308,7 +313,6 @@ public class ReindexTask extends AllocatedPersistentTask {
 
     private class CheckpointHandler implements Reindexer.CheckpointListener {
         private ReindexTaskIndexState lastState;
-        private Semaphore semaphore = new Semaphore(1);
 
         CheckpointHandler(ReindexTaskIndexState lastState) {
             this.lastState = lastState;

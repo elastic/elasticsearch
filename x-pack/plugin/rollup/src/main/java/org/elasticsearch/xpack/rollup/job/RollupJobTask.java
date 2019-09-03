@@ -200,7 +200,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
 
         }
         this.indexer = new ClientRollupPageManager(job, initialState, initialPosition,
-            new ParentTaskAssigningClient(client, new TaskId(getPersistentTaskId())));
+            new ParentTaskAssigningClient(client, getParentTaskId()));
     }
 
     @Override

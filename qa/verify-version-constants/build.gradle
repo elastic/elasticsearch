@@ -84,3 +84,5 @@ task verifyDocsLuceneVersion {
 }
 
 check.dependsOn bwcTestSnapshots, verifyDocsLuceneVersion
+
+test.enabled = false

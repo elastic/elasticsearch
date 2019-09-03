@@ -141,3 +141,5 @@ task bwcTestSnapshots {
 }
 
 check.dependsOn(bwcTestSnapshots)
+
+test.enabled = false

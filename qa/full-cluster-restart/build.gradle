@@ -101,3 +101,5 @@ task testJar(type: Jar) {
 artifacts {
   testArtifacts testJar
 }
+
+test.enabled = false

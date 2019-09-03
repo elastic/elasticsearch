@@ -118,3 +118,5 @@ task bwcTestSnapshots {
 check.dependsOn(bwcTestSnapshots)
 
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
+
+test.enabled = false

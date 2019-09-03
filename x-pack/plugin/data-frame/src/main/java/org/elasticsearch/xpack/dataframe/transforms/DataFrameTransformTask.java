@@ -22,6 +22,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.dataframe.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
+import org.elasticsearch.xpack.dataframe.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.AggregationResultUtils;
 
 import java.time.Instant;
@@ -100,6 +102,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     private final AtomicReference<DataFrameTransformTaskState> taskState;
     private final AtomicReference<String> stateReason;
+    private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndex = new AtomicReference<>(null);
     // the checkpoint of this data frame, storing the checkpoint until data indexing from source to dest is _complete_
     // Note: Each indexer run creates a new future checkpoint which becomes the current checkpoint only after the indexer run finished
     private final AtomicLong currentCheckpoint;
@@ -257,9 +260,19 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 msg));
             return;
         }
+        // If we are already in a `STARTED` state, we should not attempt to call `.start` on the indexer again.
+        if (taskState.get() == DataFrameTransformTaskState.STARTED) {
+            listener.onFailure(new ElasticsearchStatusException(
+                "Cannot start transform [{}] as it is already STARTED.",
+                RestStatus.CONFLICT,
+                getTransformId()
+            ));
+            return;
+        }
+
         if (shouldStopAtCheckpoint) {
-            listener.onFailure(new ElasticsearchException("Cannot start task for data frame transform [{}], " +
-                "because it is stopping at the next checkpoint.", transform.getId()));
+                listener.onFailure(new ElasticsearchException("Cannot start task for data frame transform [{}], " +
+                    "because it is stopping at the next checkpoint.", transform.getId()));
             return;
         }
         final IndexerState newState = getIndexer().start();
@@ -566,6 +579,19 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         indexer.set(indexerBuilder.build(this));
     }
 
+    void updateSeqNoPrimaryTermAndIndex(SeqNoPrimaryTermAndIndex expectedValue, SeqNoPrimaryTermAndIndex newValue) {
+        boolean updated = seqNoPrimaryTermAndIndex.compareAndSet(expectedValue, newValue);
+        // This should never happen. We ONLY ever update this value if at initialization or we just finished updating the document
+        // famous last words...
+        assert updated :
+            "[" + getTransformId() + "] unexpected change to seqNoPrimaryTermAndIndex.";
+    }
+
+    @Nullable
+    SeqNoPrimaryTermAndIndex getSeqNoPrimaryTermAndIndex() {
+        return seqNoPrimaryTermAndIndex.get();
+    }
+
     static class ClientDataFrameIndexerBuilder {
         private Client client;
         private DataFrameTransformsConfigManager transformsConfigManager;
@@ -686,6 +712,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         private final DataFrameTransformTask transformTask;
         private final AtomicInteger failureCount;
         private volatile boolean auditBulkFailures = true;
+        // Indicates that the source has changed for the current run
+        private volatile boolean hasSourceChanged = true;
         // Keeps track of the last exception that was written to our audit, keeps us from spamming the audit index
         private volatile String lastAuditedExceptionMessage = null;
         private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
@@ -806,18 +834,26 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             if (transformTask.currentCheckpoint.get() > 0 && initialRun()) {
                 sourceHasChanged(ActionListener.wrap(
                     hasChanged -> {
+                        hasSourceChanged = hasChanged;
                         if (hasChanged) {
                             transformTask.changesLastDetectedAt = Instant.now();
                             logger.debug("[{}] source has changed, triggering new indexer run.", transformId);
                             changedSourceListener.onResponse(null);
                         } else {
+                            logger.trace("[{}] source has not changed, finish indexer early.", transformId);
                             // No changes, stop executing
                             listener.onResponse(false);
                         }
                     },
-                    listener::onFailure
+                    failure -> {
+                        // If we failed determining if the source changed, it's safer to assume there were changes.
+                        // We should allow the failure path to complete as normal
+                        hasSourceChanged = true;
+                        listener.onFailure(failure);
+                    }
                 ));
             } else {
+                hasSourceChanged = true;
                 changedSourceListener.onResponse(null);
             }
         }
@@ -916,6 +952,14 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 return;
             }
 
+            // This means that the indexer was triggered to discover changes, found none, and exited early.
+            // If the state is `STOPPED` this means that DataFrameTransformTask#stop was called while we were checking for changes.
+            // Allow the stop call path to continue
+            if (hasSourceChanged == false && indexerState.equals(IndexerState.STOPPED) == false) {
+                next.run();
+                return;
+            }
+
             DataFrameTransformTaskState taskState = transformTask.taskState.get();
             boolean shouldStopAtCheckpoint = transformTask.shouldStopAtCheckpoint;
 
@@ -928,7 +972,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 auditor.info(transformConfig.getId(), "Data frame finished indexing all data, initiating stop");
                 logger.info("[{}] data frame transform finished indexing all data, initiating stop.", transformConfig.getId());
             }
-
 
             // If we should stop at the next checkpoint, are STARTED, and with `initialRun()` we are in one of two states
             // 1. We have just called `onFinish` completing our request, but `shouldStopAtCheckpoint` was set to `true` before our check
@@ -947,12 +990,14 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             // OR we called `doSaveState` manually as the indexer was not actively running.
             // Since we save the state to an index, we should make sure that our task state is in parity with the indexer state
             if (indexerState.equals(IndexerState.STOPPED)) {
-                taskState = DataFrameTransformTaskState.STOPPED;
                 // If we are going to stop after the state is saved, we should NOT persist `shouldStopAtCheckpoint: true` as this may
                 // cause problems if the task starts up again.
                 // Additionally, we don't have to worry about inconsistency with the ClusterState (if it is persisted there) as the
                 // when we stop, we mark the task as complete and that state goes away.
                 shouldStopAtCheckpoint = false;
+                // We don't want adjust the stored taskState because as soon as it is `STOPPED` a user could call
+                // .start again.
+                taskState = DataFrameTransformTaskState.STOPPED;
             }
 
             final DataFrameTransformState state = new DataFrameTransformState(
@@ -966,13 +1011,18 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 shouldStopAtCheckpoint);
             logger.debug("[{}] updating persistent state of transform to [{}].", transformConfig.getId(), state.toString());
 
+            // This could be `null` but the putOrUpdateTransformStoredDoc handles that case just fine
+            SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex = transformTask.getSeqNoPrimaryTermAndIndex();
+
             // Persist the current state and stats in the internal index. The interval of this method being
             // called is controlled by AsyncTwoPhaseIndexer#onBulkResponse which calls doSaveState every so
             // often when doing bulk indexing calls or at the end of one indexing run.
             transformsConfigManager.putOrUpdateTransformStoredDoc(
                     new DataFrameTransformStoredDoc(transformId, state, getStats()),
+                    seqNoPrimaryTermAndIndex,
                     ActionListener.wrap(
                             r -> {
+                                transformTask.updateSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex, r);
                                 // for auto stop shutdown the task
                                 if (state.getTaskState().equals(DataFrameTransformTaskState.STOPPED)) {
                                     transformTask.shutdown();
@@ -1027,6 +1077,11 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         @Override
         protected void onFinish(ActionListener<Void> listener) {
             try {
+                // This indicates an early exit since no changes were found.
+                // So, don't treat this like a checkpoint being completed, as no work was done.
+                if (hasSourceChanged == false) {
+                    listener.onResponse(null);
+                }
                 // TODO: needs cleanup super is called with a listener, but listener.onResponse is called below
                 // super.onFinish() fortunately ignores the listener
                 super.onFinish(listener);

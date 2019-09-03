@@ -62,6 +62,8 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
 
         // index random shapes
         numDocs = randomIntBetween(25, 50);
+        // reset query geometry to make sure we pick one from the indexed shapes
+        queryGeometry = null;
         Geometry geometry;
         for (int i = 0; i < numDocs; ++i) {
             geometry = ShapeTestUtils.randomGeometry(false);
@@ -77,6 +79,10 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
                 client().prepareIndex(IGNORE_MALFORMED_INDEX, FIELD_TYPE).setRefreshPolicy(IMMEDIATE).setSource(geoJson).get();
             } catch (Exception e) {
                 // sometimes GeoTestUtil will create invalid geometry; catch and continue:
+                if (queryGeometry == geometry) {
+                    // reset query geometry as it didn't get indexed
+                    queryGeometry = null;
+                }
                 --i;
                 continue;
             }
@@ -227,7 +233,6 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
         assertHitCount(result, numDocs);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45628")
     public void testFieldAlias() {
         SearchResponse response = client().prepareSearch(INDEX)
             .setQuery(new ShapeQueryBuilder("alias", queryGeometry).relation(ShapeRelation.INTERSECTS))

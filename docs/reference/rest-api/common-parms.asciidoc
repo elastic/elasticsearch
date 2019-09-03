@@ -141,6 +141,13 @@ tag::index[]
 used to limit the request.
 end::index[]
 
+tag::index-template[]
+`<index-template>`::
+(Required, string)
+Comma-separated list or wildcard expression of index template names
+used to limit the request.
+end::index-template[]
+
 tag::lenient[]
 `lenient`::
 (Optional, boolean) If `true`, format-based query failures (such as 

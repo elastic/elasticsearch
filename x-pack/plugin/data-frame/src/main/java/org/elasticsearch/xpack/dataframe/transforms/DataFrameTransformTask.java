@@ -632,6 +632,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         private final DataFrameTransformTask transformTask;
         private final AtomicInteger failureCount;
         private volatile boolean auditBulkFailures = true;
+        // Indicates that the source has changed for the current run
+        private volatile boolean hasSourceChanged = true;
         // Keeps track of the last exception that was written to our audit, keeps us from spamming the audit index
         private volatile String lastAuditedExceptionMessage = null;
         private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
@@ -752,18 +754,26 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             if (transformTask.currentCheckpoint.get() > 0 && initialRun()) {
                 sourceHasChanged(ActionListener.wrap(
                     hasChanged -> {
+                        hasSourceChanged = hasChanged;
                         if (hasChanged) {
                             transformTask.changesLastDetectedAt = Instant.now();
                             logger.debug("[{}] source has changed, triggering new indexer run.", transformId);
                             changedSourceListener.onResponse(null);
                         } else {
+                            logger.trace("[{}] source has not changed, finish indexer early.", transformId);
                             // No changes, stop executing
                             listener.onResponse(false);
                         }
                     },
-                    listener::onFailure
+                    failure -> {
+                        // If we failed determining if the source changed, it's safer to assume there were changes.
+                        // We should allow the failure path to complete as normal
+                        hasSourceChanged = true;
+                        listener.onFailure(failure);
+                    }
                 ));
             } else {
+                hasSourceChanged = true;
                 changedSourceListener.onResponse(null);
             }
         }
@@ -858,6 +868,14 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             }
             if (indexerState.equals(IndexerState.ABORTING)) {
                 // If we're aborting, just invoke `next` (which is likely an onFailure handler)
+                next.run();
+                return;
+            }
+
+            // This means that the indexer was triggered to discover changes, found none, and exited early.
+            // If the state is `STOPPED` this means that DataFrameTransformTask#stop was called while we were checking for changes.
+            // Allow the stop call path to continue
+            if (hasSourceChanged == false && indexerState.equals(IndexerState.STOPPED) == false) {
                 next.run();
                 return;
             }
@@ -958,6 +976,11 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         @Override
         protected void onFinish(ActionListener<Void> listener) {
             try {
+                // This indicates an early exit since no changes were found.
+                // So, don't treat this like a checkpoint being completed, as no work was done.
+                if (hasSourceChanged == false) {
+                    listener.onResponse(null);
+                }
                 // TODO: needs cleanup super is called with a listener, but listener.onResponse is called below
                 // super.onFinish() fortunately ignores the listener
                 super.onFinish(listener);

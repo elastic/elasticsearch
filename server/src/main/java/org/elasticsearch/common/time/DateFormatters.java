@@ -59,7 +59,7 @@ public class DateFormatters {
         .toFormatter(IsoLocale.ROOT);
 
     private static final DateTimeFormatter STRICT_YEAR_MONTH_DAY_FORMATTER = new DateTimeFormatterBuilder()
-        .appendValue(ChronoField.YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
+        .appendValue(ChronoField.YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
         .optionalStart()
         .appendLiteral("-")
         .appendValue(MONTH_OF_YEAR, 2, 2, SignStyle.NOT_NEGATIVE)
@@ -800,7 +800,7 @@ public class DateFormatters {
 
     private static final DateTimeFormatter ISO_WEEK_DATE = new DateTimeFormatterBuilder()
             .parseCaseInsensitive()
-            .appendValue(IsoFields.WEEK_BASED_YEAR, 4, 4, SignStyle.EXCEEDS_PAD)
+            .appendValue(IsoFields.WEEK_BASED_YEAR, 4, 10, SignStyle.EXCEEDS_PAD)
             .appendLiteral("-W")
             .appendValue(IsoFields.WEEK_OF_WEEK_BASED_YEAR, 2)
             .appendLiteral('-')

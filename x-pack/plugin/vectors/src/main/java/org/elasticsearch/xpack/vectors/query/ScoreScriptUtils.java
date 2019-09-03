@@ -30,10 +30,34 @@ public class ScoreScriptUtils {
         final float[] queryVector;
 
         public DenseVectorFunction(ScoreScript scoreScript, List<Number> queryVector) {
+            this(scoreScript, queryVector, false);
+        }
+
+        /**
+         * Constructs a dense vector function.
+         *
+         * @param scoreScript The script in which this function was referenced.
+         * @param queryVector The query vector.
+         * @param normalizeQuery Whether the provided query should be normalized to unit length.
+         */
+        public DenseVectorFunction(ScoreScript scoreScript,
+                                   List<Number> queryVector,
+                                   boolean normalizeQuery) {
             this.scoreScript = scoreScript;
+
             this.queryVector = new float[queryVector.size()];
+            double queryMagnitude = 0.0;
             for (int i = 0; i < queryVector.size(); i++) {
-                this.queryVector[i] = queryVector.get(i).floatValue();
+                float value = queryVector.get(i).floatValue();
+                this.queryVector[i] = value;
+                queryMagnitude += value * value;
+            }
+            queryMagnitude = Math.sqrt(queryMagnitude);
+
+            if (normalizeQuery) {
+                for (int dim = 0; dim < this.queryVector.length; dim++) {
+                    this.queryVector[dim] /= queryMagnitude;
+                }
             }
         }
 
@@ -113,17 +137,9 @@ public class ScoreScriptUtils {
 
     // Calculate cosine similarity between a query's dense vector and documents' dense vectors
     public static final class CosineSimilarity extends DenseVectorFunction {
-        final double queryVectorMagnitude;
 
-        // calculate queryVectorMagnitude once per query execution
         public CosineSimilarity(ScoreScript scoreScript, List<Number> queryVector) {
-            super(scoreScript, queryVector);
-            double dotProduct = 0;
-            for (Number value : queryVector) {
-                float floatValue = value.floatValue();
-                dotProduct += floatValue * floatValue;
-            }
-            this.queryVectorMagnitude = Math.sqrt(dotProduct);
+            super(scoreScript, queryVector, true);
         }
 
         public double cosineSimilarity(VectorScriptDocValues.DenseVectorScriptDocValues dvs) {
@@ -133,21 +149,21 @@ public class ScoreScriptUtils {
             ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
 
             double dotProduct = 0.0;
-            double docVectorMagnitude = 0.0f;
+            double vectorMagnitude = 0.0f;
             if (scoreScript._getIndexVersion().onOrAfter(Version.V_7_4_0)) {
                 for (float queryValue : queryVector) {
                     dotProduct += queryValue * byteBuffer.getFloat();
                 }
-                docVectorMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(scoreScript._getIndexVersion(), vector);
+                vectorMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(scoreScript._getIndexVersion(), vector);
             } else {
                 for (float queryValue : queryVector) {
                     float docValue = byteBuffer.getFloat();
                     dotProduct += queryValue * docValue;
-                    docVectorMagnitude += docValue * docValue;
+                    vectorMagnitude += docValue * docValue;
                 }
-                docVectorMagnitude = (float) Math.sqrt(docVectorMagnitude);
+                vectorMagnitude = (float) Math.sqrt(vectorMagnitude);
             }
-            return dotProduct / (docVectorMagnitude * queryVectorMagnitude);
+            return dotProduct / vectorMagnitude;
         }
     }
 

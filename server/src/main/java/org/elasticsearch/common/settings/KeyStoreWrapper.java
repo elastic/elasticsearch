@@ -217,7 +217,14 @@ public class KeyStoreWrapper implements SecureSettings {
         SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
         try (IndexInput indexInput = directory.openInput(KEYSTORE_FILENAME, IOContext.READONCE)) {
             ChecksumIndexInput input = new BufferedChecksumIndexInput(indexInput);
-            int formatVersion = CodecUtil.checkHeader(input, KEYSTORE_FILENAME, MIN_FORMAT_VERSION, FORMAT_VERSION);
+            int formatVersion = CodecUtil.checkHeader(input, KEYSTORE_FILENAME, 0, Integer.MAX_VALUE);
+            if (formatVersion < MIN_FORMAT_VERSION) {
+                throw new IllegalStateException("The Elasticsearch keystore format is too old. " +
+                    "You should delete and recreate it in order to upgrade.");
+            } else if (formatVersion > FORMAT_VERSION) {
+                throw new IllegalStateException("The Elasticsearch keystore format is too new. Are you trying to downgrade? " +
+                    "You should delete and recreate it in order to downgrade.");
+            }
             byte hasPasswordByte = input.readByte();
             boolean hasPassword = hasPasswordByte == 1;
             if (hasPassword == false && hasPasswordByte != 0) {

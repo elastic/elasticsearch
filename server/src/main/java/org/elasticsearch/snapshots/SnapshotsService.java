@@ -594,7 +594,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
         final Map<IndexId, String[]> result = new HashMap<>();
         res.forEach((indexId, shards) -> {
-            final String[] gens = result.computeIfAbsent(indexId, k -> new String[shards.size()]);
+            final String[] gens = result.computeIfAbsent(indexId,
+                k -> new String[shards.stream().mapToInt(s -> s.v1().getId()).max().orElse(0) + 1]);
             for (Tuple<ShardId, ShardSnapshotStatus> shard : shards) {
                 if (shard.v2().state().failed() == false) {
                     assert gens[shard.v1().getId()] == null;

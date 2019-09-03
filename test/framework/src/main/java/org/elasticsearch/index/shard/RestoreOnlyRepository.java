@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -89,8 +90,10 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     @Override
     public RepositoryData getRepositoryData() {
         Map<IndexId, Set<SnapshotId>> map = new HashMap<>();
-        map.put(new IndexId(indexName, "blah"), emptySet());
-        return new RepositoryData(EMPTY_REPO_GEN, Collections.emptyMap(), Collections.emptyMap(), map,Collections.emptyMap());
+        final IndexId indexId = new IndexId(indexName, "blah");
+        map.put(indexId, emptySet());
+        return new RepositoryData(EMPTY_REPO_GEN, Collections.emptyMap(), Collections.emptyMap(),
+            Collections.singletonMap(indexId, emptySet()), Collections.singletonMap(indexId, Strings.EMPTY_ARRAY));
     }
 
     @Override

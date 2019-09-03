@@ -116,8 +116,12 @@ public class RepositoryDataTests extends ESTestCase {
             Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
         // test that initializing indices works
         Map<IndexId, Set<SnapshotId>> indices = randomIndices(snapshotIds);
+        final Map<IndexId, String[]> shardGenerations = new HashMap<>();
+        for (IndexId indexId : indices.keySet()) {
+            shardGenerations.put(indexId, Strings.EMPTY_ARRAY);
+        }
         RepositoryData newRepoData =
-            new RepositoryData(repositoryData.getGenId(), snapshotIds, snapshotStates, indices, Collections.emptyMap());
+            new RepositoryData(repositoryData.getGenId(), snapshotIds, snapshotStates, indices, shardGenerations);
         List<SnapshotId> expected = new ArrayList<>(repositoryData.getSnapshotIds());
         Collections.sort(expected);
         List<SnapshotId> actual = new ArrayList<>(newRepoData.getSnapshotIds());
@@ -183,6 +187,7 @@ public class RepositoryDataTests extends ESTestCase {
         final IndexId corruptedIndexId = randomFrom(parsedRepositoryData.getIndices().values());
 
         Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>();
+        final Map<IndexId, String[]> indexGenerations = new HashMap<>();
         for (Map.Entry<String, IndexId> snapshottedIndex : parsedRepositoryData.getIndices().entrySet()) {
             IndexId indexId = snapshottedIndex.getValue();
             Set<SnapshotId> snapshotsIds = new LinkedHashSet<>(parsedRepositoryData.getSnapshots(indexId));
@@ -190,11 +195,12 @@ public class RepositoryDataTests extends ESTestCase {
                 snapshotsIds.add(new SnapshotId("_uuid", "_does_not_exist"));
             }
             indexSnapshots.put(indexId, snapshotsIds);
+            indexGenerations.put(indexId, Strings.EMPTY_ARRAY);
         }
         assertNotNull(corruptedIndexId);
 
         RepositoryData corruptedRepositoryData = new RepositoryData(parsedRepositoryData.getGenId(), snapshotIds, snapshotStates,
-            indexSnapshots, Collections.emptyMap());
+            indexSnapshots, indexGenerations);
 
         final XContentBuilder corruptedBuilder = XContentBuilder.builder(xContent);
         corruptedRepositoryData.snapshotsToXContent(corruptedBuilder);

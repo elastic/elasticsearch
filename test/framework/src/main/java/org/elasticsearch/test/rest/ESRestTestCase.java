@@ -904,14 +904,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
-
-    protected static void ensureYellow(String index) throws IOException {
-
-    }
-
-
-
-
     /**
      * waits until all shard initialization is completed. This is a handy alternative to ensureGreen as it relates to all shards
      * in the cluster and doesn't require to know how many nodes/replica there are.

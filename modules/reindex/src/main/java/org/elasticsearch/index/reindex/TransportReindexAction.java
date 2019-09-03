@@ -63,7 +63,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         reindexer.initTask(bulkByScrollTask, request, new ActionListener<>() {
             @Override
             public void onResponse(Void v) {
-                reindexer.execute(bulkByScrollTask, request, listener);
+                reindexer.execute(bulkByScrollTask, request, listener, null, null);
             }
 
             @Override

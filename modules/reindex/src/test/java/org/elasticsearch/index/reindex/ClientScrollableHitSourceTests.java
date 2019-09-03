@@ -117,7 +117,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
         ClientScrollableHitSource hitSource = new ClientScrollableHitSource(logger, BackoffPolicy.constantBackoff(TimeValue.ZERO, retries),
             threadPool, actualSearchRetries::incrementAndGet, response -> handleResponse(responses, response), failureHandler,
             new ParentTaskAssigningClient(client, parentTask),
-            new SearchRequest().scroll("1m"), SeqNoFieldMapper.NAME);
+            new SearchRequest().scroll("1m"), SeqNoFieldMapper.NAME, null);
         LongSupplier seqNoGenerator = newSeqNoGenerator(0);
         long seqNo = Long.MIN_VALUE;
 
@@ -208,7 +208,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             threadPool, Assert::fail, r -> fail(), e -> fail(), new ParentTaskAssigningClient(client,
             parentTask),
             // Set the base for the scroll to wait - this is added to the figure we calculate below
-            new SearchRequest().scroll(timeValueSeconds(10)), null);
+            new SearchRequest().scroll(timeValueSeconds(10)), null, null);
 
         hitSource.setScroll(generateScrollId());
         hitSource.startNextScroll(timeValueSeconds(100));
@@ -226,7 +226,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             threadPool, retries::incrementAndGet, r -> fail(), e -> fail(), new ParentTaskAssigningClient(client,
             parentTask),
             // Set the base for the scroll to wait - this is added to the figure we calculate below
-            new SearchRequest().scroll(timeValueSeconds(10)), SeqNoFieldMapper.NAME);
+            new SearchRequest().scroll(timeValueSeconds(10)), SeqNoFieldMapper.NAME, null);
 
         String scrollId = generateScrollId();
         hitSource.setScroll(scrollId);

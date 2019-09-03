@@ -55,7 +55,7 @@ ORDER BY emp_no LIMIT 10;
 caseWithConditionsFolded
 schema::emp_no:i|CASE_1:byte|CASE_2:i
 SELECT emp_no, CASE WHEN NULL = 1 THEN emp_no WHEN 10 < 5 THEN emp_no ELSE languages END AS "CASE_1",
-CASE WHEN NULL = 1 THEN emp_no WHEN 10 > 5 THEN emp_no ELSE languages END AS "CASE_2",
+CASE WHEN NULL = 1 THEN languages WHEN 10 > 5 THEN emp_no ELSE languages END AS "CASE_2"
 FROM test_emp ORDER BY 1 LIMIT 5;
 
  emp_no | CASE_1 | CASE_2

@@ -26,7 +26,7 @@ public class Iif extends Case {
         super(source, Arrays.asList(new IfConditional(source, condition, thenResult), elseResult != null ? elseResult : Literal.NULL));
     }
 
-    private Iif(Source source, List<Expression> expressions) {
+    Iif(Source source, List<Expression> expressions) {
         super(source, expressions);
     }
 

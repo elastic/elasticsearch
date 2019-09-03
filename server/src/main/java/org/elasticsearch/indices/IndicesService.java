@@ -735,7 +735,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 getStats.addTotals(indexShard.getStats());
                 indexingStats.addTotals(indexShard.indexingStats());
                 // if this index was closed or deleted, we should eliminate the effect of the current scroll for this shard
-                searchStats.addTotalsForClosedShard(indexShard.searchStats());
+                searchStats.addTotalsForClosingShard(indexShard.searchStats());
                 mergeStats.addTotals(indexShard.mergeStats());
                 refreshStats.addTotals(indexShard.refreshStats());
                 flushStats.addTotals(indexShard.flushStats());

@@ -205,7 +205,7 @@ GET /_template/template_1?filter_path=*.version
 
 This should give a small response that makes it both easy and inexpensive to parse:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "template_1" : {
@@ -213,4 +213,3 @@ This should give a small response that makes it both easy and inexpensive to par
   }
 }
 --------------------------------------------------
-// TESTRESPONSE

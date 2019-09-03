@@ -311,7 +311,7 @@ POST /test_index/_analyze
 
 This results the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "tokens": [
@@ -332,7 +332,6 @@ This results the following response:
   ]
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 All the tokens in the returned order need to replace the query text in the percolator query:
 

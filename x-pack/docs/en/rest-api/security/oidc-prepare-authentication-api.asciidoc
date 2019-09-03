@@ -106,7 +106,7 @@ POST /_security/oidc/prepare
 The following example output of the response contains the URI pointing to the Authorization Endpoint of the OpenID Connect Provider with all the parameters of
 the Authentication Request, as HTTP GET parameters:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "redirect" : "http://127.0.0.1:8080/c2id-login?scope=openid&response_type=id_token&redirect_uri=https%3A%2F%2Fmy.fantastic.rp%2Fcb&state=lGYK0EcSLjqH6pkT5EVZjC6eIW5YCGgywj2sxROO&nonce=zOBXLJGUooRrbLbQk5YCcyC8AXw3iloynvluYhZ5&client_id=elasticsearch-rp",
@@ -114,7 +114,6 @@ the Authentication Request, as HTTP GET parameters:
   "nonce" : "zOBXLJGUooRrbLbQk5YCcyC8AXw3iloynvluYhZ5"
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 The following example generates an authentication request for a 3rd party
 initiated single sign on, specifying the issuer that should be used for matching

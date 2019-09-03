@@ -64,13 +64,12 @@ POST _scripts/<templateid>
 We want to be sure that the template has been created,
 because we'll use it later.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "acknowledged" : true
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 //////////////////////////
 
@@ -85,7 +84,7 @@ GET _scripts/<templateid>
 
 which is rendered as:
 
-[source,js]
+[source,console-result]
 ------------------------------------------
 {
     "script" : {
@@ -99,7 +98,6 @@ which is rendered as:
     "found": true
 }
 ------------------------------------------
-// TESTRESPONSE
 
 This template can be deleted by
 
@@ -115,13 +113,12 @@ DELETE _scripts/<templateid>
 We want to be sure that the template has been created,
 because we'll use it later.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "acknowledged" : true
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 //////////////////////////
 
@@ -167,7 +164,7 @@ GET _render/template
 
 This call will return the rendered template:
 
-[source,js]
+[source,console-result]
 ------------------------------------------
 {
   "template_output": {
@@ -182,7 +179,7 @@ This call will return the rendered template:
   }
 }
 ------------------------------------------
-// TESTRESPONSE
+
 <1> `status` array has been populated with values from the `params` object.
 
 Stored templates can also be rendered using
@@ -585,7 +582,7 @@ GET _render/template
 
 The previous query will be rendered as:
 
-[source,js]
+[source,console-result]
 ------------------------------------------
 {
     "template_output" : {
@@ -597,7 +594,7 @@ The previous query will be rendered as:
     }
 }
 ------------------------------------------
-// TESTRESPONSE
+
 
 [[multi-search-template]]
 === Multi Search Template

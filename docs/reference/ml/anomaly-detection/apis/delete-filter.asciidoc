@@ -46,10 +46,10 @@ DELETE _ml/filters/safe_domains
 // TEST[skip:setup:ml_filter_safe_domains]
 
 When the filter is deleted, you receive the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "acknowledged": true
 }
 ----
-// TESTRESPONSE

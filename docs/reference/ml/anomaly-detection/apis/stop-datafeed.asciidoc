@@ -94,10 +94,9 @@ POST _ml/datafeeds/datafeed-total-requests/_stop
 
 When the {dfeed} stops, you receive the following results:
 
-[source,js]
+[source,console-result]
 ----
 {
   "stopped": true
 }
 ----
-// TESTRESPONSE

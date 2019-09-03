@@ -65,7 +65,7 @@ GET /_security/privilege/myapp/read
 A successful call returns an object keyed by application name and privilege
 name. If the privilege is not defined, the request responds with a 404 status.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "myapp": {
@@ -83,7 +83,6 @@ name. If the privilege is not defined, the request responds with a 404 status.
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 To retrieve all privileges for an application, omit the privilege name:
 

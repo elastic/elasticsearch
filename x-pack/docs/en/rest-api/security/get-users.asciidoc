@@ -59,7 +59,7 @@ GET /_security/user/jacknich
 // CONSOLE
 // TEST[setup:jacknich_user]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {  
   "jacknich": {
@@ -74,8 +74,6 @@ GET /_security/user/jacknich
   }
 }
 --------------------------------------------------
-// CONSOLE
-// TESTRESPONSE
 
 Omit the username to retrieve all users:
 

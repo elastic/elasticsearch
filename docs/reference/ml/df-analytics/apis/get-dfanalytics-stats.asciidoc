@@ -92,7 +92,7 @@ GET _ml/data_frame/analytics/loganalytics/_stats
 
 The API returns the following results:
 
-[source,js]
+[source,console-result]
 ----
 {
     "count": 1,
@@ -122,4 +122,3 @@ The API returns the following results:
     ]
 }
 ----
-// TESTRESPONSE

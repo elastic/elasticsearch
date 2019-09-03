@@ -53,7 +53,7 @@ DELETE _watcher/watch/my_watch
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "found": true,
@@ -61,4 +61,3 @@ Response:
    "_version": 2
 }
 --------------------------------------------------
-// TESTRESPONSE

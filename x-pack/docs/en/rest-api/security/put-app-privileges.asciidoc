@@ -113,7 +113,7 @@ PUT /_security/privilege
     wildcard and returns `true`.
 <3> The metadata object is optional.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "myapp": {
@@ -123,7 +123,7 @@ PUT /_security/privilege
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+
 <1> When an existing privilege is updated, `created` is set to false.
 
 To add multiple privileges, submit a POST request to the 
@@ -153,7 +153,7 @@ PUT /_security/privilege
 A successful call returns a JSON structure that shows whether the privileges 
 have been created or updated.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "app02": {
@@ -171,4 +171,3 @@ have been created or updated.
   }
 }
 --------------------------------------------------
-// TESTRESPONSE

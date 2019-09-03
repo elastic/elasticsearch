@@ -127,7 +127,7 @@ POST /_security/role_mapping/mapping1
 A successful call returns a JSON structure that shows whether the mapping has
 been created or updated.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "role_mapping" : {
@@ -135,7 +135,7 @@ been created or updated.
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+
 <1> When an existing mapping is updated, `created` is set to false.
 
 The following example assigns the "user" and "admin" roles to specific users:

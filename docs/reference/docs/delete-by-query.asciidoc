@@ -472,7 +472,7 @@ POST twitter/_search?size=0&filter_path=hits.total
 
 Which results in a sensible `total` like this one:
 
-[source,js]
+[source,console-result]
 ----------------------------------------------------------------
 {
   "hits": {
@@ -483,7 +483,6 @@ Which results in a sensible `total` like this one:
   }
 }
 ----------------------------------------------------------------
-// TESTRESPONSE
 
 [float]
 [[docs-delete-by-query-automatic-slice]]
@@ -529,7 +528,7 @@ POST twitter/_search?size=0&filter_path=hits.total
 
 Which results in a sensible `total` like this one:
 
-[source,js]
+[source,console-result]
 ----------------------------------------------------------------
 {
   "hits": {
@@ -540,7 +539,6 @@ Which results in a sensible `total` like this one:
   }
 }
 ----------------------------------------------------------------
-// TESTRESPONSE
 
 Setting `slices` to `auto` will let {es} choose the number of slices
 to use. This setting will use one slice per shard, up to a certain limit. If
@@ -605,7 +603,7 @@ GET _tasks?detailed=true&actions=*/delete/byquery
 
 The response looks like:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "nodes" : {
@@ -642,7 +640,7 @@ The response looks like:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+
 <1> This object contains the actual status. It is just like the response JSON
 with the important addition of the `total` field. `total` is the total number
 of operations that the reindex expects to perform. You can estimate the

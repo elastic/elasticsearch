@@ -63,7 +63,7 @@ GET /_security/role_mapping/mapping1
 // TEST[setup:role_mapping]
 
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "mapping1": {
@@ -80,4 +80,3 @@ GET /_security/role_mapping/mapping1
   }
 }
 --------------------------------------------------
-// TESTRESPONSE

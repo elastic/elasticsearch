@@ -58,7 +58,7 @@ GET /_security/role/my_admin_role
 // CONSOLE
 // TEST[setup:admin_role]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "my_admin_role": {
@@ -83,7 +83,6 @@ GET /_security/role/my_admin_role
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 To retrieve all roles, omit the role name:
 

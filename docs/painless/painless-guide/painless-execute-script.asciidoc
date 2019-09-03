@@ -47,13 +47,12 @@ POST /_scripts/painless/_execute
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "result": "0.1"
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 ===== Filter context
 
@@ -103,13 +102,12 @@ POST /_scripts/painless/_execute
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "result": true
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 
 ===== Score context
@@ -163,10 +161,9 @@ POST /_scripts/painless/_execute
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "result": 0.8
 }
 --------------------------------------------------
-// TESTRESPONSE

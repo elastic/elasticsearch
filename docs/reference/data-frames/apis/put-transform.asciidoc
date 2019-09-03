@@ -187,10 +187,10 @@ PUT _data_frame/transforms/ecommerce_transform
 // TEST[setup:kibana_sample_data_ecommerce]
 
 When the transform is created, you receive the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "acknowledged" : true
 }
 ----
-// TESTRESPONSE

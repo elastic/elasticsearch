@@ -78,7 +78,7 @@ public class IifTests extends AbstractNodeTestCase<Iif, Expression> {
                 newChildren.get(2))));
     }
 
-    public void testAllConditionsFolded() {
+    public void testConditionFolded() {
         Iif iif = new Iif(EMPTY, Collections.singletonList(Literal.of(EMPTY, "foo")));
         assertEquals(DataType.KEYWORD, iif.dataType());
         assertEquals(Expression.TypeResolution.TYPE_RESOLVED, iif.typeResolved());

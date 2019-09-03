@@ -11,10 +11,18 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.RepositoryCleanupInProgress;
+import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -57,6 +65,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.mock;
 
 public class SnapshotRetentionTaskTests extends ESTestCase {
 
@@ -315,6 +324,43 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.SECONDS);
         }
+    }
+
+    public void testOkToDeleteSnapshots() {
+        final Snapshot snapshot = new Snapshot("repo", new SnapshotId("name", "uuid"));
+
+        SnapshotsInProgress inProgress = new SnapshotsInProgress(
+            new SnapshotsInProgress.Entry(
+                snapshot, true, false, SnapshotsInProgress.State.INIT,
+                Collections.singletonList(new IndexId("name", "id")), 0, 0,
+                ImmutableOpenMap.<ShardId, SnapshotsInProgress.ShardSnapshotStatus>builder().build(), Collections.emptyMap()));
+        ClusterState state = ClusterState.builder(new ClusterName("cluster"))
+            .putCustom(SnapshotsInProgress.TYPE, inProgress)
+            .build();
+
+        assertThat(SnapshotRetentionTask.okayToDeleteSnapshots(state), equalTo(false));
+
+        SnapshotDeletionsInProgress delInProgress = new SnapshotDeletionsInProgress(
+            Collections.singletonList(new SnapshotDeletionsInProgress.Entry(snapshot, 0, 0)));
+        state = ClusterState.builder(new ClusterName("cluster"))
+            .putCustom(SnapshotDeletionsInProgress.TYPE, delInProgress)
+            .build();
+
+        assertThat(SnapshotRetentionTask.okayToDeleteSnapshots(state), equalTo(false));
+
+        RepositoryCleanupInProgress cleanupInProgress = new RepositoryCleanupInProgress(new RepositoryCleanupInProgress.Entry("repo", 0));
+        state = ClusterState.builder(new ClusterName("cluster"))
+            .putCustom(RepositoryCleanupInProgress.TYPE, cleanupInProgress)
+            .build();
+
+        assertThat(SnapshotRetentionTask.okayToDeleteSnapshots(state), equalTo(false));
+
+        RestoreInProgress restoreInProgress = mock(RestoreInProgress.class);
+        state = ClusterState.builder(new ClusterName("cluster"))
+            .putCustom(RestoreInProgress.TYPE, restoreInProgress)
+            .build();
+
+        assertThat(SnapshotRetentionTask.okayToDeleteSnapshots(state), equalTo(false));
     }
 
     public void testSkipWhileStopping() throws Exception {

@@ -84,7 +84,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
                                                      PersistentTasksCustomMetaData.PersistentTask<RollupJob> persistentTask,
                                                      Map<String, String> headers) {
             return new RollupJobTask(id, type, action, parentTaskId, persistentTask.getParams(),
-                client, schedulerEngine, threadPool, headers);
+                    (RollupJobStatus) persistentTask.getState(), client, schedulerEngine, threadPool, headers);
         }
     }
 
@@ -153,59 +153,60 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
     private final SchedulerEngine schedulerEngine;
     private final ThreadPool threadPool;
     private final Client client;
+    private RollupJobStatus currentState;
     private RollupIndexer indexer;
 
-    RollupJobTask(long id, String type, String action, TaskId parentTask, RollupJob job,
+    RollupJobTask(long id, String type, String action, TaskId parentTask, RollupJob job, RollupJobStatus state,
                   Client client, SchedulerEngine schedulerEngine, ThreadPool threadPool, Map<String, String> headers) {
         super(id, type, action, RollupField.NAME + "_" + job.getConfig().getId(), parentTask, headers);
         this.job = job;
         this.schedulerEngine = schedulerEngine;
         this.threadPool = threadPool;
         this.client = client;
+        this.currentState = state;
     }
 
     @Override
     protected void init(PersistentTasksService persistentTasksService, TaskManager taskManager,
-                        String persistentTaskId, long allocationId, PersistentTaskState persistentTaskState) {
-        super.init(persistentTasksService, taskManager, persistentTaskId, allocationId, persistentTaskState);
+                        String persistentTaskId, long allocationId) {
+        super.init(persistentTasksService, taskManager, persistentTaskId, allocationId);
 
         // If status is not null, we are resuming rather than starting fresh.
         Map<String, Object> initialPosition = null;
-        IndexerState initialState = IndexerState.STOPPED;
+        IndexerState indexerState = IndexerState.STOPPED;
 
-        RollupJobStatus state = (RollupJobStatus) persistentTaskState;
-
-        if (state != null) {
-            final IndexerState existingState = state.getIndexerState();
-            logger.debug("We have existing state, setting state to [" + existingState + "] " +
-                "and current position to [" + state.getPosition() + "] for job [" + job.getConfig().getId() + "]");
-            if (existingState.equals(IndexerState.INDEXING)) {
+        if (currentState != null) {
+            final IndexerState existingIndexerState = currentState.getIndexerState();
+            logger.debug("We have existing state, setting state to [" + existingIndexerState + "] " +
+                "and current position to [" + currentState.getPosition() + "] for job [" + job.getConfig().getId() + "]");
+            if (existingIndexerState.equals(IndexerState.INDEXING)) {
                 /*
                  * If we were indexing, we have to reset back to STARTED otherwise the indexer will be "stuck" thinking
                  * it is indexing but without the actual indexing thread running.
                  */
-                initialState = IndexerState.STARTED;
+                indexerState = IndexerState.STARTED;
 
-            } else if (existingState.equals(IndexerState.ABORTING) || existingState.equals(IndexerState.STOPPING)) {
+            } else if (existingIndexerState.equals(IndexerState.ABORTING) || existingIndexerState.equals(IndexerState.STOPPING)) {
                 // It shouldn't be possible to persist ABORTING, but if for some reason it does,
                 // play it safe and restore the job as STOPPED.  An admin will have to clean it up,
                 // but it won't be running, and won't delete itself either.  Safest option.
                 // If we were STOPPING, that means it persisted but was killed before finally stopped... so ok
                 // to restore as STOPPED
-                initialState = IndexerState.STOPPED;
+                indexerState = IndexerState.STOPPED;
             } else  {
-                initialState = existingState;
+                indexerState = existingIndexerState;
             }
-            initialPosition = state.getPosition();
+            initialPosition = currentState.getPosition();
 
         }
-        this.indexer = new ClientRollupPageManager(job, initialState, initialPosition,
+        this.indexer = new ClientRollupPageManager(job, indexerState, initialPosition,
             new ParentTaskAssigningClient(client, getParentTaskId()));
     }
 
     @Override
     public Status getStatus() {
-        return new RollupJobStatus(indexer.getState(), indexer.getPosition());
+        currentState = new RollupJobStatus(indexer.getState(), indexer.getPosition());
+        return currentState;
     }
 
     /**

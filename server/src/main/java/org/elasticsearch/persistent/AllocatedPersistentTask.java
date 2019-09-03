@@ -86,8 +86,8 @@ public class AllocatedPersistentTask extends CancellableTask {
         return persistentTaskId;
     }
 
-    protected void init(PersistentTasksService persistentTasksService, TaskManager taskManager, String persistentTaskId,
-                        long allocationId, PersistentTaskState state) {
+    protected void init(PersistentTasksService persistentTasksService, TaskManager taskManager,
+                        String persistentTaskId, long allocationId) {
         this.persistentTasksService = persistentTasksService;
         this.taskManager = taskManager;
         this.persistentTaskId = persistentTaskId;

@@ -164,8 +164,32 @@ public final class RepositoryData {
             allIndexSnapshots.computeIfAbsent(indexId, k -> new LinkedHashSet<>()).add(snapshotId);
         }
         final Map<IndexId, String[]> updatedGenerations = new HashMap<>(this.shardGenerations);
+        shardGenerations.forEach(((indexId, updatedGens) -> {
+            final String[] existing = updatedGenerations.put(indexId, updatedGens);
+            if (existing != null) {
+                for (int i = 0; i < updatedGens.length; ++i) {
+                    if (updatedGens[i] == null) {
+                        updatedGens[i] = existing[i];
+                    }
+                }
+            }
+        }));
         updatedGenerations.putAll(shardGenerations);
+        assert assertShardGensUpdateConsistent(this.shardGenerations, updatedGenerations);
         return new RepositoryData(genId, snapshots, newSnapshotStates, allIndexSnapshots, updatedGenerations);
+    }
+
+    private static boolean assertShardGensUpdateConsistent(Map<IndexId, String[]> previous, Map<IndexId, String[]> updated) {
+        previous.forEach((indexId, gens) -> {
+            final String[] newGens = updated.get(indexId);
+            assert newGens == null || newGens.length == gens.length;
+            if (newGens != null) {
+                for (int i = 0; i < newGens.length; i++) {
+                    assert (newGens[i] == null && gens[i] != null) == false;
+                }
+            }
+        });
+        return true;
     }
 
     /**
@@ -228,6 +252,7 @@ public final class RepositoryData {
                 newGenerations.put(indexId, previousGenerations);
             }
         }
+        assert assertShardGensUpdateConsistent(this.shardGenerations, newGenerations);
         return new RepositoryData(genId, newSnapshotIds, newSnapshotStates, indexSnapshots, newGenerations);
     }
 

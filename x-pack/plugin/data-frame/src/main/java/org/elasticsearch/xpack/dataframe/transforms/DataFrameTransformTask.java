@@ -328,10 +328,10 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
      *
      * It only persists to cluster state if the value is different than what is currently held in memory.
      * @param shouldStopAtCheckpoint whether or not we should stop at the next checkpoint or not
-     * @param shouldStopAtCheckpointListener the listener to return to when we have persisted the updated value to cluster state.
+     * @param shouldStopAtCheckpointListener the listener to return to when we have persisted the updated value to the state index.
      */
     public synchronized void setShouldStopAtCheckpoint(boolean shouldStopAtCheckpoint,
-                                                       Runnable shouldStopAtCheckpointListener) {
+                                                       ActionListener<Void> shouldStopAtCheckpointListener) {
         logger.debug("[{}] attempted to set task to stop at checkpoint [{}] with state [{}]",
             getTransformId(),
             shouldStopAtCheckpoint,
@@ -341,24 +341,33 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             getIndexer() == null ||
             getIndexer().getState() == IndexerState.STOPPED ||
             getIndexer().getState() == IndexerState.STOPPING) {
-            shouldStopAtCheckpointListener.run();
+            shouldStopAtCheckpointListener.onResponse(null);
             return;
         }
-        this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
-        DataFrameTransformState state = getState();
-        persistStateToClusterState(state,
+        DataFrameTransformState state = new DataFrameTransformState(
+            taskState.get(),
+            indexer.get().getState(),
+            indexer.get().getPosition(),
+            currentCheckpoint.get(),
+            stateReason.get(),
+            getIndexer().getProgress(),
+            null, //Node attributes
+            shouldStopAtCheckpoint);
+        getIndexer().doSaveState(state,
             ActionListener.wrap(
                 r -> {
-                    logger.debug("[{}] successfully persisted to clusterstate should_stop_at_checkpoint update [{}]",
+                    // We only want to update this internal value if it is persisted as such
+                    this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
+                    logger.debug("[{}] successfully persisted should_stop_at_checkpoint update [{}]",
                         getTransformId(),
                         shouldStopAtCheckpoint);
-                    shouldStopAtCheckpointListener.run();
+                    shouldStopAtCheckpointListener.onResponse(null);
                 },
                 statsExc -> {
-                    logger.warn("[{}] failed to persist to clusterstate should_stop_at_checkpoint update [{}]",
+                    logger.warn("[{}] failed to persist should_stop_at_checkpoint update [{}]",
                         getTransformId(),
                         shouldStopAtCheckpoint);
-                    shouldStopAtCheckpointListener.run();
+                    shouldStopAtCheckpointListener.onFailure(statsExc);
                 }
             ));
     }
@@ -393,7 +402,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         }
 
         stateReason.set(null);
-        this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
         // shouldStopAtCheckpoint only comes into play when onFinish is called (or doSaveState right after).
         // If the indexerState is STARTED and it is on an initialRun, that means that the indexer has previously finished a checkpoint,
         // or has yet to even start one.
@@ -1010,57 +1018,63 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 null,
                 shouldStopAtCheckpoint);
             logger.debug("[{}] updating persistent state of transform to [{}].", transformConfig.getId(), state.toString());
-
-            // This could be `null` but the putOrUpdateTransformStoredDoc handles that case just fine
-            SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex = transformTask.getSeqNoPrimaryTermAndIndex();
-
-            // Persist the current state and stats in the internal index. The interval of this method being
-            // called is controlled by AsyncTwoPhaseIndexer#onBulkResponse which calls doSaveState every so
-            // often when doing bulk indexing calls or at the end of one indexing run.
-            transformsConfigManager.putOrUpdateTransformStoredDoc(
-                    new DataFrameTransformStoredDoc(transformId, state, getStats()),
-                    seqNoPrimaryTermAndIndex,
-                    ActionListener.wrap(
-                            r -> {
-                                transformTask.updateSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex, r);
-                                // for auto stop shutdown the task
-                                if (state.getTaskState().equals(DataFrameTransformTaskState.STOPPED)) {
-                                    transformTask.shutdown();
-                                }
-                                // Only do this clean up once, if it succeeded, no reason to do the query again.
-                                if (oldStatsCleanedUp.compareAndSet(false, true)) {
-                                    transformsConfigManager.deleteOldTransformStoredDocuments(transformId, ActionListener.wrap(
-                                        nil -> {
-                                            logger.trace("[{}] deleted old transform stats and state document", transformId);
-                                            next.run();
-                                        },
-                                        e -> {
-                                            String msg = LoggerMessageFormat.format("[{}] failed deleting old transform configurations.",
-                                                transformId);
-                                            logger.warn(msg, e);
-                                            // If we have failed, we should attempt the clean up again later
-                                            oldStatsCleanedUp.set(false);
-                                            next.run();
-                                        }
-                                    ));
-                                } else {
-                                    next.run();
-                                }
-                            },
-                            statsExc -> {
-                                logger.error(new ParameterizedMessage("[{}] updating stats of transform failed.",
-                                    transformConfig.getId()),
-                                    statsExc);
-                                auditor.warning(getJobId(),
-                                    "Failure updating stats of transform: " + statsExc.getMessage());
-                                // for auto stop shutdown the task
-                                if (state.getTaskState().equals(DataFrameTransformTaskState.STOPPED)) {
-                                    transformTask.shutdown();
-                                }
-                                next.run();
-                            }
-                    ));
+            doSaveState(state, ActionListener.wrap(
+                r -> next.run(),
+                e -> next.run()
+            ));
         }
+
+    protected void doSaveState(DataFrameTransformState state, ActionListener<Void> listener) {
+        // This could be `null` but the putOrUpdateTransformStoredDoc handles that case just fine
+        SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex = transformTask.getSeqNoPrimaryTermAndIndex();
+
+        // Persist the current state and stats in the internal index. The interval of this method being
+        // called is controlled by AsyncTwoPhaseIndexer#onBulkResponse which calls doSaveState every so
+        // often when doing bulk indexing calls or at the end of one indexing run.
+        transformsConfigManager.putOrUpdateTransformStoredDoc(
+            new DataFrameTransformStoredDoc(transformId, state, getStats()),
+            seqNoPrimaryTermAndIndex,
+            ActionListener.wrap(
+                r -> {
+                    transformTask.updateSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex, r);
+                    // for auto stop shutdown the task
+                    if (state.getTaskState().equals(DataFrameTransformTaskState.STOPPED)) {
+                        transformTask.shutdown();
+                    }
+                    // Only do this clean up once, if it succeeded, no reason to do the query again.
+                    if (oldStatsCleanedUp.compareAndSet(false, true)) {
+                        transformsConfigManager.deleteOldTransformStoredDocuments(transformId, ActionListener.wrap(
+                            nil -> {
+                                logger.trace("[{}] deleted old transform stats and state document", transformId);
+                                listener.onResponse(null);
+                            },
+                            e -> {
+                                String msg = LoggerMessageFormat.format("[{}] failed deleting old transform configurations.",
+                                    transformId);
+                                logger.warn(msg, e);
+                                // If we have failed, we should attempt the clean up again later
+                                oldStatsCleanedUp.set(false);
+                                listener.onResponse(null);
+                            }
+                        ));
+                    } else {
+                        listener.onResponse(null);
+                    }
+                },
+                statsExc -> {
+                    logger.error(new ParameterizedMessage("[{}] updating stats of transform failed.",
+                            transformConfig.getId()),
+                        statsExc);
+                    auditor.warning(getJobId(),
+                        "Failure updating stats of transform: " + statsExc.getMessage());
+                    // for auto stop shutdown the task
+                    if (state.getTaskState().equals(DataFrameTransformTaskState.STOPPED)) {
+                        transformTask.shutdown();
+                    }
+                    listener.onFailure(statsExc);
+                }
+            ));
+    }
 
         @Override
         protected void onFailure(Exception exc) {
@@ -1080,7 +1094,12 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 // This indicates an early exit since no changes were found.
                 // So, don't treat this like a checkpoint being completed, as no work was done.
                 if (hasSourceChanged == false) {
+                    // TODO should be obviated in 8.x with DataFrameTransformTaskState::STOPPING
+                    if (transformTask.shouldStopAtCheckpoint) {
+                        stop();
+                    }
                     listener.onResponse(null);
+                    return;
                 }
                 // TODO: needs cleanup super is called with a listener, but listener.onResponse is called below
                 // super.onFinish() fortunately ignores the listener

@@ -141,17 +141,16 @@ public class TransportStopDataFrameTransformAction extends TransportTasksAction<
         }
 
         if (ids.contains(transformTask.getTransformId())) {
-            // To cover for node failure while waiting for the checkpoint to stop
-            // we write to cluster state if it is different and then we stop the transform
-            transformTask.setShouldStopAtCheckpoint(request.isWaitForCheckpoint(), () -> {
-                    try {
-                        transformTask.stop(request.isForce(), request.isWaitForCheckpoint());
-                    } catch (ElasticsearchException ex) {
-                        listener.onFailure(ex);
-                        return;
-                    }
-                    listener.onResponse(new StopDataFrameTransformAction.Response(true));
-                }
+            transformTask.setShouldStopAtCheckpoint(request.isWaitForCheckpoint(), ActionListener.wrap(
+                r -> transformTask.stop(request.isForce(), request.isWaitForCheckpoint()),
+                e -> listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Failed to update transform task [{}] state value should_stop_at_checkpoint from [{}] to [{}]",
+                        RestStatus.CONFLICT,
+                        transformTask.getTransformId(),
+                        transformTask.getState().shouldStopAtNextCheckpoint(),
+                        request.isWaitForCheckpoint()))
+                )
             );
         } else {
             listener.onFailure(new RuntimeException("ID of data frame indexer task [" + transformTask.getTransformId()

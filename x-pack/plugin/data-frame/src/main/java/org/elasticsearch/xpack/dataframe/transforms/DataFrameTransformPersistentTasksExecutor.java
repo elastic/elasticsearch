@@ -139,10 +139,6 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
 
         final SetOnce<DataFrameTransformState> stateHolder = new SetOnce<>();
 
-        // TODO should be obviated in 8.x with DataFrameTransformTaskState::STOPPING
-        final DataFrameTransformState transformPTaskState = (DataFrameTransformState) state;
-        final boolean shouldStopAtCheckpoint = transformPTaskState != null && transformPTaskState.shouldStopAtNextCheckpoint();
-        buildTask.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
 
         ActionListener<StartDataFrameTransformTaskAction.Response> startTaskListener = ActionListener.wrap(
             response -> logger.info("Successfully completed and scheduled task in node operation"),
@@ -215,6 +211,8 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
 
                 stateHolder.set(transformState);
                 final long lastCheckpoint = stateHolder.get().getCheckpoint();
+                // TODO should be obviated in 8.x with DataFrameTransformTaskState::STOPPING
+                buildTask.setShouldStopAtCheckpoint(transformState.shouldStopAtNextCheckpoint());
 
                 if (lastCheckpoint == 0) {
                     logger.trace("[{}] No last checkpoint found, looking for next checkpoint", transformId);

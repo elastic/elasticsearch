@@ -130,7 +130,7 @@ public final class VectorEncoderDecoder {
      * @param values - values for the sparse query vector
      * @param n - number of dimensions
      */
-    public static void sortSparseDimsDoubleValues(int[] dims, double[] values, int n) {
+    public static void sortSparseDimsFloatValues(int[] dims, float[] values, int n) {
         new InPlaceMergeSorter() {
             @Override
             public int compare(int i, int j) {
@@ -143,7 +143,7 @@ public final class VectorEncoderDecoder {
                 dims[i] = dims[j];
                 dims[j] = tempDim;
 
-                double tempValue = values[j];
+                float tempValue = values[j];
                 values[j] = values[i];
                 values[i] = tempValue;
             }

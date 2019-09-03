@@ -287,9 +287,11 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
                     // We do some checks in case there is a consistent state for a blob to prevent turning it inconsistent.
                     final boolean hasConsistentContent =
                         relevantActions.size() == 1 && relevantActions.get(0).operation == Operation.PUT;
-                    if (BlobStoreRepository.INDEX_LATEST_BLOB.equals(blobName)) {
+                    if (BlobStoreRepository.INDEX_LATEST_BLOB.equals(blobName)
+                        || blobName.startsWith(BlobStoreRepository.METADATA_PREFIX)) {
                         // TODO: Ensure that it is impossible to ever decrement the generation id stored in index.latest then assert that
-                        //       it never decrements here
+                        //       it never decrements here. Same goes for the metadata, ensure that we never overwrite newer with older
+                        //       metadata.
                     } else if (blobName.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX)) {
                         if (hasConsistentContent) {
                                 if (basePath().buildAsString().equals(path().buildAsString())) {

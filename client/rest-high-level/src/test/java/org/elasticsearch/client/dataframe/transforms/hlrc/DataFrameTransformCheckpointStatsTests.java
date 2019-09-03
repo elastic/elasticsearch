@@ -21,6 +21,7 @@ package org.elasticsearch.client.dataframe.transforms.hlrc;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointStats;
 
 import java.io.IOException;
@@ -48,7 +49,7 @@ public class DataFrameTransformCheckpointStatsTests extends AbstractResponseTest
     }
 
     @Override
-    protected DataFrameTransformCheckpointStats createServerTestInstance() {
+    protected DataFrameTransformCheckpointStats createServerTestInstance(XContentType xContentType) {
         return randomDataFrameTransformCheckpointStats();
     }
 

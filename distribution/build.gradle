@@ -428,7 +428,6 @@ task run(type: RunTask) {
     setting 'xpack.monitoring.enabled', 'true'
     setting 'xpack.sql.enabled', 'true'
     setting 'xpack.rollup.enabled', 'true'
-    setting 'xpack.data-science.enabled', 'true'
     keystoreSetting 'bootstrap.password', 'password'
   }
 }

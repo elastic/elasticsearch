@@ -1,3 +1,77 @@
+[[release-notes-6.8.3]]
+== {es} version 6.8.3
+
+coming[6.8.3]
+
+[[enhancement-6.8.3]]
+[float]
+=== Enhancements
+
+CCR::
+* Include leases in error message when operations no longer available {pull}45681[#45681]
+
+Infra/Core::
+* Add OCI annotations and adjust existing annotations {pull}45167[#45167] 
+
+Infra/Settings::
+* Normalize environment paths {pull}45179[#45179] (issue: {issue}45176[#45176])
+
+
+
+[[bug-6.8.3]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Fix early termination of aggregators that run with breadth-first mode {pull}44963[#44963] (issue: {issue}44909[#44909])
+
+Allocation::
+* Avoid overshooting watermarks during relocation {pull}46079[#46079] (issue: {issue}45177[#45177])
+
+CCR::
+* Clean up ShardFollowTasks for deleted indices {pull}44702[#44702] (issue: {issue}34404[#34404])
+
+CRUD::
+* Allow _update on write alias {pull}45318[#45318] (issue: {issue}31520[#31520])
+
+Distributed::
+* Ensure AsyncTask#isScheduled remain false after close {pull}45687[#45687] (issue: {issue}45576[#45576])
+
+Engine::
+* Handle delete document level failures {pull}46100[#46100] 
+* Handle no-op document level failures {pull}46083[#46083]
+
+Features/Indices APIs::
+* Check shard limit after applying index templates {pull}44619[#44619] (issue: {issue}44567[#44567])
+* Prevent NullPointerException in TransportRolloverAction {pull}43353[#43353] (issue: {issue}43296[#43296])
+
+Features/Java High Level REST Client::
+* Add rest_total_hits_as_int in HLRC's search requests {pull}46076[#46076] (issue: {issue}43925[#43925])
+
+Infra/Core::
+* Add default CLI JVM options {pull}44545[#44545] (issue: {issue}42021[#42021])
+
+Infra/Plugins::
+* Do not checksum all bytes at once in plugin install {pull}44649[#44649] (issue: {issue}44545[#44545])
+
+SQL::
+* Fix URI path being lost in case of hosted ES scenario {pull}44776[#44776] (issue: {issue}44721[#44721])
+* Interval arithmetics failure {pull}42014[#42014] (issue: {issue}41200[#41200])
+
+Search::
+* Prevent Leaking Search Tasks on Exceptions in FetchSearchPhase and DfsQueryPhase {pull}45500[#45500]
+
+Security::
+* Use system context for looking up connected nodes {pull}43991[#43991] (issue: {issue}43974[#43974])
+
+
+[[upgrade-6.8.3]]
+[float]
+=== Upgrades
+
+Infra/Packaging::
+* Upgrade to JDK 12.0.2 {pull}45172[#45172]
+
 [[release-notes-6.8.2]]
 == {es} version 6.8.2
 

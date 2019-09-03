@@ -27,6 +27,7 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -42,6 +43,20 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     @Override
     protected boolean enableWarningsCheck() {
         return false;
+    }
+
+    public void testDateMathParsing(){
+        assertDateMathSame("9999", "dateOptionalTime||epoch_millis");
+//        assertDateMathSame("9999999", "dateOptionalTime||epoch_millis");
+        assertDateMathSame("99999", "dateOptionalTime||epoch_millis");
+    }
+
+    private void assertDateMathSame(String input, String format) {
+        Instant joda = Joda.forPattern(format)
+                           .toDateMathParser().parse(input, () -> 0);
+        Instant java = DateFormatter.forPattern("dateOptionalTime||epoch_millis")
+                                    .toDateMathParser().parse(input, () -> 0);
+        assertEquals(joda, java);
     }
 
     public void testResolverParsing() {
@@ -143,6 +158,9 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDateAs("2001", "iso8601", "strict_date_optional_time");
         assertSameDateAs("2001-01", "iso8601", "strict_date_optional_time");
         assertSameDateAs("2001-01-01", "iso8601", "strict_date_optional_time");
+
+        assertSameDate("9999","date_optional_time||epoch_second");
+
     }
 
     public void testDayOfWeek() {

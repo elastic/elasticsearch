@@ -897,8 +897,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus,
-                              ActionListener<String> listener) {
+                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, ActionListener<String> listener) {
         final ShardId shardId = store.shardId();
         final long startTime = threadPool.absoluteTimeInMillis();
         final StepListener<String> snapshotDoneListener = new StepListener<>();
@@ -1025,7 +1024,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     newSnapshotsList.add(point);
                 }
                 final String indexGeneration = Long.toString(fileListGeneration + 1);
-                final List<String> blobsToDelete;
                 try {
                     final BlobStoreIndexShardSnapshots updatedSnapshots = new BlobStoreIndexShardSnapshots(newSnapshotsList);
                     indexShardSnapshotsFormat.writeAtomic(updatedSnapshots, shardContainer, indexGeneration);

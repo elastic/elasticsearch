@@ -39,7 +39,6 @@ import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
-import org.elasticsearch.client.ml.EstimateMemoryUsageRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.FindFileStructureRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
@@ -701,7 +700,7 @@ final class MLRequestConverters {
         return request;
     }
 
-    static Request estimateMemoryUsage(EstimateMemoryUsageRequest estimateRequest) throws IOException {
+    static Request estimateMemoryUsage(PutDataFrameAnalyticsRequest estimateRequest) throws IOException {
         String endpoint = new EndpointBuilder()
             .addPathPartAsIs("_ml", "data_frame", "analytics", "_estimate_memory_usage")
             .build();

@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.action.BasicFormatter;
@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.sql.session.Cursors;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Locale;
@@ -43,10 +44,13 @@ enum TextFormat {
         String format(RestRequest request, SqlQueryResponse response) {
             BasicFormatter formatter = null;
             Cursor cursor = null;
+            ZoneId zoneId = null;
 
             // check if the cursor is already wrapped first
             if (response.hasCursor()) {
-                cursor = Cursors.decodeFromString(response.cursor());
+                Tuple<Cursor, ZoneId> tuple = Cursors.decodeFromStringWithZone(response.cursor());
+                cursor = tuple.v1();
+                zoneId = tuple.v2();
                 if (cursor instanceof TextFormatterCursor) {
                     formatter = ((TextFormatterCursor) cursor).getFormatter();
                 }
@@ -58,7 +62,7 @@ enum TextFormat {
                 formatter = new BasicFormatter(response.columns(), response.rows(), TEXT);
                 // if there's a cursor, wrap the formatter in it
                 if (cursor != null) {
-                    response.cursor(Cursors.encodeToString(Version.CURRENT, new TextFormatterCursor(cursor, formatter)));
+                    response.cursor(Cursors.encodeToString(new TextFormatterCursor(cursor, formatter), zoneId));
                 }
                 // format with header
                 return formatter.formatWithHeader(response.columns(), response.rows());

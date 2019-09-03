@@ -11,7 +11,7 @@ to the <<indices-recovery, indices recovery>> API.
 [[cat-recovery-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/recovery/{index}`
+`GET /_cat/recovery/<index>`
 
 
 [[cat-recovery-api-desc]]

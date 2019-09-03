@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -35,7 +36,6 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheck
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStoredDoc;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.dataframe.DataFrame;
@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpoin
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
+import org.elasticsearch.xpack.dataframe.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.SchemaUtil;
 
 import java.util.ArrayList;
@@ -105,7 +106,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
         String[] indices = resolver.concreteIndexNames(clusterState,
             IndicesOptions.lenientExpandOpen(),
-            DataFrameInternalIndex.INDEX_TEMPLATE_PATTERN + "*");
+            DataFrameInternalIndex.INDEX_NAME_PATTERN);
         List<String> unavailableIndices = new ArrayList<>(indices.length);
         for (String index : indices) {
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
@@ -120,13 +121,14 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
     protected void nodeOperation(AllocatedPersistentTask task, @Nullable DataFrameTransform params, PersistentTaskState state) {
         final String transformId = params.getId();
         final DataFrameTransformTask buildTask = (DataFrameTransformTask) task;
-        final DataFrameTransformState transformPTaskState = (DataFrameTransformState) state;
-        // If the transform is failed then the Persistent Task Service will
-        // try to restart it on a node restart. Exiting here leaves the
-        // transform in the failed state and it must be force closed.
-        if (transformPTaskState != null && transformPTaskState.getTaskState() == DataFrameTransformTaskState.FAILED) {
-            return;
-        }
+        // NOTE: DataFrameTransformPersistentTasksExecutor#createTask pulls in the stored task state from the ClusterState when the object
+        // is created. DataFrameTransformTask#ctor takes into account setting the task as failed if that is passed in with the
+        // persisted state.
+        // DataFrameTransformPersistentTasksExecutor#startTask will fail as DataFrameTransformTask#start, when force == false, will return
+        // a failure indicating that a failed task cannot be started.
+        //
+        // We want the rest of the state to be populated in the task when it is loaded on the node so that users can force start it again
+        // later if they want.
 
         final DataFrameTransformTask.ClientDataFrameIndexerBuilder indexerBuilder =
             new DataFrameTransformTask.ClientDataFrameIndexerBuilder(transformId)
@@ -189,8 +191,12 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         // <3> Set the previous stats (if they exist), initialize the indexer, start the task (If it is STOPPED)
         // Since we don't create the task until `_start` is called, if we see that the task state is stopped, attempt to start
         // Schedule execution regardless
-        ActionListener<DataFrameTransformStoredDoc> transformStatsActionListener = ActionListener.wrap(
-            stateAndStats -> {
+        ActionListener<Tuple<DataFrameTransformStoredDoc, SeqNoPrimaryTermAndIndex>> transformStatsActionListener = ActionListener.wrap(
+            stateAndStatsAndSeqNoPrimaryTermAndIndex -> {
+                DataFrameTransformStoredDoc stateAndStats = stateAndStatsAndSeqNoPrimaryTermAndIndex.v1();
+                SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex = stateAndStatsAndSeqNoPrimaryTermAndIndex.v2();
+                // Since we have not set the value for this yet, it SHOULD be null
+                buildTask.updateSeqNoPrimaryTermAndIndex(null, seqNoPrimaryTermAndIndex);
                 logger.trace("[{}] initializing state and stats: [{}]", transformId, stateAndStats.toString());
                 indexerBuilder.setInitialStats(stateAndStats.getTransformStats())
                     .setInitialPosition(stateAndStats.getTransformState().getPosition())
@@ -217,10 +223,10 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
                     String msg = DataFrameMessages.getMessage(DataFrameMessages.FAILED_TO_LOAD_TRANSFORM_STATE, transformId);
                     logger.error(msg, error);
                     markAsFailed(buildTask, msg);
+                } else {
+                    logger.trace("[{}] No stats found (new transform), starting the task", transformId);
+                    startTask(buildTask, indexerBuilder, null, startTaskListener);
                 }
-
-                logger.trace("[{}] No stats found(new transform), starting the task", transformId);
-                startTask(buildTask, indexerBuilder, null, startTaskListener);
             }
         );
 
@@ -298,6 +304,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
                            Long previousCheckpoint,
                            ActionListener<StartDataFrameTransformTaskAction.Response> listener) {
         buildTask.initializeIndexer(indexerBuilder);
+        // DataFrameTransformTask#start will fail if the task state is FAILED
         buildTask.setNumFailureRetries(numFailureRetries).start(previousCheckpoint, false, listener);
     }
 

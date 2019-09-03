@@ -68,7 +68,7 @@ public class DataFrameAuditorIT extends DataFrameRestTestCase {
         assertBusy(() -> {
             assertTrue(indexExists(DataFrameInternalIndex.AUDIT_INDEX));
         });
-        // Since calls to write the Auditor are sent and forgot (async) we could have returned from the start,
+        // Since calls to write the AbstractAuditor are sent and forgot (async) we could have returned from the start,
         // finished the job (as this is a very short DF job), all without the audit being fully written.
         assertBusy(() -> {
             refreshIndex(DataFrameInternalIndex.AUDIT_INDEX);

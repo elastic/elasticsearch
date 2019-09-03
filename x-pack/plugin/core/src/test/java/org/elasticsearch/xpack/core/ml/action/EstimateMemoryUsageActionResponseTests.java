@@ -35,13 +35,13 @@ public class EstimateMemoryUsageActionResponseTests extends AbstractSerializingT
 
     public void testConstructor_NullValues() {
         Response response = new Response(null, null);
-        assertThat(response.getExpectedMemoryUsageWithOnePartition(), nullValue());
-        assertThat(response.getExpectedMemoryUsageWithMaxPartitions(), nullValue());
+        assertThat(response.getExpectedMemoryWithoutDisk(), nullValue());
+        assertThat(response.getExpectedMemoryWithDisk(), nullValue());
     }
 
     public void testConstructor() {
         Response response = new Response(new ByteSizeValue(2048), new ByteSizeValue(1024));
-        assertThat(response.getExpectedMemoryUsageWithOnePartition(), equalTo(new ByteSizeValue(2048)));
-        assertThat(response.getExpectedMemoryUsageWithMaxPartitions(), equalTo(new ByteSizeValue(1024)));
+        assertThat(response.getExpectedMemoryWithoutDisk(), equalTo(new ByteSizeValue(2048)));
+        assertThat(response.getExpectedMemoryWithDisk(), equalTo(new ByteSizeValue(1024)));
     }
 }

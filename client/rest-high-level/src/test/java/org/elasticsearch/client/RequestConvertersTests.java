@@ -439,6 +439,13 @@ public class RequestConvertersTests extends ESTestCase {
         if (reindexRequest.getRemoteInfo() == null && randomBoolean()) {
             reindexRequest.setSourceQuery(new TermQueryBuilder("foo", "fooval"));
         }
+        if (randomBoolean()) {
+            int slices = randomInt(100);
+            reindexRequest.setSlices(slices);
+            expectedParams.put("slices", String.valueOf(slices));
+        } else {
+            expectedParams.put("slices", "1");
+        }
         setRandomTimeout(reindexRequest::setTimeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
         setRandomWaitForActiveShards(reindexRequest::setWaitForActiveShards, ActiveShardCount.DEFAULT, expectedParams);
         expectedParams.put("scroll", reindexRequest.getScrollTime().getStringRep());

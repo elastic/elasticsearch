@@ -467,7 +467,12 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             shards.startReplicas(nReplica);
             for (IndexShard shard : shards) {
                 try (Translog.Snapshot snapshot = getTranslog(shard).newSnapshot()) {
-                    assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedTranslogOps));
+                    // we flush at the end of peer recovery
+                    if (shard.routingEntry().primary() || shard.indexSettings().isSoftDeleteEnabled() == false) {
+                        assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedTranslogOps));
+                    } else {
+                        assertThat(snapshot.totalOperations(), equalTo(0));
+                    }
                 }
                 try (Translog.Snapshot snapshot = shard.getHistoryOperations("test", 0)) {
                     assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedTranslogOps));
@@ -476,11 +481,16 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             // the failure replicated directly from the replication channel.
             indexResp = shards.index(new IndexRequest(index.getName(), "type", "any").source("{}", XContentType.JSON));
             assertThat(indexResp.getFailure().getCause(), equalTo(indexException));
-            expectedTranslogOps.add(new Translog.NoOp(1, primaryTerm, indexException.toString()));
+            Translog.NoOp noop2 = new Translog.NoOp(1, primaryTerm, indexException.toString());
+            expectedTranslogOps.add(noop2);
 
             for (IndexShard shard : shards) {
                 try (Translog.Snapshot snapshot = getTranslog(shard).newSnapshot()) {
-                    assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedTranslogOps));
+                    if (shard.routingEntry().primary() || shard.indexSettings().isSoftDeleteEnabled() == false) {
+                        assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedTranslogOps));
+                    } else {
+                        assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(Collections.singletonList(noop2)));
+                    }
                 }
                 try (Translog.Snapshot snapshot = shard.getHistoryOperations("test", 0)) {
                     assertThat(snapshot, SnapshotMatchers.containsOperationsInAnyOrder(expectedTranslogOps));

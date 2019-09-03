@@ -225,7 +225,9 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
         builder.startObject(POLICY_STATS.getPreferredName());
         for (Map.Entry<String, SnapshotPolicyStats> policy : metrics.entrySet()) {
             SnapshotPolicyStats perPolicyMetrics = policy.getValue();
+            builder.startObject(perPolicyMetrics.policyId);
             perPolicyMetrics.toXContent(builder, params);
+            builder.endObject();
         }
         builder.endObject();
         builder.endObject();
@@ -288,11 +290,11 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), SNAPSHOT_DELETION_FAILURES);
         }
 
-        SnapshotPolicyStats(String slmPolicy) {
+        public SnapshotPolicyStats(String slmPolicy) {
             this.policyId = slmPolicy;
         }
 
-        SnapshotPolicyStats(String policyId, long snapshotsTaken, long snapshotsFailed, long deleted, long failedDeletes) {
+        public SnapshotPolicyStats(String policyId, long snapshotsTaken, long snapshotsFailed, long deleted, long failedDeletes) {
             this.policyId = policyId;
             this.snapshotsTaken.inc(snapshotsTaken);
             this.snapshotsFailed.inc(snapshotsFailed);
@@ -300,7 +302,7 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
             this.snapshotDeleteFailures.inc(failedDeletes);
         }
 
-        SnapshotPolicyStats(StreamInput in) throws IOException {
+        public SnapshotPolicyStats(StreamInput in) throws IOException {
             this.policyId = in.readString();
             this.snapshotsTaken.inc(in.readVLong());
             this.snapshotsFailed.inc(in.readVLong());
@@ -370,13 +372,11 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(policyId);
             builder.field(SnapshotPolicyStats.SNAPSHOTS_TAKEN.getPreferredName(), snapshotsTaken.count());
             builder.field(SnapshotPolicyStats.SNAPSHOTS_FAILED.getPreferredName(), snapshotsFailed.count());
             builder.field(SnapshotPolicyStats.SNAPSHOTS_DELETED.getPreferredName(), snapshotsDeleted.count());
             builder.field(SnapshotPolicyStats.SNAPSHOT_DELETION_FAILURES.getPreferredName(), snapshotDeleteFailures.count());
-            builder.endObject();
-            return null;
+            return builder;
         }
     }
 

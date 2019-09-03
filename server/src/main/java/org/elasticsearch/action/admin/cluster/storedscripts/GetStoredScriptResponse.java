@@ -114,7 +114,8 @@ public class GetStoredScriptResponse extends ActionResponse implements ToXConten
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (!params.paramAsBoolean("new_format", false)) {
+        boolean isSingleId = requestedIds.length == 1 && storedScripts.size() == 1;
+        if (!params.paramAsBoolean("new_format", false) && isSingleId) {
             return toXContentPre80(builder, params);
         }
 

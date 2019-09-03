@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -276,7 +277,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public ShardSnapshotStatus(StreamInput in) throws IOException {
             nodeId = in.readOptionalString();
             state = ShardState.fromValue(in.readByte());
-            generation = in.readOptionalString();
+            if (in.getVersion().onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
+                generation = in.readOptionalString();
+            } else {
+                generation = null;
+            }
             reason = in.readOptionalString();
         }
 
@@ -299,7 +304,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(nodeId);
             out.writeByte(state.value);
-            out.writeOptionalString(generation);
+            if (out.getVersion().onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
+                out.writeOptionalString(generation);
+            }
             out.writeOptionalString(reason);
         }
 

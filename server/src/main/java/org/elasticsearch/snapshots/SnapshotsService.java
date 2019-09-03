@@ -123,6 +123,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     public static final Version NO_REPO_INITIALIZE_VERSION = Version.V_8_0_0;
 
+    public static final Version SHARD_GEN_IN_REPO_DATA_VERSION = Version.V_8_0_0;
+
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
 
     private final ClusterService clusterService;

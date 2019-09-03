@@ -4,8 +4,9 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.snapshots;
+package org.elasticsearch.repositories.encrypted;
 
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -16,7 +17,11 @@ import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -46,26 +51,28 @@ import javax.crypto.spec.SecretKeySpec;
 
 public class EncryptedRepository extends BlobStoreRepository {
 
-    private static final Setting<String> DELEGATE_TYPE = new Setting<>("delegate_type", "", Function.identity(),
-            Setting.Property.NodeScope);
+    static final Setting.AffixSetting<SecureString> ENCRYPTION_PASSWORD_SETTING = Setting.affixKeySetting("repository.encrypted.",
+            "password", key -> SecureSetting.secureString(key, null));
+
+    private static final Setting<String> DELEGATE_TYPE = new Setting<>("delegate_type", "", Function.identity());
     private static final int GCM_TAG_BYTES_LENGTH = 16;
+    private static final String ENCRYPTION_MODE = "AES/GCM/NoPadding";
     private static final String ENCRYPTION_METADATA_PREFIX = "encryption-metadata-";
     // always the same IV because the key is randomly generated anew (Key-IV pair is never repeated)
     //private static final GCMParameterSpec gcmParameterSpec = new GCMParameterSpec(128, new byte[] {0,1,2,3,4,5,6,7,8,9,10,11 });
     private static final IvParameterSpec ivParameterSpec = new IvParameterSpec(new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 });
+    // given the mode, the IV and the tag length, the maximum "chunk" size is ~64GB, we set it to 32GB to err on the safe side
+    public static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(32, ByteSizeUnit.GB);
 
-    private static final Setting<String> PASSWORD = new Setting<>("password", "", Function.identity());
-    private static final Setting<String> CHUNK_SIZE = new Setting<>("chunk_size", "32gb", Function.identity());
+    private static final BouncyCastleProvider BC_PROV = new BouncyCastleProvider();
 
     private final BlobStoreRepository delegatedRepository;
     private final SecretKey masterSecretKey;
-    private final ByteSizeValue chunkSize;
 
-    protected EncryptedRepository(BlobStoreRepository delegatedRepository, SecretKey masterSecretKey, String chunkSize) {
+    protected EncryptedRepository(BlobStoreRepository delegatedRepository, SecretKey masterSecretKey) {
         super(delegatedRepository);
         this.delegatedRepository = delegatedRepository;
         this.masterSecretKey = masterSecretKey;
-        this.chunkSize = ByteSizeValue.parseBytesSizeValue(chunkSize, "encrypted blob store repository max chunk size");
     }
 
     @Override
@@ -91,45 +98,20 @@ public class EncryptedRepository extends BlobStoreRepository {
         this.delegatedRepository.close();
     }
 
-    protected ByteSizeValue chunkSize() {
-        return this.chunkSize;
-    }
-
-    private static SecretKey generateSecretKeyFromPassword(String password) throws NoSuchAlgorithmException, InvalidKeySpecException {
-        byte[] salt = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}; // same salt for 1:1 password to key
-        PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, 65536, 256);
-        SecretKey tmp = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec);
-        return new SecretKeySpec(tmp.getEncoded(), "AES");
-    }
-
-    private static String keyId(SecretKey secretKey) {
-        return MessageDigests.toHexString(MessageDigests.sha256().digest(secretKey.getEncoded()));
-    }
-
-    private static SecretKey generateRandomSecretKey() throws NoSuchAlgorithmException {
-        KeyGenerator keyGen = KeyGenerator.getInstance("AES");
-        keyGen.init(256);
-        return keyGen.generateKey();
-    }
-
-    private static byte[] wrapKey(SecretKey toWrap, SecretKey keyWrappingKey)
-            throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException {
-        Cipher cipher = Cipher.getInstance("AESWrap");
-        cipher.init(Cipher.WRAP_MODE, keyWrappingKey);
-        return cipher.wrap(toWrap);
-    }
-
-    private static SecretKey unwrapKey(byte[] toUnwrap, SecretKey keyEncryptionKey)
-            throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException {
-        Cipher cipher = Cipher.getInstance("AESWrap");
-        cipher.init(Cipher.UNWRAP_MODE, keyEncryptionKey);
-        return (SecretKey) cipher.unwrap(toUnwrap, "AES", Cipher.SECRET_KEY);
+    @Override
+    public ByteSizeValue chunkSize() {
+        ByteSizeValue delegatedChunkSize = this.delegatedRepository.chunkSize();
+        if (delegatedChunkSize == null || delegatedChunkSize.compareTo(MAX_CHUNK_SIZE) > 0) {
+            return MAX_CHUNK_SIZE;
+        } else {
+            return delegatedChunkSize;
+        }
     }
 
     /**
      * Returns a new encrypted repository factory
      */
-    public static Repository.Factory newRepositoryFactory() {
+    public static Repository.Factory newRepositoryFactory(final Settings settings) {
         return new Repository.Factory() {
 
             @Override
@@ -143,19 +125,22 @@ public class EncryptedRepository extends BlobStoreRepository {
                 if (Strings.hasLength(delegateType) == false) {
                     throw new IllegalArgumentException(DELEGATE_TYPE.getKey() + " must be set");
                 }
-                String password = PASSWORD.get(metaData.settings());
-                if (Strings.hasLength(password) == false) {
-                    throw new IllegalArgumentException(PASSWORD.getKey() + " must be set");
+                Setting<SecureString> encryptionPasswordSetting = ENCRYPTION_PASSWORD_SETTING
+                        .getConcreteSettingForNamespace(metaData.name());
+                final SecretKey secretKey;
+                try (SecureString encryptionPassword = encryptionPasswordSetting.get(settings)) {
+                    if (encryptionPassword.length() == 0) {
+                        throw new IllegalArgumentException(encryptionPasswordSetting.getKey() + " must be set");
+                    }
+                    secretKey = generateSecretKeyFromPassword(encryptionPassword.getChars());
                 }
-                SecretKey secretKey = generateSecretKeyFromPassword(password);
                 Repository.Factory factory = typeLookup.apply(delegateType);
                 Repository delegatedRepository = factory.create(new RepositoryMetaData(metaData.name(),
                         delegateType, metaData.settings()));
                 if (false == (delegatedRepository instanceof BlobStoreRepository)) {
                     throw new IllegalArgumentException("Unsupported type " + DELEGATE_TYPE.getKey());
                 }
-                String chunkSize = CHUNK_SIZE.get(metaData.settings());
-                return new EncryptedRepository((BlobStoreRepository)delegatedRepository, secretKey, chunkSize);
+                return new EncryptedRepository((BlobStoreRepository)delegatedRepository, secretKey);
             }
         };
     }
@@ -210,11 +195,10 @@ public class EncryptedRepository extends BlobStoreRepository {
             final BytesReference dataDecryptionKeyBytes = Streams.readFully(this.encryptionMetadataBlobContainer.readBlob(blobName));
             try {
                 SecretKey dataDecryptionKey = unwrapKey(BytesReference.toBytes(dataDecryptionKeyBytes), this.masterSecretKey);
-                Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding", "BC");
+                Cipher cipher = Cipher.getInstance(ENCRYPTION_MODE, BC_PROV);
                 cipher.init(Cipher.DECRYPT_MODE, dataDecryptionKey, ivParameterSpec);
                 return new CipherInputStream(this.delegatedBlobContainer.readBlob(blobName), cipher);
-            } catch (InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException | InvalidAlgorithmParameterException
-                    | NoSuchProviderException e) {
+            } catch (InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException | InvalidAlgorithmParameterException e) {
                 throw new IOException(e);
             }
         }
@@ -227,12 +211,12 @@ public class EncryptedRepository extends BlobStoreRepository {
                 try (InputStream stream = new ByteArrayInputStream(wrappedDataEncryptionKey)) {
                     this.encryptionMetadataBlobContainer.writeBlob(blobName, stream, wrappedDataEncryptionKey.length, failIfAlreadyExists);
                 }
-                Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding", "BC");
+                Cipher cipher = Cipher.getInstance(ENCRYPTION_MODE, BC_PROV);
                 cipher.init(Cipher.ENCRYPT_MODE, dataEncryptionKey, ivParameterSpec);
                 this.delegatedBlobContainer.writeBlob(blobName, new CipherInputStream(inputStream, cipher), blobSize + GCM_TAG_BYTES_LENGTH,
                         failIfAlreadyExists);
             } catch (NoSuchAlgorithmException | InvalidKeyException | NoSuchPaddingException | IllegalBlockSizeException
-                    | InvalidAlgorithmParameterException | NoSuchProviderException e) {
+                    | InvalidAlgorithmParameterException e) {
                 throw new IOException(e);
             }
         }
@@ -287,5 +271,36 @@ public class EncryptedRepository extends BlobStoreRepository {
             }
             return delegatedBlobsWithPlainSize;
         }
+    }
+
+    private static SecretKey generateSecretKeyFromPassword(char[] password) throws NoSuchAlgorithmException, InvalidKeySpecException {
+        byte[] salt = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}; // same salt for 1:1 password to key
+        PBEKeySpec spec = new PBEKeySpec(password, salt, 65536, 256);
+        SecretKey tmp = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec);
+        return new SecretKeySpec(tmp.getEncoded(), "AES");
+    }
+
+    private static String keyId(SecretKey secretKey) {
+        return MessageDigests.toHexString(MessageDigests.sha256().digest(secretKey.getEncoded()));
+    }
+
+    private static SecretKey generateRandomSecretKey() throws NoSuchAlgorithmException {
+        KeyGenerator keyGen = KeyGenerator.getInstance("AES");
+        keyGen.init(256);
+        return keyGen.generateKey();
+    }
+
+    private static byte[] wrapKey(SecretKey toWrap, SecretKey keyWrappingKey)
+            throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException {
+        Cipher cipher = Cipher.getInstance("AESWrap");
+        cipher.init(Cipher.WRAP_MODE, keyWrappingKey);
+        return cipher.wrap(toWrap);
+    }
+
+    private static SecretKey unwrapKey(byte[] toUnwrap, SecretKey keyEncryptionKey)
+            throws NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException {
+        Cipher cipher = Cipher.getInstance("AESWrap");
+        cipher.init(Cipher.UNWRAP_MODE, keyEncryptionKey);
+        return (SecretKey) cipher.unwrap(toUnwrap, "AES", Cipher.SECRET_KEY);
     }
 }

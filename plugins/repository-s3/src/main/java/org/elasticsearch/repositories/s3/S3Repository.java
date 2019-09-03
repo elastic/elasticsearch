@@ -207,7 +207,7 @@ class S3Repository extends BlobStoreRepository {
     }
 
     @Override
-    protected ByteSizeValue chunkSize() {
+    public ByteSizeValue chunkSize() {
         return chunkSize;
     }
 }

@@ -116,14 +116,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             logger.info("Restarting all nodes");
             internalCluster().fullRestart();
             logger.info("Restarted all nodes");
-            // We should wait for the indices to be available until we spin wait for persistent tasks to be assigned
-            logger.info("Waiting for ML indices to become available.");
-            ensureYellow(
-                AnomalyDetectorsIndex.jobStateIndexPattern(),
-                MlMetaIndex.INDEX_NAME,
-                AnomalyDetectorsIndex.configIndexName(),
-                AnomalyDetectorsIndex.jobResultsIndexPrefix() + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
-            logger.info("ML indices are now available.");
+            ensureStableClusterOnAllNodes(3);
         });
     }
 

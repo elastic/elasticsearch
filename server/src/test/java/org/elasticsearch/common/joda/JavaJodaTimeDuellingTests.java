@@ -44,6 +44,19 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         return false;
     }
 
+    public void testResolverParsing() {
+        //Strict Resolver style should throw exceptions
+        // non leap year
+        assertJodaParseException("2018-02-30", "date_optional_time",
+            "Cannot parse \"2018-02-30\": Value 30 for dayOfMonth must be in the range [1,28]");
+        assertJavaTimeParseException("2018-02-30", "date_optional_time");
+
+        assertJodaParseException("2018-02-30", "strict_date_optional_time",
+            "Cannot parse \"2018-02-30\": Value 30 for dayOfMonth must be in the range [1,28]");
+        assertJavaTimeParseException("2018-02-30", "strict_date_optional_time");
+
+    }
+
     // strict parsing differs in enforcing length of year, month, day.
     // not related to ResolverStyle which is always strict
     // There are differences at the moment - not sure we should make
@@ -110,12 +123,6 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("2011-123", "strict_ordinal_date");
         assertSameDate("2011-123", "ordinal_date");
     }*/
-
-    private void assertSameDateAs(String input, String javaPattern, String jodaPattern) {
-        DateFormatter javaFormatter = DateFormatter.forPattern(javaPattern);
-        DateFormatter jodaFormatter = Joda.forPattern(jodaPattern);
-        assertSameDate(input, javaPattern, jodaFormatter, javaFormatter);
-    }
 
     // date_optional part of a parser names "strict_date_optional_time" or "date_optional"time
     // means that date part can be partially parsed.
@@ -944,5 +951,11 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> javaTimeFormatter.parse(input));
         assertThat(e.getMessage(), containsString(input));
         assertThat(e.getMessage(), containsString(format));
+    }
+
+    private void assertSameDateAs(String input, String javaPattern, String jodaPattern) {
+        DateFormatter javaFormatter = DateFormatter.forPattern(javaPattern);
+        DateFormatter jodaFormatter = Joda.forPattern(jodaPattern);
+        assertSameDate(input, javaPattern, jodaFormatter, javaFormatter);
     }
 }

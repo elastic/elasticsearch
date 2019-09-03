@@ -182,7 +182,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
 
         // encode array of floats as array of integers and store into buf
         // this code is here and not int the VectorEncoderDecoder so not to create extra arrays
-        byte[] bytes = indexCreatedVersion.onOrAfter(Version.V_7_4_0) ? new byte[dims * INT_BYTES + INT_BYTES] : new byte[dims * INT_BYTES];
+        byte[] bytes = indexCreatedVersion.onOrAfter(Version.V_7_5_0) ? new byte[dims * INT_BYTES + INT_BYTES] : new byte[dims * INT_BYTES];
 
         ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
         double dotProduct = 0f;
@@ -205,7 +205,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
                 "] less than defined in the mapping [" +  dims +"]");
         }
 
-        if (indexCreatedVersion.onOrAfter(Version.V_7_4_0)) {
+        if (indexCreatedVersion.onOrAfter(Version.V_7_5_0)) {
             // encode vector magnitude at the end
             float vectorMagnitude = (float) Math.sqrt(dotProduct);
             byteBuffer.putFloat(vectorMagnitude);

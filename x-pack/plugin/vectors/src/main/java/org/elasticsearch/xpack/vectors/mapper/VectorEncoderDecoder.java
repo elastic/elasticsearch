@@ -36,7 +36,7 @@ public final class VectorEncoderDecoder {
 
         // 2. Encode dimensions
         // as each dimension is a positive value that doesn't exceed 65535, 2 bytes is enough for encoding it
-        byte[] bytes = indexVersion.onOrAfter(Version.V_7_4_0) ? new byte[dimCount * (INT_BYTES + SHORT_BYTES) + INT_BYTES] :
+        byte[] bytes = indexVersion.onOrAfter(Version.V_7_5_0) ? new byte[dimCount * (INT_BYTES + SHORT_BYTES) + INT_BYTES] :
             new byte[dimCount * (INT_BYTES + SHORT_BYTES)];
         ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
 
@@ -55,7 +55,7 @@ public final class VectorEncoderDecoder {
         }
 
         // 4. Encode vector magnitude at the end
-        if (indexVersion.onOrAfter(Version.V_7_4_0)) {
+        if (indexVersion.onOrAfter(Version.V_7_5_0)) {
             float vectorMagnitude = (float) Math.sqrt(dotProduct);
             byteBuffer.putFloat(vectorMagnitude);
         }
@@ -69,7 +69,7 @@ public final class VectorEncoderDecoder {
      * @param vectorBR - sparse vector encoded in BytesRef
      */
     public static int[] decodeSparseVectorDims(Version indexVersion, BytesRef vectorBR) {
-        int dimCount = indexVersion.onOrAfter(Version.V_7_4_0)
+        int dimCount = indexVersion.onOrAfter(Version.V_7_5_0)
             ? (vectorBR.length - INT_BYTES) / (INT_BYTES + SHORT_BYTES)
             : vectorBR.length / (INT_BYTES + SHORT_BYTES);
         ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, dimCount * SHORT_BYTES);
@@ -87,7 +87,7 @@ public final class VectorEncoderDecoder {
      * @param vectorBR - sparse vector encoded in BytesRef
      */
     public static float[] decodeSparseVector(Version indexVersion, BytesRef vectorBR) {
-        int dimCount = indexVersion.onOrAfter(Version.V_7_4_0)
+        int dimCount = indexVersion.onOrAfter(Version.V_7_5_0)
             ? (vectorBR.length - INT_BYTES) / (INT_BYTES + SHORT_BYTES)
             : vectorBR.length / (INT_BYTES + SHORT_BYTES);
         int offset =  vectorBR.offset + SHORT_BYTES * dimCount;
@@ -157,7 +157,7 @@ public final class VectorEncoderDecoder {
     }
 
     public static int denseVectorLength(Version indexVersion, BytesRef vectorBR) {
-        return indexVersion.onOrAfter(Version.V_7_4_0)
+        return indexVersion.onOrAfter(Version.V_7_5_0)
             ? (vectorBR.length - INT_BYTES) / INT_BYTES
             : vectorBR.length / INT_BYTES;
     }
@@ -168,7 +168,7 @@ public final class VectorEncoderDecoder {
      * equal to 7.4.0, since vectors created prior to that do not store the magnitude.
      */
     public static float decodeVectorMagnitude(Version indexVersion, BytesRef vectorBR) {
-        assert indexVersion.onOrAfter(Version.V_7_4_0);
+        assert indexVersion.onOrAfter(Version.V_7_5_0);
         ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
         return byteBuffer.getFloat(vectorBR.offset + vectorBR.length - 4);
     }

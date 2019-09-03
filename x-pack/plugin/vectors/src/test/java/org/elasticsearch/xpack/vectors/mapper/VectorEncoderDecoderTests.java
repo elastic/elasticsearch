@@ -96,7 +96,7 @@ public class VectorEncoderDecoderTests extends ESTestCase {
 
     // imitates the code in DenseVectorFieldMapper::parse
     public static BytesRef mockEncodeDenseVector(float[] values, Version indexVersion) {
-        byte[] bytes = indexVersion.onOrAfter(Version.V_7_4_0)
+        byte[] bytes = indexVersion.onOrAfter(Version.V_7_5_0)
             ? new byte[VectorEncoderDecoder.INT_BYTES * values.length + VectorEncoderDecoder.INT_BYTES]
             : new byte[VectorEncoderDecoder.INT_BYTES * values.length];
         double dotProduct = 0f;
@@ -107,7 +107,7 @@ public class VectorEncoderDecoderTests extends ESTestCase {
             dotProduct += value * value;
         }
 
-        if (indexVersion.onOrAfter(Version.V_7_4_0)) {
+        if (indexVersion.onOrAfter(Version.V_7_5_0)) {
             // encode vector magnitude at the end
             float vectorMagnitude = (float) Math.sqrt(dotProduct);
             byteBuffer.putFloat(vectorMagnitude);

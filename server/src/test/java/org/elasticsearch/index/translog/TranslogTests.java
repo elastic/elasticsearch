@@ -2285,6 +2285,7 @@ public class TranslogTests extends ESTestCase {
      * Tests the situation where the node crashes after a translog gen was committed to lucene, but before the translog had the chance
      * to clean up its files.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/46267")
     public void testRecoveryFromFailureOnTrimming() throws IOException {
         Path tempDir = createTempDir();
         final FailSwitch fail = new FailSwitch();

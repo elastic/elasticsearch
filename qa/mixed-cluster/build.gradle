@@ -91,7 +91,11 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
 
 task bwcTestSnapshots {
   if (project.bwc_tests_enabled) {
-    for (final def version : bwcVersions.unreleasedWireCompatible) {
+    for (final def bwcVersion : bwcVersions.unreleasedWireCompatible) {
+      if (bwcVersion == Version.current()) {
+        // Not really a mixed cluster
+        continue ;
+      }
       dependsOn "v${version}#bwcTest"
     }
   }

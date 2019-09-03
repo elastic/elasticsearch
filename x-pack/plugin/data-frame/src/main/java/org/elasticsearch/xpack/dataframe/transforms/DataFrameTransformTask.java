@@ -357,7 +357,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             ActionListener.wrap(
                 r -> {
                     // We only want to update this internal value if it is persisted as such
-                    this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
+                    this.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
                     logger.debug("[{}] successfully persisted should_stop_at_checkpoint update [{}]",
                         getTransformId(),
                         shouldStopAtCheckpoint);
@@ -402,18 +402,21 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         }
 
         stateReason.set(null);
+        // No reason to keep it in the potentially failed state.
+        // Since `doSaveState` is asynchronous, it is best to set the state as STARTED so that another `start` call cannot be
+        // executed while we are wrapping up.
+        boolean wasFailed = taskState.compareAndSet(DataFrameTransformTaskState.FAILED, DataFrameTransformTaskState.STARTED);
+
         // shouldStopAtCheckpoint only comes into play when onFinish is called (or doSaveState right after).
-        // If the indexerState is STARTED and it is on an initialRun, that means that the indexer has previously finished a checkpoint,
-        // or has yet to even start one.
-        // Either way, this means that we won't get to have onFinish called down stream (or at least won't for some time).
-        // We should just stop the indexer
-        if (shouldStopAtCheckpoint == false || (getIndexer().getState() == IndexerState.STARTED && getIndexer().initialRun())) {
+        // if it is false, stop immediately
+        if (shouldStopAtCheckpoint == false ||
+            // If state was in a failed state, we should stop immediately as we will never reach the next checkpoint
+            wasFailed ||
+            // If the indexerState is STARTED and it is on an initialRun, that means that the indexer has previously finished a checkpoint,
+            // or has yet to even start one.
+            // Either way, this means that we won't get to have onFinish called down stream (or at least won't for some time).
+            (getIndexer().getState() == IndexerState.STARTED && getIndexer().initialRun())) {
             IndexerState state = getIndexer().stop();
-            // No reason to keep it in the potentially failed state.
-            // Since we have called `stop` against the indexer, we have no more fear of triggering again.
-            // But, since `doSaveState` is asynchronous, it is best to set the state as STARTED so that another `start` call cannot be
-            // executed while we are wrapping up.
-            taskState.compareAndSet(DataFrameTransformTaskState.FAILED, DataFrameTransformTaskState.STARTED);
             if (state == IndexerState.STOPPED) {
                 getIndexer().onStop();
                 getIndexer().doSaveState(state, getIndexer().getPosition(), () -> {});
@@ -960,26 +963,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 return;
             }
 
-            // This means that the indexer was triggered to discover changes, found none, and exited early.
-            // If the state is `STOPPED` this means that DataFrameTransformTask#stop was called while we were checking for changes.
-            // Allow the stop call path to continue
-            if (hasSourceChanged == false && indexerState.equals(IndexerState.STOPPED) == false) {
-                next.run();
-                return;
-            }
-
             DataFrameTransformTaskState taskState = transformTask.taskState.get();
             boolean shouldStopAtCheckpoint = transformTask.shouldStopAtCheckpoint;
-
-            if (indexerState.equals(IndexerState.STARTED)
-                && transformTask.currentCheckpoint.get() == 1
-                && this.isContinuous() == false) {
-                // set both to stopped so they are persisted as such
-                indexerState = IndexerState.STOPPED;
-
-                auditor.info(transformConfig.getId(), "Data frame finished indexing all data, initiating stop");
-                logger.info("[{}] data frame transform finished indexing all data, initiating stop.", transformConfig.getId());
-            }
 
             // If we should stop at the next checkpoint, are STARTED, and with `initialRun()` we are in one of two states
             // 1. We have just called `onFinish` completing our request, but `shouldStopAtCheckpoint` was set to `true` before our check
@@ -992,6 +977,24 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 auditor.info(transformConfig.getId(), "Data frame is no longer in the middle of a checkpoint, initiating stop.");
                 logger.info("[{}] data frame transform is no longer in the middle of a checkpoint, initiating stop.",
                     transformConfig.getId());
+            }
+
+            if (indexerState.equals(IndexerState.STARTED)
+                && transformTask.currentCheckpoint.get() == 1
+                && this.isContinuous() == false) {
+                // set both to stopped so they are persisted as such
+                indexerState = IndexerState.STOPPED;
+
+                auditor.info(transformConfig.getId(), "Data frame finished indexing all data, initiating stop");
+                logger.info("[{}] data frame transform finished indexing all data, initiating stop.", transformConfig.getId());
+            }
+
+            // This means that the indexer was triggered to discover changes, found none, and exited early.
+            // If the state is `STOPPED` this means that DataFrameTransformTask#stop was called while we were checking for changes.
+            // Allow the stop call path to continue
+            if (hasSourceChanged == false && indexerState.equals(IndexerState.STOPPED) == false) {
+                next.run();
+                return;
             }
 
             // If we are `STOPPED` on a `doSaveState` call, that indicates we transitioned to `STOPPED` from `STOPPING`
@@ -1074,7 +1077,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                     listener.onFailure(statsExc);
                 }
             ));
-    }
+        }
 
         @Override
         protected void onFailure(Exception exc) {

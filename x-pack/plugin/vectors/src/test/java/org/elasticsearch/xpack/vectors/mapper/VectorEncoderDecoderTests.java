@@ -7,33 +7,59 @@
 package org.elasticsearch.xpack.vectors.mapper;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
 
+import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.Arrays;
 
 public class VectorEncoderDecoderTests extends ESTestCase {
 
-    public void testDenseVectorEncodingDecoding() {
-        int dimCount = randomIntBetween(0, DenseVectorFieldMapper.MAX_DIMS_COUNT);
+    public void testSparseVectorEncodingDecoding() {
+        Version indexVersion = Version.CURRENT;
+        int dimCount = randomIntBetween(0, 100);
         float[] expectedValues = new float[dimCount];
+        int[] expectedDims = randomUniqueDims(dimCount);
+        double dotProduct = 0.0f;
         for (int i = 0; i < dimCount; i++) {
             expectedValues[i] = randomFloat();
+            dotProduct += expectedValues[i] * expectedValues[i];
         }
+        float expectedMagnitude = (float) Math.sqrt(dotProduct);
+
+        // test that sorting in the encoding works as expected
+        int[] sortedDims = Arrays.copyOf(expectedDims, dimCount);
+        Arrays.sort(sortedDims);
+        VectorEncoderDecoder.sortSparseDimsValues(expectedDims, expectedValues, dimCount);
+        assertArrayEquals(
+            "Sparse vector dims are not properly sorted!",
+            sortedDims,
+            expectedDims
+        );
 
         // test that values that went through encoding and decoding are equal to their original
-        BytesRef encodedDenseVector = mockEncodeDenseVector(expectedValues);
-        float[] decodedValues = VectorEncoderDecoder.decodeDenseVector(encodedDenseVector);
+        BytesRef encodedSparseVector = VectorEncoderDecoder.encodeSparseVector(indexVersion, expectedDims, expectedValues, dimCount);
+        int[] decodedDims = VectorEncoderDecoder.decodeSparseVectorDims(indexVersion, encodedSparseVector);
+        float[] decodedValues = VectorEncoderDecoder.decodeSparseVector(indexVersion, encodedSparseVector);
+        float decodedMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(indexVersion, encodedSparseVector);
+        assertEquals(expectedMagnitude, decodedMagnitude, 0.0f);
         assertArrayEquals(
-            "Decoded dense vector values are not equal to their original.",
+            "Decoded sparse vector dims are not equal to their original!",
+            expectedDims,
+            decodedDims
+        );
+        assertArrayEquals(
+            "Decoded sparse vector values are not equal to their original.",
             expectedValues,
             decodedValues,
             0.001f
         );
     }
 
-    public void testSparseVectorEncodingDecoding() {
+    public void testSparseVectorEncodingDecodingBefore_V_7_5_0() {
+        Version indexVersion = Version.V_7_4_0;
         int dimCount = randomIntBetween(0, 100);
         float[] expectedValues = new float[dimCount];
         int[] expectedDims = randomUniqueDims(dimCount);
@@ -52,9 +78,9 @@ public class VectorEncoderDecoderTests extends ESTestCase {
         );
 
         // test that values that went through encoding and decoding are equal to their original
-        BytesRef encodedSparseVector = VectorEncoderDecoder.encodeSparseVector(expectedDims, expectedValues, dimCount);
-        int[] decodedDims = VectorEncoderDecoder.decodeSparseVectorDims(encodedSparseVector);
-        float[] decodedValues = VectorEncoderDecoder.decodeSparseVector(encodedSparseVector);
+        BytesRef encodedSparseVector = VectorEncoderDecoder.encodeSparseVector(indexVersion, expectedDims, expectedValues, dimCount);
+        int[] decodedDims = VectorEncoderDecoder.decodeSparseVectorDims(indexVersion, encodedSparseVector);
+        float[] decodedValues = VectorEncoderDecoder.decodeSparseVector(indexVersion, encodedSparseVector);
         assertArrayEquals(
             "Decoded sparse vector dims are not equal to their original!",
             expectedDims,
@@ -69,23 +95,28 @@ public class VectorEncoderDecoderTests extends ESTestCase {
     }
 
     // imitates the code in DenseVectorFieldMapper::parse
-    public static BytesRef mockEncodeDenseVector(float[] values) {
-        final short INT_BYTES = VectorEncoderDecoder.INT_BYTES;
-        byte[] buf = new byte[INT_BYTES * values.length];
-        int offset = 0;
-        int intValue;
-        for (float value: values) {
-            intValue = Float.floatToIntBits(value);
-            buf[offset++] =  (byte) (intValue >> 24);
-            buf[offset++] = (byte) (intValue >> 16);
-            buf[offset++] = (byte) (intValue >>  8);
-            buf[offset++] = (byte) intValue;
+    public static BytesRef mockEncodeDenseVector(float[] values, Version indexVersion) {
+        byte[] bytes = indexVersion.onOrAfter(Version.V_7_5_0)
+            ? new byte[VectorEncoderDecoder.INT_BYTES * values.length + VectorEncoderDecoder.INT_BYTES]
+            : new byte[VectorEncoderDecoder.INT_BYTES * values.length];
+        double dotProduct = 0f;
+
+        ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
+        for (float value : values) {
+            byteBuffer.putFloat(value);
+            dotProduct += value * value;
         }
-        return new BytesRef(buf, 0, offset);
+
+        if (indexVersion.onOrAfter(Version.V_7_5_0)) {
+            // encode vector magnitude at the end
+            float vectorMagnitude = (float) Math.sqrt(dotProduct);
+            byteBuffer.putFloat(vectorMagnitude);
+        }
+        return new BytesRef(bytes);
     }
 
     // generate unique random dims
-    private int[] randomUniqueDims(int dimCount) {
+    private static int[] randomUniqueDims(int dimCount) {
         int[] values = new int[dimCount];
         Set<Integer> usedValues = new HashSet<>();
         int value;

@@ -1,14 +1,9 @@
-import org.elasticsearch.gradle.test.NodeInfo
-import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
-import java.nio.charset.StandardCharsets
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
-
-test.enabled = false
 
 dependencies {
     // TODO: Remove core dependency and change tests to not use builders that are part of xpack-core.
@@ -29,9 +24,7 @@ forbiddenPatterns {
 
 String outputDir = "${buildDir}/generated-resources/${project.name}"
 
-// This is a top level task which we will add dependencies to below.
-// It is a single task that can be used to backcompat tests against all versions.
-task bwcTest {
+tasks.register("bwcTest") {
     description = 'Runs backwards compatibility tests.'
     group = 'verification'
 }
@@ -84,7 +77,6 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
 
             extraConfigFile 'testnode.pem', file("${outputDir}/testnode.pem")
             extraConfigFile 'testnode.crt', file("${outputDir}/testnode.crt")
-            extraConfigFile 'testnode.jks', file("${outputDir}/testnode.jks")
 
             keystore 'xpack.watcher.encryption_key', file("${project.projectDir}/src/test/resources/system_key")
             setting 'xpack.watcher.encrypt_sensitive_data', 'true'
@@ -140,7 +132,6 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
     }
 }
 
-// basic integ tests includes testing bwc against the most recent version
 task bwcTestSnapshots {
     if (project.bwc_tests_enabled) {
         for (final def version : bwcVersions.unreleasedIndexCompatible) {

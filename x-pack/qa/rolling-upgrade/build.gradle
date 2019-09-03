@@ -4,8 +4,6 @@ import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
-test.enabled = false
-
 dependencies {
   testCompile project(':x-pack:qa')
   testCompile project(':client:rest-high-level')
@@ -19,9 +17,7 @@ forbiddenPatterns {
 
 String outputDir = "${buildDir}/generated-resources/${project.name}"
 
-// This is a top level task which we will add dependencies to below.
-// It is a single task that can be used to backcompat tests against all versions.
-task bwcTest {
+tasks.register("bwcTest") {
     description = 'Runs backwards compatibility tests.'
     group = 'verification'
 }
@@ -91,14 +87,11 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
 
             user username: "test_user", password: "x-pack-test-password"
 
-            extraConfigFile 'testnode.jks', file("$outputDir/testnode.jks")
             extraConfigFile 'testnode.pem', file("$outputDir/testnode.pem")
             extraConfigFile 'testnode.crt', file("$outputDir/testnode.crt")
 
             keystore 'xpack.watcher.encryption_key', file("${project.projectDir}/src/test/resources/system_key")
             setting 'xpack.watcher.encrypt_sensitive_data', 'true'
-
-
 
             // Old versions of the code contain an invalid assertion that trips
             // during tests.  Versions 5.6.9 and 6.2.4 have been fixed by removing
@@ -181,7 +174,6 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
     }
 }
 
-// basic integ tests includes testing bwc against the most recent version
 task bwcTestSnapshots {
     if (project.bwc_tests_enabled) {
         for (final def version : bwcVersions.unreleasedWireCompatible) {

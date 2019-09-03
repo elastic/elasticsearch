@@ -8,9 +8,7 @@ dependencies {
     testCompile project(':x-pack:qa')
 }
 
-// This is a top level task which we will add dependencies to below.
-// It is a single task that can be used to backcompat tests against all versions.
-task bwcTest {
+tasks.register("bwcTest") {
     description = 'Runs backwards compatibility tests.'
     group = 'verification'
 }
@@ -49,6 +47,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
             setting 'xpack.ml.enabled', 'false'
             setting 'xpack.watcher.enabled', 'false'
             setting 'xpack.license.self_generated.type', 'basic'
+            javaHome = project.file(project.ext.runtimeJavaHome)
         }
     }
 
@@ -108,8 +107,6 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
         bwcTest.dependsOn("${baseName}#bwcTest")
     }
 }
-
-test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
 
 task bwcTestSnapshots {
     if (project.bwc_tests_enabled) {

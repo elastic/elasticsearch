@@ -51,6 +51,10 @@ public final class Version implements Comparable<Version> {
         );
     }
 
+    public static Version current() {
+        return fromString(VersionProperties.getElasticsearch());
+    }
+
     @Override
     public String toString() {
         return String.valueOf(getMajor()) + "." + String.valueOf(getMinor()) + "." + String.valueOf(getRevision());

@@ -24,9 +24,7 @@ import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
-// This is a top level task which we will add dependencies to below.
-// It is a single task that can be used to backcompat tests against all versions.
-task bwcTest {
+tasks.register("bwcTest") {
   description = 'Runs backwards compatibility tests.'
   group = 'verification'
 }
@@ -81,9 +79,6 @@ for (Version bwcVersion : bwcVersions.indexCompatible) {
   }
 }
 
-test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
-
-// basic integ tests includes testing bwc against the most recent version
 task bwcTestSnapshots {
   if (project.bwc_tests_enabled) {
     for (final def version : bwcVersions.unreleasedIndexCompatible) {

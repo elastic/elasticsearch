@@ -26,6 +26,7 @@ import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Response.DatafeedStats;
@@ -40,6 +41,8 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
@@ -113,6 +116,14 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             logger.info("Restarting all nodes");
             internalCluster().fullRestart();
             logger.info("Restarted all nodes");
+            // We should wait for the indices to be available until we spin wait for persistent tasks to be assigned
+            logger.info("Waiting for ML indices to become available.");
+            ensureYellow(
+                AnomalyDetectorsIndex.jobStateIndexPattern(),
+                MlMetaIndex.INDEX_NAME,
+                AnomalyDetectorsIndex.configIndexName(),
+                AnomalyDetectorsIndex.jobResultsIndexPrefix() + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
+            logger.info("ML indices are now available.");
         });
     }
 

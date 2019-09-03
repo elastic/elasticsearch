@@ -163,7 +163,9 @@ public final class RepositoryData {
         for (final IndexId indexId : shardGenerations.keySet()) {
             allIndexSnapshots.computeIfAbsent(indexId, k -> new LinkedHashSet<>()).add(snapshotId);
         }
-        return new RepositoryData(genId, snapshots, newSnapshotStates, allIndexSnapshots, shardGenerations);
+        final Map<IndexId, String[]> updatedGenerations = new HashMap<>(this.shardGenerations);
+        updatedGenerations.putAll(shardGenerations);
+        return new RepositoryData(genId, snapshots, newSnapshotStates, allIndexSnapshots, updatedGenerations);
     }
 
     /**

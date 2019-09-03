@@ -1234,8 +1234,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @return tuple of BlobStoreIndexShardSnapshots and the last snapshot index generation
      */
     private Tuple<BlobStoreIndexShardSnapshots, Long> buildBlobStoreIndexShardSnapshots(Set<String> blobs,
-                                                                                       BlobContainer shardContainer,
-                                                                                       @Nullable String generation) {
+                                                                                        BlobContainer shardContainer,
+                                                                                        @Nullable String generation) {
         long latest;
         if (generation == null) {
             latest = latestGeneration(blobs);

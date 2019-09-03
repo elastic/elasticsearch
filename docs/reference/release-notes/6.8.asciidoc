@@ -9,7 +9,7 @@ CCR::
 * Include leases in error message when operations no longer available {pull}45681[#45681]
 
 Infra/Core::
-* Add OCI annotations and adjust existing annotations {pull}45167[#45167] (issues: {issue}45162[#45162], {issue}45166[#45166])
+* Add OCI annotations and adjust existing annotations {pull}45167[#45167] 
 
 Infra/Settings::
 * Normalize environment paths {pull}45179[#45179] (issue: {issue}45176[#45176])
@@ -36,18 +36,18 @@ Distributed::
 * Ensure AsyncTask#isScheduled remain false after close {pull}45687[#45687] (issue: {issue}45576[#45576])
 
 Engine::
-* Handle delete document level failures {pull}46100[#46100] (issue: {issue}46083[#46083])
+* Handle delete document level failures {pull}46100[#46100] 
 * Handle no-op document level failures {pull}46083[#46083]
 
 Features/Indices APIs::
-* Check shard limit after applying index templates {pull}44619[#44619] (issues: {issue}34021[#34021], {issue}44567[#44567], {issue}44619[#44619])
+* Check shard limit after applying index templates {pull}44619[#44619] (issue: {issue}44567[#44567])
 * Prevent NullPointerException in TransportRolloverAction {pull}43353[#43353] (issue: {issue}43296[#43296])
 
 Features/Java High Level REST Client::
 * Add rest_total_hits_as_int in HLRC's search requests {pull}46076[#46076] (issue: {issue}43925[#43925])
 
 Infra/Core::
-* Add default CLI JVM options {pull}44545[#44545] (issues: {issue}219[#219], {issue}42021[#42021])
+* Add default CLI JVM options {pull}44545[#44545] (issue: {issue}42021[#42021])
 
 Infra/Plugins::
 * Do not checksum all bytes at once in plugin install {pull}44649[#44649] (issue: {issue}44545[#44545])
@@ -61,10 +61,6 @@ Search::
 
 Security::
 * Use system context for looking up connected nodes {pull}43991[#43991] (issue: {issue}43974[#43974])
-
-Machine Learning::
-* [DOCS] Adds allow no datafeeds query param to the GET, GET stats and STOP datafeed APIs (7.2-6.1) {pull}44864[#44864]
-
 
 [[upgrade-6.8.3]]
 [float]

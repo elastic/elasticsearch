@@ -77,7 +77,7 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
         ReindexTaskIndexState reindexState = new ReindexTaskIndexState(request.getReindexRequest());
         reindexIndexClient.createReindexTaskDoc(generatedId, reindexState, new ActionListener<>() {
             @Override
-            public void onResponse(Void v) {
+            public void onResponse(ReindexTaskIndexStateWithSeq taskState) {
                 // TODO: Task name
                 persistentTasksService.sendStartRequest(generatedId, ReindexTask.NAME, job, new ActionListener<>() {
                     @Override

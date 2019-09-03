@@ -87,13 +87,14 @@ public class ReindexIndexClient {
         });
     }
 
-    public void createReindexTaskDoc(String taskId, ReindexTaskIndexState reindexState, ActionListener<Void> listener) {
+    public void createReindexTaskDoc(String taskId, ReindexTaskIndexState reindexState,
+                                     ActionListener<ReindexTaskIndexStateWithSeq> listener) {
         boolean reindexIndexExists = clusterService.state().routingTable().hasIndex(ReindexIndexClient.REINDEX_INDEX);
         createReindexTaskDoc(taskId, reindexState, reindexIndexExists, listener);
     }
 
     private void createReindexTaskDoc(String taskId, ReindexTaskIndexState reindexState, boolean indexExists,
-                                     ActionListener<Void> listener) {
+                                     ActionListener<ReindexTaskIndexStateWithSeq> listener) {
         if (indexExists) {
             index(taskId, reindexState, DocWriteRequest.OpType.CREATE, false, -1, -1, listener);
         } else {
@@ -127,12 +128,12 @@ public class ReindexIndexClient {
     }
 
     public void updateReindexTaskDoc(String taskId, ReindexTaskIndexState reindexState, long previousTerm, long previousSeqNo,
-                                     ActionListener<Void> listener) {
+                                     ActionListener<ReindexTaskIndexStateWithSeq> listener) {
         index(taskId, reindexState, DocWriteRequest.OpType.INDEX, true, previousTerm, previousSeqNo, listener);
     }
 
     private void index(String taskId, ReindexTaskIndexState reindexState, DocWriteRequest.OpType opType, boolean conditional,
-                       long previousTerm, long previousSeqNo, ActionListener<Void> listener) {
+                       long previousTerm, long previousSeqNo, ActionListener<ReindexTaskIndexStateWithSeq> listener) {
         IndexRequest indexRequest = new IndexRequest(REINDEX_INDEX).id(taskId).opType(opType);
         if (conditional) {
             indexRequest.setIfPrimaryTerm(previousTerm);
@@ -148,7 +149,8 @@ public class ReindexIndexClient {
         client.index(indexRequest, new ActionListener<>() {
             @Override
             public void onResponse(IndexResponse indexResponse) {
-                listener.onResponse(null);
+                listener.onResponse(new ReindexTaskIndexStateWithSeq(reindexState, indexResponse.getPrimaryTerm(),
+                    indexResponse.getSeqNo()));
             }
 
             @Override

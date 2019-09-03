@@ -194,7 +194,9 @@ public class ReindexTask extends AllocatedPersistentTask {
             (RestStatus) null, null);
         reindexIndexClient.updateReindexTaskDoc(getPersistentTaskId(), reindexState, currentTerm, currentSeqNo, new ActionListener<>() {
             @Override
-            public void onResponse(Void v) {
+            public void onResponse(ReindexTaskIndexStateWithSeq taskState) {
+                currentTerm = taskState.getPrimaryTerm();
+                currentSeqNo = taskState.getSeqNo();
                 updatePersistentTaskState(new ReindexJobState(taskId, ReindexJobState.Status.DONE), new ActionListener<>() {
                     @Override
                     public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
@@ -243,7 +245,9 @@ public class ReindexTask extends AllocatedPersistentTask {
 
         reindexIndexClient.updateReindexTaskDoc(getPersistentTaskId(), reindexState, currentTerm, currentSeqNo, new ActionListener<>() {
             @Override
-            public void onResponse(Void v) {
+            public void onResponse(ReindexTaskIndexStateWithSeq taskState) {
+                currentTerm = taskState.getPrimaryTerm();
+                currentSeqNo = taskState.getSeqNo();
                 updateClusterStateToFailed(shouldStoreResult, ReindexJobState.Status.DONE, ex);
             }
 
@@ -321,7 +325,9 @@ public class ReindexTask extends AllocatedPersistentTask {
                 reindexIndexClient.updateReindexTaskDoc(getPersistentTaskId(), nextState, currentTerm, currentSeqNo,
                     new ActionListener<>() {
                         @Override
-                        public void onResponse(Void aVoid) {
+                        public void onResponse(ReindexTaskIndexStateWithSeq taskState) {
+                            currentTerm = taskState.getPrimaryTerm();
+                            currentSeqNo = taskState.getSeqNo();
                             childTask.setCommittedStatus(status);
                             semaphore.release();
                         }

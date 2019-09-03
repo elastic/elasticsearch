@@ -38,10 +38,8 @@ import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
@@ -91,8 +89,10 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         long count1 = docCount(".watcher-history*", matchAllQuery());
 
         refresh();
-        //ensure no new watch history
-        assertBusy(() -> assertThat(docCount(".watcher-history*", matchAllQuery()), not(equalTo(count1))), 5, TimeUnit.SECONDS);
+        // Ensure no new watch history. The assertion ought to always return false, but if it returns true
+        // then we know that more history has been written.
+        boolean hasNewHistory = waitUntil(() -> count1 != docCount(".watcher-history*", matchAllQuery()), 5, TimeUnit.SECONDS);
+        assertFalse("Watcher should have stopped executing but new history found", hasNewHistory);
 
         // lets activate it again
         logger.info("Activating watch again");

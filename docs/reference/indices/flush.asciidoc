@@ -1,21 +1,20 @@
 [[indices-flush]]
 === Flush
 
-The flush process of an index makes sure that any data that is currently only
-stored in the <<index-modules-translog,transaction log>> is also permanently
-stored in the Lucene index. When restarting, {es} replays any unflushed
-operations from the transaction log into the Lucene index to bring it back into
-the state that it was in before the restart. {es} automatically triggers flushes
-using heuristics that trade off the size of the unflushed transaction log
-against the cost of performing each flush.
+Flushing an index is the process of making sure that any data that is currently
+only stored in the <<index-modules-translog,transaction log>> is also
+permanently stored in the Lucene index. When restarting, {es} replays any
+unflushed operations from the transaction log into the Lucene index to bring it
+back into the state that it was in before the restart. {es} automatically
+triggers flushes as needed, using heuristics that trade off the size of the
+unflushed transaction log against the cost of performing each flush.
 
 Once each operation has been flushed it is permanently stored in the Lucene
 index. This may mean that there is no need to maintain an additional copy of it
 in the transaction log, unless <<index-modules-translog-retention,it is retained
 for some other reason>>. The transaction log is made up of multiple files,
-called _generations_, and {es} will delete any generation files once it no
-longer needs a copy of any operation in that translog generation, freeing up
-disk space.
+called _generations_, and {es} will delete any generation files once they are no
+longer needed, freeing up disk space.
 
 It is also possible to trigger a flush on one or more indices using the flush
 API, although it is rare for users to need to call this API directly. If you
@@ -68,26 +67,26 @@ POST _flush
 
 {es} keeps track of which shards have received indexing activity recently, and
 considers shards that have not received any indexing operations for 5 minutes to
-be inactive. When a shard is inactive {es} performs a special kind of flush
+be inactive. When a shard becomes inactive {es} performs a special kind of flush
 known as a _synced flush_. A synced flush performs a normal
-<<indices-flush,flush>> on each copy of the shard, and then adds a unique marker
-known as the `sync_id` to each copy to indicate that these copies have identical
+<<indices-flush,flush>> on each copy of the shard, and then adds a marker known
+as the `sync_id` to each copy to indicate that these copies have identical
 Lucene indices. Comparing the `sync_id` markers of the two copies is a very
-quick way to check whether the two copies have identical contents.
+efficient way to check whether they have identical contents.
 
 When allocating shard copies, {es} must ensure that each replica contains the
 same data as the primary. If the shard copies have been synced-flushed and the
 replica shares a `sync_id` with the primary then {es} knows that the two copies
-have identical Lucene indices. This means there is no need to copy any segment
-files from the primary to the replica, which saves a good deal of time during
+have identical contents. This means there is no need to copy any segment files
+from the primary to the replica, which saves a good deal of time during
 recoveries and restarts.
 
 This is particularly useful for clusters having lots of indices which are very
 rarely updated, such as with time-based indices. Without the synced flush
 marker, recovery of this kind of cluster would be much slower.
 
-To check whether a shard has a marker or not, look for the `commit` section of
-shard stats returned by the <<indices-stats,indices stats>> API:
+To check whether a shard has a `sync_id` marker or not, look for the `commit`
+section of the shard stats returned by the <<indices-stats,indices stats>> API:
 
 [source,sh]
 --------------------------------------------------
@@ -136,9 +135,10 @@ which returns something similar to:
 // TESTRESPONSE[s/"sync_id" : "AVvFY-071siAOuFGEO9P"/"sync_id": $body.indices.twitter.shards.0.0.commit.user_data.sync_id/]
 <1> the `sync id` marker
 
-NOTE: The `sync_id` marker is removed as soon as the shard is flushed again,
-and {es} may trigger a flush at any time. In practice this means that one
-should consider any indexing operation on an index as having removed the
+NOTE: The `sync_id` marker is removed as soon as the shard is flushed again, and
+{es} may trigger an automatic flush of a shard at any time if there are
+unflushed operations in the shard's translog. In practice this means that one
+should consider any indexing operation on an index as having removed its
 `sync_id` markers.
 
 [float]
@@ -152,9 +152,9 @@ are marked as inactive and automatically sync-flushed.
 You can request a synced flush even if there is ongoing indexing activity, and
 {es} will perform the synced flush on a "best-effort" basis: shards that do not
 have any ongoing indexing activity will be successfully sync-flushed, and other
-shards will fail. The successfully sync-flushed shards will have faster
-recovery times as long as the `sync_id` marker is not removed by a subsequent
-flush.
+shards will fail to sync-flush. The successfully sync-flushed shards will have
+faster recovery times as long as the `sync_id` marker is not removed by a
+subsequent flush.
 
 [source,sh]
 --------------------------------------------------

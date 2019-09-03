@@ -89,8 +89,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
@@ -244,9 +246,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             Index index = remoteIndices.get(indexName).getIndex();
             indexSnapshots.put(new IndexId(indexName, index.getUUID()), Collections.singleton(snapshotId));
         }
-
-        // TODO: real shard generation map
-        return new RepositoryData(1, copiedSnapshotIds, snapshotStates, indexSnapshots, Collections.emptyMap());
+        return new RepositoryData(1, copiedSnapshotIds, snapshotStates, indexSnapshots,
+            indexSnapshots.keySet().stream().collect(Collectors.toMap(Function.identity(), i -> Strings.EMPTY_ARRAY)));
     }
 
     @Override

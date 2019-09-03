@@ -1109,7 +1109,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         BlobStoreIndexShardSnapshot snapshot = loadShardSnapshot(shardContainer(indexId, shardId), snapshotId);
         return IndexShardSnapshotStatus.newDone(snapshot.startTime(), snapshot.time(),
             snapshot.incrementalFileCount(), snapshot.totalFileCount(),
-            snapshot.incrementalSize(), snapshot.totalSize(), ""); // TODO: should probably add proper generation here
+            snapshot.incrementalSize(), snapshot.totalSize(), "_na"); // Not adding a real generation here since that would
+                                                                               // require retrieving the root RepositoryData
     }
 
     @Override

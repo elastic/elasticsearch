@@ -517,6 +517,7 @@ public class RecoverySourceHandler {
                 final StepListener<Void> sendFilesStep = new StepListener<>();
                 final StepListener<RetentionLease> createRetentionLeaseStep = new StepListener<>();
                 final StepListener<Void> cleanFilesStep = new StepListener<>();
+                cancellableThreads.checkForCancel();
                 recoveryTarget.receiveFileInfo(phase1FileNames, phase1FileSizes, phase1ExistingFileNames,
                         phase1ExistingFileSizes, translogOps.getAsInt(), sendFileInfoStep);
 
@@ -633,6 +634,7 @@ public class RecoverySourceHandler {
         // Send a request preparing the new shard's translog to receive operations. This ensures the shard engine is started and disables
         // garbage collection (not the JVM's GC!) of tombstone deletes.
         logger.trace("recovery [phase1]: prepare remote engine for translog");
+        cancellableThreads.checkForCancel();
         recoveryTarget.prepareForTranslogOperations(totalTranslogOps, wrappedListener);
     }
 
@@ -739,6 +741,7 @@ public class RecoverySourceHandler {
         final List<Translog.Operation> operations = nextBatch.get();
         // send the leftover operations or if no operations were sent, request the target to respond with its local checkpoint
         if (operations.isEmpty() == false || firstBatch) {
+            cancellableThreads.checkForCancel();
             recoveryTarget.indexTranslogOperations(
                 operations,
                 totalTranslogOps,
@@ -783,6 +786,7 @@ public class RecoverySourceHandler {
             shardId + " marking " + request.targetAllocationId() + " as in sync", shard, cancellableThreads, logger);
         final long globalCheckpoint = shard.getLastKnownGlobalCheckpoint(); // this global checkpoint is persisted in finalizeRecovery
         final StepListener<Void> finalizeListener = new StepListener<>();
+        cancellableThreads.checkForCancel();
         recoveryTarget.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, finalizeListener);
         finalizeListener.whenComplete(r -> {
             runUnderPrimaryPermit(() -> shard.updateGlobalCheckpointForShard(request.targetAllocationId(), globalCheckpoint),
@@ -890,6 +894,7 @@ public class RecoverySourceHandler {
 
                 @Override
                 protected void sendChunkRequest(FileChunk request, ActionListener<Void> listener) {
+                    cancellableThreads.checkForCancel();
                     recoveryTarget.writeFileChunk(
                         request.md, request.position, request.content, request.lastChunk, translogOps.getAsInt(), listener);
                 }
@@ -918,6 +923,7 @@ public class RecoverySourceHandler {
         // Once the files have been renamed, any other files that are not
         // related to this recovery (out of date segments, for example)
         // are deleted
+        cancellableThreads.checkForCancel();
         recoveryTarget.cleanFiles(translogOps.getAsInt(), globalCheckpoint, sourceMetadata,
             ActionListener.delegateResponse(listener, (l, e) -> ActionListener.completeWith(l, () -> {
                 StoreFileMetaData[] mds = StreamSupport.stream(sourceMetadata.spliterator(), false).toArray(StoreFileMetaData[]::new);

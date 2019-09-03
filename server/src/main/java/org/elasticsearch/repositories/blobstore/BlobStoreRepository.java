@@ -913,17 +913,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final BlobContainer shardContainer = shardContainer(indexId, shardId);
             final Set<String> blobs;
             if (generation == null) {
-                try {
-                    blobs = shardContainer.listBlobsByPrefix(INDEX_FILE_PREFIX).keySet();
-                } catch (IOException e) {
-                    throw new IndexShardSnapshotFailedException(shardId, "failed to list blobs", e);
-                }
+                blobs = recoverShardGenBlobs(shardId, shardContainer);
             } else {
                 blobs = Collections.singleton(INDEX_FILE_PREFIX + generation);
             }
 
-            Tuple<BlobStoreIndexShardSnapshots, Long> tuple =
-                buildBlobStoreIndexShardSnapshots(blobs, shardContainer, generation);
+            Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(blobs, shardContainer, generation);
             BlobStoreIndexShardSnapshots snapshots = tuple.v1();
             long fileListGeneration = tuple.v2();
 
@@ -1069,6 +1064,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } catch (Exception e) {
             snapshotDoneListener.onFailure(e);
         }
+    }
+
+    // Find shard index blobs from listing a shard directories contents. Used as a fallback if a shard generation could not be
+    // determined from the repository meta-data.
+    private static Set<String> recoverShardGenBlobs(ShardId shardId, BlobContainer shardContainer) {
+        final Set<String> blobs;
+        try {
+            blobs = shardContainer.listBlobsByPrefix(INDEX_FILE_PREFIX).keySet();
+        } catch (IOException e) {
+            throw new IndexShardSnapshotFailedException(shardId, "failed to list blobs", e);
+        }
+        return blobs;
     }
 
     @Override

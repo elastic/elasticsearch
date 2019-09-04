@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.enrich.action;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -24,7 +23,6 @@ import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.assertEqualPolici
 import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.randomEnrichPolicy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase {
 
@@ -79,7 +77,8 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
         final TransportGetEnrichPolicyAction transportAction = node().injector().getInstance(TransportGetEnrichPolicyAction.class);
         ActionTestUtils.execute(transportAction, null,
             // empty or null should return the same
-            randomBoolean() ? new GetEnrichPolicyAction.Request() : new GetEnrichPolicyAction.Request(""),
+            randomBoolean() ? new GetEnrichPolicyAction.Request() :
+                    new GetEnrichPolicyAction.Request(new String[]{}),
             new ActionListener<>() {
                 @Override
                 public void onResponse(GetEnrichPolicyAction.Response response) {
@@ -144,7 +143,7 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
         final AtomicReference<GetEnrichPolicyAction.Response> reference = new AtomicReference<>();
         final TransportGetEnrichPolicyAction transportAction = node().injector().getInstance(TransportGetEnrichPolicyAction.class);
         ActionTestUtils.execute(transportAction, null,
-            new GetEnrichPolicyAction.Request(name),
+            new GetEnrichPolicyAction.Request(new String[]{name}),
             new ActionListener<GetEnrichPolicyAction.Response>() {
                 @Override
                 public void onResponse(GetEnrichPolicyAction.Response response) {
@@ -177,25 +176,23 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
         assertThat(error.get(), nullValue());
 
         final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<Exception> reference = new AtomicReference<>();
+        final AtomicReference<GetEnrichPolicyAction.Response> reference = new AtomicReference<>();
         final TransportGetEnrichPolicyAction transportAction = node().injector().getInstance(TransportGetEnrichPolicyAction.class);
         ActionTestUtils.execute(transportAction, null,
-            new GetEnrichPolicyAction.Request("non-exists"),
+            new GetEnrichPolicyAction.Request(new String[]{"non-exists"}),
             new ActionListener<GetEnrichPolicyAction.Response>() {
                 @Override
                 public void onResponse(GetEnrichPolicyAction.Response response) {
-                    fail();
+                    reference.set(response);
+                    latch.countDown();
                 }
 
                 public void onFailure(final Exception e) {
-                    reference.set(e);
-                    latch.countDown();
+                    fail();
                 }
             });
         latch.await();
         assertNotNull(reference.get());
-        assertThat(reference.get(), instanceOf(ResourceNotFoundException.class));
-        assertThat(reference.get().getMessage(),
-            equalTo("Policy [non-exists] not found"));
+        assertThat(reference.get().getPolicies().size(), equalTo(0));
     }
 }

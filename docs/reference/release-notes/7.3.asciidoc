@@ -176,7 +176,6 @@ SQL::
 Search::
 * Wildcard intervals {pull}43691[#43691] (issue: {issue}43198[#43198])
 * Add prefix intervals source {pull}43635[#43635] (issue: {issue}43198[#43198])
-* Add an option to force the numeric type of a field sort {pull}38095[#38095] (issue: {issue}32601[#32601])
 
 
 

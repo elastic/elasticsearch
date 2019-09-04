@@ -33,8 +33,8 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
     public static final String ENRICH_INDEX_NAME_BASE = ".enrich-";
 
-    public static final String EXACT_MATCH_TYPE = "exact_match";
-    public static final String[] SUPPORTED_POLICY_TYPES = new String[]{EXACT_MATCH_TYPE};
+    public static final String MATCH_TYPE = "match";
+    public static final String[] SUPPORTED_POLICY_TYPES = new String[]{MATCH_TYPE};
 
     private static final ParseField QUERY = new ParseField("query");
     private static final ParseField INDICES = new ParseField("indices");

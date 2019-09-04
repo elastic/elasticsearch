@@ -4,6 +4,12 @@ Comma-separated list or wildcard expression of index alias names
 used to limit the request.
 end::index-alias[]
 
+tag::aliases[]
+`aliases`::
+(Optional, <<indices-aliases,alias object>>) Index aliases which include the
+index. See <<indices-aliases>>.
+end::aliases[]
+
 tag::allow-no-indices[]
 `allow_no_indices`::
 (Optional, boolean) If `true`, the request returns an error if a wildcard
@@ -161,6 +167,21 @@ node only. Defaults to `false`, which means information is retrieved from
 the master node.
 end::local[]
 
+tag::mappings[]
+`mappings`::
++
+--
+(Optional, <<mapping,mapping object>>) Mapping for fields in the index. If
+specified, this mapping can include:
+
+* Field names
+* <<mapping-types,Field datatypes>>
+* <<mapping-params,Mapping parameters>>
+
+See <<mapping>>.
+--
+end::mappings[]
+
 tag::max_docs[]
 `max_docs`::
 (Optional, integer) Maximum number of documents to process. Defaults to all
@@ -249,6 +270,12 @@ tag::search_type[]
 * `query_then_fetch`
 * `dfs_query_then_fetch`
 end::search_type[]
+
+tag::settings[]
+`settings`::
+(Optional, <<index-modules-settings,index setting object>>) Configuration
+options for the index. See <<index-modules-settings>>.
+end::settings[]
 
 tag::slices[]
 `slices`::

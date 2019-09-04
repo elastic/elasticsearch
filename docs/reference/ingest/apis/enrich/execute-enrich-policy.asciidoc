@@ -49,6 +49,7 @@ PUT /_enrich/policy/my-policy/_execute
 DELETE /_enrich/policy/my-policy
 --------------------------------------------------
 // CONSOLE
+// TEST[continued]
 ////
 
 

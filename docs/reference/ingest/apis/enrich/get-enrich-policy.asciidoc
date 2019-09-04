@@ -136,4 +136,5 @@ The API returns the following response:
 DELETE /_enrich/policy/my-policy
 --------------------------------------------------
 // CONSOLE
+// TEST[continued]
 ////

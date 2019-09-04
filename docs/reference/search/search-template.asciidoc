@@ -78,7 +78,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=preference]
   to `false`.
 
 `rest_total_hits_as_int`::
-  (Optional, boolean) If `true`, `hits.total` aree rendered as an integer in 
+  (Optional, boolean) If `true`, `hits.total` are rendered as an integer in 
   the response. Defaults to `false`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=routing]

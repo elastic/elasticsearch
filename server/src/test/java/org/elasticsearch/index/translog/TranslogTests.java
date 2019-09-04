@@ -2285,6 +2285,7 @@ public class TranslogTests extends ESTestCase {
      * Tests the situation where the node crashes after a translog gen was committed to lucene, but before the translog had the chance
      * to clean up its files.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/46267")
     public void testRecoveryFromFailureOnTrimming() throws IOException {
         Path tempDir = createTempDir();
         final FailSwitch fail = new FailSwitch();
@@ -3305,20 +3306,24 @@ public class TranslogTests extends ESTestCase {
                             }
                             assertNotNull(location);
                             long globalCheckpoint = lastGlobalCheckpoint.get();
+                            final boolean synced;
                             if (randomBoolean()) {
-                                translog.ensureSynced(location);
+                                synced = translog.ensureSynced(location);
                             } else {
                                 translog.sync();
+                                synced = true;
                             }
                             for (Translog.Operation op : ops) {
                                 assertThat("seq# " + op.seqNo() + " was not marked as persisted", persistedSeqNos, hasItem(op.seqNo()));
                             }
                             Checkpoint checkpoint = translog.getLastSyncedCheckpoint();
                             assertThat(checkpoint.offset, greaterThanOrEqualTo(location.translogLocation));
-                            assertThat(checkpoint.globalCheckpoint, greaterThanOrEqualTo(globalCheckpoint));
                             for (Translog.Operation op : ops) {
                                 assertThat(checkpoint.minSeqNo, lessThanOrEqualTo(op.seqNo()));
                                 assertThat(checkpoint.maxSeqNo, greaterThanOrEqualTo(op.seqNo()));
+                            }
+                            if (synced) {
+                                assertThat(checkpoint.globalCheckpoint, greaterThanOrEqualTo(globalCheckpoint));
                             }
                         } catch (Exception e) {
                             throw new AssertionError(e);

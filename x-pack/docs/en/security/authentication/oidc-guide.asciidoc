@@ -5,7 +5,7 @@
 
 The Elastic Stack supports single sign-on (SSO) using OpenID Connect via {kib} using
 {es} as the backend service that holds most of the functionality. {kib} and {es}
-together represent an OpenID Connect Relying Party (RP) that supports the Authorization Code Flow and Implicit Flow as these are defined in the OpenID Connect specification.
+together represent an OpenID Connect Relying Party (RP) that supports the authorization code flow and implicit flow as these are defined in the OpenID Connect specification.
 
 This guide assumes that you have an OpenID Connect Provider where the
 Elastic Stack Relying Party will be registered.
@@ -157,8 +157,8 @@ op.authorization_endpoint::
 
 op.token_endpoint::
     The URL for the Token Endpoint in the OpenID Connect Provider. This is the endpoint where
-    {es} will send a request to exchange the code for an ID Token. Setting this is optional when
-    using the Implicit Flow. The value for this setting should be provided by your OpenID Connect Provider.
+    {es} will send a request to exchange the code for an ID Token.  This setting is optional when
+    you use the implicit flow. The value for this setting should be provided by your OpenID Connect Provider.
 
 op.jwkset_path::
     The path to a file or a URL containing a JSON Web Key Set with the key material that the OpenID Connect
@@ -551,8 +551,8 @@ for this Kibana instance.
 {kib} has in-built protection against _Cross Site Request Forgery_ attacks, which
 is designed to prevent the {kib} server from processing requests that
 originated from outside the {kib} application.
-In case you use the authorization code flow, {kib} needs to support unsolicited messages that originate from your
-OP or a third party (see <<third-party-login>>). In order to do so, we need to explicitly _whitelist_ the
+If you use the authorization code flow, {kib} needs to support unsolicited messages that originate from your
+OP or a third party (see <<third-party-login>>). In order to do so, you must explicitly _whitelist_ the
 OpenID Connect authentication endpoint within {kib}, so that the {kib} server will
 not reject these external messages.
 

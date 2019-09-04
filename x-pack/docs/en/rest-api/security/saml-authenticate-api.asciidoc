@@ -2,8 +2,10 @@
 [[security-api-saml-authenticate]]
 === SAML authenticate API
 
-Submits a SAML response message to {es} for consumption when using a custom web application other than {kib}.
-If you are using {kib}, please see the {stack-ov}/saml-guide.html[SAML guide]
+Submits a SAML response message to {es} for consumption.
+
+NOTE: This API is intended for use by custom web applications other than {kib}.
+If you are using {kib}, see the {stack-ov}/saml-guide.html[SAML guide].
 
 [[security-api-saml-authenticate-request]]
 ==== {api-request-title}

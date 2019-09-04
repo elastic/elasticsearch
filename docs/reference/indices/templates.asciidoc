@@ -1,11 +1,12 @@
 [[indices-templates]]
 === Index Templates
 
-Index templates allow you to define templates that will automatically be
-applied when new indices are created. The templates include both 
-<<index-modules-settings,settings>> and <<mapping,mappings>>
-and a simple pattern template that controls whether the template should be 
-applied to the new index.
+// tag::index-template-def[]
+Index templates define <<index-modules-settings,settings>> and <<mapping,mappings>>
+that you can automatically apply when creating new indices.
+{es} applies templates to new indices
+based on an index pattern that matches the index name.
+// end::index-template-def[]
 
 NOTE: Templates are only applied at index creation time. Changing a template
 will have no impact on existing indices. When using the create index API, the
@@ -118,26 +119,6 @@ To get list of all index templates you can run:
 GET /_template
 --------------------------------------------------
 // CONSOLE
-
-[float]
-[[indices-templates-exists]]
-==== Template exists
-
-Used to check if the template exists or not. For example:
-
-[source,js]
------------------------------------------------
-HEAD _template/template_1
------------------------------------------------
-// CONSOLE
-
-The HTTP status code indicates if the template with the given name
-exists or not. Status code `200` means it exists and `404` means
-it does not.
-
-NOTE: Before 7.0.0, the 'mappings' definition used to include a type name. Although mappings
-no longer contain a type name by default, you can still use the old format by setting
-the parameter include_type_name. For more details, please see <<removal-of-types>>.
 
 [float]
 [[multiple-templates]]

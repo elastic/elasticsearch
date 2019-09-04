@@ -99,7 +99,25 @@ The API returns the following results:
     "data_frame_analytics": [
         {
             "id": "loganalytics",
-            "state": "stopped"
+            "state": "stopped",
+            "progress": [
+              {
+                "phase": "reindexing",
+                "progress_percent": 0
+              },
+              {
+                "phase": "loading_data",
+                "progress_percent": 0
+              },
+              {
+                "phase": "analyzing",
+                "progress_percent": 0
+              },
+              {
+                "phase": "writing_results",
+                "progress_percent": 0
+              }
+            ]
         }
     ]
 }

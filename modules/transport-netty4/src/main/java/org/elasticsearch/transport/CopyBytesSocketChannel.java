@@ -40,6 +40,7 @@ import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import org.elasticsearch.common.SuppressForbidden;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 
@@ -74,7 +75,6 @@ public class CopyBytesSocketChannel extends NioSocketChannel {
 
     @Override
     protected void doWrite(ChannelOutboundBuffer in) throws Exception {
-        SocketChannel ch = javaChannel();
         int writeSpinCount = config().getWriteSpinCount();
         do {
             if (in.isEmpty()) {
@@ -99,7 +99,7 @@ public class CopyBytesSocketChannel extends NioSocketChannel {
                 ioBuffer.flip();
 
                 int attemptedBytes = ioBuffer.remaining();
-                final int localWrittenBytes = ch.write(ioBuffer);
+                final int localWrittenBytes = writeToSocketChannel(javaChannel(), ioBuffer);
                 if (localWrittenBytes <= 0) {
                     incompleteWrite(true);
                     return;
@@ -119,12 +119,22 @@ public class CopyBytesSocketChannel extends NioSocketChannel {
         final RecvByteBufAllocator.Handle allocHandle = unsafe().recvBufAllocHandle();
         allocHandle.attemptedBytesRead(byteBuf.writableBytes());
         ByteBuffer ioBuffer = getIoBuffer();
-        int bytesRead = javaChannel().read(ioBuffer);
+        int bytesRead = readFromSocketChannel(javaChannel(), ioBuffer);
         ioBuffer.flip();
         if (bytesRead > 0) {
             byteBuf.writeBytes(ioBuffer);
         }
         return bytesRead;
+    }
+
+    // Protected so that tests can verify behavior and simulate partial writes
+    protected int writeToSocketChannel(SocketChannel socketChannel, ByteBuffer ioBuffer) throws IOException {
+        return socketChannel.write(ioBuffer);
+    }
+
+    // Protected so that tests can verify behavior
+    protected int readFromSocketChannel(SocketChannel socketChannel, ByteBuffer ioBuffer) throws IOException {
+        return socketChannel.read(ioBuffer);
     }
 
     private static ByteBuffer getIoBuffer() {

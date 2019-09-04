@@ -1,0 +1,149 @@
+[role="xpack"]
+[testenv="basic"]
+[[put-enrich-policy-api]]
+=== Put enrich policy API
+++++
+<titleabbrev>Put enrich policy</titleabbrev>
+++++
+
+Creates an enrich policy.
+
+////
+[source,js]
+----
+PUT /users
+----
+// CONSOLE
+////
+
+[source,js]
+----
+PUT /_enrich/policy/my-policy
+{
+    "match": {
+        "indices": "users",
+        "match_field": "email",
+        "enrich_fields": ["first_name", "last_name", "city", "zip", "state"]
+    }
+}
+----
+// CONSOLE
+// TEST[continued]
+
+////
+[source,js]
+--------------------------------------------------
+DELETE /_enrich/policy/my-policy
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+////
+
+
+[[put-enrich-policy-api-request]]
+==== {api-request-title}
+
+`PUT /_enrich/policy/<enrich-policy>`
+
+
+[[put-enrich-policy-api-prereqs]]
+==== {api-prereq-title}
+
+// tag::enrich-policy-api-prereqs[]
+If you use {es} {security-features}, you must have:
+
+* `read` index privileges for any indices used
+* The `enrich_user` {stack-ov}/built-in-roles.html[built-in role]
+// end::enrich-policy-api-prereqs[]
+
+
+[[put-enrich-policy-api-desc]]
+==== {api-description-title}
+
+Use the put enrich policy API
+to create a new enrich policy.
+
+// tag::enrich-policy-def
+An *enrich policy* is a set of rules the enrich processor uses
+to append the appropriate data to incoming documents.
+An enrich policy contains:
+
+* The *policy type*,
+  which determines how the processor enriches incoming documents
+* A list of source indices
+* The *match field*, a field used to match incoming documents
+* *Enrich fields*, fields appended to incoming documents
+  from matching documents
+// end::enrich-policy-def
+
+
+===== Update an enrich policy
+
+// tag::update-enrich-policy
+You cannot update an existing enrich policy.
+Instead, you can:
+
+.   Create and execute a new enrich policy.
+
+.   Replace the previous enrich policy
+    with the new enrich policy
+    in any in-use enrich processors.
+
+.   Use the <<delete-enrich-policy-api, delete enrich policy API>>
+    to delete the previous enrich policy.
+// end::update-enrich-policy
+
+
+[[put-enrich-policy-api-path-params]]
+==== {api-path-parms-title}
+
+`<enrich-policy>`::
+(Required, string)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=enrich-policy]
+
+
+[[put-enrich-policy-api-request-body]]
+==== {api-request-body-title}
+
+`<policy-type>`::
++
+--
+(Required, enrich policy object)
+The parameter key is the enrich policy type.
+The enrich policy type indicates
+how the enrich processor matches incoming documents 
+to documents in the enrich index.
+
+Valid key values are:
+
+`match`::
+Match documents in the enrich index
+using a <<query-dsl-term-query, term query>> for the `match_field`.
+
+The parameter value is the enrich policy.
+The enrich policy is a set of rules
+used to create an <<execute-enrich-policy,enrich index>>.
+The enrich processor also uses these rules
+to append field data to incoming documents.
+
+Parameters include:
+
+`indices`::
+(Required, array of strings)
+Source indices used to create the enrich index.
+
+`query`::
+(Optional, string)
+Query type used to find and select documents in the enrich index.
+Valid value is <<query-dsl-match-all-query,`match_all`>> (default).
+
+`match_field`::
+(Required, string)
+Field used to match incoming documents 
+to documents in the enrich index.
+
+`enrich_fields`::
+(Required, Array of string)
+Fields appended to incoming documents
+from matching documents in the enrich index.
+--

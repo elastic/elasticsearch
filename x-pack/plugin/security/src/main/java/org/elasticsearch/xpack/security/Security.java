@@ -61,6 +61,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.SharedGroupFactory;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -289,7 +290,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     private final SetOnce<TokenService> tokenService = new SetOnce<>();
     private final SetOnce<SecurityActionFilter> securityActionFilter = new SetOnce<>();
     private final SetOnce<SecurityIndexManager> securityIndex = new SetOnce<>();
-    private final SetOnce<NioGroupFactory> groupFactory = new SetOnce<>();
+    private final SetOnce<SharedGroupFactory> sharedGroupFactory = new SetOnce<>();
+    private final SetOnce<NioGroupFactory> nioGroupFactory = new SetOnce<>();
     private final SetOnce<DocumentSubsetBitsetCache> dlsBitsetCache = new SetOnce<>();
     private final List<BootstrapCheck> bootstrapChecks;
     private final List<SecurityExtension> securityExtensions = new ArrayList<>();
@@ -871,7 +873,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                         namedWriteableRegistry,
                         circuitBreakerService,
                         ipFilter,
-                        getSslService()),
+                        getSslService(),
+                        getNettySharedGroupFactory(settings)),
                 // security based on NIO
                 SecurityField.NIO,
                 () -> new SecurityNioTransport(settings,
@@ -899,7 +902,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
         Map<String, Supplier<HttpServerTransport>> httpTransports = new HashMap<>();
         httpTransports.put(SecurityField.NAME4, () -> new SecurityNetty4HttpServerTransport(settings, networkService, bigArrays,
-            ipFilter.get(), getSslService(), threadPool, xContentRegistry, dispatcher));
+            ipFilter.get(), getSslService(), threadPool, xContentRegistry, dispatcher, getNettySharedGroupFactory(settings)));
         httpTransports.put(SecurityField.NIO, () -> new SecurityNioHttpServerTransport(settings, networkService, bigArrays,
             pageCacheRecycler, threadPool, xContentRegistry, dispatcher, ipFilter.get(), getSslService(), getNioGroupFactory(settings)));
 
@@ -1011,12 +1014,22 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     }
 
     private synchronized NioGroupFactory getNioGroupFactory(Settings settings) {
-         if (groupFactory.get() != null) {
-             assert groupFactory.get().getSettings().equals(settings) : "Different settings than originally provided";
-             return groupFactory.get();
+         if (nioGroupFactory.get() != null) {
+             assert nioGroupFactory.get().getSettings().equals(settings) : "Different settings than originally provided";
+             return nioGroupFactory.get();
          } else {
-            groupFactory.set(new NioGroupFactory(settings, logger));
-            return groupFactory.get();
+            nioGroupFactory.set(new NioGroupFactory(settings, logger));
+            return nioGroupFactory.get();
          }
+    }
+
+    private synchronized SharedGroupFactory getNettySharedGroupFactory(Settings settings) {
+        if (sharedGroupFactory.get() != null) {
+            assert sharedGroupFactory.get().getSettings().equals(settings) : "Different settings than originally provided";
+            return sharedGroupFactory.get();
+        } else {
+            sharedGroupFactory.set(new SharedGroupFactory(settings));
+            return sharedGroupFactory.get();
+        }
     }
 }

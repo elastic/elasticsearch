@@ -180,7 +180,7 @@ public class AzureBlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTes
                     exchange.getResponseBody().write(response);
 
                 } else {
-                    exchange.sendResponseHeaders(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), -1);
+                    exchange.sendResponseHeaders(RestStatus.BAD_REQUEST.getStatus(), -1);
                 }
             } finally {
                 exchange.close();

@@ -1,7 +1,7 @@
 [[search-template]]
 === Search Template
 
-Allows to use the mustache language to pre render search requests.
+Allows you to use the mustache language to pre render search requests.
 
 [source,js]
 ------------------------------------------

@@ -48,7 +48,8 @@ public final class MatchProcessor extends AbstractEnrichProcessor {
             policyName,
             field,
             targetField,
-            matchField, ignoreMissing,
+            matchField,
+            ignoreMissing,
             overrideEnabled,
             maxMatches
         );
@@ -113,18 +114,12 @@ public final class MatchProcessor extends AbstractEnrichProcessor {
                 }
 
                 if (overrideEnabled || ingestDocument.hasField(targetField) == false) {
-                    if (searchHits.length == 1) {
-                        // If a document is returned, add its fields to the document
-                        Map<String, Object> enrichDocument = searchHits[0].getSourceAsMap();
-                        ingestDocument.setFieldValue(targetField, enrichDocument);
-                    } else {
-                        List<Map<String, Object>> enrichDocuments = new ArrayList<>(searchHits.length);
-                        for (SearchHit searchHit : searchHits) {
-                            Map<String, Object> enrichDocument = searchHit.getSourceAsMap();
-                            enrichDocuments.add(enrichDocument);
-                        }
-                        ingestDocument.setFieldValue(targetField, enrichDocuments);
+                    List<Map<String, Object>> enrichDocuments = new ArrayList<>(searchHits.length);
+                    for (SearchHit searchHit : searchHits) {
+                        Map<String, Object> enrichDocument = searchHit.getSourceAsMap();
+                        enrichDocuments.add(enrichDocument);
                     }
+                    ingestDocument.setFieldValue(targetField, enrichDocuments);
                 }
                 handler.accept(ingestDocument, null);
             });

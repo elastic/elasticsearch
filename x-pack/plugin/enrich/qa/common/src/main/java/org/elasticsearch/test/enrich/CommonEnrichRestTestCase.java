@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.equalTo;
 public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
 
     @After
-    private void deletePolicies() throws Exception {
+    public void deletePolicies() throws Exception {
         Map<String, Object> responseMap = toMap(adminClient().performRequest(new Request("GET", "/_enrich/policy")));
         @SuppressWarnings("unchecked")
         List<Map<?,?>> policies = (List<Map<?,?>>) responseMap.get("policies");
@@ -71,7 +71,8 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         // Check if document has been enriched
         Request getRequest = new Request("GET", "/my-index/_doc/1");
         Map<String, Object> response = toMap(client().performRequest(getRequest));
-        Map<?, ?> _source = (Map<?, ?>) ((Map<?, ?>) response.get("_source")).get("entry");
+        List<?> entries = (List<?>) ((Map<?, ?>) response.get("_source")).get("entry");
+        Map<?, ?> _source = (Map<?, ?>) entries.get(0);
         assertThat(_source.size(), equalTo(4));
         assertThat(_source.get("host"), equalTo("elastic.co"));
         assertThat(_source.get("tld"), equalTo("co"));

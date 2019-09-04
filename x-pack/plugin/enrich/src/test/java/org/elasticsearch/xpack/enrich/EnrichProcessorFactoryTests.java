@@ -51,7 +51,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
         Integer maxMatches = null;
         if (randomBoolean()) {
-            maxMatches = randomIntBetween(1, 1024);
+            maxMatches = randomIntBetween(1, 128);
             config.put("max_matches", maxMatches);
         }
 

@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
@@ -70,7 +71,8 @@ public class MatchProcessorTests extends ESTestCase {
         assertThat(termQueryBuilder.fieldName(), equalTo("domain"));
         assertThat(termQueryBuilder.value(), equalTo("elastic.co"));
         // Check result
-        Map<?, ?> entry = ingestDocument.getFieldValue("entry", Map.class);
+        List<?> entries = ingestDocument.getFieldValue("entry", List.class);
+        Map<?, ?> entry = (Map<?, ?>) entries.get(0);
         assertThat(entry.size(), equalTo(3));
         assertThat(entry.get("globalRank"), equalTo(451));
         assertThat(entry.get("tldRank"), equalTo(23));

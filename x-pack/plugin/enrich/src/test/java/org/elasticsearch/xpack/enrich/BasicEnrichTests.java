@@ -131,7 +131,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             GetResponse getResponse = client().get(new GetRequest("my-index", Integer.toString(i))).actionGet();
             Map<String, Object> source = getResponse.getSourceAsMap();
             assertThat(source.size(), equalTo(2));
-            assertThat(source.get("target"), equalTo(Map.of("key", "key", "value", "val" + i)));
+            assertThat(source.get("target"), equalTo(List.of(Map.of("key", "key", "value", "val" + i))));
         }
     }
 

@@ -770,10 +770,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Given a type (eg. long, string, ...), return an anonymous field mapper that can be used for search operations.
      */
     public MappedFieldType unmappedFieldType(String type) {
-        if (type.equals("string")) {
-            deprecationLogger.deprecated("[unmapped_type:string] should be replaced with [unmapped_type:keyword]");
-            type = "keyword";
-        }
         MappedFieldType fieldType = unmappedFieldTypes.get(type);
         if (fieldType == null) {
             final Mapper.TypeParser.ParserContext parserContext = documentMapperParser().parserContext();

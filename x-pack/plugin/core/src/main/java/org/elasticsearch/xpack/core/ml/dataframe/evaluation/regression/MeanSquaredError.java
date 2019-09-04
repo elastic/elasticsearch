@@ -69,7 +69,7 @@ public class MeanSquaredError implements RegressionMetric {
     @Override
     public EvaluationMetricResult evaluate(Aggregations aggs) {
         NumericMetricsAggregation.SingleValue value = aggs.get(AGG_NAME);
-        return value == null ? null : new Result(value.value());
+        return value == null ? new Result(0.0) : new Result(value.value());
     }
 
     @Override
@@ -136,6 +136,19 @@ public class MeanSquaredError implements RegressionMetric {
             builder.field(ERROR, error);
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Result other = (Result)o;
+            return error == other.error;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hashCode(error);
         }
     }
 }

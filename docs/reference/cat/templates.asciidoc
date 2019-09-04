@@ -12,13 +12,13 @@ and <<mapping,field mappings>> to new indices at creation.
 [[cat-templates-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/templates/{template_name}`
+`GET /_cat/templates/<template_name>`
 
 
 [[cat-templates-path-params]]
 ==== {api-path-parms-title}
 
-`{template_name}`::
+`<template_name>`::
 (Optional, string) Comma-separated list of index template names used to limit
 the request. Accepts wildcard expressions.
 

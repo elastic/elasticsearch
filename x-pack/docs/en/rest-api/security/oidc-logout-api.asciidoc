@@ -29,10 +29,10 @@ and
 ==== {api-request-body-title}
 
 `access_token`::
-The value of the access token to be invalidated as part of the logout.
+  (Required, string) The value of the access token to be invalidated as part of the logout.
 
 `refresh_token`::
-(Optional) The value of the refresh token to be invalidated as part of the logout.
+  (Optional, string) The value of the refresh token to be invalidated as part of the logout.
 
 
 [[security-api-oidc-logout-example]]

@@ -42,14 +42,14 @@ Serves as an advice on how to set `model_memory_limit` when creating {dfanalytic
 [[ml-estimate-memory-usage-dfanalytics-results]]
 ==== {api-response-body-title}
 
-`expected_memory_usage_with_one_partition`::
+`expected_memory_without_disk`::
   (string) Estimated memory usage under the assumption that the whole {dfanalytics} should happen in memory
   (i.e. without overflowing to disk).
   
-`expected_memory_usage_with_max_partitions`::
+`expected_memory_with_disk`::
   (string) Estimated memory usage under the assumption that overflowing to disk is allowed during {dfanalytics}.
-  `expected_memory_usage_with_max_partitions` is usually smaller than `expected_memory_usage_with_one_partition`
-  as using disk allows to limit the main memory needed to perform {dfanalytics}.
+  `expected_memory_with_disk` is usually smaller than `expected_memory_without_disk` as using disk allows to
+  limit the main memory needed to perform {dfanalytics}.
 
 [[ml-estimate-memory-usage-dfanalytics-example]]
 ==== {api-examples-title}
@@ -76,8 +76,8 @@ The API returns the following results:
 [source,js]
 ----
 {
-  "expected_memory_usage_with_one_partition": "128MB",
-  "expected_memory_usage_with_max_partitions": "32MB"
+  "expected_memory_without_disk": "128MB",
+  "expected_memory_with_disk": "32MB"
 }
 ----
 // TESTRESPONSE

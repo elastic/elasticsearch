@@ -546,10 +546,10 @@ When running `./gradlew check`, minimal bwc checks are also run against compatib
 Sometimes a backward compatibility change spans two versions. A common case is a new functionality
 that needs a BWC bridge in an unreleased versioned of a release branch (for example, 5.x).
 To test the changes, you can instruct Gradle to build the BWC version from a another remote/branch combination instead of
-pulling the release branch from GitHub. You do so using the `tests.bwc.remote` and `tests.bwc.refspec.BRANCH` system properties:
+pulling the release branch from GitHub. You do so using the `bwc.remote` and `bwc.refspec.BRANCH` system properties:
 
 -------------------------------------------------
-./gradlew check -Dtests.bwc.remote=${remote} -Dtests.bwc.refspec.5.x=index_req_bwc_5.x
+./gradlew check -Dbwc.remote=${remote} -Dbwc.refspec.5.x=index_req_bwc_5.x
 -------------------------------------------------
 
 The branch needs to be available on the remote that the BWC makes of the
@@ -564,7 +564,7 @@ will need to:
 will contain your change.
 . Create a branch called `index_req_bwc_5.x` off `5.x`. This will contain your bwc layer.
 . Push both branches to your remote repository.
-. Run the tests with `./gradlew check -Dtests.bwc.remote=${remote} -Dtests.bwc.refspec.5.x=index_req_bwc_5.x`.
+. Run the tests with `./gradlew check -Dbwc.remote=${remote} -Dbwc.refspec.5.x=index_req_bwc_5.x`.
 
 ==== Skip fetching latest
 

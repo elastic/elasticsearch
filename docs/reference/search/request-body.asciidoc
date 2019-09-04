@@ -74,10 +74,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=search_type]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 
-`timeout`::
-  (Optional, <<time-units, time units>>) A search timeout, bounding the search 
-  request to be executed within the specified time value and bail with the hits 
-  accumulated up to that point when expired. Defaults to no timeout.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
 
 
 Out of the above, the `search_type`, `request_cache` and the 

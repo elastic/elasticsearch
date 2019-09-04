@@ -121,11 +121,11 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
         final String endpoint = "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
 
         return Settings.builder()
-            .put(Settings.builder()
-                .put(S3ClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace("test").getKey(), endpoint)
-                // Disable chunked encoding as it simplifies a lot the request parsing on the httpServer side
-                .put(S3ClientSettings.DISABLE_CHUNKED_ENCODING.getConcreteSettingForNamespace("test").getKey(), true)
-                .build())
+            .put(S3ClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace("test").getKey(), endpoint)
+            // Disable chunked encoding as it simplifies a lot the request parsing on the httpServer side
+            .put(S3ClientSettings.DISABLE_CHUNKED_ENCODING.getConcreteSettingForNamespace("test").getKey(), true)
+            // Disable request throttling because some random values in tests might generate too many failures for the S3 client
+            .put(S3ClientSettings.USE_THROTTLE_RETRIES_SETTING.getConcreteSettingForNamespace("test").getKey(), false)
             .put(super.nodeSettings(nodeOrdinal))
             .setSecureSettings(secureSettings)
             .build();
@@ -283,19 +283,5 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
             exchange.sendResponseHeaders(HttpStatus.SC_INTERNAL_SERVER_ERROR, -1);
             exchange.close();
         }
-    }
-
-    // override here to mute only for S3, please remove this overload when un-muting
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/46218")
-    @Override
-    public void testSnapshotAndRestore() throws Exception {
-        super.testSnapshotAndRestore();
-    }
-
-    // override here to mute only for S3, pleaseremove this overload when un-muting
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/46219")
-    @Override
-    public void testMultipleSnapshotAndRollback() throws Exception {
-        super.testMultipleSnapshotAndRollback();
     }
 }

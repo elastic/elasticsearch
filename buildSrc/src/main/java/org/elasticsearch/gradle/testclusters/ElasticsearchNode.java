@@ -464,13 +464,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     public void restart() {
         LOGGER.info("Restarting {}", this);
         stop(false);
-        try {
-            Files.delete(httpPortsFile);
-            Files.delete(transportPortFile);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-
         start();
     }
 
@@ -479,11 +472,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         if (currentDistro + 1 >= distributions.size()) {
             throw new TestClustersException("Ran out of versions to go to for " + this);
         }
-        LOGGER.info("Switch version from {} to {} for {}",
-            getVersion(), distributions.get(currentDistro + 1).getVersion(), this
-        );
+        logToProcessStdout("Switch version from " + getVersion() + " to " + distributions.get(currentDistro + 1).getVersion());
+        stop(false);
         currentDistro += 1;
-        restart();
+        setting("node.attr.upgraded", "true");
+        start();
     }
 
     private boolean isSettingMissingOrTrue(String name) {
@@ -716,6 +709,17 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public synchronized void stop(boolean tailLogs) {
+        logToProcessStdout("Stopping node");
+        try {
+            if (Files.exists(httpPortsFile)) {
+                Files.delete(httpPortsFile);
+            }
+            if (Files.exists(transportPortFile)) {
+                Files.delete(transportPortFile);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
         if (esProcess == null && tailLogs) {
             // This is a special case. If start() throws an exception the plugin will still call stop
             // Another exception here would eat the orriginal.
@@ -867,6 +871,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void createWorkingDir(Path distroExtractDir) throws IOException {
         syncWithLinks(distroExtractDir, distroDir);
+        // Start configuration from scratch in case of a restart
+        project.delete(configFile.getParent());
         Files.createDirectories(configFile.getParent());
         Files.createDirectories(confPathRepo);
         Files.createDirectories(confPathData);

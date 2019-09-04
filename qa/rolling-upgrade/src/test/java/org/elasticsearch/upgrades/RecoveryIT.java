@@ -65,6 +65,8 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class RecoveryIT extends AbstractRollingTestCase {
 
+    private static String CLUSTER_NAME = System.getProperty("tests.clustername");
+
     public void testHistoryUUIDIsGenerated() throws Exception {
         final String index = "index_history_uuid";
         if (CLUSTER_TYPE == ClusterType.OLD) {
@@ -299,54 +301,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
     }
 
-    /**
-     * This test ensures that peer recovery won't get stuck in a situation where the recovery target and recovery source
-     * have an identical sync id but different local checkpoint in the commit in particular the target does not have
-     * sequence numbers yet. This is possible if the primary is on 6.x while the replica was on 5.x and some write
-     * operations with sequence numbers have taken place. If this is not the case, then peer recovery should utilize
-     * syncId and skip copying files.
-     */
-    public void testRecoverSyncedFlushIndex() throws Exception {
-        final String index = "recover_synced_flush_index";
-        if (CLUSTER_TYPE == ClusterType.OLD) {
-            Settings.Builder settings = Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2);
-            if (randomBoolean()) {
-                settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
-                    .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
-                    .put(IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING.getKey(), "256b");
-            }
-            createIndex(index, settings.build());
-            ensureGreen(index);
-            indexDocs(index, 0, 40);
-            syncedFlush(index);
-        } else if (CLUSTER_TYPE == ClusterType.MIXED) {
-            ensureGreen(index);
-            if (firstMixedRound) {
-                assertPeerRecoveredFiles("peer recovery with syncId should not copy files", index, "upgraded-node-0", equalTo(0));
-                assertDocCountOnAllCopies(index, 40);
-                indexDocs(index, 40, 50);
-                syncedFlush(index);
-            } else {
-                assertPeerRecoveredFiles("peer recovery with syncId should not copy files", index, "upgraded-node-1", equalTo(0));
-                assertDocCountOnAllCopies(index, 90);
-                indexDocs(index, 90, 60);
-                syncedFlush(index);
-                // exclude node-2 from allocation-filter so we can trim translog on the primary before node-2 starts recover
-                if (randomBoolean()) {
-                    updateIndexSettings(index, Settings.builder().put("index.routing.allocation.include._name", "upgraded-*"));
-                }
-            }
-        } else {
-            final int docsAfterUpgraded = randomIntBetween(0, 100);
-            indexDocs(index, 150, docsAfterUpgraded);
-            ensureGreen(index);
-            assertPeerRecoveredFiles("peer recovery with syncId should not copy files", index, "upgraded-node-2", equalTo(0));
-            assertDocCountOnAllCopies(index, 150 + docsAfterUpgraded);
-        }
-    }
-
     public void testRecoveryWithSoftDeletes() throws Exception {
         final String index = "recover_with_soft_deletes";
         if (CLUSTER_TYPE == ClusterType.OLD) {
@@ -530,12 +484,15 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
                 .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "120s")
-                .put("index.routing.allocation.include._name", "node-0")
+                .put("index.routing.allocation.include._name", CLUSTER_NAME + "-0")
                 .build());
             indexDocs(indexName, 0, randomInt(10));
             // allocate replica to node-2
             updateIndexSettings(indexName,
-                Settings.builder().put("index.routing.allocation.include._name", "node-0,node-2,upgraded-node-*"));
+                Settings.builder().put(
+                    "index.routing.allocation.include._name",
+                    CLUSTER_NAME + "-0," + CLUSTER_NAME + "-2," + CLUSTER_NAME + "-*")
+            );
             ensureGreen(indexName);
             closeIndex(indexName);
         }
@@ -546,8 +503,16 @@ public class RecoveryIT extends AbstractRollingTestCase {
             // so we expect the index to be closed and replicated
             ensureGreen(indexName);
             assertClosedIndex(indexName, true);
-            if (CLUSTER_TYPE != ClusterType.OLD && minimumNodeVersion().onOrAfter(Version.V_7_2_0)) {
-                assertNoFileBasedRecovery(indexName, s-> s.startsWith("upgraded"));
+            if (minimumNodeVersion().onOrAfter(Version.V_7_2_0)) {
+                switch (CLUSTER_TYPE) {
+                    case OLD: break;
+                    case MIXED:
+                        assertNoFileBasedRecovery(indexName, s -> s.startsWith(CLUSTER_NAME + "-0"));
+                        break;
+                    case UPGRADED:
+                        assertNoFileBasedRecovery(indexName, s -> s.startsWith(CLUSTER_NAME));
+                        break;
+                }
             }
         } else {
             assertClosedIndex(indexName, false);

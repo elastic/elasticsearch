@@ -4,7 +4,7 @@
 <titleabbrev>Put index template</titleabbrev>
 ++++
 
-Creates or update an index template.
+Creates or updates an index template.
 
 [source,js]
 --------------------------------------------------

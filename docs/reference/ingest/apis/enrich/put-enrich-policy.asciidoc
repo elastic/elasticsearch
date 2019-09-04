@@ -72,16 +72,11 @@ An enrich policy contains:
 You cannot update an existing enrich policy.
 Instead, you can:
 
-.   Create a new enrich policy
-    containing your desired changes.
+.   Create and execute a new enrich policy.
 
-.   Remove the previous enrich policy
-    from any in-use enrich processors
-    and ingest pipelines.
-
-.   Add the new enrich policy
-    to any desired ingest processors
-    and ingest pipelines.
+.   Replace the previous enrich policy
+    with the new enrich policy
+    in any in-use enrich processors.
 
 .   Use the <<delete-enrich-policy-api, delete enrich policy API>>
     to delete the previous enrich policy.

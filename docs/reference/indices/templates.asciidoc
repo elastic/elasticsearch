@@ -90,35 +90,11 @@ DELETE /_template/template_1
 --------------------------------------------------
 // CONSOLE
 
-[float]
-[[getting]]
+[float]	
+[[getting]]	
 ==== Getting templates
 
-Index templates are identified by a name (in the above case
-`template_1`) and can be retrieved using the following:
-
-[source,js]
---------------------------------------------------
-GET /_template/template_1
---------------------------------------------------
-// CONSOLE
-
-You can also match several templates by using wildcards like:
-
-[source,js]
---------------------------------------------------
-GET /_template/temp*
-GET /_template/template_1,template_2
---------------------------------------------------
-// CONSOLE
-
-To get list of all index templates you can run:
-
-[source,js]
---------------------------------------------------
-GET /_template
---------------------------------------------------
-// CONSOLE
+See <<indices-get-template>>.
 
 [float]
 [[multiple-templates]]

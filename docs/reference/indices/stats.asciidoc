@@ -6,20 +6,19 @@
 
 Returns statistics for an index.
 
-[source,js]
+[source,console]
 ----
 GET /twitter/_stats
 ----
-// CONSOLE
 // TEST[setup:twitter]
 
 
 [[index-stats-api-request]]
 ==== {api-request-title}
 
-`GET /<index>/_stats`
-
 `GET /<index>/_stats/<index-metric>`
+
+`GET /<index>/_stats`
 
 `GET /_stats`
 
@@ -94,22 +93,20 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
 [[index-stats-api-multiple-ex]]
 ===== Get statistics for multiple indices
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /index1,index2/_stats
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT index1\nPUT index2\n/]
 
 
 [[index-stats-api-all-ex]]
 ===== Get statistics for all indices
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_stats
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 
@@ -120,11 +117,10 @@ The following request returns
 only the `merge` and `refresh` statistics
 for all indices.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_stats/merge,refresh
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 
@@ -135,9 +131,8 @@ The following request returns
 only search statistics
 for the `group1` and `group2` search groups.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_stats/search?groups=group1,group2
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]

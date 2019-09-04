@@ -76,6 +76,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -155,11 +156,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         ImmutableOpenMap<String, IndexMetaData> indicesMetaData = metaData.indices();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
+
             if (indexRequest != null) {
-                // get pipeline from request
-                String pipeline = indexRequest.getPipeline();
-                if (pipeline == null) {
-                    // start to look for default pipeline via settings found in the index meta data
+                final String requestPipeline = indexRequest.getPipeline();
+                if (requestPipeline == null) {
+                    indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME);
+                    boolean requestCanOverridePipeline = true;
+                    String requiredPipeline = null;
+                    // start to look for default or required pipelines via settings found in the index meta data
                     IndexMetaData indexMetaData = indicesMetaData.get(actionRequest.index());
                     // check the alias for the index request (this is how normal index requests are modeled)
                     if (indexMetaData == null && indexRequest.index() != null) {
@@ -178,34 +182,76 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         }
                     }
                     if (indexMetaData != null) {
-                        // Find the default pipeline if one is defined from and existing index.
-                        String defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexMetaData.getSettings());
-                        indexRequest.setPipeline(defaultPipeline);
-                        if (IngestService.NOOP_PIPELINE_NAME.equals(defaultPipeline) == false) {
-                            hasIndexRequestsWithPipelines = true;
+                        final Settings indexSettings = indexMetaData.getSettings();
+                        if (IndexSettings.REQUIRED_PIPELINE.exists(indexSettings)) {
+                            // find the required pipeline if one is defined from an existing index
+                            requiredPipeline = IndexSettings.REQUIRED_PIPELINE.get(indexSettings);
+                            assert IndexSettings.DEFAULT_PIPELINE.get(indexSettings).equals(IngestService.NOOP_PIPELINE_NAME) :
+                                IndexSettings.DEFAULT_PIPELINE.get(indexSettings);
+                            indexRequest.setPipeline(requiredPipeline);
+                            requestCanOverridePipeline = false;
+                        } else {
+                            // find the default pipeline if one is defined from an existing index
+                            String defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(indexSettings);
+                            indexRequest.setPipeline(defaultPipeline);
                         }
                     } else if (indexRequest.index() != null) {
-                        // No index exists yet (and is valid request), so matching index templates to look for a default pipeline
+                        // the index does not exist yet (and is valid request), so match index templates to look for a default pipeline
                         List<IndexTemplateMetaData> templates = MetaDataIndexTemplateService.findTemplates(metaData, indexRequest.index());
                         assert (templates != null);
-                        String defaultPipeline = IngestService.NOOP_PIPELINE_NAME;
-                        // order of templates are highest order first, break if we find a default_pipeline
+                        // order of templates are highest order first, we have to iterate through them all though
+                        String defaultPipeline = null;
                         for (IndexTemplateMetaData template : templates) {
                             final Settings settings = template.settings();
-                            if (IndexSettings.DEFAULT_PIPELINE.exists(settings)) {
+                            if (requiredPipeline == null && IndexSettings.REQUIRED_PIPELINE.exists(settings)) {
+                                requiredPipeline = IndexSettings.REQUIRED_PIPELINE.get(settings);
+                                requestCanOverridePipeline = false;
+                                // we can not break in case a lower-order template has a default pipeline that we need to reject
+                            } else if (defaultPipeline == null && IndexSettings.DEFAULT_PIPELINE.exists(settings)) {
                                 defaultPipeline = IndexSettings.DEFAULT_PIPELINE.get(settings);
-                                break;
+                                // we can not break in case a lower-order template has a required pipeline that we need to reject
                             }
                         }
-                        indexRequest.setPipeline(defaultPipeline);
-                        if (IngestService.NOOP_PIPELINE_NAME.equals(defaultPipeline) == false) {
-                            hasIndexRequestsWithPipelines = true;
+                        if (requiredPipeline != null && defaultPipeline != null) {
+                            // we can not have picked up a required and a default pipeline from applying templates
+                            final String message = String.format(
+                                Locale.ROOT,
+                                "required pipeline [%s] and default pipeline [%s] can not both be set",
+                                requiredPipeline,
+                                defaultPipeline);
+                            throw new IllegalArgumentException(message);
+                        }
+                        final String pipeline;
+                        if (requiredPipeline != null) {
+                            pipeline = requiredPipeline;
+                        } else {
+                            pipeline = Objects.requireNonNullElse(defaultPipeline, IngestService.NOOP_PIPELINE_NAME);
+                        }
+                        indexRequest.setPipeline(pipeline);
+                    }
+
+                    if (requestPipeline != null) {
+                        if (requestCanOverridePipeline == false) {
+                            final String message = String.format(
+                                Locale.ROOT,
+                                "request pipeline [%s] can not override required pipeline [%s]",
+                                requestPipeline,
+                                requiredPipeline);
+                            throw new IllegalArgumentException(message);
+                        } else {
+                            indexRequest.setPipeline(requestPipeline);
                         }
                     }
-                } else if (IngestService.NOOP_PIPELINE_NAME.equals(pipeline) == false) {
+
+                    if (IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getPipeline()) == false) {
+                        hasIndexRequestsWithPipelines = true;
+                    }
+
+                } else if (IngestService.NOOP_PIPELINE_NAME.equals(requestPipeline) == false) {
                     hasIndexRequestsWithPipelines = true;
                 }
             }
+
         }
 
         if (hasIndexRequestsWithPipelines) {

@@ -305,7 +305,8 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
                            ActionListener<StartDataFrameTransformTaskAction.Response> listener) {
         buildTask.initializeIndexer(indexerBuilder);
         // DataFrameTransformTask#start will fail if the task state is FAILED
-        buildTask.setNumFailureRetries(numFailureRetries).start(previousCheckpoint, false, listener);
+        // Will continue to attempt to start the indexer, even if the state is STARTED
+        buildTask.setNumFailureRetries(numFailureRetries).start(previousCheckpoint, false, false, listener);
     }
 
     private void setNumFailureRetries(int numFailureRetries) {

@@ -219,13 +219,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 ));
     }
 
-    /**
-     * Start the background indexer and set the task's state to started
-     * @param startingCheckpoint Set the current checkpoint to this value. If null the
-     *                           current checkpoint is not set
-     * @param listener Started listener
-     */
-    public synchronized void start(Long startingCheckpoint, boolean force, ActionListener<Response> listener) {
+    // Here `failOnConflict` is usually true, except when the initial start is called when the task is assigned to the node
+    synchronized void start(Long startingCheckpoint, boolean force, boolean failOnConflict, ActionListener<Response> listener) {
         logger.debug("[{}] start called with force [{}] and state [{}].", getTransformId(), force, getState());
         if (taskState.get() == DataFrameTransformTaskState.FAILED && force == false) {
             listener.onFailure(new ElasticsearchStatusException(
@@ -249,7 +244,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             return;
         }
         // If we are already in a `STARTED` state, we should not attempt to call `.start` on the indexer again.
-        if (taskState.get() == DataFrameTransformTaskState.STARTED) {
+        if (taskState.get() == DataFrameTransformTaskState.STARTED && failOnConflict) {
             listener.onFailure(new ElasticsearchStatusException(
                 "Cannot start transform [{}] as it is already STARTED.",
                 RestStatus.CONFLICT,
@@ -260,7 +255,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         final IndexerState newState = getIndexer().start();
         if (Arrays.stream(RUNNING_STATES).noneMatch(newState::equals)) {
             listener.onFailure(new ElasticsearchException("Cannot start task for data frame transform [{}], because state was [{}]",
-                    transform.getId(), newState));
+                transform.getId(), newState));
             return;
         }
         stateReason.set(null);
@@ -298,9 +293,19 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 logger.error(new ParameterizedMessage("[{}] failed updating state to [{}].", getTransformId(), state), exc);
                 getIndexer().stop();
                 listener.onFailure(new ElasticsearchException("Error while updating state for data frame transform ["
-                                    + transform.getId() + "] to [" + state.getIndexerState() + "].", exc));
+                    + transform.getId() + "] to [" + state.getIndexerState() + "].", exc));
             }
         ));
+    }
+    /**
+     * Start the background indexer and set the task's state to started
+     * @param startingCheckpoint Set the current checkpoint to this value. If null the
+     *                           current checkpoint is not set
+     * @param force Whether to force start a failed task or not
+     * @param listener Started listener
+     */
+    public synchronized void start(Long startingCheckpoint, boolean force, ActionListener<Response> listener) {
+        start(startingCheckpoint, force, true, listener);
     }
 
     public synchronized void stop(boolean force) {

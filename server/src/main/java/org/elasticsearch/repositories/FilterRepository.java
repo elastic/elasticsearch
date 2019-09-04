@@ -81,9 +81,10 @@ public class FilterRepository implements Repository {
     @Override
     public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, Map<IndexId, String[]> shardGenerations, long startTime, String failure,
                                          int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                                         boolean includeGlobalState, MetaData metaData, Map<String, Object> userMetadata) {
+                                         boolean includeGlobalState, MetaData metaData, Map<String, Object> userMetadata,
+                                         Version version) {
         return in.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
-            includeGlobalState, metaData, userMetadata);
+            includeGlobalState, metaData, userMetadata,  version);
     }
 
     @Override

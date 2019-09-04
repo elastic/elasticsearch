@@ -602,7 +602,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                          final long repositoryStateId,
                                          final boolean includeGlobalState,
                                          final MetaData clusterMetaData,
-                                         final Map<String, Object> userMetadata) {
+                                         final Map<String, Object> userMetadata,
+                                         final Version version) {
         SnapshotInfo blobStoreSnapshot = new SnapshotInfo(snapshotId,
             shardGenerations.keySet().stream().map(IndexId::getName).collect(Collectors.toList()),
             startTime, failure, threadPool.absoluteTimeInMillis(), totalShards, shardFailures,

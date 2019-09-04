@@ -574,7 +574,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                                          snapshot.getRepositoryStateId(),
                                                          snapshot.includeGlobalState(),
                                                          metaDataForSnapshot(snapshot, clusterService.state().metaData()),
-                                                         snapshot.userMetadata());
+                                                         snapshot.userMetadata(),
+                                                         clusterService.state().nodes().getMinNodeVersion());
                 } catch (Exception inner) {
                     inner.addSuppressed(exception);
                     logger.warn(() -> new ParameterizedMessage("[{}] failed to close snapshot in repository",
@@ -1037,7 +1038,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     entry.getRepositoryStateId(),
                     entry.includeGlobalState(),
                     metaDataForSnapshot(entry, metaData),
-                    entry.userMetadata());
+                    entry.userMetadata(),
+                    clusterService.state().nodes().getMinNodeVersion());
                 removeSnapshotFromClusterState(snapshot, snapshotInfo, null);
                 logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
             }

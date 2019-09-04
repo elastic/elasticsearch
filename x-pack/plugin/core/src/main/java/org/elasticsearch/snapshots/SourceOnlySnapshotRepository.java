@@ -15,6 +15,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.SimpleFSDirectory;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -92,13 +93,14 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     @Override
     public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, Map<IndexId, String[]> shardGenerations, long startTime, String failure,
                                          int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                                         boolean includeGlobalState, MetaData metaData, Map<String, Object> userMetadata) {
+                                         boolean includeGlobalState, MetaData metaData, Map<String, Object> userMetadata,
+                                         Version version) {
         // we process the index metadata at snapshot time. This means if somebody tries to restore
         // a _source only snapshot with a plain repository it will be just fine since we already set the
         // required engine, that the index is read-only and the mapping to a default mapping
         try {
             return super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
-                includeGlobalState, metadataToSnapshot(new ArrayList<>(shardGenerations.keySet()), metaData), userMetadata);
+                includeGlobalState, metadataToSnapshot(new ArrayList<>(shardGenerations.keySet()), metaData), userMetadata, version);
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }

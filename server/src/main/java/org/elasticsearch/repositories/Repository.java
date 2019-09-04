@@ -134,11 +134,15 @@ public interface Repository extends LifecycleComponent {
      * @param shardFailures      list of shard failures
      * @param repositoryStateId  the unique id identifying the state of the repository when the snapshot began
      * @param includeGlobalState include cluster global state
+     * @param clusterMetaData    cluster metadata
+     * @param userMetadata       user metadata
+     * @param version            minimum ES version that must be able to read the snapshot
      * @return snapshot description
      */
     SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, Map<IndexId, String[]> shardGenerations, long startTime, String failure,
                                   int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                                  boolean includeGlobalState, MetaData clusterMetaData, Map<String, Object> userMetadata);
+                                  boolean includeGlobalState, MetaData clusterMetaData, Map<String, Object> userMetadata,
+                                  Version version);
 
     /**
      * Deletes snapshot

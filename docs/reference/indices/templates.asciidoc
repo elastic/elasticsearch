@@ -43,7 +43,7 @@ PUT _template/template_1
 [[put-index-template-api-desc]]
 ==== {api-description-title}
 
-Use the put index template API
+Use the PUT index template API
 to create or update an index template.
 
 // tag::index-template-def[]

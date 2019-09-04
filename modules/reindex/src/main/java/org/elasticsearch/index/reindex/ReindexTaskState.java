@@ -19,20 +19,20 @@
 
 package org.elasticsearch.index.reindex;
 
-public class ReindexTaskIndexStateWithSeq {
+public class ReindexTaskState {
 
-    private final ReindexTaskIndexState taskIndexState;
+    private final ReindexTaskStateDoc taskStateDoc;
     private final long primaryTerm;
     private final long seqNo;
 
-    ReindexTaskIndexStateWithSeq(ReindexTaskIndexState taskState, long primaryTerm, long seqNo) {
-        taskIndexState = taskState;
+    ReindexTaskState(ReindexTaskStateDoc taskStateDoc, long primaryTerm, long seqNo) {
+        this.taskStateDoc = taskStateDoc;
         this.primaryTerm = primaryTerm;
         this.seqNo = seqNo;
     }
 
-    public ReindexTaskIndexState getTaskIndexState() {
-        return taskIndexState;
+    public ReindexTaskStateDoc getStateDoc() {
+        return taskStateDoc;
     }
 
     public long getPrimaryTerm() {

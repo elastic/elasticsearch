@@ -123,5 +123,5 @@ of reloading after each modification.
 
 There are reloadable secure settings for:
 
-* {plugins}/discovery-ec2-usage.html#_configuring_ec2_discovery[The EC2 Discovery Plugin]
-
+* {plugins}/discovery-ec2-usage.html#_configuring_ec2_discovery[The EC2 discovery plugin]
+* {plugins}/repository-s3-client.html[The S3 repository plugin]

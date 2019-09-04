@@ -131,7 +131,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         // later if they want.
 
         final DataFrameTransformTask.ClientDataFrameIndexerBuilder indexerBuilder =
-            new DataFrameTransformTask.ClientDataFrameIndexerBuilder(transformId)
+            new DataFrameTransformTask.ClientDataFrameIndexerBuilder()
                 .setAuditor(auditor)
                 .setClient(client)
                 .setTransformsCheckpointService(dataFrameTransformsCheckpointService)

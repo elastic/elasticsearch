@@ -46,7 +46,7 @@ public class ClientDataFrameIndexerTests extends ESTestCase {
             mock(DataFrameAuditor.class),
             threadPool,
             Collections.emptyMap());
-        DataFrameTransformTask.ClientDataFrameIndexer indexer = new DataFrameTransformTask.ClientDataFrameIndexer(randomAlphaOfLength(10),
+        DataFrameTransformTask.ClientDataFrameIndexer indexer = new DataFrameTransformTask.ClientDataFrameIndexer(
             mock(DataFrameTransformsConfigManager.class),
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),

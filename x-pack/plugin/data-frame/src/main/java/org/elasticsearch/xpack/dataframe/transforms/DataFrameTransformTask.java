@@ -521,7 +521,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         private Client client;
         private DataFrameTransformsConfigManager transformsConfigManager;
         private DataFrameTransformsCheckpointService transformsCheckpointService;
-        private String transformId;
         private DataFrameAuditor auditor;
         private Map<String, String> fieldMappings;
         private DataFrameTransformConfig transformConfig;
@@ -532,16 +531,14 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         private DataFrameTransformCheckpoint lastCheckpoint;
         private DataFrameTransformCheckpoint nextCheckpoint;
 
-        ClientDataFrameIndexerBuilder(String transformId) {
-            this.transformId = transformId;
+        ClientDataFrameIndexerBuilder() {
             this.initialStats = new DataFrameIndexerTransformStats();
         }
 
         ClientDataFrameIndexer build(DataFrameTransformTask parentTask) {
             CheckpointProvider checkpointProvider = transformsCheckpointService.getCheckpointProvider(transformConfig);
 
-            return new ClientDataFrameIndexer(this.transformId,
-                this.transformsConfigManager,
+            return new ClientDataFrameIndexer(this.transformsConfigManager,
                 checkpointProvider,
                 new AtomicReference<>(this.indexerState),
                 this.initialPosition,
@@ -568,11 +565,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         ClientDataFrameIndexerBuilder setTransformsCheckpointService(DataFrameTransformsCheckpointService transformsCheckpointService) {
             this.transformsCheckpointService = transformsCheckpointService;
-            return this;
-        }
-
-        ClientDataFrameIndexerBuilder setTransformId(String transformId) {
-            this.transformId = transformId;
             return this;
         }
 
@@ -633,7 +625,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         private final Client client;
         private final DataFrameTransformsConfigManager transformsConfigManager;
         private final CheckpointProvider checkpointProvider;
-        private final String transformId;
         private final DataFrameTransformTask transformTask;
         private final AtomicInteger failureCount;
         private volatile boolean auditBulkFailures = true;
@@ -643,8 +634,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         private volatile String lastAuditedExceptionMessage = null;
         private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
 
-        ClientDataFrameIndexer(String transformId,
-                               DataFrameTransformsConfigManager transformsConfigManager,
+        ClientDataFrameIndexer(DataFrameTransformsConfigManager transformsConfigManager,
                                CheckpointProvider checkpointProvider,
                                AtomicReference<IndexerState> initialState,
                                DataFrameIndexerPosition initialPosition,
@@ -669,7 +659,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 transformProgress,
                 lastCheckpoint,
                 nextCheckpoint);
-            this.transformId = ExceptionsHelper.requireNonNull(transformId, "transformId");
             this.transformsConfigManager = ExceptionsHelper.requireNonNull(transformsConfigManager, "transformsConfigManager");
             this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
 
@@ -681,8 +670,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         @Override
         protected void onStart(long now, ActionListener<Boolean> listener) {
             if (transformTask.taskState.get() == DataFrameTransformTaskState.FAILED) {
-                logger.debug("[{}] attempted to start while failed.", transformId);
-                listener.onFailure(new ElasticsearchException("Attempted to start a failed transform [{}].", transformId));
+                logger.debug("[{}] attempted to start while failed.", getJobId());
+                listener.onFailure(new ElasticsearchException("Attempted to start a failed transform [{}].", getJobId()));
                 return;
             }
             // On each run, we need to get the total number of docs and reset the count of processed docs
@@ -702,14 +691,14 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                             }
                             TransformProgressGatherer.getInitialProgress(this.client, buildFilterQuery(), getConfig(), ActionListener.wrap(
                                 newProgress -> {
-                                    logger.trace("[{}] reset the progress from [{}] to [{}].", transformId, progress, newProgress);
+                                    logger.trace("[{}] reset the progress from [{}] to [{}].", getJobId(), progress, newProgress);
                                     progress = newProgress;
                                     super.onStart(now, listener);
                                 },
                                 failure -> {
                                     progress = null;
                                     logger.warn(new ParameterizedMessage("[{}] unable to load progress information for task.",
-                                        transformId),
+                                        getJobId()),
                                         failure);
                                     super.onStart(now, listener);
                                 }
@@ -729,7 +718,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                         transformsConfigManager.getTransformConfiguration(getJobId(), ActionListener.wrap(
                             config -> {
                                 transformConfig = config;
-                                logger.debug("[{}] successfully refreshed data frame transform config from index.", transformId);
+                                logger.debug("[{}] successfully refreshed data frame transform config from index.", getJobId());
                                 updateConfigListener.onResponse(null);
                             },
                             failure -> {
@@ -762,10 +751,10 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                         hasSourceChanged = hasChanged;
                         if (hasChanged) {
                             transformTask.changesLastDetectedAt = Instant.now();
-                            logger.debug("[{}] source has changed, triggering new indexer run.", transformId);
+                            logger.debug("[{}] source has changed, triggering new indexer run.", getJobId());
                             changedSourceListener.onResponse(null);
                         } else {
-                            logger.trace("[{}] source has not changed, finish indexer early.", transformId);
+                            logger.trace("[{}] source has not changed, finish indexer early.", getJobId());
                             // No changes, stop executing
                             listener.onResponse(false);
                         }
@@ -781,11 +770,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 hasSourceChanged = true;
                 changedSourceListener.onResponse(null);
             }
-        }
-
-        @Override
-        protected String getJobId() {
-            return transformId;
         }
 
         public CheckpointProvider getCheckpointProvider() {
@@ -812,9 +796,9 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         @Override
         protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
             if (transformTask.taskState.get() == DataFrameTransformTaskState.FAILED) {
-                logger.debug("[{}] attempted to search while failed.", transformId);
+                logger.debug("[{}] attempted to search while failed.", getJobId());
                 nextPhase.onFailure(new ElasticsearchException("Attempted to do a search request for failed transform [{}].",
-                    transformId));
+                    getJobId()));
                 return;
             }
             ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(), ClientHelper.DATA_FRAME_ORIGIN, client,
@@ -824,9 +808,9 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         @Override
         protected void doNextBulk(BulkRequest request, ActionListener<BulkResponse> nextPhase) {
             if (transformTask.taskState.get() == DataFrameTransformTaskState.FAILED) {
-                logger.debug("[{}] attempted to bulk index while failed.", transformId);
+                logger.debug("[{}] attempted to bulk index while failed.", getJobId());
                 nextPhase.onFailure(new ElasticsearchException("Attempted to do a bulk index request for failed transform [{}].",
-                    transformId));
+                    getJobId()));
                 return;
             }
             ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(),
@@ -844,7 +828,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                             // TODO gather information on irrecoverable failures and update isIrrecoverableFailure
                         }
                         if (auditBulkFailures) {
-                            auditor.warning(transformId,
+                            auditor.warning(getJobId(),
                                 "Experienced at least [" +
                                     failureCount +
                                     "] bulk index failures. See the logs of the node running the transform for details. " +
@@ -866,7 +850,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         @Override
         protected void doSaveState(IndexerState indexerState, DataFrameIndexerPosition position, Runnable next) {
             if (transformTask.taskState.get() == DataFrameTransformTaskState.FAILED) {
-                logger.debug("[{}] attempted to save state and stats while failed.", transformId);
+                logger.debug("[{}] attempted to save state and stats while failed.", getJobId());
                 // If we are failed, we should call next to allow failure handling to occur if necessary.
                 next.run();
                 return;
@@ -922,7 +906,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             // called is controlled by AsyncTwoPhaseIndexer#onBulkResponse which calls doSaveState every so
             // often when doing bulk indexing calls or at the end of one indexing run.
             transformsConfigManager.putOrUpdateTransformStoredDoc(
-                    new DataFrameTransformStoredDoc(transformId, state, getStats()),
+                    new DataFrameTransformStoredDoc(getJobId(), state, getStats()),
                     seqNoPrimaryTermAndIndex,
                     ActionListener.wrap(
                             r -> {
@@ -933,14 +917,14 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                                 }
                                 // Only do this clean up once, if it succeeded, no reason to do the query again.
                                 if (oldStatsCleanedUp.compareAndSet(false, true)) {
-                                    transformsConfigManager.deleteOldTransformStoredDocuments(transformId, ActionListener.wrap(
+                                    transformsConfigManager.deleteOldTransformStoredDocuments(getJobId(), ActionListener.wrap(
                                         nil -> {
-                                            logger.trace("[{}] deleted old transform stats and state document", transformId);
+                                            logger.trace("[{}] deleted old transform stats and state document", getJobId());
                                             next.run();
                                         },
                                         e -> {
                                             String msg = LoggerMessageFormat.format("[{}] failed deleting old transform configurations.",
-                                                transformId);
+                                                getJobId());
                                             logger.warn(msg, e);
                                             // If we have failed, we should attempt the clean up again later
                                             oldStatsCleanedUp.set(false);
@@ -973,7 +957,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 handleFailure(exc);
             } catch (Exception e) {
                 logger.error(
-                    new ParameterizedMessage("[{}] data frame transform encountered an unexpected internal exception: ", transformId),
+                    new ParameterizedMessage("[{}] data frame transform encountered an unexpected internal exception: ", getJobId()),
                     e);
             }
         }
@@ -1021,7 +1005,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                     getStats().incrementCheckpointExponentialAverages(durationMs < 0 ? 0 : durationMs, docsIndexed, docsProcessed);
                 }
                 if (shouldAuditOnFinish(checkpoint)) {
-                    auditor.info(transformTask.getTransformId(),
+                    auditor.info(getJobId(),
                         "Finished indexing for data frame transform checkpoint [" + checkpoint + "].");
                 }
                 logger.debug(
@@ -1076,7 +1060,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                         ActionListener.wrap(
                             putCheckPointResponse -> listener.onResponse(checkpoint),
                             createCheckpointException -> {
-                                logger.warn(new ParameterizedMessage("[{}] failed to create checkpoint.", transformId),
+                                logger.warn(new ParameterizedMessage("[{}] failed to create checkpoint.", getJobId()),
                                     createCheckpointException);
                                 listener.onFailure(
                                     new RuntimeException("Failed to create checkpoint due to " + createCheckpointException.getMessage(),
@@ -1084,7 +1068,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                             }
                     )),
                     getCheckPointException -> {
-                        logger.warn(new ParameterizedMessage("[{}] failed to retrieve checkpoint.", transformId),
+                        logger.warn(new ParameterizedMessage("[{}] failed to retrieve checkpoint.", getJobId()),
                             getCheckPointException);
                         listener.onFailure(
                             new RuntimeException("Failed to retrieve checkpoint due to " + getCheckPointException.getMessage(),
@@ -1098,16 +1082,16 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             checkpointProvider.sourceHasChanged(getLastCheckpoint(),
                 ActionListener.wrap(
                     hasChanged -> {
-                        logger.trace("[{}] change detected [{}].", transformId, hasChanged);
+                        logger.trace("[{}] change detected [{}].", getJobId(), hasChanged);
                         hasChangedListener.onResponse(hasChanged);
                     },
                     e -> {
                         logger.warn(
                             new ParameterizedMessage(
                                 "[{}] failed to detect changes for data frame transform. Skipping update till next check.",
-                                transformId),
+                                getJobId()),
                             e);
-                        auditor.warning(transformId,
+                        auditor.warning(getJobId(),
                             "Failed to detect changes for data frame transform, skipping update till next check. Exception: "
                                 + e.getMessage());
                         hasChangedListener.onResponse(false);
@@ -1122,7 +1106,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         synchronized void handleFailure(Exception e) {
             logger.warn(new ParameterizedMessage("[{}] data frame transform encountered an exception: ",
-                transformTask.getTransformId()),
+                getJobId()),
                 e);
             if (handleCircuitBreakingException(e)) {
                 return;
@@ -1137,7 +1121,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 // Since our schedule fires again very quickly after failures it is possible to run into the same failure numerous
                 // times in a row, very quickly. We do not want to spam the audit log with repeated failures, so only record the first one
                 if (e.getMessage().equals(lastAuditedExceptionMessage) == false) {
-                    auditor.warning(transformTask.getTransformId(),
+                    auditor.warning(getJobId(),
                         "Data frame transform encountered an exception: " + e.getMessage() +
                             " Will attempt again at next scheduled trigger.");
                     lastAuditedExceptionMessage = e.getMessage();
@@ -1148,7 +1132,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         @Override
         protected void failIndexer(String failureMessage) {
             logger.error("[{}] transform has failed; experienced: [{}].", getJobId(), failureMessage);
-            auditor.error(transformTask.getTransformId(), failureMessage);
+            auditor.error(getJobId(), failureMessage);
             transformTask.markAsFailed(failureMessage, ActionListener.wrap(
                 r -> {
                     // Successfully marked as failed, reset counter so that task can be restarted

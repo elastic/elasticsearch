@@ -415,9 +415,7 @@ public class CompositeRolesStore {
         try (ReleasableLock ignored = roleCacheHelper.acquireUpdateLock()) {
             roleCache.invalidateAll();
         }
-        if (dlsBitsetCache != null) {
-            dlsBitsetCache.clear("role store invalidation");
-        }
+        dlsBitsetCache.clear("role store invalidation");
     }
 
     public void invalidate(String role) {

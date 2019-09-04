@@ -24,11 +24,17 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.FilterLeafCollector;
+import org.apache.lucene.search.FilterScorable;
+import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.BulkScorer;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticsearchException;
 
 
@@ -70,6 +76,19 @@ public class ScriptScoreQuery extends Query {
 
         return new Weight(this){
             @Override
+            public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
+                if (minScore == null) {
+                    final BulkScorer subQueryBulkScorer = subQueryWeight.bulkScorer(context);
+                    if (subQueryBulkScorer == null) {
+                        return null;
+                    }
+                    return new ScriptScoreBulkScorer(this, subQueryBulkScorer, subQueryScoreMode, function.getLeafScoreFunction(context));
+                } else {
+                    return super.bulkScorer(context);
+                }
+            }
+
+            @Override
             public void extractTerms(Set<Term> terms) {
                 subQueryWeight.extractTerms(terms);
             }
@@ -89,7 +108,7 @@ public class ScriptScoreQuery extends Query {
                         float score = (float) leafFunction.score(docId, subQueryScore);
                         if (score == Float.NEGATIVE_INFINITY || Float.isNaN(score)) {
                             throw new ElasticsearchException(
-                                "script score query returned an invalid score: " + score + " for doc: " + docId);
+                                "script_score query returned an invalid score [" + score + "] for doc [" + docId + "].");
                         }
                         return score;
                     }
@@ -164,4 +183,55 @@ public class ScriptScoreQuery extends Query {
     public int hashCode() {
         return Objects.hash(classHash(), subQuery, minScore, function);
     }
+
+    /**
+     * Use the {@link BulkScorer} of the sub-query,
+     * as it may be significantly faster (e.g. BooleanScorer) than iterating over the scorer
+     */
+    private static class ScriptScoreBulkScorer extends BulkScorer {
+        private final BulkScorer subQueryBulkScorer;
+        private final Weight weight;
+        private final ScoreMode subQueryScoreMode;
+        private final LeafScoreFunction leafFunction;
+
+        ScriptScoreBulkScorer(Weight weight, BulkScorer subQueryBulkScorer,
+                ScoreMode subQueryScoreMode, LeafScoreFunction leafFunction) {
+            this.weight = weight;
+            this.subQueryBulkScorer = subQueryBulkScorer;
+            this.subQueryScoreMode = subQueryScoreMode;
+            this.leafFunction = leafFunction;
+        }
+
+        @Override
+        public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
+            return subQueryBulkScorer.score(wrapCollector(collector), acceptDocs, min, max);
+        }
+
+        private LeafCollector wrapCollector(LeafCollector collector) {
+            return new FilterLeafCollector(collector) {
+                @Override
+                public void setScorer(Scorable scorer) throws IOException {
+                    in.setScorer(new FilterScorable(scorer) {
+                         @Override
+                         public float score() throws IOException {
+                             int docId = docID();
+                             float subQueryScore = subQueryScoreMode == ScoreMode.COMPLETE ? in.score() : 0f;
+                             float score = (float) leafFunction.score(docId, subQueryScore);
+                             if (score == Float.NEGATIVE_INFINITY || Float.isNaN(score)) {
+                                 throw new ElasticsearchException(
+                                     "script_score query returned an invalid score [" + score + "] for doc [" + docId + "].");
+                             }
+                             return score;
+                         }
+                    });
+                }
+            };
+        }
+
+        @Override
+        public long cost() {
+            return subQueryBulkScorer.cost();
+        }
+    }
+
 }

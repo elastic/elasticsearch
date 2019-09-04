@@ -1670,7 +1670,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * required generation
      */
     public void trimUnreferencedReaders() throws IOException {
-        List<TranslogReader> toDeleteReaderList = new ArrayList<>();
         try (ReleasableLock ignored = writeLock.acquire()) {
             if (closed.get()) {
                 // we're shutdown potentially on some tragic event, don't delete anything
@@ -1684,14 +1683,22 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 "deletion policy requires a minReferenceGen of [" + minReferencedGen + "] which is higher than the current generation ["
                     + currentFileGeneration() + "]";
 
+
             for (Iterator<TranslogReader> iterator = readers.iterator(); iterator.hasNext(); ) {
                 TranslogReader reader = iterator.next();
                 if (reader.getGeneration() >= minReferencedGen) {
                     break;
                 }
                 iterator.remove();
-                toDeleteReaderList.add(reader);
                 IOUtils.closeWhileHandlingException(reader);
+                final Path translogPath = reader.path();
+                logger.trace("delete translog file [{}], not referenced and not current anymore", translogPath);
+                // The checkpoint is used when opening the translog to know which files should be recovered from.
+                // We now update the checkpoint to ignore the file we are going to remove.
+                // Note that there is a provision in recoverFromFiles to allow for the case where we synced the checkpoint
+                // but crashed before we could delete the file.
+                current.sync();
+                deleteReaderFiles(reader);
             }
             assert readers.isEmpty() == false || current.generation == minReferencedGen :
                 "all readers were cleaned but the minReferenceGen [" + minReferencedGen + "] is not the current writer's gen [" +
@@ -1699,24 +1706,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         } catch (final Exception ex) {
             closeOnTragicEvent(ex);
             throw ex;
-        }
-        // Do sync outside the writeLock to avoid blocking all writing thread.
-        if (toDeleteReaderList.isEmpty() == false) {
-            try {
-                // The checkpoint is used when opening the translog to know which files should be recovered from.
-                // We now update the checkpoint to ignore the file we are going to remove.
-                // Note that there is a provision in recoverFromFiles to allow for the case where we synced the checkpoint
-                // but crashed before we could delete the file.
-                sync();
-                for (TranslogReader reader : toDeleteReaderList) {
-                    final Path translogPath = reader.path();
-                    logger.trace("delete translog file [{}], not referenced and not current anymore", translogPath);
-                    deleteReaderFiles(reader);
-                }
-            } catch (final Exception ex) {
-                closeOnTragicEvent(ex);
-                throw ex;
-            }
         }
     }
 

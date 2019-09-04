@@ -42,7 +42,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
             final SearchPhaseController searchPhaseController, final Executor executor,
             final SearchRequest request, final ActionListener<SearchResponse> listener,
             final GroupShardsIterator<SearchShardIterator> shardsIts, final TransportSearchAction.SearchTimeProvider timeProvider,
-            final long clusterStateVersion, final SearchTask task, SearchResponse.Clusters clusters) {
+            final long clusterStateVersion, final MainSearchTask task, SearchResponse.Clusters clusters) {
         super("dfs", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, indexRoutings,
                 executor, request, listener,
                 shardsIts, timeProvider, clusterStateVersion, task, new ArraySearchPhaseResults<>(shardsIts.size()),

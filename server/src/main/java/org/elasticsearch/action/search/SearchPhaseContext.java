@@ -47,7 +47,7 @@ interface SearchPhaseContext extends Executor {
     /**
      * Returns the currently executing search task
      */
-    SearchTask getTask();
+    MainSearchTask getTask();
 
     /**
      * Returns the currently executing search request

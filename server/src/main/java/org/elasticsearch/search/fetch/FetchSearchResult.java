@@ -86,6 +86,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeLong(requestId);
         hits.writeTo(out);
     }

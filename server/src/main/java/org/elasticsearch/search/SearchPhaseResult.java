@@ -19,10 +19,13 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
@@ -40,13 +43,35 @@ public abstract class SearchPhaseResult extends TransportResponse {
     private SearchShardTarget searchShardTarget;
     private int shardIndex = -1;
     protected long requestId;
+    @Nullable
+    private TaskInfo taskInfo;
 
     protected SearchPhaseResult() {
-
+        this.taskInfo = null;
     }
 
     protected SearchPhaseResult(StreamInput in) throws IOException {
         super(in);
+        //TODO update version when backporting
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            this.taskInfo = in.readOptionalWriteable(TaskInfo::new);
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        //TODO update version when backporting
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalWriteable(this.taskInfo);
+        }
+    }
+
+    public void setTaskInfo(TaskInfo taskInfo) {
+        this.taskInfo = taskInfo;
+    }
+
+    public TaskInfo getTaskInfo() {
+        return this.taskInfo;
     }
 
     /**
@@ -89,9 +114,4 @@ public abstract class SearchPhaseResult extends TransportResponse {
      * Returns the fetch result iff it's included in this response otherwise <code>null</code>
      */
     public FetchSearchResult fetchResult() { return null; }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        // TODO: this seems wrong, SearchPhaseResult should have a writeTo?
-    }
 }

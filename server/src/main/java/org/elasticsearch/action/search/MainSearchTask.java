@@ -19,32 +19,26 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 
 import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * Task storing information about a currently running search request.
+ * Task storing information about a currently running search request in the coordinating node. Same as {@link SearchTask} but it also
+ * holds some specific {@link org.elasticsearch.tasks.Task.Status} to report progress of the search as part of the task execution
  */
-public class SearchTask extends CancellableTask {
+public final class MainSearchTask extends SearchTask {
 
-    private final Supplier<String> description;
+    private final SearchTaskStatus searchTaskStatus = new SearchTaskStatus();
 
-    // generating description in a lazy way since source can be quite big
-    public SearchTask(long id, String type, String action, Supplier<String> description, TaskId parentTaskId, Map<String, String> headers) {
-        super(id, type, action, null, parentTaskId, headers);
-        this.description = description;
+    public MainSearchTask(long id, String type, String action, Supplier<String> description,
+                          TaskId parentTaskId, Map<String, String> headers) {
+        super(id, type, action, description, parentTaskId, headers);
     }
 
     @Override
-    public boolean shouldCancelChildrenOnCancellation() {
-        return true;
-    }
-
-    @Override
-    public String getDescription() {
-        return description.get();
+    public SearchTaskStatus getStatus() {
+        return searchTaskStatus;
     }
 }

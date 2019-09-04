@@ -58,6 +58,7 @@ final class DfsQueryPhase extends SearchPhase {
         this.nextPhaseFactory = nextPhaseFactory;
         this.context = context;
         this.searchTransportService = context.getSearchTransport();
+        this.context.getTask().getStatus().phaseStarted(getName(), dfsSearchResults.length());
     }
 
     @Override
@@ -68,7 +69,10 @@ final class DfsQueryPhase extends SearchPhase {
         final AggregatedDfs dfs = searchPhaseController.aggregateDfs(resultList);
         final CountedCollector<SearchPhaseResult> counter = new CountedCollector<>(queryResult::consumeResult,
             resultList.size(),
-            () -> context.executeNextPhase(this, nextPhaseFactory.apply(queryResult)), context);
+            () -> {
+                context.getTask().getStatus().phaseCompleted(getName());
+                context.executeNextPhase(this, nextPhaseFactory.apply(queryResult));
+            }, context);
         for (final DfsSearchResult dfsResult : resultList) {
             final SearchShardTarget searchShardTarget = dfsResult.getSearchShardTarget();
             Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
@@ -80,6 +84,7 @@ final class DfsQueryPhase extends SearchPhase {
 
                     @Override
                     protected void innerOnResponse(QuerySearchResult response) {
+                        context.getTask().getStatus().shardProcessed(getName(), response);
                         try {
                             counter.onResult(response);
                         } catch (Exception e) {

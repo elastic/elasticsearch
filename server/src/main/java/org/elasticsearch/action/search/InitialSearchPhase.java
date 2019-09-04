@@ -58,9 +58,10 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     private final Executor executor;
     private final Map<String, PendingExecutions> pendingExecutionsPerNode = new ConcurrentHashMap<>();
     private final boolean throttleConcurrentRequests;
+    private final SearchTaskStatus searchTaskStatus;
 
-    InitialSearchPhase(String name, SearchRequest request, GroupShardsIterator<SearchShardIterator> shardsIts, Logger logger,
-                       int maxConcurrentRequestsPerNode, Executor executor) {
+    InitialSearchPhase(String name, SearchRequest request, MainSearchTask searchTask, GroupShardsIterator<SearchShardIterator> shardsIts,
+                       Logger logger, int maxConcurrentRequestsPerNode, Executor executor) {
         super(name);
         this.request = request;
         final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
@@ -84,6 +85,8 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         // in the case were we have less shards than maxConcurrentRequestsPerNode we don't need to throttle
         this.throttleConcurrentRequests = maxConcurrentRequestsPerNode < shardsIts.size();
         this.executor = executor;
+        this.searchTaskStatus = searchTask.getStatus();
+        searchTaskStatus.phaseStarted(name, iterators.size());
     }
 
     private void onShardFailure(final int shardIndex, @Nullable ShardRouting shard, @Nullable String nodeId,
@@ -102,7 +105,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
                     logger.trace(new ParameterizedMessage("{}: Failed to execute [{}]", shard, request), e);
                 }
             }
-            onPhaseDone();
+            phaseCompleted();
         } else {
             final ShardRouting nextShard = shardIt.nextOrNull();
             final boolean lastShard = nextShard == null;
@@ -300,6 +303,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         assert result.getShardIndex() != -1 : "shard index is not set";
         assert result.getSearchShardTarget() != null : "search shard target must not be null";
         onShardSuccess(result);
+        searchTaskStatus.shardProcessed(getName(), result);
         // we need to increment successful ops first before we compare the exit condition otherwise if we
         // are fast we could concurrently update totalOps but then preempt one of the threads which can
         // cause the successor to read a wrong value from successfulOps if second phase is very fast ie. count etc.
@@ -317,11 +321,16 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         }
         final int xTotalOps = totalOps.addAndGet(remainingOpsOnIterator);
         if (xTotalOps == expectedTotalOps) {
-            onPhaseDone();
+            phaseCompleted();
         } else if (xTotalOps > expectedTotalOps) {
             throw new AssertionError("unexpected higher total ops [" + xTotalOps + "] compared to expected ["
                 + expectedTotalOps + "]");
         }
+    }
+
+    private void phaseCompleted() {
+        searchTaskStatus.phaseCompleted(getName());
+        onPhaseDone();
     }
 
     /**

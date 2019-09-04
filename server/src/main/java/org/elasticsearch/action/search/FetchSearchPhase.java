@@ -73,6 +73,7 @@ final class FetchSearchPhase extends SearchPhase {
         this.context = context;
         this.logger = context.getLogger();
         this.resultConsumer = resultConsumer;
+        this.context.getTask().getStatus().phaseStarted(getName(), context.getNumShards());
     }
 
     @Override
@@ -163,6 +164,7 @@ final class FetchSearchPhase extends SearchPhase {
             new SearchActionListener<FetchSearchResult>(shardTarget, shardIndex) {
                 @Override
                 public void innerOnResponse(FetchSearchResult result) {
+                    context.getTask().getStatus().shardProcessed(getName(), result);
                     try {
                         counter.onResult(result);
                     } catch (Exception e) {
@@ -207,6 +209,7 @@ final class FetchSearchPhase extends SearchPhase {
                                  AtomicArray<? extends SearchPhaseResult> fetchResultsArr) {
         final InternalSearchResponse internalResponse = searchPhaseController.merge(context.getRequest().scroll() != null,
             reducedQueryPhase, fetchResultsArr.asList(), fetchResultsArr::get);
+        context.getTask().getStatus().phaseCompleted(getName());
         context.executeNextPhase(this, nextPhaseFactory.apply(internalResponse, scrollId));
     }
 

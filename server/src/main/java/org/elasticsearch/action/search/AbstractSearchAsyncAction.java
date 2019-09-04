@@ -60,7 +60,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * Used by subclasses to resolve node ids to DiscoveryNodes.
      **/
     private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
-    private final SearchTask task;
+    private final MainSearchTask task;
     private final SearchPhaseResults<Result> results;
     private final long clusterStateVersion;
     private final Map<String, AliasFilter> aliasFilter;
@@ -80,9 +80,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                                         Executor executor, SearchRequest request,
                                         ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
                                         SearchTimeProvider timeProvider, long clusterStateVersion,
-                                        SearchTask task, SearchPhaseResults<Result> resultConsumer, int maxConcurrentRequestsPerNode,
+                                        MainSearchTask task, SearchPhaseResults<Result> resultConsumer, int maxConcurrentRequestsPerNode,
                                         SearchResponse.Clusters clusters) {
-        super(name, request, shardsIts, logger, maxConcurrentRequestsPerNode, executor);
+        super(name, request, task, shardsIts, logger, maxConcurrentRequestsPerNode, executor);
         this.timeProvider = timeProvider;
         this.logger = logger;
         this.searchTransportService = searchTransportService;
@@ -284,7 +284,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     @Override
-    public final SearchTask getTask() {
+    public final MainSearchTask getTask() {
         return task;
     }
 

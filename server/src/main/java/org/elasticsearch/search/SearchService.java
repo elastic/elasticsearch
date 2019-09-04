@@ -96,6 +96,7 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -134,7 +135,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     /**
      * Enables low-level, frequent search cancellation checks. Enabling low-level checks will make long running searches to react
-     * to the cancellation request faster. It will produce more cancellation checks but benchmarking has shown these did not 
+     * to the cancellation request faster. It will produce more cancellation checks but benchmarking has shown these did not
      * noticeably slow down searches.
      */
     public static final Setting<Boolean> LOW_LEVEL_CANCELLATION_SETTING =
@@ -389,7 +390,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             executor.success();
         }
-        return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
+        return new QueryFetchSearchResult(context.queryResult(), context.fetchResult(), context.getTaskInfo());
     }
 
     public void executeQueryPhase(InternalScrollSearchRequest request, SearchTask task, ActionListener<ScrollQuerySearchResult> listener) {
@@ -403,7 +404,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 queryPhase.execute(context);
                 contextProcessedSuccessfully(context);
                 executor.success();
-                return new ScrollQuerySearchResult(context.queryResult(), context.shardTarget());
+                TaskInfo taskInfo = task.taskInfo(context.shardTarget().getNodeId(), false);
+                return new ScrollQuerySearchResult(context.queryResult(), context.shardTarget(), taskInfo);
             } catch (Exception e) {
                 logger.trace("Query phase failed", e);
                 processFailure(context, e);
@@ -476,7 +478,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 queryPhase.execute(context);
                 final long afterQueryTime = executor.success();
                 QueryFetchSearchResult fetchSearchResult = executeFetchPhase(context, afterQueryTime);
-                return new ScrollQueryFetchSearchResult(fetchSearchResult, context.shardTarget());
+                TaskInfo taskInfo = task.taskInfo(context.shardTarget().getNodeId(), false);
+                return new ScrollQueryFetchSearchResult(fetchSearchResult, context.shardTarget(), taskInfo);
             } catch (Exception e) {
                 logger.trace("Fetch phase failed", e);
                 processFailure(context, e);
@@ -1010,9 +1013,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
 
-    public void canMatch(ShardSearchRequest request, ActionListener<CanMatchResponse> listener) {
+    public void canMatch(ShardSearchRequest request, TaskInfo taskInfo, ActionListener<CanMatchResponse> listener) {
         try {
-            listener.onResponse(new CanMatchResponse(canMatch(request)));
+            CanMatchResponse canMatchResponse = new CanMatchResponse(canMatch(request));
+            canMatchResponse.setTaskInfo(taskInfo);
+            listener.onResponse(canMatchResponse);
         } catch (IOException e) {
             listener.onFailure(e);
         }
@@ -1078,6 +1083,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             out.writeBoolean(canMatch);
         }
 

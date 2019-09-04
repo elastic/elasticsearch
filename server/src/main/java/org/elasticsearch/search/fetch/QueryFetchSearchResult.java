@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.tasks.TaskInfo;
 
 import java.io.IOException;
 
@@ -38,9 +39,10 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
         fetchResult = new FetchSearchResult(in);
     }
 
-    public QueryFetchSearchResult(QuerySearchResult queryResult, FetchSearchResult fetchResult) {
+    public QueryFetchSearchResult(QuerySearchResult queryResult, FetchSearchResult fetchResult, TaskInfo taskInfo) {
         this.queryResult = queryResult;
         this.fetchResult = fetchResult;
+        setTaskInfo(taskInfo);
     }
 
     @Override
@@ -79,6 +81,7 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         queryResult.writeTo(out);
         fetchResult.writeTo(out);
     }

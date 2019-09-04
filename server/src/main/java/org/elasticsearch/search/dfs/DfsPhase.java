@@ -50,6 +50,7 @@ public class DfsPhase implements SearchPhase {
     @Override
     public void execute(SearchContext context) {
         try {
+            context.dfsResult().setTaskInfo(context.getTaskInfo());
             ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap();
             Map<Term, TermStatistics> stats = new HashMap<>();
             IndexSearcher searcher = new IndexSearcher(context.searcher().getIndexReader()) {

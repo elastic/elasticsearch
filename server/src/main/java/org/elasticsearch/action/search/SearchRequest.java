@@ -561,24 +561,20 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        // generating description in a lazy way since source can be quite big
-        return new SearchTask(id, type, action, null, parentTaskId, headers) {
-            @Override
-            public String getDescription() {
-                StringBuilder sb = new StringBuilder();
-                sb.append("indices[");
-                Strings.arrayToDelimitedString(indices, ",", sb);
-                sb.append("], ");
-                sb.append("search_type[").append(searchType).append("], ");
-                if (source != null) {
+        return new MainSearchTask(id, type, action, () -> {
+            StringBuilder sb = new StringBuilder();
+            sb.append("indices[");
+            Strings.arrayToDelimitedString(indices, ",", sb);
+            sb.append("], ");
+            sb.append("search_type[").append(searchType).append("], ");
+            if (source != null) {
 
-                    sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
-                } else {
-                    sb.append("source[]");
-                }
-                return sb.toString();
+                sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
+            } else {
+                sb.append("source[]");
             }
-        };
+            return sb.toString();
+        }, parentTaskId, headers);
     }
 
     @Override

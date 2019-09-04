@@ -214,6 +214,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 0,
                 null,
                 (iter) -> new InitialSearchPhase<SearchPhaseResult>("test", searchRequest,
+                    (MainSearchTask)searchRequest.createTask(1, "type", "action", null, Collections.emptyMap()),
                         iter, logger, randomIntBetween(1, 32), executor) {
                     @Override
                     void onPhaseDone() {

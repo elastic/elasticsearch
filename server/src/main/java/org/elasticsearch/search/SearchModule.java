@@ -20,6 +20,7 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.search.BooleanQuery;
+import org.elasticsearch.action.search.SearchTaskStatus;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.ShapesAvailability;
@@ -265,6 +266,7 @@ import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.search.suggest.phrase.StupidBackoff;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
+import org.elasticsearch.tasks.Task;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -317,6 +319,7 @@ public class SearchModule {
         registerSearchExts(plugins);
         registerShapes();
         registerIntervalsSourceProviders();
+        this.namedWriteables.add(new Entry(Task.Status.class, SearchTaskStatus.NAME, SearchTaskStatus::new));
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {

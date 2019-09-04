@@ -60,6 +60,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.tasks.TaskInfo;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -96,6 +97,15 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     public abstract void setTask(SearchTask task);
 
     public abstract SearchTask getTask();
+
+    public final TaskInfo getTaskInfo() {
+        SearchTask task = getTask();
+        SearchShardTarget searchShardTarget = shardTarget();
+        if (task == null || searchShardTarget == null) {
+            return null;
+        }
+        return task.taskInfo(searchShardTarget.getNodeId(), false);
+    }
 
     public abstract boolean isCancelled();
 

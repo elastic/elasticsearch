@@ -35,11 +35,8 @@ import java.time.ZoneOffset;
 
 public enum ValueType implements Writeable {
 
-    STRING((byte) 1, "string", "string", ValuesSourceType.BYTES,
-            IndexFieldData.class, DocValueFormat.RAW),
-    LONG((byte) 2, "byte|short|integer|long", "long",
-                    ValuesSourceType.NUMERIC,
-            IndexNumericFieldData.class, DocValueFormat.RAW),
+    STRING((byte) 1, "string", "string", ValuesSourceType.BYTES, IndexFieldData.class, DocValueFormat.RAW),
+    LONG((byte) 2, "byte|short|integer|long", "long", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW),
     DOUBLE((byte) 3, "float|double", "double", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW),
     NUMBER((byte) 4, "number", "number", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW),
     DATE((byte) 5, "date", "date", ValuesSourceType.NUMERIC, IndexNumericFieldData.class,

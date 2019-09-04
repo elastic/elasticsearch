@@ -141,7 +141,7 @@ comma-separated list of patterns you want to allow, or prefix each pattern with
 `+` or `-` to indicate whether it should be allowed or blocked.  When a list is
 specified, the default behaviour is to disallow.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _cluster/settings
 {
@@ -164,7 +164,6 @@ PUT _cluster/settings
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> Allow auto-creation of indices called `twitter` or `index10`, block the
 creation of indices that match the pattern `index1*`, and allow creation of

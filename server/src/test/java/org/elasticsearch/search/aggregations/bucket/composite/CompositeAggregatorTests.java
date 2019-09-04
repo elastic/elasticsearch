@@ -1814,14 +1814,12 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     .field("geo_point");
                 return new CompositeAggregationBuilder("name", Collections.singletonList(geoTile));
             }, (result) -> {
-                assertEquals(3, result.getBuckets().size());
-                assertEquals("{geo_point=7/108/63}", result.afterKey().toString());
-                assertEquals("{geo_point=7/21/63}", result.getBuckets().get(0).getKeyAsString());
-                assertEquals(3L, result.getBuckets().get(0).getDocCount());
-                assertEquals("{geo_point=7/44/63}", result.getBuckets().get(1).getKeyAsString());
-                assertEquals(1L, result.getBuckets().get(1).getDocCount());
-                assertEquals("{geo_point=7/108/63}", result.getBuckets().get(2).getKeyAsString());
-                assertEquals(1L, result.getBuckets().get(2).getDocCount());
+                assertEquals(2, result.getBuckets().size());
+                assertEquals("{geo_point=7/64/56}", result.afterKey().toString());
+                assertEquals("{geo_point=7/32/56}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{geo_point=7/64/56}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(3L, result.getBuckets().get(1).getDocCount());
             }
         );
 
@@ -1830,14 +1828,12 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 GeoTileGridValuesSourceBuilder geoTile = new GeoTileGridValuesSourceBuilder("geo_point")
                     .field("geo_point");
                 return new CompositeAggregationBuilder("name", Collections.singletonList(geoTile))
-                    .aggregateAfter(Collections.singletonMap("geo_point", "7/21/63"));
+                    .aggregateAfter(Collections.singletonMap("geo_point", "7/32/56"));
             }, (result) -> {
-                assertEquals(2, result.getBuckets().size());
-                assertEquals("{geo_point=7/108/63}", result.afterKey().toString());
-                assertEquals("{geo_point=7/44/63}", result.getBuckets().get(0).getKeyAsString());
-                assertEquals(1L, result.getBuckets().get(0).getDocCount());
-                assertEquals("{geo_point=7/108/63}", result.getBuckets().get(1).getKeyAsString());
-                assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                assertEquals(1, result.getBuckets().size());
+                assertEquals("{geo_point=7/64/56}", result.afterKey().toString());
+                assertEquals("{geo_point=7/64/56}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(3L, result.getBuckets().get(0).getDocCount());
             }
         );
     }

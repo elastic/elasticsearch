@@ -131,7 +131,7 @@ public class RollupJobTaskTests extends ESTestCase {
         TaskId taskId = new TaskId("node", 123);
         RollupJobTask task = new RollupJobTask(1, "type", "action", taskId, job,
             status, client, schedulerEngine, pool, Collections.emptyMap());
-        task.init(null, mock(TaskManager.class), taskId.toString(),123);
+        task.init(null, mock(TaskManager.class), taskId.toString(), 123);
         assertThat(((RollupJobStatus)task.getStatus()).getIndexerState(), equalTo(IndexerState.STARTED));
         assertThat(((RollupJobStatus)task.getStatus()).getPosition().size(), equalTo(1));
         assertTrue(((RollupJobStatus)task.getStatus()).getPosition().containsKey("foo"));
@@ -146,7 +146,7 @@ public class RollupJobTaskTests extends ESTestCase {
         TaskId taskId = new TaskId("node", 123);
         RollupJobTask task = new RollupJobTask(1, "type", "action", taskId, job,
             status, client, schedulerEngine, pool, Collections.emptyMap());
-        task.init(null, mock(TaskManager.class), taskId.toString(),123);
+        task.init(null, mock(TaskManager.class), taskId.toString(), 123);
         assertThat(((RollupJobStatus)task.getStatus()).getIndexerState(), equalTo(IndexerState.STARTED));
         assertThat(((RollupJobStatus)task.getStatus()).getPosition().size(), equalTo(1));
         assertTrue(((RollupJobStatus)task.getStatus()).getPosition().containsKey("foo"));
@@ -174,7 +174,7 @@ public class RollupJobTaskTests extends ESTestCase {
         TaskId taskId = new TaskId("node", 123);
         RollupJobTask task = new RollupJobTask(1, "type", "action", taskId, job,
             status, client, schedulerEngine, pool, Collections.emptyMap());
-        task.init(null, mock(TaskManager.class), taskId.toString(),123);
+        task.init(null, mock(TaskManager.class), taskId.toString(), 123);
         assertThat(((RollupJobStatus)task.getStatus()).getIndexerState(), equalTo(IndexerState.STARTED));
         assertThat(((RollupJobStatus)task.getStatus()).getPosition().size(), equalTo(1));
         assertTrue(((RollupJobStatus)task.getStatus()).getPosition().containsKey("foo"));
@@ -223,7 +223,7 @@ public class RollupJobTaskTests extends ESTestCase {
                 counter.incrementAndGet();
             }
         };
-        task.init(null, mock(TaskManager.class), taskId.toString(),123);
+        task.init(null, mock(TaskManager.class), taskId.toString(), 123);
         assertThat(((RollupJobStatus)task.getStatus()).getIndexerState(), equalTo(IndexerState.STOPPED));
         assertNull(((RollupJobStatus)task.getStatus()).getPosition());
 
@@ -294,7 +294,7 @@ public class RollupJobTaskTests extends ESTestCase {
                     new PersistentTasksCustomMetaData.Assignment("foo", "foo")));
             }
         };
-        task.init(null, mock(TaskManager.class), taskId.toString(),123);
+        task.init(null, mock(TaskManager.class), taskId.toString(), 123);
         assertThat(((RollupJobStatus)task.getStatus()).getIndexerState(), equalTo(IndexerState.STOPPED));
         assertThat(((RollupJobStatus)task.getStatus()).getPosition().size(), equalTo(1));
         assertTrue(((RollupJobStatus)task.getStatus()).getPosition().containsKey("foo"));
@@ -334,7 +334,7 @@ public class RollupJobTaskTests extends ESTestCase {
                     new PersistentTasksCustomMetaData.Assignment("foo", "foo")));
             }
         };
-        task.init(null, mock(TaskManager.class), taskId.toString(),123);
+        task.init(null, mock(TaskManager.class), taskId.toString(), 123);
         assertThat(((RollupJobStatus)task.getStatus()).getIndexerState(), equalTo(IndexerState.STOPPED));
         assertThat(((RollupJobStatus)task.getStatus()).getPosition().size(), equalTo(1));
         assertTrue(((RollupJobStatus)task.getStatus()).getPosition().containsKey("foo"));
@@ -377,7 +377,7 @@ public class RollupJobTaskTests extends ESTestCase {
                     new PersistentTasksCustomMetaData.Assignment("foo", "foo")));
             }
         };
-        task.init(null, mock(TaskManager.class), taskId.toString(),123);
+        task.init(null, mock(TaskManager.class), taskId.toString(), 123);
         assertThat(((RollupJobStatus)task.getStatus()).getIndexerState(), equalTo(IndexerState.STOPPED));
         assertNull(((RollupJobStatus)task.getStatus()).getPosition());
 
@@ -453,7 +453,7 @@ public class RollupJobTaskTests extends ESTestCase {
 
             }
         };
-        task.init(null, mock(TaskManager.class), taskId.toString(),123);
+        task.init(null, mock(TaskManager.class), taskId.toString(), 123);
         assertThat(((RollupJobStatus)task.getStatus()).getIndexerState(), equalTo(IndexerState.STOPPED));
         assertNull(((RollupJobStatus)task.getStatus()).getPosition());
 
@@ -539,7 +539,7 @@ public class RollupJobTaskTests extends ESTestCase {
 
             }
         };
-        task.init(null, mock(TaskManager.class), taskId.toString(),123);
+        task.init(null, mock(TaskManager.class), taskId.toString(), 123);
         assertThat(((RollupJobStatus)task.getStatus()).getIndexerState(), equalTo(IndexerState.STOPPED));
         assertNull(((RollupJobStatus)task.getStatus()).getPosition());
 
@@ -626,7 +626,7 @@ public class RollupJobTaskTests extends ESTestCase {
 
             }
         };
-        task.init(null, mock(TaskManager.class), taskId.toString(),123);
+        task.init(null, mock(TaskManager.class), taskId.toString(), 123);
         assertThat(((RollupJobStatus)task.getStatus()).getIndexerState(), equalTo(IndexerState.STOPPED));
         assertNull(((RollupJobStatus)task.getStatus()).getPosition());
 
@@ -664,7 +664,7 @@ public class RollupJobTaskTests extends ESTestCase {
         TaskId taskId = new TaskId("node", 123);
         RollupJobTask task = new RollupJobTask(1, "type", "action", taskId, job,
             status, client, schedulerEngine, pool, Collections.emptyMap());
-        task.init(null, mock(TaskManager.class), taskId.toString(),123);
+        task.init(null, mock(TaskManager.class), taskId.toString(), 123);
         assertThat(((RollupJobStatus)task.getStatus()).getIndexerState(), equalTo(IndexerState.STOPPED));
 
         CountDownLatch latch = new CountDownLatch(1);
@@ -714,7 +714,7 @@ public class RollupJobTaskTests extends ESTestCase {
 
             }
         };
-        task.init(null, mock(TaskManager.class), taskId.toString(),123);
+        task.init(null, mock(TaskManager.class), taskId.toString(), 123);
         assertThat(((RollupJobStatus)task.getStatus()).getIndexerState(), equalTo(IndexerState.STOPPED));
         assertNull(((RollupJobStatus)task.getStatus()).getPosition());
 
@@ -787,7 +787,7 @@ public class RollupJobTaskTests extends ESTestCase {
                 latch.countDown();
             }
         };
-        task.init(null, mock(TaskManager.class), taskId.toString(),123);
+        task.init(null, mock(TaskManager.class), taskId.toString(), 123);
         assertThat(((RollupJobStatus)task.getStatus()).getIndexerState(), equalTo(IndexerState.STOPPED));
 
         task.onCancelled();

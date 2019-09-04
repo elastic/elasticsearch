@@ -153,7 +153,8 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
     private final SchedulerEngine schedulerEngine;
     private final ThreadPool threadPool;
     private final Client client;
-    private RollupJobStatus currentState;
+    private final IndexerState initialIndexerState;
+    private final Map<String, Object> initialPosition;
     private RollupIndexer indexer;
 
     RollupJobTask(long id, String type, String action, TaskId parentTask, RollupJob job, RollupJobStatus state,
@@ -163,7 +164,14 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
         this.schedulerEngine = schedulerEngine;
         this.threadPool = threadPool;
         this.client = client;
-        this.currentState = state;
+        if (state == null) {
+            this.initialIndexerState = null;
+            this.initialPosition = null;
+        } else {
+            this.initialIndexerState = state.getIndexerState();
+            this.initialPosition = state.getPosition();
+        }
+
     }
 
     @Override
@@ -171,22 +179,19 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
                         String persistentTaskId, long allocationId) {
         super.init(persistentTasksService, taskManager, persistentTaskId, allocationId);
 
-        // If status is not null, we are resuming rather than starting fresh.
-        Map<String, Object> initialPosition = null;
+        // If initial position is not null, we are resuming rather than starting fresh.
         IndexerState indexerState = IndexerState.STOPPED;
-
-        if (currentState != null) {
-            final IndexerState existingIndexerState = currentState.getIndexerState();
-            logger.debug("We have existing state, setting state to [" + existingIndexerState + "] " +
-                "and current position to [" + currentState.getPosition() + "] for job [" + job.getConfig().getId() + "]");
-            if (existingIndexerState.equals(IndexerState.INDEXING)) {
+        if (initialPosition != null) {
+            logger.debug("We have existing state, setting state to [" + initialIndexerState + "] " +
+                "and current position to [" + initialPosition + "] for job [" + job.getConfig().getId() + "]");
+            if (initialIndexerState.equals(IndexerState.INDEXING)) {
                 /*
                  * If we were indexing, we have to reset back to STARTED otherwise the indexer will be "stuck" thinking
                  * it is indexing but without the actual indexing thread running.
                  */
                 indexerState = IndexerState.STARTED;
 
-            } else if (existingIndexerState.equals(IndexerState.ABORTING) || existingIndexerState.equals(IndexerState.STOPPING)) {
+            } else if (initialIndexerState.equals(IndexerState.ABORTING) || initialIndexerState.equals(IndexerState.STOPPING)) {
                 // It shouldn't be possible to persist ABORTING, but if for some reason it does,
                 // play it safe and restore the job as STOPPED.  An admin will have to clean it up,
                 // but it won't be running, and won't delete itself either.  Safest option.
@@ -194,9 +199,8 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
                 // to restore as STOPPED
                 indexerState = IndexerState.STOPPED;
             } else  {
-                indexerState = existingIndexerState;
+                indexerState = initialIndexerState;
             }
-            initialPosition = currentState.getPosition();
 
         }
         this.indexer = new ClientRollupPageManager(job, indexerState, initialPosition,
@@ -205,8 +209,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
 
     @Override
     public Status getStatus() {
-        currentState = new RollupJobStatus(indexer.getState(), indexer.getPosition());
-        return currentState;
+        return new RollupJobStatus(indexer.getState(), indexer.getPosition());
     }
 
     /**

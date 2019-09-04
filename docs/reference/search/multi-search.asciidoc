@@ -1,7 +1,7 @@
 [[search-multi-search]]
 === Multi Search API
 
-Execute several searches with a single API request.
+Executes several searches with a single API request.
 
 [[search-multi-search-api-request]]
 ==== {api-request-title}
@@ -43,8 +43,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
 `aggregations`::
   (Optional, object) Specifies aggregations.
   
-`from`::
-  (Optional, integer) Defines the starting offset. Defaults to `0`.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=from]
   
 `max_concurrent_searches`::
   (Optional, integer) Specifies the maximum number of concurrent searches the 
@@ -62,17 +61,13 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
   environment where only a very low number of concurrent search requests are 
   expected it might help to increase this value to a higher number.
 
-`preference`::
-  (Optional, string) Specifies the node or shard the operation should be 
-  performed on. Random by default.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=preference]
   
 `query`::
   (Optional, <<query-dsl,query object>>) Defines the search definition using the 
   <<query-dsl,Query DSL>>.
 
-`routing`::
-  (Optional, <<time-units, time units>>) Specifies how long a consistent view of 
-  the index should be maintained for scrolled search.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=routing]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=search_type]
 

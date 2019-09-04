@@ -96,6 +96,20 @@ An index is a logical namespace which maps to one or more
 <<glossary-primary-shard,primary shards>> and can have zero or more
 <<glossary-replica-shard,replica shards>>.
 
+[[glossary-index-alias]] index alias ::
++
+--
+// tag::index-alias-def[]
+An index alias is a secondary name
+used to refer to one or more existing indices.
+
+Most {es} APIs accept an index alias
+in place of an index name.
+// end::index-alias-def[]
+
+See <<indices-add-alias>>.
+--
+
 [[glossary-leader-index]] leader index ::  
   
 Leader indices are the source indices for <<glossary-ccr,{ccr}>>. They exist

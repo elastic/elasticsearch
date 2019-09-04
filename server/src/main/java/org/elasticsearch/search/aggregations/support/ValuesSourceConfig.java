@@ -30,9 +30,11 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.function.Function;
 
 /**
@@ -41,13 +43,49 @@ import java.util.function.Function;
  */
 public class ValuesSourceConfig<VS extends ValuesSource> {
 
+    public static <VS extends ValuesSource> ValuesSourceConfig<VS> resolve(
+        List<SupportedValuesSourceRecord> records,
+        QueryShardContext context,
+        ValueType valueType,
+        String field,
+        Script script,
+        Object missing,
+        ZoneId timeZone,
+        String format) {
+        for (SupportedValuesSourceRecord record : records) {
+            if (record.matches(context, valueType, field, script)) {
+                // TODO: It makes sense for SupportedValuesSourceRecord to have a method which returns a configured ValuesSourceConfig
+                // but with the generics in the state they're in, that's too much work for a prototype.
+                ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(record.getFamily());
+                config.missing(missing);
+                config.timezone(timeZone);
+                config.format(record.resolveFormat(format, timeZone));
+                config.script(createScript(script, context));
+                config.scriptValueType(valueType);
+                if (field != null) {
+                    MappedFieldType fieldType = context.fieldMapper(field);
+                    if (fieldType != null) {
+                        IndexFieldData<?> indexFieldData = context.getForField(fieldType);
+                        config.fieldContext(new FieldContext(field, indexFieldData, fieldType));
+                    } else {
+                        config.unmapped(true);
+                    }
+                }
+                return config;
+            }
+        }
+        // TODO: Error message
+        throw new AggregationExecutionException("Could not resolve a ValuesSource for aggregation");
+    }
+
     /**
      * Resolve a {@link ValuesSourceConfig} given configuration parameters.
      */
     public static <VS extends ValuesSource> ValuesSourceConfig<VS> resolve(
         QueryShardContext context,
         ValueType valueType,
-        String field, Script script,
+        String field,
+        Script script,
         Object missing,
         ZoneId timeZone,
         String format) {

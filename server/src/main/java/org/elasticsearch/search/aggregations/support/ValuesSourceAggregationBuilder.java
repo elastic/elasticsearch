@@ -32,6 +32,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -40,6 +41,10 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
 
     public abstract static class LeafOnly<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<VS, AB>>
             extends ValuesSourceAggregationBuilder<VS, AB> {
+
+        protected LeafOnly(String name, List<SupportedValuesSourceRecord> supportedValuesSourceRecords) {
+            super(name, supportedValuesSourceRecords);
+        }
 
         protected LeafOnly(String name, ValuesSourceFamily valuesSourceFamily, ValueType targetValueType) {
             super(name, valuesSourceFamily, targetValueType);
@@ -84,6 +89,19 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     private Object missing = null;
     private ZoneId timeZone = null;
     protected ValuesSourceConfig<VS> config;
+
+    // New Style
+    private List<SupportedValuesSourceRecord> supportedValuesSourceRecords = null;
+
+    protected ValuesSourceAggregationBuilder(String name, List<SupportedValuesSourceRecord> supportedValuesSourceRecords) {
+        super(name);
+        // NB: there's a whole issue of mutability here that the actual registry will need to address
+        this.supportedValuesSourceRecords = supportedValuesSourceRecords;
+
+        // Normally, this can't be null, so we'll use that as a marker for "new style"
+        this.valuesSourceFamily = null;
+        this.targetValueType = null;
+    }
 
     protected ValuesSourceAggregationBuilder(String name, ValuesSourceFamily valuesSourceFamily, ValueType targetValueType) {
         super(name);
@@ -310,7 +328,12 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     @Override
     protected final ValuesSourceAggregatorFactory<VS> doBuild(SearchContext context, AggregatorFactory parent,
             AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        ValuesSourceConfig<VS> config = resolveConfig(context);
+        ValuesSourceConfig<VS> config;
+        if (this.valuesSourceFamily != null) {
+            config = resolveConfig(context);
+        } else {
+            config = newResolveConfig(context);
+        }
         ValuesSourceAggregatorFactory<VS> factory = innerBuild(context, config, parent, subFactoriesBuilder);
         return factory;
     }
@@ -334,6 +357,11 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
      */
     protected ValueType defaultValueType(Script script) {
         return valueType;
+    }
+
+    protected ValuesSourceConfig<VS> newResolveConfig(SearchContext context) {
+        return ValuesSourceConfig.resolve(supportedValuesSourceRecords, context.getQueryShardContext(),
+            valueType, field, script, missing, timeZone, format);
     }
 
     protected ValuesSourceConfig<VS> resolveConfig(SearchContext context) {

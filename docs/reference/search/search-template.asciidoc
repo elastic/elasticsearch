@@ -74,7 +74,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 include::{docdir}/rest-api/common-parms.asciidoc[tag=preference]
 
 `profile`::
-  (Optional, boolean) If `true`, the query execution will be profiled. Defaults 
+  (Optional, boolean) If `true`, the query execution is profiled. Defaults 
   to `false`.
 
 `rest_total_hits_as_int`::

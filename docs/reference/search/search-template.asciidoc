@@ -88,7 +88,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=scroll]
 include::{docdir}/rest-api/common-parms.asciidoc[tag=search_type]
 
 `typed_keys`::
-  (Optional, boolean) If `true`, aggregation and suggester names will be 
+  (Optional, boolean) If `true`, aggregation and suggester names are 
   prefixed by their respective types in the response. Defaults to `false`.
   
 

@@ -41,6 +41,28 @@ import java.util.Objects;
 public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder<GeoTileGridValuesSourceBuilder> {
     static final String TYPE = "geotile_grid";
 
+    private static final DocValueFormat GEOTILE = new DocValueFormat() {
+
+        @Override
+        public String getWriteableName() {
+            return "geo_tile";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {
+        }
+
+        @Override
+        public String format(long value) {
+            return GeoTileUtils.stringEncode(value);
+        }
+
+        @Override
+        public String format(double value) {
+            return format((long) value);
+        }
+    };
+
     private static final ObjectParser<GeoTileGridValuesSourceBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(GeoTileGridValuesSourceBuilder.TYPE);
@@ -118,27 +140,5 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
             throw new IllegalArgumentException("invalid source, expected geo_point, got " + orig.getClass().getSimpleName());
         }
     }
-
-    DocValueFormat GEOTILE = new DocValueFormat() {
-
-        @Override
-        public String getWriteableName() {
-            return "geo_tile";
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) {
-        }
-
-        @Override
-        public String format(long value) {
-            return GeoTileUtils.stringEncode(value);
-        }
-
-        @Override
-        public String format(double value) {
-            return format((long) value);
-        }
-    };
 
 }

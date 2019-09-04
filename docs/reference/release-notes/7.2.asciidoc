@@ -161,6 +161,10 @@ Suggesters::
 Features/Ingest::
 * Add HTML strip processor {pull}41888[#41888]
 
+Search::
+* Add an option to force the numeric type of a field sort {pull}38095[#38095] (issue: {issue}32601[#32601])
+
+
 [[enhancement-7.2.0]]
 [float]
 === Enhancements

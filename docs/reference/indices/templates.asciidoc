@@ -1,19 +1,10 @@
 [[indices-templates]]
-=== Index Templates
+=== Put index template API
+++++
+<titleabbrev>Put index template</titleabbrev>
+++++
 
-// tag::index-template-def[]
-Index templates define <<index-modules-settings,settings>> and <<mapping,mappings>>
-that you can automatically apply when creating new indices.
-{es} applies templates to new indices
-based on an index pattern that matches the index name.
-// end::index-template-def[]
-
-NOTE: Templates are only applied at index creation time. Changing a template
-will have no impact on existing indices. When using the create index API, the
-settings/mappings defined as part of the create index call will take precedence
-over any matching settings/mappings defined in the template.
-
-For example:
+Creates or updates an index template.
 
 [source,js]
 --------------------------------------------------
@@ -42,14 +33,96 @@ PUT _template/template_1
 // CONSOLE
 // TESTSETUP
 
-NOTE: Index templates provide C-style /* */ block comments. Comments are allowed
-everywhere in the JSON document except before the initial opening curly bracket. 
 
-Defines a template named `template_1`, with a template pattern of `te*` or `bar*`.
-The settings and mappings will be applied to any index name that matches
-the `te*` or `bar*` pattern.
+[[put-index-template-api-request]]
+==== {api-request-title}
 
-It is also possible to include aliases in an index template as follows:
+`PUT /_template/<index-template>`
+
+
+[[put-index-template-api-desc]]
+==== {api-description-title}
+
+Use the PUT index template API
+to create or update an index template.
+
+// tag::index-template-def[]
+Index templates define <<index-modules-settings,settings>> and <<mapping,mappings>>
+that you can automatically apply when creating new indices.
+{es} applies templates to new indices
+based on an index pattern that matches the index name.
+// end::index-template-def[]
+
+Index templates are only applied during index creation.
+Changes to index templates do not affect existing indices.
+Settings and mappings specified in <<indices-create-index, create index>> API requests
+override any settings or mappings specified in an index template.
+
+===== Comments in index templates
+You can use C-style /* */ block comments in index templates.
+You can includes comments anywhere in the request body,
+except before the opening curly bracket.
+
+[[getting]]	
+===== Getting templates
+
+See <<indices-get-template>>.
+
+
+[[put-index-template-api-path-params]]
+==== {api-path-parms-title}
+
+`<index-template>`::
+(Required, string)
+Name of the index template to create.
+
+
+[[put-index-template-api-query-params]]
+==== {api-query-parms-title}
+
+`create`::
+(Optional, boolean)
+If `true`, this request cannot replace or update existing index templates.
+Defaults to `false`.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=include-type-name]
+
+`order`::
+(Optional,integer)
+Order in which {es} applies this template
+if index matches multiple templates.
++
+Templates with lower `order` values are merged first.
+Templates with higher `order` values are merged later,
+overriding templates with lower values.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+
+[[put-index-template-api-request-body]]
+==== {api-request-body-title}
+
+`index_patterns`::
+(Required, array of strings)
+Array of wildcard expressions
+used to match the names of indices during creation.
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=aliases]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=mappings]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=settings]
+
+
+
+[[put-index-template-api-example]]
+==== {api-examples-title}
+
+===== Index template with index aliases
+
+You can include <<indices-aliases,index aliases>> in an index template.
 
 [source,js]
 --------------------------------------------------
@@ -77,28 +150,9 @@ PUT _template/template_1
 <1> the `{index}` placeholder in the alias name will be replaced with the
 actual index name that the template gets applied to, during index creation.
 
-[float]
-[[delete]]
-==== Deleting a Template
 
-Index templates are identified by a name (in the above case
-`template_1`) and can be deleted as well:
-
-[source,js]
---------------------------------------------------
-DELETE /_template/template_1
---------------------------------------------------
-// CONSOLE
-
-[float]	
-[[getting]]	
-==== Getting templates
-
-See <<indices-get-template>>.
-
-[float]
 [[multiple-templates]]
-==== Multiple Templates Matching
+===== Indices matching multiple templates
 
 Multiple index templates can potentially match an index, in this case,
 both the settings and mappings are merged into the final configuration
@@ -143,50 +197,3 @@ order templates, with lower order templates providing the basis.
 
 NOTE: Multiple matching templates with the same order value will 
 result in a non-deterministic merging order.
-
-[float]
-[[versioning-templates]]
-==== Template Versioning
-
-Templates can optionally add a `version` number, which can be any integer value,
-in order to simplify template management by external systems. The `version`
-field is completely optional and it is meant solely for external management of
-templates. To unset a `version`, simply replace the template without specifying
-one.
-
-[source,js]
---------------------------------------------------
-PUT /_template/template_1
-{
-    "index_patterns" : ["*"],
-    "order" : 0,
-    "settings" : {
-        "number_of_shards" : 1
-    },
-    "version": 123
-}
---------------------------------------------------
-// CONSOLE
-
-To check the `version`, you can
-<<common-options-response-filtering, filter responses>>
-using `filter_path` to limit the response to just the `version`:
-
-[source,js]
---------------------------------------------------
-GET /_template/template_1?filter_path=*.version
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-This should give a small response that makes it both easy and inexpensive to parse:
-
-[source,js]
---------------------------------------------------
-{
-  "template_1" : {
-    "version" : 123
-  }
-}
---------------------------------------------------
-// TESTRESPONSE

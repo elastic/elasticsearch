@@ -23,12 +23,12 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateApplier;
-import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.coordination.CoordinationState.PersistedState;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -38,12 +38,12 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.transport.TransportService;
@@ -71,41 +71,55 @@ import java.util.function.UnaryOperator;
  * elected as master, it requests metaData from other master eligible nodes. After that, master node performs re-conciliation on the
  * gathered results, re-creates {@link ClusterState} and broadcasts this state to other nodes in the cluster.
  */
-public class GatewayMetaState implements ClusterStateApplier, CoordinationState.PersistedState {
+public class GatewayMetaState implements PersistedState {
     protected static final Logger logger = LogManager.getLogger(GatewayMetaState.class);
 
     private final MetaStateService metaStateService;
     private final Settings settings;
-    private final ClusterService clusterService;
-    private final TransportService transportService;
+    private final SetOnce<PersistedState> persistedState = new SetOnce<>();
 
-    //there is a single thread executing updateClusterState calls, hence no volatile modifier
+    // on master-eligible nodes we call updateClusterState under the Coordinator's mutex; on master-ineligible data nodes we call
+    // updateClusterState on the (unique) cluster applier thread; on other nodes we never call updateClusterState. In all cases there's no
+    // need to synchronize access to these variables.
     protected Manifest previousManifest;
     protected ClusterState previousClusterState;
     protected boolean incrementalWrite;
 
-    public GatewayMetaState(Settings settings, MetaStateService metaStateService,
-                            MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader,
-                            TransportService transportService, ClusterService clusterService) throws IOException {
+    public GatewayMetaState(Settings settings, MetaStateService metaStateService) {
         this.settings = settings;
         this.metaStateService = metaStateService;
-        this.transportService = transportService;
-        this.clusterService = clusterService;
-
-        upgradeMetaData(metaDataIndexUpgradeService, metaDataUpgrader);
-        initializeClusterState(ClusterName.CLUSTER_NAME_SETTING.get(settings));
-        incrementalWrite = false;
     }
 
-    public PersistedState getPersistedState(Settings settings, ClusterApplierService clusterApplierService) {
-        applyClusterStateUpdaters();
-        if (DiscoveryNode.isMasterNode(settings) == false) {
-            // use Zen1 way of writing cluster state for non-master-eligible nodes
-            // this avoids concurrent manipulating of IndexMetadata with IndicesStore
-            clusterApplierService.addLowPriorityApplier(this);
-            return new InMemoryPersistedState(getCurrentTerm(), getLastAcceptedState());
+    public void start(TransportService transportService, ClusterService clusterService,
+                      MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader) {
+        assert previousClusterState == null : "should only start once, but already have " + previousClusterState;
+        try {
+            upgradeMetaData(metaDataIndexUpgradeService, metaDataUpgrader);
+            initializeClusterState(ClusterName.CLUSTER_NAME_SETTING.get(settings));
+        } catch (IOException e) {
+            throw new ElasticsearchException("failed to load metadata", e);
         }
-        return this;
+        incrementalWrite = false;
+
+        applyClusterStateUpdaters(transportService, clusterService);
+        if (DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings).equals(DiscoveryModule.ZEN_DISCOVERY_TYPE)) {
+            // only for tests that simulate a mixed Zen1/Zen2 clusters, see Zen1IT
+            if (isMasterOrDataNode()) {
+                clusterService.addLowPriorityApplier(this::applyClusterState);
+            }
+            persistedState.set(new InMemoryPersistedState(getCurrentTerm(), getLastAcceptedState()));
+        } else {
+            if (DiscoveryNode.isMasterNode(settings) == false) {
+                if (DiscoveryNode.isDataNode(settings)) {
+                    // use Zen1 way of writing cluster state for non-master-eligible nodes
+                    // this avoids concurrent manipulating of IndexMetadata with IndicesStore
+                    clusterService.addLowPriorityApplier(this::applyClusterState);
+                }
+                persistedState.set(new InMemoryPersistedState(getCurrentTerm(), getLastAcceptedState()));
+            } else {
+                persistedState.set(this);
+            }
+        }
     }
 
     private void initializeClusterState(ClusterName clusterName) throws IOException {
@@ -122,7 +136,7 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
         logger.debug("took {} to load state", TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - startNS)));
     }
 
-    public void applyClusterStateUpdaters() {
+    protected void applyClusterStateUpdaters(TransportService transportService, ClusterService clusterService) {
         assert previousClusterState.nodes().getLocalNode() == null : "applyClusterStateUpdaters must only be called once";
         assert transportService.getLocalNode() != null : "transport service is not yet started";
 
@@ -181,15 +195,18 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
         return DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings);
     }
 
+    public PersistedState getPersistedState() {
+        final PersistedState persistedState = this.persistedState.get();
+        assert persistedState != null : "not started";
+        return persistedState;
+    }
+
     public MetaData getMetaData() {
         return previousClusterState.metaData();
     }
 
-    @Override
-    public void applyClusterState(ClusterChangedEvent event) {
-        if (isMasterOrDataNode() == false) {
-            return;
-        }
+    private void applyClusterState(ClusterChangedEvent event) {
+        assert isMasterOrDataNode();
 
         if (event.state().blocks().disableStatePersistence()) {
             incrementalWrite = false;

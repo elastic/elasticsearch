@@ -135,3 +135,28 @@ DELETE /_cluster/voting_config_exclusions
 DELETE /_cluster/voting_config_exclusions?wait_for_removal=false
 --------------------------------------------------
 // CONSOLE
+
+[[modules-discovery-removing-data-nodes]]
+==== Removing data nodes [WIP // DRAFT]
+When removing data nodes, it is important not to remove too many at the same time. The way of decommissioning a node is to instruct Elasticsearch to move shards away from that node. You just need to make sure that you have enough room in the cluster to accommodate the shards. Also remember to wait for  Elasticsearch to move shards around before shutting down the node.
+
+1. Validate node settings, including allocation <<allocation-awareness>> configurations
+2. Ensure the <<cluster-health>> is green
+3. Tell the cluster to move shards away (exclude) from the node being removed
++
+[source,js]
+--------------------------------------------------
+# Do not allocate shards by moving shards away (excluding) from the node
+# Define `cluster.routing.allocation.exclude.{attribute}` using one of the 
+# supported attributes:  `_name`, `_ip`, and `_host`
+PUT _cluster/settings
+{
+  "transient" : {
+    "cluster.routing.allocation.exclude._name" : "name_of_node_being_removed"
+  }
+}
+--------------------------------------------------
+// CONSOLE
++
+4. Monitor the cluster to ensure all primary shards have been allocated onto other nodes
+5. Once the cluster is healthy and all shards have been reallocated to other nodes, turn off the elasticsearch service of the node being removed, then the node can be shut down/decommissioned

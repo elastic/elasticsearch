@@ -179,7 +179,6 @@ DELETE _scripts/<templateid>
 // CONSOLE
 // TEST[continued]
 
-//////////////////////////
 
 
 [[use-registered-templates]]

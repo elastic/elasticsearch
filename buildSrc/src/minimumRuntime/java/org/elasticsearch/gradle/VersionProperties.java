@@ -15,6 +15,10 @@ public class VersionProperties {
         return elasticsearch;
     }
 
+    public static Version getElasticsearchVersion()  {
+        return Version.fromString(elasticsearch);
+    }
+
     public static String getLucene() {
         return lucene;
     }

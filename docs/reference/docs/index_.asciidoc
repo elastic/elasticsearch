@@ -190,7 +190,7 @@ If you don't specify a document ID when using POST, the `op_type` is
 automatically set to `create` and the index operation generates a unique ID
 for the document.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST twitter/_doc/
 {
@@ -199,7 +199,6 @@ POST twitter/_doc/
     "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
-// CONSOLE
 
 The API returns the following result:
 
@@ -241,7 +240,7 @@ hash of the document's id value. For more explicit control, the value
 fed into the hash function used by the router can be directly specified
 on a per-operation basis using the `routing` parameter. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST twitter/_doc?routing=kimchy
 {
@@ -250,7 +249,6 @@ POST twitter/_doc?routing=kimchy
     "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
-// CONSOLE
 
 In this example, the document is routed to a shard based on
 the `routing` parameter provided: "kimchy".
@@ -364,7 +362,7 @@ and responding with an error. The `timeout` parameter can be used to
 explicitly specify how long it waits. Here is an example of setting it
 to 5 minutes:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT twitter/_doc/1?timeout=5m
 {
@@ -373,7 +371,6 @@ PUT twitter/_doc/1?timeout=5m
     "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 [[index-versioning]]
@@ -394,14 +391,13 @@ indexed and the new version number used. If the value provided is less
 than or equal to the stored document's version number, a version
 conflict will occur and the index operation will fail. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT twitter/_doc/1?version=2&version_type=external
 {
     "message" : "elasticsearch now has versioning support, double cool!"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 NOTE: Versioning is completely real time, and is not affected by the
@@ -453,7 +449,7 @@ primary and replica shards to diverge.
 
 Insert a JSON document into the `twitter` index with an `_id` of 1:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT twitter/_doc/1
 {
@@ -462,7 +458,6 @@ PUT twitter/_doc/1
     "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
-// CONSOLE
 
 The API returns the following result:
 
@@ -488,7 +483,7 @@ The API returns the following result:
 Use the `_create` resource to index a document into the `twitter` index if
 no document with that ID exists:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT twitter/_create/1
 {
@@ -497,12 +492,11 @@ PUT twitter/_create/1
     "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
-// CONSOLE
 
 Set the `op_type` parameter to _create_ to index a document into the `twitter`
 index if no document with that ID exists:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT twitter/_doc/1?op_type=create
 {
@@ -511,4 +505,3 @@ PUT twitter/_doc/1?op_type=create
     "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
-// CONSOLE

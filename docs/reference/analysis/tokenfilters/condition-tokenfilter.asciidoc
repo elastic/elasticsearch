@@ -18,7 +18,7 @@ script:: a predicate script that determines whether or not the filters will be a
 
 You can set it up like:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /condition_example
 {
@@ -43,14 +43,13 @@ PUT /condition_example
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> This will only apply the lowercase filter to terms that are less than 5
 characters in length
 
 And test it like:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /condition_example/_analyze
 {
@@ -58,7 +57,6 @@ POST /condition_example/_analyze
   "text" : "What Flapdoodle"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 And it'd respond:

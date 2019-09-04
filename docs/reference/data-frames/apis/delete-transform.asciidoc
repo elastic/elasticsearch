@@ -45,11 +45,10 @@ current state. The default value is `false`, meaning that the {dataframe-transfo
 [[delete-data-frame-transform-examples]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE _data_frame/transforms/ecommerce_transform
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup kibana sample data]
 
 When the {dataframe-transform} is deleted, you receive the following results:

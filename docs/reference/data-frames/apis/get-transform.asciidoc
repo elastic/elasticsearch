@@ -95,21 +95,19 @@ are no matches or only partial matches.
 
 The following example retrieves information about a maximum of ten transforms:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _data_frame/transforms?size=10
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup kibana sample data]
 
 The following example gets configuration information for the
 `ecommerce_transform` {dataframe-transform}:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _data_frame/transforms/ecommerce_transform
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup kibana sample data]
 
 The API returns the following results:

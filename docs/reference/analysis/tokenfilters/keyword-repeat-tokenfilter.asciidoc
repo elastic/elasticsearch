@@ -12,7 +12,7 @@ unnecessary duplicates.
 Here is an example of using the `keyword_repeat` token filter to
 preserve both the stemmed and unstemmed version of tokens:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /keyword_repeat_example
 {
@@ -35,11 +35,10 @@ PUT /keyword_repeat_example
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 And you can test it with:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /keyword_repeat_example/_analyze
 {
@@ -47,7 +46,6 @@ POST /keyword_repeat_example/_analyze
   "text" : "I like cats"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 And it'd respond:

@@ -139,7 +139,7 @@ delays.
 [[put-data-frame-transform-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _data_frame/transforms/ecommerce_transform
 {
@@ -183,7 +183,6 @@ PUT _data_frame/transforms/ecommerce_transform
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:kibana_sample_data_ecommerce]
 
 When the transform is created, you receive the following results:

@@ -12,7 +12,7 @@ configured, stop words will also be removed.
 [float]
 === Example output
 
-[source,js]
+[source,console]
 ---------------------------
 POST _analyze
 {
@@ -20,7 +20,6 @@ POST _analyze
   "text": "Yes yes, Gödel said this sentence is consistent and."
 }
 ---------------------------
-// CONSOLE
 
 /////////////////////
 
@@ -84,7 +83,7 @@ about stop word configuration.
 In this example, we configure the `fingerprint` analyzer to use the
 pre-defined list of English stop words:
 
-[source,js]
+[source,console]
 ----------------------------
 PUT my_index
 {
@@ -106,7 +105,6 @@ POST my_index/_analyze
   "text": "Yes yes, Gödel said this sentence is consistent and."
 }
 ----------------------------
-// CONSOLE
 
 /////////////////////
 
@@ -156,7 +154,7 @@ it, usually by adding token filters. This would recreate the built-in
 `fingerprint` analyzer and you can use it as a starting point for further
 customization:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT /fingerprint_example
 {
@@ -176,5 +174,4 @@ PUT /fingerprint_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: fingerprint_example, first: fingerprint, second: rebuilt_fingerprint}\nendyaml\n/]

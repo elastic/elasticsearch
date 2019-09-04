@@ -39,7 +39,7 @@ Note, `common_words` or `common_words_path` field is required.
 
 Here is an example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /common_grams_example
 {
@@ -70,11 +70,10 @@ PUT /common_grams_example
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 You can see the output by using e.g. the `_analyze` endpoint:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /common_grams_example/_analyze
 {
@@ -82,7 +81,6 @@ POST /common_grams_example/_analyze
   "text" : "the quick brown is a fox"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 And the response will be:

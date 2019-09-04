@@ -11,7 +11,7 @@ successful get is similar in structure to a document provided by the
 
 Here is an example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_mget
 {
@@ -29,12 +29,11 @@ GET /_mget
     ]
 }
 --------------------------------------------------
-// CONSOLE
 
 The `mget` endpoint can also be used against an index (in which case it
 is not required in the body):
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /test/_mget
 {
@@ -50,7 +49,6 @@ GET /test/_mget
     ]
 }
 --------------------------------------------------
-// CONSOLE
 
 And type:
 
@@ -73,14 +71,13 @@ GET /test/_doc/_mget
 In which case, the `ids` element can directly be used to simplify the
 request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /test/_doc/_mget
 {
     "ids" : ["1", "2"]
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 [[mget-source-filtering]]
@@ -94,7 +91,7 @@ which will be used when there are no per-document instructions.
 
 For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_mget
 {
@@ -123,7 +120,6 @@ GET /_mget
     ]
 }
 --------------------------------------------------
-// CONSOLE
 
 
 [float]
@@ -133,7 +129,7 @@ GET /_mget
 Specific stored fields can be specified to be retrieved per document to get, similar to the <<get-stored-fields,stored_fields>> parameter of the Get API.
 For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_mget
 {
@@ -153,12 +149,11 @@ GET /_mget
     ]
 }
 --------------------------------------------------
-// CONSOLE
 
 Alternatively, you can specify the `stored_fields` parameter in the query string
 as a default to be applied to all documents.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /test/_doc/_mget?stored_fields=field1,field2
 {
@@ -173,7 +168,6 @@ GET /test/_doc/_mget?stored_fields=field1,field2
     ]
 }
 --------------------------------------------------
-// CONSOLE
 <1> Returns `field1` and `field2`
 <2> Returns `field3` and `field4`
 
@@ -183,7 +177,7 @@ GET /test/_doc/_mget?stored_fields=field1,field2
 
 You can also specify a routing value as a parameter:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_mget?routing=key1
 {
@@ -202,7 +196,6 @@ GET /_mget?routing=key1
     ]
 }
 --------------------------------------------------
-// CONSOLE
 
 In this example, document `test/_doc/2` will be fetched from the shard corresponding to routing key `key1` but
 document `test/_doc/1` will be fetched from the shard corresponding to routing key `key2`.

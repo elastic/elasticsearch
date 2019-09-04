@@ -6,7 +6,7 @@ Execute several searches with a single API request.
 [[search-multi-search-api-request]]
 ==== {api-request-title}
 
-`GET <index>/_msearch`
+`GET /<index>/_msearch`
 
 
 [[search-multi-search-api-desc]]

@@ -29,6 +29,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -115,9 +116,10 @@ public class ReindexTask extends AllocatedPersistentTask {
     }
 
     private void execute(ReindexJob reindexJob) {
-        reindexIndexClient.getReindexTaskDoc(getPersistentTaskId(), new ActionListener<>() {
+        Assigner assigner = new Assigner(reindexIndexClient, getPersistentTaskId(), getAllocationId());
+        assigner.assign(new Assigner.Listener() {
             @Override
-            public void onResponse(ReindexTaskState taskState) {
+            public void onAssignment(ReindexTaskState taskState) {
                 ReindexRequest reindexRequest = taskState.getStateDoc().getReindexRequest();
                 ProgressState progressState = new ProgressState(taskState);
                 Runnable performReindex = () -> performReindex(reindexJob, reindexRequest, progressState);
@@ -135,9 +137,8 @@ public class ReindexTask extends AllocatedPersistentTask {
             }
 
             @Override
-            public void onFailure(Exception ex) {
-                logger.info("Failed to fetch reindex task doc", ex);
-                updateClusterStateToFailed(reindexJob.shouldStoreResult(), ReindexJobState.Status.FAILED_TO_READ_FROM_REINDEX_INDEX, ex);
+            public void onFailure(ReindexJobState.Status status, Exception ex) {
+                updateClusterStateToFailed(reindexJob.shouldStoreResult(), status, ex);
             }
         });
     }
@@ -297,6 +298,81 @@ public class ReindexTask extends AllocatedPersistentTask {
         }
         threadContext.copyHeaders(headers.entrySet());
         return storedContext;
+    }
+
+    private static class Assigner {
+
+        private final ReindexIndexClient reindexIndexClient;
+        private final String persistentTaskId;
+        private final long allocationId;
+        private int assignmentAttempts = 0;
+
+        private Assigner(ReindexIndexClient reindexIndexClient, String persistentTaskId, long allocationId) {
+            this.reindexIndexClient = reindexIndexClient;
+            this.persistentTaskId = persistentTaskId;
+            this.allocationId = allocationId;
+        }
+
+        private void assign(Listener assignmentListener) {
+            ++assignmentAttempts;
+            reindexIndexClient.getReindexTaskDoc(persistentTaskId, new ActionListener<>() {
+                @Override
+                public void onResponse(ReindexTaskState taskState) {
+                    long term = taskState.getPrimaryTerm();
+                    long seqNo = taskState.getSeqNo();
+                    ReindexTaskStateDoc oldDoc = taskState.getStateDoc();
+                    ReindexRequest request = oldDoc.getReindexRequest();
+                    BulkByScrollResponse response = oldDoc.getReindexResponse();
+                    ElasticsearchException exception = oldDoc.getException();
+                    RestStatus failureStatusCode = oldDoc.getFailureStatusCode();
+                    ScrollableHitSource.Checkpoint checkpoint = oldDoc.getCheckpoint();
+
+                    if (oldDoc.getAllocationId() == null || allocationId > oldDoc.getAllocationId()) {
+                        ReindexTaskStateDoc newDoc = new ReindexTaskStateDoc(request, allocationId, response, exception, failureStatusCode,
+                            checkpoint);
+                        reindexIndexClient.updateReindexTaskDoc(persistentTaskId, newDoc, term, seqNo, new ActionListener<>() {
+                            @Override
+                            public void onResponse(ReindexTaskState newTaskState) {
+                                assignmentListener.onAssignment(newTaskState);
+                            }
+
+                            @Override
+                            public void onFailure(Exception ex) {
+                                if (ex instanceof VersionConflictEngineException) {
+                                    // There has been an indexing operation since the GET operation. Try
+                                    // again if there are assignment attempts left.
+                                    if (assignmentAttempts < 3) {
+                                        assign(assignmentListener);
+                                    } else {
+                                        logger.info("Failed to write allocation id to reindex task doc after maximum retry attempts", ex);
+                                        assignmentListener.onFailure(ReindexJobState.Status.ASSIGNMENT_FAILED, ex);
+                                    }
+                                } else {
+                                    logger.info("Failed to write allocation id to reindex task doc", ex);
+                                    assignmentListener.onFailure(ReindexJobState.Status.FAILED_TO_WRITE_TO_REINDEX_INDEX, ex);
+                                }
+                            }
+                        });
+                    } else {
+                        ElasticsearchException ex = new ElasticsearchException("A newer task has already been allocated");
+                        assignmentListener.onFailure(ReindexJobState.Status.ASSIGNMENT_FAILED, ex);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception ex) {
+                    logger.info("Failed to fetch reindex task doc", ex);
+                    assignmentListener.onFailure(ReindexJobState.Status.FAILED_TO_READ_FROM_REINDEX_INDEX, ex);
+                }
+            });
+        }
+
+        private interface Listener {
+
+            void onAssignment(ReindexTaskState reindexTaskState);
+
+            void onFailure(ReindexJobState.Status status, Exception exception);
+        }
     }
 
     private class ProgressState implements Reindexer.CheckpointListener {

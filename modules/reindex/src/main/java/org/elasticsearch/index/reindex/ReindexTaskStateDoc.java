@@ -126,7 +126,7 @@ public class ReindexTaskStateDoc implements ToXContentObject {
         return reindexResponse;
     }
 
-    public Exception getException() {
+    public ElasticsearchException getException() {
         return exception;
     }
 
@@ -136,6 +136,10 @@ public class ReindexTaskStateDoc implements ToXContentObject {
 
     public ScrollableHitSource.Checkpoint getCheckpoint() {
         return checkpoint;
+    }
+
+    public Long getAllocationId() {
+        return allocationId;
     }
 
     public ReindexTaskStateDoc withCheckpoint(ScrollableHitSource.Checkpoint checkpoint, BulkByScrollTask.Status status) {

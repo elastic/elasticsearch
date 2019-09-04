@@ -980,6 +980,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 // So, don't treat this like a checkpoint being completed, as no work was done.
                 if (hasSourceChanged == false) {
                     listener.onResponse(null);
+                    return;
                 }
                 // TODO: needs cleanup super is called with a listener, but listener.onResponse is called below
                 // super.onFinish() fortunately ignores the listener

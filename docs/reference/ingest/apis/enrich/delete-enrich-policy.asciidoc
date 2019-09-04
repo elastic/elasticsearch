@@ -53,7 +53,7 @@ and its enrich index.
 [IMPORTANT]
 ====
 You must remove an enrich policy
-from any in-use enrich processors and ingest pipelines
+from any in-use ingest pipelines
 before deletion.
 You cannot remove in-use enrich policies.
 ====

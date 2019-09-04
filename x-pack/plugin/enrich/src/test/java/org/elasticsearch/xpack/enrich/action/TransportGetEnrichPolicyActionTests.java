@@ -149,7 +149,6 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
                 public void onResponse(GetEnrichPolicyAction.Response response) {
                     reference.set(response);
                     latch.countDown();
-
                 }
 
                 public void onFailure(final Exception e) {
@@ -165,6 +164,45 @@ public class TransportGetEnrichPolicyActionTests extends AbstractEnrichTestCase 
         EnrichPolicy.NamedPolicy actualPolicy = response.getPolicies().get(0);
         assertThat(name, equalTo(actualPolicy.getName()));
         assertEqualPolicies(policy, actualPolicy.getPolicy());
+    }
+
+    public void testGetMultiplePolicies() throws InterruptedException {
+        EnrichPolicy policy = randomEnrichPolicy(XContentType.JSON);
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        String name = "my-policy";
+        String anotherName = "my-other-policy";
+
+        AtomicReference<Exception> error = saveEnrichPolicy(name, policy, clusterService);
+        assertThat(error.get(), nullValue());
+
+        error = saveEnrichPolicy(anotherName, policy, clusterService);
+        assertThat(error.get(), nullValue());
+
+        // save a second one to verify the count below on GET
+        error = saveEnrichPolicy("something-else", randomEnrichPolicy(XContentType.JSON), clusterService);
+        assertThat(error.get(), nullValue());
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<GetEnrichPolicyAction.Response> reference = new AtomicReference<>();
+        final TransportGetEnrichPolicyAction transportAction = node().injector().getInstance(TransportGetEnrichPolicyAction.class);
+        ActionTestUtils.execute(transportAction, null,
+            new GetEnrichPolicyAction.Request(new String[]{name, anotherName}),
+            new ActionListener<GetEnrichPolicyAction.Response>() {
+                @Override
+                public void onResponse(GetEnrichPolicyAction.Response response) {
+                    reference.set(response);
+                    latch.countDown();
+                }
+
+                public void onFailure(final Exception e) {
+                    fail();
+                }
+            });
+        latch.await();
+        assertNotNull(reference.get());
+        GetEnrichPolicyAction.Response response = reference.get();
+
+        assertThat(response.getPolicies().size(), equalTo(2));
     }
 
     public void testGetPolicyThrowsError() throws InterruptedException {

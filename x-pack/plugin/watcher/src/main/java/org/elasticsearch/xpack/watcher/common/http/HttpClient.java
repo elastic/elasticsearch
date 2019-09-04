@@ -334,12 +334,13 @@ public class HttpClient implements Closeable {
                     String part = pathParts[i];
                     boolean isLast = i == pathParts.length - 1;
                     if (Strings.isEmpty(part) == false) {
-                        String appendPart = part;
+                        unescapedPathParts.add(URLDecoder.decode(part, StandardCharsets.UTF_8.name()));
+                        // if the passed URL ends with a slash, adding an empty string to the
+                        // unescaped paths will ensure the slash will be added back
                         boolean appendSlash = isPathEndsWithSlash && isLast;
                         if (appendSlash) {
-                            appendPart += "/";
+                            unescapedPathParts.add("");
                         }
-                        unescapedPathParts.add(URLDecoder.decode(appendPart, StandardCharsets.UTF_8.name()));
                     }
                 }
             }

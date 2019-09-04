@@ -6,7 +6,7 @@
 <titleabbrev>Get {watcher} stats</titleabbrev>
 ++++
 
-The `stats` API returns the current {watcher} metrics.
+Retrieves the current {watcher} metrics.
 
 [float]
 ==== Request

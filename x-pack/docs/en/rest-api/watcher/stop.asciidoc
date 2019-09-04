@@ -1,12 +1,11 @@
 [role="xpack"]
 [[watcher-api-stop]]
-=== Stop {watcher} API
-[subs="attributes"]
+=== Stop watch service API
 ++++
-<titleabbrev>Stop {watcher}</titleabbrev>
+<titleabbrev>Stop watch service</titleabbrev>
 ++++
 
-The `stop` API stops the {watcher} service if the service is running.
+Stops the {watcher} service if it is running.
 
 [float]
 ==== Request

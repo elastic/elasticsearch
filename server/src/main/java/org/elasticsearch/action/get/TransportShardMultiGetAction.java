@@ -20,6 +20,7 @@
 package org.elasticsearch.action.get;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
@@ -37,6 +38,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 public class TransportShardMultiGetAction extends TransportSingleShardAction<MultiGetShardRequest, MultiGetShardResponse> {
 
@@ -73,6 +76,24 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
         return clusterService.operationRouting()
                 .getShards(state, request.request().index(), request.request().shardId(), request.request().preference());
+    }
+
+    @Override
+    protected void asyncShardOperation(
+        MultiGetShardRequest request, ShardId shardId, ActionListener<MultiGetShardResponse> listener) throws IOException {
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        IndexShard indexShard = indexService.getShard(shardId.id());
+        if (request.realtime()) { // we are not tied to a refresh cycle here anyway
+            super.asyncShardOperation(request, shardId, listener);
+        } else {
+            indexShard.awaitShardSearchActive(b -> {
+                try {
+                    super.asyncShardOperation(request, shardId, listener);
+                } catch (Exception ex) {
+                    listener.onFailure(ex);
+                }
+            });
+        }
     }
 
     @Override

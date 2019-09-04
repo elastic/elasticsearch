@@ -887,6 +887,12 @@ class BuildPlugin implements Plugin<Project> {
                 // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
                 test.systemProperty 'es.transport.cname_in_publish_address', 'true'
 
+                // Set netty system properties to the properties we configure in jvm.options
+                test.systemProperty('io.netty.noUnsafe', 'true')
+                test.systemProperty('io.netty.noKeySetOptimization', 'true')
+                test.systemProperty('io.netty.recycler.maxCapacityPerThread', '0')
+                test.systemProperty('io.netty.allocator.numDirectArenas', '0')
+
                 test.testLogging { TestLoggingContainer logging ->
                     logging.showExceptions = true
                     logging.showCauses = true

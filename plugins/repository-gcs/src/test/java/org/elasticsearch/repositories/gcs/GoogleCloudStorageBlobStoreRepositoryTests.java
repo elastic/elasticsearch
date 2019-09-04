@@ -48,11 +48,8 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.BufferedInputStream;
-import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
@@ -74,7 +71,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 
-import static java.nio.charset.StandardCharsets.ISO_8859_1;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
@@ -302,41 +298,50 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
 
                 } else if (Regex.simpleMatch("POST /upload/storage/v1/b/bucket/*uploadType=multipart*", request)) {
                     byte[] response = new byte[0];
-                    try (
-                        InputStream input = new GZIPInputStream(exchange.getRequestBody());
-                        BufferedReader reader = new BufferedReader(new InputStreamReader(input, ISO_8859_1))
-                    ) {
-                        String blob = null, line;
-                        while ((line = reader.readLine()) != null) {
+                    try (BufferedInputStream in = new BufferedInputStream(new GZIPInputStream(exchange.getRequestBody()))) {
+                        String blob = null;
+                        int read;
+                        while ((read = in.read()) != -1) {
                             boolean markAndContinue = false;
-                            if (line.length() == 0 || line.equals("\r\n") || line.startsWith("--")
-                                || line.toLowerCase(Locale.ROOT).startsWith("content")) {
-                                markAndContinue = true;
-                            } else if (line.startsWith("{\"bucket\":\"bucket\"")) {
-                                markAndContinue = true;
-                                Matcher matcher = Pattern.compile("\"name\":\"([^\"]*)\"").matcher(line);
-                                if (matcher.find()) {
-                                    blob = matcher.group(1);
-                                    response = line.getBytes(UTF_8);
+                            try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+                                do { // search next new line char and stops
+                                    char current = (char) read;
+                                    if (current == '\n') {
+                                        break;
+                                    } else if (current != '\r') {
+                                        out.write(read);
+                                    }
+                                } while ((read = in.read()) != -1);
+
+                                final String line = new String(out.toByteArray(), UTF_8);
+                                if (line.length() == 0 || line.equals("\r\n") || line.startsWith("--")
+                                    || line.toLowerCase(Locale.ROOT).startsWith("content")) {
+                                    markAndContinue = true;
+                                } else if (line.startsWith("{\"bucket\":\"bucket\"")) {
+                                    markAndContinue = true;
+                                    Matcher matcher = Pattern.compile("\"name\":\"([^\"]*)\"").matcher(line);
+                                    if (matcher.find()) {
+                                        blob = matcher.group(1);
+                                        response = line.getBytes(UTF_8);
+                                    }
+                                }
+                                if (markAndContinue) {
+                                    in.mark(Integer.MAX_VALUE);
+                                    continue;
                                 }
                             }
-                            if (markAndContinue) {
-                                reader.mark(1);
-                                continue;
-                            }
                             if (blob != null) {
-                                reader.reset();
-                                try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-                                    int c;
-                                    while ((c = reader.read()) != -1) {
-                                        out.write(c); // one char to one byte, because of the ISO_8859_1 encoding
+                                in.reset();
+                                try (ByteArrayOutputStream binary = new ByteArrayOutputStream()) {
+                                    while ((read = in.read()) != -1) {
+                                        binary.write(read);
                                     }
-                                    byte[] trailing = ("\r\n--__END_OF_PART__--\r\n").getBytes(ISO_8859_1);
-                                    byte[] content = Arrays.copyOf(out.toByteArray(), out.toByteArray().length - trailing.length);
-                                    blobs.put(blob, new BytesArray(content));
+                                    binary.flush();
+                                    byte[] tmp = binary.toByteArray();
+                                    // removes the trailing end "\r\n--__END_OF_PART__--\r\n" which is 23 bytes long
+                                    blobs.put(blob, new BytesArray(Arrays.copyOf(tmp, tmp.length - 23)));
                                 } finally {
-                                    //blob = null;
-                                    reader.mark(0);
+                                    blob = null;
                                 }
                             }
                         }

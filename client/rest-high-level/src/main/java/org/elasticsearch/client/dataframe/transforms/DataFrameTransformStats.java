@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -33,20 +34,20 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 public class DataFrameTransformStats {
 
     public static final ParseField ID = new ParseField("id");
-    public static final ParseField TASK_STATE_FIELD = new ParseField("task_state");
+    public static final ParseField STATE_FIELD = new ParseField("state");
     public static final ParseField REASON_FIELD = new ParseField("reason");
     public static final ParseField NODE_FIELD = new ParseField("node");
     public static final ParseField STATS_FIELD = new ParseField("stats");
     public static final ParseField CHECKPOINTING_INFO_FIELD = new ParseField("checkpointing");
 
     public static final ConstructingObjectParser<DataFrameTransformStats, Void> PARSER = new ConstructingObjectParser<>(
-            "data_frame_transform_state_and_stats_info", true,
-            a -> new DataFrameTransformStats((String) a[0], (DataFrameTransformTaskState) a[1], (String) a[2],
-                (NodeAttributes) a[3], (DataFrameIndexerTransformStats) a[4], (DataFrameTransformCheckpointingInfo) a[5]));
+        "data_frame_transform_state_and_stats_info", true,
+        a -> new DataFrameTransformStats((String) a[0], (State) a[1], (String) a[2],
+            (NodeAttributes) a[3], (DataFrameIndexerTransformStats) a[4], (DataFrameTransformCheckpointingInfo) a[5]));
 
     static {
         PARSER.declareString(constructorArg(), ID);
-        PARSER.declareField(optionalConstructorArg(), p -> DataFrameTransformTaskState.fromString(p.text()), TASK_STATE_FIELD,
+        PARSER.declareField(optionalConstructorArg(), p -> State.fromString(p.text()), STATE_FIELD,
             ObjectParser.ValueType.STRING);
         PARSER.declareString(optionalConstructorArg(), REASON_FIELD);
         PARSER.declareField(optionalConstructorArg(), NodeAttributes.PARSER::apply, NODE_FIELD, ObjectParser.ValueType.OBJECT);
@@ -61,16 +62,15 @@ public class DataFrameTransformStats {
 
     private final String id;
     private final String reason;
-    private final DataFrameTransformTaskState taskState;
+    private final State state;
     private final NodeAttributes node;
     private final DataFrameIndexerTransformStats indexerStats;
     private final DataFrameTransformCheckpointingInfo checkpointingInfo;
 
-    public DataFrameTransformStats(String id, DataFrameTransformTaskState taskState, String reason, NodeAttributes node,
-                                   DataFrameIndexerTransformStats stats,
+    public DataFrameTransformStats(String id, State state, String reason, NodeAttributes node, DataFrameIndexerTransformStats stats,
                                    DataFrameTransformCheckpointingInfo checkpointingInfo) {
         this.id = id;
-        this.taskState = taskState;
+        this.state = state;
         this.reason = reason;
         this.node = node;
         this.indexerStats = stats;
@@ -81,8 +81,8 @@ public class DataFrameTransformStats {
         return id;
     }
 
-    public DataFrameTransformTaskState getTaskState() {
-        return taskState;
+    public State getState() {
+        return state;
     }
 
     public String getReason() {
@@ -103,7 +103,7 @@ public class DataFrameTransformStats {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, taskState, reason, node, indexerStats, checkpointingInfo);
+        return Objects.hash(id, state, reason, node, indexerStats, checkpointingInfo);
     }
 
     @Override
@@ -119,10 +119,23 @@ public class DataFrameTransformStats {
         DataFrameTransformStats that = (DataFrameTransformStats) other;
 
         return Objects.equals(this.id, that.id)
-            && Objects.equals(this.taskState, that.taskState)
+            && Objects.equals(this.state, that.state)
             && Objects.equals(this.reason, that.reason)
             && Objects.equals(this.node, that.node)
             && Objects.equals(this.indexerStats, that.indexerStats)
             && Objects.equals(this.checkpointingInfo, that.checkpointingInfo);
+    }
+
+    public enum State {
+
+        STARTED, INDEXING, ABORTING, STOPPING, STOPPED, FAILED;
+
+        public static State fromString(String name) {
+            return valueOf(name.trim().toUpperCase(Locale.ROOT));
+        }
+
+        public String value() {
+            return name().toLowerCase(Locale.ROOT);
+        }
     }
 }

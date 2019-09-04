@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.rest.datafeeds;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -27,8 +26,7 @@ public class RestDeleteDatafeedAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(RestDeleteDatafeedAction.class));
 
-    public RestDeleteDatafeedAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestDeleteDatafeedAction(RestController controller) {
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
             DELETE, MachineLearning.BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}", this,

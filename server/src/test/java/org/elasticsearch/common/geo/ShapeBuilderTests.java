@@ -27,6 +27,7 @@ import org.elasticsearch.common.geo.builders.MultiLineStringBuilder;
 import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
 import org.locationtech.jts.geom.Coordinate;
@@ -52,9 +53,9 @@ public class ShapeBuilderTests extends ESTestCase {
         Point point = pb.buildS4J();
         assertEquals(-100D, point.getX(), 0.0d);
         assertEquals(45D, point.getY(), 0.0d);
-        org.elasticsearch.geo.geometry.Point geoPoint = pb.buildGeometry();
-        assertEquals(-100D, geoPoint.getLon(), 0.0d);
-        assertEquals(45D, geoPoint.getLat(), 0.0d);
+        org.elasticsearch.geometry.Point geoPoint = pb.buildGeometry();
+        assertEquals(-100D, geoPoint.getX(), 0.0d);
+        assertEquals(45D, geoPoint.getY(), 0.0d);
     }
 
     public void testNewRectangle() {
@@ -65,11 +66,11 @@ public class ShapeBuilderTests extends ESTestCase {
         assertEquals(45D, rectangle.getMaxX(), 0.0d);
         assertEquals(30D, rectangle.getMaxY(), 0.0d);
 
-        org.elasticsearch.geo.geometry.Rectangle luceneRectangle = eb.buildGeometry();
-        assertEquals(-45D, luceneRectangle.getMinLon(), 0.0d);
-        assertEquals(-30D, luceneRectangle.getMinLat(), 0.0d);
-        assertEquals(45D, luceneRectangle.getMaxLon(), 0.0d);
-        assertEquals(30D, luceneRectangle.getMaxLat(), 0.0d);
+        org.elasticsearch.geometry.Rectangle luceneRectangle = eb.buildGeometry();
+        assertEquals(-45D, luceneRectangle.getMinX(), 0.0d);
+        assertEquals(-30D, luceneRectangle.getMinY(), 0.0d);
+        assertEquals(45D, luceneRectangle.getMaxX(), 0.0d);
+        assertEquals(30D, luceneRectangle.getMaxY(), 0.0d);
     }
 
     public void testNewPolygon() {
@@ -87,15 +88,15 @@ public class ShapeBuilderTests extends ESTestCase {
         assertEquals(exterior.getCoordinateN(2), new Coordinate(45, -30));
         assertEquals(exterior.getCoordinateN(3), new Coordinate(-45, -30));
 
-        org.elasticsearch.geo.geometry.LinearRing polygon = pb.toPolygonGeometry().getPolygon();
-        assertEquals(polygon.getLat(0), 30, 0d);
-        assertEquals(polygon.getLon(0), -45, 0d);
-        assertEquals(polygon.getLat(1), 30, 0d);
-        assertEquals(polygon.getLon(1), 45, 0d);
-        assertEquals(polygon.getLat(2), -30, 0d);
-        assertEquals(polygon.getLon(2), 45, 0d);
-        assertEquals(polygon.getLat(3), -30, 0d);
-        assertEquals(polygon.getLon(3), -45, 0d);
+        LinearRing polygon = pb.toPolygonGeometry().getPolygon();
+        assertEquals(polygon.getY(0), 30, 0d);
+        assertEquals(polygon.getX(0), -45, 0d);
+        assertEquals(polygon.getY(1), 30, 0d);
+        assertEquals(polygon.getX(1), 45, 0d);
+        assertEquals(polygon.getY(2), -30, 0d);
+        assertEquals(polygon.getX(2), 45, 0d);
+        assertEquals(polygon.getY(3), -30, 0d);
+        assertEquals(polygon.getX(3), -45, 0d);
     }
 
     public void testNewPolygon_coordinate() {
@@ -113,15 +114,15 @@ public class ShapeBuilderTests extends ESTestCase {
         assertEquals(exterior.getCoordinateN(2), new Coordinate(45, -30));
         assertEquals(exterior.getCoordinateN(3), new Coordinate(-45, -30));
 
-        org.elasticsearch.geo.geometry.LinearRing polygon = pb.toPolygonGeometry().getPolygon();
-        assertEquals(polygon.getLat(0), 30, 0d);
-        assertEquals(polygon.getLon(0), -45, 0d);
-        assertEquals(polygon.getLat(1), 30, 0d);
-        assertEquals(polygon.getLon(1), 45, 0d);
-        assertEquals(polygon.getLat(2), -30, 0d);
-        assertEquals(polygon.getLon(2), 45, 0d);
-        assertEquals(polygon.getLat(3), -30, 0d);
-        assertEquals(polygon.getLon(3), -45, 0d);
+        LinearRing polygon = pb.toPolygonGeometry().getPolygon();
+        assertEquals(polygon.getY(0), 30, 0d);
+        assertEquals(polygon.getX(0), -45, 0d);
+        assertEquals(polygon.getY(1), 30, 0d);
+        assertEquals(polygon.getX(1), 45, 0d);
+        assertEquals(polygon.getY(2), -30, 0d);
+        assertEquals(polygon.getX(2), 45, 0d);
+        assertEquals(polygon.getY(3), -30, 0d);
+        assertEquals(polygon.getX(3), -45, 0d);
     }
 
     public void testNewPolygon_coordinates() {
@@ -137,15 +138,15 @@ public class ShapeBuilderTests extends ESTestCase {
         assertEquals(exterior.getCoordinateN(2), new Coordinate(45, -30));
         assertEquals(exterior.getCoordinateN(3), new Coordinate(-45, -30));
 
-        org.elasticsearch.geo.geometry.LinearRing polygon = pb.toPolygonGeometry().getPolygon();
-        assertEquals(polygon.getLat(0), 30, 0d);
-        assertEquals(polygon.getLon(0), -45, 0d);
-        assertEquals(polygon.getLat(1), 30, 0d);
-        assertEquals(polygon.getLon(1), 45, 0d);
-        assertEquals(polygon.getLat(2), -30, 0d);
-        assertEquals(polygon.getLon(2), 45, 0d);
-        assertEquals(polygon.getLat(3), -30, 0d);
-        assertEquals(polygon.getLon(3), -45, 0d);
+        LinearRing polygon = pb.toPolygonGeometry().getPolygon();
+        assertEquals(polygon.getY(0), 30, 0d);
+        assertEquals(polygon.getX(0), -45, 0d);
+        assertEquals(polygon.getY(1), 30, 0d);
+        assertEquals(polygon.getX(1), 45, 0d);
+        assertEquals(polygon.getY(2), -30, 0d);
+        assertEquals(polygon.getX(2), 45, 0d);
+        assertEquals(polygon.getY(3), -30, 0d);
+        assertEquals(polygon.getX(3), -45, 0d);
     }
 
     public void testLineStringBuilder() {

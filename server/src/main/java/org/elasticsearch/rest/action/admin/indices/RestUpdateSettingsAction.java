@@ -36,8 +36,7 @@ import static org.elasticsearch.client.Requests.updateSettingsRequest;
 
 public class RestUpdateSettingsAction extends BaseRestHandler {
 
-    public RestUpdateSettingsAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestUpdateSettingsAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.PUT, "/{index}/_settings", this);
         controller.registerHandler(RestRequest.Method.PUT, "/_settings", this);
     }

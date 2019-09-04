@@ -16,7 +16,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -150,6 +152,21 @@ public class OutlierDetection implements DataFrameAnalysis {
             params.put(FEATURE_INFLUENCE_THRESHOLD.getPreferredName(), featureInfluenceThreshold);
         }
         return params;
+    }
+
+    @Override
+    public boolean supportsCategoricalFields() {
+        return false;
+    }
+
+    @Override
+    public List<RequiredField> getRequiredFields() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public boolean supportsMissingValues() {
+        return false;
     }
 
     public enum Method {

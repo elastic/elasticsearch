@@ -32,8 +32,11 @@ import org.elasticsearch.client.dataframe.PreviewDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StartDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.UpdateDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigTests;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigUpdate;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigUpdateTests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -79,6 +82,26 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
         putRequest.setDeferValidation(true);
         request = DataFrameRequestConverters.putDataFrameTransform(putRequest);
         assertThat(request.getParameters(), hasEntry("defer_validation", Boolean.toString(putRequest.getDeferValidation())));
+    }
+
+    public void testUpdateDataFrameTransform() throws IOException {
+        String transformId = randomAlphaOfLength(10);
+        UpdateDataFrameTransformRequest updateDataFrameTransformRequest = new UpdateDataFrameTransformRequest(
+            DataFrameTransformConfigUpdateTests.randomDataFrameTransformConfigUpdate(),
+            transformId);
+        Request request = DataFrameRequestConverters.updateDataFrameTransform(updateDataFrameTransformRequest);
+        assertThat(request.getParameters(), not(hasKey("defer_validation")));
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertThat(request.getEndpoint(), equalTo("/_data_frame/transforms/" + transformId + "/_update"));
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            DataFrameTransformConfigUpdate parsedConfig = DataFrameTransformConfigUpdate.fromXContent(parser);
+            assertThat(parsedConfig, equalTo(updateDataFrameTransformRequest.getUpdate()));
+        }
+        updateDataFrameTransformRequest.setDeferValidation(true);
+        request = DataFrameRequestConverters.updateDataFrameTransform(updateDataFrameTransformRequest);
+        assertThat(request.getParameters(),
+            hasEntry("defer_validation", Boolean.toString(updateDataFrameTransformRequest.getDeferValidation())));
     }
 
     public void testDeleteDataFrameTransform() {

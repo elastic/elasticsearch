@@ -86,6 +86,10 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
         return cursor;
     }
 
+    public boolean hasCursor() {
+        return StringUtils.EMPTY.equals(cursor) == false;
+    }
+
     public long size() {
         return rows.size();
     }

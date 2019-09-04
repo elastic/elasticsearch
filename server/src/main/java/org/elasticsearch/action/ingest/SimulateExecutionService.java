@@ -55,8 +55,8 @@ class SimulateExecutionService {
             }
         } else {
             try {
-                pipeline.execute(ingestDocument);
-                return new SimulateDocumentBaseResult(ingestDocument);
+                IngestDocument result = pipeline.execute(ingestDocument);
+                return new SimulateDocumentBaseResult(result);
             } catch (Exception e) {
                 return new SimulateDocumentBaseResult(e);
             }

@@ -20,6 +20,7 @@
 package org.elasticsearch.http.netty4;
 
 import io.netty.bootstrap.ServerBootstrap;
+import io.netty.buffer.ByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandler;
@@ -62,6 +63,7 @@ import org.elasticsearch.http.HttpReadTimeoutException;
 import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.CopyBytesServerSocketChannel;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.net.InetSocketAddress;
@@ -145,12 +147,12 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
     private final int maxCompositeBufferComponents;
 
-    protected volatile ServerBootstrap serverBootstrap;
+    private volatile ServerBootstrap serverBootstrap;
 
     public Netty4HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
                                      NamedXContentRegistry xContentRegistry, Dispatcher dispatcher) {
         super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher);
-        Netty4Utils.setAvailableProcessors(EsExecutors.PROCESSORS_SETTING.get(settings));
+        Netty4Utils.setAvailableProcessors(EsExecutors.NODE_PROCESSORS_SETTING.get(settings));
 
         this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
@@ -183,7 +185,15 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
             serverBootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings,
                 HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)));
-            serverBootstrap.channel(NioServerSocketChannel.class);
+
+            // If direct buffer pooling is disabled, use the CopyBytesServerSocketChannel which will create child
+            // channels of type CopyBytesSocketChannel. CopyBytesSocketChannel pool a single direct buffer
+            // per-event-loop thread to be used for IO operations.
+            if (ByteBufAllocator.DEFAULT.isDirectBufferPooled()) {
+                serverBootstrap.channel(NioServerSocketChannel.class);
+            } else {
+                serverBootstrap.channel(CopyBytesServerSocketChannel.class);
+            }
 
             serverBootstrap.childHandler(configureServerChannelHandler());
             serverBootstrap.handler(new ServerChannelExceptionHandler(this));

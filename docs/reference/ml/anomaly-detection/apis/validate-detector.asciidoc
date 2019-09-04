@@ -3,7 +3,7 @@
 [[ml-valid-detector]]
 === Validate detectors API
 ++++
-<titleabbrev>Validate detectors </titleabbrev>
+<titleabbrev>Validate detectors</titleabbrev>
 ++++
 
 Validates detector configuration information.
@@ -23,8 +23,8 @@ Validates detector configuration information.
 [[ml-valid-detector-desc]]
 ==== {api-description-title}
 
-The validate detectors API enables you validate the detector configuration
-before you create a job.
+This API enables you validate the detector configuration
+before you create an {anomaly-job}.
 
 [[ml-valid-detector-request-body]]
 ==== {api-request-body-title}

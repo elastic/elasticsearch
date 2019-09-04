@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.TimeSyncConfig;
+import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 
 public class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
@@ -31,8 +32,9 @@ public class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
 
     TimeBasedCheckpointProvider(final Client client,
                                 final DataFrameTransformsConfigManager dataFrameTransformsConfigManager,
+                                final DataFrameAuditor dataFrameAuditor,
                                 final DataFrameTransformConfig transformConfig) {
-        super(client, dataFrameTransformsConfigManager, transformConfig);
+        super(client, dataFrameTransformsConfigManager, dataFrameAuditor, transformConfig);
         timeSyncConfig = (TimeSyncConfig) transformConfig.getSyncConfig();
     }
 

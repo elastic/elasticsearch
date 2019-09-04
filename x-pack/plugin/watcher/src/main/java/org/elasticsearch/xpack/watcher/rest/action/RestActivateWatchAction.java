@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.watcher.rest.action;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -24,8 +23,6 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateW
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchResponse;
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
 
-import java.io.IOException;
-
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -36,8 +33,7 @@ public class RestActivateWatchAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestActivateWatchAction.class));
 
-    public RestActivateWatchAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestActivateWatchAction(RestController controller) {
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
             POST, "/_watcher/watch/{id}/_activate", this,
@@ -46,7 +42,7 @@ public class RestActivateWatchAction extends BaseRestHandler {
             PUT, "/_watcher/watch/{id}/_activate", this,
             PUT, "/_xpack/watcher/watch/{id}/_activate", deprecationLogger);
 
-        final DeactivateRestHandler deactivateRestHandler = new DeactivateRestHandler(settings);
+        final DeactivateRestHandler deactivateRestHandler = new DeactivateRestHandler();
         controller.registerWithDeprecatedHandler(
             POST, "/_watcher/watch/{id}/_deactivate", deactivateRestHandler,
             POST, "/_xpack/watcher/watch/{id}/_deactivate", deprecationLogger);
@@ -61,7 +57,7 @@ public class RestActivateWatchAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         String watchId = request.param("id");
         return channel ->
                 client.execute(ActivateWatchAction.INSTANCE, new ActivateWatchRequest(watchId, true),
@@ -77,8 +73,7 @@ public class RestActivateWatchAction extends BaseRestHandler {
 
     private static class DeactivateRestHandler extends BaseRestHandler {
 
-        DeactivateRestHandler(Settings settings) {
-            super(settings);
+        DeactivateRestHandler() {
         }
 
         @Override
@@ -87,7 +82,7 @@ public class RestActivateWatchAction extends BaseRestHandler {
         }
 
         @Override
-        public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
             String watchId = request.param("id");
             return channel ->
                     client.execute(ActivateWatchAction.INSTANCE, new ActivateWatchRequest(watchId, false),

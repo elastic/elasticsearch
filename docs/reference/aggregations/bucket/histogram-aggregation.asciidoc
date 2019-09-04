@@ -19,7 +19,7 @@ The `interval` must be a positive decimal, while the `offset` must be a decimal 
 
 The following snippet "buckets" the products based on their `price` by interval of `50`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -33,7 +33,6 @@ POST /sales/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 And the following may be the response:
@@ -78,7 +77,7 @@ The response above show that no documents has a price that falls within the rang
 response will fill gaps in the histogram with empty buckets. It is possible change that and request buckets with
 a higher minimum count thanks to the `min_doc_count` setting:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -93,7 +92,6 @@ POST /sales/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 Response:
@@ -143,7 +141,7 @@ the first bucket you'll get will be the one with `100` as its key. This is confu
 to get those buckets between `0 - 100`.
 
 With `extended_bounds` setting, you now can "force" the histogram aggregation to start building buckets on a specific
-`min` values and also keep on building buckets up to a `max` value (even if there are no documents anymore). Using
+`min` value and also keep on building buckets up to a `max` value (even if there are no documents anymore). Using
 `extended_bounds` only makes sense when `min_doc_count` is 0 (the empty buckets will never be returned if `min_doc_count`
 is greater than 0).
 
@@ -154,7 +152,7 @@ under a range `filter` aggregation with the appropriate `from`/`to` settings.
 
 Example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -175,7 +173,6 @@ POST /sales/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 ==== Order
@@ -185,8 +182,10 @@ the `order` setting. Supports the same `order` functionality as the <<search-agg
 
 ==== Offset
 
-By default the bucket keys start with 0 and then continue in even spaced steps of `interval`, e.g. if the interval is 10 the first buckets
-(assuming there is data inside them) will be `[0, 10)`, `[10, 20)`, `[20, 30)`. The bucket boundaries can be shifted by using the `offset` option.
+By default the bucket keys start with 0 and then continue in even spaced steps
+of `interval`, e.g. if the interval is `10`, the first three buckets (assuming
+there is data inside them) will be `[0, 10)`, `[10, 20)`, `[20, 30)`. The bucket
+boundaries can be shifted by using the `offset` option.
 
 This can be best illustrated with an example. If there are 10 documents with values ranging from 5 to 14, using interval `10` will result in
 two buckets with 5 documents each. If an additional offset `5` is used, there will be only one single bucket `[5, 15)` containing all the 10
@@ -197,7 +196,7 @@ documents.
 By default, the buckets are returned as an ordered array. It is also possible to request the response as a hash
 instead keyed by the buckets keys:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -212,7 +211,6 @@ POST /sales/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 Response:
@@ -257,7 +255,7 @@ The `missing` parameter defines how documents that are missing a value should be
 By default they will be ignored but it is also possible to treat them as if they
 had a value.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -272,7 +270,6 @@ POST /sales/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 <1> Documents without a value in the `quantity` field will fall into the same bucket as documents that have the value `0`.

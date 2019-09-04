@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.dataframe.rest.action;
 
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -17,8 +16,7 @@ import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAct
 
 public class RestDeleteDataFrameTransformAction extends BaseRestHandler {
 
-    public RestDeleteDataFrameTransformAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestDeleteDataFrameTransformAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.DELETE,  DataFrameField.REST_BASE_PATH_TRANSFORMS_BY_ID, this);
     }
 

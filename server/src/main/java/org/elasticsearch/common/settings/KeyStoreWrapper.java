@@ -100,7 +100,7 @@ public class KeyStoreWrapper implements SecureSettings {
     /**
      * A regex for the valid characters that a setting name in the keystore may use.
      */
-    private static final Pattern ALLOWED_SETTING_NAME = Pattern.compile("[a-z0-9_\\-.]+");
+    private static final Pattern ALLOWED_SETTING_NAME = Pattern.compile("[A-Za-z0-9_\\-.]+");
 
     public static final Setting<SecureString> SEED_SETTING = SecureSetting.secureString("keystore.seed", null);
 

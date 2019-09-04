@@ -22,17 +22,17 @@ package org.elasticsearch.common.geo;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.geo.geometry.Circle;
-import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.geometry.GeometryCollection;
-import org.elasticsearch.geo.geometry.Line;
-import org.elasticsearch.geo.geometry.LinearRing;
-import org.elasticsearch.geo.geometry.MultiLine;
-import org.elasticsearch.geo.geometry.MultiPoint;
-import org.elasticsearch.geo.geometry.MultiPolygon;
-import org.elasticsearch.geo.geometry.Point;
-import org.elasticsearch.geo.geometry.Polygon;
-import org.elasticsearch.geo.utils.WellKnownText;
+import org.elasticsearch.geometry.Circle;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.Line;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiLine;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.MultiPolygon;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
 
@@ -50,7 +50,7 @@ public class GeometryIndexerTests extends ESTestCase {
 
     public void testCircle() {
         UnsupportedOperationException ex =
-            expectThrows(UnsupportedOperationException.class, () -> indexer.prepareForIndexing(new Circle(1, 2, 3)));
+            expectThrows(UnsupportedOperationException.class, () -> indexer.prepareForIndexing(new Circle(2, 1, 3)));
         assertEquals("CIRCLE geometry is not supported", ex.getMessage());
     }
 
@@ -58,21 +58,21 @@ public class GeometryIndexerTests extends ESTestCase {
         assertEquals(GeometryCollection.EMPTY, indexer.prepareForIndexing(GeometryCollection.EMPTY));
 
         GeometryCollection<Geometry> collection = new GeometryCollection<>(Collections.singletonList(
-            new Point(1, 2)
+            new Point(2, 1)
         ));
 
-        Geometry indexed = new Point(1, 2);
+        Geometry indexed = new Point(2, 1);
         assertEquals(indexed, indexer.prepareForIndexing(collection));
 
         collection = new GeometryCollection<>(Arrays.asList(
-            new Point(1, 2), new Point(3, 4), new Line(new double[]{10, 20}, new double[]{160, 200})
+            new Point(2, 1), new Point(4, 3), new Line(new double[]{160, 200}, new double[]{10, 20})
         ));
 
         indexed = new GeometryCollection<>(Arrays.asList(
-            new Point(1, 2), new Point(3, 4),
+            new Point(2, 1), new Point(4, 3),
             new MultiLine(Arrays.asList(
-                new Line(new double[]{10, 15}, new double[]{160, 180}),
-                new Line(new double[]{15, 20}, new double[]{180, -160}))
+                new Line(new double[]{160, 180}, new double[]{10, 15}),
+                new Line(new double[]{180, -160}, new double[]{15, 20}))
             ))
         );
         assertEquals(indexed, indexer.prepareForIndexing(collection));
@@ -80,44 +80,44 @@ public class GeometryIndexerTests extends ESTestCase {
     }
 
     public void testLine() {
-        Line line = new Line(new double[]{1, 2}, new double[]{3, 4});
+        Line line = new Line(new double[]{3, 4}, new double[]{1, 2});
         Geometry indexed = line;
         assertEquals(indexed, indexer.prepareForIndexing(line));
 
-        line = new Line(new double[]{10, 20}, new double[]{160, 200});
+        line = new Line(new double[]{160, 200}, new double[]{10, 20});
         indexed = new MultiLine(Arrays.asList(
-            new Line(new double[]{10, 15}, new double[]{160, 180}),
-            new Line(new double[]{15, 20}, new double[]{180, -160}))
+            new Line(new double[]{160, 180}, new double[]{10, 15}),
+            new Line(new double[]{180, -160}, new double[]{15, 20}))
         );
 
         assertEquals(indexed, indexer.prepareForIndexing(line));
     }
 
     public void testMultiLine() {
-        Line line = new Line(new double[]{1, 2}, new double[]{3, 4});
+        Line line = new Line(new double[]{3, 4}, new double[]{1, 2});
         MultiLine multiLine = new MultiLine(Collections.singletonList(line));
         Geometry indexed = line;
         assertEquals(indexed, indexer.prepareForIndexing(multiLine));
 
         multiLine = new MultiLine(Arrays.asList(
-            line, new Line(new double[]{10, 20}, new double[]{160, 200})
+            line, new Line(new double[]{160, 200}, new double[]{10, 20})
         ));
 
         indexed = new MultiLine(Arrays.asList(
             line,
-            new Line(new double[]{10, 15}, new double[]{160, 180}),
-            new Line(new double[]{15, 20}, new double[]{180, -160}))
+            new Line(new double[]{160, 180}, new double[]{10, 15}),
+            new Line(new double[]{180, -160}, new double[]{15, 20}))
         );
 
         assertEquals(indexed, indexer.prepareForIndexing(multiLine));
     }
 
     public void testPoint() {
-        Point point = new Point(1, 2);
+        Point point = new Point(2, 1);
         Geometry indexed = point;
         assertEquals(indexed, indexer.prepareForIndexing(point));
 
-        point = new Point(1, 2, 3);
+        point = new Point(2, 1, 3);
         assertEquals(indexed, indexer.prepareForIndexing(point));
     }
 
@@ -126,38 +126,38 @@ public class GeometryIndexerTests extends ESTestCase {
         Geometry indexed = multiPoint;
         assertEquals(indexed, indexer.prepareForIndexing(multiPoint));
 
-        multiPoint = new MultiPoint(Collections.singletonList(new Point(1, 2)));
-        indexed = new Point(1, 2);
+        multiPoint = new MultiPoint(Collections.singletonList(new Point(2, 1)));
+        indexed = new Point(2, 1);
         assertEquals(indexed, indexer.prepareForIndexing(multiPoint));
 
-        multiPoint = new MultiPoint(Arrays.asList(new Point(1, 2), new Point(3, 4)));
+        multiPoint = new MultiPoint(Arrays.asList(new Point(2, 1), new Point(4, 3)));
         indexed = multiPoint;
         assertEquals(indexed, indexer.prepareForIndexing(multiPoint));
 
-        multiPoint = new MultiPoint(Arrays.asList(new Point(1, 2, 10), new Point(3, 4, 10)));
+        multiPoint = new MultiPoint(Arrays.asList(new Point(2, 1, 10), new Point(4, 3, 10)));
         assertEquals(indexed, indexer.prepareForIndexing(multiPoint));
     }
 
     public void testPolygon() {
-        Polygon polygon = new Polygon(new LinearRing(new double[]{10, 10, 20, 20, 10}, new double[]{160, 200, 200, 160, 160}));
+        Polygon polygon = new Polygon(new LinearRing(new double[]{160, 200, 200, 160, 160}, new double[]{10, 10, 20, 20, 10}));
         Geometry indexed = new MultiPolygon(Arrays.asList(
-            new Polygon(new LinearRing(new double[]{10, 20, 20, 10, 10}, new double[]{180, 180, 160, 160, 180})),
-            new Polygon(new LinearRing(new double[]{20, 10, 10, 20, 20}, new double[]{-180, -180, -160, -160, -180}))
+            new Polygon(new LinearRing(new double[]{180, 180, 160, 160, 180}, new double[]{10, 20, 20, 10, 10})),
+            new Polygon(new LinearRing(new double[]{-180, -180, -160, -160, -180}, new double[]{20, 10, 10, 20, 20}))
         ));
 
         assertEquals(indexed, indexer.prepareForIndexing(polygon));
 
-        polygon = new Polygon(new LinearRing(new double[]{10, 10, 20, 20, 10}, new double[]{160, 200, 200, 160, 160}),
+        polygon = new Polygon(new LinearRing(new double[]{160, 200, 200, 160, 160}, new double[]{10, 10, 20, 20, 10}),
             Collections.singletonList(
-                new LinearRing(new double[]{12, 18, 18, 12, 12}, new double[]{165, 165, 195, 195, 165})));
+                new LinearRing(new double[]{165, 165, 195, 195, 165}, new double[]{12, 18, 18, 12, 12})));
 
         indexed = new MultiPolygon(Arrays.asList(
             new Polygon(new LinearRing(
-                new double[]{10, 12, 12, 18, 18, 20, 20, 10, 10},
-                new double[]{180, 180, 165, 165, 180, 180, 160, 160, 180})),
+                new double[]{180, 180, 165, 165, 180, 180, 160, 160, 180}, new double[]{10, 12, 12, 18, 18, 20, 20, 10, 10}
+            )),
             new Polygon(new LinearRing(
-                new double[]{12, 10, 10, 20, 20, 18, 18, 12, 12},
-                new double[]{-180, -180, -160, -160, -180, -180, -165, -165, -180}))
+                new double[]{-180, -180, -160, -160, -180, -180, -165, -165, -180}, new double[]{12, 10, 10, 20, 20, 18, 18, 12, 12}
+            ))
         ));
 
         assertEquals(indexed, indexer.prepareForIndexing(polygon));

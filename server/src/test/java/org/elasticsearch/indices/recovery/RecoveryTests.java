@@ -82,7 +82,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.startAll();
             final IndexShard replica = shards.getReplicas().get(0);
             boolean softDeletesEnabled = replica.indexSettings().isSoftDeleteEnabled();
-            assertThat(getTranslog(replica).totalOperations(), equalTo(softDeletesEnabled ? moreDocs : docs + moreDocs));
+            assertThat(getTranslog(replica).totalOperations(), equalTo(softDeletesEnabled ? 0 : docs + moreDocs));
             shards.assertAllEqual(docs + moreDocs);
         }
     }
@@ -298,7 +298,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             // file based recovery should be made
             assertThat(newReplica.recoveryState().getIndex().fileDetails(), not(empty()));
             boolean softDeletesEnabled = replica.indexSettings().isSoftDeleteEnabled();
-            assertThat(getTranslog(newReplica).totalOperations(), equalTo(softDeletesEnabled ? nonFlushedDocs : numDocs));
+            assertThat(getTranslog(newReplica).totalOperations(), equalTo(softDeletesEnabled ? 0 : numDocs));
 
             // history uuid was restored
             assertThat(newReplica.getHistoryUUID(), equalTo(historyUUID));
@@ -385,7 +385,12 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             shards.recoverReplica(newReplica);
 
             try (Translog.Snapshot snapshot = getTranslog(newReplica).newSnapshot()) {
-                assertThat("Sequence based recovery should keep existing translog", snapshot, SnapshotMatchers.size(initDocs + moreDocs));
+                if (newReplica.indexSettings().isSoftDeleteEnabled()) {
+                    assertThat(snapshot.totalOperations(), equalTo(0));
+                } else {
+                    assertThat("Sequence based recovery should keep existing translog",
+                        snapshot, SnapshotMatchers.size(initDocs + moreDocs));
+                }
             }
             assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(uncommittedDocs + moreDocs));
             assertThat(newReplica.recoveryState().getIndex().fileDetails(), empty());

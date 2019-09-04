@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.dataframe.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -20,8 +19,7 @@ import java.io.IOException;
 
 public class RestPreviewDataFrameTransformAction extends BaseRestHandler {
 
-    public RestPreviewDataFrameTransformAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestPreviewDataFrameTransformAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.POST, DataFrameField.REST_BASE_PATH + "transforms/_preview", this);
     }
 

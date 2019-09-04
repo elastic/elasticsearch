@@ -47,6 +47,8 @@ import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.MAX_
 public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecyclePolicy>
     implements Writeable, Diffable<SnapshotLifecyclePolicy>, ToXContentObject {
 
+    public static final String POLICY_ID_METADATA_FIELD = "policy";
+
     private final String id;
     private final String name;
     private final String schedule;
@@ -59,7 +61,6 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
     private static final ParseField CONFIG = new ParseField("config");
     private static final IndexNameExpressionResolver.DateMathExpressionResolver DATE_MATH_RESOLVER =
         new IndexNameExpressionResolver.DateMathExpressionResolver();
-    private static final String POLICY_ID_METADATA_FIELD = "policy";
     private static final String METADATA_FIELD_NAME = "metadata";
 
     @SuppressWarnings("unchecked")
@@ -127,11 +128,9 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         ActionRequestValidationException err = new ActionRequestValidationException();
 
         // ID validation
-        if (id.contains(",")) {
-            err.addValidationError("invalid policy id [" + id + "]: must not contain ','");
-        }
-        if (id.contains(" ")) {
-            err.addValidationError("invalid policy id [" + id + "]: must not contain spaces");
+        if (Strings.validFileName(id) == false) {
+            err.addValidationError("invalid policy id [" + id + "]: must not contain the following characters " +
+                Strings.INVALID_FILENAME_CHARS);
         }
         if (id.charAt(0) == '_') {
             err.addValidationError("invalid policy id [" + id + "]: must not start with '_'");

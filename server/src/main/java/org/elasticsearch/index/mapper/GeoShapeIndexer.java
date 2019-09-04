@@ -23,18 +23,18 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.geo.geometry.Circle;
-import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.geometry.GeometryCollection;
-import org.elasticsearch.geo.geometry.GeometryVisitor;
-import org.elasticsearch.geo.geometry.Line;
-import org.elasticsearch.geo.geometry.LinearRing;
-import org.elasticsearch.geo.geometry.MultiLine;
-import org.elasticsearch.geo.geometry.MultiPoint;
-import org.elasticsearch.geo.geometry.MultiPolygon;
-import org.elasticsearch.geo.geometry.Point;
-import org.elasticsearch.geo.geometry.Polygon;
-import org.elasticsearch.geo.geometry.Rectangle;
+import org.elasticsearch.geometry.Circle;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.GeometryVisitor;
+import org.elasticsearch.geometry.Line;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiLine;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.MultiPolygon;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.Rectangle;
 import org.locationtech.spatial4j.exception.InvalidShapeException;
 
 import java.util.ArrayList;
@@ -58,7 +58,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
 
     private static final double DATELINE = 180;
 
-    protected static final Comparator<Edge> INTERSECTION_ORDER = Comparator.comparingDouble(o -> o.intersect.getLat());
+    protected static final Comparator<Edge> INTERSECTION_ORDER = Comparator.comparingDouble(o -> o.intersect.getY());
 
     private final boolean orientation;
 
@@ -161,7 +161,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
             @Override
             public Geometry visit(Point point) {
                 //TODO: Just remove altitude for now. We need to add normalization later
-                return new Point(point.getLat(), point.getLon());
+                return new Point(point.getX(), point.getY());
             }
 
             @Override
@@ -228,10 +228,10 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
                 double[] lats = new double[partMinus.length()];
                 double[] lons = new double[partMinus.length()];
                 for (int i = 0; i < partMinus.length(); i++) {
-                    lats[i] = normalizeLat(partMinus.getLat(i));
-                    lons[i] = normalizeLon(partMinus.getLon(i));
+                    lats[i] = normalizeLat(partMinus.getY(i));
+                    lons[i] = normalizeLon(partMinus.getX(i));
                 }
-                lines.add(new Line(lats, lons));
+                lines.add(new Line(lons, lats));
             }
         }
         return lines;
@@ -245,8 +245,8 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
      * @return array of linestrings given as coordinate arrays
      */
     private List<Line> decompose(double dateline, Line line) {
-        double[] lons = line.getLons();
-        double[] lats = line.getLats();
+        double[] lons = line.getX();
+        double[] lats = line.getY();
         return decompose(dateline, lons, lats);
     }
 
@@ -267,12 +267,12 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
                 double[] partLons = Arrays.copyOfRange(lons, offset, i + 1);
                 double[] partLats = Arrays.copyOfRange(lats, offset, i + 1);
                 if (t < 1) {
-                    Point intersection = position(new Point(lats[i - 1], lons[i - 1]), new Point(lats[i], lons[i]), t);
-                    partLons[partLons.length - 1] = intersection.getLon();
-                    partLats[partLats.length - 1] = intersection.getLat();
+                    Point intersection = position(new Point(lons[i - 1], lats[i - 1]), new Point(lons[i], lats[i]), t);
+                    partLons[partLons.length - 1] = intersection.getX();
+                    partLats[partLats.length - 1] = intersection.getY();
 
-                    lons[offset + i - 1] = intersection.getLon();
-                    lats[offset + i - 1] = intersection.getLat();
+                    lons[offset + i - 1] = intersection.getX();
+                    lats[offset + i - 1] = intersection.getY();
 
                     shift(shift, lons);
                     offset = i - 1;
@@ -281,18 +281,18 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
                     shift(shift, partLons);
                     offset = i;
                 }
-                parts.add(new Line(partLats, partLons));
+                parts.add(new Line(partLons, partLats));
             }
         }
 
         if (offset == 0) {
             shift(shift, lons);
-            parts.add(new Line(lats, lons));
+            parts.add(new Line(lons, lats));
         } else if (offset < lons.length - 1) {
             double[] partLons = Arrays.copyOfRange(lons, offset, lons.length);
             double[] partLats = Arrays.copyOfRange(lats, offset, lats.length);
             shift(shift, partLons);
-            parts.add(new Line(partLats, partLons));
+            parts.add(new Line(partLons, partLats));
         }
         return parts;
     }
@@ -312,7 +312,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
         if (dateline == 0) {
             return coordinate;
         } else {
-            return new Point(coordinate.getLat(), -2 * dateline + coordinate.getLon());
+            return new Point(-2 * dateline + coordinate.getX(), coordinate.getY());
         }
     }
 
@@ -345,10 +345,10 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
         Set<Point> exterior = new HashSet<>();
         Set<Point> interior = new HashSet<>();
         for (int i = 0; i < shell.length(); i++) {
-            exterior.add(new Point(shell.getLat(i), shell.getLon(i)));
+            exterior.add(new Point(shell.getX(i), shell.getY(i)));
         }
         for (int i = 0; i < hole.length(); i++) {
-            interior.add(new Point(hole.getLat(i), hole.getLon(i)));
+            interior.add(new Point(hole.getX(i), hole.getY(i)));
         }
         exterior.retainAll(interior);
         if (exterior.size() >= 2) {
@@ -414,9 +414,9 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
         } else if (position == 1) {
             return p2;
         } else {
-            final double x = p1.getLon() + position * (p2.getLon() - p1.getLon());
-            final double y = p1.getLat() + position * (p2.getLat() - p1.getLat());
-            return new Point(y, x);
+            final double x = p1.getX() + position * (p2.getX() - p1.getX());
+            final double y = p1.getY() + position * (p2.getY() - p1.getY());
+            return new Point(x, y);
         }
     }
 
@@ -434,7 +434,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
     private Point[] points(LinearRing linearRing) {
         Point[] points = new Point[linearRing.length()];
         for (int i = 0; i < linearRing.length(); i++) {
-            points[i] = new Point(linearRing.getLat(i), linearRing.getLon(i));
+            points[i] = new Point(linearRing.getX(i), linearRing.getY(i));
         }
         return points;
     }
@@ -484,8 +484,8 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
      */
     private static void translate(Point[] points) {
         for (int i = 0; i < points.length; i++) {
-            if (points[i].getLon() < 0) {
-                points[i] = new Point(points[i].getLat(), points[i].getLon() + 2 * DATELINE);
+            if (points[i].getX() < 0) {
+                points[i] = new Point(points[i].getX() + 2 * DATELINE, points[i].getY());
             }
         }
     }
@@ -502,14 +502,14 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
         final int next = (top + 1) % length;
 
         final int determinantSign = orient(
-            points[offset + prev].getLon(), points[offset + prev].getLat(),
-            points[offset + top].getLon(), points[offset + top].getLat(),
-            points[offset + next].getLon(), points[offset + next].getLat());
+            points[offset + prev].getX(), points[offset + prev].getY(),
+            points[offset + top].getX(), points[offset + top].getY(),
+            points[offset + next].getX(), points[offset + next].getY());
 
         if (determinantSign == 0) {
             // Points are collinear, but `top` is not in the middle if so, so the edges either side of `top` are intersecting.
             throw new InvalidShapeException("Cannot determine orientation: edges adjacent to ("
-                + points[offset + top].getLon() + "," + points[offset + top].getLat() + ") coincide");
+                + points[offset + top].getX() + "," + points[offset + top].getY() + ") coincide");
         }
 
         return determinantSign < 0;
@@ -522,10 +522,10 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
     private static int top(Point[] points, int offset, int length) {
         int top = 0; // we start at 1 here since top points to 0
         for (int i = 1; i < length; i++) {
-            if (points[offset + i].getLat() < points[offset + top].getLat()) {
+            if (points[offset + i].getY() < points[offset + top].getY()) {
                 top = i;
-            } else if (points[offset + i].getLat() == points[offset + top].getLat()) {
-                if (points[offset + i].getLon() < points[offset + top].getLon()) {
+            } else if (points[offset + i].getY() == points[offset + top].getY()) {
+                if (points[offset + i].getX() < points[offset + top].getX()) {
                     top = i;
                 }
             }
@@ -535,24 +535,24 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
 
 
     private static double[] range(Point[] points, int offset, int length) {
-        double minX = points[0].getLon();
+        double minX = points[0].getX();
         double maxX = minX;
-        double minY = points[0].getLat();
+        double minY = points[0].getY();
         double maxY = minY;
         // compute the bounding coordinates (@todo: cleanup brute force)
         for (int i = 1; i < length; ++i) {
             Point point = points[offset + i];
-            if (point.getLon() < minX) {
-                minX = point.getLon();
+            if (point.getX() < minX) {
+                minX = point.getX();
             }
-            if (point.getLon() > maxX) {
-                maxX = point.getLon();
+            if (point.getX() > maxX) {
+                maxX = point.getX();
             }
-            if (point.getLat() < minY) {
-                minY = point.getLat();
+            if (point.getY() < minY) {
+                minY = point.getY();
             }
-            if (point.getLat() > maxY) {
-                maxY = point.getLat();
+            if (point.getY() > maxY) {
+                maxY = point.getY();
             }
         }
         return new double[]{minX, maxX, minY, maxY};
@@ -592,8 +592,8 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
             //    ShapeBuilder.intersection that computes dateline edges as valid intersect points
             //    in support of OGC standards
             if (e1.intersect != Edge.MAX_COORDINATE && e2.intersect != Edge.MAX_COORDINATE
-                && !(e1.next.next.coordinate.equals(e2.coordinate) && Math.abs(e1.next.coordinate.getLon()) == DATELINE
-                && Math.abs(e2.coordinate.getLon()) == DATELINE)) {
+                && !(e1.next.next.coordinate.equals(e2.coordinate) && Math.abs(e1.next.coordinate.getX()) == DATELINE
+                && Math.abs(e2.coordinate.getX()) == DATELINE)) {
                 connect(e1, e2);
             }
         }
@@ -653,9 +653,9 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
                                  final int edgeOffset, int length) {
         assert edges.length >= length + edgeOffset;
         assert points.length >= length + pointOffset;
-        edges[edgeOffset] = new Edge(new Point(points[pointOffset].getLat(), points[pointOffset].getLon()), null);
+        edges[edgeOffset] = new Edge(new Point(points[pointOffset].getX(), points[pointOffset].getY()), null);
         for (int i = 1; i < length; i++) {
-            Point nextPoint = new Point(points[pointOffset + i].getLat(), points[pointOffset + i].getLon());
+            Point nextPoint = new Point(points[pointOffset + i].getX(), points[pointOffset + i].getY());
             if (direction) {
                 edges[edgeOffset + i] = new Edge(nextPoint, edges[edgeOffset + i - 1]);
                 edges[edgeOffset + i].component = component;
@@ -693,10 +693,10 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
         for (int i = 0; i < edges.length; i++) {
             Point p1 = edges[i].coordinate;
             Point p2 = edges[i].next.coordinate;
-            assert !Double.isNaN(p2.getLon()) && !Double.isNaN(p1.getLon());
+            assert !Double.isNaN(p2.getX()) && !Double.isNaN(p1.getX());
             edges[i].intersect = Edge.MAX_COORDINATE;
 
-            double position = intersection(p1.getLon(), p2.getLon(), dateline);
+            double position = intersection(p1.getX(), p2.getX(), dateline);
             if (!Double.isNaN(position)) {
                 edges[i].intersection(position);
                 numIntersections++;
@@ -747,7 +747,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
             // here.
             final Edge current = new Edge(holes[i].coordinate, holes[i].next);
             current.intersect = current.coordinate;
-            final int intersections = intersections(current.coordinate.getLon(), edges);
+            final int intersections = intersections(current.coordinate.getX(), edges);
 
             if (intersections == 0) {
                 // There were no edges that intersect the line of longitude through
@@ -804,13 +804,13 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
     private static int component(final Edge edge, final int id, final ArrayList<Edge> edges, double[] partitionPoint) {
         // find a coordinate that is not part of the dateline
         Edge any = edge;
-        while (any.coordinate.getLon() == +DATELINE || any.coordinate.getLon() == -DATELINE) {
+        while (any.coordinate.getX() == +DATELINE || any.coordinate.getX() == -DATELINE) {
             if ((any = any.next) == edge) {
                 break;
             }
         }
 
-        double shiftOffset = any.coordinate.getLon() > DATELINE ? DATELINE : (any.coordinate.getLon() < -DATELINE ? -DATELINE : 0);
+        double shiftOffset = any.coordinate.getX() > DATELINE ? DATELINE : (any.coordinate.getX() < -DATELINE ? -DATELINE : 0);
 
         // run along the border of the component, collect the
         // edges, shift them according to the dateline and
@@ -830,8 +830,8 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
             if (edges != null) {
                 // found a closed loop - we have two connected components so we need to slice into two distinct components
                 if (visitedEdge.containsKey(current.coordinate)) {
-                    partitionPoint[0] = current.coordinate.getLon();
-                    partitionPoint[1] = current.coordinate.getLat();
+                    partitionPoint[0] = current.coordinate.getX();
+                    partitionPoint[1] = current.coordinate.getY();
                     if (connectedComponents > 0 && current.next != edge) {
                         throw new InvalidShapeException("Shape contains more than one shared point");
                     }
@@ -912,10 +912,10 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
                 double[] x = new double[coords.length];
                 double[] y = new double[coords.length];
                 for (int c = 0; c < coords.length; ++c) {
-                    x[c] = normalizeLon(coords[c].getLon());
-                    y[c] = normalizeLat(coords[c].getLat());
+                    x[c] = normalizeLon(coords[c].getX());
+                    y[c] = normalizeLat(coords[c].getY());
                 }
-                holes.add(new LinearRing(y, x));
+                holes.add(new LinearRing(x, y));
             }
         } else {
             holes = Collections.emptyList();
@@ -926,11 +926,11 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
         for (int i = 0; i < shell.length; ++i) {
             //Lucene Tessellator treats different +180 and -180 and we should keep the sign.
             //normalizeLon method excludes -180.
-            x[i] = Math.abs(shell[i].getLon()) > 180 ? normalizeLon(shell[i].getLon()) : shell[i].getLon();
-            y[i] = normalizeLat(shell[i].getLat());
+            x[i] = Math.abs(shell[i].getX()) > 180 ? normalizeLon(shell[i].getX()) : shell[i].getX();
+            y[i] = normalizeLat(shell[i].getY());
         }
 
-        return new Polygon(new LinearRing(y, x), holes);
+        return new Polygon(new LinearRing(x, y), holes);
     }
 
     private static Point[][] holes(Edge[] holes, int numHoles) {
@@ -975,8 +975,8 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
         }
 
         @Override
-        public Void visit(org.elasticsearch.geo.geometry.Line line) {
-            addFields(LatLonShape.createIndexableFields(name, new org.apache.lucene.geo.Line(line.getLats(), line.getLons())));
+        public Void visit(Line line) {
+            addFields(LatLonShape.createIndexableFields(name, new org.apache.lucene.geo.Line(line.getY(), line.getX())));
             return null;
         }
 
@@ -987,7 +987,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
 
         @Override
         public Void visit(MultiLine multiLine) {
-            for (org.elasticsearch.geo.geometry.Line line : multiLine) {
+            for (Line line : multiLine) {
                 visit(line);
             }
             return null;
@@ -1003,7 +1003,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
 
         @Override
         public Void visit(MultiPolygon multiPolygon) {
-            for(org.elasticsearch.geo.geometry.Polygon polygon : multiPolygon) {
+            for(Polygon polygon : multiPolygon) {
                 visit(polygon);
             }
             return null;
@@ -1011,21 +1011,21 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
 
         @Override
         public Void visit(Point point) {
-            addFields(LatLonShape.createIndexableFields(name, point.getLat(), point.getLon()));
+            addFields(LatLonShape.createIndexableFields(name, point.getY(), point.getX()));
             return null;
         }
 
         @Override
-        public Void visit(org.elasticsearch.geo.geometry.Polygon polygon) {
+        public Void visit(Polygon polygon) {
             addFields(LatLonShape.createIndexableFields(name, toLucenePolygon(polygon)));
             return null;
         }
 
         @Override
-        public Void visit(org.elasticsearch.geo.geometry.Rectangle r) {
+        public Void visit(Rectangle r) {
             org.apache.lucene.geo.Polygon p = new org.apache.lucene.geo.Polygon(
-                new double[]{r.getMinLat(), r.getMinLat(), r.getMaxLat(), r.getMaxLat(), r.getMinLat()},
-                new double[]{r.getMinLon(), r.getMaxLon(), r.getMaxLon(), r.getMinLon(), r.getMinLon()});
+                new double[]{r.getMinY(), r.getMinY(), r.getMaxY(), r.getMaxY(), r.getMinY()},
+                new double[]{r.getMinX(), r.getMaxX(), r.getMaxX(), r.getMinX(), r.getMinX()});
             addFields(LatLonShape.createIndexableFields(name, p));
             return null;
         }
@@ -1036,11 +1036,11 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
     }
 
 
-    public static org.apache.lucene.geo.Polygon toLucenePolygon(org.elasticsearch.geo.geometry.Polygon polygon) {
+    public static org.apache.lucene.geo.Polygon toLucenePolygon(Polygon polygon) {
         org.apache.lucene.geo.Polygon[] holes = new org.apache.lucene.geo.Polygon[polygon.getNumberOfHoles()];
         for(int i = 0; i<holes.length; i++) {
-            holes[i] = new org.apache.lucene.geo.Polygon(polygon.getHole(i).getLats(), polygon.getHole(i).getLons());
+            holes[i] = new org.apache.lucene.geo.Polygon(polygon.getHole(i).getY(), polygon.getHole(i).getX());
         }
-        return new org.apache.lucene.geo.Polygon(polygon.getPolygon().getLats(), polygon.getPolygon().getLons(), holes);
+        return new org.apache.lucene.geo.Polygon(polygon.getPolygon().getY(), polygon.getPolygon().getX(), holes);
     }
 }

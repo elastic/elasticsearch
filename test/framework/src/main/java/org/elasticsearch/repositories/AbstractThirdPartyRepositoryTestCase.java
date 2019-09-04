@@ -19,6 +19,7 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -210,30 +211,49 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
                 .state(),
             equalTo(SnapshotState.SUCCESS));
 
-        logger.info("--> creating a dangling index folder");
         final BlobStoreRepository repo =
             (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository("test-repo");
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         final Executor genericExec = repo.threadPool().executor(ThreadPool.Names.GENERIC);
+
+        logger.info("--> creating a dangling index folder");
+
+        createDanglingIndex(repo, genericExec);
+
+        logger.info("--> deleting a snapshot to trigger repository cleanup");
+        client().admin().cluster().deleteSnapshot(new DeleteSnapshotRequest("test-repo", snapshotName)).actionGet();
+
+        assertConsistentRepository(repo, genericExec);
+
+        logger.info("--> Create dangling index");
+        createDanglingIndex(repo, genericExec);
+
+        logger.info("--> Execute repository cleanup");
+        final CleanupRepositoryResponse response = client().admin().cluster().prepareCleanupRepository("test-repo").get();
+        assertCleanupResponse(response, 3L, 1L);
+    }
+
+    protected void assertCleanupResponse(CleanupRepositoryResponse response, long bytes, long blobs) {
+        assertThat(response.result().blobs(), equalTo(1L + 2L));
+        assertThat(response.result().bytes(), equalTo(3L + 2 * 3L));
+    }
+
+    private void createDanglingIndex(final BlobStoreRepository repo, final Executor genericExec) throws Exception {
+        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         genericExec.execute(new ActionRunnable<>(future) {
             @Override
             protected void doRun() throws Exception {
                 final BlobStore blobStore = repo.blobStore();
                 blobStore.blobContainer(repo.basePath().add("indices").add("foo"))
-                    .writeBlob("bar", new ByteArrayInputStream(new byte[0]), 0, false);
+                    .writeBlob("bar", new ByteArrayInputStream(new byte[3]), 3, false);
                 for (String prefix : Arrays.asList("snap-", "meta-")) {
                     blobStore.blobContainer(repo.basePath())
-                        .writeBlob(prefix + "foo.dat", new ByteArrayInputStream(new byte[0]), 0, false);
+                        .writeBlob(prefix + "foo.dat", new ByteArrayInputStream(new byte[3]), 3, false);
                 }
                 future.onResponse(null);
             }
         });
         future.actionGet();
         assertTrue(assertCorruptionVisible(repo, genericExec));
-        logger.info("--> deleting a snapshot to trigger repository cleanup");
-        client().admin().cluster().deleteSnapshot(new DeleteSnapshotRequest("test-repo", snapshotName)).actionGet();
-
-        assertConsistentRepository(repo, genericExec);
     }
 
     protected boolean assertCorruptionVisible(BlobStoreRepository repo, Executor executor) throws Exception {

@@ -1,18 +1,24 @@
 {
-  "ml.preview_datafeed": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-preview-datafeed.html",
-    "stability": "stable",
-    "methods": [ "GET" ],
-    "url": {
-      "paths": [ "/_ml/datafeeds/{datafeed_id}/_preview" ],
-      "parts": {
-        "datafeed_id": {
-          "type": "string",
-          "required": true,
-          "description": "The ID of the datafeed to preview"
-        }
-      }
+  "ml.preview_datafeed":{
+    "documentation":{
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-preview-datafeed.html"
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/datafeeds/{datafeed_id}/_preview",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "datafeed_id":{
+              "type":"string",
+              "description":"The ID of the datafeed to preview"
+            }
+          }
+        }
+      ]
+    }
   }
 }

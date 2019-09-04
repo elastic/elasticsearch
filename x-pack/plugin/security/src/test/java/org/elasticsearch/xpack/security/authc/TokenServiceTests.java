@@ -61,6 +61,8 @@ import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationRes
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.hamcrest.Matchers;
@@ -73,6 +75,7 @@ import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.Collections;
@@ -574,6 +577,7 @@ public class TokenServiceTests extends ESTestCase {
             // move to expiry
             clock.fastForwardSeconds(Math.toIntExact(defaultExpiration.getSeconds()) - fastForwardAmount);
             clock.rewind(TimeValue.timeValueNanos(clock.instant().getNano())); // trim off nanoseconds since don't store them in the index
+            clock.setTime(new DateTime(token.getExpirationTime().truncatedTo(ChronoUnit.MILLIS).toEpochMilli(), DateTimeZone.UTC));
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
             assertAuthenticationEquals(authentication, future.get().getAuthentication());

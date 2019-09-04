@@ -755,7 +755,9 @@ metadata field to provide the error message.
 [role="xpack"]
 [testenv="basic"]
 [[ingest-enriching-data]]
-== Enriching data with ingest node
+== Enrich your data using the ingest node
+
+
 
 The <<enrich-processor,enrich processor>> allows documents to be enriched with data from
 an enrich index that is managed by an enrich policy prior to indexing.
@@ -845,6 +847,7 @@ Which returns:
 --------------------------------------------------
 // TESTRESPONSE
 
+[[execute-enrich-policy]]
 Execute that enrich policy:
 
 [source,js]
@@ -939,204 +942,15 @@ DELETE /_enrich/policy/users-policy
 
 Also there are several APIs in order to manage and execute enrich policies:
 
-* <<put-policy-api,Put policy api>>.
-* <<get-policy-api,Get policy api>>.
-* <<delete-policy-api,Delete policy api>>.
-* <<execute-policy-api,Execute policy api>>.
+* <<put-enrich-policy-api,Put policy api>>.
+* <<get-enrich-policy-api,Get enrich policy api>>.
+* <<delete-enrich-policy-api,Delete policy api>>.
+* <<execute-enrich-policy-api,Execute policy api>>.
 
 If security is enabled then the user managing enrich policies will need to have
 the `enrich_user` builtin role. Also the user will need to have read privileges
 for the indices the enrich policy is referring to.
 
-[[put-policy-api]]
-==== Put Policy API
-
-The put policy api allows a policy to be stored by an user specified id in the url and
-the enrich policy definition as body.
-
-Request:
-
-[source,js]
---------------------------------------------------
-PUT /_enrich/policy/my-policy
-{
-    "match": {
-        "indices": "users",
-        "match_field": "email",
-        "enrich_fields": ["first_name", "last_name", "address", "city", "zip", "state"]
-    }
-}
---------------------------------------------------
-// CONSOLE
-
-Response:
-
-[source,js]
---------------------------------------------------
-{
-    "acknowledged": true
-}
---------------------------------------------------
-// TESTRESPONSE
-
-[[get-policy-api]]
-==== Get Policy API
-
-The get policy api allows a policy to be retrieved by id.
-
-Request:
-
-[source,js]
---------------------------------------------------
-GET /_enrich/policy/my-policy
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-Response:
-
-[source,js]
---------------------------------------------------
-{
-    "policies": [
-        {
-            "match": {
-                "name" : "my-policy",
-                "indices" : ["users"],
-                "match_field" : "email",
-                "enrich_fields" : [
-                    "first_name",
-                    "last_name",
-                    "address",
-                    "city",
-                    "zip",
-                    "state"
-                ]
-            }
-        }
-    ]
-}
---------------------------------------------------
-// TESTRESPONSE
-
-The get policy api allows all policies to be returned.
-
-Request:
-
-[source,js]
---------------------------------------------------
-GET /_enrich/policy
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-Response:
-
-[source,js]
---------------------------------------------------
-{
-    "policies": [
-        {
-            "match": {
-                "name" : "my-policy",
-                "indices" : ["users"],
-                "match_field" : "email",
-                "enrich_fields" : [
-                    "first_name",
-                    "last_name",
-                    "address",
-                    "city",
-                    "zip",
-                    "state"
-                ]
-            }
-        }
-    ]
-}
---------------------------------------------------
-// TESTRESPONSE
-
-[[execute-policy-api]]
-==== Execute Policy API
-
-The execute policy api executes a policy based on the provided id.
-It may take some time before this API returns a response.
-Executing a policy involves creating a new enrich index, indexing the documents from
-the indices specified in policy into the enrich index and some other operations.
-
-Note that this api needs to be re-executed in order to incorporate new changes
-in the index the policy is pointing to after the policy has been executed.
-
-This API creates an index with the `.enrich-*` prefix in the name. This index purpose
-is the be used by the enrich processor only and should not be used by anything else.
-Internally old `.enrich-*` are removed by an internal cleanup mechanism.
-
-//////////////////////////
-
-[source,js]
---------------------------------------------------
-PUT /users/_doc/1?refresh
-{
-    "email": "mardy.brown@email.me",
-    "first_name": "Mardy",
-    "last_name": "Brown",
-    "address": "6649 N Blue Gum St",
-    "city": "New Orleans",
-    "county": "Orleans",
-    "state": "LA",
-    "zip": 70116,
-    "phone1":"504-621-8927",
-    "phone2": "504-845-1427",
-    "web": "mardy-brown.me"
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-//////////////////////////
-
-Request:
-
-[source,js]
---------------------------------------------------
-POST /_enrich/policy/my-policy/_execute
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-Response:
-
-[source,js]
---------------------------------------------------
-{
-    "acknowledged": true
-}
---------------------------------------------------
-// TESTRESPONSE
-
-[[delete-policy-api]]
-===== Delete Policy API
-
-The delete policy api allows a policy to be removed by id.
-
-Request:
-
-[source,js]
---------------------------------------------------
-DELETE /_enrich/policy/my-policy
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-Response:
-
-[source,js]
---------------------------------------------------
-{
-    "acknowledged": true
-}
---------------------------------------------------
-// TESTRESPONSE
 
 [[ingest-processors]]
 == Processors

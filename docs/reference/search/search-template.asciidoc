@@ -95,7 +95,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=search_type]
 [[search-template-api-request-body]]
 ==== {api-request-body-title}
 
-The API request body must contain the search definition template and its params.
+The API request body must contain the search definition template and its parameters.
 
 
 [[search-template-api-example]]

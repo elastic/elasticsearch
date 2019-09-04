@@ -90,6 +90,12 @@ DELETE /_template/template_1
 --------------------------------------------------
 // CONSOLE
 
+[float]	
+[[getting]]	
+==== Getting templates
+
+See <<indices-get-template>>.
+
 [float]
 [[multiple-templates]]
 ==== Multiple Templates Matching

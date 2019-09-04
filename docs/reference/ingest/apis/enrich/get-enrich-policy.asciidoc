@@ -1,3 +1,5 @@
+[role="xpack"]
+[testenv="basic"]
 [[get-enrich-policy-api]]
 === Get enrich policy API
 ++++

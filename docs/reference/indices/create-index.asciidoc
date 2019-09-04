@@ -64,22 +64,9 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 (Optional, <<indices-aliases,alias object>>) Index aliases which include the
 index. See <<indices-aliases>>.
 
-`mappings`::
-+
---
-(Optional, <<mapping,mapping object>>) Mapping for fields in the index. If
-specified, this mapping can include:
+include::{docdir}/rest-api/common-parms.asciidoc[tag=mappings]
 
-* Field names
-* <<mapping-types,Field datatypes>>
-* <<mapping-params,Mapping parameters>>
-
-See <<mapping>>.
---
-
-`settings`::
-(Optional, <<index-modules-settings,index setting object>>) Configuration
-options for the index. See <<index-modules-settings>>.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=settings]
 
 [[indices-create-api-example]]
 ==== {api-examples-title}

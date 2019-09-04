@@ -108,6 +108,7 @@ public final class RepositoryData {
             final Map<Integer, String> obsoleteShardIndices = new HashMap<>();
             if (updatedGenerations != null) {
                 if (Arrays.equals(updatedGenerations, oldGens) == false) {
+                    assert oldGens.length == updatedGenerations.length;
                     for (int i = 0; i < oldGens.length; i++) {
                         if (updatedGenerations[i] != null && oldGens[i] != null && oldGens[i].equals(updatedGenerations[i]) == false) {
                             obsoleteShardIndices.put(i, oldGens[i]);
@@ -118,13 +119,6 @@ public final class RepositoryData {
             }
         }));
         return result;
-    }
-
-    /**
-     * Gets the generational index file id from which this instance was read.
-     */
-    public long getGenId() {
-        return genId;
     }
 
     public String getShardGen(IndexId indexId, ShardId shardId) {
@@ -138,6 +132,13 @@ public final class RepositoryData {
                 "Index [" + indexId + "] only has [" + generations.length + "] shards but requested shard [" + shardId + "]");
         }
         return generations[shardNum];
+    }
+
+    /**
+     * Gets the generational index file id from which this instance was read.
+     */
+    public long getGenId() {
+        return genId;
     }
 
     /**

@@ -26,6 +26,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -108,6 +109,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.IntToLongFunction;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -687,7 +689,23 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         return shardRouting;
     }
 
-    public void testAutomaticRefresh() throws InterruptedException {
+    public void testAutomaticRefreshSearch() throws InterruptedException {
+        runTestAutomaticRefresh(numDocs -> client().prepareSearch("test").get().getHits().getTotalHits().value);
+    }
+
+    public void testAutomaticRefreshMultiGet() throws InterruptedException {
+        runTestAutomaticRefresh(
+            numDocs -> {
+                final MultiGetRequest request = new MultiGetRequest();
+                request.realtime(false);
+                for (int i = 0; i < numDocs; i++) {
+                    request.add("test", "" + i);
+                }
+                return Arrays.stream(client().multiGet(request).actionGet().getResponses()).filter(r -> r.getResponse().isExists()).count();
+            });
+    }
+
+    private void runTestAutomaticRefresh(final IntToLongFunction count) throws InterruptedException {
         TimeValue randomTimeValue = randomFrom(random(), null, TimeValue.ZERO, TimeValue.timeValueMillis(randomIntBetween(0, 1000)));
         Settings.Builder builder = Settings.builder();
         if (randomTimeValue != null) {
@@ -720,31 +738,31 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 ensureNoPendingScheduledRefresh(indexService.getThreadPool());
             }
         }
+
         CountDownLatch started = new CountDownLatch(1);
         Thread t = new Thread(() -> {
-            SearchResponse searchResponse;
             started.countDown();
             do {
-                searchResponse = client().prepareSearch().get();
-            } while (searchResponse.getHits().getTotalHits().value != totalNumDocs.get());
+
+            } while (count.applyAsLong(totalNumDocs.get()) != totalNumDocs.get());
         });
         t.start();
         started.await();
-        assertHitCount(client().prepareSearch().get(), 1);
+        assertThat(count.applyAsLong(totalNumDocs.get()), equalTo(1L));
         for (int i = 1; i < numDocs; i++) {
             client().prepareIndex("test", "test", "" + i).setSource("{\"foo\" : \"bar\"}", XContentType.JSON)
                 .execute(new ActionListener<IndexResponse>() {
-                             @Override
-                             public void onResponse(IndexResponse indexResponse) {
-                                 indexingDone.countDown();
-                             }
+                    @Override
+                    public void onResponse(IndexResponse indexResponse) {
+                        indexingDone.countDown();
+                    }
 
-                             @Override
-                             public void onFailure(Exception e) {
-                                 indexingDone.countDown();
-                                 throw new AssertionError(e);
-                             }
-                         });
+                    @Override
+                    public void onFailure(Exception e) {
+                        indexingDone.countDown();
+                        throw new AssertionError(e);
+                    }
+                });
         }
         indexingDone.await();
         t.join();
@@ -756,7 +774,6 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test", builder.build());
         assertFalse(indexService.getIndexSettings().isExplicitRefresh());
         ensureGreen();
-        assertNoSearchHits(client().prepareSearch().get());
         client().prepareIndex("test", "test", "0").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         IndexShard shard = indexService.getShard(0);
         assertFalse(shard.scheduledRefresh());

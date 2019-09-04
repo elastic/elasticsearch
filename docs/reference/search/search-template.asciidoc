@@ -30,7 +30,7 @@ GET _search/template
 [[search-template-api-desc]]
 ==== {api-description-title}
 
-The `/_search/template` endpoint allows to use the mustache language to pre 
+The `/_search/template` endpoint allows you to use the mustache language to pre- 
 render search requests, before they are executed and fill existing templates 
 with template parameters.
 

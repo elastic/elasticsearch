@@ -214,6 +214,24 @@ files (four rolled logs, and the active log).
 You can disable it in the `config/log4j2.properties` file by setting the deprecation
 log level to `error`.
 
+You can identify what is triggering deprecated functionality if `X-Opaque-Id` was used as an HTTP header.
+The user ID is included in the `X-Opaque-ID` field in deprecation JSON logs.
+[source,js]
+---------------------------
+{
+  "type": "deprecation",
+  "timestamp": "2019-08-30T12:07:07,126+02:00",
+  "level": "WARN",
+  "component": "o.e.d.r.a.a.i.RestCreateIndexAction",
+  "cluster.name": "distribution_run",
+  "node.name": "node-0",
+  "message": "[types removal] Using include_type_name in create index requests is deprecated. The parameter will be removed in the next major version.",
+  "x-opaque-id": "MY_USER_ID",
+  "cluster.uuid": "Aq-c-PAeQiK3tfBYtig9Bw",
+  "node.id": "D7fUYfnfTLa2D7y-xw6tZg"
+}
+---------------------------
+// NOTCONSOLE
 
 [float]
 [[json-logging]]

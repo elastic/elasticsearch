@@ -126,9 +126,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             // Netty's CompositeByteBuf implementation does not allow less than two components.
         }, s -> Setting.parseInt(s, 2, Integer.MAX_VALUE, SETTING_KEY_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS), Property.NodeScope);
 
-    public static final Setting<Integer> SETTING_HTTP_WORKER_COUNT = new Setting<>("http.netty.worker_count",
-        (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),
-        (s) -> Setting.parseInt(s, 1, "http.netty.worker_count"), Property.NodeScope);
+    public static final Setting<Integer> SETTING_HTTP_WORKER_COUNT = new Setting<>("http.netty.worker_count", "0",
+        (s) -> Setting.parseInt(s, 0, "http.netty.worker_count"), Property.NodeScope);
 
     public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE =
         Setting.byteSizeSetting("http.netty.receive_predictor_size", new ByteSizeValue(64, ByteSizeUnit.KB), Property.NodeScope);

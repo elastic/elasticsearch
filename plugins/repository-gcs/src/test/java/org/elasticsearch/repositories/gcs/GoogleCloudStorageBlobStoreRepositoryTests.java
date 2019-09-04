@@ -304,13 +304,19 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
                         while ((read = in.read()) != -1) {
                             boolean markAndContinue = false;
                             try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-                                do { // search next new line char and stops
-                                    char current = (char) read;
-                                    if (current == '\n') {
-                                        break;
-                                    } else if (current != '\r') {
-                                        out.write(read);
+                                do { // search next consecutive {carriage return, new line} chars and stop
+                                    if ((char) read == '\r') {
+                                        int next = in.read();
+                                        if (next != -1) {
+                                            if (next == '\n') {
+                                                break;
+                                            }
+                                            out.write(read);
+                                            out.write(next);
+                                            continue;
+                                        }
                                     }
+                                    out.write(read);
                                 } while ((read = in.read()) != -1);
 
                                 final String line = new String(out.toByteArray(), UTF_8);

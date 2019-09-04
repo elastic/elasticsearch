@@ -20,6 +20,7 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.test.ESTestCase;
@@ -36,6 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 
+@LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class EvilKeyStoreWrapperTests extends ESTestCase {
 
     public void testWritePermissions() throws Exception {

@@ -268,7 +268,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
                     int deletions = 0;
                     for (Iterator<Map.Entry<String, BytesReference>> iterator = blobs.entrySet().iterator(); iterator.hasNext(); ) {
                         Map.Entry<String, BytesReference> blob = iterator.next();
-                        if (blob.getKey().startsWith(exchange.getRequestURI().toString())) {
+                        if (blob.getKey().equals(exchange.getRequestURI().toString())) {
                             iterator.remove();
                             deletions++;
                         }

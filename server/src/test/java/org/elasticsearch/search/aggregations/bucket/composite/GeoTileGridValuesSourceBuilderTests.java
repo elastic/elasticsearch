@@ -21,10 +21,10 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.elasticsearch.test.ESTestCase;
 
-public class GeoHashGridValuesSourceBuilderTests extends ESTestCase {
+public class GeoTileGridValuesSourceBuilderTests extends ESTestCase {
 
     public void testSetFormat() {
-        CompositeValuesSourceBuilder<?> builder = new GeoHashGridValuesSourceBuilder("name");
+        CompositeValuesSourceBuilder<?> builder = new GeoTileGridValuesSourceBuilder("name");
         expectThrows(IllegalArgumentException.class, () -> builder.format("format"));
     }
 

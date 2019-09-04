@@ -618,10 +618,10 @@ setup:
                   ]
 
 ---
-"Simple Composite aggregation with Geohash grid":
+"Simple Composite aggregation with GeoTile grid":
   - skip:
       version: " - 7.99.99"
-      reason: geohash_grid is not supported until 8.0.0
+      reason: geotile_grid is not supported until 8.0.0
   - do:
       search:
         rest_total_hits_as_int: true
@@ -632,7 +632,7 @@ setup:
               composite:
                 sources: [
                   "geo": {
-                    "geohash_grid": {
+                    "geotile_grid": {
                       "field": "geo_point",
                       "precision": 12
                     }
@@ -648,23 +648,23 @@ setup:
 
   - match: {hits.total: 6}
   - length: { aggregations.test.buckets: 4 }
-  - match: { aggregations.test.buckets.0.key.geo: "upbpbpbpbpbp" }
-  - match: { aggregations.test.buckets.0.key.kw: "bar" }
+  - match: { aggregations.test.buckets.0.key.geo: "12/730/1590" }
+  - match: { aggregations.test.buckets.0.key.kw: "foo" }
   - match: { aggregations.test.buckets.0.doc_count: 1 }
-  - match: { aggregations.test.buckets.1.key.geo: "9qteuf21s29g" }
-  - match: { aggregations.test.buckets.1.key.kw: "foo" }
-  - match: { aggregations.test.buckets.1.doc_count: 1 }
-  - match: { aggregations.test.buckets.2.key.geo: "drm3btev3e86" }
-  - match: { aggregations.test.buckets.2.key.kw: "bar" }
-  - match: { aggregations.test.buckets.2.doc_count: 2 }
-  - match: { aggregations.test.buckets.3.key.geo: "drm3btev3e86" }
-  - match: { aggregations.test.buckets.3.key.kw: "foo" }
+  - match: { aggregations.test.buckets.1.key.geo: "12/1236/1533" }
+  - match: { aggregations.test.buckets.1.key.kw: "bar" }
+  - match: { aggregations.test.buckets.1.doc_count: 2 }
+  - match: { aggregations.test.buckets.2.key.geo: "12/1236/1533" }
+  - match: { aggregations.test.buckets.2.key.kw: "foo" }
+  - match: { aggregations.test.buckets.2.doc_count: 1 }
+  - match: { aggregations.test.buckets.3.key.geo: "12/2048/0" }
+  - match: { aggregations.test.buckets.3.key.kw: "bar" }
   - match: { aggregations.test.buckets.3.doc_count: 1 }
 ---
-"Simple Composite aggregation with geohash grid add aggregate after":
+"Simple Composite aggregation with geotile grid add aggregate after":
   - skip:
       version: " - 7.99.99"
-      reason: geohash_grid is not supported until 8.0.0
+      reason: geotile_grid is not supported until 8.0.0
   - do:
       search:
         rest_total_hits_as_int: true
@@ -675,7 +675,7 @@ setup:
               composite:
                 sources: [
                   "geo": {
-                    "geohash_grid": {
+                    "geotile_grid": {
                       "field": "geo_point",
                       "precision": 12
                     }
@@ -688,16 +688,16 @@ setup:
                     }
                   }
                 ]
-                after: { "geo": "upbpbpbpbpbp", "kw": "bar" }
+                after: { "geo": "12/730/1590", "kw": "foo" }
 
   - match: {hits.total: 6}
   - length: { aggregations.test.buckets: 3 }
-  - match: { aggregations.test.buckets.0.key.geo: "9qteuf21s29g" }
-  - match: { aggregations.test.buckets.0.key.kw: "foo" }
-  - match: { aggregations.test.buckets.0.doc_count: 1 }
-  - match: { aggregations.test.buckets.1.key.geo: "drm3btev3e86" }
-  - match: { aggregations.test.buckets.1.key.kw: "bar" }
-  - match: { aggregations.test.buckets.1.doc_count: 2 }
-  - match: { aggregations.test.buckets.2.key.geo: "drm3btev3e86" }
-  - match: { aggregations.test.buckets.2.key.kw: "foo" }
+  - match: { aggregations.test.buckets.0.key.geo: "12/1236/1533" }
+  - match: { aggregations.test.buckets.0.key.kw: "bar" }
+  - match: { aggregations.test.buckets.0.doc_count: 2 }
+  - match: { aggregations.test.buckets.1.key.geo: "12/1236/1533" }
+  - match: { aggregations.test.buckets.1.key.kw: "foo" }
+  - match: { aggregations.test.buckets.1.doc_count: 1 }
+  - match: { aggregations.test.buckets.2.key.geo: "12/2048/0" }
+  - match: { aggregations.test.buckets.2.key.kw: "bar" }
   - match: { aggregations.test.buckets.2.doc_count: 1 }

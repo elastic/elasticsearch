@@ -20,17 +20,16 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.geogrid.CellIdSource;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -39,38 +38,38 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GeoHashGridValuesSourceBuilder extends CompositeValuesSourceBuilder<GeoHashGridValuesSourceBuilder> {
-    static final String TYPE = "geohash_grid";
+public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder<GeoTileGridValuesSourceBuilder> {
+    static final String TYPE = "geotile_grid";
 
-    private static final ObjectParser<GeoHashGridValuesSourceBuilder, Void> PARSER;
+    private static final ObjectParser<GeoTileGridValuesSourceBuilder, Void> PARSER;
     static {
-        PARSER = new ObjectParser<>(GeoHashGridValuesSourceBuilder.TYPE);
-        PARSER.declareInt(GeoHashGridValuesSourceBuilder::precision, new ParseField("precision"));
+        PARSER = new ObjectParser<>(GeoTileGridValuesSourceBuilder.TYPE);
+        PARSER.declareInt(GeoTileGridValuesSourceBuilder::precision, new ParseField("precision"));
         CompositeValuesSourceParserHelper.declareValuesSourceFields(PARSER, ValueType.NUMERIC);
     }
 
-    static GeoHashGridValuesSourceBuilder parse(String name, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new GeoHashGridValuesSourceBuilder(name), null);
+    static GeoTileGridValuesSourceBuilder parse(String name, XContentParser parser) throws IOException {
+        return PARSER.parse(parser, new GeoTileGridValuesSourceBuilder(name), null);
     }
 
-    private int precision = GeoHashGridAggregationBuilder.DEFAULT_PRECISION;
+    private int precision = GeoTileGridAggregationBuilder.DEFAULT_PRECISION;
 
-    GeoHashGridValuesSourceBuilder(String name) {
+    GeoTileGridValuesSourceBuilder(String name) {
         super(name);
     }
 
-    GeoHashGridValuesSourceBuilder(StreamInput in) throws IOException {
+    GeoTileGridValuesSourceBuilder(StreamInput in) throws IOException {
         super(in);
         this.precision = in.readInt();
     }
 
-    public GeoHashGridValuesSourceBuilder precision(int precision) {
-        this.precision = GeoUtils.checkPrecisionRange(precision);
+    public GeoTileGridValuesSourceBuilder precision(int precision) {
+        this.precision = GeoTileUtils.checkPrecisionRange(precision);
         return this;
     }
 
     @Override
-    public GeoHashGridValuesSourceBuilder format(String format) {
+    public GeoTileGridValuesSourceBuilder format(String format) {
         throw new IllegalArgumentException("[format] is not supported for [" + TYPE + "]");
     }
 
@@ -99,7 +98,7 @@ public class GeoHashGridValuesSourceBuilder extends CompositeValuesSourceBuilder
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
-        GeoHashGridValuesSourceBuilder other = (GeoHashGridValuesSourceBuilder) obj;
+        GeoTileGridValuesSourceBuilder other = (GeoTileGridValuesSourceBuilder) obj;
         return precision == other.precision;
     }
 
@@ -113,10 +112,33 @@ public class GeoHashGridValuesSourceBuilder extends CompositeValuesSourceBuilder
             ValuesSource.GeoPoint geoPoint = (ValuesSource.GeoPoint) orig;
             // is specified in the builder.
             final MappedFieldType fieldType = config.fieldContext() != null ? config.fieldContext().fieldType() : null;
-            CellIdSource cellIdSource = new CellIdSource(geoPoint, precision, Geohash::longEncode);
-            return new CompositeValuesSourceConfig(name, fieldType, cellIdSource, DocValueFormat.GEOHASH, order(), missingBucket());
+            CellIdSource cellIdSource = new CellIdSource(geoPoint, precision, GeoTileUtils::longEncode);
+            return new CompositeValuesSourceConfig(name, fieldType, cellIdSource, GEOTILE, order(), missingBucket());
         } else {
             throw new IllegalArgumentException("invalid source, expected geo_point, got " + orig.getClass().getSimpleName());
         }
     }
+
+    DocValueFormat GEOTILE = new DocValueFormat() {
+
+        @Override
+        public String getWriteableName() {
+            return "geo_tile";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {
+        }
+
+        @Override
+        public String format(long value) {
+            return GeoTileUtils.stringEncode(value);
+        }
+
+        @Override
+        public String format(double value) {
+            return format((long) value);
+        }
+    };
+
 }

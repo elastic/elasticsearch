@@ -53,7 +53,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -1810,38 +1810,34 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         );
         testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("geo_point")), dataset,
             () -> {
-                GeoHashGridValuesSourceBuilder geoHash = new GeoHashGridValuesSourceBuilder("geo_point")
+                GeoTileGridValuesSourceBuilder geoTile = new GeoTileGridValuesSourceBuilder("geo_point")
                     .field("geo_point");
-                return new CompositeAggregationBuilder("name", Collections.singletonList(geoHash));
+                return new CompositeAggregationBuilder("name", Collections.singletonList(geoTile));
             }, (result) -> {
-                assertEquals(4, result.getBuckets().size());
-                assertEquals("{geo_point=sb48j}", result.afterKey().toString());
-                assertEquals("{geo_point=s218n}", result.getBuckets().get(0).getKeyAsString());
-                assertEquals(1L, result.getBuckets().get(0).getDocCount());
-                assertEquals("{geo_point=s8n2j}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(3, result.getBuckets().size());
+                assertEquals("{geo_point=7/108/63}", result.afterKey().toString());
+                assertEquals("{geo_point=7/21/63}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(3L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{geo_point=7/44/63}", result.getBuckets().get(1).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
-                assertEquals("{geo_point=sb424}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals("{geo_point=7/108/63}", result.getBuckets().get(2).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(2).getDocCount());
-                assertEquals("{geo_point=sb48j}", result.getBuckets().get(3).getKeyAsString());
-                assertEquals(2L, result.getBuckets().get(3).getDocCount());
             }
         );
 
         testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("geo_point")), dataset,
             () -> {
-                GeoHashGridValuesSourceBuilder geoHash = new GeoHashGridValuesSourceBuilder("geo_point")
+                GeoTileGridValuesSourceBuilder geoTile = new GeoTileGridValuesSourceBuilder("geo_point")
                     .field("geo_point");
-                return new CompositeAggregationBuilder("name", Collections.singletonList(geoHash))
-                    .aggregateAfter(Collections.singletonMap("geo_point", "s218n"));
+                return new CompositeAggregationBuilder("name", Collections.singletonList(geoTile))
+                    .aggregateAfter(Collections.singletonMap("geo_point", "7/21/63"));
             }, (result) -> {
-                assertEquals(3, result.getBuckets().size());
-                assertEquals("{geo_point=sb48j}", result.afterKey().toString());
-                assertEquals("{geo_point=s8n2j}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(2, result.getBuckets().size());
+                assertEquals("{geo_point=7/108/63}", result.afterKey().toString());
+                assertEquals("{geo_point=7/44/63}", result.getBuckets().get(0).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(0).getDocCount());
-                assertEquals("{geo_point=sb424}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals("{geo_point=7/108/63}", result.getBuckets().get(1).getKeyAsString());
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
-                assertEquals("{geo_point=sb48j}", result.getBuckets().get(2).getKeyAsString());
-                assertEquals(2L, result.getBuckets().get(2).getDocCount());
             }
         );
     }
@@ -1906,7 +1902,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 } else if (value instanceof GeoPoint) {
                     GeoPoint point = (GeoPoint)value;
                     doc.add(new SortedNumericDocValuesField(name,
-                        Geohash.longEncode(point.lon(), point.lat(), GeoHashGridAggregationBuilder.DEFAULT_PRECISION)));
+                        Geohash.longEncode(point.lon(), point.lat(), GeoTileGridAggregationBuilder.DEFAULT_PRECISION)));
                     doc.add(new LatLonPoint(name, point.lat(), point.lon()));
                 } else {
                     throw new AssertionError("invalid object: " + value.getClass().getSimpleName());

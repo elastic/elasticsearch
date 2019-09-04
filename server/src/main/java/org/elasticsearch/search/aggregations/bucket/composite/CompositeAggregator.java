@@ -302,7 +302,7 @@ final class CompositeAggregator extends BucketsAggregator {
 
         } else if (config.valuesSource() instanceof CellIdSource) {
             final CellIdSource cis = (CellIdSource) config.valuesSource();
-            return new GeohashValuesSource(
+            return new GeoTileValuesSource(
                 bigArrays,
                 config.fieldType(),
                 cis::longValues,
@@ -310,10 +310,7 @@ final class CompositeAggregator extends BucketsAggregator {
                 config.format(),
                 config.missingBucket(),
                 size,
-                reverseMul,
-                cis.precision(),
-                cis.encoder()
-            );
+                reverseMul);
         } else if (config.valuesSource() instanceof ValuesSource.Numeric) {
             final ValuesSource.Numeric vs = (ValuesSource.Numeric) config.valuesSource();
             if (vs.isFloatingPoint()) {

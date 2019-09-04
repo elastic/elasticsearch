@@ -68,7 +68,7 @@ public class CompositeValuesSourceParserHelper {
             code = 1;
         } else if (builder.getClass() == HistogramValuesSourceBuilder.class) {
             code = 2;
-        } else if (builder.getClass() == GeoHashGridValuesSourceBuilder.class) {
+        } else if (builder.getClass() == GeoTileGridValuesSourceBuilder.class) {
             if (out.getVersion().before(Version.V_8_0_0)) {
                 throw new IOException("Attempting to serialize [" + builder.getClass().getSimpleName()
                     + "] to a node with unsupported version [" + out.getVersion() + "]");
@@ -91,7 +91,7 @@ public class CompositeValuesSourceParserHelper {
             case 2:
                 return new HistogramValuesSourceBuilder(in);
             case 3:
-                return new GeoHashGridValuesSourceBuilder(in);
+                return new GeoTileGridValuesSourceBuilder(in);
             default:
                 throw new IOException("Invalid code " + code);
         }
@@ -121,8 +121,8 @@ public class CompositeValuesSourceParserHelper {
             case HistogramValuesSourceBuilder.TYPE:
                 builder = HistogramValuesSourceBuilder.parse(name, parser);
                 break;
-            case GeoHashGridValuesSourceBuilder.TYPE:
-                builder = GeoHashGridValuesSourceBuilder.parse(name, parser);
+            case GeoTileGridValuesSourceBuilder.TYPE:
+                builder = GeoTileGridValuesSourceBuilder.parse(name, parser);
                 break;
             default:
                 throw new ParsingException(parser.getTokenLocation(), "invalid source type: " + type);

@@ -32,7 +32,6 @@ import java.io.InputStream;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.HashMap;
 import java.util.Map;
@@ -112,6 +111,13 @@ public class EncryptedRepository extends BlobStoreRepository {
      * Returns a new encrypted repository factory
      */
     public static Repository.Factory newRepositoryFactory(final Settings settings) {
+        final Map<String, char[]> cachedRepositoryPasswords = new HashMap<>();
+        for (String repositoryName : ENCRYPTION_PASSWORD_SETTING.getNamespaces(settings)) {
+            Setting<SecureString> encryptionPasswordSetting = ENCRYPTION_PASSWORD_SETTING
+                    .getConcreteSettingForNamespace(repositoryName);
+            SecureString encryptionPassword = encryptionPasswordSetting.get(settings);
+            cachedRepositoryPasswords.put(repositoryName, encryptionPassword.getChars());
+        }
         return new Repository.Factory() {
 
             @Override
@@ -125,15 +131,11 @@ public class EncryptedRepository extends BlobStoreRepository {
                 if (Strings.hasLength(delegateType) == false) {
                     throw new IllegalArgumentException(DELEGATE_TYPE.getKey() + " must be set");
                 }
-                Setting<SecureString> encryptionPasswordSetting = ENCRYPTION_PASSWORD_SETTING
-                        .getConcreteSettingForNamespace(metaData.name());
-                final SecretKey secretKey;
-                try (SecureString encryptionPassword = encryptionPasswordSetting.get(settings)) {
-                    if (encryptionPassword.length() == 0) {
-                        throw new IllegalArgumentException(encryptionPasswordSetting.getKey() + " must be set");
-                    }
-                    secretKey = generateSecretKeyFromPassword(encryptionPassword.getChars());
+                if (false == cachedRepositoryPasswords.containsKey(metaData.name())) {
+                    throw new IllegalArgumentException(
+                            ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(metaData.name()).getKey() + " must be set");
                 }
+                SecretKey secretKey = generateSecretKeyFromPassword(cachedRepositoryPasswords.get(metaData.name()));
                 Repository.Factory factory = typeLookup.apply(delegateType);
                 Repository delegatedRepository = factory.create(new RepositoryMetaData(metaData.name(),
                         delegateType, metaData.settings()));

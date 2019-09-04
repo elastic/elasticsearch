@@ -151,6 +151,13 @@ PUT _template/template_1
 actual index name that the template gets applied to, during index creation.
 
 
+[float]	
+[[getting]]	
+==== Getting templates
+
+See <<indices-get-template>>.
+
+
 [[multiple-templates]]
 ===== Indices matching multiple templates
 

@@ -1017,20 +1017,18 @@ public class Lucene {
     }
 
     /**
-     * Scans sequence numbers (i.e., {@link SeqNoFieldMapper#NAME}) between {@code fromSeqNo}(inclusive) and {@code toSeqNo}(inclusive)
-     * in the provided directory reader. This method invokes the callback {@code onNewSeqNo} whenever a sequence number value is found.
+     * Scans sequence numbers (i.e., {@link SeqNoFieldMapper#NAME}) from {@code fromSeqNo}(inclusive) in the provided directory reader.
+     * This method invokes the callback {@code onNewSeqNo} whenever a sequence number value is found.
      *
      * @param directoryReader the directory reader to scan
      * @param fromSeqNo       the lower bound of a range of seq_no to scan (inclusive)
-     * @param toSeqNo         the upper bound of a range of seq_no to scan (inclusive)
      * @param onNewSeqNo      the callback to be called whenever a new valid sequence number is found
      */
-    public static void scanSeqNosInReader(DirectoryReader directoryReader, long fromSeqNo, long toSeqNo,
-                                          LongConsumer onNewSeqNo) throws IOException {
+    public static void scanSeqNosInReader(DirectoryReader directoryReader, long fromSeqNo, LongConsumer onNewSeqNo) throws IOException {
         final DirectoryReader reader = Lucene.wrapAllDocsLive(directoryReader);
         final IndexSearcher searcher = new IndexSearcher(reader);
         searcher.setQueryCache(null);
-        final Query query = LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, fromSeqNo, toSeqNo);
+        final Query query = LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, fromSeqNo, Long.MAX_VALUE);
         final Weight weight = searcher.createWeight(query, false, 1.0f);
         for (LeafReaderContext leaf : reader.leaves()) {
             final Scorer scorer = weight.scorer(leaf);
@@ -1045,7 +1043,7 @@ public class Lucene {
                     throw new IllegalStateException("seq_no doc_values not found for doc_id=" + docId);
                 }
                 final long seqNo = seqNoDocValues.longValue();
-                assert fromSeqNo <= seqNo && seqNo <= toSeqNo : "from_seq_no=" + fromSeqNo + " seq_no=" + seqNo + " to_seq_no=" + toSeqNo;
+                assert seqNo >= fromSeqNo : seqNo + " < " + fromSeqNo;
                 onNewSeqNo.accept(seqNo);
             }
         }

@@ -1095,7 +1095,7 @@ public abstract class EngineTestCase extends ESTestCase {
         for (IndexCommit commit : commits) {
             try (DirectoryReader reader = DirectoryReader.open(commit)) {
                 AtomicLong maxSeqNoFromDocs = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-                Lucene.scanSeqNosInReader(reader, 0, Long.MAX_VALUE, n -> maxSeqNoFromDocs.set(Math.max(n, maxSeqNoFromDocs.get())));
+                Lucene.scanSeqNosInReader(reader, 0, n -> maxSeqNoFromDocs.set(Math.max(n, maxSeqNoFromDocs.get())));
                 assertThat(Long.parseLong(commit.getUserData().get(SequenceNumbers.MAX_SEQ_NO)),
                     greaterThanOrEqualTo(maxSeqNoFromDocs.get()));
             }

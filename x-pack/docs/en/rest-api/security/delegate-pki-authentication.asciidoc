@@ -5,7 +5,7 @@
 <titleabbrev>Delegate PKI authentication</titleabbrev>
 ++++
 
-Implements the exchange of an {@code X509Certificate} chain into an {es} access
+Implements the exchange of an _X509Certificate_ chain into an {es} access
 token.
 
 [[security-api-delegate-pki-authentication-request]]

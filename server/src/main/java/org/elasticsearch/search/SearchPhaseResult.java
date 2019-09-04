@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -44,17 +45,16 @@ public abstract class SearchPhaseResult extends TransportResponse {
     private int shardIndex = -1;
     protected long requestId;
     @Nullable
-    private TaskInfo taskInfo;
+    private final SetOnce<TaskInfo> taskInfo = new SetOnce<>();
 
     protected SearchPhaseResult() {
-        this.taskInfo = null;
     }
 
     protected SearchPhaseResult(StreamInput in) throws IOException {
         super(in);
         //TODO update version when backporting
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.taskInfo = in.readOptionalWriteable(TaskInfo::new);
+            this.taskInfo.set(in.readOptionalWriteable(TaskInfo::new));
         }
     }
 
@@ -62,16 +62,16 @@ public abstract class SearchPhaseResult extends TransportResponse {
     public void writeTo(StreamOutput out) throws IOException {
         //TODO update version when backporting
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalWriteable(this.taskInfo);
+            out.writeOptionalWriteable(this.taskInfo.get());
         }
     }
 
     public void setTaskInfo(TaskInfo taskInfo) {
-        this.taskInfo = taskInfo;
+        this.taskInfo.set(taskInfo);
     }
 
     public TaskInfo getTaskInfo() {
-        return this.taskInfo;
+        return this.taskInfo.get();
     }
 
     /**

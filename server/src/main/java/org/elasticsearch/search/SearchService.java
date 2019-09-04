@@ -1015,8 +1015,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public void canMatch(ShardSearchRequest request, TaskInfo taskInfo, ActionListener<CanMatchResponse> listener) {
         try {
-            CanMatchResponse canMatchResponse = new CanMatchResponse(canMatch(request));
-            canMatchResponse.setTaskInfo(taskInfo);
+            CanMatchResponse canMatchResponse = new CanMatchResponse(canMatch(request), taskInfo);
             listener.onResponse(canMatchResponse);
         } catch (IOException e) {
             listener.onFailure(e);
@@ -1077,8 +1076,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             this.canMatch = in.readBoolean();
         }
 
-        public CanMatchResponse(boolean canMatch) {
+        public CanMatchResponse(boolean canMatch, TaskInfo taskInfo) {
             this.canMatch = canMatch;
+            setTaskInfo(taskInfo);
         }
 
         @Override

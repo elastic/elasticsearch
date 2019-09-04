@@ -18,6 +18,7 @@
  */
 
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 
 apply plugin: 'elasticsearch.testclusters'
@@ -42,7 +43,7 @@ processTestResources {
 }
 
 for (Version bwcVersion : bwcVersions.wireCompatible) {
-  if (bwcVersion == Version.current()) {
+  if (bwcVersion == VersionProperties.getElasticsearchVersion()) {
     // Not really a mixed cluster
     continue ;
   }
@@ -92,7 +93,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
 task bwcTestSnapshots {
   if (project.bwc_tests_enabled) {
     for (Version bwcVersion : bwcVersions.unreleasedWireCompatible) {
-      if (bwcVersion != Version.current()) {
+      if (bwcVersion != VersionProperties.getElasticsearchVersion()) {
         dependsOn "v${bwcVersion}#bwcTest"
       }
     }

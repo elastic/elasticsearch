@@ -94,7 +94,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         List<String> enrichFields = new ArrayList<>();
         enrichFields.add("field2");
         enrichFields.add("field5");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, Collections.singletonList(sourceIndex),
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, Collections.singletonList(sourceIndex),
             "field1", enrichFields);
         String policyName = "test1";
 
@@ -194,7 +194,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         enrichFields.add("idx");
         enrichFields.add("field2");
         enrichFields.add("field5");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, Collections.singletonList(sourceIndexPattern),
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, Collections.singletonList(sourceIndexPattern),
             "field1", enrichFields);
         String policyName = "test1";
 
@@ -257,7 +257,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         List<String> enrichFields = new ArrayList<>();
         enrichFields.add("field2");
         enrichFields.add("field5");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, Collections.singletonList(sourceIndex), "field1",
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, Collections.singletonList(sourceIndex), "field1",
             enrichFields);
         String policyName = "test1";
 
@@ -287,7 +287,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         List<String> enrichFields = new ArrayList<>();
         enrichFields.add("field2");
         enrichFields.add("field5");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, Collections.singletonList(sourceIndex), "field1",
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, Collections.singletonList(sourceIndex), "field1",
             enrichFields);
         String policyName = "test1";
 
@@ -336,7 +336,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         String policyName = "test1";
         List<String> enrichFields = Collections.singletonList("field2");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, Collections.singletonList(sourceIndex),
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, Collections.singletonList(sourceIndex),
             "nesting.key", enrichFields);
 
         final long createTime = randomNonNegativeLong();
@@ -388,7 +388,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         List<String> enrichFields = new ArrayList<>();
         enrichFields.add("nesting.field2");
         enrichFields.add("missingField");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, Collections.singletonList(sourceIndex),
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, Collections.singletonList(sourceIndex),
             "key", enrichFields);
 
         final long createTime = randomNonNegativeLong();
@@ -471,7 +471,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         List<String> enrichFields = new ArrayList<>();
         enrichFields.add("data.field2");
         enrichFields.add("missingField");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, Collections.singletonList(sourceIndex),
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, Collections.singletonList(sourceIndex),
             "data.field1", enrichFields);
 
         final long createTime = randomNonNegativeLong();
@@ -596,7 +596,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         List<String> enrichFields = new ArrayList<>();
         enrichFields.add("data.field2");
         enrichFields.add("missingField");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, Collections.singletonList(sourceIndex),
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, Collections.singletonList(sourceIndex),
             "data.field1", enrichFields);
 
         final long createTime = randomNonNegativeLong();
@@ -728,7 +728,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         List<String> enrichFields = new ArrayList<>();
         enrichFields.add("data.fields.field2");
         enrichFields.add("missingField");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, Collections.singletonList(sourceIndex),
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, Collections.singletonList(sourceIndex),
             "data.fields.field1", enrichFields);
 
         final long createTime = randomNonNegativeLong();
@@ -852,7 +852,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         List<String> enrichFields = new ArrayList<>();
         enrichFields.add("data.field2");
         enrichFields.add("missingField");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, Collections.singletonList(sourceIndex),
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, Collections.singletonList(sourceIndex),
             "data.field1", enrichFields);
 
         final long createTime = randomNonNegativeLong();

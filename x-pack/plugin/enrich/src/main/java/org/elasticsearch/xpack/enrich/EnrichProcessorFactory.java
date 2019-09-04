@@ -49,12 +49,16 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
 
         boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "ignore_missing", false);
         boolean overrideEnabled = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "override", true);
-        String targetField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "target_field");;
+        String targetField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "target_field");
+        int maxMatches = ConfigurationUtils.readIntProperty(TYPE, tag, config, "max_matches", 1);
+        if (maxMatches < 1 || maxMatches > 128) {
+            throw ConfigurationUtils.newConfigurationException(TYPE, tag, "max_matches", "should be between 1 and 1024");
+        }
 
         switch (policyType) {
-            case EnrichPolicy.EXACT_MATCH_TYPE:
-                return new ExactMatchProcessor(tag, client, policyName, field, targetField, matchField,
-                    ignoreMissing, overrideEnabled);
+            case EnrichPolicy.MATCH_TYPE:
+                return new MatchProcessor(tag, client, policyName, field, targetField, matchField,
+                    ignoreMissing, overrideEnabled, maxMatches);
             default:
                 throw new IllegalArgumentException("unsupported policy type [" + policyType + "]");
         }

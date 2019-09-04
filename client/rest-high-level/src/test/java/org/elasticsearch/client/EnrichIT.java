@@ -38,7 +38,7 @@ public class EnrichIT extends ESRestHighLevelClientTestCase {
 
     public void testCRUD() throws Exception {
         final EnrichClient enrichClient = highLevelClient().enrich();
-        PutPolicyRequest putPolicyRequest = new PutPolicyRequest("my-policy", "exact_match",
+        PutPolicyRequest putPolicyRequest = new PutPolicyRequest("my-policy", "match",
             Collections.singletonList("my-index"), "enrich_key", Collections.singletonList("enrich_value"));
         AcknowledgedResponse putPolicyResponse = execute(putPolicyRequest, enrichClient::putPolicy, enrichClient::putPolicyAsync);
         assertThat(putPolicyResponse.isAcknowledged(), is(true));
@@ -51,9 +51,9 @@ public class EnrichIT extends ESRestHighLevelClientTestCase {
         List<?> responsePolicies = (List<?>) responseBody.get("policies");
         assertThat(responsePolicies.size(), equalTo(1));
         Map<?, ?> responsePolicy = (Map<?, ?>) responsePolicies.get(0);
-        assertThat(XContentMapValues.extractValue("exact_match.indices", responsePolicy), equalTo(putPolicyRequest.getIndices()));
-        assertThat(XContentMapValues.extractValue("exact_match.match_field", responsePolicy), equalTo(putPolicyRequest.getMatchField()));
-        assertThat(XContentMapValues.extractValue("exact_match.enrich_fields", responsePolicy),
+        assertThat(XContentMapValues.extractValue("match.indices", responsePolicy), equalTo(putPolicyRequest.getIndices()));
+        assertThat(XContentMapValues.extractValue("match.match_field", responsePolicy), equalTo(putPolicyRequest.getMatchField()));
+        assertThat(XContentMapValues.extractValue("match.enrich_fields", responsePolicy),
             equalTo(putPolicyRequest.getEnrichFields()));
 
         DeletePolicyRequest deletePolicyRequest = new DeletePolicyRequest("my-policy");

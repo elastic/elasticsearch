@@ -31,7 +31,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
     public void testCreateProcessorInstance() throws Exception {
         List<String> enrichValues = Arrays.asList("globalRank", "tldRank", "tld");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, Collections.singletonList("source_index"), "my_key",
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, Collections.singletonList("source_index"), "my_key",
             enrichValues);
         EnrichProcessorFactory factory = new EnrichProcessorFactory(null);
         factory.metaData = createMetaData("majestic", policy);
@@ -50,13 +50,19 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
             config.put("override", overrideEnabled);
         }
 
+        Integer maxMatches = null;
+        if (randomBoolean()) {
+            maxMatches = randomIntBetween(1, 128);
+            config.put("max_matches", maxMatches);
+        }
+
         int numRandomValues = randomIntBetween(1, 8);
         List<Tuple<String, String>> randomValues = new ArrayList<>(numRandomValues);
         for (int i = 0; i < numRandomValues; i++) {
             randomValues.add(new Tuple<>(randomFrom(enrichValues), randomAlphaOfLength(4)));
         }
 
-        ExactMatchProcessor result = (ExactMatchProcessor) factory.create(Collections.emptyMap(), "_tag", config);
+        MatchProcessor result = (MatchProcessor) factory.create(Collections.emptyMap(), "_tag", config);
         assertThat(result, notNullValue());
         assertThat(result.getPolicyName(), equalTo("majestic"));
         assertThat(result.getField(), equalTo("host"));
@@ -67,6 +73,11 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
             assertThat(result.isOverrideEnabled(), is(overrideEnabled));
         } else {
             assertThat(result.isOverrideEnabled(), is(true));
+        }
+        if (maxMatches != null) {
+            assertThat(result.getMaxMatches(), equalTo(maxMatches));
+        } else {
+            assertThat(result.getMaxMatches(), equalTo(1));
         }
     }
 
@@ -154,7 +165,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
     public void testCompactEnrichValuesFormat() throws Exception {
         List<String> enrichValues = Arrays.asList("globalRank", "tldRank", "tld");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null,
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null,
             Collections.singletonList("source_index"), "host", enrichValues);
         EnrichProcessorFactory factory = new EnrichProcessorFactory(null);
         factory.metaData = createMetaData("majestic", policy);
@@ -164,7 +175,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         config.put("field", "host");
         config.put("target_field", "entry");
 
-        ExactMatchProcessor result = (ExactMatchProcessor) factory.create(Collections.emptyMap(), "_tag", config);
+        MatchProcessor result = (MatchProcessor) factory.create(Collections.emptyMap(), "_tag", config);
         assertThat(result, notNullValue());
         assertThat(result.getPolicyName(), equalTo("majestic"));
         assertThat(result.getField(), equalTo("host"));
@@ -173,7 +184,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
     public void testNoTargetField() throws Exception {
         List<String> enrichValues = Arrays.asList("globalRank", "tldRank", "tld");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null,
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null,
             Collections.singletonList("source_index"), "host", enrichValues);
         EnrichProcessorFactory factory = new EnrichProcessorFactory(null);
         factory.metaData = createMetaData("majestic", policy);
@@ -184,6 +195,23 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
         Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(Collections.emptyMap(), "_tag", config1));
         assertThat(e.getMessage(), equalTo("[target_field] required property is missing"));
+    }
+
+    public void testIllegalMaxMatches() throws Exception {
+        List<String> enrichValues = Arrays.asList("globalRank", "tldRank", "tld");
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, Arrays.asList("source_index"), "my_key",
+            enrichValues);
+        EnrichProcessorFactory factory = new EnrichProcessorFactory(null);
+        factory.metaData = createMetaData("majestic", policy);
+
+        Map<String, Object> config = new HashMap<>();
+        config.put("policy_name", "majestic");
+        config.put("field", "host");
+        config.put("target_field", "entry");
+        config.put("max_matches", randomBoolean() ? between(-2048, 0) : between(129, 2048));
+
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(Collections.emptyMap(), "_tag", config));
+        assertThat(e.getMessage(), equalTo("[max_matches] should be between 1 and 1024"));
     }
 
     static MetaData createMetaData(String name, EnrichPolicy policy) throws IOException {

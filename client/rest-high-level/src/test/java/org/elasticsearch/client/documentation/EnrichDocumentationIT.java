@@ -49,7 +49,7 @@ public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         // tag::enrich-put-policy-request
         PutPolicyRequest putPolicyRequest = new PutPolicyRequest(
-            "users-policy", "exact_match", Arrays.asList("users"),
+            "users-policy", "match", Arrays.asList("users"),
             "email", Arrays.asList("address", "zip", "city", "state"));
         // end::enrich-put-policy-request
 
@@ -96,7 +96,7 @@ public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // Add a policy, so that it can be deleted:
             PutPolicyRequest putPolicyRequest = new PutPolicyRequest(
-                "users-policy", "exact_match", Arrays.asList("users"),
+                "users-policy", "match", Arrays.asList("users"),
                 "email", Arrays.asList("address", "zip", "city", "state"));
             client.enrich().putPolicy(putPolicyRequest, RequestOptions.DEFAULT);
         }

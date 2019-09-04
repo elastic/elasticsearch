@@ -37,7 +37,7 @@ public class EnrichPolicyUpdateTests extends ESSingleNodeTestCase {
         IngestService ingestService = getInstanceFromNode(IngestService.class);
         createIndex("index", Settings.EMPTY, "_doc", "key1", "type=keyword", "field1", "type=keyword");
 
-        EnrichPolicy instance1 = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, Collections.singletonList("index"),
+        EnrichPolicy instance1 = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, Collections.singletonList("index"),
             "key1", Collections.singletonList("field1"));
         PutEnrichPolicyAction.Request putPolicyRequest = new PutEnrichPolicyAction.Request("my_policy", instance1);
         assertAcked(client().execute(PutEnrichPolicyAction.INSTANCE, putPolicyRequest).actionGet());
@@ -48,9 +48,9 @@ public class EnrichPolicyUpdateTests extends ESSingleNodeTestCase {
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest("1", new BytesArray(pipelineConfig), XContentType.JSON);
         assertAcked(client().admin().cluster().putPipeline(putPipelineRequest).actionGet());
         Pipeline pipelineInstance1 = ingestService.getPipeline("1");
-        assertThat(pipelineInstance1.getProcessors().get(0), instanceOf(ExactMatchProcessor.class));
+        assertThat(pipelineInstance1.getProcessors().get(0), instanceOf(MatchProcessor.class));
 
-        EnrichPolicy instance2 = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, Collections.singletonList("index"),
+        EnrichPolicy instance2 = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, Collections.singletonList("index"),
             "key2", Collections.singletonList("field2"));
         ResourceAlreadyExistsException exc = expectThrows(ResourceAlreadyExistsException.class, () ->
             client().execute(PutEnrichPolicyAction.INSTANCE, new PutEnrichPolicyAction.Request("my_policy", instance2)).actionGet());

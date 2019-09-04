@@ -42,7 +42,6 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.time.DateFormatters;
-import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
@@ -54,6 +53,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -1902,7 +1902,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 } else if (value instanceof GeoPoint) {
                     GeoPoint point = (GeoPoint)value;
                     doc.add(new SortedNumericDocValuesField(name,
-                        Geohash.longEncode(point.lon(), point.lat(), GeoTileGridAggregationBuilder.DEFAULT_PRECISION)));
+                        GeoTileUtils.longEncode(point.lon(), point.lat(), GeoTileGridAggregationBuilder.DEFAULT_PRECISION)));
                     doc.add(new LatLonPoint(name, point.lat(), point.lon()));
                 } else {
                     throw new AssertionError("invalid object: " + value.getClass().getSimpleName());

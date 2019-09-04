@@ -123,10 +123,10 @@ public final class GeoTileUtils {
     }
 
     /**
-     * Encode a geotile hash as a string.
+     * Encode a geotile hash style string to a long.
      *
      * @param hashAsString String in format "zoom/x/y"
-     * @return long encoded value of the given hash
+     * @return long encoded value of the given string hash
      */
     public static long longEncode(String hashAsString) {
         int[] parsed = parseHash(hashAsString);

@@ -48,10 +48,6 @@ public class CellIdSource extends ValuesSource.Numeric {
         return precision;
     }
 
-    public GeoPointLongEncoder encoder() {
-        return encoder;
-    }
-
     @Override
     public boolean isFloatingPoint() {
         return false;

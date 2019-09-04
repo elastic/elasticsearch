@@ -258,13 +258,23 @@ public class JavaDateMathParserTests extends ESTestCase {
         long datetime = parser.parse("1418248078", () -> 0).toEpochMilli();
         assertDateEquals(datetime, "1418248078", "2014-12-10T21:47:58.000");
 
-        // a timestamp before 10000 is a year
-        assertDateMathEquals("999", "1970-01-01T00:00:00.999Z");
-        assertDateMathEquals("9999", "1970-01-01T00:00:09.999Z");
-        // 10000 is also a year, breaking bwc, used to be a timestamp
-        assertDateMathEquals("10000", "1970-01-01T00:00:10.000Z");
+        // dateOptionalTime  allows 1-9digits to be used as year
+        assertDateMathEquals("1", "1-01-01T00:00:00.000Z");
+        assertDateMathEquals("1234567890", "1970-01-15T06:56:07.890Z");
+        assertDateMathEquals("123456789", "123456789-01-01T00:00:00.000Z");
         // but 10000 with T is still a date format
-        assertDateMathEquals("10000-01-01T", "10000-01-01T00:00:00.000");
+        assertDateMathEquals("1000-01-01T", "1000-01-01T00:00:00.000");
+    }
+
+    public void testStrictTimestamps() {
+        DateFormatter formatter = DateFormatter.forPattern("strictDateOptionalTime||epoch_millis");
+        DateMathParser parser = formatter.toDateMathParser();
+        // StrictDateOptionalTime only allows 4digits to be used as year
+        assertDateMathEquals(parser,"123", "1970-01-01T00:00:00.123Z");
+        assertDateMathEquals(parser,"1234567890", "1970-01-15T06:56:07.890Z");
+        assertDateMathEquals(parser,"123456789", "1970-01-02T10:17:36.789Z");
+        // but 10000 with T is still a date format
+        assertDateMathEquals(parser,"1000-01-01T", "1000-01-01T00:00:00.000");
     }
 
     void assertParseException(String msg, String date, String exc) {
@@ -298,10 +308,18 @@ public class JavaDateMathParserTests extends ESTestCase {
     }
 
     private void assertDateMathEquals(String toTest, String expected) {
-        assertDateMathEquals(toTest, expected, 0, false, null);
+        assertDateMathEquals(parser, toTest, expected, 0, false, null);
+    }
+
+    private void assertDateMathEquals(DateMathParser parser, String toTest, String expected) {
+        assertDateMathEquals(parser, toTest, expected, 0, false, null);
     }
 
     private void assertDateMathEquals(String toTest, String expected, final long now, boolean roundUp, ZoneId timeZone) {
+        assertDateMathEquals(parser, toTest, expected, now, roundUp, timeZone);
+    }
+
+    private void assertDateMathEquals(DateMathParser parser, String toTest, String expected, final long now, boolean roundUp, ZoneId timeZone) {
         long gotMillis = parser.parse(toTest, () -> now, roundUp, timeZone).toEpochMilli();
         assertDateEquals(gotMillis, toTest, expected);
     }

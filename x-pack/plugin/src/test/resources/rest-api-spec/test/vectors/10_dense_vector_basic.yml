@@ -104,8 +104,8 @@ setup:
 "Dot Product in Sort Context":
   - skip:
       features: headers
-      version: " - 7.3.99"
-      reason: "vector functions were added in the sort context from 7.4"
+      version: " - 7.4.99"
+      reason: "vector functions were added in the sort context from 7.5"
 
   - do:
       headers:
@@ -141,8 +141,8 @@ setup:
 "Cosine Similarity in Sort Context":
   - skip:
       features: headers
-      version: " - 7.3.99"
-      reason: "vector functions were added in the sort context from 7.4"
+      version: " - 7.4.99"
+      reason: "vector functions were added in the sort context from 7.5"
 
   - do:
       headers:

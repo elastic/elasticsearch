@@ -63,6 +63,11 @@ You can use C-style /* */ block comments in index templates.
 You can includes comments anywhere in the request body,
 except before the opening curly bracket.
 
+[[getting]]	
+===== Getting templates
+
+See <<indices-get-template>>.
+
 
 [[put-index-template-api-path-params]]
 ==== {api-path-parms-title}

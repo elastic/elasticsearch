@@ -59,7 +59,7 @@ IF ERRORLEVEL 1 (
 SET KEYSTORE_PASSWORD=
 IF "%checkpassword%"=="Y" (
   CALL "%~dp0elasticsearch-keystore.bat" has-passwd >NUL 2>NUL
-  IF NOT ERRORLEVEL 1 (
+  IF !ERRORLEVEL! EQU 0 (
     IF DEFINED ES_KEYSTORE_PASSPHRASE_FILE (
       IF EXIST "%ES_KEYSTORE_PASSPHRASE_FILE%" (
         SET /P KEYSTORE_PASSWORD=<"%ES_KEYSTORE_PASSPHRASE_FILE%"
@@ -69,9 +69,9 @@ IF "%checkpassword%"=="Y" (
       )
     ) ELSE (
       SET /P KEYSTORE_PASSWORD=Elasticsearch keystore password:
-      IF ERRORLEVEL 1 (
+      IF !ERRORLEVEL! NEQ 0 (
         ECHO Failed to read keystore password on standard input
-        EXIT /B 1
+        EXIT /B !ERRORLEVEL!
       )
     )
   )
@@ -97,9 +97,6 @@ ECHO.%KEYSTORE_PASSWORD%| %JAVA% %ES_JAVA_OPTS% -Delasticsearch ^
   -Des.bundled_jdk="%ES_BUNDLED_JDK%" ^
   -cp "%ES_CLASSPATH%" "org.elasticsearch.bootstrap.Elasticsearch" !newparams!
 
-IF ERRORLEVEL 1 (
-  EXIT /B 1
-)
-
 endlocal
 endlocal
+exit /b %ERRORLEVEL%

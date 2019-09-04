@@ -26,6 +26,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
@@ -68,6 +69,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -108,12 +110,19 @@ import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
  * the {@link SnapshotShardsService#sendSnapshotShardUpdate(Snapshot, ShardId, ShardSnapshotStatus)} method</li>
  * <li>When last shard is completed master node in {@link SnapshotShardsService#innerUpdateSnapshotState} method marks the snapshot
  * as completed</li>
- * <li>After cluster state is updated, the {@link #endSnapshot(SnapshotsInProgress.Entry)} finalizes snapshot in the repository,
+ * <li>After cluster state is updated, the {@link #endSnapshot(SnapshotsInProgress.Entry, MetaData)} finalizes snapshot in the repository,
  * notifies all {@link #snapshotCompletionListeners} that snapshot is completed, and finally calls
  * {@link #removeSnapshotFromClusterState(Snapshot, SnapshotInfo, Exception)} to remove snapshot from cluster state</li>
  * </ul>
  */
 public class SnapshotsService extends AbstractLifecycleComponent implements ClusterStateApplier {
+
+    /**
+     * Minimum node version which does not use {@link Repository#initializeSnapshot(SnapshotId, List, MetaData)} to write snapshot metadata
+     * when starting a snapshot.
+     */
+    public static final Version NO_REPO_INITIALIZE_VERSION = Version.V_8_0_0;
+
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
 
     private final ClusterService clusterService;
@@ -398,24 +407,29 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 assert initializingSnapshots.contains(snapshot.snapshot());
                 Repository repository = repositoriesService.repository(snapshot.snapshot().getRepository());
 
-                MetaData metaData = clusterState.metaData();
-                if (!snapshot.includeGlobalState()) {
-                    // Remove global state from the cluster state
-                    MetaData.Builder builder = MetaData.builder();
-                    for (IndexId index : snapshot.indices()) {
-                        builder.put(metaData.index(index.getName()), false);
-                    }
-                    metaData = builder.build();
+                if (repository.isReadOnly()) {
+                    throw new RepositoryException(repository.getMetadata().name(), "cannot create snapshot in a readonly repository");
                 }
-
-                repository.initializeSnapshot(snapshot.snapshot().getSnapshotId(), snapshot.indices(), metaData);
+                final String snapshotName = snapshot.snapshot().getSnapshotId().getName();
+                // check if the snapshot name already exists in the repository
+                if (repository.getRepositoryData().getSnapshotIds().stream().anyMatch(s -> s.getName().equals(snapshotName))) {
+                    throw new InvalidSnapshotNameException(
+                        repository.getMetadata().name(), snapshotName, "snapshot with the same name already exists");
+                }
+                if (clusterState.nodes().getMinNodeVersion().onOrAfter(NO_REPO_INITIALIZE_VERSION) == false) {
+                    // In mixed version clusters we initialize the snapshot in the repository so that in case of a master failover to an
+                    // older version master node snapshot finalization (that assumes initializeSnapshot was called) produces a valid
+                    // snapshot.
+                    repository.initializeSnapshot(
+                        snapshot.snapshot().getSnapshotId(), snapshot.indices(), metaDataForSnapshot(snapshot, clusterState.metaData()));
+                }
                 snapshotCreated = true;
 
                 logger.info("snapshot [{}] started", snapshot.snapshot());
                 if (snapshot.indices().isEmpty()) {
                     // No indices in this snapshot - we are done
                     userCreateSnapshotListener.onResponse(snapshot.snapshot());
-                    endSnapshot(snapshot);
+                    endSnapshot(snapshot, clusterState.metaData());
                     return;
                 }
                 clusterService.submitStateUpdateTask("update_snapshot [" + snapshot.snapshot() + "]", new ClusterStateUpdateTask() {
@@ -498,7 +512,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             assert snapshotsInProgress != null;
                             final SnapshotsInProgress.Entry entry = snapshotsInProgress.snapshot(snapshot.snapshot());
                             assert entry != null;
-                            endSnapshot(entry);
+                            endSnapshot(entry, newState.metaData());
                         }
                     }
                 });
@@ -556,6 +570,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                                          Collections.emptyList(),
                                                          snapshot.getRepositoryStateId(),
                                                          snapshot.includeGlobalState(),
+                                                         metaDataForSnapshot(snapshot, clusterService.state().metaData()),
                                                          snapshot.userMetadata());
                 } catch (Exception inner) {
                     inner.addSuppressed(exception);
@@ -565,7 +580,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
             userCreateSnapshotListener.onFailure(e);
         }
+    }
 
+    private static MetaData metaDataForSnapshot(SnapshotsInProgress.Entry snapshot, MetaData metaData) {
+        if (snapshot.includeGlobalState() == false) {
+            // Remove global state from the cluster state
+            MetaData.Builder builder = MetaData.builder();
+            for (IndexId index : snapshot.indices()) {
+                builder.put(metaData.index(index.getName()), false);
+            }
+            metaData = builder.build();
+        }
+        return metaData;
     }
 
     private static SnapshotInfo inProgressSnapshot(SnapshotsInProgress.Entry entry) {
@@ -713,7 +739,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         entry -> entry.state().completed()
                             || initializingSnapshots.contains(entry.snapshot()) == false
                                && (entry.state() == State.INIT || completed(entry.shards().values()))
-                    ).forEach(this::endSnapshot);
+                    ).forEach(entry -> endSnapshot(entry, event.state().metaData()));
                 }
                 if (newMaster) {
                     finalizeSnapshotDeletionFromPreviousMaster(event);
@@ -960,7 +986,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      *
      * @param entry snapshot
      */
-    private void endSnapshot(final SnapshotsInProgress.Entry entry) {
+    private void endSnapshot(SnapshotsInProgress.Entry entry, MetaData metaData) {
         if (endingSnapshots.add(entry.snapshot()) == false) {
             return;
         }
@@ -988,6 +1014,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     unmodifiableList(shardFailures),
                     entry.getRepositoryStateId(),
                     entry.includeGlobalState(),
+                    metaDataForSnapshot(entry, metaData),
                     entry.userMetadata());
                 removeSnapshotFromClusterState(snapshot, snapshotInfo, null);
                 logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());

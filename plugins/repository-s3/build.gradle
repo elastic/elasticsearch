@@ -65,15 +65,8 @@ bundlePlugin {
   }
 }
 
-task testRepositoryCreds(type: Test) {
-  include '**/RepositoryCredentialsTests.class'
-  systemProperty 'es.allow_insecure_settings', 'true'
-}
-check.dependsOn(testRepositoryCreds)
-
 test {
-  // these are tested explicitly in separate test tasks
-  exclude '**/RepositoryCredentialsTests.class'
+  // this is tested explicitly in separate test tasks
   exclude '**/S3RepositoryThirdPartyTests.class'
 }
 

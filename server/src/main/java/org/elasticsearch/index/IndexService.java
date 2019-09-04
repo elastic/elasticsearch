@@ -67,6 +67,7 @@ import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
@@ -835,14 +836,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     case STARTED:
                         try {
                             shard.runUnderPrimaryPermit(
-                                    () -> {
-                                        if (shard.isRelocatedPrimary() == false) {
-                                            sync.accept(shard);
-                                        }
-                                    },
+                                    () -> sync.accept(shard),
                                     e -> {
                                         if (e instanceof AlreadyClosedException == false
-                                                && e instanceof IndexShardClosedException == false) {
+                                            && e instanceof IndexShardClosedException == false
+                                            && e instanceof ShardNotInPrimaryModeException == false) {
                                             logger.warn(
                                                     new ParameterizedMessage(
                                                             "{} failed to execute {} sync", shard.shardId(), source), e);

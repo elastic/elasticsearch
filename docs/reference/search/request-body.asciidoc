@@ -22,7 +22,7 @@ GET /twitter/_search
 
 `GET /<index>/_search
 {
-  "query": {<parameter>}
+  "query": {<parameters>}
 }`
 
 

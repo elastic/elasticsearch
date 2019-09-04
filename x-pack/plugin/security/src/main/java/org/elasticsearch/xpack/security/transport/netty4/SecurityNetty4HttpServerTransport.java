@@ -37,7 +37,7 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
     public SecurityNetty4HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, IPFilter ipFilter,
                                              SSLService sslService, ThreadPool threadPool, NamedXContentRegistry xContentRegistry,
                                              Dispatcher dispatcher) {
-        super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher);
+        super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher, null);
         this.securityExceptionHandler = new SecurityHttpExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.ipFilter = ipFilter;
         final boolean ssl = HTTP_SSL_ENABLED.get(settings);

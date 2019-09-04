@@ -61,6 +61,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.SharedGroupFactory;
 import org.junit.After;
 import org.junit.Before;
 
@@ -157,7 +158,7 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
             }
         };
         try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool,
-                xContentRegistry(), dispatcher)) {
+                xContentRegistry(), dispatcher, new SharedGroupFactory(settings))) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
             try (Netty4HttpClient client = new Netty4HttpClient()) {
@@ -190,12 +191,12 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
 
     public void testBindUnavailableAddress() {
         try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool,
-                xContentRegistry(), new NullDispatcher())) {
+                xContentRegistry(), new NullDispatcher(), new SharedGroupFactory(Settings.EMPTY))) {
             transport.start();
             TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
             Settings settings = Settings.builder().put("http.port", remoteAddress.getPort()).build();
             try (Netty4HttpServerTransport otherTransport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool,
-                    xContentRegistry(), new NullDispatcher())) {
+                    xContentRegistry(), new NullDispatcher(), new SharedGroupFactory(settings))) {
                 BindHttpException bindHttpException = expectThrows(BindHttpException.class, otherTransport::start);
                 assertEquals("Failed to bind to [" + remoteAddress.getPort() + "]", bindHttpException.getMessage());
             }
@@ -235,8 +236,8 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
             settings = Settings.builder().put(httpMaxInitialLineLengthSetting.getKey(), maxInitialLineLength + "b").build();
         }
 
-        try (Netty4HttpServerTransport transport =
-                     new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
+        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool,
+            xContentRegistry(), dispatcher, new SharedGroupFactory(settings))) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
@@ -281,8 +282,8 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
             .put(SETTING_CORS_ENABLED.getKey(), true)
             .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "elastic.co").build();
 
-        try (Netty4HttpServerTransport transport =
-                 new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
+        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool,
+            xContentRegistry(), dispatcher, new SharedGroupFactory(settings))) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
@@ -341,8 +342,8 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
 
 
         NioEventLoopGroup group = new NioEventLoopGroup();
-        try (Netty4HttpServerTransport transport =
-                 new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
+        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool,
+            xContentRegistry(), dispatcher, new SharedGroupFactory(settings))) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 

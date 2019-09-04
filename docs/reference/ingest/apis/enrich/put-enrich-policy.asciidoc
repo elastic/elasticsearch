@@ -28,6 +28,14 @@ PUT /_enrich/policy/my-policy
 // CONSOLE
 // TEST[continued]
 
+////
+[source,js]
+--------------------------------------------------
+DELETE /_enrich/policy/my-policy
+--------------------------------------------------
+// CONSOLE
+////
+
 
 [[put-enrich-policy-api-request]]
 ==== {api-request-title}

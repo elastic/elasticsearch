@@ -41,6 +41,14 @@ PUT /_enrich/policy/my-policy/_execute
 --------------------------------------------------
 // CONSOLE
 
+////
+[source,js]
+--------------------------------------------------
+DELETE /_enrich/policy/my-policy
+--------------------------------------------------
+// CONSOLE
+////
+
 
 [[execute-enrich-policy-api-request]]
 ==== {api-request-title}

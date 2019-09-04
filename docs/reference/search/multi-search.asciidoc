@@ -1,7 +1,7 @@
 [[search-multi-search]]
 === Multi Search API
 
-Allows to execute several search requests within the same API.
+Execute several searches with a single API request.
 
 [[search-multi-search-api-request]]
 ==== {api-request-title}

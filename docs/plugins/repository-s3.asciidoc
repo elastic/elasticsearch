@@ -101,16 +101,16 @@ The following list contains the available client settings. Those that must be
 stored in the keystore are marked as "secure" and are *reloadable*; the other
 settings belong in the `elasticsearch.yml` file.
 
-`access_key` ({ref}/secure-settings.html[Secure])::
+`access_key` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
 
     An S3 access key. If set, the `secret_key` setting must also be specified.
     If unset, the client will use the instance or container role instead.
 
-`secret_key` ({ref}/secure-settings.html[Secure])::
+`secret_key` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
 
     An S3 secret key. If set, the `access_key` setting must also be specified.
 
-`session_token` ({ref}/secure-settings.html[Secure])::
+`session_token` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
 
     An S3 session token. If set, the `access_key` and `secret_key` settings
     must also be specified.
@@ -137,11 +137,11 @@ settings belong in the `elasticsearch.yml` file.
 
     The port of a proxy to connect to S3 through.
 
-`proxy.username` ({ref}/secure-settings.html[Secure])::
+`proxy.username` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
 
     The username to connect to the `proxy.host` with.
 
-`proxy.password` ({ref}/secure-settings.html[Secure])::
+`proxy.password` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
 
     The password to connect to the `proxy.host` with.
 

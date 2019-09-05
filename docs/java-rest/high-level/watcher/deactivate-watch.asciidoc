@@ -5,6 +5,6 @@
 :doc-tests-file: {doc-tests}/WatcherDocumentationIT.java
 --
 [[java-rest-high-watcher-deactivate-watch]]
-=== Deactivate Watch API
+=== Deactivate watch API
 
 include::../execution.asciidoc[]

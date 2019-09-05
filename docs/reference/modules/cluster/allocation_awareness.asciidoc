@@ -21,7 +21,7 @@ By default {es} uses <<search-adaptive-replica,adaptive replica selection>>
 to route search or GET requests. However, with the presence of allocation awareness
 attributes {es} will prefer using shards in the same location (with the same
 awareness attribute values) to process these requests. This behavior can be
-disabled by specifying `export ES_JAVA_OPTS="-Des.search.ignore_awareness_attributes=true"`
+disabled by specifying `export ES_JAVA_OPTS="$ES_JAVA_OPTS -Des.search.ignore_awareness_attributes=true"`
 system property on every node that is part of the cluster.
 
 NOTE: The number of attribute values determines how many shard copies are

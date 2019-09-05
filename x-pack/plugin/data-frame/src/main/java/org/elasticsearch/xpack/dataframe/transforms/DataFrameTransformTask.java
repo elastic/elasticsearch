@@ -509,7 +509,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         stateReason.set(reason);
     }
 
-    public String getStateReason() {
+    String getStateReason() {
         return stateReason.get();
     }
 }

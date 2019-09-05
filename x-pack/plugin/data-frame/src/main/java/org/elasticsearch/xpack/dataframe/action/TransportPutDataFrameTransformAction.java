@@ -82,6 +82,45 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
         this.auditor = auditor;
     }
 
+    static HasPrivilegesRequest buildPrivilegeCheck(DataFrameTransformConfig config,
+                                                    IndexNameExpressionResolver indexNameExpressionResolver,
+                                                    ClusterState clusterState,
+                                                    String username) {
+        final String destIndex = config.getDestination().getIndex();
+        final String[] concreteDest = indexNameExpressionResolver.concreteIndexNames(clusterState,
+            IndicesOptions.lenientExpandOpen(),
+            config.getDestination().getIndex());
+        List<String> srcPrivileges = new ArrayList<>(2);
+        srcPrivileges.add("read");
+
+        List<String> destPrivileges = new ArrayList<>(3);
+        destPrivileges.add("read");
+        destPrivileges.add("index");
+        // If the destination index does not exist, we can assume that we may have to create it on start.
+        // We should check that the creating user has the privileges to create the index.
+        if (concreteDest.length == 0) {
+            destPrivileges.add("create_index");
+            // We need to read the source indices mapping to deduce the destination mapping
+            srcPrivileges.add("view_index_metadata");
+        }
+        RoleDescriptor.IndicesPrivileges destIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
+            .indices(destIndex)
+            .privileges(destPrivileges)
+            .build();
+
+        RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
+            .indices(config.getSource().getIndex())
+            .privileges(srcPrivileges)
+            .build();
+
+        HasPrivilegesRequest privRequest = new HasPrivilegesRequest();
+        privRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
+        privRequest.username(username);
+        privRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
+        privRequest.indexPrivileges(sourceIndexPrivileges, destIndexPrivileges);
+        return privRequest;
+    }
+
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
@@ -128,39 +167,8 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
 
         // Early check to verify that the user can create the destination index and can read from the source
         if (licenseState.isAuthAllowed() && request.isDeferValidation() == false) {
-            final String destIndex = config.getDestination().getIndex();
-            final String[] concreteDest = indexNameExpressionResolver.concreteIndexNames(clusterState,
-                IndicesOptions.lenientExpandOpen(),
-                config.getDestination().getIndex());
             final String username = securityContext.getUser().principal();
-            List<String> srcPrivileges = new ArrayList<>(2);
-            srcPrivileges.add("read");
-
-            List<String> destPrivileges = new ArrayList<>(3);
-            destPrivileges.add("read");
-            destPrivileges.add("index");
-            // If the destination index does not exist, we can assume that we may have to create it on start.
-            // We should check that the creating user has the privileges to create the index.
-            if (concreteDest.length == 0) {
-                destPrivileges.add("create_index");
-                // We need to read the source indices mapping to deduce the destination mapping
-                srcPrivileges.add("view_index_metadata");
-            }
-            RoleDescriptor.IndicesPrivileges destIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
-                .indices(destIndex)
-                .privileges(destPrivileges)
-                .build();
-
-            RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
-                .indices(config.getSource().getIndex())
-                .privileges(srcPrivileges)
-                .build();
-
-            HasPrivilegesRequest privRequest = new HasPrivilegesRequest();
-            privRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
-            privRequest.username(username);
-            privRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
-            privRequest.indexPrivileges(sourceIndexPrivileges, destIndexPrivileges);
+            HasPrivilegesRequest privRequest = buildPrivilegeCheck(config, indexNameExpressionResolver, clusterState, username);
             ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
                 r -> handlePrivsResponse(username, request, r, listener),
                 listener::onFailure);

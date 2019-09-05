@@ -40,7 +40,7 @@ public class RestGetMappingActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        new RestGetMappingAction(Settings.EMPTY, controller());
+        new RestGetMappingAction(controller());
     }
 
     public void testTypeExistsDeprecation() throws Exception {
@@ -51,7 +51,7 @@ public class RestGetMappingActionTests extends RestActionTestCase {
             .withParams(params)
             .build();
 
-        RestGetMappingAction handler = new RestGetMappingAction(Settings.EMPTY, mock(RestController.class));
+        RestGetMappingAction handler = new RestGetMappingAction(mock(RestController.class));
         handler.prepareRequest(request, mock(NodeClient.class));
 
         assertWarnings("Type exists requests are deprecated, as types have been deprecated.");

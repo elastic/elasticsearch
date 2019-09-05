@@ -48,8 +48,8 @@ a job directly to the `.ml-config` index using the {es} index API. If {es}
   <<ml-apilimits,analysis limits>>.
 
 `background_persist_interval`::
-  (Optional, time units) Advanced configuration option. The time between each
-  periodic persistence of the model. See <<ml-job-resource>>.
+  (Optional, <<time-units, time units>>) Advanced configuration option. The time 
+  between each periodic persistence of the model. See <<ml-job-resource>>.
 
 `custom_settings`::
   (Optional, object) Advanced configuration option. Contains custom meta data

@@ -40,7 +40,7 @@ final class RecoveryFinalizeRecoveryRequest extends TransportRequest {
         recoveryId = in.readLong();
         shardId = new ShardId(in);
         globalCheckpoint = in.readZLong();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
             trimAboveSeqNo = in.readZLong();
         } else {
             trimAboveSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -76,7 +76,7 @@ final class RecoveryFinalizeRecoveryRequest extends TransportRequest {
         out.writeLong(recoveryId);
         shardId.writeTo(out);
         out.writeZLong(globalCheckpoint);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
             out.writeZLong(trimAboveSeqNo);
         }
     }

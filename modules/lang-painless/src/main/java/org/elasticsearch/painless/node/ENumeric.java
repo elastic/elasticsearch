@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -40,6 +41,11 @@ public final class ENumeric extends AExpression {
 
         this.value = Objects.requireNonNull(value);
         this.radix = radix;
+    }
+
+    @Override
+    void storeSettings(CompilerSettings settings) {
+        // do nothing
     }
 
     @Override

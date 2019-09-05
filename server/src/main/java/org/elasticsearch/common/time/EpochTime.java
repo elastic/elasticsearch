@@ -125,13 +125,13 @@ class EpochTime {
         .optionalStart() // optional is used so isSupported will be called when printing
         .appendFraction(NANOS_OF_SECOND, 0, 9, true)
         .optionalEnd()
-        .toFormatter(Locale.ROOT);
+        .toFormatter(IsoLocale.ROOT);
 
     // this supports seconds ending in dot
     private static final DateTimeFormatter SECONDS_FORMATTER2 = new DateTimeFormatterBuilder()
         .appendValue(SECONDS, 1, 19, SignStyle.NORMAL)
         .appendLiteral('.')
-        .toFormatter(Locale.ROOT);
+        .toFormatter(IsoLocale.ROOT);
 
     // this supports milliseconds without any fraction
     private static final DateTimeFormatter MILLISECONDS_FORMATTER1 = new DateTimeFormatterBuilder()
@@ -139,13 +139,13 @@ class EpochTime {
         .optionalStart()
         .appendFraction(NANOS_OF_MILLI, 0, 6, true)
         .optionalEnd()
-        .toFormatter(Locale.ROOT);
+        .toFormatter(IsoLocale.ROOT);
 
     // this supports milliseconds ending in dot
     private static final DateTimeFormatter MILLISECONDS_FORMATTER2 = new DateTimeFormatterBuilder()
         .append(MILLISECONDS_FORMATTER1)
         .appendLiteral('.')
-        .toFormatter(Locale.ROOT);
+        .toFormatter(IsoLocale.ROOT);
 
     static final DateFormatter SECONDS_FORMATTER = new JavaDateFormatter("epoch_second", SECONDS_FORMATTER1,
         builder -> builder.parseDefaulting(ChronoField.NANO_OF_SECOND, 999_999_999L),

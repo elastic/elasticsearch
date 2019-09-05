@@ -206,6 +206,8 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         if (distribution.getType() == Type.ARCHIVE) {
             extension = distribution.getPlatform() == Platform.WINDOWS ? "zip" : "tar.gz";
             classifier = distribution.getPlatform() + "-" + classifier;
+        } else if (distribution.getType() == Type.DEB) {
+            classifier = "amd64";
         }
         return FAKE_IVY_GROUP + ":elasticsearch" + (distribution.getFlavor() == Flavor.OSS ? "-oss:" : ":")
             + distribution.getVersion() + ":" + classifier + "@" + extension;

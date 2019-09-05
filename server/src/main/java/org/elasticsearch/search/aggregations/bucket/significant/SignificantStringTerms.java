@@ -92,11 +92,6 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
         }
 
         @Override
-        Bucket newBucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, InternalAggregations aggregations) {
-            return new Bucket(termBytes, subsetDf, subsetSize, supersetDf, supersetSize, aggregations, format);
-        }
-
-        @Override
         protected XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
             return builder.field(CommonFields.KEY.getPreferredName(), getKeyAsString());
         }
@@ -156,5 +151,11 @@ public class SignificantStringTerms extends InternalMappedSignificantTerms<Signi
     @Override
     protected Bucket[] createBucketsArray(int size) {
         return new Bucket[size];
+    }
+
+    @Override
+    Bucket createBucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize,
+                        InternalAggregations aggregations, SignificantStringTerms.Bucket prototype) {
+        return new Bucket(prototype.termBytes, subsetDf, subsetSize, supersetDf, supersetSize, aggregations, format);
     }
 }

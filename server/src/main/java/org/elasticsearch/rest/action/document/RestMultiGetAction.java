@@ -46,7 +46,6 @@ public class RestMultiGetAction extends BaseRestHandler {
     private final boolean allowExplicitIndex;
 
     public RestMultiGetAction(Settings settings, RestController controller) {
-        super(settings);
         controller.registerHandler(GET, "/_mget", this);
         controller.registerHandler(POST, "/_mget", this);
         controller.registerHandler(GET, "/{index}/_mget", this);

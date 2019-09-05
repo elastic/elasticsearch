@@ -79,6 +79,7 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
         f.shardId = in.readVInt();
         f.cause = in.readException();
         f.status = RestStatus.readFrom(in);
+        f.reason = detailedMessage(f.cause);
     }
 
     @Override

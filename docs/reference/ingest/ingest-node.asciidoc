@@ -20,21 +20,6 @@ what the pipeline does.
 The `processors` parameter defines a list of processors to be executed in
 order.
 
-[[ingest-apis]]
-== Ingest APIs
-
-The following ingest APIs are available for managing pipelines:
-
-* <<put-pipeline-api>> to add or update a pipeline
-* <<get-pipeline-api>> to return a specific pipeline
-* <<delete-pipeline-api>> to delete a pipeline
-* <<simulate-pipeline-api>> to simulate a call to a pipeline
-
-include::apis/put-pipeline.asciidoc[]
-include::apis/get-pipeline.asciidoc[]
-include::apis/delete-pipeline.asciidoc[]
-include::apis/simulate-pipeline.asciidoc[]
-
 [[accessing-data-in-pipelines]]
 == Accessing Data in Pipelines
 
@@ -546,6 +531,7 @@ PUT _ingest/pipeline/logs_pipeline
     },
     {
       "fail": {
+        "if": "ctx.service?.name != 'apache_httpd' && ctx.service?.name != 'syslog'",
         "message": "This pipeline requires service.name to be either `syslog` or `apache_httpd`"
       }
     }
@@ -828,8 +814,8 @@ See <<ingest-conditionals>> to learn more about the `if` field and conditional e
 
 See <<handling-failure-in-pipelines>> to learn more about the `on_failure` field and error handling in pipelines.
 
-The <<ingest-info,node info API>> can be used to figure out what processors are available in a cluster.
-The <<ingest-info,node info API>> will provide a per node list of what processors are available.
+The <<cluster-nodes-info,node info API>> can be used to figure out what processors are available in a cluster.
+The <<cluster-nodes-info,node info API>> will provide a per node list of what processors are available.
 
 Custom processors must be installed on all nodes. The put pipeline API will fail if a processor specified in a pipeline
 doesn't exist on all nodes. If you rely on custom processor plugins make sure to mark these plugins as mandatory by adding
@@ -842,7 +828,7 @@ plugin.mandatory: ingest-attachment
 
 A node will not start if this plugin is not available.
 
-The <<ingest-stats,node stats API>> can be used to fetch ingest usage statistics, globally and on a per
+The <<cluster-nodes-stats,node stats API>> can be used to fetch ingest usage statistics, globally and on a per
 pipeline basis. Useful to find out which pipelines are used the most or spent the most time on preprocessing.
 
 [float]
@@ -853,6 +839,7 @@ See {plugins}/ingest.html[Ingest plugins] for information about the available in
 
 include::processors/append.asciidoc[]
 include::processors/bytes.asciidoc[]
+include::processors/circle.asciidoc[]
 include::processors/convert.asciidoc[]
 include::processors/date.asciidoc[]
 include::processors/date-index-name.asciidoc[]
@@ -868,6 +855,7 @@ include::processors/html_strip.asciidoc[]
 include::processors/join.asciidoc[]
 include::processors/json.asciidoc[]
 include::processors/kv.asciidoc[]
+include::processors/lowercase.asciidoc[]
 include::processors/pipeline.asciidoc[]
 include::processors/remove.asciidoc[]
 include::processors/rename.asciidoc[]

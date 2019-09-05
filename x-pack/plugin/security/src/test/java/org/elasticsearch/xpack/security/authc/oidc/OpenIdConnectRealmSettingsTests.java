@@ -86,7 +86,7 @@ public class OpenIdConnectRealmSettingsTests extends ESTestCase {
             Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT)));
     }
 
-    public void testMissingTokenEndpointThrowsError() {
+    public void testMissingTokenEndpointThrowsErrorInCodeFlow() {
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
@@ -102,6 +102,22 @@ public class OpenIdConnectRealmSettingsTests extends ESTestCase {
         assertThat(exception.getMessage(),
             Matchers.containsString(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT)));
     }
+
+    public void testMissingTokenEndpointIsAllowedInImplicitFlow() {
+        final Settings.Builder settingsBuilder = Settings.builder()
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_AUTHORIZATION_ENDPOINT), "https://op.example.com/login")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_ISSUER), "https://op.example.com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.OP_JWKSET_PATH), "https://op.example.com/jwks.json")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "id_token token");
+        settingsBuilder.setSecureSettings(getSecureSettings());
+        final OpenIdConnectRealm realm = new OpenIdConnectRealm(buildConfig(settingsBuilder.build()), null, null);
+        assertNotNull(realm);
+
+    }
+
 
     public void testInvalidTokenEndpointThrowsError() {
         final Settings.Builder settingsBuilder = Settings.builder()

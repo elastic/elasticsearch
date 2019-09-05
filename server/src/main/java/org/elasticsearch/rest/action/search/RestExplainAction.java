@@ -24,7 +24,6 @@ import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -47,8 +46,7 @@ public class RestExplainAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " +
         "Specifying a type in explain requests is deprecated.";
 
-    public RestExplainAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestExplainAction(RestController controller) {
         controller.registerHandler(GET, "/{index}/_explain/{id}", this);
         controller.registerHandler(POST, "/{index}/_explain/{id}", this);
 

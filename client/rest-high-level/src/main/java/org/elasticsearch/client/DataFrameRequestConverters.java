@@ -31,6 +31,7 @@ import org.elasticsearch.client.dataframe.PreviewDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StartDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
+import org.elasticsearch.client.dataframe.UpdateDataFrameTransformRequest;
 import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
@@ -54,6 +55,20 @@ final class DataFrameRequestConverters {
         request.setEntity(createEntity(putRequest, REQUEST_BODY_CONTENT_TYPE));
         if (putRequest.getDeferValidation() != null) {
             request.addParameter(DEFER_VALIDATION, Boolean.toString(putRequest.getDeferValidation()));
+        }
+        return request;
+    }
+
+    static Request updateDataFrameTransform(UpdateDataFrameTransformRequest updateDataFrameTransformRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_data_frame", "transforms")
+            .addPathPart(updateDataFrameTransformRequest.getId())
+            .addPathPart("_update")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(updateDataFrameTransformRequest, REQUEST_BODY_CONTENT_TYPE));
+        if (updateDataFrameTransformRequest.getDeferValidation() != null) {
+            request.addParameter(DEFER_VALIDATION, Boolean.toString(updateDataFrameTransformRequest.getDeferValidation()));
         }
         return request;
     }

@@ -265,6 +265,13 @@ public class MetaDataMappingService {
                 // try and parse it (no need to add it here) so we can bail early in case of parsing exception
                 DocumentMapper newMapper;
                 DocumentMapper existingMapper = mapperService.documentMapper();
+
+                String typeForUpdate = mapperService.getTypeForUpdate(mappingType, mappingUpdateSource);
+                if (existingMapper != null && existingMapper.type().equals(typeForUpdate) == false) {
+                    throw new IllegalArgumentException("Rejecting mapping update to [" + mapperService.index().getName() +
+                        "] as the final mapping would have more than 1 type: " + Arrays.asList(existingMapper.type(), typeForUpdate));
+                }
+
                 if (MapperService.DEFAULT_MAPPING.equals(request.type())) {
                     // _default_ types do not go through merging, but we do test the new settings. Also don't apply the old default
                     newMapper = mapperService.parse(request.type(), mappingUpdateSource, false);
@@ -299,14 +306,7 @@ public class MetaDataMappingService {
                 final Index index = indexMetaData.getIndex();
                 final MapperService mapperService = indexMapperServices.get(index);
 
-                // If the _type name is _doc and there is no _doc top-level key then this means that we
-                // are handling a typeless call. In such a case, we override _doc with the actual type
-                // name in the mappings. This allows to use typeless APIs on typed indices.
-                String typeForUpdate = mappingType; // the type to use to apply the mapping update
-                if (isMappingSourceTyped(request.type(), mappingUpdateSource) == false) {
-                    typeForUpdate = mapperService.resolveDocumentType(mappingType);
-                }
-
+                String typeForUpdate = mapperService.getTypeForUpdate(mappingType, mappingUpdateSource);
                 CompressedXContent existingSource = null;
                 DocumentMapper existingMapper = mapperService.documentMapper(typeForUpdate);
                 if (existingMapper != null) {

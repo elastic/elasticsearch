@@ -24,7 +24,6 @@ import java.util.Objects;
 public class DataFrameTransform extends AbstractDiffable<DataFrameTransform> implements PersistentTaskParams {
 
     public static final String NAME = DataFrameField.TASK_NAME;
-    public static final ParseField VERSION = new ParseField(DataFrameField.VERSION);
     public static final ParseField FREQUENCY = DataFrameField.FREQUENCY;
 
     private final String transformId;
@@ -36,7 +35,7 @@ public class DataFrameTransform extends AbstractDiffable<DataFrameTransform> imp
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), DataFrameField.ID);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), VERSION);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), DataFrameField.VERSION);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FREQUENCY);
     }
 
@@ -90,7 +89,7 @@ public class DataFrameTransform extends AbstractDiffable<DataFrameTransform> imp
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(DataFrameField.ID.getPreferredName(), transformId);
-        builder.field(VERSION.getPreferredName(), version);
+        builder.field(DataFrameField.VERSION.getPreferredName(), version);
         if (frequency != null) {
             builder.field(FREQUENCY.getPreferredName(), frequency.getStringRep());
         }

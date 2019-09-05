@@ -1,12 +1,12 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-valid-job]]
-=== Validate jobs API
+=== Validate {anomaly-jobs} API
 ++++
 <titleabbrev>Validate jobs</titleabbrev>
 ++++
 
-Validates job configuration information.
+Validates {anomaly-job} configuration information.
 
 [[ml-valid-job-request]]
 ==== {api-request-title}
@@ -23,14 +23,14 @@ Validates job configuration information.
 [[ml-valid-job-desc]]
 ==== {api-description-title}
 
-The validate jobs API enables you validate the job configuration before you
+This API enables you validate the {anomaly-job} configuration before you
 create the job.
 
 [[ml-valid-job-request-body]]
 ==== {api-request-body-title}
 
 For a list of the properties that you can specify in the body of this API,
-see <<ml-job-resource,Job Resources>>.
+see <<ml-job-resource>>.
 
 [[ml-valid-job-example]]
 ==== {api-examples-title}

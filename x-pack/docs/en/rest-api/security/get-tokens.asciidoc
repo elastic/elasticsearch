@@ -77,27 +77,27 @@ This grant type implements the Refresh Token Grant of OAuth2.
 In this grant a user exchanges a previously issued refresh token for a new access token and a new refresh token.
 
 `password`::
-(string) The user's password. If you specify the `password` grant type, this
+(Optional^*^, string) The user's password. If you specify the `password` grant type, this
 parameter is required. This parameter is not valid with any other supported
 grant type.
 
 `kerberos_ticket`::
-(string) base64 encoded kerberos ticket. If you specify the `_kerberos` grant type,
-this parameter is required. This parameter is not valid with any other supported
-grant type.
+(Optional^*^, string) The base64 encoded kerberos ticket. If you specify the
+`_kerberos` grant type, this parameter is required. This parameter is not valid
+with any other supported grant type.
 
 `refresh_token`::
-(string) If you specify the `refresh_token` grant type, this parameter is 
-required. It contains the string that was returned when you created the token 
-and enables you to extend its life. This parameter is not valid with any other
+(Optional^*^, string) The string that was returned when you created the token, 
+which enables you to extend its life. If you specify the `refresh_token` grant
+type, this parameter is required. This parameter is not valid with any other
 supported grant type.
 
 `scope`::
-(string) The scope of the token. Currently tokens are only issued for a scope of
+(Optional, string) The scope of the token. Currently tokens are only issued for a scope of
 `FULL` regardless of the value sent with the request.
 
 `username`::
-(string) The username that identifies the user. If you specify the `password` 
+(Optional^*^, string) The username that identifies the user. If you specify the `password` 
 grant type, this parameter is required. This parameter is not valid with any
 other supported grant type.
 

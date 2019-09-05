@@ -873,17 +873,27 @@ public abstract class ESRestTestCase extends ESTestCase {
      * @param index index to test for
      **/
     protected static void ensureGreen(String index) throws IOException {
-        Request request = new Request("GET", "/_cluster/health/" + index);
-        request.addParameter("wait_for_status", "green");
-        request.addParameter("wait_for_no_relocating_shards", "true");
-        request.addParameter("timeout", "70s");
-        request.addParameter("level", "shards");
+        ensureHealth(index, (request) -> {
+            request.addParameter("wait_for_status", "green");
+            request.addParameter("wait_for_no_relocating_shards", "true");
+            request.addParameter("timeout", "70s");
+            request.addParameter("level", "shards");
+        });
+    }
+
+    protected static void ensureHealth(Consumer<Request> requestConsumer) throws IOException {
+        ensureHealth("", requestConsumer);
+    }
+
+    protected static void ensureHealth(String index, Consumer<Request> requestConsumer) throws IOException {
+        Request request = new Request("GET", "/_cluster/health" + (index.isBlank() ? "" : "/" + index));
+        requestConsumer.accept(request);
         try {
             client().performRequest(request);
         } catch (ResponseException e) {
             if (e.getResponse().getStatusLine().getStatusCode() == HttpStatus.SC_REQUEST_TIMEOUT) {
                 try {
-                    final Response clusterStateResponse = client().performRequest(new Request("GET", "/_cluster/state"));
+                    final Response clusterStateResponse = client().performRequest(new Request("GET", "/_cluster/state?pretty"));
                     fail("timed out waiting for green state for index [" + index + "] " +
                         "cluster state [" + EntityUtils.toString(clusterStateResponse.getEntity()) + "]");
                 } catch (Exception inner) {

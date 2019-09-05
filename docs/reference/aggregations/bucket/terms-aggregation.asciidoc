@@ -53,7 +53,7 @@ POST /products/_bulk?refresh
 
 Example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -64,8 +64,8 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/_search/_search\?filter_path=aggregations/]
+
 <1> `terms` aggregation should be a field of type `keyword` or any other data type suitable for bucket aggregations. In order to use it with `text` you will need to enable 
 <<fielddata, fielddata>>.
 
@@ -130,7 +130,7 @@ combined to give a final view. Consider the following scenario:
 A request is made to obtain the top 5 terms in the field product, ordered by descending document count from an index with
 3 shards. In this case each shard is asked to give its top 5 terms.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -144,7 +144,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/_search/_search\?filter_path=aggregations/]
 
 The terms for each of the three shards are shown below with their
@@ -260,7 +259,7 @@ could have the 4th highest document count.
 
 The second error value can be enabled by setting the `show_term_doc_count_error` parameter to true:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -275,7 +274,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/_search/_search\?filter_path=aggregations/]
 
 
@@ -338,7 +336,7 @@ but at least the top buckets will be correctly picked.
 
 Ordering the buckets by their doc `_count` in an ascending manner:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -352,11 +350,10 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 Ordering the buckets alphabetically by their terms in an ascending manner:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -370,13 +367,12 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 deprecated[6.0.0, Use `_key` instead of `_term` to order buckets by their term]
 
 Ordering the buckets by single value metrics sub-aggregation (identified by the aggregation name):
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -393,11 +389,10 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 Ordering the buckets by multi value metrics sub-aggregation (identified by the aggregation name):
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -414,7 +409,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 [NOTE]
 .Pipeline aggs cannot be used for sorting
@@ -444,7 +438,7 @@ METRIC              =  <the name of the metric (in case of multi-value metrics a
 PATH                =  <AGG_NAME> [ <AGG_SEPARATOR>, <AGG_NAME> ]* [ <METRIC_SEPARATOR>, <METRIC> ] ;
 --------------------------------------------------
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -466,13 +460,12 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The above will sort the artist's countries buckets based on the average play count among the rock songs.
 
 Multiple criteria can be used to order the buckets by providing an array of order criteria such as the following:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -494,7 +487,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The above will sort the artist's countries buckets based on the average play count among the rock songs and then by
 their `doc_count` in descending order.
@@ -506,7 +498,7 @@ tie-breaker in ascending alphabetical order to prevent non-deterministic orderin
 
 It is possible to only return terms that match more than a configured number of hits using the `min_doc_count` option:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -520,7 +512,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The above aggregation would only return tags which have been found in 10 hits or more. Default value is `1`.
 
@@ -548,7 +539,7 @@ WARNING: When NOT sorting on `doc_count` descending, high values of `min_doc_cou
 
 Generating the terms using a script:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -564,13 +555,12 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 This will interpret the `script` parameter as an `inline` script with the default script language and no script parameters. To use a stored script use the following syntax:
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_scripts/my_script
 {
@@ -580,11 +570,10 @@ POST /_scripts/my_script
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -602,12 +591,11 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 ==== Value Script
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -624,7 +612,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 ==== Filtering Values
 
@@ -634,7 +621,7 @@ It is possible to filter the values for which buckets will be created. This can 
 
 ===== Filtering Values with regular expressions
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -649,7 +636,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 In the above example, buckets will be created for all the tags that has the word `sport` in them, except those starting
 with `water_` (so the tag `water_sports` will not be aggregated). The `include` regular expression will determine what
@@ -663,7 +649,7 @@ The syntax is the same as <<regexp-syntax,regexp queries>>.
 For matching based on exact values the `include` and `exclude` parameters can simply take an array of
 strings that represent the terms as they are found in the index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -683,7 +669,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 ===== Filtering Values with partitions
 
@@ -693,7 +678,7 @@ This can be achieved by grouping the field's values into a number of partitions 
 only one partition in each request.
 Consider this request which is looking for accounts that have not logged any access recently:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -722,7 +707,6 @@ GET /_search
    }
 }
 --------------------------------------------------
-// CONSOLE
 
 This request is finding the last logged access date for a subset of customer accounts because we
 might want to expire some customer accounts who haven't been seen for a long while.
@@ -786,7 +770,7 @@ are expanded in one depth-first pass and only then any pruning occurs.
 In some scenarios this can be very wasteful and can hit memory constraints.
 An example problem scenario is querying a movie database for the 10 most popular actors and their 5 most common co-stars:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -808,7 +792,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 Even though the number of actors may be comparatively small and we want only 50 result buckets there is a combinatorial explosion of buckets
 during calculation - a single actor can produce n² buckets where n is the number of actors. The sane option would be to first determine
@@ -818,7 +801,7 @@ mode as opposed to the `depth_first` mode.
 NOTE: The `breadth_first` is the default mode for fields with a cardinality bigger than the requested size or when the cardinality is unknown (numeric fields or scripts for instance).
 It is possible to override the default heuristic and to provide a collect mode directly in the request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -841,7 +824,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> the possible values are `breadth_first` and `depth_first`
 
@@ -870,7 +852,7 @@ so memory usage is linear to the number of values of the documents that are part
 is significantly faster. By default, `map` is only used when running an aggregation on scripts, since they don't have
 ordinals.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -884,7 +866,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> The possible values are `map`, `global_ordinals`
 
@@ -896,7 +877,7 @@ The `missing` parameter defines how documents that are missing a value should be
 By default they will be ignored but it is also possible to treat them as if they
 had a value.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -910,7 +891,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> Documents without a value in the `tags` field will fall into the same bucket as documents that have the value `N/A`.
 

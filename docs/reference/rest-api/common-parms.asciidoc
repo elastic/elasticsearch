@@ -44,6 +44,13 @@ the transaction log so that Elasticsearch is able to replay
 changes on the next start.
 end::committed[]
 
+tag::completion-fields[]
+`completion_fields`::
+(Optional, string)
+Comma-separated list or wildcard expressions of fields
+to include in `fielddata` and `suggest` statistics.
+end::completion-fields[]
+
 tag::default_operator[]
 `default_operator`::
 (Optional, string) The default operator for query string query: AND or OR. 
@@ -89,11 +96,26 @@ Wildcard expressions are not accepted.
 --
 end::expand-wildcards[]
 
-tag::flat-settings[]
-`flat_settings`::
-(Optional, boolean) If `true`, returns settings in flat format. Defaults to
-`false`.
-end::flat-settings[]
+tag::fielddata-fields[]
+`fielddata_fields`::
+(Optional, string)
+Comma-separated list or wildcard expressions of fields
+to include in `fielddata` statistics.
+end::fielddata-fields[]
+
+tag::fields[]
+`fields`::
++
+--
+(Optional, string)
+Comma-separated list or wildcard expressions of fields
+to include in the statistics.
+
+Used as the default list
+unless a specific field list is provided
+in the `completion_fields` or `fielddata_fields` parameters.
+--
+end::fields[]
 
 tag::generation[]
 Generation number, such as `0`. {es} increments this generation number
@@ -108,6 +130,12 @@ If specified,
 the index alias only applies to documents returned by the filter.
 end::index-alias-filter[]
 
+tag::flat-settings[]
+`flat_settings`::
+(Optional, boolean) If `true`, returns settings in flat format. Defaults to
+`false`.
+end::flat-settings[]
+
 tag::http-format[]
 `format`::
 (Optional, string) Short version of the
@@ -119,6 +147,13 @@ tag::from[]
 `from`::
 (Optional, integer) Starting document offset. Defaults to `0`.
 end::from[]
+
+tag::groups[]
+`groups`::
+(Optional, string)
+Comma-separated list of search groups
+to include in the `search` statistics.
+end::groups[]
 
 tag::cat-h[]
 `h`::
@@ -162,6 +197,14 @@ tag::index-ignore-unavailable[]
 response. Defaults to `false`.
 end::index-ignore-unavailable[]
 
+tag::include-segment-file-sizes[]
+`include_segment_file_sizes`::
+(Optional, boolean)
+If `true`, the call reports the aggregated disk usage of 
+each one  of the Lucene index files (only applies if segment stats are 
+requested). Defaults to `false`.
+end::include-segment-file-sizes[]
+
 tag::include-unloaded-segments[]
 `include_unloaded_segments`::
 (Optional, boolean) If `true`, the response includes information from segments
@@ -173,6 +216,78 @@ tag::index[]
 (Optional, string) Comma-separated list or wildcard expression of index names
 used to limit the request.
 end::index[]
+
+tag::index-metric[]
+`<index-metric>`::
++
+--
+(Optional, string)
+Comma-separated list of metrics used to limit the request.
+Supported metrics are:
+
+`_all`::
+Return all statistics.
+
+`completion`::
+<<completion-suggester,Completion suggester>> statistics.
+
+`docs`::
+Number of documents and deleted docs, which have not yet merged out.
+<<indices-refresh,Index refreshes>> can affect this statistic.
+
+`fielddata`::
+<<fielddata,Fielddata>> statistics.
+
+`flush`::
+<<indices-flush,Flush>> statistics.
+
+`get`::
+Get statistics,
+including missing stats.
+
+`indexing`::
+<<docs-index_,Indexing>> statistics.
+
+`merge`::
+<<index-modules-merge,Merge>> statistics.
+
+`query_cache`::
+<<query-cache,Query cache>> statistics.
+
+`refresh`::
+<<indices-refresh,Refresh>> statistics.
+
+`request_cache`::
+<<shard-request-cache,Shard request cache>> statistics.
+
+`search`::
+Search statistics including suggest statistics.
+You can include statistics for custom groups
+by adding an extra `groups` parameter
+(search operations can be associated with one or more groups).
+The `groups` parameter accepts a comma separated list of group names.
+Use `_all` to return statistics for all groups.
+
+`segments`::
+Memory use of all open segments.
++
+If the `include_segment_file_sizes` parameter is `true`,
+this metric includes the aggregated disk usage
+of each Lucene index file.
+
+`store`::
+Size of the index in <<byte-units, byte units>>.
+
+`suggest`::
+<<search-suggesters,Suggester>> statistics.
+
+`translog`::
+<<index-modules-translog,Translog>> statistics.
+
+`warmer`::
+<<indices-warmers,Warmer>> statistics.
+--
+end::index-metric[]
 
 tag::index-template[]
 `<index-template>`::
@@ -186,6 +301,22 @@ tag::lenient[]
 (Optional, boolean) If `true`, format-based query failures (such as 
 providing text to a numeric field) will be ignored. Defaults to `false`.
 end::lenient[]
+
+tag::level[]
+`level`::
++
+--
+(Optional, string)
+Indicates whether statistics are aggregated
+at the cluster, index, or shard level.
+
+Valid values are:
+
+*   `cluster`
+*   `indices`
+*   `shards`
+--
+end::level[]
 
 tag::local[]
 `local`::

@@ -823,7 +823,7 @@ public final class IndexSettings {
 
     /**
      * Returns the max number of filters in adjacency_matrix aggregation search requests
-     * @deprecated This setting will be removed in 8.0
+     * @Deprecated This setting will be removed in 8.0
      */
     public int getMaxAdjacencyMatrixFilters() {
         return this.maxAdjacencyMatrixFilters;
@@ -831,7 +831,7 @@ public final class IndexSettings {
 
     /**
      * @param maxAdjacencyFilters the max number of filters in adjacency_matrix aggregation search requests
-     * @deprecated This setting will be removed in 8.0
+     * @Deprecated This setting will be removed in 8.0
      */
     private void setMaxAdjacencyMatrixFilters(int maxAdjacencyFilters) {
         this.maxAdjacencyMatrixFilters = maxAdjacencyFilters;

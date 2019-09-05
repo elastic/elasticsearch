@@ -449,12 +449,12 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         }
     }
 
-    public DataFrameTransformTask setNumFailureRetries(int numFailureRetries) {
+    DataFrameTransformTask setNumFailureRetries(int numFailureRetries) {
         this.numFailureRetries = numFailureRetries;
         return this;
     }
 
-    public int getNumFailureRetries() {
+    int getNumFailureRetries() {
         return numFailureRetries;
     }
 

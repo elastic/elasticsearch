@@ -26,6 +26,8 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -35,6 +37,8 @@ import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
+import org.elasticsearch.search.aggregations.support.BuiltInValuesSourceMatchers;
+import org.elasticsearch.search.aggregations.support.SupportedValuesSourceRecord;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -45,6 +49,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -109,7 +114,16 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
     private boolean showTermDocCountError = false;
 
     public TermsAggregationBuilder(String name, ValueType valueType) {
-        super(name, ValuesSourceType.ANY, valueType);
+        //super(name, ValuesSourceType.ANY, valueType);
+        super(name, List.of(
+            new SupportedValuesSourceRecord(BuiltInValuesSourceMatchers.DATE, ValuesSourceType.NUMERIC,
+                new DocValueFormat.DateTime(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, ZoneOffset.UTC,
+                    DateFieldMapper.Resolution.MILLISECONDS)),
+            new SupportedValuesSourceRecord(BuiltInValuesSourceMatchers.RAW_NUMBER, ValuesSourceType.NUMERIC, DocValueFormat.RAW),
+            new SupportedValuesSourceRecord(BuiltInValuesSourceMatchers.IP, ValuesSourceType.BYTES, DocValueFormat.IP),
+            new SupportedValuesSourceRecord(BuiltInValuesSourceMatchers.STRING, ValuesSourceType.BYTES, DocValueFormat.RAW),
+        new SupportedValuesSourceRecord(BuiltInValuesSourceMatchers.UNMAPPED, ValuesSourceType.BYTES, DocValueFormat.RAW)
+        ));
     }
 
     protected TermsAggregationBuilder(TermsAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {

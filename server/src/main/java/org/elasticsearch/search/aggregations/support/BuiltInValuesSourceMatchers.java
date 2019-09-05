@@ -18,6 +18,12 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IpFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 
@@ -27,10 +33,65 @@ public enum BuiltInValuesSourceMatchers implements ValuesSourceMatcher {
         public boolean matches(QueryShardContext context, ValueType valueType, String field, Script script) {
             return true;
         }
+    },
+    UNMAPPED {
+        @Override
+        public boolean matches(QueryShardContext context, ValueType valueType, String field, Script script) {
+            return field != null && context.fieldMapper(field) == null;
+        }
+    },
+    DATE {
+        @Override
+        public boolean matches(QueryShardContext context, ValueType valueType, String field, Script script) {
+            if (valueType == ValueType.DATE) {
+                return true;
+            }
+            return context.fieldMapper(field) instanceof DateFieldMapper.DateFieldType;
+        }
+    },
+    /**
+     * Built in numbers that aren't dates
+     */
+    RAW_NUMBER{
+        @Override
+        public boolean matches(QueryShardContext context, ValueType valueType, String field, Script script) {
+            if (valueType != null && valueType.valuesSourceFamily == ValuesSourceType.NUMERIC && valueType != ValueType.DATE) {
+               return true;
+            }
+            return getIndexFieldData(context, field) instanceof IndexNumericFieldData;
+        }
+    },
+    IP {
+        @Override
+        public boolean matches(QueryShardContext context, ValueType valueType, String field, Script script) {
+            if (valueType == ValueType.IP) {
+                return true;
+            }
+            return context.fieldMapper(field) instanceof IpFieldMapper.IpFieldType;
+        }
+    },
+    STRING {
+        @Override
+        public boolean matches(QueryShardContext context, ValueType valueType, String field, Script script) {
+            if (valueType == ValueType.STRING) {
+                return true;
+            }
+            return context.fieldMapper(field) instanceof KeywordFieldMapper.KeywordFieldType;
+        }
     }
+
     ;
 
     @Override
     public abstract boolean matches(QueryShardContext context, ValueType valueType, String field, Script script);
 
+    private static IndexFieldData getIndexFieldData(QueryShardContext context, String field) {
+        if (field != null) {
+            MappedFieldType fieldType = context.fieldMapper(field);
+            if (fieldType != null) {
+                return context.getForField(fieldType);
+            }
+        }
+        return null;
+    }
 }

@@ -412,7 +412,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 logger.warn(() -> new ParameterizedMessage("[{}] Unable to delete global metadata files", snapshotId), e);
             }
             final var survivingIndices = updatedRepositoryData.getIndices();
-            deleteIndices(
+            deleteFromIndices(
                 updatedRepositoryData,
                 Optional.ofNullable(finalSnapshotInfo)
                     .map(info -> info.indices().stream().filter(survivingIndices::containsKey)
@@ -547,7 +547,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return deleteResult;
     }
 
-    private void deleteIndices(RepositoryData repositoryData, List<IndexId> indices, SnapshotId snapshotId,
+    private void deleteFromIndices(RepositoryData repositoryData, List<IndexId> indices, SnapshotId snapshotId,
                                ActionListener<Void> listener) {
         if (indices.isEmpty()) {
             listener.onResponse(null);

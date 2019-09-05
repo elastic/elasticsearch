@@ -187,18 +187,7 @@ public final class RepositoryData {
         for (final IndexId indexId : shardGenerations.keySet()) {
             allIndexSnapshots.computeIfAbsent(indexId, k -> new LinkedHashSet<>()).add(snapshotId);
         }
-        final Map<IndexId, String[]> updatedGenerations = new HashMap<>(this.shardGenerations);
-        shardGenerations.forEach(((indexId, updatedGens) -> {
-            final String[] existing = updatedGenerations.put(indexId, updatedGens);
-            if (existing != null) {
-                for (int i = 0; i < updatedGens.length; ++i) {
-                    if (updatedGens[i] == null) {
-                        updatedGens[i] = existing[i];
-                    }
-                }
-            }
-        }));
-        updatedGenerations.putAll(shardGenerations);
+        final Map<IndexId, String[]> updatedGenerations = updatedGenerations(shardGenerations);
         assert assertShardGensUpdateConsistent(this.shardGenerations, updatedGenerations);
         return new RepositoryData(genId, snapshots, newSnapshotStates, allIndexSnapshots, updatedGenerations);
     }
@@ -233,7 +222,7 @@ public final class RepositoryData {
     /**
      * Remove a snapshot and remove any indices that no longer exist in the repository due to the deletion of the snapshot.
      */
-    public RepositoryData removeSnapshot(final SnapshotId snapshotId) {
+    public RepositoryData removeSnapshot(final SnapshotId snapshotId, final Map<IndexId, String[]> updatedShardGenerations) {
         Map<String, SnapshotId> newSnapshotIds = snapshotIds.values().stream()
             .filter(id -> !snapshotId.equals(id))
             .collect(Collectors.toMap(SnapshotId::getUUID, Function.identity()));
@@ -263,22 +252,30 @@ public final class RepositoryData {
             indexSnapshots.put(indexId, set);
         }
 
-        final Map<IndexId, String[]> newGenerations = new HashMap<>();
+        final Map<IndexId, String[]> updatedGenerations = updatedGenerations(shardGenerations);
         for (IndexId indexId : indexSnapshots.keySet()) {
-            final String[] previousGenerations = shardGenerations.get(indexId);
-            if (updatedIndices.contains(indexId)) {
-                assert previousGenerations != null;
-                final String[] updatedGenerations = new String[previousGenerations.length];
-                for (int i = 0; i < previousGenerations.length; i++) {
-                    updatedGenerations[i] = Long.toString(Long.parseLong(previousGenerations[i]) + 1);
-                }
-                newGenerations.put(indexId, updatedGenerations);
-            } else {
-                newGenerations.put(indexId, previousGenerations);
+            if (updatedIndices.contains(indexId) == false) {
+                updatedGenerations.remove(indexId);
             }
         }
-        assert assertShardGensUpdateConsistent(this.shardGenerations, newGenerations);
-        return new RepositoryData(genId, newSnapshotIds, newSnapshotStates, indexSnapshots, newGenerations);
+        assert assertShardGensUpdateConsistent(this.shardGenerations, updatedGenerations);
+        return new RepositoryData(genId, newSnapshotIds, newSnapshotStates, indexSnapshots, updatedGenerations);
+    }
+
+    private Map<IndexId, String[]> updatedGenerations(final Map<IndexId, String[]> shardGenerations) {
+        final Map<IndexId, String[]> updatedGenerations = new HashMap<>(this.shardGenerations);
+        shardGenerations.forEach(((indexId, updatedGens) -> {
+            final String[] existing = updatedGenerations.put(indexId, updatedGens);
+            if (existing != null) {
+                for (int i = 0; i < updatedGens.length; ++i) {
+                    if (updatedGens[i] == null) {
+                        updatedGens[i] = existing[i];
+                    }
+                }
+            }
+        }));
+        updatedGenerations.putAll(shardGenerations);
+        return updatedGenerations;
     }
 
     /**

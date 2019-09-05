@@ -105,7 +105,7 @@ The Examples section below demonstrates the use of templated role names.
 
 The following example assigns the "user" role to all users:
 
-[source, js]
+[source,console]
 ------------------------------------------------------------
 POST /_security/role_mapping/mapping1
 {
@@ -119,7 +119,6 @@ POST /_security/role_mapping/mapping1
   }
 }
 ------------------------------------------------------------
-// CONSOLE
 <1> Mappings that have `enabled` set to `false` are ignored when role mapping
     is performed.
 <2> Metadata is optional.
@@ -127,7 +126,7 @@ POST /_security/role_mapping/mapping1
 A successful call returns a JSON structure that shows whether the mapping has
 been created or updated.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "role_mapping" : {
@@ -135,12 +134,11 @@ been created or updated.
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 <1> When an existing mapping is updated, `created` is set to false.
 
 The following example assigns the "user" and "admin" roles to specific users:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/role_mapping/mapping2
 {
@@ -151,10 +149,9 @@ POST /_security/role_mapping/mapping2
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 The following example matches users who authenticated against a specific realm:
-[source, js]
+[source,console]
 ------------------------------------------------------------
 POST /_security/role_mapping/mapping3
 {
@@ -165,12 +162,11 @@ POST /_security/role_mapping/mapping3
   }
 }
 ------------------------------------------------------------
-// CONSOLE
 
 The following example matches any user where either the username is `esadmin`
 or the user is in the `cn=admin,dc=example,dc=com` group:
 
-[source, js]
+[source,console]
 ------------------------------------------------------------
 POST /_security/role_mapping/mapping4
 {
@@ -192,7 +188,6 @@ POST /_security/role_mapping/mapping4
   }
 }
 ------------------------------------------------------------
-// CONSOLE
 
 The example above is useful when the group names in your identity management
 system (such as Active Directory, or a SAML Identity Provider) do not have a
@@ -213,7 +208,7 @@ roles is inefficient and can have a negative effect on system performance.
 If you only need to map a subset of the groups, then you should do this
 using explicit mappings.
 
-[source, js]
+[source,console]
 ------------------------------------------------------------
 POST /_security/role_mapping/mapping5
 {
@@ -229,7 +224,6 @@ POST /_security/role_mapping/mapping5
   "enabled": true
 }
 ------------------------------------------------------------
-// CONSOLE
 <1> The `tojson` mustache function is used to convert the list of
     group names into a valid JSON array.
 <2> Because the template produces a JSON array, the format must be
@@ -237,7 +231,7 @@ POST /_security/role_mapping/mapping5
 
 The following example matches users within a specific LDAP sub-tree:
 
-[source, js]
+[source,console]
 ------------------------------------------------------------
 POST /_security/role_mapping/mapping6
 {
@@ -248,12 +242,11 @@ POST /_security/role_mapping/mapping6
   }
 }
 ------------------------------------------------------------
-// CONSOLE
 
 The following example matches users within a particular LDAP sub-tree in a
 specific realm:
 
-[source, js]
+[source,console]
 ------------------------------------------------------------
 POST /_security/role_mapping/mapping7
 {
@@ -267,7 +260,6 @@ POST /_security/role_mapping/mapping7
   }
 }
 ------------------------------------------------------------
-// CONSOLE
 
 The rules can be more complex and include wildcard matching. For example, the
 following mapping matches any user where *all* of these conditions are met:
@@ -278,7 +270,7 @@ following mapping matches any user where *all* of these conditions are met:
 - the user does not have a `terminated_date`
 
 
-[source, js]
+[source,console]
 ------------------------------------------------------------
 POST /_security/role_mapping/mapping8
 {
@@ -316,7 +308,6 @@ POST /_security/role_mapping/mapping8
   }
 }
 ------------------------------------------------------------
-// CONSOLE
 
 A templated role can be used to automatically map every user to their own
 custom role. The role itself can be defined through the
@@ -329,7 +320,7 @@ role that is their username prefixed with `_user_`.
 As an example, the user `nwong` would be assigned the `saml_user` and
 `_user_nwong` roles.
 
-[source, js]
+[source,console]
 ------------------------------------------------------------
 POST /_security/role_mapping/mapping9
 {
@@ -341,7 +332,6 @@ POST /_security/role_mapping/mapping9
   "enabled": true
 }
 ------------------------------------------------------------
-// CONSOLE
 <1> Because it is not possible to specify both `roles` and `role_templates` in
     the same role mapping, we can apply a "fixed name" role by using a template
     that has no substitutions.

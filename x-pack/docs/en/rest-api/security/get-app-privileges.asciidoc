@@ -55,11 +55,10 @@ To check a user's application privileges, use the
 The following example retrieves information about the `read` privilege for the 
 `app01` application:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_security/privilege/myapp/read
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:app0102_privileges]
 
 A successful call returns an object keyed by application name and privilege
@@ -86,16 +85,14 @@ name. If the privilege is not defined, the request responds with a 404 status.
 
 To retrieve all privileges for an application, omit the privilege name:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_security/privilege/myapp/
 --------------------------------------------------
-// CONSOLE
 
 To retrieve every privilege, omit both the application and privilege names:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_security/privilege/
 --------------------------------------------------
-// CONSOLE

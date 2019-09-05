@@ -52,11 +52,10 @@ If the user is not defined in the `native` realm, the request 404s.
 To retrieve a native user, submit a GET request to the `/_security/user/<username>`
 endpoint:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_security/user/jacknich
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:jacknich_user]
 
 [source,console-result]
@@ -77,9 +76,8 @@ GET /_security/user/jacknich
 
 Omit the username to retrieve all users:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_security/user
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]

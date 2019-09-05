@@ -6,7 +6,7 @@ A special single bucket aggregation that enables aggregating nested documents.
 For example, lets say we have an index of products, and each product holds the list of resellers - each having its own
 price for the product. The mapping could look like:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /index
 {
@@ -23,13 +23,12 @@ PUT /index
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
 <1> The `resellers` is an array that holds nested documents under the `product` object.
 
 The following aggregations will return the minimum price products can be purchased in:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -48,7 +47,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/GET \/_search/GET \/_search\?filter_path=aggregations/]
 // TEST[s/^/PUT index\/_doc\/0\?refresh\n{"name":"led", "resellers": [{"name": "foo", "price": 350.00}, {"name": "bar", "price": 500.00}]}\n/]
 

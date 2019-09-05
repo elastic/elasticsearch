@@ -6,7 +6,7 @@
 The SQL Translate API accepts SQL in a JSON document and translates it
 into native {es} queries. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_sql/translate
 {
@@ -14,7 +14,6 @@ POST /_sql/translate
     "fetch_size": 10
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:library]
 
 Which returns:

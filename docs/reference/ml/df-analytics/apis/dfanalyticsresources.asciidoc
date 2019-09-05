@@ -126,8 +126,10 @@ An {oldetection} configuration object has the following properties:
   
 `n_neighbors`::
   (integer) Defines the value for how many nearest neighbors each method of 
-  {oldetection} will use to calculate its {olscore}. When the value is 
-  not set, the system will dynamically detect an appropriate value.
+  {oldetection} will use to calculate its {olscore}. When the value is not set, 
+  different values will be used for different ensemble members. This helps 
+  improve diversity in the ensemble. Therefore, only override this if you are 
+  confident that the value you choose is appropriate for the data set.
   
 `outlier_fraction`::
   (double) Sets the proportion of data set that is assumed to be outlying prior to 

@@ -109,7 +109,7 @@ public final class RepositoryData {
             final String[] updatedGenerations = shardGenerations.get(indexId);
             final Map<Integer, String> obsoleteShardIndices = new HashMap<>();
             if (updatedGenerations != null) {
-                if (Arrays.equals(updatedGenerations, oldGens) == false) {
+                if (oldGens.length > 0 && Arrays.equals(updatedGenerations, oldGens) == false) {
                     assert oldGens.length == updatedGenerations.length;
                     for (int i = 0; i < oldGens.length; i++) {
                         if (updatedGenerations[i] != null && oldGens[i] != null && oldGens[i].equals(updatedGenerations[i]) == false) {

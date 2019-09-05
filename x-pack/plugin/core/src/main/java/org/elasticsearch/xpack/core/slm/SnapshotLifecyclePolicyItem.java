@@ -211,6 +211,22 @@ public class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeabl
                 entry.state(), entry.startTime(), entry.failure());
         }
 
+        public SnapshotId getSnapshotId() {
+            return snapshotId;
+        }
+
+        public SnapshotsInProgress.State getState() {
+            return state;
+        }
+
+        public long getStartTime() {
+            return startTime;
+        }
+
+        public String getFailure() {
+            return failure;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             this.snapshotId.writeTo(out);

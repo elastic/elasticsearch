@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.slm;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -41,7 +40,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -49,15 +47,13 @@ import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryItem.CREAT
 import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryItem.DELETE_OPERATION;
 import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore.SLM_HISTORY_INDEX_PREFIX;
 import static org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT.getStepKeyForIndex;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/46205")
-public class SnapshotLifecycleIT extends ESRestTestCase {
+public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
     @Override
     protected boolean waitForAllSnapshotsWiped() {
@@ -333,183 +329,6 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
                 client().performRequest(r);
             }
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testSnapshotInProgress() throws Exception {
-        final String indexName = "test";
-        final String policyName = "test-policy";
-        final String repoId = "my-repo";
-        int docCount = 20;
-        for (int i = 0; i < docCount; i++) {
-            index(client(), indexName, "" + i, "foo", "bar");
-        }
-
-        // Create a snapshot repo
-        initializeRepo(repoId, "1b");
-
-        createSnapshotPolicy(policyName, "snap", "1 2 3 4 5 ?", repoId, indexName, true);
-
-        Response executeRepsonse = client().performRequest(new Request("PUT", "/_slm/policy/" + policyName + "/_execute"));
-
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, EntityUtils.toByteArray(executeRepsonse.getEntity()))) {
-            final String snapshotName = parser.mapStrings().get("snapshot_name");
-
-            // Check that the executed snapshot shows up in the SLM output
-            assertBusy(() -> {
-                try {
-                    Response response = client().performRequest(new Request("GET", "/_slm/policy" + (randomBoolean() ? "" : "?human")));
-                    Map<String, Object> policyResponseMap;
-                    try (InputStream content = response.getEntity().getContent()) {
-                        policyResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), content, true);
-                    }
-                    assertThat(policyResponseMap.size(), greaterThan(0));
-                    Optional<Map<String, Object>> inProgress = Optional.ofNullable((Map<String, Object>) policyResponseMap.get(policyName))
-                        .map(policy -> (Map<String, Object>) policy.get("in_progress"));
-
-                    if (inProgress.isPresent()) {
-                        Map<String, Object> inProgressMap = inProgress.get();
-                        assertThat(inProgressMap.get("name"), equalTo(snapshotName));
-                        assertNotNull(inProgressMap.get("uuid"));
-                        assertThat(inProgressMap.get("state"), equalTo("STARTED"));
-                        assertThat((long) inProgressMap.get("start_time_millis"), greaterThan(0L));
-                        assertNull(inProgressMap.get("failure"));
-                    } else {
-                        fail("expected in_progress to contain a running snapshot, but the response was " + policyResponseMap);
-                    }
-                } catch (ResponseException e) {
-                    fail("expected policy to exist but it does not: " + EntityUtils.toString(e.getResponse().getEntity()));
-                }
-            });
-
-            // Cancel the snapshot since it is not going to complete quickly
-            try {
-                client().performRequest(new Request("DELETE", "/_snapshot/" + repoId + "/" + snapshotName));
-            } catch (Exception e) {
-                // ignore
-            }
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testRetentionWhileSnapshotInProgress() throws Exception {
-        final String indexName = "test";
-        final String slowPolicy = "slow";
-        final String fastPolicy = "fast";
-        final String slowRepo = "slow-repo";
-        final String fastRepo = "fast-repo";
-        int docCount = 20;
-        for (int i = 0; i < docCount; i++) {
-            index(client(), indexName, "" + i, "foo", "bar");
-        }
-
-        // Create snapshot repos, one fast and one slow
-        initializeRepo(slowRepo, "1b");
-        initializeRepo(fastRepo, "10mb");
-
-        createSnapshotPolicy(slowPolicy, "slow-snap", "1 2 3 4 5 ?", slowRepo, indexName, true,
-            new SnapshotRetentionConfiguration(TimeValue.timeValueSeconds(0), null, null));
-        createSnapshotPolicy(fastPolicy, "fast-snap", "1 2 3 4 5 ?", fastRepo, indexName, true,
-            new SnapshotRetentionConfiguration(TimeValue.timeValueSeconds(0), null, null));
-
-        // Create a snapshot and wait for it to be complete (need something that can be deleted)
-        final String completedSnapshotName = executePolicy(fastPolicy);
-        assertBusy(() -> {
-            try {
-                Response getResp = client().performRequest(new Request("GET",
-                    "/_snapshot/" + fastRepo + "/" + completedSnapshotName + "/_status"));
-                try (InputStream content = getResp.getEntity().getContent()) {
-                    Map<String, Object> snaps = XContentHelper.convertToMap(XContentType.JSON.xContent(), content, true);
-                    logger.info("--> waiting for snapshot {} to be successful, got: {}", completedSnapshotName, snaps);
-                    List<Map<String, Object>> snaps2 = (List<Map<String, Object>>) snaps.get("snapshots");
-                    assertThat(snaps2.get(0).get("state"), equalTo("SUCCESS"));
-
-                    // Check that no in_progress snapshots show up
-                    Response response = client().performRequest(new Request("GET", "/_slm/policy"));
-                    Map<String, Object> policyResponseMap;
-                    try (InputStream content2 = response.getEntity().getContent()) {
-                        policyResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), content2, true);
-                    }
-                    assertThat(policyResponseMap.size(), greaterThan(0));
-                    Optional<Map<String, Object>> inProgress = Optional.ofNullable((Map<String, Object>) policyResponseMap.get(slowPolicy))
-                        .map(policy -> (Map<String, Object>) policy.get("in_progress"));
-
-                    // Ensure no snapshots are running
-                    assertFalse("expected no in progress snapshots but got " + inProgress.orElse(null), inProgress.isPresent());
-                }
-            } catch (NullPointerException | ResponseException e) {
-                fail("unable to retrieve completed snapshot: " + e);
-            }
-        }, 60, TimeUnit.SECONDS);
-
-        // Take another snapshot
-        final String slowSnapshotName = executePolicy(slowPolicy);
-
-        // Check that the executed snapshot shows up in the SLM output as in_progress
-        assertBusy(() -> {
-            try {
-                Response response = client().performRequest(new Request("GET", "/_slm/policy"));
-                Map<String, Object> policyResponseMap;
-                try (InputStream content = response.getEntity().getContent()) {
-                    policyResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), content, true);
-                }
-                logger.info("--> checking for 'slow-*' snapshot to show up in policy response, got: " + policyResponseMap);
-                assertThat(policyResponseMap.size(), greaterThan(0));
-                Optional<Map<String, Object>> inProgress = Optional.ofNullable((Map<String, Object>) policyResponseMap.get(slowPolicy))
-                    .map(policy -> (Map<String, Object>) policy.get("in_progress"));
-
-                if (inProgress.isPresent()) {
-                    Map<String, Object> inProgressMap = inProgress.get();
-                    assertThat(inProgressMap.get("name"), equalTo(slowSnapshotName));
-                    assertNotNull(inProgressMap.get("uuid"));
-                    assertThat(inProgressMap.get("state"), anyOf(equalTo("STARTED"), equalTo("INIT")));
-                    assertThat((long) inProgressMap.get("start_time_millis"), greaterThan(0L));
-                    assertNull(inProgressMap.get("failure"));
-                } else {
-                    fail("expected in_progress to contain a running snapshot, but the response was " + policyResponseMap);
-                }
-            } catch (ResponseException e) {
-                fail("expected policy to exist but it does not: " + EntityUtils.toString(e.getResponse().getEntity()));
-            }
-        }, 60, TimeUnit.SECONDS);
-
-        // Run retention every second
-        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest();
-        req.transientSettings(Settings.builder().put(LifecycleSettings.SLM_RETENTION_SCHEDULE, "*/1 * * * * ?"));
-        try (XContentBuilder builder = jsonBuilder()) {
-            req.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            Request r = new Request("PUT", "/_cluster/settings");
-            r.setJsonEntity(Strings.toString(builder));
-            client().performRequest(r);
-        }
-
-        // Cancel the snapshot since it is not going to complete quickly, do it in a thread because
-        // cancelling the snapshot can take a long time and we might as well check retention while
-        // its deleting
-        Thread t = new Thread(() -> {
-            try {
-                assertOK(client().performRequest(new Request("DELETE", "/_snapshot/" + slowRepo + "/" + slowSnapshotName)));
-            } catch (IOException e) {
-                fail("should not have thrown " + e);
-            }
-        });
-        t.start();
-
-        // Check that the snapshot created by the policy has been removed by retention
-        assertBusy(() -> {
-            // We expect a failed response because the snapshot should not exist
-            try {
-                Response response = client().performRequest(new Request("GET", "/_snapshot/" + slowRepo + "/" + completedSnapshotName));
-                String resp = EntityUtils.toString(response.getEntity());
-                logger.info("--> checking to see if snapshot has been deleted, got: " + resp);
-                assertThat(resp, containsString("snapshot_missing_exception"));
-            } catch (ResponseException e) {
-                assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("snapshot_missing_exception"));
-            }
-        }, 60, TimeUnit.SECONDS);
-
-        t.join(5000);
     }
 
     /**

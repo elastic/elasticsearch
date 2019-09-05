@@ -1,11 +1,12 @@
 [role="xpack"]
 [[watcher-api-stats]]
-=== Stats API
+=== Get {watcher} stats API
+[subs="attributes"]
 ++++
-<titleabbrev>Stats</titleabbrev>
+<titleabbrev>Get {watcher} stats</titleabbrev>
 ++++
 
-The `stats` API returns the current {watcher} metrics.
+Retrieves the current {watcher} metrics.
 
 [float]
 ==== Request

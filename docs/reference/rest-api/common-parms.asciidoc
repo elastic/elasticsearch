@@ -4,6 +4,12 @@ Comma-separated list or wildcard expression of index alias names
 used to limit the request.
 end::index-alias[]
 
+tag::aliases[]
+`aliases`::
+(Optional, <<indices-aliases,alias object>>) Index aliases which include the
+index. See <<indices-aliases>>.
+end::aliases[]
+
 tag::allow-no-indices[]
 `allow_no_indices`::
 (Optional, boolean) If `true`, the request returns an error if a wildcard
@@ -28,6 +34,16 @@ tag::bytes[]
 (Optional, <<byte-units,byte size units>>) Unit used to display byte values.
 end::bytes[]
 
+tag::committed[]
+If `true`,
+the segments is synced to disk. Segments that are synced can survive a hard reboot.
++
+If `false`, 
+the data from uncommitted segments is also stored in
+the transaction log so that Elasticsearch is able to replay
+changes on the next start.
+end::committed[]
+
 tag::completion-fields[]
 `completion_fields`::
 (Optional, string)
@@ -46,6 +62,18 @@ tag::df[]
 (Optional, string) Field to use as default where no field prefix is 
 given in the query string.
 end::df[]
+
+tag::docs-count[]
+Number of non-deleted documents in the segment, such as `25`. This
+number is based on Lucene documents and may include documents from
+<<nested,nested>> fields.
+end::docs-count[]
+
+tag::docs-deleted[]
+Number of deleted documents in the segment, such as `0`. This number
+is based on Lucene documents. {es} reclaims the disk space of deleted Lucene
+documents when a segment is merged.
+end::docs-deleted[]
 
 tag::expand-wildcards[]
 `expand_wildcards`::
@@ -88,6 +116,11 @@ unless a specific field list is provided
 in the `completion_fields` or `fielddata_fields` parameters.
 --
 end::fields[]
+
+tag::generation[]
+Generation number, such as `0`. {es} increments this generation number
+for each segment written. {es} then uses this number to derive the segment name.
+end::generation[]
 
 tag::index-alias-filter[]
 <<query-dsl-bool-query, Filter query>>
@@ -292,11 +325,33 @@ node only. Defaults to `false`, which means information is retrieved from
 the master node.
 end::local[]
 
+tag::mappings[]
+`mappings`::
++
+--
+(Optional, <<mapping,mapping object>>) Mapping for fields in the index. If
+specified, this mapping can include:
+
+* Field names
+* <<mapping-types,Field datatypes>>
+* <<mapping-params,Mapping parameters>>
+
+See <<mapping>>.
+--
+end::mappings[]
+
 tag::max_docs[]
 `max_docs`::
 (Optional, integer) Maximum number of documents to process. Defaults to all
 documents.
 end::max_docs[]
+
+tag::memory[]
+Bytes of segment data stored in memory for efficient search,
+such as `1264`.
++
+A value of `-1` indicates {es} was unable to compute this number.
+end::memory[]
 
 tag::name[]
 `<name>`::
@@ -350,6 +405,13 @@ tag::routing[]
 (Optional, string) Target the specified primary shard.
 end::routing[]
 
+tag::index-routing[]
+`routing`::
+(Optional, string)
+Custom <<mapping-routing-field, routing value>>
+used to route operations to a specific shard.
+end::index-routing[]
+
 tag::cat-s[]
 `s`::
 (Optional, string) Comma-separated list of column names or column aliases used
@@ -368,6 +430,15 @@ tag::scroll_size[]
 Defaults to 100. 
 end::scroll_size[]
 
+tag::segment-search[]
+If `true`,
+the segment is searchable.
++
+If `false`,
+the segment has most likely been written to disk
+but needs a <<indices-refresh,refresh>> to be searchable.
+end::segment-search[]
+
 tag::search_timeout[]
 `search_timeout`::
 (Optional, <<time-units, time units>> Explicit timeout for each search 
@@ -380,6 +451,22 @@ tag::search_type[]
 * `query_then_fetch`
 * `dfs_query_then_fetch`
 end::search_type[]
+
+tag::segment[]
+Name of the segment, such as `_0`. The segment name is derived from
+the segment generation and used internally to create file names in the directory
+of the shard.
+end::segment[]
+
+tag::settings[]
+`settings`::
+(Optional, <<index-modules-settings,index setting object>>) Configuration
+options for the index. See <<index-modules-settings>>.
+end::settings[]
+
+tag::segment-size[]
+Disk space used by the segment, such as `50kb`.
+end::segment-size[]
 
 tag::slices[]
 `slices`::
@@ -412,8 +499,8 @@ end::source_includes[]
 
 tag::stats[]
 `stats`::
-  (Optional, string) Specific `tag` of the request for logging and statistical 
-  purposes.
+(Optional, string) Specific `tag` of the request for logging and statistical 
+purposes.
 end::stats[]
 
 tag::terminate_after[]
@@ -451,19 +538,16 @@ tag::version[]
 (Optional, boolean) If `true`, returns the document version as part of a hit.
 end::version[]
 
-tag::index-routing[]
-`routing`::
-(Optional, string)
-Custom <<mapping-routing-field, routing value>>
-used to route operations to a specific shard.
-end::index-routing[]
-
 tag::doc-version[]
 `version`::
 (Optional, integer) Explicit version number for concurrency control.
 The specified version must match the current version of the document for the
 request to succeed.
 end::doc-version[]
+
+tag::segment-version[]
+Version of Lucene used to write the segment.
+end::segment-version[]
 
 tag::version_type[]
 `version_type`::

@@ -132,6 +132,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
                 logger.info("--> waiting for snapshot {} to be completed, got: {}", completedSnapshotName, status.getState());
                 assertThat(status.getState(), equalTo(SnapshotsInProgress.State.SUCCESS));
             } catch (SnapshotMissingException e) {
+                logger.error("expected a snapshot but it was missing", e);
                 fail("expected a snapshot with name " + completedSnapshotName + " but it does not exist");
             }
         });
@@ -231,6 +232,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         try {
             client().execute(PutSnapshotLifecycleAction.INSTANCE, putLifecycle).get();
         } catch (Exception e) {
+            logger.error("failed to create slm policy", e);
             fail("failed to create policy " + policy + " got: " + e);
         }
     }
@@ -245,6 +247,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
             resp = client().execute(ExecuteSnapshotLifecycleAction.INSTANCE, executeReq).get();
             return resp.getSnapshotName();
         } catch (Exception e) {
+            logger.error("failed to execute policy", e);
             fail("failed to execute policy " + policyId + " got: " + e);
             return "bad";
         }

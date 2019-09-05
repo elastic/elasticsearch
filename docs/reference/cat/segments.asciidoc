@@ -49,40 +49,46 @@ Valid columns are:
 (Default) IP address of the segment's shard, such as `127.0.1.1`.
 
 `segment`::
-(Default)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=segment]
+(Default) Name of the segment, such as `_0`. The segment name is derived from
+the segment generation and used internally to create file names in the directory
+of the shard.
 
 `generation`::
-(Default)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=generation]
+(Default) Generation number, such as `0`. {es} increments this generation number
+for each segment written. {es} then uses this number to derive the segment name.
 
 `docs.count`::
-(Default)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-count]
+(Default) Number of non-deleted documents in the segment, such as `25`. This
+number is based on Lucene documents and may include documents from
+<<nested,nested>> fields.
                 
 `docs.deleted`::
-(Default)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
+(Default) Number of deleted documents in the segment, such as `0`. This number
+is based on Lucene documents. {es} reclaims the disk space of deleted Lucene
+documents when a segment is merged.
 
 `size`::
-(Default)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=segment-size]
+(Default) Disk space used by the segment, such as `50kb`.
 
 `size.memory`::
-(Default)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=memory]
+(Default) Bytes of segment data stored in memory for efficient search, such as
+`1264`.
 
 `committed`::
-(Default)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=committed]
+(Default) If `true`, the segment is committed to disk. Segments committed to
+disk would survive a hard reboot. 
++
+If `false`, the data from uncommitted segments is also stored in the transaction
+log. {es} replays those changes on the next start.
 
 `searchable`::
-(Default)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=segment-search]
+(Default) If `true`, the segment is searchable.
++
+If `false`, likely means the segment is written to disk but has not been
+<<docs-refresh,refreshed>>.
 
 `version`::
-(Default)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=segment-version]
+(Default) Version of Lucene used to write the segment.
 
 `compound`::
 (Default) If `true`, the segment is stored in a compound file. This means Lucene

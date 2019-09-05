@@ -193,7 +193,7 @@ Comma-separated list of metrics used to limit the request.
 Supported metrics are:
 
 `_all`::
-Return all statistics
+Return all statistics.
 
 `completion`::
 <<completion-suggester,Completion suggester>> statistics.

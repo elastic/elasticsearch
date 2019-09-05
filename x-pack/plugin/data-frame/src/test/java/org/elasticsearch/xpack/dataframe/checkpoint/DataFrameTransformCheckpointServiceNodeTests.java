@@ -50,7 +50,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgr
 import org.elasticsearch.xpack.dataframe.DataFrameSingleNodeTestCase;
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
-import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.nio.file.Path;
@@ -67,8 +67,12 @@ import static org.mockito.Mockito.when;
 
 public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingleNodeTestCase {
 
+    // re-use the mock client for the whole test suite as the underlying thread pool and the
+    // corresponding context if recreated cause unreliable test execution
+    // see https://github.com/elastic/elasticsearch/issues/45238 and https://github.com/elastic/elasticsearch/issues/42577
+    private static MockClientForCheckpointing mockClientForCheckpointing = null;
+
     private DataFrameTransformsConfigManager transformsConfigManager;
-    private MockClientForCheckpointing mockClientForCheckpointing;
     private DataFrameTransformsCheckpointService transformsCheckpointService;
 
     private class MockClientForCheckpointing extends NoOpClient {
@@ -121,18 +125,22 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
 
     @Before
     public void createComponents() {
+        // it's not possible to run it as @BeforeClass as clients aren't initialized
+        if (mockClientForCheckpointing == null) {
+            mockClientForCheckpointing = new MockClientForCheckpointing("DataFrameTransformCheckpointServiceNodeTests");
+        }
+
         transformsConfigManager = new DataFrameTransformsConfigManager(client(), xContentRegistry());
 
         // use a mock for the checkpoint service
-        mockClientForCheckpointing = new MockClientForCheckpointing(getTestName());
         DataFrameAuditor mockAuditor = mock(DataFrameAuditor.class);
         transformsCheckpointService = new DataFrameTransformsCheckpointService(mockClientForCheckpointing,
                                                                                transformsConfigManager,
                                                                                mockAuditor);
     }
 
-    @After
-    public void tearDownClient() {
+    @AfterClass
+    public static void tearDownClient() {
         mockClientForCheckpointing.close();
     }
 

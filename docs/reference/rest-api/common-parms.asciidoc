@@ -239,7 +239,7 @@ Use `_all` to return statistics for all groups.
 Memory use of all open segments.
 +
 If the `include_segment_file_sizes` parameter is `true`,
-this statistic includes the aggregated disk usage
+this metric includes the aggregated disk usage
 of each Lucene index file.
 
 `store`::

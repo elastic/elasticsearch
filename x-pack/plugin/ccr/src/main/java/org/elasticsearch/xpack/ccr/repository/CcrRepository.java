@@ -336,9 +336,11 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                                         r -> {},
                                         e -> {
                                             assert e instanceof ElasticsearchSecurityException == false : e;
-                                            logger.warn(new ParameterizedMessage(
-                                                            "{} background renewal of retention lease [{}] failed during restore", shardId,
+                                            if (CcrRetentionLeases.isInvalidRetainingSequenceNumberError(retentionLeaseId, e) == false) {
+                                                logger.warn(new ParameterizedMessage(
+                                                    "{} background renewal of retention lease [{}] failed during restore", shardId,
                                                     retentionLeaseId), e);
+                                            }
                                         }));
                     }
                 },

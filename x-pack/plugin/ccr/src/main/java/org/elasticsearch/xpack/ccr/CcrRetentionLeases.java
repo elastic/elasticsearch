@@ -173,4 +173,12 @@ public class CcrRetentionLeases {
         remoteClient.execute(RetentionLeaseActions.Remove.INSTANCE, request, listener);
     }
 
+    /**
+     * Checks if the given exception is the error from the leader shard where the retaining sequence number of
+     * a renewable request is lower than the retaining sequence number of the current retention lease.
+     */
+    public static boolean isInvalidRetainingSequenceNumberError(String retentionLeaseId, Throwable cause) {
+        final String errorMessage = "the current retention lease with [" + retentionLeaseId + "] is retaining a higher sequence number";
+        return cause instanceof IllegalArgumentException && cause.getMessage() != null && cause.getMessage().contains(errorMessage);
+    }
 }

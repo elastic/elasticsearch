@@ -50,7 +50,11 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
 
     public AzureRepositoryPlugin(Settings settings) {
         // eagerly load client settings so that secure settings are read
-        this.azureStoreService = new AzureStorageService(settings);
+        this.azureStoreService = createAzureStoreService(settings);
+    }
+
+    AzureStorageService createAzureStoreService(final Settings settings) {
+        return new AzureStorageService(settings);
     }
 
     @Override

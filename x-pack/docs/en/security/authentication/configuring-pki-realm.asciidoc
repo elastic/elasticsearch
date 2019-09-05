@@ -246,7 +246,9 @@ NOTE: PKI authentication delegation requires that the
 `xpack.security.authc.token.enabled` setting be `true` and that SSL/TLS be
 configured (without SSL/TLS client authentication).
 
-NOTE: {kib} also needs to be configured to allow PKI certificate authentication.
+NOTE: {kib} also needs to be
+{kibana-ref}/kibana-authentication.html#pki-authentication[configured to allow
+PKI certificate authentication].
 
 A PKI realm with `delegation.enabled` still works unchanged for clients
 connecting directly to {es}. Directly authenticated users, and users that are PKI

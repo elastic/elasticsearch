@@ -50,7 +50,7 @@ Paths are relative from the position of the pipeline aggregation; they are not a
 aggregation tree. For example, this derivative is embedded inside a date_histogram and refers to a "sibling"
 metric `"the_sum"`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -72,7 +72,7 @@ POST /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The metric is called `"the_sum"`
 <2> The `buckets_path` refers to the metric via a relative path `"the_sum"`
 
@@ -80,7 +80,7 @@ POST /_search
 instead of embedded "inside" them.  For example, the `max_bucket` aggregation uses the `buckets_path` to specify
 a metric embedded inside a sibling aggregation:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -106,8 +106,8 @@ POST /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
+
 <1> `buckets_path` instructs this max_bucket aggregation that we want the maximum value of the `sales` aggregation in the
 `sales_per_month` date histogram.
 
@@ -115,7 +115,7 @@ If a Sibling pipeline agg references a multi-bucket aggregation, such as a `term
 select specific keys from the multi-bucket.  For example, a `bucket_script` could select two specific buckets (via
 their bucket keys) to perform the calculation:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -152,8 +152,8 @@ POST /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
+
 <1> `buckets_path` selects the hats and bags buckets (via `['hat']`/`['bag']``) to use in the script specifically,
 instead of fetching all the buckets from `sale_type` aggregation
 
@@ -164,7 +164,7 @@ Instead of pathing to a metric, `buckets_path` can use a special `"_count"` path
 the pipeline aggregation to use the document count as its input.  For example, a derivative can be calculated
 on the document count of each bucket, instead of a specific metric:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -183,14 +183,14 @@ POST /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> By using `_count` instead of a metric name, we can calculate the derivative of document counts in the histogram
 
 The `buckets_path` can also use `"_bucket_count"` and path to a multi-bucket aggregation to use the number of buckets
 returned by that aggregation in the pipeline aggregation instead of a metric. for example a `bucket_selector` can be
 used here to filter out buckets which contain no buckets for an inner terms aggregation:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search
 {
@@ -222,8 +222,8 @@ POST /sales/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
+
 <1> By using `_bucket_count` instead of a metric name, we can filter out `histo` buckets where they contain no buckets
 for the `categories` aggregation
 

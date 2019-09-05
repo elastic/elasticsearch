@@ -44,7 +44,7 @@ for more details) |Required |
 
 The following snippet only retains buckets where the total sales for the month is more than 200:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search
 {
@@ -74,7 +74,6 @@ POST /sales/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 And the following may be the response:

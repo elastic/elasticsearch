@@ -17,14 +17,13 @@ The SQL REST API accepts SQL in a JSON document, executes it,
 and returns the results. 
 For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_sql?format=txt
 {
     "query": "SELECT * FROM library ORDER BY page_count DESC LIMIT 5"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:library]
 
 Which returns:
@@ -107,7 +106,7 @@ Here are some examples for the human readable formats:
 
 ==== CSV
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_sql?format=csv
 {
@@ -115,7 +114,6 @@ POST /_sql?format=csv
     "fetch_size": 5
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:library]
 
 Which returns:
@@ -133,7 +131,7 @@ James S.A. Corey,Leviathan Wakes,561,2011-06-02T00:00:00.000Z
 
 ==== JSON
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_sql?format=json
 {
@@ -141,7 +139,6 @@ POST /_sql?format=json
     "fetch_size": 5
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:library]
 
 Which returns:
@@ -169,7 +166,7 @@ Which returns:
 
 ==== TSV
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_sql?format=tsv
 {
@@ -177,7 +174,6 @@ POST /_sql?format=tsv
     "fetch_size": 5
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:library]
 
 Which returns:
@@ -196,7 +192,7 @@ James S.A. Corey	Leviathan Wakes	561	2011-06-02T00:00:00.000Z
 
 ==== TXT
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_sql?format=txt
 {
@@ -204,7 +200,6 @@ POST /_sql?format=txt
     "fetch_size": 5
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:library]
 
 Which returns:
@@ -224,7 +219,7 @@ James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00.000Z
 
 ==== YAML
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_sql?format=yaml
 {
@@ -232,7 +227,6 @@ POST /_sql?format=yaml
     "fetch_size": 5
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:library]
 
 Which returns:
@@ -279,14 +273,13 @@ cursor: "sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWWWdrRlVfSS1TbDYtcW9lc1FJNmlYdw==:BAFmB
 Using the example above, one can continue to the next page by sending back the `cursor` field. In
 case of text format the cursor is returned as `Cursor` http header.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_sql?format=json
 {
     "cursor": "sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWYUpOYklQMHhRUEtld3RsNnFtYU1hQQ==:BAFmBGRhdGUBZgVsaWtlcwFzB21lc3NhZ2UBZgR1c2Vy9f///w8="
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 // TEST[s/sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWYUpOYklQMHhRUEtld3RsNnFtYU1hQQ==:BAFmBGRhdGUBZgVsaWtlcwFzB21lc3NhZ2UBZgR1c2Vy9f\/\/\/w8=/$body.cursor/]
 
@@ -317,14 +310,13 @@ Elasticsearch state is cleared.
 
 To clear the state earlier, you can use the clear cursor command:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_sql/close
 {
     "cursor": "sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWYUpOYklQMHhRUEtld3RsNnFtYU1hQQ==:BAFmBGRhdGUBZgVsaWtlcwFzB21lc3NhZ2UBZgR1c2Vy9f///w8="
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 // TEST[s/sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWYUpOYklQMHhRUEtld3RsNnFtYU1hQQ==:BAFmBGRhdGUBZgVsaWtlcwFzB21lc3NhZ2UBZgR1c2Vy9f\/\/\/w8=/$body.cursor/]
 
@@ -347,7 +339,7 @@ You can filter the results that SQL will run on using a standard
 {es} query DSL by specifying the query in the filter
 parameter.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_sql?format=txt
 {
@@ -363,7 +355,6 @@ POST /_sql?format=txt
     "fetch_size": 5
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:library]
 
 Which returns:
@@ -386,7 +377,7 @@ in a columnar fashion: one row represents all the values of a certain column fro
 
 The following formats can be returned in columnar orientation: `json`, `yaml`, `cbor` and `smile`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_sql?format=json
 {
@@ -395,7 +386,6 @@ POST /_sql?format=json
     "columnar": true
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:library]
 
 Which returns:
@@ -423,7 +413,7 @@ Which returns:
 Any subsequent calls using a `cursor` still have to contain the `columnar` parameter to preserve the orientation,
 meaning the initial query will not _remember_ the columnar option.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_sql?format=json
 {
@@ -431,7 +421,6 @@ POST /_sql?format=json
     "columnar": true
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 // TEST[s/sDXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAAEWWWdrRlVfSS1TbDYtcW9lc1FJNmlYdw==:BAFmBmF1dGhvcgFmBG5hbWUBZgpwYWdlX2NvdW50AWYMcmVsZWFzZV9kYXRl\+v\/\/\/w8=/$body.cursor/]
 

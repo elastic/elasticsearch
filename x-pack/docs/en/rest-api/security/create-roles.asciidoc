@@ -82,7 +82,7 @@ For more information, see {stack-ov}/defining-roles.html[Defining roles].
 
 The following example adds a role called `my_admin_role`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/role/my_admin_role
 {
@@ -110,12 +110,11 @@ POST /_security/role/my_admin_role
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 A successful call returns a JSON structure that shows whether the role has been
 created or updated.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "role": {
@@ -123,5 +122,4 @@ created or updated.
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 <1> When an existing role is updated, `created` is set to false.

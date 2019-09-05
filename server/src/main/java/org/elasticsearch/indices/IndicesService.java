@@ -24,7 +24,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
@@ -774,7 +773,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 nodeEnv.deleteIndexDirectorySafe(index, 0, indexSettings);
             }
             success = true;
-        } catch (LockObtainFailedException ex) {
+        } catch (ShardLockObtainFailedException ex) {
             logger.debug(() -> new ParameterizedMessage("{} failed to delete index store - at least one shards is still locked", index),
                 ex);
         } catch (Exception ex) {

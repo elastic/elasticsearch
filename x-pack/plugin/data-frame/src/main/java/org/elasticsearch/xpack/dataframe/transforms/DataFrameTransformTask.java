@@ -505,7 +505,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         return taskState.get();
     }
 
-    public void setStateReason(String reason) {
+    void setStateReason(String reason) {
         stateReason.set(reason);
     }
 

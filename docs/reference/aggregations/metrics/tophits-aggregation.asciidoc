@@ -32,7 +32,7 @@ The top_hits aggregation returns regular search hits, because of this many per h
 In the following example we group the sales by type and per type we show the last sale. 
 For each sale only the date and price fields are being included in the source.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search?size=0
 {
@@ -63,7 +63,6 @@ POST /sales/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 Possible response:
@@ -185,7 +184,7 @@ belong to. By defining a `terms` aggregator on the `domain` field we group the r
 Also a `max` aggregator is defined which is used by the `terms` aggregator's order feature to return the buckets by
 relevancy order of the most relevant document in a bucket.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search
 {
@@ -218,7 +217,6 @@ POST /sales/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 At the moment the `max` (or `min`) aggregator is needed to make sure the buckets from the `terms` aggregator are
@@ -239,7 +237,7 @@ and includes the array field and the offset in the array field the nested hit be
 
 Let's see how it works with a real sample. Considering the following mapping:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /sales
 {
@@ -257,12 +255,12 @@ PUT /sales
     }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The `comments` is an array that holds nested documents under the `product` object.
 
 And some documents:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /sales/_doc/1?refresh
 {
@@ -274,12 +272,11 @@ PUT /sales/_doc/1?refresh
     ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 It's now possible to execute the following `top_hits` aggregation (wrapped in a `nested` aggregation):
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /sales/_search
 {
@@ -308,7 +305,6 @@ POST /sales/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 // TEST[s/_search/_search\?filter_path=aggregations.by_sale.by_user.buckets/]
 

@@ -28,7 +28,7 @@ other than the default of the ampersand.
 
 Example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /emails/_bulk?refresh
 { "index" : { "_id" : 1 } }
@@ -54,7 +54,6 @@ GET emails/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 In the above example, we analyse email messages to see which groups of individuals 
 have exchanged messages.

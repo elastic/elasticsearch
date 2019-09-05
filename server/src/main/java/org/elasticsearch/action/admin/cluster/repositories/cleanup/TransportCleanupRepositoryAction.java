@@ -201,7 +201,8 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                     logger.debug("Initialized repository cleanup in cluster state for [{}][{}]", repositoryName, repositoryStateId);
                     threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener,
                         l -> blobStoreRepository.cleanup(
-                            repositoryStateId, ActionListener.wrap(result -> after(null, result), e -> after(e, null)))));
+                            repositoryStateId, newState.nodes().getMinNodeVersion(),
+                            ActionListener.wrap(result -> after(null, result), e -> after(e, null)))));
                 }
 
                 private void after(@Nullable Exception failure, @Nullable RepositoryCleanupResult result) {

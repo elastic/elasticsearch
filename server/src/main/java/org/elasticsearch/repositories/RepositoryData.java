@@ -21,6 +21,7 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -366,7 +368,7 @@ public final class RepositoryData {
     /**
      * Writes the snapshots metadata and the related indices metadata to x-content.
      */
-    public XContentBuilder snapshotsToXContent(final XContentBuilder builder) throws IOException {
+    public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final Version version) throws IOException {
         builder.startObject();
         // write the snapshots list
         builder.startArray(SNAPSHOTS);
@@ -396,11 +398,13 @@ public final class RepositoryData {
         }
         builder.endObject();
 
-        builder.startObject(SHARDS);
-        for (final IndexId indexId : getIndices().values()) {
-            builder.array(indexId.getId(), shardGenerations.get(indexId));
+        if (version.onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
+            builder.startObject(SHARDS);
+            for (final IndexId indexId : getIndices().values()) {
+                builder.array(indexId.getId(), shardGenerations.get(indexId));
+            }
+            builder.endObject();
         }
-        builder.endObject();
 
         builder.endObject();
         return builder;

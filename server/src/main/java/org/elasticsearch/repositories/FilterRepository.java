@@ -88,8 +88,8 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, ActionListener<Void> listener) {
-        in.deleteSnapshot(snapshotId, repositoryStateId, listener);
+    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version version, ActionListener<Void> listener) {
+        in.deleteSnapshot(snapshotId, repositoryStateId, version, listener);
     }
 
     @Override

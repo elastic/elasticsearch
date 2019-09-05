@@ -136,7 +136,7 @@ public interface Repository extends LifecycleComponent {
      * @param includeGlobalState include cluster global state
      * @param clusterMetaData    cluster metadata
      * @param userMetadata       user metadata
-     * @param version            minimum ES version that must be able to read the snapshot
+     * @param version            minimum ES version the repository should be readable by
      * @return snapshot description
      */
     SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, Map<IndexId, String[]> shardGenerations, long startTime, String failure,
@@ -147,11 +147,12 @@ public interface Repository extends LifecycleComponent {
     /**
      * Deletes snapshot
      *
-     * @param snapshotId snapshot id
+     * @param snapshotId        snapshot id
      * @param repositoryStateId the unique id identifying the state of the repository when the snapshot deletion began
-     * @param listener completion listener
+     * @param version           minimum ES version the repository should be readable by
+     * @param listener          completion listener
      */
-    void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, ActionListener<Void> listener);
+    void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version version, ActionListener<Void> listener);
 
     /**
      * Returns snapshot throttle time in nanoseconds

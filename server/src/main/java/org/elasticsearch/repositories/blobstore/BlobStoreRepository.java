@@ -373,7 +373,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, ActionListener<Void> listener) {
+    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, Version version, ActionListener<Void> listener) {
         if (isReadOnly()) {
             listener.onFailure(new RepositoryException(metadata.name(), "cannot delete snapshot from a readonly repository"));
         } else {
@@ -398,7 +398,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // delete an index that was created by another master node after writing this index-N blob.
 
                 foundIndices = blobStore().blobContainer(indicesPath()).children();
-                writeIndexGen(updatedRepositoryData, repositoryStateId);
+                writeIndexGen(updatedRepositoryData, repositoryStateId, version);
             } catch (Exception ex) {
                 listener.onFailure(new RepositoryException(metadata.name(), "failed to delete snapshot [" + snapshotId + "]", ex));
                 return;
@@ -438,9 +438,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      *     <li>Deleting unreferenced root level blobs {@link #cleanupStaleRootFiles}</li>
      * </ul>
      * @param repositoryStateId Current repository state id
-     * @param listener Lister to complete when done
+     * @param version           Minimum ES version the repo should be readable by
+     * @param listener          Lister to complete when done
      */
-    public void cleanup(long repositoryStateId, ActionListener<RepositoryCleanupResult> listener) {
+    public void cleanup(long repositoryStateId, Version version, ActionListener<RepositoryCleanupResult> listener) {
         ActionListener.completeWith(listener, () -> {
             if (isReadOnly()) {
                 throw new RepositoryException(metadata.name(), "cannot run cleanup on readonly repository");
@@ -462,7 +463,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 return new RepositoryCleanupResult(DeleteResult.ZERO);
             }
             // write new index-N blob to ensure concurrent operations will fail
-            writeIndexGen(repositoryData, repositoryStateId);
+            writeIndexGen(repositoryData, repositoryStateId, version);
             final DeleteResult deleteIndicesResult = cleanupStaleIndices(foundIndices, survivingIndexIds);
             List<String> cleaned = cleanupStaleRootFiles(staleRootBlobs);
             return new RepositoryCleanupResult(
@@ -632,7 +633,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final RepositoryData updatedRepositoryData =
                 existingRepositoryData.addSnapshot(snapshotId, blobStoreSnapshot.state(), shardGenerations);
             snapshotFormat.write(blobStoreSnapshot, blobContainer(), snapshotId.getUUID(), false);
-            writeIndexGen(updatedRepositoryData, repositoryStateId);
+            writeIndexGen(updatedRepositoryData, repositoryStateId, version);
             // TODO: Below cleanup needs some bulk delete operation
             for (Map.Entry<IndexId, Map<Integer, String>> entry
                 : updatedRepositoryData.obsoleteShardGenerations(existingRepositoryData).entrySet()) {
@@ -809,7 +810,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return readOnly;
     }
 
-    protected void writeIndexGen(final RepositoryData repositoryData, final long expectedGen) throws IOException {
+    protected void writeIndexGen(final RepositoryData repositoryData, final long expectedGen, final Version version) throws IOException {
         assert isReadOnly() == false; // can not write to a read only repository
         final long currentGen = repositoryData.getGenId();
         if (currentGen != expectedGen) {
@@ -823,7 +824,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // write the index file
         final String indexBlob = INDEX_FILE_PREFIX + Long.toString(newGen);
         logger.debug("Repository [{}] writing new index generational blob [{}]", metadata.name(), indexBlob);
-        writeAtomic(indexBlob, BytesReference.bytes(repositoryData.snapshotsToXContent(XContentFactory.jsonBuilder())), true);
+        writeAtomic(indexBlob, BytesReference.bytes(repositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(), version)), true);
         // write the current generation to the index-latest file
         final BytesReference genBytes;
         try (BytesStreamOutput bStream = new BytesStreamOutput()) {

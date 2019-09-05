@@ -497,7 +497,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         return seqNoPrimaryTermAndIndex.get();
     }
 
-    public ThreadPool getThreadPool() {
+    ThreadPool getThreadPool() {
         return threadPool;
     }
 

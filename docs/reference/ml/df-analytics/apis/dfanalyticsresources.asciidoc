@@ -131,7 +131,7 @@ An {oldetection} configuration object has the following properties:
   
 `outlier_fraction`::
   (double) Sets the proportion of data that is assumed to be outlier prior to the 
-  {oldetection}. For example, 0.05 mean you think 5% of values are real outliers 
+  {oldetection}. For example, 0.05 means, it is assumed that 5% of values are real outliers 
   and 95% are inliers.
   
 `standardize_columns`::

@@ -23,11 +23,11 @@ GET twitter/_validate/query?q=user:foo
 
 The response contains `valid:true`:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {"valid":true,"_shards":{"total":1,"successful":1,"failed":0}}
 --------------------------------------------------
-// TESTRESPONSE
+
 
 [float]
 === Request Parameters
@@ -95,11 +95,10 @@ GET twitter/_validate/query
 }
 --------------------------------------------------
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {"valid":false,"_shards":{"total":1,"successful":1,"failed":0}}
 --------------------------------------------------
-// TESTRESPONSE
 
 An `explain` parameter can be specified to get more detailed information
 about why a query failed:
@@ -161,7 +160,7 @@ GET twitter/_validate/query?rewrite=true
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "valid": true,
@@ -179,7 +178,6 @@ Response:
    ]
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 By default, the request is executed on a single shard only, which is randomly
 selected. The detailed explanation of the query may depend on which shard is
@@ -206,7 +204,7 @@ GET twitter/_validate/query?rewrite=true&all_shards=true
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "valid": true,
@@ -225,4 +223,3 @@ Response:
   ]
 }
 --------------------------------------------------
-// TESTRESPONSE

@@ -70,7 +70,7 @@ POST /my_index/_close
 
 The API returns following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "acknowledged" : true,
@@ -82,4 +82,3 @@ The API returns following response:
     }
 }
 --------------------------------------------------
-// TESTRESPONSE

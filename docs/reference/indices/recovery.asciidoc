@@ -43,7 +43,7 @@ POST /_snapshot/my_repository/snap_1/_restore?wait_for_completion=true
 --------------------------------------------------
 // CONSOLE
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "snapshot": {
@@ -59,7 +59,6 @@ POST /_snapshot/my_repository/snap_1/_restore?wait_for_completion=true
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 //////////////////////////
 

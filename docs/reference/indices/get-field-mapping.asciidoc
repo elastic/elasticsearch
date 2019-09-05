@@ -94,7 +94,7 @@ GET publications/_mapping/field/title
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "publications": {
@@ -111,7 +111,6 @@ The API returns the following response:
    }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 [[get-field-mapping-api-specific-fields-ex]]
 ===== Specifying fields
@@ -129,7 +128,7 @@ GET publications/_mapping/field/author.id,abstract,name
 
 returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "publications": {
@@ -154,7 +153,6 @@ returns:
    }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 The get field mapping API also supports wildcard notation.
 
@@ -167,7 +165,7 @@ GET publications/_mapping/field/a*
 
 returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "publications": {
@@ -200,7 +198,6 @@ returns:
    }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 [[get-field-mapping-api-multi-index-ex]]
 ===== Multiple indices and fields

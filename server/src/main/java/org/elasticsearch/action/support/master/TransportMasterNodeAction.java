@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.support.master;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -55,6 +57,8 @@ import java.util.function.Predicate;
  */
 public abstract class TransportMasterNodeAction<Request extends MasterNodeRequest<Request>, Response extends ActionResponse>
     extends HandledTransportAction<Request, Response> {
+
+    protected static final Logger logger = LogManager.getLogger(TransportMasterNodeAction.class);
 
     protected final ThreadPool threadPool;
     protected final TransportService transportService;

@@ -120,3 +120,9 @@ had the new value from the start.
 When changing multiple *reloadable* secure settings, modify all of them, on
 each cluster node, and then issue a `reload_secure_settings` call, instead
 of reloading after each modification.
+
+There are reloadable secure settings for:
+
+* {plugins}/discovery-ec2-usage.html#_configuring_ec2_discovery[The EC2 discovery plugin]
+* {plugins}/repository-gcs-client.html[The GCS repository plugin]
+* {plugins}/repository-s3-client.html[The S3 repository plugin]

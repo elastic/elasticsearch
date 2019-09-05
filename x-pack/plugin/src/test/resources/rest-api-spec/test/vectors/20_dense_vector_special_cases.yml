@@ -46,7 +46,7 @@ setup:
         index: test-index
         id: 2
         body:
-          my_dense_vector: [10.9, 10.9, 10.9]
+          my_dense_vector: [10.5, 10.9, 10.4]
 
   - do:
       indices.refresh: {}

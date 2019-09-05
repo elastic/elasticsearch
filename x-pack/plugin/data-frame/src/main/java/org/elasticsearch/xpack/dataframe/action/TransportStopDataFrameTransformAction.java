@@ -197,6 +197,12 @@ public class TransportStopDataFrameTransformAction extends TransportTasksAction<
         );
         return ActionListener.wrap(
                 response -> {
+                    // If there were failures attempting to stop the tasks, we don't know if they will actually stop.
+                    // It is better to respond to the user now than allow for the persistent task waiting to timeout
+                    if (response.getTaskFailures().isEmpty() == false || response.getNodeFailures().isEmpty() == false) {
+                        listener.onResponse(response);
+                        return;
+                    }
                     // Wait until the persistent task is stopped
                     // Switch over to Generic threadpool so we don't block the network thread
                     threadPool.generic().execute(() ->

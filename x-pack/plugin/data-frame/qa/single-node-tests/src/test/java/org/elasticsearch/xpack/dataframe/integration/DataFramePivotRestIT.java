@@ -894,7 +894,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
 
         startAndWaitForContinuousTransform(transformId, dataFrameIndex, null);
         assertTrue(indexExists(dataFrameIndex));
-        stopDataFrameTransform(transformId, false, true);
+        assertBusy(() -> stopDataFrameTransform(transformId, false, true));
 
         // get and check some users
         assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_0", 3.776978417);

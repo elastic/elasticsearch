@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -50,7 +49,6 @@ public class OperationRouting {
     public static final Setting<Boolean> USE_ADAPTIVE_REPLICA_SELECTION_SETTING =
             Setting.boolSetting("cluster.routing.use_adaptive_replica_selection", true,
                     Setting.Property.Dynamic, Setting.Property.NodeScope);
-
 
     private List<String> awarenessAttributes;
     private boolean useAdaptiveReplicaSelection;

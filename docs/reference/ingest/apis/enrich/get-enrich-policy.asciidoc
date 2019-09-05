@@ -21,6 +21,15 @@ PUT /_enrich/policy/my-policy
         "enrich_fields": ["first_name", "last_name", "city", "zip", "state"]
     }
 }
+
+PUT /_enrich/policy/another-policy
+{
+    "match": {
+        "indices": "users",
+        "match_field": "email",
+        "enrich_fields": ["first_name", "last_name", "city", "zip", "state"]
+    }
+}
 ----
 // CONSOLE
 ////
@@ -39,6 +48,8 @@ GET /_enrich/policy/my-policy
 `GET /_enrich/policy/<enrich-policy>`
 
 `GET /_enrich/policy`
+
+`GET /_enrich/policy1,policy2`
 
 
 [[get-enrich-policy-api-prereqs]]
@@ -95,6 +106,56 @@ The API returns the following response:
 // TESTRESPONSE
 
 
+[[get-enrich-policy-api-commas-ex]]
+===== Get multiple policies
+
+[source,js]
+--------------------------------------------------
+GET /_enrich/policy/my-policy,another-policy
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+The API returns the following response:
+
+[source,js]
+--------------------------------------------------
+{
+    "policies": [
+        {
+            "match": {
+                "name" : "my-policy",
+                "indices" : ["users"],
+                "match_field" : "email",
+                "enrich_fields" : [
+                    "first_name",
+                    "last_name",
+                    "city",
+                    "zip",
+                    "state"
+                ]
+            }
+        },
+        {
+            "match": {
+                "name" : "another-policy",
+                "indices" : ["users"],
+                "match_field" : "email",
+                "enrich_fields" : [
+                    "first_name",
+                    "last_name",
+                    "city",
+                    "zip",
+                    "state"
+                ]
+            }
+        }
+    ]
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+
 [[get-enrich-policy-api-all-ex]]
 ===== Get all policies
 
@@ -114,6 +175,20 @@ The API returns the following response:
         {
             "match": {
                 "name" : "my-policy",
+                "indices" : ["users"],
+                "match_field" : "email",
+                "enrich_fields" : [
+                    "first_name",
+                    "last_name",
+                    "city",
+                    "zip",
+                    "state"
+                ]
+            }
+        },
+        {
+            "match": {
+                "name" : "another-policy",
                 "indices" : ["users"],
                 "match_field" : "email",
                 "enrich_fields" : [

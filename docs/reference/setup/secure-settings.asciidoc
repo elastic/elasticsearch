@@ -104,11 +104,12 @@ can be re-read and applied on a running node.
 The values of all secure settings, *reloadable* or not, must be identical
 across all cluster nodes. After making the desired secure settings changes,
 using the `bin/elasticsearch-keystore add` command, call:
-[source,js]
+
+[source,console]
 ----
 POST _nodes/reload_secure_settings
 ----
-// CONSOLE
+
 This API will decrypt and re-read the entire keystore, on every cluster node,
 but only the *reloadable* secure settings will be applied. Changes to other
 settings will not go into effect until the next restart. Once the call returns,

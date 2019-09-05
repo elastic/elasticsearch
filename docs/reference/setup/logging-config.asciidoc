@@ -151,7 +151,7 @@ PUT /_cluster/settings
 
 For example:
 
-[source,js]
+[source,console]
 -------------------------------
 PUT /_cluster/settings
 {
@@ -160,7 +160,6 @@ PUT /_cluster/settings
   }
 }
 -------------------------------
-// CONSOLE
 
 This is most appropriate when you need to dynamically need to adjust a logging
 level on an actively-running cluster.

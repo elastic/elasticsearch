@@ -92,6 +92,23 @@ bin/elasticsearch-keystore remove the.setting.name.to.remove
 ----------------------------------------------------------------
 
 [float]
+[[keystore-upgrade]]
+=== Upgrading the keystore
+
+Occasionally, the internal format of the keystore changes. When Elasticsearch is
+installed from a package manager, an upgrade of the on-disk keystore to the new
+format is done during package upgrade. In other cases, Elasticsearch will
+perform such an upgrade during node startup. This requires that Elasticsearch
+have write permissions to the directory that contains the keystore.
+Alternatively, you can manually perform such an upgrade by using the `upgrade`
+command:
+
+[source,sh]
+----------------------------------------------------------------
+bin/elasticsearch-keystore upgrade
+----------------------------------------------------------------
+
+[float]
 [[reloadable-secure-settings]]
 === Reloadable secure settings
 

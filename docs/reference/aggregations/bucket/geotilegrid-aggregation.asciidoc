@@ -30,7 +30,7 @@ fields, in which case all points will be taken into account during aggregation.
 
 ==== Simple low-precision request
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /museums
 {
@@ -69,7 +69,6 @@ POST /museums/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 Response:
 
@@ -106,7 +105,7 @@ a filter like <<query-dsl-geo-bounding-box-query,geo_bounding_box>> should be
 applied to narrow the subject area otherwise potentially millions of buckets
 will be created and returned.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /museums/_search?size=0
 {
@@ -132,7 +131,6 @@ POST /museums/_search?size=0
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [source,js]

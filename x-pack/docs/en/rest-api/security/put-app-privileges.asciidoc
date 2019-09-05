@@ -86,7 +86,7 @@ been created or updated.
 To add a single privilege, submit a PUT or POST request to the
 `/_security/privilege/<application>/<privilege>` endpoint. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/privilege
 {
@@ -102,7 +102,6 @@ PUT /_security/privilege
     }
 }
 --------------------------------------------------
-// CONSOLE
 <1> These strings have significance within the "myapp" application. {es} does not 
     assign any meaning to them.
 <2> The use of a wildcard here (`*`) means that this privilege grants access to 
@@ -113,7 +112,7 @@ PUT /_security/privilege
     wildcard and returns `true`.
 <3> The metadata object is optional.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "myapp": {
@@ -123,13 +122,12 @@ PUT /_security/privilege
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 <1> When an existing privilege is updated, `created` is set to false.
 
 To add multiple privileges, submit a POST request to the 
 `/_security/privilege/` endpoint. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/privilege
 {
@@ -148,12 +146,11 @@ PUT /_security/privilege
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 A successful call returns a JSON structure that shows whether the privileges 
 have been created or updated.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "app02": {
@@ -171,4 +168,3 @@ have been created or updated.
   }
 }
 --------------------------------------------------
-// TESTRESPONSE

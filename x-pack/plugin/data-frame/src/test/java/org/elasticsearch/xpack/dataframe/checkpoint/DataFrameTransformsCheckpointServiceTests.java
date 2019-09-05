@@ -184,7 +184,7 @@ public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
 
                 // add broken seqNoStats if requested
                 if (missingSeqNoStats && index.getName().equals(missingSeqNoStatsIndex)) {
-                    checkpoints.add(0L);
+                    checkpoints.add(-1L);
                 } else {
                     validSeqNoStats = new SeqNoStats(maxSeqNo, localCheckpoint, globalCheckpoint);
                     checkpoints.add(globalCheckpoint);

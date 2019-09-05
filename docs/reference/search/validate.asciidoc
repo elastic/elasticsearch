@@ -4,7 +4,7 @@
 The validate API allows a user to validate a potentially expensive query
 without executing it. We'll use the following test data to explain _validate:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT twitter/_bulk?refresh
 {"index":{"_id":1}}
@@ -12,16 +12,14 @@ PUT twitter/_bulk?refresh
 {"index":{"_id":2}}
 {"user" : "kimchi", "post_date" : "2009-11-15T14:12:13", "message" : "My username is similar to @kimchy!"}
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
 
 When sent a valid query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_validate/query?q=user:foo
 --------------------------------------------------
-// CONSOLE
 
 The response contains `valid:true`:
 
@@ -58,7 +56,7 @@ not. Defaults to `false`.
 
 The query may also be sent in the request body:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_validate/query
 {
@@ -76,7 +74,6 @@ GET twitter/_validate/query
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 NOTE: The query being sent in the body must be nested in a `query` key, same as
 the <<search-search,search api>> works
@@ -85,7 +82,7 @@ If the query is invalid, `valid` will be `false`. Here the query is
 invalid because Elasticsearch knows the post_date field should be a date
 due to dynamic mapping, and 'foo' does not correctly parse into a date:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_validate/query
 {
@@ -97,7 +94,6 @@ GET twitter/_validate/query
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [source,js]
 --------------------------------------------------
@@ -108,7 +104,7 @@ GET twitter/_validate/query
 An `explain` parameter can be specified to get more detailed information
 about why a query failed:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_validate/query?explain=true
 {
@@ -120,7 +116,6 @@ GET twitter/_validate/query?explain=true
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 responds with:
 
@@ -148,7 +143,7 @@ is more detailed showing the actual Lucene query that will be executed.
 
 For More Like This:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_validate/query?rewrite=true
 {
@@ -162,7 +157,6 @@ GET twitter/_validate/query?rewrite=true
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:the output is randomized depending on which shard we hit]
 
 Response:
@@ -195,7 +189,7 @@ all available shards.
 
 For Fuzzy Queries:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_validate/query?rewrite=true&all_shards=true
 {
@@ -209,7 +203,6 @@ GET twitter/_validate/query?rewrite=true&all_shards=true
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Response:
 

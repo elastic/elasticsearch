@@ -106,7 +106,7 @@ public class DataFrameTransformCheckpointTests extends AbstractSerializingDataFr
             List<Long> checkpoints2 = new ArrayList<>();
 
             for (int j = 0; j < shards; ++j) {
-                long shardCheckpoint = randomLongBetween(0, 1_000_000);
+                long shardCheckpoint = randomLongBetween(-1, 1_000_000);
                 checkpoints1.add(shardCheckpoint);
                 checkpoints2.add(shardCheckpoint + 10);
             }
@@ -152,11 +152,11 @@ public class DataFrameTransformCheckpointTests extends AbstractSerializingDataFr
         assertEquals(-1L, DataFrameTransformCheckpoint.getBehind(checkpointOlderButNewerShardsCheckpoint, checkpointOld));
 
         // test cases where indices sets do not match
-        // remove something from old, so newer has 1 index more than old
+        // remove something from old, so newer has 1 index more than old: should be equivalent to old index existing but empty
         checkpointsByIndexOld.remove(checkpointsByIndexOld.firstKey());
         long behind = DataFrameTransformCheckpoint.getBehind(checkpointOld, checkpointTransientNew);
-        assertTrue("Expected behind (" + behind + ") > sum of shard checkpoints (" + indices * shards * 10L + ")",
-                behind > indices * shards * 10L);
+        assertTrue("Expected behind (" + behind + ") => sum of shard checkpoint differences (" + indices * shards * 10L + ")",
+                behind >= indices * shards * 10L);
 
         // remove same key: old and new should have equal indices again
         checkpointsByIndexNew.remove(checkpointsByIndexNew.firstKey());

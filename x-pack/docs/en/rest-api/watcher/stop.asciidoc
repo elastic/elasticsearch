@@ -47,10 +47,9 @@ POST _watcher/_stop
 
 {watcher} returns the following response if the request is successful:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "acknowledged": true
 }
 --------------------------------------------------
-// TESTRESPONSE

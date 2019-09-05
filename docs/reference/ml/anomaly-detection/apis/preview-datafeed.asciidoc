@@ -56,7 +56,8 @@ GET _ml/datafeeds/datafeed-farequote/_preview
 // TEST[skip:setup:farequote_datafeed]
 
 The data that is returned for this example is as follows:
-[source,js]
+
+[source,console-result]
 ----
 [
   {
@@ -79,4 +80,3 @@ The data that is returned for this example is as follows:
   }
 ]
 ----
-// TESTRESPONSE

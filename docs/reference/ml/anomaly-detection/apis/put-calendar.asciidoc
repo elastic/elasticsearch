@@ -49,11 +49,11 @@ PUT _ml/calendars/planned-outages
 // TEST[skip:need-license]
 
 When the calendar is created, you receive the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "calendar_id": "planned-outages",
   "job_ids": []
 }
 ----
-// TESTRESPONSE

@@ -61,7 +61,8 @@ PUT _ml/filters/safe_domains
 // TEST[skip:need-licence]
 
 When the filter is created, you receive the following response:
-[source,js]
+
+[source,console-result]
 ----
 {
   "filter_id": "safe_domains",
@@ -69,4 +70,3 @@ When the filter is created, you receive the following response:
   "items": ["*.google.com", "wikipedia.org"]
 }
 ----
-// TESTRESPONSE

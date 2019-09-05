@@ -196,7 +196,7 @@ GET /my-index/_mapping
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 ----
 {
   "my-index" : {
@@ -220,7 +220,6 @@ The API returns the following response:
   }
 }
 ----
-// TESTRESPONSE
 
 
 [float]
@@ -244,7 +243,7 @@ GET /my-index/_mapping/field/employee-id
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 ----
 {
   "my-index" : {
@@ -263,7 +262,6 @@ The API returns the following response:
 }
 
 ----
-// TESTRESPONSE
 
 --
 

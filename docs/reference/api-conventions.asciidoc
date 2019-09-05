@@ -251,7 +251,7 @@ GET /_cluster/state?filter_path=metadata.indices.*.stat*
 
 Responds:
 
-[source,sh]
+[source,console-result]
 --------------------------------------------------
 {
   "metadata" : {
@@ -261,7 +261,6 @@ Responds:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 And the `**` wildcard can be used to include fields without knowing the
 exact path of the field. For example, we can return the Lucene version
@@ -276,7 +275,7 @@ GET /_cluster/state?filter_path=routing_table.indices.**.state
 
 Responds:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "routing_table": {
@@ -290,7 +289,6 @@ Responds:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 It is also possible to exclude one or more fields by prefixing the filter with the char `-`:
 
@@ -303,13 +301,12 @@ GET /_count?filter_path=-_shards
 
 Responds:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "count" : 5
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 And for more control, both inclusive and exclusive filters can be combined in the same expression. In
 this case, the exclusive filters will be applied first and the result will be filtered again using the
@@ -324,7 +321,7 @@ GET /_cluster/state?filter_path=metadata.indices.*.state,-metadata.indices.logst
 
 Responds:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "metadata" : {
@@ -336,7 +333,6 @@ Responds:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 Note that Elasticsearch sometimes returns directly the raw value of a field,
 like the `_source` field. If you want to filter `_source` fields, you should
@@ -356,7 +352,7 @@ GET /_search?filter_path=hits.hits._source&_source=title&sort=rating:desc
 --------------------------------------------------
 // CONSOLE
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "hits" : {
@@ -370,7 +366,6 @@ GET /_search?filter_path=hits.hits._source&_source=title&sort=rating:desc
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 
 [float]
@@ -585,7 +580,7 @@ POST /twitter/_search?size=surprise_me
 
 The response looks like:
 
-[source,js]
+[source,console-result]
 ----------------------------------------------------------------------
 {
   "error" : {
@@ -605,7 +600,6 @@ The response looks like:
   "status" : 400
 }
 ----------------------------------------------------------------------
-// TESTRESPONSE
 
 But if you set `error_trace=true`:
 

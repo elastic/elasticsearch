@@ -308,7 +308,7 @@ GET /_analyze
 
 The request returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "detail" : {
@@ -351,7 +351,7 @@ The request returns the following result:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+
 <1> Output only "keyword" attribute, since specify "attributes" in the request.
 
 [[tokens-limit-settings]]

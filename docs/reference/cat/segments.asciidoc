@@ -49,46 +49,40 @@ Valid columns are:
 (Default) IP address of the segment's shard, such as `127.0.1.1`.
 
 `segment`::
-(Default) Name of the segment, such as `_0`. The segment name is derived from
-the segment generation and used internally to create file names in the directory
-of the shard.
+(Default)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=segment]
 
 `generation`::
-(Default) Generation number, such as `0`. {es} increments this generation number
-for each segment written. {es} then uses this number to derive the segment name.
+(Default)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=generation]
 
 `docs.count`::
-(Default) Number of non-deleted documents in the segment, such as `25`. This
-number is based on Lucene documents and may include documents from
-<<nested,nested>> fields.
+(Default)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-count]
                 
 `docs.deleted`::
-(Default) Number of deleted documents in the segment, such as `0`. This number
-is based on Lucene documents. {es} reclaims the disk space of deleted Lucene
-documents when a segment is merged.
+(Default)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
 
 `size`::
-(Default) Disk space used by the segment, such as `50kb`.
+(Default)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=segment-size]
 
 `size.memory`::
-(Default) Bytes of segment data stored in memory for efficient search, such as
-`1264`.
+(Default)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=memory]
 
 `committed`::
-(Default) If `true`, the segment is committed to disk. Segments committed to
-disk would survive a hard reboot. 
-+
-If `false`, the data from uncommitted segments is also stored in the transaction
-log. {es} replays those changes on the next start.
+(Default)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=committed]
 
 `searchable`::
-(Default) If `true`, the segment is searchable.
-+
-If `false`, likely means the segment is written to disk but has not been
-<<docs-refresh,refreshed>>.
+(Default)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=segment-search]
 
 `version`::
-(Default) Version of Lucene used to write the segment.
+(Default)
+include::{docdir}/rest-api/common-parms.asciidoc[tag=segment-version]
 
 `compound`::
 (Default) If `true`, the segment is stored in a compound file. This means Lucene

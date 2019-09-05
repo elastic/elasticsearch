@@ -27,26 +27,27 @@ import org.elasticsearch.common.lease.Releasables;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public class InboundAggregator {
 
-    private final BiConsumer<Header, StreamInput> messageConsumer;
+    private final Consumer<AggregatedMessage> messageConsumer;
     private final ArrayList<ReleasableBytesReference> contentAggregation = new ArrayList<>();
     private Header currentHeader;
 
-    public InboundAggregator(BiConsumer<Header, StreamInput> messageConsumer) {
+    public InboundAggregator(Consumer<AggregatedMessage> messageConsumer) {
         this.messageConsumer = messageConsumer;
     }
 
     public void pingReceived(BytesReference ping) {
         assert ping.length() == 6;
+        this.messageConsumer.accept(new AggregatedMessage(null, null, true));
     }
 
     public void headerReceived(Header header) {
         if (currentHeader != null) {
-            // Handle error
+            currentHeader = null;
+            throw new IllegalStateException("Header already received.");
         }
 
         currentHeader = header;
@@ -54,7 +55,7 @@ public class InboundAggregator {
 
     public void contentReceived(ReleasableBytesReference content) throws IOException {
         if (currentHeader == null) {
-            // handle error
+            throw new IllegalStateException("Received content without header");
         } else if (content.getReference().length() != 0) {
             contentAggregation.add(content);
         } else {
@@ -66,7 +67,7 @@ public class InboundAggregator {
             CompositeBytesReference compositeBytesReference = new CompositeBytesReference(references);
             try (StreamInput input = compositeBytesReference.streamInput()) {
                 currentHeader.finishParsing(input);
-                messageConsumer.accept(currentHeader, input);
+                messageConsumer.accept(new AggregatedMessage(currentHeader, input, false));
             } finally {
                 Releasables.close(contentAggregation);
                 contentAggregation.clear();
@@ -74,4 +75,5 @@ public class InboundAggregator {
             }
         }
     }
+
 }

@@ -30,7 +30,7 @@ import java.io.IOException;
 
 public class InboundDecoder {
 
-    private static final ReleasableBytesReference END = new ReleasableBytesReference(BytesArray.EMPTY, () -> {});
+    private static final ReleasableBytesReference END_CONTENT = new ReleasableBytesReference(BytesArray.EMPTY, () -> {});
 
     private final InboundAggregator aggregator;
     private final PageCacheRecycler recycler;
@@ -95,7 +95,7 @@ public class InboundDecoder {
                 decompressor = null;
                 networkMessageSize = -1;
                 bytesConsumed = 0;
-                aggregator.contentReceived(END);
+                aggregator.contentReceived(END_CONTENT);
             }
 
             return bytesToConsume;

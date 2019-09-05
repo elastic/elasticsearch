@@ -44,6 +44,14 @@ public class Header {
         return TransportStatus.isError(status);
     }
 
+    boolean isHandshake() {
+        return TransportStatus.isHandshake(status);
+    }
+
+    boolean isCompress() {
+        return TransportStatus.isCompress(status);
+    }
+
     String getAction() {
         return action;
     }

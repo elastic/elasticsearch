@@ -98,10 +98,10 @@ bin/elasticsearch-keystore remove the.setting.name.to.remove
 Occasionally, the internal format of the keystore changes. When Elasticsearch is
 installed from a package manager, an upgrade of the on-disk keystore to the new
 format is done during package upgrade. In other cases, Elasticsearch will
-upgrade perform such an upgrade during node startup. This requires that
-Elasticsearch have write permissions to the directory that contains the
-keystore. Alternatively, you can manually perform such an upgrade by using the
-`upgrade` command:
+perform such an upgrade during node startup. This requires that Elasticsearch
+have write permissions to the directory that contains the keystore.
+Alternatively, you can manually perform such an upgrade by using the `upgrade`
+command:
 
 [source,sh]
 ----------------------------------------------------------------

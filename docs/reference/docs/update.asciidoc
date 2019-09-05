@@ -237,7 +237,7 @@ POST test/_update/1
 If the value of `name` is already `new_name`, the update
 request is ignored and the `result` element in the response returns `noop`:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "_shards": {
@@ -254,7 +254,6 @@ request is ignored and the `result` element in the response returns `noop`:
    "result": "noop"
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 You can disable this behavior by setting `"detect_noop": false`:
 

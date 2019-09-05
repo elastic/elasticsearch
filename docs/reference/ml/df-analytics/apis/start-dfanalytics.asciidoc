@@ -55,10 +55,9 @@ POST _ml/data_frame/analytics/loganalytics/_start
 
 When the {dfanalytics-job} starts, you receive the following results:
 
-[source,js]
+[source,console-result]
 ----
 {
   "acknowledged" : true
 }
 ----
-// TESTRESPONSE

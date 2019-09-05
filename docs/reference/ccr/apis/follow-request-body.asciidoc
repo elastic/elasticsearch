@@ -79,7 +79,7 @@ GET /follower_index/_ccr/info?filter_path=follower_indices.parameters
 The following output from the follow info api describes all the default
 values for the above described index follow request parameters:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "follower_indices" : [
@@ -101,4 +101,3 @@ values for the above described index follow request parameters:
 }
 
 --------------------------------------------------
-// TESTRESPONSE

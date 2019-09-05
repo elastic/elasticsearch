@@ -134,6 +134,7 @@ been created or updated.
   }
 }
 --------------------------------------------------
+
 <1> When an existing mapping is updated, `created` is set to false.
 
 The following example assigns the "user" and "admin" roles to specific users:

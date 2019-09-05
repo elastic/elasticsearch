@@ -1,12 +1,11 @@
 [role="xpack"]
 [[watcher-api-start]]
-=== Start API
+=== Start watch service API
 ++++
-<titleabbrev>Start</titleabbrev>
+<titleabbrev>Start watch service</titleabbrev>
 ++++
 
-The `start` API starts the {watcher} service if the service is not already
-running.
+Starts the {watcher} service if it is not already running.
 
 [float]
 ==== Request

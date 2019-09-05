@@ -64,7 +64,7 @@ set used for statistical comparisons is the index or indices from which the resu
 
 Example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -78,12 +78,11 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 {
     ...
@@ -125,7 +124,7 @@ A simpler way to perform analysis across multiple categories is to use a parent-
 
 Example using a parent aggregation for segmentation:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -141,7 +140,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/_search/_search\?filter_path=aggregations/]
 
 Response:
@@ -203,7 +201,7 @@ Now we have anomaly detection for each of the police forces using a single reque
 We can use other forms of top-level aggregations to segment our data, for example segmenting by geographic
 area to identify unusual hot-spots of a particular crime type:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -222,7 +220,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 This example uses the `geohash_grid` aggregation to create result buckets that represent geographic areas, and inside each
 bucket we can identify anomalous levels of a crime type in these tightly-focused areas e.g.
@@ -464,7 +461,7 @@ NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sens
 
 It is possible to only return terms that match more than a configured number of hits using the `min_doc_count` option:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -478,7 +475,7 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
+
 The above aggregation would only return tags which have been found in 10 hits or more. Default value is `3`.
 
 
@@ -507,7 +504,7 @@ The default source of statistical information for background term frequencies is
 scope can be narrowed through the use of a `background_filter` to focus in on significant terms within a narrower
 context:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -528,7 +525,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The above filter would help focus in on terms that were peculiar to the city of Madrid rather than revealing
 terms like "Spanish" that are unusual in the full index's worldwide context but commonplace in the subset of documents containing the
@@ -566,7 +562,7 @@ is significantly faster. By default, `map` is only used when running an aggregat
 ordinals.
 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -580,7 +576,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> the possible values are `map`, `global_ordinals`
 

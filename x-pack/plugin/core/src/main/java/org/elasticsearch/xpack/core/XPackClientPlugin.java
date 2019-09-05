@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStats
 import org.elasticsearch.xpack.core.dataframe.action.PreviewDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformAction;
-import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
 import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
@@ -387,7 +386,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 // Data Frame
                 PutDataFrameTransformAction.INSTANCE,
                 StartDataFrameTransformAction.INSTANCE,
-                StartDataFrameTransformTaskAction.INSTANCE,
                 StopDataFrameTransformAction.INSTANCE,
                 DeleteDataFrameTransformAction.INSTANCE,
                 GetDataFrameTransformsAction.INSTANCE,

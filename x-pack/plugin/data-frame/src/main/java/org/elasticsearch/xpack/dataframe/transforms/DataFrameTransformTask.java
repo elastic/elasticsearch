@@ -35,8 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
-import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
-import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction.Response;
+import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformAction.Response;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerPosition;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
@@ -219,10 +218,17 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 ));
     }
 
-    // Here `failOnConflict` is usually true, except when the initial start is called when the task is assigned to the node
-    synchronized void start(Long startingCheckpoint, boolean force, boolean failOnConflict, ActionListener<Response> listener) {
-        logger.debug("[{}] start called with force [{}] and state [{}].", getTransformId(), force, getState());
-        if (taskState.get() == DataFrameTransformTaskState.FAILED && force == false) {
+    /**
+     * Starts the dataframe transform and schedules it to be triggered in the future.
+     *
+     * NOTE: This should ONLY be called via {@link DataFrameTransformPersistentTasksExecutor}
+     *
+     * @param startingCheckpoint The starting checkpoint, could null. Null indicates that there is no starting checkpoint
+     * @param listener The listener to alert once started
+     */
+    synchronized void start(Long startingCheckpoint, ActionListener<Response> listener) {
+        logger.debug("[{}] start called with state [{}].", getTransformId(), getState());
+        if (taskState.get() == DataFrameTransformTaskState.FAILED) {
             listener.onFailure(new ElasticsearchStatusException(
                 DataFrameMessages.getMessage(DATA_FRAME_CANNOT_START_FAILED_TRANSFORM,
                     getTransformId(),
@@ -241,15 +247,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 RestStatus.CONFLICT,
                 getTransformId(),
                 msg));
-            return;
-        }
-        // If we are already in a `STARTED` state, we should not attempt to call `.start` on the indexer again.
-        if (taskState.get() == DataFrameTransformTaskState.STARTED && failOnConflict) {
-            listener.onFailure(new ElasticsearchStatusException(
-                "Cannot start transform [{}] as it is already STARTED.",
-                RestStatus.CONFLICT,
-                getTransformId()
-            ));
             return;
         }
         final IndexerState newState = getIndexer().start();
@@ -285,7 +282,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 // kick off the indexer
                 triggered(new Event(schedulerJobName(), now, now));
                 registerWithSchedulerJob();
-                listener.onResponse(new StartDataFrameTransformTaskAction.Response(true));
+                listener.onResponse(new Response(true));
             },
             exc -> {
                 auditor.warning(transform.getId(),
@@ -296,16 +293,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                     + transform.getId() + "] to [" + state.getIndexerState() + "].", exc));
             }
         ));
-    }
-    /**
-     * Start the background indexer and set the task's state to started
-     * @param startingCheckpoint Set the current checkpoint to this value. If null the
-     *                           current checkpoint is not set
-     * @param force Whether to force start a failed task or not
-     * @param listener Started listener
-     */
-    public synchronized void start(Long startingCheckpoint, boolean force, ActionListener<Response> listener) {
-        start(startingCheckpoint, force, true, listener);
     }
 
     public synchronized void stop(boolean force) {

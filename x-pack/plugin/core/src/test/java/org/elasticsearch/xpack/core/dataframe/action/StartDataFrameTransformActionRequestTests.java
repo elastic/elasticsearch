@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformActi
 public class StartDataFrameTransformActionRequestTests extends AbstractWireSerializingTestCase<Request> {
     @Override
     protected Request createTestInstance() {
-        return new Request(randomAlphaOfLengthBetween(1, 20), randomBoolean());
+        return new Request(randomAlphaOfLengthBetween(1, 20));
     }
 
     @Override

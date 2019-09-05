@@ -30,7 +30,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
-import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
+import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
@@ -139,9 +139,13 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
 
         final SetOnce<DataFrameTransformState> stateHolder = new SetOnce<>();
 
-        ActionListener<StartDataFrameTransformTaskAction.Response> startTaskListener = ActionListener.wrap(
-            response -> logger.info("Successfully completed and scheduled task in node operation"),
-            failure -> logger.error("Failed to start task ["+ transformId +"] in node operation", failure)
+        ActionListener<StartDataFrameTransformAction.Response> startTaskListener = ActionListener.wrap(
+            response -> logger.info("[{}] successfully completed and scheduled task in node operation", transformId),
+            failure -> {
+                auditor.error(transformId, "Failed to start data frame transform. " +
+                    "Please stop and attempt to start again. Failure: " + failure.getMessage());
+                logger.error("Failed to start task ["+ transformId +"] in node operation", failure);
+            }
         );
 
         // <5> load next checkpoint
@@ -302,11 +306,10 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
     private void startTask(DataFrameTransformTask buildTask,
                            DataFrameTransformTask.ClientDataFrameIndexerBuilder indexerBuilder,
                            Long previousCheckpoint,
-                           ActionListener<StartDataFrameTransformTaskAction.Response> listener) {
+                           ActionListener<StartDataFrameTransformAction.Response> listener) {
         buildTask.initializeIndexer(indexerBuilder);
         // DataFrameTransformTask#start will fail if the task state is FAILED
-        // Will continue to attempt to start the indexer, even if the state is STARTED
-        buildTask.setNumFailureRetries(numFailureRetries).start(previousCheckpoint, false, false, listener);
+        buildTask.setNumFailureRetries(numFailureRetries).start(previousCheckpoint, listener);
     }
 
     private void setNumFailureRetries(int numFailureRetries) {

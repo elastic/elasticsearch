@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformAction;
-import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
@@ -55,6 +54,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+
+import static org.elasticsearch.xpack.core.dataframe.DataFrameMessages.DATA_FRAME_CANNOT_START_FAILED_TRANSFORM;
 
 public class TransportStartDataFrameTransformAction extends
     TransportMasterNodeAction<StartDataFrameTransformAction.Request, StartDataFrameTransformAction.Response> {
@@ -95,7 +96,7 @@ public class TransportStartDataFrameTransformAction extends
     @Override
     protected void masterOperation(Task ignoredTask, StartDataFrameTransformAction.Request request,
                                    ClusterState state,
-                                   ActionListener<StartDataFrameTransformAction.Response> listener) throws Exception {
+                                   ActionListener<StartDataFrameTransformAction.Response> listener) {
         if (!licenseState.isDataFrameAllowed()) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.DATA_FRAME));
             return;
@@ -133,38 +134,20 @@ public class TransportStartDataFrameTransformAction extends
                         newPersistentTaskActionListener);
                 } else {
                     DataFrameTransformState transformState = (DataFrameTransformState)existingTask.getState();
-                    if(transformState.getTaskState() == DataFrameTransformTaskState.FAILED && request.isForce() == false) {
+                    if(transformState.getTaskState() == DataFrameTransformTaskState.FAILED) {
                         listener.onFailure(new ElasticsearchStatusException(
-                            "Unable to start data frame transform [" + request.getId() +
-                                "] as it is in a failed state with failure: [" + transformState.getReason() +
-                            "]. Use force start to restart data frame transform once error is resolved.",
+                            DataFrameMessages.getMessage(DATA_FRAME_CANNOT_START_FAILED_TRANSFORM,
+                                request.getId(),
+                                transformState.getReason()),
                             RestStatus.CONFLICT));
-                    } else if (transformState.getTaskState() != DataFrameTransformTaskState.STOPPED &&
-                               transformState.getTaskState() != DataFrameTransformTaskState.FAILED) {
-                        listener.onFailure(new ElasticsearchStatusException(
-                            "Unable to start data frame transform [" + request.getId() +
-                                "] as it is in state [" + transformState.getTaskState()  + "]", RestStatus.CONFLICT));
                     } else {
-                        // If the task already exists but is not assigned to a node, something is weird
-                        // return a failure that includes the current assignment explanation (if one exists)
-                        if (existingTask.isAssigned() == false) {
-                            String assignmentExplanation = "unknown reason";
-                            if (existingTask.getAssignment() != null) {
-                                assignmentExplanation = existingTask.getAssignment().getExplanation();
-                            }
-                            listener.onFailure(new ElasticsearchStatusException("Unable to start data frame transform [" +
-                                request.getId() + "] as it is not assigned to a node, explanation: " + assignmentExplanation,
-                                RestStatus.CONFLICT));
-                            return;
-                        }
-                        // If the task already exists and is assigned to a node, simply attempt to set it to start
-                        ClientHelper.executeAsyncWithOrigin(client,
-                            ClientHelper.DATA_FRAME_ORIGIN,
-                            StartDataFrameTransformTaskAction.INSTANCE,
-                            new StartDataFrameTransformTaskAction.Request(request.getId(), request.isForce()),
-                            ActionListener.wrap(
-                                r -> listener.onResponse(new StartDataFrameTransformAction.Response(true)),
-                                listener::onFailure));
+                        // If the task already exists that means that it is either running or failed
+                        // Since it is not failed, that means it is running, we return a conflict.
+                        listener.onFailure(new ElasticsearchStatusException(
+                            "Cannot start transform [{}] as it is already started.",
+                            RestStatus.CONFLICT,
+                            request.getId()
+                        ));
                     }
                 }
             },

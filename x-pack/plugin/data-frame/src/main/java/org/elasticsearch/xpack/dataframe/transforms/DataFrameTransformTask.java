@@ -501,7 +501,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         return threadPool;
     }
 
-    public DataFrameTransformTaskState getTaskState() {
+    DataFrameTransformTaskState getTaskState() {
         return taskState.get();
     }
 

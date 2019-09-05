@@ -142,7 +142,14 @@ public class TransportStopDataFrameTransformAction extends TransportTasksAction<
 
         if (ids.contains(transformTask.getTransformId())) {
             transformTask.setShouldStopAtCheckpoint(request.isWaitForCheckpoint(), ActionListener.wrap(
-                r -> transformTask.stop(request.isForce(), request.isWaitForCheckpoint()),
+                r -> {
+                    try {
+                        transformTask.stop(request.isForce(), request.isWaitForCheckpoint());
+                        listener.onResponse(new Response(true));
+                    } catch (ElasticsearchException ex) {
+                        listener.onFailure(ex);
+                    }
+                },
                 e -> listener.onFailure(
                     new ElasticsearchStatusException(
                         "Failed to update transform task [{}] state value should_stop_at_checkpoint from [{}] to [{}]",

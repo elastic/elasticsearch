@@ -858,10 +858,16 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
     }
 
     public void testContinuousStopWaitForCheckpoint() throws Exception {
-        String indexName = "continuous_reviews";
+        Request addFailureRetrySetting = new Request("PUT", "/_cluster/settings");
+        addFailureRetrySetting.setJsonEntity(
+            "{\"transient\": {" +
+                "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"trace\"," +
+                "\"logger.org.elasticsearch.xpack.dataframe\": \"trace\"}}");
+        client().performRequest(addFailureRetrySetting);
+        String indexName = "continuous_reviews_wait_for_checkpoint";
         createReviewsIndex(indexName);
-        String transformId = "simple_continuous_pivot";
-        String dataFrameIndex = "pivot_reviews_continuous";
+        String transformId = "simple_continuous_pivot_wait_for_checkpoint";
+        String dataFrameIndex = "pivot_reviews_continuous_wait_for_checkpoint";
         setupDataAccessRole(DATA_ACCESS_ROLE, indexName, dataFrameIndex);
         final Request createDataframeTransformRequest = createRequestWithAuth("PUT", DATAFRAME_ENDPOINT + transformId,
             BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);

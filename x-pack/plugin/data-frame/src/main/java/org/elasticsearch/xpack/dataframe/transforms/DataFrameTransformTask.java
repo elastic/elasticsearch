@@ -166,7 +166,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         return currentCheckpoint.get();
     }
 
-    public long incrementCheckpoint() {
+    long incrementCheckpoint() {
         return currentCheckpoint.getAndIncrement();
     }
 

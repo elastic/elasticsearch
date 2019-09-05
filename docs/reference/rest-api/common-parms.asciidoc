@@ -178,24 +178,17 @@ tag::if_seq_no[]
 sequence number. See <<optimistic-concurrency-control-index>>.
 end::if_seq_no[]
 
-tag::include-defaults[]
-`include_defaults`::
-(Optional, string) If `true`, return all default settings in the response.
-Defaults to `false`.
-end::include-defaults[]
-
-tag::include-type-name[]
-`include_type_name`::
-deprecated:[7.0.0, Mapping types have been deprecated. See <<removal-of-types>>.]
-(Optional, boolean) If `true`, a mapping type is expected in the body of
-mappings. Defaults to `false`.
-end::include-type-name[]
-
 tag::index-ignore-unavailable[]
 `ignore_unavailable`::
 (Optional, boolean) If `true`, missing or closed indices are not included in the
 response. Defaults to `false`.
 end::index-ignore-unavailable[]
+
+tag::include-defaults[]
+`include_defaults`::
+(Optional, string) If `true`, return all default settings in the response.
+Defaults to `false`.
+end::include-defaults[]
 
 tag::include-segment-file-sizes[]
 `include_segment_file_sizes`::
@@ -204,6 +197,13 @@ If `true`, the call reports the aggregated disk usage of
 each one  of the Lucene index files (only applies if segment stats are 
 requested). Defaults to `false`.
 end::include-segment-file-sizes[]
+
+tag::include-type-name[]
+`include_type_name`::
+deprecated:[7.0.0, Mapping types have been deprecated. See <<removal-of-types>>.]
+(Optional, boolean) If `true`, a mapping type is expected in the body of
+mappings. Defaults to `false`.
+end::include-type-name[]
 
 tag::include-unloaded-segments[]
 `include_unloaded_segments`::
@@ -371,8 +371,8 @@ end::pipeline[]
 
 tag::preference[]
 `preference`::
-  (Optional, string) Specifies the node or shard the operation should be 
-  performed on. Random by default.
+(Optional, string) Specifies the node or shard the operation should be 
+performed on. Random by default.
 end::preference[]
 
 tag::search-q[]
@@ -430,15 +430,6 @@ tag::scroll_size[]
 Defaults to 100. 
 end::scroll_size[]
 
-tag::segment-search[]
-If `true`,
-the segment is searchable.
-+
-If `false`,
-the segment has most likely been written to disk
-but needs a <<indices-refresh,refresh>> to be searchable.
-end::segment-search[]
-
 tag::search_timeout[]
 `search_timeout`::
 (Optional, <<time-units, time units>> Explicit timeout for each search 
@@ -457,6 +448,15 @@ Name of the segment, such as `_0`. The segment name is derived from
 the segment generation and used internally to create file names in the directory
 of the shard.
 end::segment[]
+
+tag::segment-search[]
+If `true`,
+the segment is searchable.
++
+If `false`,
+the segment has most likely been written to disk
+but needs a <<indices-refresh,refresh>> to be searchable.
+end::segment-search[]
 
 tag::settings[]
 `settings`::

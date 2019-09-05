@@ -66,6 +66,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -1105,11 +1106,14 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
     public void testUsageStats() {
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
-        final Map<String, Object> fileRolesStoreUsageStats = Map.of("size", "1", "fls", Boolean.FALSE, "dls", Boolean.TRUE);
+        final Map<String, Object> fileRolesStoreUsageStats = new HashMap<>();
+        fileRolesStoreUsageStats.put("size", "1");
+        fileRolesStoreUsageStats.put("fls", Boolean.FALSE);
+        fileRolesStoreUsageStats.put("dls", Boolean.TRUE);
         when(fileRolesStore.usageStats()).thenReturn(fileRolesStoreUsageStats);
 
         final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
-        final Map<String, Object> nativeRolesStoreUsageStats = Map.of();
+        final Map<String, Object> nativeRolesStoreUsageStats = Collections.emptyMap();
         doAnswer((invocationOnMock) -> {
             ActionListener<Map<String, Object>> usageStats = (ActionListener<Map<String, Object>>) invocationOnMock.getArguments()[0];
             usageStats.onResponse(nativeRolesStoreUsageStats);
@@ -1130,7 +1134,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         Map<String, Object> usageStats = usageStatsListener.actionGet();
         assertThat(usageStats.get("file"), is(fileRolesStoreUsageStats));
         assertThat(usageStats.get("native"), is(nativeRolesStoreUsageStats));
-        assertThat(usageStats.get("dls"), is(Map.of("bit_set_cache", documentSubsetBitsetCache.usageStats())));
+        assertThat(usageStats.get("dls"), is(Collections.singletonMap("bit_set_cache", documentSubsetBitsetCache.usageStats())));
     }
 
     private static class InMemoryRolesProvider implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {

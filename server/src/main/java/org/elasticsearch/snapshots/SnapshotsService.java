@@ -1459,17 +1459,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         if (primary == null || !primary.assignedToNode()) {
                             builder.put(shardId,
                                 new SnapshotsInProgress.ShardSnapshotStatus(null, ShardState.MISSING, "primary shard is not allocated",
-                                    repositoryData.getShardGen(index, shardId)));
+                                    repositoryData.getShardGen(index, shardId.getId())));
                         } else if (primary.relocating() || primary.initializing()) {
                             builder.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(
-                                primary.currentNodeId(), ShardState.WAITING, repositoryData.getShardGen(index, shardId)));
+                                primary.currentNodeId(), ShardState.WAITING, repositoryData.getShardGen(index, shardId.getId())));
                         } else if (!primary.started()) {
                             builder.put(shardId,
                                 new SnapshotsInProgress.ShardSnapshotStatus(primary.currentNodeId(), ShardState.MISSING,
                                     "primary shard hasn't been started yet", null));
                         } else {
                             builder.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(
-                                primary.currentNodeId(), repositoryData.getShardGen(index, shardId)));
+                                primary.currentNodeId(), repositoryData.getShardGen(index, shardId.getId())));
                         }
                     } else {
                         builder.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(null, ShardState.MISSING,

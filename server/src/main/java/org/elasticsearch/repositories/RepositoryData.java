@@ -27,7 +27,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.SnapshotsService;
@@ -38,13 +37,13 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -123,17 +122,16 @@ public final class RepositoryData {
         return result;
     }
 
-    public String getShardGen(IndexId indexId, ShardId shardId) {
+    public String getShardGen(IndexId indexId, int shardId) {
         final String[] generations = shardGenerations.get(indexId);
         if (generations == null || generations.length == 0) {
             return null;
         }
-        final int shardNum = shardId.getId();
-        if (generations.length < shardNum - 1) {
+        if (generations.length < shardId - 1) {
             throw new IllegalArgumentException(
                 "Index [" + indexId + "] only has [" + generations.length + "] shards but requested shard [" + shardId + "]");
         }
-        return generations[shardNum];
+        return generations[shardId];
     }
 
     /**
@@ -164,6 +162,12 @@ public final class RepositoryData {
      */
     public Map<String, IndexId> getIndices() {
         return indices;
+    }
+
+    public List<IndexId> indicesWithout(SnapshotId snapshotId) {
+        return indexSnapshots.entrySet().stream()
+            .filter(Predicate.not(entry -> entry.getValue().size() == 1 && entry.getValue().contains(snapshotId))).map(Map.Entry::getKey)
+            .collect(Collectors.toList());
     }
 
     /**
@@ -222,7 +226,8 @@ public final class RepositoryData {
     /**
      * Remove a snapshot and remove any indices that no longer exist in the repository due to the deletion of the snapshot.
      */
-    public RepositoryData removeSnapshot(final SnapshotId snapshotId, final Map<IndexId, String[]> updatedShardGenerations) {
+    public RepositoryData removeSnapshot(final SnapshotId snapshotId, @Nullable final Map<IndexId, String[]> updatedShardGenerations) {
+        assert updatedShardGenerations != null || shardGenerations.values().stream().noneMatch(gens -> gens.length != 0);
         Map<String, SnapshotId> newSnapshotIds = snapshotIds.values().stream()
             .filter(id -> !snapshotId.equals(id))
             .collect(Collectors.toMap(SnapshotId::getUUID, Function.identity()));
@@ -232,7 +237,6 @@ public final class RepositoryData {
         Map<String, SnapshotState> newSnapshotStates = new HashMap<>(snapshotStates);
         newSnapshotStates.remove(snapshotId.getUUID());
         Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>();
-        Set<IndexId> updatedIndices = new HashSet<>();
         for (final IndexId indexId : indices.values()) {
             Set<SnapshotId> set;
             Set<SnapshotId> snapshotIds = this.indexSnapshots.get(indexId);
@@ -245,16 +249,16 @@ public final class RepositoryData {
                 }
                 set = new LinkedHashSet<>(snapshotIds);
                 set.remove(snapshotId);
-                updatedIndices.add(indexId);
             } else {
                 set = snapshotIds;
             }
             indexSnapshots.put(indexId, set);
         }
 
-        final Map<IndexId, String[]> updatedGenerations = updatedGenerations(shardGenerations);
-        for (IndexId indexId : indexSnapshots.keySet()) {
-            if (updatedIndices.contains(indexId) == false) {
+        final Map<IndexId, String[]> updatedGenerations =
+            updatedShardGenerations == null ? new HashMap<>(shardGenerations) : updatedGenerations(updatedShardGenerations);
+        for (IndexId indexId : shardGenerations.keySet()) {
+            if (indexSnapshots.containsKey(indexId) == false) {
                 updatedGenerations.remove(indexId);
             }
         }

@@ -22,7 +22,7 @@ PUT /_enrich/policy/my-policy
     }
 }
 
-PUT /_enrich/policy/another-policy
+PUT /_enrich/policy/other-policy
 {
     "match": {
         "indices": "users",
@@ -111,7 +111,7 @@ The API returns the following response:
 
 [source,js]
 --------------------------------------------------
-GET /_enrich/policy/my-policy,another-policy
+GET /_enrich/policy/my-policy,other-policy
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -138,7 +138,7 @@ The API returns the following response:
         },
         {
             "match": {
-                "name" : "another-policy",
+                "name" : "other-policy",
                 "indices" : ["users"],
                 "match_field" : "email",
                 "enrich_fields" : [
@@ -188,7 +188,7 @@ The API returns the following response:
         },
         {
             "match": {
-                "name" : "another-policy",
+                "name" : "other-policy",
                 "indices" : ["users"],
                 "match_field" : "email",
                 "enrich_fields" : [
@@ -209,6 +209,7 @@ The API returns the following response:
 [source,js]
 --------------------------------------------------
 DELETE /_enrich/policy/my-policy
+DELETE /_enrich/policy/other-policy
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

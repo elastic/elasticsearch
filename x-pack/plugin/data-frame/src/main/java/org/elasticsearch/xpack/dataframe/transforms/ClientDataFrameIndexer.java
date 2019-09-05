@@ -208,7 +208,7 @@ class ClientDataFrameIndexer extends DataFrameIndexer {
         return checkpointProvider;
     }
 
-    public Instant getChangesLastDetectedAt() {
+    Instant getChangesLastDetectedAt() {
         return changesLastDetectedAt;
     }
 

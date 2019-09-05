@@ -104,7 +104,7 @@ access  permissions. To create a user without any roles, specify an empty list:
 
 The following example creates a user `jacknich`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/user/jacknich
 {
@@ -117,18 +117,16 @@ POST /_security/user/jacknich
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 A successful call returns a JSON structure that shows whether the user has been
 created or updated.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "created": true <1>
 }
 --------------------------------------------------
-// TESTRESPONSE
 <1> When an existing user is updated, `created` is set to false.
 
 After you add a user, requests from that user can be authenticated. For example:

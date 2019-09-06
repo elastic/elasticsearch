@@ -142,6 +142,7 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
     @AfterClass
     public static void tearDownClient() {
         mockClientForCheckpointing.close();
+        mockClientForCheckpointing = null;
     }
 
     public void testCreateReadDeleteCheckpoint() throws InterruptedException {

@@ -1,0 +1,97 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
+import org.elasticsearch.gradle.testclusters.TestDistribution
+
+apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.standalone-test'
+
+/**
+ * This projects tests that bwc versions can be started up.
+ *
+ * The goal is to test the build infrastructure that sets the test clusters up, not the versions as those won't change,
+ * but the build does have version dependent code and we want a quick way to verify that clusters still start up on al
+ * versions after making changes.
+ */
+
+tasks.register("bwcTest") {
+    description = 'Runs backwards compatibility tests.'
+    group = 'verification'
+}
+
+/**
+ * This is useful for making sure changes in master won't break when back-porting, but these
+ * WIL NOT RUN IN CI, since CI doesn't call `bwcTest`, the matrix calls the version specific bwc test
+ * but only does so for index compatible versions, so in CI the check will be spread out across version.
+ * As such keeping this list up to date is not mandatory.
+ * Note that adding unreleased versions that are not index compatible with the current branch here won't work,
+ * as the branch won't know about them ( you can't add the unreleased maintenance version )
+ */
+List<Version> additionalVersion = [
+        "6.0.0", "6.1.0", "6.2.0", "6.2.2", "6.2.3", "6.2.4",
+        "6.3.0", "6.4.0", "6.5.0", "6.6.0", "6.7.0", "6.8.0"
+].collect { Version.fromString(it)}
+
+(bwcVersions.indexCompatible + additionalVersion).each { Version bwcVersion ->
+    tasks.register("v${bwcVersion}#bwcTest")
+    // We don't use INTEG_TEST for bwc
+    (TestDistribution.values()
+            // The integ test distribution is currently not used for bwc
+            .minus(TestDistribution.INTEG_TEST)
+    ).each { TestDistribution distro ->
+        String baseName = "v${bwcVersion}-${distro}"
+
+        testClusters {
+            "${baseName}" {
+                testDistribution = distro
+                version = bwcVersion.toString()
+                javaHome = project.file(project.ext.runtimeJavaHome)
+                if (distro == TestDistribution.DEFAULT) {
+                    setting 'xpack.security.enabled', 'false'
+                }
+            }
+        }
+
+        tasks.register("${baseName}#test", RestTestRunnerTask) {
+            useCluster testClusters."${baseName}"
+            mustRunAfter(precommit)
+            doFirst {
+                project.delete("${buildDir}/cluster/shared/repo/${baseName}")
+            }
+
+            systemProperty 'tests.cluster_version', bwcVersion.toString().minus("-SNAPSHOT")
+            systemProperty 'tests.cluster_distro', distro
+            nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",") }")
+            nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName() }")
+        }
+
+        if (project.bwc_tests_enabled) {
+            tasks.named("v${bwcVersion}#bwcTest").configure {
+                dependsOn "${baseName}#test"
+            }
+        }
+    }
+    tasks.named("bwcTest").configure {
+        dependsOn "v${bwcVersion}#bwcTest"
+    }
+}
+
+test.enabled = false

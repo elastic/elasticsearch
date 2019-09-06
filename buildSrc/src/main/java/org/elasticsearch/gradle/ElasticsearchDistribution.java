@@ -28,6 +28,7 @@ import org.gradle.api.tasks.TaskDependency;
 import java.io.File;
 import java.util.Iterator;
 import java.util.Locale;
+import java.util.Objects;
 
 public class ElasticsearchDistribution implements Buildable, Iterable<File> {
 
@@ -161,7 +162,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         return bundledJdk.getOrElse(true);
     }
 
-    public void setBundledJdk(boolean bundledJdk) {
+    public void setBundledJdk(Boolean bundledJdk) {
         this.bundledJdk.set(bundledJdk);
     }
 
@@ -197,15 +198,15 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     void finalizeValues() {
 
         if (getType() == Type.INTEG_TEST_ZIP) {
-            if (platform.isPresent()) {
+            if (platform.getOrNull() != null) {
                 throw new IllegalArgumentException(
                     "platform not allowed for elasticsearch distribution [" + name + "] of type [integ_test_zip]");
             }
-            if (flavor.isPresent()) {
+            if (flavor.getOrNull() != null) {
                 throw new IllegalArgumentException(
-                    "flavor not allowed for elasticsearch distribution [" + name + "] of type [integ_test_zip]");
+                    "flavor [" + flavor.get() + "] not allowed for elasticsearch distribution [" + name + "] of type [integ_test_zip]");
             }
-            if (bundledJdk.isPresent()) {
+            if (bundledJdk.getOrNull() != null) {
                 throw new IllegalArgumentException(
                     "bundledJdk not allowed for elasticsearch distribution [" + name + "] of type [integ_test_zip]");
             }

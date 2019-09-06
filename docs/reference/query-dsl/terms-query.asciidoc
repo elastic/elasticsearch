@@ -208,7 +208,7 @@ GET my_index/_search?pretty
 Because document 2 and document 1 both contain `blue` as a value in the `color`
 field, {es} returns both documents.
 
-[source,js]
+[source,console-result]
 ----
 {
   "took" : 17,

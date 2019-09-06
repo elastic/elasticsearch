@@ -64,7 +64,7 @@ GET /twitter/_search_shards
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "nodes": ...,
@@ -149,7 +149,7 @@ GET /twitter/_search_shards?routing=foo,bar
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "nodes": ...,

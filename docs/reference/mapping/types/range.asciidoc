@@ -17,7 +17,7 @@ The following range types are supported:
 
 Below is an example of configuring a mapping with various range fields followed by an example that indexes several range types.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT range_index
 {
@@ -49,7 +49,6 @@ PUT range_index/_doc/1?refresh
   }
 }
 --------------------------------------------------
-//CONSOLE
 // TESTSETUP
 
 <1> `date_range` types accept the same field parameters defined by the <<date, `date`>> type.
@@ -75,7 +74,7 @@ GET range_index/_search
 
 The result produced by the above query.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 13,
@@ -137,7 +136,7 @@ GET range_index/_search
 
 This query produces a similar result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 13,

@@ -238,7 +238,7 @@ GET /index/_search?explain=true
 
 Which yields:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 12,
@@ -411,7 +411,7 @@ GET /index/_search?explain=true
 --------------------------------------------------
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 1,

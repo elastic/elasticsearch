@@ -45,7 +45,7 @@ Response:
 
 The shard stores information is grouped by indices and shard ids.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "indices": {

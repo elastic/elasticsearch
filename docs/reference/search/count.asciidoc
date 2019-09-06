@@ -31,7 +31,7 @@ the <<search-search,search api>> works
 Both examples above do the same thing, which is count the number of
 tweets from the `twitter` index for a certain user. The result is:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "count" : 1,
@@ -43,7 +43,6 @@ tweets from the `twitter` index for a certain user. The result is:
     }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 The query is optional, and when not provided, it will use `match_all` to
 count all the docs.

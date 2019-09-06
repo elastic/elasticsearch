@@ -80,14 +80,12 @@ POST _ilm/stop
 
 If the request does not encounter errors, you receive the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "acknowledged": true
 }
 --------------------------------------------------
-// CONSOLE
-// TESTRESPONSE
 
 //////////////////////////
 

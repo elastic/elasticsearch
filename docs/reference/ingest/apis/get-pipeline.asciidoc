@@ -33,7 +33,7 @@ GET _ingest/pipeline/my-pipeline-id
 
 Example response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "my-pipeline-id" : {
@@ -49,7 +49,6 @@ Example response:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 For each returned pipeline, the source and the version are returned.
 The version is useful for knowing which version of the pipeline the node has.
@@ -96,7 +95,7 @@ GET /_ingest/pipeline/my-pipeline-id?filter_path=*.version
 
 This should give a small response that makes it both easy and inexpensive to parse:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "my-pipeline-id" : {
@@ -104,7 +103,6 @@ This should give a small response that makes it both easy and inexpensive to par
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 //////////////////////////
 
@@ -115,12 +113,11 @@ DELETE /_ingest/pipeline/my-pipeline-id
 // CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
 "acknowledged": true
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 //////////////////////////

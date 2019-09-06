@@ -131,13 +131,12 @@ POST _scripts/<templateid>
 The API returns the following result if the template has been successfully 
 created:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "acknowledged" : true
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 //////////////////////////
 
@@ -153,7 +152,7 @@ GET _scripts/<templateid>
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 ------------------------------------------
 {
     "script" : {
@@ -167,7 +166,6 @@ The API returns the following result:
     "found": true
 }
 ------------------------------------------
-// TESTRESPONSE
 
 
 This template can be deleted by calling
@@ -178,7 +176,6 @@ DELETE _scripts/<templateid>
 ------------------------------------------
 // CONSOLE
 // TEST[continued]
-
 
 
 [[use-registered-templates]]
@@ -224,7 +221,7 @@ GET _render/template
 
 The API returns the rendered template:
 
-[source,js]
+[source,console-result]
 ------------------------------------------
 {
   "template_output": {
@@ -239,7 +236,7 @@ The API returns the rendered template:
   }
 }
 ------------------------------------------
-// TESTRESPONSE
+
 <1> `status` array has been populated with values from the `params` object.
 
 
@@ -649,7 +646,7 @@ GET _render/template
 
 The previous query will be rendered as:
 
-[source,js]
+[source,console-result]
 ------------------------------------------
 {
     "template_output" : {
@@ -661,7 +658,7 @@ The previous query will be rendered as:
     }
 }
 ------------------------------------------
-// TESTRESPONSE
+
 
 [[multi-search-template]]
 === Multi Search Template

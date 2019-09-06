@@ -63,10 +63,10 @@ POST _ml/anomaly_detectors/total-requests/_open
 // TEST[skip:setup:server_metrics_job]
 
 When the job opens, you receive the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "opened": true
 }
 ----
-// TESTRESPONSE

@@ -494,7 +494,7 @@ GET index/_mappings?include_type_name=false
 
 The above call returns
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "index": {
@@ -511,7 +511,7 @@ The above call returns
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+
 <1> Mappings are included directly under the `mappings` key, without a type name.
 
 [float]
@@ -529,7 +529,7 @@ PUT index/_doc/1
 --------------------------------------------------
 // CONSOLE
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index": "index",
@@ -546,7 +546,6 @@ PUT index/_doc/1
   "_primary_term": 1
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 Similarly, the `get` and `delete` APIs use the path `{index}/_doc/{id}`:
 
@@ -624,7 +623,7 @@ GET index/_doc/1
 --------------------------------------------------
 // CONSOLE
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "_index" : "index",
@@ -639,7 +638,6 @@ GET index/_doc/1
     }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 [float]
 ==== Index templates

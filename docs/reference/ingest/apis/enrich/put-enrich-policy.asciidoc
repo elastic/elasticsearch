@@ -71,8 +71,8 @@ An enrich policy contains:
 * The *policy type*,
   which determines how the processor enriches incoming documents
 * A list of source indices
-* The *match field*, a field used to match incoming documents
-* *Enrich fields*, fields appended to incoming documents
+* The *match field* used to match incoming documents
+* *Enrich fields* appended to incoming documents
   from matching documents
 // end::enrich-policy-def[]
 

@@ -5,19 +5,26 @@
 <titleabbrev>Execute watch</titleabbrev>
 ++++
 
-The execute watch API forces the execution of a stored watch. It can be used to
-force execution of the watch outside of its triggering logic, or to simulate the
-watch execution for debugging purposes.
+Forces the execution of a stored watch. 
 
-[float]
-==== Request
+[[watcher-api-execute-watch-request]]
+==== {api-request-title}
 
 `POST _watcher/watch/<watch_id>/_execute` +
 
 `POST _watcher/watch/_execute`
 
-[float]
-==== Description
+[[watcher-api-execute-watch-prereqs]]
+==== {api-prereq-title}
+
+* You must have `manage_watcher` cluster privileges to use this API. For more
+information, see {stack-ov}/security-privileges.html[Security privileges].
+
+[[watcher-api-execute-watch-desc]]
+==== {api-description-title}
+
+This API can be used to force execution of the watch outside of its triggering
+logic or to simulate the watch execution for debugging purposes.
 
 For testing and debugging purposes, you also have fine-grained control on how
 the watch runs. You can execute the watch without executing all of its actions
@@ -25,29 +32,28 @@ or alternatively by simulating them. You can also force execution by ignoring
 the watch condition and control whether a watch record would be written to the
 watch history after execution.
 
-[float]
 [[watcher-api-execute-inline-watch]]
-===== Inline Watch Execution
+===== Inline watch execution
 
 You can use the Execute API to execute watches that are not yet registered by
 specifying the watch definition inline. This serves as great tool for testing
 and debugging your watches prior to adding them to {watcher}.
 
-[float]
-==== Path Parameters
+[[watcher-api-execute-watch-path-params]]
+==== {api-path-parms-title}
 
-`watch_id`::
-  (string) Identifier for the watch.
+`<watch_id>`::
+  (Optional, string) Identifier for the watch.
 
-[float]
-==== Query Parameters
+[[watcher-api-execute-watch-query-params]]
+==== {api-query-parms-title}
 
 `debug`::
-  (boolean) Defines whether the watch runs in debug mode. The default value is
-  `false`.
+  (Optional, boolean) Defines whether the watch runs in debug mode. The default
+  value is `false`.
 
-[float]
-==== Request Body
+[[watcher-api-execute-watch-request-body]]
+==== {api-request-body-title}
 
 This API supports the following fields:
 
@@ -59,7 +65,7 @@ This API supports the following fields:
                                               that will be used during the watch execution
 
 | `ignore_condition`  | no       | false    | When set to `true`, the watch execution uses the
-                                              {stack-ov}/condition-always.html[Always Condition].
+                                              {stack-ov}/condition-always.html[Always condition].
                                               This can also be specified as an HTTP parameter.
 
 | `alternative_input` | no       | null     | When present, the watch uses this object as a payload
@@ -81,9 +87,8 @@ This API supports the following fields:
                                               not persisted to the index and record_execution cannot be set.
 |======
 
-[float]
 [[watcher-api-execute-watch-action-mode]]
-===== Action Execution Modes
+===== Action execution modes
 
 Action modes define how actions are handled during the watch execution. There
 are five possible modes an action can be associated with:
@@ -116,13 +121,8 @@ are five possible modes an action can be associated with:
                       Effectively forces the action to be throttled.
 |======
 
-[float]
-==== Authorization
-You must have `manage_watcher` cluster privileges to use this API. For more
-information, see {stack-ov}/security-privileges.html[Security Privileges].
-
-[float]
-==== Security Integration
+[[watcher-api-execute-watch-security]]
+===== Security integration
 
 When {es} {security-features} are enabled on your cluster, watches
 are executed with the privileges of the user that stored the watches. If your
@@ -133,8 +133,14 @@ When using the execute watch API, the authorization data of the user that
 called the API will be used as a base, instead of of the information who stored
 the watch.
 
-[float]
-==== Examples
+//[[watcher-api-execute-watch-response-body]]
+//==== {api-response-body-title}
+
+//[[watcher-api-execute-watch-response-codes]]
+//==== {api-response-codes-title}
+
+[[watcher-api-execute-watch-example]]
+==== {api-examples-title}
 
 The following example executes the `my_watch` watch:
 

@@ -74,7 +74,8 @@ GET _ml/filters/safe_domains
 // TEST[skip:setup:ml_filter_safe_domains]
 
 The API returns the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "count": 1,
@@ -90,4 +91,3 @@ The API returns the following results:
   ]
 }
 ----
-// TESTRESPONSE

@@ -106,11 +106,11 @@ POST _ml/anomaly_detectors/total-requests/_flush
 // TEST[skip:setup:server_metrics_openjob]
 
 When the operation succeeds, you receive the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "flushed": true,
   "last_finalized_bucket_end": 1514804400000
 }
 ----
-// TESTRESPONSE

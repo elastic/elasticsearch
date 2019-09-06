@@ -56,7 +56,7 @@ POST /keep_types_example/_analyze
 
 The response will be:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "tokens": [
@@ -70,7 +70,6 @@ The response will be:
   ]
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 Note how only the `<NUM>` token is in the output.
 
@@ -118,7 +117,7 @@ POST /keep_types_exclude_example/_analyze
 
 The response will be:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "tokens": [
@@ -139,4 +138,3 @@ The response will be:
   ]
 }
 --------------------------------------------------
-// TESTRESPONSE

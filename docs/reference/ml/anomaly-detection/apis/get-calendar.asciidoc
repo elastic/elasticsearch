@@ -76,7 +76,8 @@ GET _ml/calendars/planned-outages
 // TEST[skip:setup:calendar_outages_addjob]
 
 The API returns the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "count": 1,
@@ -90,4 +91,3 @@ The API returns the following results:
   ]
 }
 ----
-// TESTRESPONSE

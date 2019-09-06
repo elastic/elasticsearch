@@ -206,7 +206,7 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
 
                 if (randomBoolean()) {
                     if (randomBoolean()) {
-                        Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, bytes.length - 1)]);
+                        Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, Math.max(1, bytes.length - 1))]);
                     } else {
                         Streams.readFully(exchange.getRequestBody());
                         exchange.sendResponseHeaders(randomFrom(HttpStatus.SC_INTERNAL_SERVER_ERROR, HttpStatus.SC_BAD_GATEWAY,

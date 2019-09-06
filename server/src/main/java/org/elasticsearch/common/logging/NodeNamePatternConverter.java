@@ -22,6 +22,7 @@ package org.elasticsearch.common.logging;
 import java.util.Arrays;
 
 import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
@@ -47,6 +48,10 @@ public final class NodeNamePatternConverter extends LogEventPatternConverter {
      */
     static void setNodeName(String nodeName) {
         NODE_NAME.set(nodeName);
+
+        LoggerContext ctx = LoggerContext.getContext();
+        ctx.getConfiguration().getProperties().put("node_name",nodeName);
+        ctx.reconfigure();
     }
 
     /**
@@ -58,9 +63,9 @@ public final class NodeNamePatternConverter extends LogEventPatternConverter {
                     + Arrays.toString(options));
         }
         String nodeName = NODE_NAME.get();
-        if (nodeName == null) {
-            throw new IllegalStateException("the node name hasn't been set");
-        }
+//        if (nodeName == null) {
+//            throw new IllegalStateException("the node name hasn't been set");
+//        }
         return new NodeNamePatternConverter(nodeName);
     }
 

@@ -303,12 +303,14 @@ final class Bootstrap {
         final SecureSettings keystore = loadSecureSettings(initialEnv);
         final Environment environment = createEnvironment(pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
 
-        LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));
+//        LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));
         try {
             LogConfigurator.configure(environment);
         } catch (IOException e) {
             throw new BootstrapException(e);
         }
+        LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));
+
         if (environment.pidFile() != null) {
             try {
                 PidFile.create(environment.pidFile(), true);

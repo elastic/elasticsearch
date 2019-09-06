@@ -79,5 +79,7 @@ public class AdjacencyMatrixAggregationBuilderTests extends ESTestCase {
         AggregatorFactory factory = aggregationBuilder.doBuild(context, null, new AggregatorFactories.Builder());
         assertThat(factory instanceof AdjacencyMatrixAggregatorFactory, is(true));
         assertThat(factory.name(), equalTo("dummy"));
+        assertWarnings("[index.max_adjacency_matrix_filters] setting was deprecated in Elasticsearch and will be "
+                + "removed in a future release! See the breaking changes documentation for the next major version.");
     }
 }

@@ -84,7 +84,8 @@ DELETE _ml/anomaly_detectors/total-requests?wait_for_completion=false
 
 When `wait_for_completion` is set to `false`, the response contains the id
 of the job deletion task:
-[source,js]
+
+[source,console-result]
 ----
 {
   "task": "oTUltX4IQMOUUVeiohTt8A:39"

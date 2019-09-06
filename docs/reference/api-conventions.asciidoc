@@ -222,7 +222,7 @@ GET /_search?q=elasticsearch&filter_path=took,hits.hits._id,hits.hits._score
 
 Responds:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took" : 3,
@@ -383,7 +383,7 @@ GET twitter/_settings?flat_settings=true
 
 Returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "twitter" : {
@@ -414,7 +414,7 @@ GET twitter/_settings?flat_settings=false
 
 Returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "twitter" : {
@@ -612,7 +612,7 @@ POST /twitter/_search?size=surprise_me&error_trace=true
 
 The response looks like:
 
-[source,js]
+[source,console-result]
 ----------------------------------------------------------------------
 {
   "error": {

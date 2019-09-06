@@ -166,7 +166,7 @@ GET my_index/_search
 
 Will return:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...,

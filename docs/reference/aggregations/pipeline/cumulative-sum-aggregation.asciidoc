@@ -64,7 +64,7 @@ POST /sales/_search
 
 And the following may be the response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "took": 11,

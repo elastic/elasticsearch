@@ -29,7 +29,7 @@ POST _reindex
 
 That will return something like this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took" : 147,
@@ -689,7 +689,7 @@ POST /_reindex?wait_for_completion
 
 The JSON response looks like this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 639,
@@ -956,7 +956,7 @@ GET test2/_doc/1
 
 which will return:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,

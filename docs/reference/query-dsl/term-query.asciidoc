@@ -188,7 +188,7 @@ any documents containing the `quick`, `brown`, or `fox` tokens in the
 Here's the response for the `match` query search containing the indexed document
 in the results.
 
-[source,js]
+[source,console-result]
 ----
 {
   "took" : 1,

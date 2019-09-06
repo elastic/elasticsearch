@@ -96,7 +96,8 @@ GET _ml/datafeeds/datafeed-total-requests/_stats
 // TEST[skip:setup:server_metrics_startdf]
 
 The API returns the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "count": 1,

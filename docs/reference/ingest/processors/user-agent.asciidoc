@@ -45,7 +45,7 @@ GET my_index/_doc/my_id
 
 Which returns
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,

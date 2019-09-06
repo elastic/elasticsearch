@@ -34,6 +34,15 @@
   - match: { policies.0.match.enrich_fields: ["a", "b"] }
 
   - do:
+      enrich.stats: {}
+  - length: { executing_policies: 0}
+  - length: { coordinator_stats: 1}
+  - match: { coordinator_stats.0.queue_size: 0}
+  - match: { coordinator_stats.0.remote_requests_current: 0}
+  - gte: { coordinator_stats.0.remote_requests_total: 0}
+  - gte: { coordinator_stats.0.executed_searches_total: 0}
+
+  - do:
       enrich.delete_policy:
         name: policy-crud
   - is_true: acknowledged

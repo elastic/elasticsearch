@@ -162,6 +162,7 @@ import java.util.SortedMap;
 
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -177,6 +178,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ReservedRolesStore.isReserved("foobar"), is(false));
         assertThat(ReservedRolesStore.isReserved(SystemUser.ROLE_NAME), is(true));
         assertThat(ReservedRolesStore.isReserved("transport_client"), is(true));
+        assertThat(ReservedRolesStore.isReserved("kibana_admin"), is(true));
         assertThat(ReservedRolesStore.isReserved("kibana_user"), is(true));
         assertThat(ReservedRolesStore.isReserved("ingest_admin"), is(true));
         assertThat(ReservedRolesStore.isReserved("monitoring_user"), is(true));
@@ -383,6 +385,54 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(kibanaRole, RestrictedIndicesNames.RESTRICTED_NAMES);
     }
 
+    public void testKibanaAdminRole() {
+        final TransportRequest request = mock(TransportRequest.class);
+        final Authentication authentication = mock(Authentication.class);
+
+        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("kibana_admin");
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+        assertThat(roleDescriptor.getMetadata(), not(hasEntry("_deprecated", true)));
+
+        Role kibanaAdminRole = Role.builder(roleDescriptor, null).build();
+        assertThat(kibanaAdminRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(false));
+        assertThat(kibanaAdminRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(false));
+        assertThat(kibanaAdminRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(false));
+        assertThat(kibanaAdminRole.cluster().check(PutIndexTemplateAction.NAME, request, authentication), is(false));
+        assertThat(kibanaAdminRole.cluster().check(ClusterRerouteAction.NAME, request, authentication), is(false));
+        assertThat(kibanaAdminRole.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication),
+                is(false));
+        assertThat(kibanaAdminRole.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(false));
+        assertThat(kibanaAdminRole.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication),
+                is(false));
+
+        assertThat(kibanaAdminRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
+
+        assertThat(kibanaAdminRole.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
+        assertThat(kibanaAdminRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
+        assertThat(
+                kibanaAdminRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
+                is(false));
+
+        final String randomApplication = "kibana-" + randomAlphaOfLengthBetween(8, 24);
+        assertThat(kibanaAdminRole.application().grants(new ApplicationPrivilege(randomApplication, "app-random", "all"),
+                "*"), is(false));
+
+        final String application = "kibana-.kibana";
+        assertThat(kibanaAdminRole.application().grants(new ApplicationPrivilege(application, "app-foo", "foo"), "*"),
+                is(false));
+        assertThat(kibanaAdminRole.application().grants(new ApplicationPrivilege(application, "app-all", "all"), "*"),
+                is(true));
+
+        final String applicationWithRandomIndex = "kibana-.kibana_" + randomAlphaOfLengthBetween(8, 24);
+        assertThat(
+                kibanaAdminRole.application()
+                        .grants(new ApplicationPrivilege(applicationWithRandomIndex, "app-random-index", "all"), "*"),
+                is(false));
+
+        assertNoAccessAllowed(kibanaAdminRole, RestrictedIndicesNames.RESTRICTED_NAMES);
+    }
+
     public void testKibanaUserRole() {
         final TransportRequest request = mock(TransportRequest.class);
         final Authentication authentication = mock(Authentication.class);
@@ -390,6 +440,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("kibana_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_deprecated", true));
 
         Role kibanaUserRole = Role.builder(roleDescriptor, null).build();
         assertThat(kibanaUserRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(false));
@@ -691,6 +742,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("kibana_dashboard_only_user");
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_deprecated", true));
 
         Role dashboardsOnlyUserRole = Role.builder(roleDescriptor, null).build();
         assertThat(dashboardsOnlyUserRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(false));

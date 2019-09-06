@@ -46,6 +46,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.Booleans.parseBoolean;
+
 public class OperationRouting {
     private static final Logger logger = LogManager.getLogger(OperationRouting.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
@@ -58,15 +60,26 @@ public class OperationRouting {
     private boolean useAdaptiveReplicaSelection;
 
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
-        this.awarenessAttributes = AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
+        // whether to ignore awareness attributes when routing requests
+        boolean ignoreAwarenessAttr = parseBoolean(System.getProperty("es.search.ignore_awareness_attributes"), false);
+        if (ignoreAwarenessAttr == false) {
+            awarenessAttributes = AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
+            clusterSettings.addSettingsUpdateConsumer(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
+                this::setAwarenessAttributes);
+        } else {
+            awarenessAttributes = Collections.emptyList();
+        }
+
         this.useAdaptiveReplicaSelection = USE_ADAPTIVE_REPLICA_SELECTION_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
-            this::setAwarenessAttributes);
         clusterSettings.addSettingsUpdateConsumer(USE_ADAPTIVE_REPLICA_SELECTION_SETTING, this::setUseAdaptiveReplicaSelection);
     }
 
     void setUseAdaptiveReplicaSelection(boolean useAdaptiveReplicaSelection) {
         this.useAdaptiveReplicaSelection = useAdaptiveReplicaSelection;
+    }
+
+    List<String> getAwarenessAttributes() {
+        return awarenessAttributes;
     }
 
     private void setAwarenessAttributes(List<String> awarenessAttributes) {

@@ -970,8 +970,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         defaultConfig.put("logger.org.elasticsearch.cluster.service", "DEBUG");
         defaultConfig.put("logger.org.elasticsearch.cluster.coordination", "DEBUG");
         defaultConfig.put("logger.org.elasticsearch.gateway.MetaStateService", "TRACE");
-        defaultConfig.put("cluster.service.slow_task_logging_threshold", "5s");
-        defaultConfig.put("cluster.service.slow_master_task_logging_threshold", "5s");
+        if (getVersion().getMajor() >= 8) {
+            defaultConfig.put("cluster.service.slow_task_logging_threshold", "5s");
+            defaultConfig.put("cluster.service.slow_master_task_logging_threshold", "5s");
+        }
 
         HashSet<String> overriden = new HashSet<>(defaultConfig.keySet());
         overriden.retainAll(settings.keySet());

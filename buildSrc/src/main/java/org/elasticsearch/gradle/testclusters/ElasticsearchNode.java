@@ -965,8 +965,15 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         defaultConfig.put("discovery.initial_state_timeout", "0s");
 
         // TODO: Remove these once https://github.com/elastic/elasticsearch/issues/46091 is fixed
-        defaultConfig.put("logger.org.elasticsearch.action.support.master", "DEBUG");
+        defaultConfig.put("logger.org.elasticsearch.action.support.master.TransportMasterNodeAction", "TRACE");
+        defaultConfig.put("logger.org.elasticsearch.cluster.metadata.MetaDataCreateIndexService", "TRACE");
+        defaultConfig.put("logger.org.elasticsearch.cluster.service", "DEBUG");
         defaultConfig.put("logger.org.elasticsearch.cluster.coordination", "DEBUG");
+        defaultConfig.put("logger.org.elasticsearch.gateway.MetaStateService", "TRACE");
+        if (getVersion().getMajor() >= 8) {
+            defaultConfig.put("cluster.service.slow_task_logging_threshold", "5s");
+            defaultConfig.put("cluster.service.slow_master_task_logging_threshold", "5s");
+        }
 
         HashSet<String> overriden = new HashSet<>(defaultConfig.keySet());
         overriden.retainAll(settings.keySet());

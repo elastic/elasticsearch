@@ -131,6 +131,7 @@ public class EncryptedRepository extends BlobStoreRepository {
                 if (Strings.hasLength(delegateType) == false) {
                     throw new IllegalArgumentException(DELEGATE_TYPE.getKey() + " must be set");
                 }
+
                 if (false == cachedRepositoryPasswords.containsKey(metaData.name())) {
                     throw new IllegalArgumentException(
                             ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(metaData.name()).getKey() + " must be set");

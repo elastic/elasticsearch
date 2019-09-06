@@ -73,11 +73,10 @@ POST _ml/data_frame/analytics/_estimate_memory_usage
 
 The API returns the following results:
 
-[source,js]
+[source,console-result]
 ----
 {
   "expected_memory_without_disk": "128MB",
   "expected_memory_with_disk": "32MB"
 }
 ----
-// TESTRESPONSE

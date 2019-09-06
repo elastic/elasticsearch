@@ -96,13 +96,12 @@ For more details about the job syntax, see <<rollup-job-config>>.
 
 After you execute the above command and create the job, you'll receive the following response:
 
-[source,js]
+[source,console-result]
 ----
 {
   "acknowledged": true
 }
 ----
-// TESTRESPONSE
 
 [float]
 === Starting the job

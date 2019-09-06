@@ -66,7 +66,7 @@ POST /logs_write/_rollover <2>
 
 The above request might return the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "acknowledged": true,
@@ -82,7 +82,7 @@ The above request might return the following response:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+
 <1> Whether the index was rolled over.
 <2> Whether the rollover was dry run.
 <3> The result of each condition.
@@ -162,7 +162,7 @@ GET _alias
 // CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "logs-2016.10.31-000002": {
@@ -175,7 +175,6 @@ GET _alias
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 //////////////////////////
 
@@ -305,7 +304,7 @@ PUT logs/_doc/2 <2>
 <1> configures `my_logs_index` as the write index for the `logs` alias
 <2> newly indexed documents against the `logs` alias will write to the new index
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index" : "my_logs_index-000002",
@@ -322,7 +321,6 @@ PUT logs/_doc/2 <2>
   "_primary_term" : 1
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 //////////////////////////
 [source,js]
@@ -336,7 +334,7 @@ GET _alias
 After the rollover, the alias metadata for the two indices will have the `is_write_index` setting
 reflect each index's role, with the newly created index as the write index.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "my_logs_index-000002": {
@@ -351,4 +349,3 @@ reflect each index's role, with the newly created index as the write index.
   }
 }
 --------------------------------------------------
-// TESTRESPONSE

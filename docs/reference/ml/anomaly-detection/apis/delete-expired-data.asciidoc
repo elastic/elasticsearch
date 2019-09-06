@@ -40,10 +40,10 @@ DELETE _ml/_delete_expired_data
 // TEST
 
 When the expired data is deleted, you receive the following response:
-[source,js]
+
+[source,console-result]
 ----
 {
   "deleted": true
 }
 ----
-// TESTRESPONSE

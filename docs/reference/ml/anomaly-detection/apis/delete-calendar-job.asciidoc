@@ -46,11 +46,10 @@ DELETE _ml/calendars/planned-outages/jobs/total-requests
 When the job is removed from the calendar, you receive the following
 results:
 
-[source,js]
+[source,console-result]
 ----
 {
    "calendar_id": "planned-outages",
    "job_ids": []
 }
 ----
-// TESTRESPONSE

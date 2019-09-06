@@ -107,10 +107,10 @@ POST _ml/datafeeds/datafeed-total-requests/_start
 // TEST[skip:setup:server_metrics_openjob]
 
 When the {dfeed} starts, you receive the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "started": true
 }
 ----
-// TESTRESPONSE

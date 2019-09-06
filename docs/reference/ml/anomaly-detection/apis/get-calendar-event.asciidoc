@@ -86,11 +86,10 @@ The API returns the following information:
 The following example gets information about the scheduled events in the
 `planned-outages` calendar:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ml/calendars/planned-outages/events
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:calendar_outages_addevent]
 
 The API returns the following results:

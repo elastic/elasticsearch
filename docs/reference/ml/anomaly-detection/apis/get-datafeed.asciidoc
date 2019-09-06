@@ -85,11 +85,10 @@ The API returns the following information:
 The following example gets configuration information for the
 `datafeed-total-requests` {dfeed}:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ml/datafeeds/datafeed-total-requests
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:server_metrics_datafeed]
 
 The API returns the following results:

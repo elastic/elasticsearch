@@ -36,7 +36,7 @@ The available conditions are:
 | max_size | The maximum estimated size of the primary shard of the index
 |===
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /logs-000001 <1>
 {
@@ -56,7 +56,6 @@ POST /logs_write/_rollover <2>
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:huge_twitter]
 // TEST[s/# Add > 1000 documents to logs-000001/POST _reindex?refresh\n{"source":{"index":"twitter"},"dest":{"index":"logs-000001"}}/]
 <1> Creates an index called `logs-0000001` with the alias `logs_write`.
@@ -98,7 +97,7 @@ of 6, regardless of the old index name.
 If the old name doesn't match this pattern then you must specify the name for
 the new index as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /my_alias/_rollover/my_new_index_name
 {
@@ -109,7 +108,6 @@ POST /my_alias/_rollover/my_new_index_name
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT my_old_index_name\nPUT my_old_index_name\/_alias\/my_alias\n/]
 
 [float]
@@ -122,7 +120,7 @@ index name to end with a dash followed by a number, e.g.
 `logstash-2016.02.03-1` which is incremented every time the index is rolled
 over. For instance:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 # PUT /<logs-{now/d}-1> with URI encoding:
 PUT /%3Clogs-%7Bnow%2Fd%7D-1%3E <1>
@@ -148,18 +146,17 @@ POST /logs_write/_rollover <2>
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/now/2016.10.31||/]
+
 <1> Creates an index named with today's date (e.g.) `logs-2016.10.31-1`
 <2> Rolls over to a new index with today's date, e.g. `logs-2016.10.31-000002` if run immediately, or `logs-2016.11.01-000002` if run after 24 hours
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _alias
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [source,console-result]
@@ -182,12 +179,11 @@ These indices can then be referenced as described in the
 <<date-math-index-names,date math documentation>>.  For example, to search
 over indices created in the last three days, you could do the following:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 # GET /<logs-{now/d}-*>,<logs-{now/d-1d}-*>,<logs-{now/d-2d}-*>/_search
 GET /%3Clogs-%7Bnow%2Fd%7D-*%3E%2C%3Clogs-%7Bnow%2Fd-1d%7D-*%3E%2C%3Clogs-%7Bnow%2Fd-2d%7D-*%3E/_search
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 // TEST[s/now/2016.10.31||/]
 
@@ -201,7 +197,7 @@ matching <<indices-templates,index templates>>. Additionally, you can specify
 override any values set in matching index templates. For example, the following
 `rollover` request overrides the `index.number_of_shards` setting:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /logs-000001
 {
@@ -222,7 +218,6 @@ POST /logs_write/_rollover
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 ==== Dry run
@@ -230,7 +225,7 @@ POST /logs_write/_rollover
 The rollover API supports `dry_run` mode, where request conditions can be
 checked without performing the actual rollover:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /logs-000001
 {
@@ -248,7 +243,6 @@ POST /logs_write/_rollover?dry_run
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 ==== Wait For Active Shards
@@ -272,7 +266,7 @@ indices that are being managed with Rollover.
 
 Look at the behavior of the aliases in the following example where `is_write_index` is set on the rolled over index.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_logs_index-000001
 {
@@ -300,7 +294,7 @@ PUT logs/_doc/2 <2>
   "message": "a newer log"
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> configures `my_logs_index` as the write index for the `logs` alias
 <2> newly indexed documents against the `logs` alias will write to the new index
 
@@ -323,11 +317,10 @@ PUT logs/_doc/2 <2>
 --------------------------------------------------
 
 //////////////////////////
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _alias
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 //////////////////////////
 

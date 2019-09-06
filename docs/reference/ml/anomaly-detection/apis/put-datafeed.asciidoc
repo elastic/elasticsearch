@@ -114,7 +114,7 @@ see <<ml-datafeed-resource>>.
 
 The following example creates the `datafeed-total-requests` {dfeed}:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ml/datafeeds/datafeed-total-requests
 {
@@ -122,7 +122,6 @@ PUT _ml/datafeeds/datafeed-total-requests
   "indices": ["server-metrics"]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:server_metrics_job]
 
 When the {dfeed} is created, you receive the following results:

@@ -98,11 +98,10 @@ when there are no matches or only partial matches.
 
 The following example closes the `total-requests` job:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/anomaly_detectors/total-requests/_close
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:server_metrics_openjob]
 
 When the job is closed, you receive the following results:

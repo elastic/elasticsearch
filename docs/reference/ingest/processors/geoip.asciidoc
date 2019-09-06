@@ -41,7 +41,7 @@ in `properties`.
 
 Here is an example that uses the default city database and adds the geographical information to the `geoip` field based on the `ip` field:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/geoip
 {
@@ -60,7 +60,6 @@ PUT my_index/_doc/my_id?pipeline=geoip
 }
 GET my_index/_doc/my_id
 --------------------------------------------------
-// CONSOLE
 
 Which returns:
 
@@ -90,7 +89,7 @@ Here is an example that uses the default country database and adds the
 geographical information to the `geo` field based on the `ip` field`. Note that
 this database is included in the module. So this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/geoip
 {
@@ -111,7 +110,6 @@ PUT my_index/_doc/my_id?pipeline=geoip
 }
 GET my_index/_doc/my_id
 --------------------------------------------------
-// CONSOLE
 
 returns this:
 
@@ -143,7 +141,7 @@ occurs, no `target_field` is inserted into the document.
 Here is an example of what documents will be indexed as when information for "80.231.5.0"
 cannot be found:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/geoip
 {
@@ -164,7 +162,6 @@ PUT my_index/_doc/my_id?pipeline=geoip
 
 GET my_index/_doc/my_id
 --------------------------------------------------
-// CONSOLE
 
 Which returns:
 
@@ -194,7 +191,7 @@ as such in the mapping.
 
 You can use the following mapping for the example index above:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_ip_locations
 {
@@ -209,10 +206,9 @@ PUT my_ip_locations
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 ////
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/geoip
 {
@@ -251,7 +247,6 @@ GET /my_ip_locations/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [source,js]

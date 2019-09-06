@@ -60,7 +60,7 @@ of which must have a start time, end time, and description.
 
 You can add scheduled events to the `planned-outages` calendar as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/calendars/planned-outages/events
 {
@@ -71,7 +71,6 @@ POST _ml/calendars/planned-outages/events
   ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:calendar_outages_addjob]
 
 The API returns the following results:

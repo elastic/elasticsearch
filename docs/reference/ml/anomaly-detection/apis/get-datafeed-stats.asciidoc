@@ -89,11 +89,10 @@ The API returns the following information:
 The following example gets usage information for the
 `datafeed-total-requests` {dfeed}:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ml/datafeeds/datafeed-total-requests/_stats
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:server_metrics_startdf]
 
 The API returns the following results:

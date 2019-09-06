@@ -9,7 +9,7 @@ Updates a document using the specified script.
 [[docs-update-api-request]]
 ==== {api-request-title}
 
-`POST /<index/_update/<_id>`
+`POST /<index>/_update/<_id>`
 
 [[update-api-desc]]
 ==== {api-description-title}

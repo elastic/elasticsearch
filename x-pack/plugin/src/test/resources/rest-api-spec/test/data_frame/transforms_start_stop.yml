@@ -30,6 +30,7 @@ setup:
 teardown:
   - do:
       data_frame.stop_data_frame_transform:
+        wait_for_checkpoint: false
         transform_id: "airline-transform-start-stop"
         timeout: "10m"
         wait_for_completion: true
@@ -104,6 +105,7 @@ teardown:
 
   - do:
       data_frame.stop_data_frame_transform:
+        wait_for_checkpoint: false
         transform_id: "airline-transform-start-stop"
         wait_for_completion: true
   - match: { acknowledged: true }
@@ -161,6 +163,7 @@ teardown:
 
   - do:
       data_frame.stop_data_frame_transform:
+        wait_for_checkpoint: false
         transform_id: "airline-transform-start-stop-continuous"
         wait_for_completion: true
   - match: { acknowledged: true }
@@ -186,6 +189,7 @@ teardown:
 
   - do:
       data_frame.stop_data_frame_transform:
+        wait_for_checkpoint: false
         transform_id: "airline-transform-start-stop-continuous"
         wait_for_completion: true
   - match: { acknowledged: true }
@@ -198,18 +202,21 @@ teardown:
   - do:
       catch: missing
       data_frame.stop_data_frame_transform:
+        wait_for_checkpoint: false
         transform_id: "missing-transform"
 
 ---
 "Test stop missing transform by expression":
   - do:
       data_frame.stop_data_frame_transform:
+        wait_for_checkpoint: false
         allow_no_match: true
         transform_id: "missing-transform*"
 
   - do:
       catch: missing
       data_frame.stop_data_frame_transform:
+        wait_for_checkpoint: false
         allow_no_match: false
         transform_id: "missing-transform*"
 
@@ -217,6 +224,7 @@ teardown:
 "Test stop already stopped transform":
   - do:
       data_frame.stop_data_frame_transform:
+        wait_for_checkpoint: false
         transform_id: "airline-transform-start-stop"
   - match: { acknowledged: true }
 
@@ -260,6 +268,7 @@ teardown:
 
   - do:
       data_frame.stop_data_frame_transform:
+        wait_for_checkpoint: false
         transform_id: "airline-transform-start-stop"
         wait_for_completion: true
   - match: { acknowledged: true }
@@ -274,6 +283,7 @@ teardown:
 
   - do:
       data_frame.stop_data_frame_transform:
+        wait_for_checkpoint: false
         transform_id: "airline-transform-start-later"
         wait_for_completion: true
   - match: { acknowledged: true }
@@ -308,6 +318,7 @@ teardown:
 
   - do:
       data_frame.stop_data_frame_transform:
+        wait_for_checkpoint: false
         transform_id: "_all"
         wait_for_completion: true
   - match: { acknowledged: true }

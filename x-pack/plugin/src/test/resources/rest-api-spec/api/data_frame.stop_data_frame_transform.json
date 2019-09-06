@@ -35,6 +35,11 @@
         "type":"boolean",
         "required":false,
         "description":"Whether to ignore if a wildcard expression matches no data frame transforms. (This includes `_all` string or when no data frame transforms have been specified)"
+      },
+      "wait_for_checkpoint": {
+        "type":"boolean",
+        "required":false,
+        "description":"Whether to wait for the transform to reach a checkpoint before stopping. Default to true"
       }
     }
   }

@@ -64,9 +64,14 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         final String endpoint = System.getProperty("test.s3.endpoint");
         if (endpoint != null) {
             settings.put("endpoint", endpoint);
-        }
-        if (randomBoolean()) {
-            settings.put("storage_class", randomFrom("standard", "reduced_redundancy", "standard_ia", "onezone_ia", "intelligent_tiering"));
+        } else {
+            // only test different storage classes when running against the default endpoint, i.e. a genuine S3 service
+            if (randomBoolean()) {
+                final String storageClass
+                    = randomFrom("standard", "reduced_redundancy", "standard_ia", "onezone_ia", "intelligent_tiering");
+                logger.info("--> using storage_class [{}]", storageClass);
+                settings.put("storage_class", storageClass);
+            }
         }
         AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
             .setType("s3")

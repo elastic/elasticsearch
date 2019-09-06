@@ -102,6 +102,12 @@ public final class RepositoryData {
         return new RepositoryData(genId, snapshotIds, snapshotStates, indexSnapshots, shardGenerations);
     }
 
+    /**
+     * Computes the obsolete shard index generations that can be deleted if this instance was written to the repository.
+     *
+     * @param previous Previous RepositoryData
+     * @return Map of obsolete shard index generations
+     */
     public Map<IndexId, Map<Integer, String>> obsoleteShardGenerations(RepositoryData previous) {
         final Map<IndexId, Map<Integer, String>> result = new HashMap<>();
         previous.shardGenerations.forEach(((indexId, oldGens) -> {
@@ -122,6 +128,14 @@ public final class RepositoryData {
         return result;
     }
 
+    /**
+     * Get the generation of the {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob for a given index
+     * and shard.
+     *
+     * @param indexId IndexId
+     * @param shardId Shard Id
+     * @return generation of the {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob
+     */
     public String getShardGen(IndexId indexId, int shardId) {
         final String[] generations = shardGenerations.get(indexId);
         if (generations == null || generations.length == 0) {
@@ -225,6 +239,11 @@ public final class RepositoryData {
 
     /**
      * Remove a snapshot and remove any indices that no longer exist in the repository due to the deletion of the snapshot.
+     *
+     * @param snapshotId              Snapshot Id
+     * @param updatedShardGenerations Shard generations that changed as a result of removing the snapshot.
+     *                                Pass {@code null} when this instance should not track shard generations while the cluster still
+     *                                contains nodes from before {@link SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION}.
      */
     public RepositoryData removeSnapshot(final SnapshotId snapshotId, @Nullable final Map<IndexId, String[]> updatedShardGenerations) {
         assert updatedShardGenerations != null || shardGenerations.values().stream().noneMatch(gens -> gens.length != 0);
@@ -243,8 +262,7 @@ public final class RepositoryData {
             assert snapshotIds != null;
             if (snapshotIds.contains(snapshotId)) {
                 if (snapshotIds.size() == 1) {
-                    // removing the snapshot will mean no more snapshots
-                    // have this index, so just skip over it
+                    // removing the snapshot will mean no more snapshots have this index, so just skip over it
                     continue;
                 }
                 set = new LinkedHashSet<>(snapshotIds);

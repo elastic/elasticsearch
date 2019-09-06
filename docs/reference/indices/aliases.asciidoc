@@ -6,7 +6,7 @@
 
 Adds or removes index aliases.
 
-include::alias-exists.asciidoc[tag=index-alias-def]
+include::{docdir}/glossary.asciidoc[tag=index-alias-def]
 
 [source,console]
 ----

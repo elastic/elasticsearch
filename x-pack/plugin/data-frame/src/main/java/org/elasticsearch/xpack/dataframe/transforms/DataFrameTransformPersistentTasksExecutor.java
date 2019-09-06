@@ -130,8 +130,8 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         // We want the rest of the state to be populated in the task when it is loaded on the node so that users can force start it again
         // later if they want.
 
-        final DataFrameTransformTask.ClientDataFrameIndexerBuilder indexerBuilder =
-            new DataFrameTransformTask.ClientDataFrameIndexerBuilder(transformId)
+        final ClientDataFrameIndexerBuilder indexerBuilder =
+            new ClientDataFrameIndexerBuilder()
                 .setAuditor(auditor)
                 .setClient(client)
                 .setTransformsCheckpointService(dataFrameTransformsCheckpointService)
@@ -203,7 +203,9 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
                 indexerBuilder.setInitialStats(stateAndStats.getTransformStats())
                     .setInitialPosition(stateAndStats.getTransformState().getPosition())
                     .setProgress(stateAndStats.getTransformState().getProgress())
-                    .setIndexerState(currentIndexerState(stateAndStats.getTransformState()));
+                    .setIndexerState(currentIndexerState(stateAndStats.getTransformState()))
+                    // TODO should be obviated in 8.x with DataFrameTransformTaskState::STOPPING
+                    .setShouldStopAtCheckpoint(transformState.shouldStopAtNextCheckpoint());
                 logger.debug("[{}] Loading existing state: [{}], position [{}]",
                     transformId,
                     stateAndStats.getTransformState(),
@@ -211,8 +213,6 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
 
                 stateHolder.set(transformState);
                 final long lastCheckpoint = stateHolder.get().getCheckpoint();
-                // TODO should be obviated in 8.x with DataFrameTransformTaskState::STOPPING
-                buildTask.setShouldStopAtCheckpoint(transformState.shouldStopAtNextCheckpoint());
 
                 if (lastCheckpoint == 0) {
                     logger.trace("[{}] No last checkpoint found, looking for next checkpoint", transformId);
@@ -304,7 +304,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
     }
 
     private void startTask(DataFrameTransformTask buildTask,
-                           DataFrameTransformTask.ClientDataFrameIndexerBuilder indexerBuilder,
+                           ClientDataFrameIndexerBuilder indexerBuilder,
                            Long previousCheckpoint,
                            ActionListener<StartDataFrameTransformTaskAction.Response> listener) {
         buildTask.initializeIndexer(indexerBuilder);

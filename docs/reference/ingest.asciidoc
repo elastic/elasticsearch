@@ -28,7 +28,7 @@ way, the ingest node knows which pipeline to use.
 For example:
 Create a pipeline
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/my_pipeline_id
 {
@@ -43,19 +43,16 @@ PUT _ingest/pipeline/my_pipeline_id
   ]
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 Index with defined pipeline
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my-index/_doc/my-id?pipeline=my_pipeline_id
 {
   "foo": "bar"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Response：

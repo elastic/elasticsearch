@@ -46,7 +46,7 @@ POST _ingest/pipeline/my-pipeline-id/_simulate
 Here is an example of a simulate request with a pipeline defined in the request
 and its response:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ingest/pipeline/_simulate
 {
@@ -80,7 +80,6 @@ POST _ingest/pipeline/_simulate
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 Response:
 
@@ -131,7 +130,7 @@ to the request.
 
 Here is an example of a verbose request and its response:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ingest/pipeline/_simulate?verbose
 {
@@ -171,7 +170,6 @@ POST _ingest/pipeline/_simulate?verbose
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 Response:
 

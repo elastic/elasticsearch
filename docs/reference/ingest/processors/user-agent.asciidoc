@@ -23,7 +23,7 @@ The ingest-user-agent module ships by default with the regexes.yaml made availab
 
 Here is an example that adds the user agent details to the `user_agent` field based on the `agent` field:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/user_agent
 {
@@ -42,7 +42,6 @@ PUT my_index/_doc/my_id?pipeline=user_agent
 }
 GET my_index/_doc/my_id
 --------------------------------------------------
-// CONSOLE
 
 Which returns
 

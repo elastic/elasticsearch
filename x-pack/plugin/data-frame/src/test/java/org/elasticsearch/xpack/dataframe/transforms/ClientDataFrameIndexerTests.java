@@ -46,7 +46,7 @@ public class ClientDataFrameIndexerTests extends ESTestCase {
             mock(DataFrameAuditor.class),
             threadPool,
             Collections.emptyMap());
-        DataFrameTransformTask.ClientDataFrameIndexer indexer = new DataFrameTransformTask.ClientDataFrameIndexer(randomAlphaOfLength(10),
+        ClientDataFrameIndexer indexer = new ClientDataFrameIndexer(
             mock(DataFrameTransformsConfigManager.class),
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),
@@ -67,7 +67,8 @@ public class ClientDataFrameIndexerTests extends ESTestCase {
                 2L,
                 Collections.emptyMap(),
                 Instant.now().toEpochMilli()),
-            parentTask);
+            parentTask,
+            false);
 
         List<Boolean> shouldAudit = IntStream.range(0, 100_000).boxed().map(indexer::shouldAuditOnFinish).collect(Collectors.toList());
 

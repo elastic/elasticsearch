@@ -39,11 +39,10 @@ For more information, see
 
 The following example checks whether you are eligible to start a trial:
 
-[source,js]
+[source,console]
 ------------------------------------------------------------
 GET /_license/trial_status
 ------------------------------------------------------------
-// CONSOLE
 
 Example response:
 [source,js]

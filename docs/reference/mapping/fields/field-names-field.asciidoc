@@ -20,7 +20,7 @@ which have `doc_values` and `norms` disabled and you do not need to
 execute `exists` queries using those fields you might want to disable
 `_field_names` be adding the following to the mappings:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT tweets
 {
@@ -31,4 +31,3 @@ PUT tweets
   }
 }
 --------------------------------------------------
-// CONSOLE

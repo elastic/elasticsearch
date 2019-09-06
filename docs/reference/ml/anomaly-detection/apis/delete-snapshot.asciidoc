@@ -41,11 +41,10 @@ the `model_snapshot_id` in the results from the get jobs API.
 
 The following example deletes the `1491948163` snapshot:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE _ml/anomaly_detectors/farequote/model_snapshots/1491948163
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:todo]
 
 When the snapshot is deleted, you receive the following results:

@@ -59,11 +59,10 @@ separated list.
 
 The following example deletes the `total-requests` job:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE _ml/anomaly_detectors/total-requests
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:server_metrics_job]
 
 When the job is deleted, you receive the following results:
@@ -77,11 +76,10 @@ When the job is deleted, you receive the following results:
 
 In the next example we delete the `total-requests` job asynchronously:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE _ml/anomaly_detectors/total-requests?wait_for_completion=false
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:server_metrics_job]
 
 When `wait_for_completion` is set to `false`, the response contains the id

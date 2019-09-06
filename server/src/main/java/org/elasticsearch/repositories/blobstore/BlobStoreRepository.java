@@ -481,29 +481,35 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     ActionListener.map(allShardsListener, s -> new Tuple<>(finalShardId, s)));
                             }
                         } else {
-                            // TODO: This might leak data for indices without metadata and must then be cleaned up via the cleanup EP,
-                            //       fix this by not requiring indexMetaData here in the first place
+                            // Just invoke the listener without any shard generations to count it down, this index will be cleaned up
+                            // by the stale data cleanup in the end.
                             deleteIdxMetaListener.onResponse(new Tuple<>(indexId, null));
                         }
                     }));
             }
         }
-        final StepListener<Collection<Void>> shardsCleanedUpListener = new StepListener<>();
+        final StepListener<Void> shardsCleanedUpListener = new StepListener<>();
         deleteFromMetaListener.whenComplete(newGens -> {
             final RepositoryData newRepoData = repositoryData.removeSnapshot(snapshotId, newGens.entrySet().stream().collect(
                 Collectors.toMap(Map.Entry::getKey, entry -> Arrays.stream(entry.getValue()).map(Tuple::v1).toArray(String[]::new))));
             writeIndexGen(newRepoData, repositoryStateId, version);
-            final int shardTotal = newGens.values().stream().mapToInt(g -> g.length).sum();
-            if (shardTotal == 0) {
-                shardsCleanedUpListener.onResponse(Collections.emptyList());
-            } else {
-                final GroupedActionListener<Void> cleanupShardsListener = new GroupedActionListener<>(shardsCleanedUpListener, shardTotal);
-                newGens.forEach((indexId, gens) -> {
-                    for (int i = 0; i < gens.length; i++) {
-                        cleanupShardSnapshot(indexId, i, gens[i].v2(), cleanupShardsListener);
+            final int basePathLen = basePath().buildAsString().length();
+            final List<String> allBlobsToDelete = newGens.entrySet().stream().flatMap(entry -> {
+                final ArrayList<String> allInIndex = new ArrayList<>();
+                final Tuple<String, String[]>[] shardBlobs = entry.getValue();
+                for (int i = 0; i < shardBlobs.length; i++) {
+                    final String pathToShard = shardContainer(entry.getKey(), i).path().buildAsString().substring(basePathLen);
+                    final String[] toDeleteInShard = shardBlobs[i].v2();
+                    for (String blob : toDeleteInShard) {
+                        allInIndex.add(pathToShard + blob);
                     }
-                });
-            }
+                }
+                return allInIndex.stream();
+            }).collect(Collectors.toList());
+            ActionListener.completeWith(shardsCleanedUpListener, () -> {
+                blobContainer().deleteBlobsIgnoringIfNotExists(allBlobsToDelete);
+                return null;
+            });
             shardsCleanedUpListener.whenComplete(v -> cleanupStaleBlobs(
                 foundIndices, rootBlobs, newRepoData, newRepoData.getIndices().values(), listener), listener::onFailure);
         }, listener::onFailure);
@@ -1138,7 +1144,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         "Failed to finalize snapshot creation [" + snapshotId + "] with shard index ["
                             + indexShardSnapshotsFormat.blobName(indexGeneration) + "]", e);
                 }
-                // TODO: Add deleting of old index-N via bulk on master
                 snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis(), indexGeneration);
                 snapshotDoneListener.onResponse(indexGeneration);
             }, snapshotDoneListener::onFailure);
@@ -1321,21 +1326,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 "Failed to finalize snapshot deletion [" + snapshotId + "] with shard index ["
                     + indexShardSnapshotsFormat.blobName(indexGeneration) + "]", e);
         }
-    }
-
-    /**
-     * Delete shard snapshot
-     */
-    private void cleanupShardSnapshot(IndexId indexId, int snapshotShardId, String[] blobsToDelete, ActionListener<Void> listener) {
-        ActionListener.completeWith(listener, () -> {
-            final BlobContainer shardContainer = shardContainer(indexId, snapshotShardId);
-            try {
-                shardContainer.deleteBlobsIgnoringIfNotExists(Arrays.asList(blobsToDelete));
-            } catch (IOException e) {
-                logger.warn(() -> new ParameterizedMessage("[{}] failed to delete blobs during shard cleanup", snapshotShardId), e);
-            }
-            return null;
-        });
     }
 
     private static List<SnapshotFiles> newSnapshotsList(RepositoryData repositoryData, IndexId indexId,

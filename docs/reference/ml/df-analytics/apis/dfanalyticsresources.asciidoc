@@ -200,7 +200,7 @@ paper.
 
 [source,js]
 --------------------------------------------------
-PUT _ml/data_frame/analytics/wine_quality_white
+PUT _ml/data_frame/analytics/wine_quality_white_analytics
 {
   "source": {
     "index": "wine_quality_white"

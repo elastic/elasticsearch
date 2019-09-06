@@ -184,7 +184,7 @@ GET /queries/_search
 
 now returns matches from the new index:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 3,
@@ -379,7 +379,7 @@ GET /test_index/_search
 
 This results in a response like this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 6,
@@ -539,7 +539,7 @@ GET /my_queries1/_search
 // CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 6,

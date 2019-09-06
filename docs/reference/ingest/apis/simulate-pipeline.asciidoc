@@ -84,7 +84,7 @@ POST _ingest/pipeline/_simulate
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "docs": [
@@ -175,7 +175,7 @@ POST _ingest/pipeline/_simulate?verbose
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "docs": [

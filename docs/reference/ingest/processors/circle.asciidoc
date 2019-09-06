@@ -72,7 +72,7 @@ GET circles/_doc/1
 
 The response from the above index request:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
@@ -111,7 +111,7 @@ GET circles/_doc/2
 
 The response from the above index request:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,

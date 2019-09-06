@@ -46,7 +46,8 @@ GET /_license/trial_status
 // CONSOLE
 
 Example response:
-[source,js]
+
+[source,console-result]
 ------------------------------------------------------------
 {
   "eligible_to_start_trial": true

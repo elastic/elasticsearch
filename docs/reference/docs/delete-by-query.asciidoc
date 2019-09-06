@@ -27,7 +27,7 @@ POST /twitter/_delete_by_query
 
 ////
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took" : 147,
@@ -261,7 +261,7 @@ POST /twitter/_delete_by_query
 
 The JSON response looks like this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took" : 147,

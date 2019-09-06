@@ -47,7 +47,7 @@ PUT /myindex/_doc/1?pipeline=monthlyindex
 // CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index" : "myindex-2016-04-01",
@@ -104,7 +104,7 @@ POST _ingest/pipeline/_simulate
 
 and the result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "docs" : [

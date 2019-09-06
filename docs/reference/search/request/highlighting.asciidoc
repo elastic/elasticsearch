@@ -851,7 +851,7 @@ GET twitter/_search
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -910,7 +910,7 @@ GET twitter/_search
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...

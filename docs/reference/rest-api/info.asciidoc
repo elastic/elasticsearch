@@ -48,7 +48,8 @@ GET /_xpack
 // CONSOLE
 
 Example response:
-[source,js]
+
+[source,console-result]
 ------------------------------------------------------------
 {
    "build" : {

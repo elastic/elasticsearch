@@ -278,7 +278,7 @@ GET test/_doc/2
 // CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index": "test",
@@ -473,7 +473,7 @@ GET test/_doc/2
 // CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index": "test",
@@ -597,7 +597,7 @@ GET test/_doc/1
 // TEST[continued]
 ////
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index": "test",

@@ -105,7 +105,7 @@ GET my_index/_search
 // CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took" : 44,

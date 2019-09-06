@@ -68,7 +68,7 @@ entries. Each entry is effectively a token from the suggest text and
 contains the suggestion entry text, the original start offset and length
 in the suggest text and if found an arbitrary number of options.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_shards": ...

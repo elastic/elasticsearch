@@ -19,7 +19,8 @@ Evaluation configuration objects relate to the <<evaluate-dfanalytics>>.
   value corresponds to the query object in an {es} search POST body. All the 
   options that are supported by {es} can be used, as this object is passed 
   verbatim to {es}. By default, this property has the following value: 
-  `{"match_all": {}}`.
+  `{"match_all": {}}`. The evaluation only applies to those documents of the 
+  index that match the query.
 
 
 [[binary-sc-resources]]

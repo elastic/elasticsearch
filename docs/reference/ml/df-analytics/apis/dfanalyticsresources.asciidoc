@@ -134,38 +134,69 @@ A `{regression}` configuration object has the following properties:
 
 `dependent_variable`::
   (Required, string) Defines which field of the {dataframe} is to be predicted. 
-  The data type of the field must be numeric. It is also known as continuous 
-  target variable.
+  This parameter is supplied by field name and must match one of the fields in 
+  the index being used to train. If this field is missing from a document that 
+  row will not be used for training, but a prediction with the trained model 
+  will be generated for it. The data type of the field must be numeric. It is 
+  also known as continuous target variable.  
 
 `eta`::
-  (Optional, double) The shrinkage applied to the weights. 
+  (Optional, double) The shrinkage applied to the weights. Smaller values result 
+  in larger forests which have better generalization error. However, the smaller 
+  the value the longer the training will take and the inference will also be 
+  larger and slower. For more information, see 
+  https://en.wikipedia.org/wiki/Gradient_boosting#Shrinkage[this wiki article] 
+  about shrinkage.
 
 `feature_bag_fraction`::
   (Optional, double) Defines the fraction of features which will be used when 
-  selecting a random bag for each candidate split. 
-
-`gamma`::
-  (Optional, double) A regularization parameter associated with tree training. 
-  Defines a linear penalty associated with tree size. A higher value means 
-  training will prefer smaller trees. It aims to prevent overfitting.
-  
-`lambda`::
-  (Optional, double) A regularization parameters associated with tree training. 
-  It is the L2 regularization term which applies to leaf weights of the 
-  individual trees in the forest. It aims to prevent overfitting.
+  selecting a random bag for each candidate split.
   
 `maximum_number_trees`::
   (Optional, integer) Defines the maximum number of trees the forest is 
   allowed to contain. The maximum value is 2000.
-  
+    
 `prediction_field_name`::
   (Optional, string) Defines the name of the prediction field in the results. 
   Defaults to `<dependent_variable>_prediction`.
-  
+    
 `training_percent`::
   (Optional, integer) Defines what percentage of the data rows that are 
   eligible for training. Defaults to `100`.
 
+
+===== {regression-cap} regularization parameters
+
+Regularization parameters are constant multipliers of a regularization term 
+added to the optimization objective. They aim to prevent overfitting on the 
+training data set and improve generalization performance. These parameters are 
+calculated and set automatically by 
+<<ml-hyperparameter-optimization,hyperparameter optimization>> if you don't 
+supply their values manually. For more 
+information about regularization parameters and optimization, read the 
+https://arxiv.org/pdf/1603.02754.pdf[**XGBoost: A Scalable Tree Boosting System**] 
+paper. 
+
+`gamma`::
+  (Optional, double) It multiplies a linear penalty associated with the size of 
+  individual trees in the forest. The higher the value the more training will 
+  prefer smaller trees. This will reduce the number of distinct values the 
+  prediction function can take. To have an effect, `gamma` value must be 
+  comparable to the reduction in the expected loss for splitting the data. The 
+  smaller this parameter the larger individual trees will be. This will result 
+  in slower train time and larger models for which inference is slower.
+
+`lambda`::
+  (Optional, double) Multiplies an L2 regularisation term which applies to leaf 
+  weights of the individual trees in the forest. The higher the value the more 
+  training will attempt to keep leaf weights small. This makes the prediction 
+  function smoother at the expense of potentially not being able to capture 
+  relevant relationships between the features and the {depvar}. To have an 
+  effect, `lambda` value must be comparable to the reduction in the expected 
+  loss for splitting the training data. The smaller this parameter the larger 
+  individual trees will be. This results in slower train time and larger models 
+  for which inference is slower.
+  
 
 [source,js]
 --------------------------------------------------
@@ -187,3 +218,22 @@ PUT _ml/data_frame/analytics/wine_quality_white
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:setup_wine_quality_white]
+
+
+[[ml-hyperparameter-optimization]]
+===== Hyperparameter optimization
+
+If you don't supply {regression} parameters, hyperparameter optimization will be 
+performed by default to set a value for the undefined parameters. The starting 
+point is calculated for data dependent parameters by examining the loss on the 
+training data. Subject to the size constraint, this operation provides an upper 
+bound on the improvement in validation loss.
+
+A fixed number of rounds is used for optimization which depends on the number of 
+parameters being optimized. The optimitazion starts with random search, then 
+Bayesian Optimisation is performed that is targeting maximum expected 
+improvement. If you override any parameters, then the optimization will 
+calculate the value of the remaining parameters accordingly and use the value 
+you provided for the overridden parameter. The number of rounds are reduced 
+respectively. The validation error is estimated in each round by using 4-fold 
+cross validation.

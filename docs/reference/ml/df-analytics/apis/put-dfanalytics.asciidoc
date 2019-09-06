@@ -226,6 +226,7 @@ The API returns the following result:
   "analysis" : {
     "regression" : {
       "dependent_variable" : "quality"
+      "training_percent" : 100
     }
   },
   "model_memory_limit" : "1gb",

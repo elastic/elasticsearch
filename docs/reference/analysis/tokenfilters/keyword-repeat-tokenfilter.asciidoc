@@ -52,7 +52,7 @@ POST /keyword_repeat_example/_analyze
 
 And it'd respond:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "tokens": [
@@ -87,7 +87,6 @@ And it'd respond:
   ]
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 Which preserves both the `cat` and `cats` tokens. Compare this to the example
 on the <<analysis-keyword-marker-tokenfilter>>.

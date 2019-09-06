@@ -45,10 +45,10 @@ DELETE _ml/calendars/planned-outages
 // TEST[skip:setup:calendar_outages]
 
 When the calendar is deleted, you receive the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "acknowledged": true
 }
 ----
-// TESTRESPONSE

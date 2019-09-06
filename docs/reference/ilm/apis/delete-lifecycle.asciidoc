@@ -76,11 +76,9 @@ DELETE _ilm/policy/my_policy
 
 When the policy is successfully deleted, you receive the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "acknowledged": true
 }
 --------------------------------------------------
-// CONSOLE
-// TESTRESPONSE

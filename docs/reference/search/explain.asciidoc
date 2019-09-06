@@ -26,7 +26,7 @@ GET /twitter/_explain/0
 
 This will yield the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "_index":"twitter",
@@ -99,7 +99,6 @@ This will yield the following result:
    }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 There is also a simpler way of specifying the query via the `q`
 parameter. The specified `q` parameter value is then parsed as if the

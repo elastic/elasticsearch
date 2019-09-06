@@ -196,7 +196,7 @@ POST test/_doc/1?pipeline=drop_guests_network
 
 Results in nothing indexed since the conditional evaluated to `true`.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index": "test",
@@ -211,7 +211,6 @@ Results in nothing indexed since the conditional evaluated to `true`.
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 
 [[ingest-conditional-nullcheck]]

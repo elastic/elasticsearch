@@ -185,7 +185,7 @@ GET icu_sample/_analyze
 
 The above `analyze` request returns the following:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "tokens": [
@@ -199,7 +199,7 @@ The above `analyze` request returns the following:
    ]
 }
 --------------------------------------------------
-// TESTRESPONSE
+
 
 [[analysis-icu-normalization]]
 ==== ICU Normalization Token Filter

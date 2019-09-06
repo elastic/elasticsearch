@@ -49,6 +49,7 @@ PUT range_index/_doc/1?refresh
   }
 }
 --------------------------------------------------
+// TESTSETUP
 
 <1> `date_range` types accept the same field parameters defined by the <<date, `date`>> type.
 <2> Example indexing a meeting with 10 to 20 attendees.

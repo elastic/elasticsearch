@@ -36,11 +36,10 @@ Deletes {anomaly-jobs} from a calendar.
 The following example removes the association between the `planned-outages`
 calendar and `total-requests` job:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE _ml/calendars/planned-outages/jobs/total-requests
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:calendar_outages_addjob]
 
 When the job is removed from the calendar, you receive the following

@@ -37,11 +37,10 @@ what those defaults are.
 
 The endpoint takes no arguments:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ml/info
 --------------------------------------------------
-// CONSOLE
 // TEST
 
 This is a possible response:

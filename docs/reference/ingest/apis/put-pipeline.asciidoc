@@ -3,7 +3,7 @@
 
 The put pipeline API adds pipelines and updates existing pipelines in the cluster.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/my-pipeline-id
 {
@@ -18,15 +18,13 @@ PUT _ingest/pipeline/my-pipeline-id
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_ingest/pipeline/my-pipeline-id
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [source,console-result]

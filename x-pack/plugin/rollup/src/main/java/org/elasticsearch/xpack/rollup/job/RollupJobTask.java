@@ -181,7 +181,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
 
         // If initial position is not null, we are resuming rather than starting fresh.
         IndexerState indexerState = IndexerState.STOPPED;
-        if (initialPosition != null) {
+        if (initialIndexerState != null) {
             logger.debug("We have existing state, setting state to [" + initialIndexerState + "] " +
                 "and current position to [" + initialPosition + "] for job [" + job.getConfig().getId() + "]");
             if (initialIndexerState.equals(IndexerState.INDEXING)) {

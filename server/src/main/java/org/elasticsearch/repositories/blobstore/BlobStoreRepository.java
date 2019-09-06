@@ -109,7 +109,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -427,12 +426,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             .map(updatedRepositoryData::resolveIndexId).collect(Collectors.toList()))
                         .orElse(Collections.emptyList()),
                     snapshotId,
-                    ActionListener.map(listener, v -> {
-                        cleanupStaleBlobs(foundIndices, Sets.difference(rootBlobs, new HashSet<>(snapMetaFilesToDelete)),
-                            updatedRepositoryData, survivingIndices);
-                        return null;
-                    })
-                );
+                    ActionListener.delegateFailure(listener, (l, v) -> cleanupStaleBlobs(foundIndices,
+                        Sets.difference(rootBlobs, new HashSet<>(snapMetaFilesToDelete)),
+                        updatedRepositoryData, survivingIndices.values(), l)));
             } else {
                 doDeleteShardSnapshot(snapshotId, repositoryStateId, version, foundIndices, rootBlobs, repositoryData, listener);
             }
@@ -491,37 +487,39 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }));
             }
         }
+        final StepListener<Collection<Void>> shardsCleanedUpListener = new StepListener<>();
         deleteFromMetaListener.whenComplete(newGens -> {
             final RepositoryData newRepoData = repositoryData.removeSnapshot(snapshotId, newGens.entrySet().stream().collect(
                 Collectors.toMap(Map.Entry::getKey, entry -> Arrays.stream(entry.getValue()).map(Tuple::v1).toArray(String[]::new))));
             writeIndexGen(newRepoData, repositoryStateId, version);
             final int shardTotal = newGens.values().stream().mapToInt(g -> g.length).sum();
             if (shardTotal == 0) {
-                ActionListener.completeWith(listener, () -> {
-                    cleanupStaleBlobs(foundIndices, rootBlobs, newRepoData, newRepoData.getIndices());
-                    return null;
-                });
+                shardsCleanedUpListener.onResponse(Collections.emptyList());
             } else {
-                final GroupedActionListener<Void> cleanupShardsListener = new GroupedActionListener<>(
-                    ActionListener.map(listener, v -> {
-                        cleanupStaleBlobs(foundIndices, rootBlobs, newRepoData, newRepoData.getIndices());
-                        return null;
-                    }), shardTotal);
+                final GroupedActionListener<Void> cleanupShardsListener = new GroupedActionListener<>(shardsCleanedUpListener, shardTotal);
                 newGens.forEach((indexId, gens) -> {
                     for (int i = 0; i < gens.length; i++) {
                         cleanupShardSnapshot(newRepoData, indexId, i, gens[i], cleanupShardsListener);
                     }
                 });
             }
+            shardsCleanedUpListener.whenComplete(v -> cleanupStaleBlobs(
+                foundIndices, rootBlobs, newRepoData, newRepoData.getIndices().values(), listener), listener::onFailure);
         }, listener::onFailure);
     }
 
     private void cleanupStaleBlobs(Map<String, BlobContainer> foundIndices, Set<String> rootBlobs, RepositoryData newRepoData,
-                                   Map<String, IndexId> indices) {
-        cleanupStaleIndices(foundIndices, indices.values().stream()
-            .map(IndexId::getId).collect(Collectors.toSet()));
-        cleanupStaleRootFiles(
-            staleRootBlobs(newRepoData, rootBlobs));
+                                   Collection<IndexId> indices, ActionListener<Void> listener) {
+        final GroupedActionListener<Void> afterCleanup = new GroupedActionListener<>(ActionListener.map(listener, v -> null), 2);
+        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+        executor.execute(ActionRunnable.wrap(afterCleanup, l -> {
+            cleanupStaleIndices(foundIndices, indices.stream().map(IndexId::getId).collect(Collectors.toSet()));
+            l.onResponse(null);
+        }));
+        executor.execute(ActionRunnable.wrap(afterCleanup, l -> {
+            cleanupStaleRootFiles(staleRootBlobs(newRepoData, rootBlobs));
+            l.onResponse(null);
+        }));
     }
 
     /**
@@ -1330,9 +1328,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private void cleanupShardSnapshot(RepositoryData repositoryData, IndexId indexId, int snapshotShardId,
                                       Tuple<String, BlobStoreIndexShardSnapshots> state, ActionListener<Void> listener) {
         ActionListener.completeWith(listener, () -> {
-            assert Objects.equals(repositoryData.getShardGen(indexId, snapshotShardId), state.v1());
-            final String shardGen = state.v1();
+            final String shardGen = repositoryData.getShardGen(indexId, snapshotShardId);
             final BlobContainer shardContainer = shardContainer(indexId, snapshotShardId);
+            // TODO: This is not safe ... we are listing after writing out the new repository metadata
             final Map<String, BlobMetaData> blobs = shardContainer.listBlobs();
             BlobStoreIndexShardSnapshots snapshots = state.v2();
 
@@ -1341,7 +1339,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             try {
                 final List<String> blobsToDelete;
                 if (newSnapshotsList.isEmpty()) {
-                    // If we deleted all snapshots, we don't need to create a new index file and simply delete all the blobs we found
                     blobsToDelete = List.copyOf(blobs.keySet());
                 } else {
                     final Set<String> survivingSnapshotUUIDs = repositoryData.getSnapshots(indexId).stream().map(SnapshotId::getUUID)

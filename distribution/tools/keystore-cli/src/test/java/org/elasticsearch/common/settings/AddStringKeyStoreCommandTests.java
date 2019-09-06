@@ -19,6 +19,9 @@
 
 package org.elasticsearch.common.settings;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import org.elasticsearch.cli.Command;
@@ -30,12 +33,19 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 
 public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
+    InputStream input;
+
     @Override
     protected Command newCommand() {
         return new AddStringKeyStoreCommand() {
             @Override
             protected Environment createEnv(Map<String, String> settings) throws UserException {
                 return env;
+            }
+
+            @Override
+            InputStream getStdin() {
+                return input;
             }
         };
     }
@@ -137,7 +147,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         String password = "keystorepassword";
         KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
         terminal.addSecretInput(password);
-        terminal.addSecretInput("secret value 1");
+        setInput("secret value 1");
         execute("-x", "foo");
         assertSecureString("foo", "secret value 1", password);
     }
@@ -146,7 +156,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         String password = "keystorepassword";
         KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
         terminal.addSecretInput(password);
-        terminal.addSecretInput("secret value 2");
+        setInput("secret value 2");
         execute("--stdin", "foo");
         assertSecureString("foo", "secret value 2", password);
     }
@@ -180,5 +190,9 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         // will not be prompted for a password
         execute("foo");
         assertSecureString("foo", "bar", password);
+    }
+
+    void setInput(String inputStr) {
+        input = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
     }
 }

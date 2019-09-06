@@ -33,9 +33,8 @@ then
       exit 1
     fi
   else
-    # read from standard input
     if ! read -s -p "Elasticsearch keystore password: " KEYSTORE_PASSWORD ; then
-      echo "Failed to read keystore password on standard input" 1>&2
+      echo "Failed to read keystore password on console" 1>&2
       exit 1
     fi
     echo

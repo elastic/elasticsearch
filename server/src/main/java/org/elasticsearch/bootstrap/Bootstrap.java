@@ -26,7 +26,6 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.StringHelper;
@@ -51,8 +50,10 @@ import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URISyntaxException;
@@ -229,11 +230,6 @@ final class Bootstrap {
     }
 
     static SecureSettings loadSecureSettings(Environment initialEnv) throws BootstrapException {
-        return loadSecureSettings(initialEnv, Terminal.DEFAULT);
-    }
-
-    /** visible for testing */
-    static SecureSettings loadSecureSettings(Environment initialEnv, Terminal terminal) throws BootstrapException {
         final KeyStoreWrapper keystore;
         try {
             keystore = KeyStoreWrapper.load(initialEnv.configFile());
@@ -241,8 +237,19 @@ final class Bootstrap {
             throw new BootstrapException(e);
         }
 
-        // Startup scripts always provide a password string
-        try (SecureString password = new SecureString(terminal.readSecret(""))) {
+        char[] passChars;
+        try (BufferedReader b = new BufferedReader(new InputStreamReader(System.in))) {
+            // TODO[wrb]: we should avoid storing this value in a string
+            String s = null;
+            if (keystore != null && keystore.hasPassword()) {
+                s = b.readLine();
+            }
+            passChars = s == null ? new char[0] : s.toCharArray();
+        } catch (IOException e) {
+            throw new BootstrapException(e);
+        }
+
+        try (SecureString password = new SecureString(passChars)) {
             if (keystore == null) {
                 final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
                 keyStoreWrapper.save(initialEnv.configFile(), new char[0]);

@@ -19,6 +19,10 @@
 
 package org.elasticsearch.common.settings;
 
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 import joptsimple.OptionSet;
@@ -44,6 +48,11 @@ class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
         this.arguments = parser.nonOptions("setting name");
     }
 
+    // pkg private so tests can manipulate
+    InputStream getStdin() {
+        return System.in;
+    }
+
     @Override
     protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
         String setting = arguments.value(options);
@@ -60,7 +69,8 @@ class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
 
         final char[] value;
         if (options.has(stdinOption)) {
-            value = terminal.readSecret("");
+            BufferedReader stdinReader = new BufferedReader(new InputStreamReader(getStdin(), StandardCharsets.UTF_8));
+            value = stdinReader.readLine().toCharArray();
         } else {
             value = terminal.readSecret("Enter value for " + setting + ": ");
         }

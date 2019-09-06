@@ -121,7 +121,7 @@ and mappings.
 [[ml-put-dfanalytics-example]]
 ==== {api-examples-title}
 
-[ml-put-dfanalytics-example-od]
+[[ml-put-dfanalytics-example-od]]
 ===== {oldetection-cap} example
 
 The following example creates the `loganalytics` {dfanalytics-job}, the analysis 
@@ -177,7 +177,7 @@ The API returns the following result:
 // TESTRESPONSE[s/"version": "8.0.0"/"version": $body.version/]
 
 
-[ml-put-dfanalytics-example-r]
+[[ml-put-dfanalytics-example-r]]
 ===== {regression-cap} example
 
 The following example creates the `wine_quality_white` {dfanalytics-job}, the 

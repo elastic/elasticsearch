@@ -627,12 +627,12 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         createIndex(indexName, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build());
         internalCluster().ensureAtLeastNumDataNodes(2);
         ensureGreen(indexName);
-        IndexResponse doc = index(indexName, "_doc", "1", "{\"user\": \"xyz\"}");
+        IndexResponse doc = index(indexName, "_doc", "1", Map.of("user", "xyz"));
         assertThat(doc.getShardInfo().getSuccessful(), equalTo(2));
         final BulkResponse bulkResponse = client().prepareBulk()
-            .add(new UpdateRequest().index(indexName).id("1").detectNoop(true).doc("{\"user\": \"xyz\"}", XContentType.JSON))
-            .add(new UpdateRequest().index(indexName).id("2").docAsUpsert(false).doc("{}", XContentType.JSON))
-            .add(new DeleteRequest().index(indexName).id("2")) // not found
+            .add(new UpdateRequest().index(indexName).id("1").detectNoop(true).doc("user", "xyz")) // noop update
+            .add(new UpdateRequest().index(indexName).id("2").docAsUpsert(false).doc("f", "v")) // not_found update
+            .add(new DeleteRequest().index(indexName).id("2")) // not_found delete
             .get();
         assertThat(bulkResponse.getItems(), arrayWithSize(3));
 

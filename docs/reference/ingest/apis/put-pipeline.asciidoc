@@ -29,13 +29,12 @@ DELETE /_ingest/pipeline/my-pipeline-id
 // CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
 "acknowledged": true
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 //////////////////////////
 

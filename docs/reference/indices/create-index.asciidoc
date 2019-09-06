@@ -169,7 +169,7 @@ By default, index creation will only return a response to the client when the pr
 each shard have been started, or the request times out. The index creation response will indicate
 what happened:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "acknowledged": true,
@@ -177,7 +177,6 @@ what happened:
     "index": "test"
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 `acknowledged` indicates whether the index was successfully created in the cluster, while
 `shards_acknowledged` indicates whether the requisite number of shard copies were started for

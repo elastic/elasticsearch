@@ -106,10 +106,10 @@ POST _ml/anomaly_detectors/total-requests/_close
 // TEST[skip:setup:server_metrics_openjob]
 
 When the job is closed, you receive the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "closed": true
 }
 ----
-// TESTRESPONSE

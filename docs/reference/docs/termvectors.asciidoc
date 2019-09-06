@@ -409,7 +409,7 @@ GET /imdb/_termvectors
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "_index": "imdb",
@@ -446,4 +446,3 @@ Response:
    }
 }
 --------------------------------------------------
-// TESTRESPONSE

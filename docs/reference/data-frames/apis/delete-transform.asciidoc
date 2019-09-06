@@ -53,10 +53,10 @@ DELETE _data_frame/transforms/ecommerce_transform
 // TEST[skip:setup kibana sample data]
 
 When the {dataframe-transform} is deleted, you receive the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "acknowledged" : true
 }
 ----
-// TESTRESPONSE

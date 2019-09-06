@@ -83,13 +83,12 @@ POST _ml/set_upgrade_mode?enabled=true&timeout=10m
 
 When the call is successful, an acknowledged response is returned. For example:
 
-[source,js]
+[source,console-result]
 ----
 {
   "acknowledged": true
 }
 ----
-// TESTRESPONSE
 
 The acknowledged response will only be returned once all {ml} jobs and {dfeeds} have
 finished writing to the {ml} internal indices. This means it is safe to reindex those

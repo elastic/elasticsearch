@@ -149,7 +149,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
 
-        String password = "string&exit"; // code insertion on Windows
+        String password = "^|<>\\&exit"; // code insertion on Windows
 
         rmKeystoreIfExists();
         createKeystore();

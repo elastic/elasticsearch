@@ -143,7 +143,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Archives.runElasticsearch(installation, sh, "wrong");
     }
 
-    // fails on windows
     public void test42KeystorePasswordWithSpecialChars() throws Exception {
         assumeTrue("packages will use systemd, which doesn't handle stdin",
             distribution.isArchive());

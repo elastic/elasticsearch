@@ -59,7 +59,7 @@ GET _ilm/status
 
 If the request does not encounter errors, you receive the following result:
 
-[source,console-response]
+[source,console-result]
 --------------------------------------------------
 {
   "operation_mode": "RUNNING"
@@ -101,7 +101,7 @@ GET _ilm/status
 // TEST[continued]
 ////
 
-[source,console-response]
+[source,console-result]
 --------------------------------------------------
 {
   "operation_mode": "STOPPING"
@@ -123,7 +123,7 @@ GET _ilm/status
 // TEST[continued]
 ////
 
-[source,console-response]
+[source,console-result]
 --------------------------------------------------
 {
   "operation_mode": "STOPPED"

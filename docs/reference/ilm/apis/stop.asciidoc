@@ -78,7 +78,7 @@ POST _ilm/stop
 
 If the request does not encounter errors, you receive the following result:
 
-[source,console-response]
+[source,console-result]
 --------------------------------------------------
 {
   "acknowledged": true

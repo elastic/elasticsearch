@@ -104,7 +104,7 @@ POST _ilm/move/my_index
 
 If the request succeeds, you receive the following result:
 
-[source,console-response]
+[source,console-result]
 --------------------------------------------------
 {
   "acknowledged": true

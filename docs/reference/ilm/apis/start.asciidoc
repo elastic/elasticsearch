@@ -74,7 +74,7 @@ POST _ilm/start
 
 If the request succeeds, you receive the following result:
 
-[source,console-response]
+[source,console-result]
 --------------------------------------------------
 {
   "acknowledged": true

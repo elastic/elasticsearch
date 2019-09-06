@@ -132,7 +132,7 @@ Once the policy is running on the index, the response includes a
 Changes to the underlying policy will not affect this index until the current
 phase completes.
 
-[source,console-response]
+[source,console-result]
 --------------------------------------------------
 {
   "indices": {
@@ -181,7 +181,7 @@ entered this phase
 If {ilm-init} is waiting for a step to complete, the response includes status
 information for the step that's being performed on the index.
 
-[source,console-response]
+[source,console-result]
 --------------------------------------------------
 {
   "indices": {
@@ -242,7 +242,7 @@ step in the policy and you will need to take action for the index to proceed
 to the next step. To help you diagnose the problem, the explain response shows
 the step that failed and the step info provides information about the error.
 
-[source,console-response]
+[source,console-result]
 --------------------------------------------------
 {
   "indices": {

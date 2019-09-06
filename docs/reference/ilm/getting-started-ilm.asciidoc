@@ -161,7 +161,7 @@ The above request will retrieve {ilm-init} execution information for all our
 managed indices.
 
 
-[source,console-response]
+[source,console-result]
 --------------------------------------------------
 {
   "indices": {

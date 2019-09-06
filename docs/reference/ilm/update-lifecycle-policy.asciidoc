@@ -94,7 +94,7 @@ GET _ilm/policy/my_policy
 When we get the policy, we will see it reflect our latest changes, but
 with its version bumped to 2.
 
-[source,console-response]
+[source,console-result]
 --------------------------------------------------
 {
   "my_policy": {
@@ -184,7 +184,7 @@ GET my_index/_ilm/explain
 --------------------------------------------------
 // TEST[continued]
 
-[source,console-response]
+[source,console-result]
 --------------------------------------------------
 {
   "indices": {
@@ -260,7 +260,7 @@ GET my_index/_ilm/explain
 // TEST[continued]
 ////
 
-[source,console-response]
+[source,console-result]
 --------------------------------------------------
 {
   "indices": {
@@ -338,7 +338,7 @@ GET my_index/_ilm/explain
 // TEST[continued]
 ////
 
-[source,console-response]
+[source,console-result]
 --------------------------------------------------
 {
   "indices": {
@@ -392,7 +392,7 @@ GET my_index/_ilm/explain
 // TEST[continued]
 ////
 
-[source,console-response]
+[source,console-result]
 --------------------------------------------------
 {
   "indices": {

@@ -41,7 +41,7 @@ GET _ilm/status
 
 If the request succeeds, the body of the response shows the operation mode:
 
-[source,console-response]
+[source,console-result]
 --------------------------------------------------
 {
   "operation_mode": "RUNNING"

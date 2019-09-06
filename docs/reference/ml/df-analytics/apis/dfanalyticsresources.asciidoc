@@ -139,4 +139,5 @@ An {oldetection} configuration object has the following properties:
 `standardize_columns`::
   (boolean) If `true`, then the following operation is performed on the columns 
   before computing outlier scores: (x_i - mean(x_i)) / sd(x_i). Defaults to 
-  `true`.
+  `true`. For more information, see 
+  https://en.wikipedia.org/wiki/Feature_scaling#Standardization_(Z-score_Normalization)[this wiki page about standardization].

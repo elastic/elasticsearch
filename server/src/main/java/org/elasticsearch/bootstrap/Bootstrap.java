@@ -57,6 +57,7 @@ import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
@@ -238,7 +239,7 @@ final class Bootstrap {
         }
 
         char[] passChars;
-        try (BufferedReader b = new BufferedReader(new InputStreamReader(System.in))) {
+        try (BufferedReader b = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8))) {
             // TODO[wrb]: we should avoid storing this value in a string
             String s = null;
             if (keystore != null && keystore.hasPassword()) {

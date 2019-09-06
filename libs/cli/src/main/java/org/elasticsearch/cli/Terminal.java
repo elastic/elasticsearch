@@ -43,7 +43,7 @@ public abstract class Terminal {
     private static final PrintWriter ERROR_WRITER = newErrorWriter();
 
     /** We want a zero-length buffer so that we don't take too much from the input stream */
-    private static final int STDIN_READER_BUFFER_SIZE = 0;
+    private static final int STDIN_READER_BUFFER_SIZE = 1;
 
     /** The default terminal implementation, which will be a console if available, or stdout/stderr if not. */
     public static final Terminal DEFAULT = ConsoleTerminal.isSupported() ? new ConsoleTerminal() : new SystemTerminal();

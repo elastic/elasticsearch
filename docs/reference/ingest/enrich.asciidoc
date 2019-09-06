@@ -195,8 +195,9 @@ The processor then appends the enrich field data
 from any matching document in the enrich index
 to target field of the incoming document.
 
+The enrich processor appends all data as an array.
 If the incoming document matches more than one document in the enrich index,
-the processor appends the field data from those documents as an array.
+the processor appends the field data from those documents is added to the array.
 
 If the incoming document matches no documents in the enrich index,
 the processor appends no data.

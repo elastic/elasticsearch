@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.dataframe.integration;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.junit.Before;
 
@@ -894,7 +895,14 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
 
         startAndWaitForContinuousTransform(transformId, dataFrameIndex, null);
         assertTrue(indexExists(dataFrameIndex));
-        assertBusy(() -> stopDataFrameTransform(transformId, false, true));
+        assertBusy(() -> {
+            try {
+                stopDataFrameTransform(transformId, false, true);
+            } catch (ResponseException e) {
+                // We get a conflict sometimes depending on WHEN we try to write the state, should eventually pass though
+                assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(200));
+            }
+        });
 
         // get and check some users
         assertOnePivotValue(dataFrameIndex + "/_search?q=reviewer:user_0", 3.776978417);

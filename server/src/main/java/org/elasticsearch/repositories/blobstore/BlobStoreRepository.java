@@ -411,7 +411,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             final SnapshotInfo finalSnapshotInfo = snapshot;
             if (version.onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION) == false) {
-                assert  updatedRepositoryData != null;
+                assert updatedRepositoryData != null;
                 final List<String> snapMetaFilesToDelete =
                     Arrays.asList(snapshotFormat.blobName(snapshotId.getUUID()), globalMetaDataFormat.blobName(snapshotId.getUUID()));
                 try {
@@ -488,30 +488,30 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }));
             }
         }
-        final StepListener<Void> shardsCleanedUpListener = new StepListener<>();
         deleteFromMetaListener.whenComplete(newGens -> {
             final RepositoryData newRepoData = repositoryData.removeSnapshot(snapshotId, newGens.entrySet().stream().collect(
                 Collectors.toMap(Map.Entry::getKey, entry -> Arrays.stream(entry.getValue()).map(Tuple::v1).toArray(String[]::new))));
             writeIndexGen(newRepoData, repositoryStateId, version);
-            final int basePathLen = basePath().buildAsString().length();
-            final List<String> allBlobsToDelete = newGens.entrySet().stream().flatMap(entry -> {
-                final ArrayList<String> allInIndex = new ArrayList<>();
-                final Tuple<String, String[]>[] shardBlobs = entry.getValue();
-                for (int i = 0; i < shardBlobs.length; i++) {
-                    final String pathToShard = shardContainer(entry.getKey(), i).path().buildAsString().substring(basePathLen);
-                    final String[] toDeleteInShard = shardBlobs[i].v2();
-                    for (String blob : toDeleteInShard) {
-                        allInIndex.add(pathToShard + blob);
+            final String basePath = basePath().buildAsString();
+            final int basePathLen = basePath.length();
+            blobContainer().deleteBlobsIgnoringIfNotExists(
+                newGens.entrySet().stream().flatMap(entry -> {
+                    final ArrayList<String> allInIndex = new ArrayList<>();
+                    final Tuple<String, String[]>[] shardBlobs = entry.getValue();
+                    for (int i = 0; i < shardBlobs.length; i++) {
+                        final String shardPathAbs = shardContainer(entry.getKey(), i).path().buildAsString();
+                        assert shardPathAbs.startsWith(basePath);
+                        final String pathToShard = shardPathAbs.substring(basePathLen);
+                        final String[] toDeleteInShard = shardBlobs[i].v2();
+                        for (String blob : toDeleteInShard) {
+                            allInIndex.add(pathToShard + blob);
+                        }
                     }
-                }
-                return allInIndex.stream();
-            }).collect(Collectors.toList());
-            ActionListener.completeWith(shardsCleanedUpListener, () -> {
-                blobContainer().deleteBlobsIgnoringIfNotExists(allBlobsToDelete);
-                return null;
-            });
-            shardsCleanedUpListener.whenComplete(v -> cleanupStaleBlobs(
-                foundIndices, rootBlobs, newRepoData, newRepoData.getIndices().values(), listener), listener::onFailure);
+                    return allInIndex.stream();
+                }).collect(Collectors.toList())
+            );
+            cleanupStaleBlobs(
+                foundIndices, rootBlobs, newRepoData, newRepoData.getIndices().values(), listener);
         }, listener::onFailure);
     }
 

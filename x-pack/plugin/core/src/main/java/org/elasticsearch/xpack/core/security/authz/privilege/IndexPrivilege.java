@@ -142,11 +142,12 @@ public final class IndexPrivilege extends Privilege {
                 } else if (indexPrivilege != null) {
                     automata.add(indexPrivilege.automaton);
                 } else {
-                    logger.error("failed to resolve index privilege [" + part + "].");
-                    throw new IllegalArgumentException("unknown index privilege [" + part + "]. a privilege must be either " +
-                            "one of the predefined fixed indices privileges [" +
-                            Strings.collectionToCommaDelimitedString(VALUES.entrySet()) + "] or a pattern over one of the available index" +
-                            " actions");
+                    String errorMessage = "unknown index privilege [" + part + "]. a privilege must be either " +
+                        "one of the predefined fixed indices privileges [" +
+                        Strings.collectionToCommaDelimitedString(VALUES.entrySet()) + "] or a pattern over one of the available index" +
+                        " actions";
+                    logger.error(errorMessage);
+                    throw new IllegalArgumentException(errorMessage);
                 }
             }
         }

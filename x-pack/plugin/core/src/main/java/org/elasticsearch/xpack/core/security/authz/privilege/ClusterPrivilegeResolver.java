@@ -160,11 +160,12 @@ public class ClusterPrivilegeResolver {
         if (fixedPrivilege != null) {
             return fixedPrivilege;
         }
-        logger.error("failed to resolve cluster privilege [" + name + "].");
-        throw new IllegalArgumentException("unknown cluster privilege [" + name + "]. a privilege must be either " +
+        String errorMessage = "unknown cluster privilege [" + name + "]. a privilege must be either " +
             "one of the predefined cluster privilege names [" +
             Strings.collectionToCommaDelimitedString(VALUES.keySet()) + "] or a pattern over one of the available " +
-            "cluster actions");
+            "cluster actions";
+        logger.error(errorMessage);
+        throw new IllegalArgumentException(errorMessage);
 
     }
 

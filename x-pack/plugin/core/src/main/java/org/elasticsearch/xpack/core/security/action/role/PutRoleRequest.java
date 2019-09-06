@@ -83,7 +83,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
             for (RoleDescriptor.IndicesPrivileges idp : indicesPrivileges) {
                 try {
                     IndexPrivilege.get(Set.of(idp.getPrivileges()));
-                } catch(IllegalArgumentException ile) {
+                } catch (IllegalArgumentException ile) {
                     validationException = addValidationError(ile.getMessage(), validationException);
                 }
             }

@@ -41,7 +41,7 @@ public class PutRoleRequestTests extends ESTestCase {
     public void testValidationErrorWithUnknownClusterPrivilegeName() {
         final PutRoleRequest request = new PutRoleRequest();
         request.name(randomAlphaOfLengthBetween(4, 9));
-        String unknownClusterPrivilegeName = randomAlphaOfLengthBetween(7, 9);
+        String unknownClusterPrivilegeName = "-unknown-";
         request.cluster("manage_security", unknownClusterPrivilegeName);
 
         // Fail
@@ -58,7 +58,7 @@ public class PutRoleRequestTests extends ESTestCase {
     public void testValidationErrorWithUnknownIndexPrivilegeName() {
         final PutRoleRequest request = new PutRoleRequest();
         request.name(randomAlphaOfLengthBetween(4, 9));
-        String unknownIndexPrivilegeName = randomAlphaOfLengthBetween(7, 9);
+        String unknownIndexPrivilegeName = "-unknown-";
         request.addIndex(new String[]{randomAlphaOfLength(5)}, new String[]{"index", unknownIndexPrivilegeName}, null,
             null, null, randomBoolean());
 

@@ -22,11 +22,10 @@ call the flush API after indexing some documents then a successful response
 indicates that {es} has flushed all the documents that were indexed before the
 flush API was called.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST twitter/_flush
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 [float]
@@ -53,13 +52,12 @@ uncommitted changes are present. This parameter should be considered internal.
 The flush API can be applied to more than one index with a single call, or even
 on `_all` the indices.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST kimchy,elasticsearch/_flush
 
 POST _flush
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
 
 [[synced-flush-api]]
@@ -88,11 +86,10 @@ marker, recovery of this kind of cluster would be much slower.
 To check whether a shard has a `sync_id` marker or not, look for the `commit`
 section of the shard stats returned by the <<indices-stats,indices stats>> API:
 
-[source,sh]
+[source,console]
 --------------------------------------------------
 GET twitter/_stats?filter_path=**.commit&level=shards <1>
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT twitter\nPOST twitter\/_flush\/synced\n/]
 <1> `filter_path` is used to reduce the verbosity of the response, but is entirely optional
 
@@ -156,11 +153,10 @@ shards will fail to sync-flush. The successfully sync-flushed shards will have
 faster recovery times as long as the `sync_id` marker is not removed by a
 subsequent flush.
 
-[source,sh]
+[source,console]
 --------------------------------------------------
 POST twitter/_flush/synced
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 The response contains details about how many shards were successfully
@@ -256,10 +252,9 @@ be `409 Conflict`.
 The synced flush API can be applied to more than one index with a single call,
 or even on `_all` the indices.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST kimchy,elasticsearch/_flush/synced
 
 POST _flush/synced
 --------------------------------------------------
-// CONSOLE

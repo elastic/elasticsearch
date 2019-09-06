@@ -73,7 +73,7 @@ The API returns the following information:
 
 The following example gets record information for the `it-ops-kpi` job:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ml/anomaly_detectors/it-ops-kpi/results/records
 {
@@ -82,7 +82,6 @@ GET _ml/anomaly_detectors/it-ops-kpi/results/records
   "start": "1454944100000"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:todo]
 
 In this example, the API returns twelve results for the specified

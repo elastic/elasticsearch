@@ -68,14 +68,13 @@ opened again before analyzing further data.
 
 The following example flushes the `total-requests` job:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/anomaly_detectors/total-requests/_flush
 {
   "calc_interim": true
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:server_metrics_openjob]
 
 When the operation succeeds, you receive the following results:
@@ -95,14 +94,13 @@ If you want to flush the job to a specific timestamp, you can use the
 `advance_time` or `skip_time` parameters.  For example, to advance to 11 AM GMT
 on January 1, 2018:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/anomaly_detectors/total-requests/_flush
 {
   "advance_time": "1514804400"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:server_metrics_openjob]
 
 When the operation succeeds, you receive the following results:

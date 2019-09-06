@@ -96,14 +96,13 @@ creation/update and runs the query using those same roles.
 
 The following example starts the `datafeed-it-ops-kpi` {dfeed}:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/datafeeds/datafeed-total-requests/_start
 {
   "start": "2017-04-07T18:22:16Z"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:server_metrics_openjob]
 
 When the {dfeed} starts, you receive the following results:

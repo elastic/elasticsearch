@@ -13,12 +13,10 @@ upgrade.
 ==== {api-request-title}
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_ml/set_upgrade_mode?enabled=false&timeout=10m
 --------------------------------------------------
-// CONSOLE
-// TEST
 // TEARDOWN
 
 //////////////////////////
@@ -74,12 +72,10 @@ IMPORTANT:  No new {ml} jobs can be opened while the `upgrade_mode` setting is
 
 The following example enables `upgrade_mode` for the cluster:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/set_upgrade_mode?enabled=true&timeout=10m
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 When the call is successful, an acknowledged response is returned. For example:
 
@@ -98,9 +94,7 @@ response before reindexing to ensure that all writes are completed.
 When the upgrade is complete, you must set `upgrade_mode` to `false` for
 {ml} jobs to start running again. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/set_upgrade_mode?enabled=false&timeout=10m
 --------------------------------------------------
-// CONSOLE
-// TEST

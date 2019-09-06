@@ -96,7 +96,7 @@ a job directly to the `.ml-config` index using the {es} index API. If {es}
 
 The following example creates the `total-requests` job:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ml/anomaly_detectors/total-requests
 {
@@ -117,7 +117,6 @@ PUT _ml/anomaly_detectors/total-requests
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 When the job is created, you receive the following results:
 [source,js]

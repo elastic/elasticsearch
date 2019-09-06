@@ -52,14 +52,13 @@ data is received.
 The following example opens the `total-requests` job and sets an optional
 property:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/anomaly_detectors/total-requests/_open
 {
   "timeout": "35m"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:server_metrics_job]
 
 When the job opens, you receive the following results:

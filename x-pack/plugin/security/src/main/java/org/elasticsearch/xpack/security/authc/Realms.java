@@ -189,9 +189,7 @@ public class Realms implements Iterable<Realm> {
             if (factory == null) {
                 throw new IllegalArgumentException("unknown realm type [" + identifier.getType() + "] for realm [" + identifier + "]");
             }
-            if (realms.stream().anyMatch(r -> r.name().equals(identifier.getName()))) {
-                throw new IllegalArgumentException("multiple realms configured with the same name [" + identifier.getName() + "] ");
-            }
+
             RealmConfig config = new RealmConfig(identifier, settings, env, threadContext);
             if (!config.enabled()) {
                 if (logger.isDebugEnabled()) {
@@ -227,6 +225,15 @@ public class Realms implements Iterable<Realm> {
         }
         // always add built in first!
         realms.add(0, reservedRealm);
+        Set<String> duplicateNameRealms = new HashSet<>();
+        for (Realm r : realms) {
+            if (realms.stream().filter(realm -> realm.name().equals(r.name())).count() > 1) {
+                duplicateNameRealms.add(RealmSettings.realmSettingPrefix(r.type()) + "." + r.name());
+            }
+        }
+        if (duplicateNameRealms.isEmpty() == false) {
+            throw new IllegalArgumentException("Found multiple realms configured with the same name: " + duplicateNameRealms + " ");
+        }
         return realms;
     }
 

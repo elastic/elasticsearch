@@ -102,7 +102,7 @@ see <<ml-datafeed-resource>>.
 The following example updates the query for the `datafeed-total-requests`
 {dfeed} so that only log entries of error level are analyzed:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/datafeeds/datafeed-total-requests/_update
 {
@@ -113,7 +113,6 @@ POST _ml/datafeeds/datafeed-total-requests/_update
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:server_metrics_datafeed]
 
 When the {dfeed} is updated, you receive the full {dfeed} configuration with

@@ -3,7 +3,7 @@
 
 Specifies search criteria as request body parameters.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_search
 {
@@ -12,7 +12,6 @@ GET /twitter/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 
@@ -89,7 +88,7 @@ all clients support GET with body, POST is allowed as well.
 [[search-request-body-api-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_search
 {
@@ -98,7 +97,6 @@ GET /twitter/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 
@@ -155,11 +153,10 @@ interested in the search results. Also we can set `terminate_after` to `1`
 to indicate that the query execution can be terminated whenever the first
 matching document was found (per shard).
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search?q=message:number&size=0&terminate_after=1
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 

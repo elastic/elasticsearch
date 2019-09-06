@@ -41,7 +41,7 @@ rollup job to store metrics about the `price` field, you won't be able to use th
 For example, the `temperature` field in the following query has been stored in a rollup job... but not with an `avg` metric.  Which means
 the usage of `avg` here is not allowed:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET sensor_rollup/_rollup_search
 {
@@ -55,7 +55,6 @@ GET sensor_rollup/_rollup_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_prefab_data]
 // TEST[catch:/illegal_argument_exception/]
 

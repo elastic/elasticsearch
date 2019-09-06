@@ -68,11 +68,10 @@ stop all {dfanalytics-job} by using _all or by specifying * as the
 
 The following example stops the `loganalytics` {dfanalytics-job}:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/data_frame/analytics/loganalytics/_stop
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:TBD]
 
 When the {dfanalytics-job} stops, you receive the following results:

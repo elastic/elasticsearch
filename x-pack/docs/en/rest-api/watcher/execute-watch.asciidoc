@@ -144,16 +144,15 @@ the watch.
 
 The following example executes the `my_watch` watch:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _watcher/watch/my_watch/_execute
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:my_active_watch]
 
 The following example shows a comprehensive example of executing the `my-watch` watch:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _watcher/watch/my_watch/_execute
 {
@@ -171,8 +170,8 @@ POST _watcher/watch/my_watch/_execute
   "record_execution" : true <5>
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:my_active_watch]
+
 <1> The triggered and schedule times are provided.
 <2> The input as defined by the watch is ignored and instead the provided input
     is used as the execution payload.
@@ -296,7 +295,7 @@ This is an example of the output:
 You can set a different execution mode for every action by associating the mode
 name with the action id:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _watcher/watch/my_watch/_execute
 {
@@ -306,13 +305,12 @@ POST _watcher/watch/my_watch/_execute
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:my_active_watch]
 
 You can also associate a single execution mode with all the actions in the watch
 using `_all` as the action id:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _watcher/watch/my_watch/_execute
 {
@@ -321,12 +319,11 @@ POST _watcher/watch/my_watch/_execute
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:my_active_watch]
 
 The following example shows how to execute a watch inline:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _watcher/watch/_execute
 {
@@ -357,13 +354,12 @@ POST _watcher/watch/_execute
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 All other settings for this API still apply when inlining a watch. In the
 following snippet, while the inline watch defines a `compare` condition,
 during the execution this condition will be ignored:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _watcher/watch/_execute
 {
@@ -395,4 +391,3 @@ POST _watcher/watch/_execute
   }
 }
 --------------------------------------------------
-// CONSOLE

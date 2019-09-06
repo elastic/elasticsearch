@@ -145,7 +145,8 @@ names. For example, the following mapping configuration maps the LDAP
 `users` group to the `user` role.
 
 Configured via the role-mapping API:
-[source,js]
+
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/admins
 {
@@ -156,10 +157,10 @@ PUT /_security/role_mapping/admins
   "enabled": true
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The LDAP distinguished name (DN) of the `admins` group.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/basic_users
 {
@@ -170,7 +171,7 @@ PUT /_security/role_mapping/basic_users
   "enabled": true
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The LDAP distinguished name (DN) of the `users` group.
 
 Or, alternatively, configured via the role-mapping file:

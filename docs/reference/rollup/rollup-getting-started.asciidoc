@@ -28,7 +28,7 @@ look like this:
 We'd like to rollup these documents into hourly summaries, which will allow us to generate reports and dashboards with any time interval
 one hour or greater.  A rollup job might look like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _rollup/job/sensor
 {
@@ -57,7 +57,6 @@ PUT _rollup/job/sensor
     ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_index]
 
 We give the job the ID of "sensor" (in the url: `PUT _rollup/job/sensor`), and tell it to rollup the index pattern `"sensor-*"`.
@@ -111,11 +110,10 @@ you to stop them later as a way to temporarily pause, without deleting the confi
 
 To start the job, execute this command:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _rollup/job/sensor/_start
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_rollup_job]
 
 [float]
@@ -126,7 +124,7 @@ so that you can use the same Query DSL syntax that you are accustomed to... it j
 
 For example, take this query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /sensor_rollup/_rollup_search
 {
@@ -140,7 +138,6 @@ GET /sensor_rollup/_rollup_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_prefab_data]
 
 It's a simple aggregation that calculates the maximum of the `temperature` field.  But you'll notice that is is being sent to the `sensor_rollup`
@@ -184,7 +181,7 @@ is nearly identical to normal DSL, making it easy to integrate into dashboards a
 
 Finally, we can use those grouping fields we defined to construct a more complicated query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /sensor_rollup/_rollup_search
 {
@@ -218,7 +215,6 @@ GET /sensor_rollup/_rollup_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_prefab_data]
 
 Which returns a corresponding response:

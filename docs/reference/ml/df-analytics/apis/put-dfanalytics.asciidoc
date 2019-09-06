@@ -124,7 +124,7 @@ and mappings.
 The following example creates the `loganalytics` {dfanalytics-job}, the analysis 
 type is `outlier_detection`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ml/data_frame/analytics/loganalytics
 {
@@ -141,7 +141,6 @@ PUT _ml/data_frame/analytics/loganalytics
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:setup_logdata]
 
 

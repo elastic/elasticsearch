@@ -72,7 +72,7 @@ POST /my_index/_reload_search_analyzers
 The reload request returns information about the nodes it was executed on and the
 analyzers that were reloaded:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "_shards" : {

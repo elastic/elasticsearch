@@ -149,7 +149,7 @@ is exactly as you'd expect.
 
 If you were to execute that query, you'd receive a result that looks like a normal aggregation response:
 
-[source,js]
+[source,console-result]
 ----
 {
   "took" : 102,
@@ -223,7 +223,7 @@ GET /sensor_rollup/_rollup_search
 
 Which returns a corresponding response:
 
-[source,js]
+[source,console-result]
 ----
 {
    "took" : 93,

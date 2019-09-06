@@ -49,7 +49,7 @@ The following example provides information about a trial license:
 GET /_license
 --------------------------------------------------
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "license" : {

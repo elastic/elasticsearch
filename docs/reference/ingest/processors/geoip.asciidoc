@@ -63,7 +63,7 @@ GET my_index/_doc/my_id
 
 Which returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
@@ -113,7 +113,7 @@ GET my_index/_doc/my_id
 
 returns this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
@@ -165,7 +165,7 @@ GET my_index/_doc/my_id
 
 Which returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index" : "my_index",
@@ -249,7 +249,7 @@ GET /my_ip_locations/_search
 --------------------------------------------------
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took" : 3,

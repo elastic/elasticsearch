@@ -94,7 +94,7 @@ GET _ml/calendars/planned-outages/events
 
 The API returns the following results:
 
-[source,js]
+[source,console-result]
 ----
 {
   "count": 3,

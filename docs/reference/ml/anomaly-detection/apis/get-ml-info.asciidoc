@@ -44,7 +44,8 @@ GET _ml/info
 // TEST
 
 This is a possible response:
-[source,js]
+
+[source,console-result]
 ----
 {
   "defaults" : {

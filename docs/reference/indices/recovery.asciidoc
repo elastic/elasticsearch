@@ -67,7 +67,8 @@ GET /_recovery?human
 // TEST[continued]
 
 Response:
-[source,js]
+
+[source,console-result]
 --------------------------------------------------
 {
   "index1" : {
@@ -159,7 +160,7 @@ GET _recovery?human&detailed=true
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "index1" : {

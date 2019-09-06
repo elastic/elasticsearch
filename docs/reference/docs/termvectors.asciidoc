@@ -202,7 +202,7 @@ GET /twitter/_termvectors/1
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "_id": "1",
@@ -339,7 +339,7 @@ GET /twitter/_termvectors
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index": "twitter",

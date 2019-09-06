@@ -226,7 +226,7 @@ GET my_index/_search
 
 The output from the above is:
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "timed_out": false,
@@ -263,4 +263,5 @@ The output from the above is:
 }
 ----------------------------
 // TESTRESPONSE[s/"took".*/"took": "$body.took",/]
+
 <1> Note the incorrect highlight.

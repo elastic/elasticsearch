@@ -145,15 +145,21 @@ Include an <<enrich-processor,enrich processor>>
 that uses your enrich policy.
 
 When defining an enrich processor,
-you must include the following options:
+you must include the following:
 
-* *Field*, the same match field defined in your enrich policy.
-* The *target field*, a field added to the incoming document
-that contains all appended enrich data.
+* The *field* used to match incoming documents
+  to documents in the enrich index.
++
+This field should be included in incoming documents.
+To match, this field must contain the exact
+value of the match field of a document in the enrich index.
+
+* The *target field* added to incoming documents.
+  This field contains all appended enrich data.
 
 The following request adds a new pipeline, `user_lookup`.
 This pipeline includes an enrich processor
-which uses the `users-policy` enrich policy.
+that uses the `users-policy` enrich policy.
 
 [source,js]
 ----
@@ -195,9 +201,9 @@ The processor then appends the enrich field data
 from any matching document in the enrich index
 to target field of the incoming document.
 
-The enrich processor appends all data as an array.
+The enrich processor appends all data to the target field as an array.
 If the incoming document matches more than one document in the enrich index,
-the processor appends the field data from those documents to the array.
+the processor appends data from those documents to the array.
 
 If the incoming document matches no documents in the enrich index,
 the processor appends no data.

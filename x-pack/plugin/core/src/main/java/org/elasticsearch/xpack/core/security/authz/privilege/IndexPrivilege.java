@@ -146,7 +146,7 @@ public final class IndexPrivilege extends Privilege {
                         "one of the predefined fixed indices privileges [" +
                         Strings.collectionToCommaDelimitedString(VALUES.entrySet()) + "] or a pattern over one of the available index" +
                         " actions";
-                    logger.error(errorMessage);
+                    logger.debug(errorMessage);
                     throw new IllegalArgumentException(errorMessage);
                 }
             }

@@ -164,7 +164,7 @@ public class ClusterPrivilegeResolver {
             "one of the predefined cluster privilege names [" +
             Strings.collectionToCommaDelimitedString(VALUES.keySet()) + "] or a pattern over one of the available " +
             "cluster actions";
-        logger.error(errorMessage);
+        logger.debug(errorMessage);
         throw new IllegalArgumentException(errorMessage);
 
     }

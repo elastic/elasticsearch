@@ -67,11 +67,10 @@ For more information, see
 
 The following example deletes all forecasts from the `total-requests` job:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE _ml/anomaly_detectors/total-requests/_forecast/_all
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:server_metrics_openjob]
 
 If the request does not encounter errors, you receive the following result:

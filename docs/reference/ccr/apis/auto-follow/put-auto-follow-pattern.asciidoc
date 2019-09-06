@@ -114,13 +114,12 @@ PUT /_ccr/auto_follow/my_auto_follow_pattern
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "acknowledged" : true
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 //////////////////////////
 

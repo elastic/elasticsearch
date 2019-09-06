@@ -297,7 +297,7 @@ PUT /my-index/_doc/2
 // TEST[continued]
 Index response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index": "my-index",
@@ -314,7 +314,6 @@ Index response:
   "_primary_term" : 1
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 Percolating an existing document, using the index response as basis to build to new search request:
 

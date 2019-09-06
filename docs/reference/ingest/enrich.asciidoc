@@ -144,6 +144,13 @@ to create an ingest pipeline.
 Include an <<enrich-processor,enrich processor>>
 that uses your enrich policy.
 
+When defining an enrich processor,
+you must include the following options:
+
+* *Field*, the same match field defined in your enrich policy.
+* The *target field*, a field added to the incoming document
+that contains all appended enrich data.
+
 The following request adds a new pipeline, `user_lookup`.
 This pipeline includes an enrich processor
 which uses the `users-policy` enrich policy.
@@ -186,7 +193,7 @@ to documents in the enrich index
 based on match field values.
 The processor then appends the enrich field data 
 from any matching document in the enrich index
-to the incoming document.
+to target field of the incoming document.
 
 If the incoming document matches more than one document in the enrich index,
 the processor appends the field data from those documents as an array.

@@ -63,7 +63,10 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
             .put("base_path", System.getProperty("test.s3.base", "testpath"));
         final String endpoint = System.getProperty("test.s3.endpoint");
         if (endpoint != null) {
-            settings = settings.put("endpoint", endpoint);
+            settings.put("endpoint", endpoint);
+        }
+        if (randomBoolean()) {
+            settings.put("storage_class", randomFrom("standard", "reduced_redundancy", "standard_ia", "onezone_ia", "intelligent_tiering"));
         }
         AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
             .setType("s3")

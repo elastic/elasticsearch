@@ -109,6 +109,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -508,7 +509,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }), shardTotal);
                 newGens.forEach((indexId, gens) -> {
                     for (int i = 0; i < gens.length; i++) {
-                        cleanupShardSnapshot(newRepoData, indexId, i, cleanupShardsListener);
+                        cleanupShardSnapshot(newRepoData, indexId, i, gens[i], cleanupShardsListener);
                     }
                 });
             }
@@ -1326,14 +1327,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * Delete shard snapshot
      */
-    private void cleanupShardSnapshot(RepositoryData repositoryData, IndexId indexId, int snapshotShardId, ActionListener<Void> listener) {
+    private void cleanupShardSnapshot(RepositoryData repositoryData, IndexId indexId, int snapshotShardId,
+                                      Tuple<String, BlobStoreIndexShardSnapshots> state, ActionListener<Void> listener) {
         ActionListener.completeWith(listener, () -> {
-            final String shardGen = repositoryData.getShardGen(indexId, snapshotShardId);
+            assert Objects.equals(repositoryData.getShardGen(indexId, snapshotShardId), state.v1());
+            final String shardGen = state.v1();
             final BlobContainer shardContainer = shardContainer(indexId, snapshotShardId);
             final Map<String, BlobMetaData> blobs = shardContainer.listBlobs();
-            Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(
-                blobs.keySet(), shardContainer, shardGen);
-            BlobStoreIndexShardSnapshots snapshots = tuple.v1();
+            BlobStoreIndexShardSnapshots snapshots = state.v2();
 
             // Build a list of snapshots that should be preserved
             final List<SnapshotFiles> newSnapshotsList = newSnapshotsList(repositoryData, indexId, snapshots);
@@ -1350,7 +1351,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         (blob.startsWith(SNAPSHOT_INDEX_PREFIX) && blob.equals(SNAPSHOT_INDEX_PREFIX + shardGen) == false)
                             || (blob.startsWith(SNAPSHOT_PREFIX) && blob.endsWith(".dat")
                             && survivingSnapshotUUIDs.contains(
-                            blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length())) == false)
+                                blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length())) == false)
                             || (blob.startsWith(DATA_BLOB_PREFIX) && snapshots.findNameFile(canonicalName(blob)) == null)
                             || FsBlobContainer.isTempBlobName(blob)).collect(Collectors.toList());
                 }

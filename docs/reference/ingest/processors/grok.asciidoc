@@ -155,7 +155,7 @@ the same `or` behavior.
 
 Here is an example of such a configuration executed against the simulate API:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ingest/pipeline/_simulate
 {
@@ -183,7 +183,6 @@ POST _ingest/pipeline/_simulate
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 response:
 
@@ -216,7 +215,7 @@ that same pipeline, but with `"trace_match": true` configured:
 
 ////
 Hidden setup for example:
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ingest/pipeline/_simulate
 {
@@ -245,7 +244,6 @@ POST _ingest/pipeline/_simulate
   ]
 }
 --------------------------------------------------
-// CONSOLE
 ////
 
 [source,js]
@@ -283,11 +281,10 @@ metadata and will not be indexed.
 
 The Grok Processor comes packaged with its own REST endpoint for retrieving which patterns the processor is packaged with.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ingest/processor/grok
 --------------------------------------------------
-// CONSOLE
 
 The above request will return a response body containing a key-value representation of the built-in patterns dictionary.
 

@@ -11,7 +11,7 @@ Synonym filters (both `synonym` and `synonym_graph`) can be declared as
 updateable if they are only used in <<search-analyzer,search analyzers>> 
 with the `updateable` flag:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /my_index
 {
@@ -45,7 +45,6 @@ PUT /my_index
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> Mark the synonym filter as updateable.
 <2> Synonym analyzer is usable as a search_analyzer.
@@ -64,11 +63,10 @@ to update the synonym file contents on every data node (even the ones that don't
 hold shard copies; shards might be relocated there in the future) before calling
 reload to ensure the new state of the file is reflected everywhere in the cluster.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /my_index/_reload_search_analyzers
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The reload request returns information about the nodes it was executed on and the

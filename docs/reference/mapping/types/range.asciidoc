@@ -59,7 +59,7 @@ PUT range_index/_doc/1?refresh
 
 The following is an example of a <<query-dsl-term-query, term query>> on the `integer_range` field named "expected_attendees".
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET range_index/_search
 {
@@ -72,7 +72,6 @@ GET range_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 The result produced by the above query.
 
@@ -116,7 +115,7 @@ The result produced by the above query.
 
 The following is an example of a `date_range` query over the `date_range` field named "time_frame".
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET range_index/_search
 {
@@ -131,7 +130,6 @@ GET range_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> Range queries work the same as described in <<query-dsl-range-query, range query>>.
 <2> Range queries over range <<mapping-types, fields>> support a `relation` parameter which can be one of `WITHIN`, `CONTAINS`,
@@ -183,7 +181,7 @@ This query produces a similar result:
 In addition to the range format above, IP ranges can be provided in
 https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing#CIDR_notation[CIDR] notation:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT range_index/_mapping
 {
@@ -199,7 +197,6 @@ PUT range_index/_doc/2
   "ip_whitelist" : "192.168.0.0/16"
 }
 --------------------------------------------------
-// CONSOLE
 
 [[range-params]]
 ==== Parameters for range fields

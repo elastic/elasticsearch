@@ -222,7 +222,7 @@ size, which defaults to 100 Mb.
 Suppose you have a newline-delimited JSON file that contains information about
 some books. You can send the contents to the `find_file_structure` endpoint:
 
-[source,js]
+[source,console]
 ----
 POST _ml/find_file_structure
 {"name": "Leviathan Wakes", "author": "James S.A. Corey", "release_date": "2011-06-02", "page_count": 561}
@@ -250,8 +250,6 @@ POST _ml/find_file_structure
 {"name": "The Left Hand of Darkness", "author": "Ursula K. Le Guin", "release_date": "1969-06-01", "page_count": 304}
 {"name": "The Moon is a Harsh Mistress", "author": "Robert A. Heinlein", "release_date": "1966-04-01", "page_count": 288}
 ----
-// CONSOLE
-// TEST
 
 If the request does not encounter errors, you receive the following result:
 

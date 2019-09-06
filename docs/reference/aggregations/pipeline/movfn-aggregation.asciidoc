@@ -38,7 +38,7 @@ A `moving_fn` aggregation looks like this in isolation:
 `moving_fn` aggregations must be embedded inside of a `histogram` or `date_histogram` aggregation.  They can be
 embedded like any other metric aggregation:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -65,7 +65,6 @@ POST /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 <1> A `date_histogram` named "my_date_histo" is constructed on the "timestamp" field, with one-day intervals
@@ -140,7 +139,7 @@ kind of calculation and emit a single `double` as the result.  Emitting `null` i
 
 For example, this script will simply return the first value from the window, or `NaN` if no values are available:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -167,7 +166,6 @@ POST /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 [[shift-parameter]]
@@ -211,7 +209,7 @@ is only calculated over the real values. If the window is empty, or all values a
 |`values` |The window of values to find the maximum
 |===
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -238,7 +236,6 @@ POST /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 ===== min Function
@@ -254,7 +251,7 @@ is only calculated over the real values. If the window is empty, or all values a
 |`values` |The window of values to find the minimum
 |===
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -281,7 +278,6 @@ POST /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 ===== sum Function
@@ -297,7 +293,7 @@ the sum is only calculated over the real values.  If the window is empty, or all
 |`values` |The window of values to find the sum of
 |===
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -324,7 +320,6 @@ POST /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 ===== stdDev Function
@@ -342,7 +337,7 @@ This function accepts a collection of doubles and average, then returns the stan
 |`avg` |The average of the window
 |===
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -369,7 +364,6 @@ POST /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 The `avg` parameter must be provided to the standard deviation function because different styles of averages can be computed on the window
@@ -394,7 +388,7 @@ values.
 |`values` |The window of values to find the sum of
 |===
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -421,7 +415,6 @@ POST /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 ==== linearWeightedAvg Function
@@ -440,7 +433,7 @@ If the window is empty, or all values are `null`/`NaN`, `NaN` is returned as the
 |`values` |The window of values to find the sum of
 |===
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -467,7 +460,6 @@ POST /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 ==== ewma Function
@@ -492,7 +484,7 @@ values.
 |`alpha` |Exponential decay
 |===
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -519,7 +511,6 @@ POST /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 
@@ -550,7 +541,7 @@ values.
 |`beta` |Trend decay value
 |===
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -577,7 +568,6 @@ POST /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 In practice, the `alpha` value behaves very similarly in `holtMovAvg` as `ewmaMovAvg`: small values produce more smoothing
@@ -616,7 +606,7 @@ values.
 |`multiplicative` |True if you wish to use multiplicative holt-winters, false to use additive
 |===
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -643,7 +633,6 @@ POST /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sales]
 
 [WARNING]

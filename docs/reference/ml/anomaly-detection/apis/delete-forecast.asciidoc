@@ -74,6 +74,7 @@ DELETE _ml/anomaly_detectors/total-requests/_forecast/_all
 // TEST[skip:setup:server_metrics_openjob]
 
 If the request does not encounter errors, you receive the following result:
+
 [source,js]
 ----
 {

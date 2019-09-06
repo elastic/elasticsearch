@@ -203,7 +203,7 @@ POST twitter/_doc/
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "_shards" : {
@@ -466,7 +466,7 @@ PUT twitter/_doc/1
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "_shards" : {

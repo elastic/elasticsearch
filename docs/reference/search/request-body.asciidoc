@@ -104,7 +104,7 @@ GET /twitter/_search
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "took": 1,
@@ -170,7 +170,7 @@ as many documents matching the query when it was early terminated.
 Also if the query was terminated early, the `terminated_early` flag will
 be set to `true` in the response.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 3,

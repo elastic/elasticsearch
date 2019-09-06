@@ -78,7 +78,7 @@ GET /my-index/_search
 
 The above request will yield the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 13,
@@ -229,7 +229,7 @@ GET /my-index/_search
 
 <1> The documents array contains 4 documents that are going to be percolated at the same time.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 13,
@@ -410,7 +410,7 @@ GET /my-index/_search
 
 This will yield the following response.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 7,
@@ -518,7 +518,7 @@ GET /my-index/_search
 
 The slightly different response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 13,
@@ -617,7 +617,7 @@ If that isn't specified then the `field` parameter will be used, which in this c
 
 The above search request returns a response similar to this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 13,

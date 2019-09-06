@@ -33,7 +33,7 @@ PUT products/_doc/1567
 You can see the assigned sequence number and primary term in the 
 `_seq_no` and `_primary_term` fields of the response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "_shards" : {
@@ -67,7 +67,7 @@ GET products/_doc/1567
 
 returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "_index" : "products",

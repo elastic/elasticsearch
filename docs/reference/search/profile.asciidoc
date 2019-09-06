@@ -36,7 +36,7 @@ for the search
 
 This will yield the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "took": 25,
@@ -175,7 +175,7 @@ to more complex examples.
 
 First, the overall structure of the profile response is as follows:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "profile": {
@@ -251,7 +251,7 @@ The overall structure of this query tree will resemble your original Elasticsear
 (or sometimes very) different.  It will also use similar but not always identical naming.  Using our previous
 `match` query example, let's analyze the `query` section:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 "query": [
     {
@@ -300,7 +300,7 @@ breakdown, etc).  Children are allowed to have their own children.
 
 The `breakdown` component lists detailed timing statistics about low-level Lucene execution:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 "breakdown": {
    "score": 51306,
@@ -410,7 +410,7 @@ filters, etc.
 
 Looking at the previous example:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 "collector": [
    {
@@ -554,7 +554,7 @@ This example has:
 
 And the response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    ...
@@ -746,7 +746,7 @@ GET /twitter/_search
 
 This yields the following aggregation profile output:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "profile" : {

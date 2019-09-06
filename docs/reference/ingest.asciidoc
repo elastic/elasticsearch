@@ -56,7 +56,8 @@ PUT my-index/_doc/my-id?pipeline=my_pipeline_id
 // TEST[continued]
 
 Response：
-[source,js]
+
+[source,console-result]
 --------------------------------------------------
 {
   "_index" : "my-index",

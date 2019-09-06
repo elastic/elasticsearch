@@ -36,11 +36,16 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
 import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
+import static org.elasticsearch.packaging.util.Archives.installArchive;
+import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
-import static org.hamcrest.CoreMatchers.anyOf;
+import static org.elasticsearch.packaging.util.Packages.assertInstalled;
+import static org.elasticsearch.packaging.util.Packages.assertRemoved;
+import static org.elasticsearch.packaging.util.Packages.installPackage;
+import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
@@ -56,17 +61,31 @@ public class KeystoreManagementTests extends PackagingTestCase {
     private static final String LINE_SEP = System.lineSeparator();
 
     /** We need an initially installed package */
-    public void test10InstallDistribution() throws Exception {
-        if (distribution.isPackage()) {
-            Packages.assertRemoved(distribution());
-        }
-        installation = installAndVerify(distribution());
+    public void test10InstallArchiveDistribution() throws Exception {
+        assumeTrue(distribution().isArchive());
+
+        installation = installArchive(distribution);
+        verifyArchiveInstallation(installation, distribution());
+
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.elasticsearchKeystore + " has-passwd");
         assertThat("has-passwd should fail", r.exitCode, not(is(0)));
-        assertThat("has-passwd should fail", r.stderr, anyOf(
-            containsString("ERROR: Elasticsearch keystore not found"),
-            containsString("ERROR: Keystore is not password protected")));
+        assertThat("has-passwd should fail", r.stderr, containsString("ERROR: Elasticsearch keystore not found"));
+    }
+
+    /** We need an initially installed package */
+    public void test11InstallPackageDistribution() throws Exception {
+        assumeTrue(distribution().isPackage());
+
+        assertRemoved(distribution);
+        installation = installPackage(distribution);
+        assertInstalled(distribution);
+        verifyPackageInstallation(installation, distribution, sh);
+
+        final Installation.Executables bin = installation.executables();
+        Shell.Result r = sh.runIgnoreExitCode(bin.elasticsearchKeystore + " has-passwd");
+        assertThat("has-passwd should fail", r.exitCode, not(is(0)));
+        assertThat("has-passwd should fail", r.stderr, containsString("ERROR: Keystore is not password protected"));
     }
 
     public void test20CreateKeystoreManually() throws Exception {
@@ -94,7 +113,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assertThat(result.stdout, containsString("keystore.seed"));
     }
 
-    public void test40keystorePasswordOnStandardInput() throws Exception {
+    public void test40KeystorePasswordOnStandardInput() throws Exception {
         assumeTrue("packages will use systemd, which doesn't handle stdin",
             distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
@@ -112,7 +131,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Archives.stopElasticsearch(installation);
     }
 
-    public void test41wrongKeystorePasswordOnStandardInput() throws Exception {
+    public void test41WrongKeystorePasswordOnStandardInput() throws Exception {
         assumeTrue("packages will use systemd, which doesn't handle stdin",
             distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
@@ -124,23 +143,46 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Archives.runElasticsearch(installation, sh, "wrong");
     }
 
-    public void test42keystorePasswordOnTty() throws Exception {
+    // fails on windows
+    public void test42KeystorePasswordWithSpecialChars() throws Exception {
+        assumeTrue("packages will use systemd, which doesn't handle stdin",
+            distribution.isArchive());
+        assumeThat(installation, is(notNullValue()));
+
+        String password = "string&exit"; // code insertion on Windows
+
+        rmKeystoreIfExists();
+        createKeystore();
+        setKeystorePassword(password);
+
+        assertPasswordProtectedKeystore();
+
+        Archives.runElasticsearch(installation, sh, password);
+        ServerUtils.runElasticsearchTests();
+        Archives.stopElasticsearch(installation);
+    }
+
+    public void test43KeystorePasswordOnTty() throws Exception {
         assumeTrue("expect command isn't on Windows",
             distribution.platform != Distribution.Platform.WINDOWS);
         assumeTrue("packages will use systemd, which doesn't handle stdin",
             distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
 
-        assertPasswordProtectedKeystore();
-
         String password = "keystorepass";
+
+        rmKeystoreIfExists();
+        createKeystore();
+        setKeystorePassword(password);
+
+        assertPasswordProtectedKeystore();
 
         Archives.runElasticsearchWithTty(installation, sh, password);
         ServerUtils.runElasticsearchTests();
         Archives.stopElasticsearch(installation);
     }
 
-    public void test43wrongKeystorePasswordOnTty() throws Exception {
+    public void test44WrongKeystorePasswordOnTty() throws Exception {
         assumeTrue("expect command isn't on Windows",
             distribution.platform != Distribution.Platform.WINDOWS);
         assumeTrue("packages will use systemd, which doesn't handle stdin",
@@ -154,7 +196,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Archives.runElasticsearchWithTty(installation, sh, "wrong");
     }
 
-    public void test50keystorePasswordFromFile() throws Exception {
+    public void test50KeystorePasswordFromFile() throws Exception {
         String password = "keystorepass";
         Path esKeystorePassphraseFile = installation.config.resolve("eks");
         boolean isWindows = distribution.platform.equals(Distribution.Platform.WINDOWS);
@@ -197,7 +239,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         }
     }
 
-    public void test51wrongKeystorePasswordFromFile() throws Exception {
+    public void test51WrongKeystorePasswordFromFile() throws Exception {
         Path esKeystorePassphraseFile = installation.config.resolve("eks");
         boolean isWindows = distribution.platform.equals(Distribution.Platform.WINDOWS);
         Path esEnv = isWindows
@@ -275,7 +317,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
             )
         );
         Platforms.onWindows(() -> {
-            sh.run("echo \"" + password + "`r`n" + password + "`r`n\" | " + bin.elasticsearchKeystore + " passwd");
+            sh.run("Invoke-Command -ScriptBlock {echo \'" + password + "\'; echo \'" + password + "\'} | "
+                + bin.elasticsearchKeystore + " passwd");
         });
     }
 

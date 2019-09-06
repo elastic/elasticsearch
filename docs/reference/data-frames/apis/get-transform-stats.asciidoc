@@ -117,7 +117,8 @@ GET _data_frame/transforms/ecommerce_transform/_stats
 // TEST[skip:todo]
 
 The API returns the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "count" : 1,
@@ -170,4 +171,3 @@ The API returns the following results:
   ]
 }
 ----
-// TESTRESPONSE

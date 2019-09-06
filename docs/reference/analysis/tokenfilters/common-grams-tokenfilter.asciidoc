@@ -85,7 +85,7 @@ POST /common_grams_example/_analyze
 
 And the response will be:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "tokens" : [
@@ -166,4 +166,3 @@ And the response will be:
   ]
 }
 --------------------------------------------------
-// TESTRESPONSE

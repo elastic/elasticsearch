@@ -107,7 +107,6 @@ GET _ilm/status
   "operation_mode": "STOPPING"
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 The ILM service will then, asynchronously, run all policies to a point
 where it is safe to stop. After ILM verifies that it is safe, it will
@@ -153,7 +152,7 @@ GET _ilm/status
 The Start API will send a request to the ILM service to immediately begin
 normal operations.
 
-[source,console-resposne]
+[source,console-result]
 --------------------------------------------------
 {
   "operation_mode": "RUNNING"

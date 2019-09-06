@@ -40,7 +40,7 @@ and
 
 The following example performs logout
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/oidc/logout
 {
@@ -48,7 +48,6 @@ POST /_security/oidc/logout
   "refresh_token": "vLBPvmAB6KvwvJZr27cS"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[catch:unauthorized]
 
 The following example output of the response contains the URI pointing to the

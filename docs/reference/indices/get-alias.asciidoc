@@ -99,7 +99,7 @@ GET /logs_20302801/_alias/*
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
  "logs_20302801" : {
@@ -117,7 +117,6 @@ The API returns the following response:
  }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 
 [[get-alias-api-named-ex]]
@@ -134,7 +133,7 @@ GET /_alias/2030
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "logs_20302801" : {
@@ -150,7 +149,7 @@ The API returns the following response:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+
 
 [[get-alias-api-wildcard-ex]]
 ===== Get aliases based on a wildcard
@@ -166,7 +165,7 @@ GET /_alias/20*
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "logs_20302801" : {
@@ -182,4 +181,3 @@ The API returns the following response:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE

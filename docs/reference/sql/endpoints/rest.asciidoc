@@ -322,14 +322,12 @@ POST /_sql/close
 
 Which will like return the
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "succeeded" : true
 }
 --------------------------------------------------
-// TESTRESPONSE
-
 
 
 [[sql-rest-filtering]]

@@ -76,7 +76,7 @@ POST _ml/calendars/planned-outages/events
 
 The API returns the following results:
 
-[source,js]
+[source,console-result]
 ----
 {
   "events": [
@@ -101,4 +101,3 @@ The API returns the following results:
   ]
 }
 ----
-// TESTRESPONSE

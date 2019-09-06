@@ -107,11 +107,10 @@ POST /my_index/_open
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "acknowledged" : true,
     "shards_acknowledged" : true
 }
 --------------------------------------------------
-// TESTRESPONSE

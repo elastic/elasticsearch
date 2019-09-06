@@ -124,7 +124,7 @@ GET /_remote/info
 The API will respond by showing that the local cluster is connected to the
 remote cluster.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "leader" : {
@@ -139,8 +139,7 @@ remote cluster.
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
-// TEST[s/127.0.0.1:9300/$body.leader.seeds.0/]
+// TESTRESPONSE[s/127.0.0.1:9300/$body.leader.seeds.0/]
 // TEST[s/"connected" : true/"connected" : $body.leader.connected/]
 // TEST[s/"num_nodes_connected" : 1/"num_nodes_connected" : $body.leader.num_nodes_connected/]
 <1> This shows the local cluster is connected to the remote cluster with cluster
@@ -222,7 +221,7 @@ PUT /server-metrics-copy/_ccr/follow?wait_for_active_shards=1
 
 //////////////////////////
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "follow_index_created" : true,
@@ -230,7 +229,6 @@ PUT /server-metrics-copy/_ccr/follow?wait_for_active_shards=1
   "index_following_started" : true
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 //////////////////////////
 
@@ -294,13 +292,12 @@ PUT /_ccr/auto_follow/beats
 
 //////////////////////////
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "acknowledged" : true
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 //////////////////////////
 

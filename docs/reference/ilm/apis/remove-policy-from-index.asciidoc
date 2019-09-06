@@ -80,11 +80,10 @@ POST my_index/_ilm/remove
 
 If the request succeeds, you receive the following result:
 
-[source,console]
+[source,console-result]
 --------------------------------------------------
 {
   "has_failures" : false,
   "failed_indexes" : []
 }
 --------------------------------------------------
-// TESTRESPONSE

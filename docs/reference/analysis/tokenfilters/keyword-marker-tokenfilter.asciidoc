@@ -64,7 +64,7 @@ POST /keyword_marker_example/_analyze
 
 And it'd respond:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "tokens": [
@@ -92,7 +92,6 @@ And it'd respond:
   ]
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 As compared to the `normal` analyzer which has `cats` stemmed to `cat`:
 
@@ -108,7 +107,7 @@ POST /keyword_marker_example/_analyze
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "tokens": [
@@ -136,4 +135,3 @@ Response:
   ]
 }
 --------------------------------------------------
-// TESTRESPONSE

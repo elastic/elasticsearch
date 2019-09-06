@@ -834,10 +834,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             builder.setDefaultHeaders(defaultHeaders);
         }
         final String socketTimeoutString = settings.get(CLIENT_SOCKET_TIMEOUT);
-        if (socketTimeoutString != null) {
-            final TimeValue socketTimeout = TimeValue.parseTimeValue(socketTimeoutString, CLIENT_SOCKET_TIMEOUT);
-            builder.setRequestConfigCallback(conf -> conf.setSocketTimeout(Math.toIntExact(socketTimeout.getMillis())));
-        }
+        final TimeValue socketTimeout =
+            TimeValue.parseTimeValue(socketTimeoutString == null ? "60s" : socketTimeoutString, CLIENT_SOCKET_TIMEOUT);
+        builder.setRequestConfigCallback(conf -> conf.setSocketTimeout(Math.toIntExact(socketTimeout.getMillis())));
         if (settings.hasValue(CLIENT_PATH_PREFIX)) {
             builder.setPathPrefix(settings.get(CLIENT_PATH_PREFIX));
         }

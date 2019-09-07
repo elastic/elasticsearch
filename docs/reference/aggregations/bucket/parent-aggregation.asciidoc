@@ -125,7 +125,7 @@ The above example returns the top answer owners and per owner the top question t
 
 Possible response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 9,

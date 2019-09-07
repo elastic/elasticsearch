@@ -103,7 +103,7 @@ GET _watcher/watch/my_watch
 
 The action state of a newly-created watch is `awaits_successful_execution`:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
@@ -148,7 +148,7 @@ GET _watcher/watch/my_watch
 
 and the action is now in `ackable` state:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
@@ -199,7 +199,7 @@ GET _watcher/watch/my_watch
 // CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
@@ -266,7 +266,7 @@ POST _watcher/watch/my_watch/_ack
 
 The response looks like a get watch response, but only contains the status:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "status": {

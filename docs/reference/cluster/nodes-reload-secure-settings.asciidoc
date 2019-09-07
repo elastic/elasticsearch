@@ -35,7 +35,7 @@ node id. Each value has the node `name` and an optional `reload_exception`
 field. The `reload_exception` field is a serialization of the exception
 that was thrown during the reload process, if any.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_nodes": {

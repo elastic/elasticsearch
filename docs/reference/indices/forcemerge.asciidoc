@@ -20,11 +20,10 @@ is lost before completion then the force merge process will continue in the
 background. Any new requests to force merge the same indices will also block
 until the ongoing force merge is complete.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /twitter/_forcemerge
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 Force-merging can be useful with time-based indices and when using
@@ -32,11 +31,10 @@ Force-merging can be useful with time-based indices and when using
 indexing traffic for a certain period of time, and once an index will receive
 no more writes its shards can be force-merged down to a single segment:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /logs-000001/_forcemerge?max_num_segments=1
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 // TEST[s/logs-000001/twitter/]
 
@@ -64,11 +62,10 @@ deletes. Defaults to `false`.  Note that this won't override the
 `flush`::  Should a flush be performed after the forced merge. Defaults to
 `true`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /kimchy/_forcemerge?only_expunge_deletes=false&max_num_segments=100&flush=true
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT kimchy\n/]
 
 [float]
@@ -82,11 +79,10 @@ temporarily increase, up to double its size in case `max_num_segments` is set
 to `1`, as all segments need to be rewritten into a new one.
 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /kimchy,elasticsearch/_forcemerge
 
 POST /_forcemerge
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]

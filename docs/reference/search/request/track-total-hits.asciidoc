@@ -36,7 +36,7 @@ GET twitter/_search
 
 \... returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "_shards": ...
@@ -86,7 +86,7 @@ bound of the total (`"gte"`).
 
 For instance the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "_shards": ...
@@ -157,7 +157,7 @@ GET twitter/_search
 
 \... returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "_shards": ...

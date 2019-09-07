@@ -32,13 +32,11 @@ abstract class NamedDateTimeFunction extends BaseDateTimeFunction {
 
     @Override
     public ScriptTemplate asScript() {
-        ParamsBuilder params = paramsBuilder();
-
         ScriptTemplate script = super.asScript();
         String template = formatTemplate("{sql}." + StringUtils.underscoreToLowerCamelCase(nameExtractor.name())
             + "(" + script.template() + ", {})");
-        params.script(script.params())
-              .variable(zoneId().getId());
+        
+        ParamsBuilder params = paramsBuilder().script(script.params()).variable(zoneId().getId());
         
         return new ScriptTemplate(template, params.build(), dataType());
     }

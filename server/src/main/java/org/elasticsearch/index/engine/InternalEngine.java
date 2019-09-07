@@ -261,10 +261,14 @@ public class InternalEngine extends Engine {
             // Thus, we need to restore the LocalCheckpointTracker bit by bit to ensure the consistency between LocalCheckpointTracker and
             // Lucene index. This is not the only solution since we can bootstrap max_seq_no_of_updates with max_seq_no of the commit to
             // disable the MSU optimization during recovery. Here we prefer to maintain the consistency of LocalCheckpointTracker.
-            if (localCheckpoint < maxSeqNo && engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
+            // The max_seq_no of Lucene commit in the old indices might be smaller than seq_no of some documents in the commit.
+            // We have to rebuild the LocalCheckpointTracker for those indices. See https://github.com/elastic/elasticsearch/pull/38879.
+            // Note that this bug affects only indices created between 6.5.0 and 6.6.1 with soft-deletes is explicitly enabled.
+            final boolean mustRebuild = engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_6_2);
+            if (engineConfig.getIndexSettings().isSoftDeleteEnabled() && (localCheckpoint < maxSeqNo || mustRebuild)) {
                 try (Searcher searcher = searcherSupplier.get()) {
-                    Lucene.scanSeqNosInReader(searcher.getDirectoryReader(), localCheckpoint + 1, maxSeqNo,
-                        tracker::markSeqNoAsCompleted);
+                    final long toSeqNo = mustRebuild ? Long.MAX_VALUE : maxSeqNo;
+                    Lucene.scanSeqNosInReader(searcher.getDirectoryReader(), localCheckpoint + 1, toSeqNo, tracker::markSeqNoAsCompleted);
                 }
             }
             return tracker;

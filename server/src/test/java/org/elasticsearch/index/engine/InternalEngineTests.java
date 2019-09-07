@@ -132,6 +132,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 
@@ -5625,6 +5626,61 @@ public class InternalEngineTests extends EngineTestCase {
                         "seq_no=" + op.seqNo() + " max_seq_no=" + tracker.getMaxSeqNo() + "checkpoint=" + tracker.getCheckpoint(),
                         tracker.contains(op.seqNo()), equalTo(seqNosInSafeCommit.contains(op.seqNo())));
                 }
+                engine.reinitializeMaxSeqNoOfUpdatesOrDeletes();
+                engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
+                assertThat(getDocIds(engine, true), equalTo(docs));
+            }
+        }
+    }
+
+    /**
+     * Simulate a bug in https://github.com/elastic/elasticsearch/pull/38879 where the max_seq_no
+     * of the index commit can be smaller than seq_no of some documents in the commit.
+     */
+    public void testAlwaysRebuildLocalCheckpointForOldIndex() throws Exception {
+        Settings.Builder settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_6_5_0, Version.V_6_6_1))
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
+        Path translogPath = createTempDir();
+        List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 500), randomBoolean(), randomBoolean(), randomBoolean());
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        try (Store store = createStore()) {
+            EngineConfig config = config(indexSettings, store, translogPath, NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
+            final List<DocIdSeqNoAndTerm> docs;
+            try (InternalEngine engine = createEngine(config)) {
+                for (Engine.Operation op : operations) {
+                    applyOperation(engine, op);
+                    if (randomInt(100) < 10) {
+                        engine.flush();
+                        globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpoint()));
+                    }
+                }
+                globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpoint()));
+                engine.syncTranslog();
+                docs = getDocIds(engine, true);
+            }
+            trimUnsafeCommits(config);
+            // Simulate a bug in https://github.com/elastic/elasticsearch/pull/38879 where max_seq_no is smaller than seq_no of some docs.
+            if (randomBoolean()) {
+                IndexWriterConfig iwc = new IndexWriterConfig(null)
+                    .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
+                    .setCommitOnClose(false)
+                    .setMergePolicy(NoMergePolicy.INSTANCE)
+                    .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+                try (IndexWriter writer = new IndexWriter(config.getStore().directory(), iwc)) {
+                    Map<String, String> userData = new HashMap<>();
+                    writer.getLiveCommitData().forEach(e -> userData.put(e.getKey(), e.getValue()));
+                    SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
+                    long maxSeqNo = randomLongBetween(commitInfo.localCheckpoint, commitInfo.maxSeqNo);
+                    userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
+                    writer.setLiveCommitData(userData.entrySet());
+                    writer.commit();
+                }
+            }
+            try (InternalEngine engine = new InternalEngine(config)) {
                 engine.reinitializeMaxSeqNoOfUpdatesOrDeletes();
                 engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
                 assertThat(getDocIds(engine, true), equalTo(docs));

@@ -38,7 +38,6 @@ import org.gradle.api.file.FileTree;
 import org.gradle.api.file.RelativePath;
 import org.gradle.api.tasks.Copy;
 
-import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -275,20 +274,18 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                                 }
                                 // finally remove the top-level directories from the output path
                                 final Path destination = extractPath.resolve(entryName.subpath(index + 1, entryName.getNameCount()));
+                                final Path parent = destination.getParent();
+                                if (Files.exists(parent) == false) {
+                                    Files.createDirectories(parent);
+                                }
                                 if (entry.isDirectory()) {
-                                    Files.createDirectories(destination);
+                                    Files.createDirectory(destination);
                                 } else if (entry.isSymbolicLink()) {
                                     Files.createSymbolicLink(destination, Paths.get(entry.getLinkName()));
                                 } else {
                                     // copy the file from the archive using a small buffer to avoid heaping
                                     Files.createFile(destination);
-                                    byte[] bytes = new byte[1024];
-                                    final BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(destination.toFile()));
-                                    int length = 0;
-                                    while ((length = tar.read(bytes)) != -1) {
-                                        bos.write(bytes, 0, length);
-                                    }
-                                    bos.close();
+                                    tar.transferTo(new FileOutputStream(destination.toFile()));
                                 }
                                 entry = tar.getNextTarEntry();
                             }

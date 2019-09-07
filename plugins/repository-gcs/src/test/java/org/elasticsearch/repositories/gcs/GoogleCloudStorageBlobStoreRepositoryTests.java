@@ -452,10 +452,10 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
 
             // Batch requests are not retried so we don't want to fail them
             // The batched request are supposed to be retried (not tested here)
-            final boolean allowError = exchange.getRequestURI().toString().startsWith("/batch/") || randomBoolean();
+            final boolean noError = exchange.getRequestURI().toString().startsWith("/batch/") || randomBoolean();
 
             final int count = requests.computeIfAbsent(requestId, req -> new AtomicInteger(0)).incrementAndGet();
-            if (count >= maxErrorsPerRequest || allowError) {
+            if (count >= maxErrorsPerRequest || noError) {
                 requests.remove(requestId);
                 delegate.handle(exchange);
             } else {

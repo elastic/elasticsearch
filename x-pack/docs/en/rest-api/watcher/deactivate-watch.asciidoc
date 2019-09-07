@@ -54,7 +54,7 @@ GET _watcher/watch/my_watch
 // CONSOLE
 // TEST[setup:my_active_watch]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
@@ -89,7 +89,7 @@ PUT _watcher/watch/my_watch/_deactivate
 
 The new state of the watch is returned as part of its overall status:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "status": {

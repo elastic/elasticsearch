@@ -78,7 +78,8 @@ POST _ml/anomaly_detectors/total-requests/_flush
 // TEST[skip:setup:server_metrics_openjob]
 
 When the operation succeeds, you receive the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "flushed": true,

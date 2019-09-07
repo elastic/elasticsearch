@@ -78,6 +78,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
@@ -837,11 +838,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
             builder.setDefaultHeaders(defaultHeaders);
         }
-        final String socketTimeoutString = settings.get(CLIENT_SOCKET_TIMEOUT);
-        if (socketTimeoutString != null) {
-            final TimeValue socketTimeout = TimeValue.parseTimeValue(socketTimeoutString, CLIENT_SOCKET_TIMEOUT);
-            builder.setRequestConfigCallback(conf -> conf.setSocketTimeout(Math.toIntExact(socketTimeout.getMillis())));
-        }
+        final String socketTimeoutString = Objects.requireNonNullElse(settings.get(CLIENT_SOCKET_TIMEOUT), "60s");
+        final TimeValue socketTimeout = TimeValue.parseTimeValue(socketTimeoutString, CLIENT_SOCKET_TIMEOUT);
+        builder.setRequestConfigCallback(conf -> conf.setSocketTimeout(Math.toIntExact(socketTimeout.getMillis())));
         if (settings.hasValue(CLIENT_PATH_PREFIX)) {
             builder.setPathPrefix(settings.get(CLIENT_PATH_PREFIX));
         }

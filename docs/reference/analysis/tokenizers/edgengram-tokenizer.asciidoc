@@ -284,7 +284,7 @@ GET my_index/_search
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "took": $body.took,

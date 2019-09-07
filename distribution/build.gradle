@@ -26,7 +26,9 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.test.RunTask
 
 import java.nio.file.Files
-import java.nio.file.Path 
+import java.nio.file.Path
+import java.nio.file.Paths
+
 /*****************************************************************************
  *                  Third party dependencies report                          *
  *****************************************************************************/
@@ -402,6 +404,18 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           }
           if (details.name == 'src.zip') {
             details.exclude()
+          }
+          // we need to preserve symlinks, see https://github.com/gradle/gradle/issues/3982
+          final Path sourcePath = Paths.get(details.file.path)
+          if (Files.isSymbolicLink(sourcePath)) {
+            details.exclude()
+            final Path destinationPath = Paths.get(details.relativePath.toString())
+            if (Files.notExists(destinationPath.parent)) {
+              project.mkdir destinationPath.parent
+            }
+            project.exec {
+              commandLine 'ln', '-sf', Files.readSymbolicLink(sourcePath), destinationPath
+            }
           }
         }
       }

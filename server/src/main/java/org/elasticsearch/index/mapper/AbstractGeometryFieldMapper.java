@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.ParseField;
@@ -60,6 +61,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
     public static class Names {
         public static final ParseField ORIENTATION = new ParseField("orientation");
         public static final ParseField COERCE = new ParseField("coerce");
+        public static final ParseField CRS = new ParseField("crs");
     }
 
     public static class Defaults {
@@ -67,14 +69,6 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         public static final Explicit<Boolean> COERCE = new Explicit<>(false, false);
         public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
         public static final Explicit<Boolean> IGNORE_Z_VALUE = new Explicit<>(true, false);
-    }
-
-    public abstract static class CRSHandler {
-        protected Indexer indexer;
-        protected QueryProcessor queryProcessor;
-
-        public abstract Indexer getIndexer();
-        public abstract QueryProcessor getQueryProcessor();
     }
 
     /**
@@ -222,7 +216,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             if (params.containsKey(DEPRECATED_PARAMETERS_KEY)) {
                 return new LegacyGeoShapeFieldMapper.Builder(name, (DeprecatedParameters)params.get(DEPRECATED_PARAMETERS_KEY));
             }
-            return new GeoShapeFieldMapper.Builder(name);
+            return new GeoShapeFieldMapper.Builder(name, params);
         }
 
         @Override
@@ -252,6 +246,13 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
                         XContentMapValues.nodeBooleanValue(fieldNode,
                             name + "." + GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName()));
                     iterator.remove();
+                } else if (Names.CRS.match(fieldName, LoggingDeprecationHandler.INSTANCE)) {
+                    if (fieldNode instanceof Map) {
+                        parseCRS((Map<String, Object>) fieldNode, parserContext, params);
+                    } else {
+                        throw new ElasticsearchParseException("expected object for [{}] field", Names.CRS.getPreferredName());
+                    }
+                    iterator.remove();
                 }
             }
             if (parsedDeprecatedParameters == false) {
@@ -276,6 +277,31 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             }
 
             return builder;
+        }
+
+        private static void parseCRS(Map<String, Object> crsNode, ParserContext parserContext, Map<String, Object> params) {
+            Object typeNode = crsNode.get("type");
+            if (typeNode != null) {
+                if (typeNode.toString().equalsIgnoreCase("name") == false) {
+                    throw new ElasticsearchParseException("only type [{}] is supported for [{]}", "name", Names.CRS.getPreferredName());
+                }
+            } else {
+                throw new ElasticsearchParseException("expected [{}] field for [{}]", "type", Names.CRS.getPreferredName());
+            }
+
+            Object propsNode = crsNode.get("properties");
+            if (propsNode == null) {
+                throw new ElasticsearchParseException("expected [{}] field for [{}]", "properties", Names.CRS.getPreferredName());
+            } else if (propsNode instanceof Map == false) {
+                throw new ElasticsearchParseException("[{}] must be an object", "properties");
+            }
+
+            Map<String, Object> crsProperties = (Map<String, Object>)propsNode;
+            Object nameNode = crsProperties.get("name");
+            if (nameNode == null) {
+                throw new ElasticsearchParseException("expected [{}] field for [{}]", "name", "properties");
+            }
+            params.put(Names.CRS.getPreferredName(), nameNode.toString());
         }
     }
 

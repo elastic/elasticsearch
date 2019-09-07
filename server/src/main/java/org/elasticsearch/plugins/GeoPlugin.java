@@ -16,8 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.plugins;
 
-esplugin {
-    description 'Provides geospatial functionality for elasticsearch.'
-    classname 'org.elasticsearch.spatial.SpatialPlugin'
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+
+import java.util.Collections;
+import java.util.List;
+
+public interface GeoPlugin {
+    default List<GeoShapeFieldMapper.CRSHandler> getCRSHandlers() {
+        return Collections.emptyList();
+    }
 }

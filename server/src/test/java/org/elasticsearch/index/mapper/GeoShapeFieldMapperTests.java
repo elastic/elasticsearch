@@ -102,6 +102,26 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.CCW));
     }
 
+    public void testCRSParsing() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("location")
+            .field("type", "geo_shape")
+            .startObject("crs")
+            .field("type", "name")
+            .startObject("properties")
+            .field("name", "EPSG:4326")
+            .endObject()
+            .endObject()
+            .endObject().endObject()
+            .endObject().endObject());
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> createIndex("test").mapperService().documentMapperParser()
+                .parse("type1", new CompressedXContent(mapping))
+        );
+        assertThat(e.getMessage(), containsString("crs [EPSG:4326] not supported"));
+    }
+
     /**
      * Test that coerce parameter correctly parses
      */

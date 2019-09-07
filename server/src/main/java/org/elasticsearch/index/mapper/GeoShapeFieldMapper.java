@@ -20,11 +20,16 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.LatLonShape;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 /**
  * FieldMapper for indexing {@link LatLonShape}s.
@@ -49,9 +54,18 @@ import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
 public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, Geometry> {
     public static final String CONTENT_TYPE = "geo_shape";
 
+    public static List<CRSHandler> CRS_HANDLERS = new ArrayList<>();
+
     public static class Builder extends AbstractGeometryFieldMapper.Builder<AbstractGeometryFieldMapper.Builder, GeoShapeFieldMapper> {
+        CRSHandler crsHandler;
+
         public Builder(String name) {
             super (name, new GeoShapeFieldType(), new GeoShapeFieldType());
+        }
+
+        public Builder(String name, Map<String, Object> params) {
+            this(name);
+            this.crsHandler = resolveCRSHandler((String)params.get("crs"));
         }
 
         @Override
@@ -68,16 +82,16 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
             GeoShapeFieldType fieldType = (GeoShapeFieldType)fieldType();
             boolean orientation = fieldType.orientation == ShapeBuilder.Orientation.RIGHT;
 
+            // @todo the GeometryParser can be static since it doesn't hold state?
             GeometryParser geometryParser = new GeometryParser(orientation, coerce(context).value(), ignoreZValue().value());
             fieldType.setGeometryParser( (parser, mapper) -> geometryParser.parse(parser));
 
-            fieldType.setGeometryIndexer(new GeoShapeIndexer(orientation, fieldType.name()));
-            fieldType.setGeometryQueryBuilder(new VectorGeoShapeQueryProcessor());
+            fieldType.setGeometryIndexer(crsHandler.newIndexer(orientation, fieldType.name()));
+            fieldType.setGeometryQueryBuilder(crsHandler.newQueryProcessor());
         }
     }
 
     public static final class GeoShapeFieldType extends AbstractGeometryFieldType<Geometry, Geometry> {
-        CRSHandler crsHandler;
 
         public GeoShapeFieldType() {
             super();
@@ -115,4 +129,45 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
     protected String contentType() {
         return CONTENT_TYPE;
     }
+
+    public static void registerCRSHandlers(List<CRSHandler> crsHandlers) {
+        CRS_HANDLERS.addAll(crsHandlers);
+    }
+
+    private static CRSHandler resolveCRSHandler(String crs) {
+        if (crs == null) {
+            return DEFAULT_CRS_HANDLER;
+        }
+
+        for (CRSHandler handler : CRS_HANDLERS) {
+            if (handler.supportsCRS(crs)) {
+                return handler;
+            }
+        }
+        throw new IllegalArgumentException("crs [" + crs + "] not supported");
+    }
+
+    public interface CRSHandler {
+        Indexer newIndexer(boolean orientation, String fieldName);
+        QueryProcessor newQueryProcessor();
+
+        boolean supportsCRS(String crs);
+    }
+
+    public static CRSHandler DEFAULT_CRS_HANDLER = new CRSHandler() {
+        @Override
+        public Indexer newIndexer(boolean orientation, String fieldName) {
+            return new GeoShapeIndexer(orientation, fieldName);
+        }
+
+        @Override
+        public QueryProcessor newQueryProcessor() {
+            return new VectorGeoShapeQueryProcessor();
+        }
+
+        @Override
+        public boolean supportsCRS(String crs) {
+            return false;
+        }
+    };
 }

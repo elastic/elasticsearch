@@ -62,7 +62,6 @@ import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.plugins.Plugin;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -81,9 +80,9 @@ import java.util.function.Predicate;
 public class IndicesModule extends AbstractModule {
     private final MapperRegistry mapperRegistry;
 
-    public IndicesModule(List<Plugin> plugins) {
-        this.mapperRegistry = new MapperRegistry(getMappers(plugins), getMetadataMappers(plugins),
-                getFieldFilter(plugins));
+    public IndicesModule(List<MapperPlugin> mapperPlugins) {
+        this.mapperRegistry = new MapperRegistry(getMappers(mapperPlugins), getMetadataMappers(mapperPlugins),
+                getFieldFilter(mapperPlugins));
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -104,7 +103,7 @@ public class IndicesModule extends AbstractModule {
         );
     }
 
-    public static Map<String, Mapper.TypeParser> getMappers(List<Plugin> plugins) {
+    public static Map<String, Mapper.TypeParser> getMappers(List<MapperPlugin> mapperPlugins) {
         Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
 
         // builtin mappers
@@ -127,15 +126,11 @@ public class IndicesModule extends AbstractModule {
         mappers.put(ObjectMapper.NESTED_CONTENT_TYPE, new ObjectMapper.TypeParser());
         mappers.put(CompletionFieldMapper.CONTENT_TYPE, new CompletionFieldMapper.TypeParser());
         mappers.put(FieldAliasMapper.CONTENT_TYPE, new FieldAliasMapper.TypeParser());
-        // call filterPlugins(
         mappers.put(GeoPointFieldMapper.CONTENT_TYPE, new GeoPointFieldMapper.TypeParser());
         mappers.put(GeoShapeFieldMapper.CONTENT_TYPE, new AbstractGeometryFieldMapper.TypeParser());
 
-        for (Plugin plugin : plugins) {
-            if (plugin instanceof MapperPlugin == false) {
-                continue;
-            }
-            for (Map.Entry<String, Mapper.TypeParser> entry : ((MapperPlugin)plugin).getMappers().entrySet()) {
+        for (MapperPlugin mapperPlugin : mapperPlugins) {
+            for (Map.Entry<String, Mapper.TypeParser> entry : mapperPlugin.getMappers().entrySet()) {
                 if (mappers.put(entry.getKey(), entry.getValue()) != null) {
                     throw new IllegalArgumentException("Mapper [" + entry.getKey() + "] is already registered");
                 }
@@ -166,7 +161,7 @@ public class IndicesModule extends AbstractModule {
         return Collections.unmodifiableMap(builtInMetadataMappers);
     }
 
-    public static Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers(List<Plugin> plugins) {
+    public static Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers(List<MapperPlugin> mapperPlugins) {
         Map<String, MetadataFieldMapper.TypeParser> metadataMappers = new LinkedHashMap<>();
 
         int i = 0;
@@ -182,11 +177,8 @@ public class IndicesModule extends AbstractModule {
         }
         assert fieldNamesEntry != null;
 
-        for (Plugin plugin : plugins) {
-            if (plugin instanceof MapperPlugin == false) {
-                continue;
-            }
-            for (Map.Entry<String, MetadataFieldMapper.TypeParser> entry : ((MapperPlugin)plugin).getMetadataMappers().entrySet()) {
+        for (MapperPlugin mapperPlugin : mapperPlugins) {
+            for (Map.Entry<String, MetadataFieldMapper.TypeParser> entry : mapperPlugin.getMetadataMappers().entrySet()) {
                 if (entry.getKey().equals(FieldNamesFieldMapper.NAME)) {
                     throw new IllegalArgumentException("Plugin cannot contain metadata mapper [" + FieldNamesFieldMapper.NAME + "]");
                 }
@@ -208,13 +200,10 @@ public class IndicesModule extends AbstractModule {
         return builtInMetadataMappers.keySet();
     }
 
-    private static Function<String, Predicate<String>> getFieldFilter(List<Plugin> plugins) {
+    private static Function<String, Predicate<String>> getFieldFilter(List<MapperPlugin> mapperPlugins) {
         Function<String, Predicate<String>> fieldFilter = MapperPlugin.NOOP_FIELD_FILTER;
-        for (Plugin plugin : plugins) {
-            if (plugin instanceof MapperPlugin == false) {
-                continue;
-            }
-            fieldFilter = and(fieldFilter, ((MapperPlugin)plugin).getFieldFilter());
+        for (MapperPlugin mapperPlugin : mapperPlugins) {
+            fieldFilter = and(fieldFilter, mapperPlugin.getFieldFilter());
         }
         return fieldFilter;
     }

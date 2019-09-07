@@ -34,7 +34,7 @@ public interface ReloadablePlugin {
      * operation <b>is required to have been completed</b> when the method returns.
      * Strictly speaking, the <code>settings</code> argument should not be accessed
      * outside of this method's call stack, as any values stored in the node's
-     * keystore (see {@code SesetupFieldTypecureSetting}) will not otherwise be retrievable. The
+     * keystore (see {@code SecureSetting}) will not otherwise be retrievable. The
      * setting values do not follow dynamic updates, i.e. the values are identical
      * to the ones during the initial plugin loading, barring the keystore file on
      * disk changes. Any failure during the operation should be signaled by raising

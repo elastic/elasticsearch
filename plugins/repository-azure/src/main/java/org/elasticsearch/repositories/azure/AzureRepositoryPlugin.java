@@ -53,6 +53,7 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
         this.azureStoreService = createAzureStoreService(settings);
     }
 
+    // non-static, package private for testing
     AzureStorageService createAzureStoreService(final Settings settings) {
         return new AzureStorageService(settings);
     }

@@ -128,6 +128,7 @@ public class AzureStorageService {
         return client;
     }
 
+    // non-static, package private for testing
     RetryPolicyFactory createRetryPolicy(final AzureStorageSettings azureStorageSettings) {
         return new RetryExponentialRetry(RetryPolicy.DEFAULT_CLIENT_BACKOFF, azureStorageSettings.getMaxRetries());
     }

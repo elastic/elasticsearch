@@ -88,7 +88,7 @@ public class RepositoryDataTests extends ESTestCase {
         int numOld = randomIntBetween(1, indexIdMap.size());
         List<String> indexNames = new ArrayList<>(indexIdMap.keySet());
         for (int i = 0; i < numOld; i++) {
-            indices.put(indexIdMap.get(indexNames.get(i)), Strings.EMPTY_ARRAY);
+            indices.put(indexIdMap.get(indexNames.get(i)), new String[]{"1"});
         }
         RepositoryData newRepoData = repositoryData.addSnapshot(newSnapshot,
             randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED), indices);
@@ -138,7 +138,7 @@ public class RepositoryDataTests extends ESTestCase {
         List<SnapshotId> snapshotIds = new ArrayList<>(repositoryData.getSnapshotIds());
         assertThat(snapshotIds.size(), greaterThan(0));
         SnapshotId removedSnapshotId = snapshotIds.remove(randomIntBetween(0, snapshotIds.size() - 1));
-        RepositoryData newRepositoryData = repositoryData.removeSnapshot(removedSnapshotId, null);
+        RepositoryData newRepositoryData = repositoryData.removeSnapshot(removedSnapshotId, Collections.emptyMap());
         // make sure the repository data's indices no longer contain the removed snapshot
         for (final IndexId indexId : newRepositoryData.getIndices().values()) {
             assertFalse(newRepositoryData.getSnapshots(indexId).contains(removedSnapshotId));
@@ -264,7 +264,7 @@ public class RepositoryDataTests extends ESTestCase {
             final List<IndexId> someIndices = indices.subList(0, randomIntBetween(1, numIndices));
             final Map<IndexId, String[]> shardGenerations = new HashMap<>();
             for (IndexId someIndex : someIndices) {
-                shardGenerations.put(someIndex, Strings.EMPTY_ARRAY);
+                shardGenerations.put(someIndex, new String[]{"1"});
             }
             repositoryData = repositoryData.addSnapshot(snapshotId, randomFrom(SnapshotState.values()), shardGenerations);
         }

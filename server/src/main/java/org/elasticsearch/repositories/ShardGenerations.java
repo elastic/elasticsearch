@@ -26,10 +26,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 final class ShardGenerations implements ToXContent {
 
-    final Map<IndexId, String[]> shardGenerations;
+    private final Map<IndexId, String[]> shardGenerations;
 
     ShardGenerations(Map<IndexId, String[]> shardGenerations) {
         this.shardGenerations = shardGenerations;
@@ -83,7 +84,35 @@ final class ShardGenerations implements ToXContent {
         return builder;
     }
 
-    boolean assertShardGensUpdateConsistent(Map<IndexId, String[]> updated) {
+    ShardGenerations updatedGenerations(final Map<IndexId, String[]> shardGenerations) {
+        final Map<IndexId, String[]> updatedGenerations = new HashMap<>(this.shardGenerations);
+        shardGenerations.forEach(((indexId, updatedGens) -> {
+            final String[] existing = updatedGenerations.put(indexId, updatedGens);
+            if (existing != null) {
+                for (int i = 0; i < updatedGens.length; ++i) {
+                    if (updatedGens[i] == null) {
+                        updatedGens[i] = existing[i];
+                    }
+                }
+            }
+        }));
+        updatedGenerations.putAll(shardGenerations);
+        assert assertShardGensUpdateConsistent(updatedGenerations);
+        return new ShardGenerations(updatedGenerations);
+    }
+
+    ShardGenerations forIndices(Set<IndexId> indices) {
+        final Map<IndexId, String[]> updatedGenerations = new HashMap<>(this.shardGenerations);
+        for (IndexId indexId : shardGenerations.keySet()) {
+            if (indices.contains(indexId) == false) {
+                updatedGenerations.remove(indexId);
+            }
+        }
+        assert assertShardGensUpdateConsistent(updatedGenerations);
+        return new ShardGenerations(updatedGenerations);
+    }
+
+    private boolean assertShardGensUpdateConsistent(Map<IndexId, String[]> updated) {
         shardGenerations.forEach((indexId, gens) -> {
             final String[] newGens = updated.get(indexId);
             assert newGens == null || gens.length == 0

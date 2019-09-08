@@ -127,7 +127,7 @@ public final class RepositoryData {
      * @return generation of the {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob
      */
     public String getShardGen(IndexId indexId, int shardId) {
-        return shardGenerations.getShardGen(indexId, shardId);
+        return shardGenerations == null ? null : shardGenerations.getShardGen(indexId, shardId);
     }
 
     /**

@@ -1454,26 +1454,27 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 IndexRoutingTable indexRoutingTable = clusterState.getRoutingTable().index(indexName);
                 for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
                     ShardId shardId = new ShardId(indexMetaData.getIndex(), i);
+                    final String shardRepoGeneration = repositoryData.getShardGen(index, shardId.getId());
                     if (indexRoutingTable != null) {
                         ShardRouting primary = indexRoutingTable.shard(i).primaryShard();
                         if (primary == null || !primary.assignedToNode()) {
                             builder.put(shardId,
                                 new SnapshotsInProgress.ShardSnapshotStatus(null, ShardState.MISSING, "primary shard is not allocated",
-                                    repositoryData.getShardGen(index, shardId.getId())));
+                                    shardRepoGeneration));
                         } else if (primary.relocating() || primary.initializing()) {
                             builder.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(
-                                primary.currentNodeId(), ShardState.WAITING, repositoryData.getShardGen(index, shardId.getId())));
+                                primary.currentNodeId(), ShardState.WAITING, shardRepoGeneration));
                         } else if (!primary.started()) {
                             builder.put(shardId,
                                 new SnapshotsInProgress.ShardSnapshotStatus(primary.currentNodeId(), ShardState.MISSING,
-                                    "primary shard hasn't been started yet", null));
+                                    "primary shard hasn't been started yet", shardRepoGeneration));
                         } else {
                             builder.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(
                                 primary.currentNodeId(), repositoryData.getShardGen(index, shardId.getId())));
                         }
                     } else {
                         builder.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(null, ShardState.MISSING,
-                            "missing routing table", null));
+                            "missing routing table", shardRepoGeneration));
                     }
                 }
             }

@@ -48,7 +48,7 @@ public class GeoShapeFieldProjectionTests extends ESSingleNodeTestCase {
             .startObject("crs")
             .field("type", "name")
             .startObject("properties")
-            .field("name", "EPSG:4326")
+            .field("name", "EPSG:32614")
             .endObject()
             .endObject()
             .endObject().endObject()

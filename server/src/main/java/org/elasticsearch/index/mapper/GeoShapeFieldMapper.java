@@ -20,13 +20,14 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.LatLonShape;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -56,8 +57,13 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
 
     public static List<CRSHandler> CRS_HANDLERS = new ArrayList<>();
 
+    public static class Defaults extends AbstractGeometryFieldMapper.Defaults {
+        public static final Explicit<String> CRS = new Explicit<>(null, false);
+    }
+
     public static class Builder extends AbstractGeometryFieldMapper.Builder<AbstractGeometryFieldMapper.Builder, GeoShapeFieldMapper> {
         CRSHandler crsHandler;
+        protected String crs;
 
         public Builder(String name) {
             super (name, new GeoShapeFieldType(), new GeoShapeFieldType());
@@ -65,14 +71,27 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
 
         public Builder(String name, Map<String, Object> params) {
             this(name);
-            this.crsHandler = resolveCRSHandler((String)params.get("crs"));
+            this.crs = (String)params.get("crs");
+            this.crsHandler = resolveCRSHandler(this.crs);
         }
 
         @Override
         public GeoShapeFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new GeoShapeFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
-                ignoreZValue(), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                ignoreZValue(), crs(), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+        }
+
+        protected Explicit<String> crs() {
+            if (crs != null) {
+                return new Explicit<>(crs, true);
+            }
+            return Defaults.CRS;
+        }
+
+        public Builder crs(final String crs) {
+            this.crs = crs;
+            return this;
         }
 
         @Override
@@ -112,12 +131,15 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
         }
     }
 
+    protected Explicit<String> crs;
+
     public GeoShapeFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                               Explicit<Boolean> ignoreZValue, Settings indexSettings,
+                               Explicit<Boolean> ignoreZValue, Explicit<String> crs, Settings indexSettings,
                                MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, ignoreZValue, indexSettings,
             multiFields, copyTo);
+        this.crs = crs;
     }
 
     @Override
@@ -128,6 +150,23 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    public Explicit<String> crs() {
+        return crs;
+    }
+
+    @Override
+    public void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+        super.doXContentBody(builder, includeDefaults, params);
+        if (crs.value() != null && crs.explicit()) {
+            builder.startObject("crs")
+                .field("type", "name")
+                .startObject("properties")
+                .field("name", crs.value())
+                .endObject()
+                .endObject();
+        }
     }
 
     public static void registerCRSHandlers(List<CRSHandler> crsHandlers) {

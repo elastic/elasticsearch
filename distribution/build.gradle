@@ -389,7 +389,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    jdkFiles = { project, platform ->
+    jdkFiles = { Project project, String platform ->
       project.jdks {
         "bundled_${platform}" {
           it.platform = platform
@@ -406,16 +406,14 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             details.exclude()
           }
           // we need to preserve symlinks, see https://github.com/gradle/gradle/issues/3982
-          final Path sourcePath = Paths.get(details.file.path)
-          if (Files.isSymbolicLink(sourcePath)) {
+          final Path source = Paths.get(details.file.path)
+          if (Files.isSymbolicLink(source)) {
             details.exclude()
-            final Path destinationPath = Paths.get(details.relativePath.toString())
-            if (Files.notExists(destinationPath.parent)) {
-              project.mkdir destinationPath.parent
+            final Path destination = Paths.get(details.relativePath.toString())
+            if (Files.notExists(destination.parent)) {
+              project.mkdir destination.parent
             }
-            project.exec {
-              commandLine 'ln', '-sf', Files.readSymbolicLink(sourcePath), destinationPath
-            }
+            Files.createSymbolicLink(project.getProjectDir().toPath().resolve(destination), Files.readSymbolicLink(source))
           }
         }
       }

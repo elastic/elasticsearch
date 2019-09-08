@@ -409,11 +409,12 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           final Path source = Paths.get(details.file.path)
           if (Files.isSymbolicLink(source)) {
             details.exclude()
-            final Path destination = Paths.get(details.relativePath.toString())
+            final Path destination = project.projectDir.toPath().resolve(details.relativePath.pathString)
             if (Files.notExists(destination.parent)) {
               project.mkdir destination.parent
             }
-            Files.createSymbolicLink(project.getProjectDir().toPath().resolve(destination), Files.readSymbolicLink(source))
+            Files.deleteIfExists(destination)
+            Files.createSymbolicLink(destination, Files.readSymbolicLink(source))
           }
         }
       }

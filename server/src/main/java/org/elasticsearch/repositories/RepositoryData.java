@@ -89,8 +89,6 @@ public final class RepositoryData {
     public RepositoryData(long genId, Map<String, SnapshotId> snapshotIds, Map<String, SnapshotState> snapshotStates,
                           Map<IndexId, Set<SnapshotId>> indexSnapshots, @Nullable Map<IndexId, String[]> shardGenerations) {
         this(genId, snapshotIds, snapshotStates, indexSnapshots, shardGenerations == null ? null : new ShardGenerations(shardGenerations));
-        assert shardGenerations == null || indexSnapshots.keySet().equals(shardGenerations.keySet()) :
-            "[" + indexSnapshots + "] does not contain the same keys as [" + shardGenerations + "]";
     }
 
     private RepositoryData(long genId, Map<String, SnapshotId> snapshotIds, Map<String, SnapshotState> snapshotStates,
@@ -101,7 +99,7 @@ public final class RepositoryData {
         this.indices = Collections.unmodifiableMap(indexSnapshots.keySet().stream()
             .collect(Collectors.toMap(IndexId::getName, Function.identity())));
         this.indexSnapshots = Collections.unmodifiableMap(indexSnapshots);
-        this.shardGenerations = shardGenerations;
+        this.shardGenerations = shardGenerations == null ? ShardGenerations.EMPTY : shardGenerations;
     }
 
     protected RepositoryData copy() {
@@ -127,7 +125,7 @@ public final class RepositoryData {
      * @return generation of the {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob
      */
     public String getShardGen(IndexId indexId, int shardId) {
-        return shardGenerations == null ? null : shardGenerations.getShardGen(indexId, shardId);
+        return shardGenerations.getShardGen(indexId, shardId);
     }
 
     /**

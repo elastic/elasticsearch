@@ -10,6 +10,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Foldables;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTrunc;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
@@ -20,6 +21,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
+import java.time.temporal.ChronoField;
 
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_DATE;
 import static java.time.format.DateTimeFormatter.ISO_LOCAL_TIME;
@@ -147,5 +149,96 @@ public final class DateUtils {
         // remove the remainder
         nano = nano - nano % (int) Math.pow(10, (9 - precision));
         return nano;
+    }
+
+    public static ZonedDateTime truncate(ZonedDateTime dateTime, DateTrunc.DatePart datePart) {
+        ZonedDateTime truncated = null;
+        switch (datePart) {
+            case MILLENNIUM:
+                int year = dateTime.getYear();
+                int firstYearOfMillenium = year - (year % 1000);
+                truncated = dateTime
+                    .with(ChronoField.YEAR, firstYearOfMillenium)
+                    .with(ChronoField.MONTH_OF_YEAR, 1)
+                    .with(ChronoField.DAY_OF_MONTH, 1)
+                    .toLocalDate().atStartOfDay(dateTime.getZone());
+                break;
+            case CENTURY:
+                year = dateTime.getYear();
+                int firstYearOfCentury = year - (year % 100);
+                truncated = dateTime
+                    .with(ChronoField.YEAR, firstYearOfCentury)
+                    .with(ChronoField.MONTH_OF_YEAR, 1)
+                    .with(ChronoField.DAY_OF_MONTH, 1)
+                    .toLocalDate().atStartOfDay(dateTime.getZone());
+                break;
+            case DECADE:
+                year = dateTime.getYear();
+                int firstYearOfDecade = year - (year % 10);
+                truncated = dateTime
+                    .with(ChronoField.YEAR, firstYearOfDecade)
+                    .with(ChronoField.MONTH_OF_YEAR, 1)
+                    .with(ChronoField.DAY_OF_MONTH, 1)
+                    .toLocalDate().atStartOfDay(dateTime.getZone());
+                break;
+            case YEAR:
+                truncated = dateTime
+                    .with(ChronoField.MONTH_OF_YEAR, 1)
+                    .with(ChronoField.DAY_OF_MONTH, 1)
+                    .toLocalDate().atStartOfDay(dateTime.getZone());
+                break;
+            case QUARTER:
+                int month = dateTime.getMonthValue();
+                int firstMonthOfQuarter = (((month - 1) / 3) * 3) + 1;
+                truncated = dateTime
+                    .with(ChronoField.MONTH_OF_YEAR, firstMonthOfQuarter)
+                    .with(ChronoField.DAY_OF_MONTH, 1)
+                    .toLocalDate().atStartOfDay(dateTime.getZone());
+                break;
+            case MONTH:
+                truncated = dateTime
+                    .with(ChronoField.DAY_OF_MONTH, 1)
+                    .toLocalDate().atStartOfDay(dateTime.getZone());
+                break;
+            case WEEK:
+                truncated = dateTime
+                    .with(ChronoField.DAY_OF_WEEK, 1)
+                    .toLocalDate().atStartOfDay(dateTime.getZone());
+                break;
+            case DAY:
+                truncated = dateTime
+                    .toLocalDate().atStartOfDay(dateTime.getZone());
+                break;
+            case HOUR:
+                int hour = dateTime.getHour();
+                truncated = dateTime.toLocalDate().atStartOfDay(dateTime.getZone())
+                    .with(ChronoField.HOUR_OF_DAY, hour);
+                break;
+            case MINUTE:
+                hour = dateTime.getHour();
+                int minute = dateTime.getMinute();
+                truncated = dateTime.toLocalDate().atStartOfDay(dateTime.getZone())
+                    .with(ChronoField.HOUR_OF_DAY, hour)
+                    .with(ChronoField.MINUTE_OF_HOUR, minute);
+                break;
+            case SECOND:
+                truncated = dateTime
+                    .with(ChronoField.NANO_OF_SECOND, 0);
+                break;
+            case MILLISECOND:
+                int micros = dateTime.get(ChronoField.MICRO_OF_SECOND);
+                truncated = dateTime
+                    .with(ChronoField.MILLI_OF_SECOND, (micros / 1000));
+                break;
+            case MICROSECOND:
+                int nanos = dateTime.getNano();
+                truncated = dateTime
+                    .with(ChronoField.MICRO_OF_SECOND, (nanos / 1000));
+                break;
+            case NANOSECOND:
+                truncated = dateTime;
+                break;
+        }
+        return truncated;
     }
 }

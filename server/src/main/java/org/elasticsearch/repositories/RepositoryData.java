@@ -507,7 +507,7 @@ public final class RepositoryData {
                 shardGenerations.put(idx, gens);
             });
         } else {
-            shardGenerations = indexSnapshots.keySet().stream().collect(Collectors.toMap(Function.identity(), i -> Strings.EMPTY_ARRAY));
+            shardGenerations = null;
         }
         return new RepositoryData(genId, snapshots, snapshotStates, indexSnapshots, shardGenerations);
     }

@@ -242,6 +242,7 @@ final class JdbcTestUtils {
                 .toLocalTime().atDate(JdbcTestUtils.EPOCH).atZone(zoneId).toInstant().toEpochMilli());
     }
 
+    // Used to convert the DATE read from CSV file to a java.sql.Date at the System's timezone (-Dtests.timezone=XXXX)
     static Date convertDateToSystemTimezone(Date date) {
         return new Date(date.toLocalDate().atStartOfDay(UTC).toInstant().toEpochMilli());
     }

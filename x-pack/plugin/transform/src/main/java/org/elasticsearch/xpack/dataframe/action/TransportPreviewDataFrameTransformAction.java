@@ -39,12 +39,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
-import org.elasticsearch.xpack.core.dataframe.action.PreviewDataFrameTransformAction;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.dataframe.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.DataFrameField;
+import org.elasticsearch.xpack.core.transform.DataFrameMessages;
+import org.elasticsearch.xpack.core.transform.action.PreviewDataFrameTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.AggregationResultUtils;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 

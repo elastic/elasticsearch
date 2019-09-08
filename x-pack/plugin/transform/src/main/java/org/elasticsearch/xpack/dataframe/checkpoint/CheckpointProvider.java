@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.dataframe.checkpoint;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerPosition;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerPosition;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpoint;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformProgress;
 
 /**
  * Interface for checkpoint creation, checking for changes and getting statistics about checkpoints

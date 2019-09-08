@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.dataframe.action;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.core.transform.DataFrameField;
 
 import java.util.Collection;
 import java.util.HashSet;

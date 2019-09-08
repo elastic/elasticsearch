@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.dataframe.integration;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.core.transform.DataFrameField;
 import org.junit.After;
 import org.junit.Before;
 

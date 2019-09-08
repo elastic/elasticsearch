@@ -13,8 +13,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.transform.DataFrameMessages;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -40,7 +40,7 @@ public final class SourceDestValidator {
      * Validates the DataFrameTransformConfiguration source and destination indices.
      *
      * A simple name validation is done on {@link DataFrameTransformConfig#getDestination()} inside
-     * {@link org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction}
+     * {@link org.elasticsearch.xpack.core.transform.action.PutDataFrameTransformAction}
      *
      * So, no need to do the name checks here.
      *

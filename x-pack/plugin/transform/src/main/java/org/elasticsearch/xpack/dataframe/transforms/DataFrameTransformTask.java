@@ -21,19 +21,19 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
-import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
-import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction.Response;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerPosition;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Event;
+import org.elasticsearch.xpack.core.transform.DataFrameField;
+import org.elasticsearch.xpack.core.transform.DataFrameMessages;
+import org.elasticsearch.xpack.core.transform.action.StartDataFrameTransformTaskAction;
+import org.elasticsearch.xpack.core.transform.action.StartDataFrameTransformTaskAction.Response;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerPosition;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransform;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformState;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.SeqNoPrimaryTermAndIndex;
@@ -43,8 +43,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.xpack.core.dataframe.DataFrameMessages.DATA_FRAME_CANNOT_START_FAILED_TRANSFORM;
-import static org.elasticsearch.xpack.core.dataframe.DataFrameMessages.DATA_FRAME_CANNOT_STOP_FAILED_TRANSFORM;
+import static org.elasticsearch.xpack.core.transform.DataFrameMessages.DATA_FRAME_CANNOT_START_FAILED_TRANSFORM;
+import static org.elasticsearch.xpack.core.transform.DataFrameMessages.DATA_FRAME_CANNOT_STOP_FAILED_TRANSFORM;
 
 
 public class DataFrameTransformTask extends AllocatedPersistentTask implements SchedulerEngine.Listener {

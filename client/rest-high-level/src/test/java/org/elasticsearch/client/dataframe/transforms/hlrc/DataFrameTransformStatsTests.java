@@ -21,12 +21,12 @@ package org.elasticsearch.client.dataframe.transforms.hlrc;
 
 import org.elasticsearch.client.AbstractHlrcXContentTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointStats;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStats;
-import org.elasticsearch.xpack.core.dataframe.transforms.NodeAttributes;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpointStats;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformProgress;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformStats;
+import org.elasticsearch.xpack.core.transform.transforms.NodeAttributes;
 
 import java.io.IOException;
 import java.time.Instant;

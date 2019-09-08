@@ -21,7 +21,7 @@ import org.elasticsearch.search.aggregations.metrics.ScriptedMetricAggregationBu
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 
 import java.util.HashMap;
 import java.util.Map;

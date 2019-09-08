@@ -20,12 +20,12 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerPosition;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointStats;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerPosition;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpoint;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpointStats;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformProgress;
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 

@@ -21,9 +21,9 @@ import org.elasticsearch.search.aggregations.metrics.GeoBounds;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
 import org.elasticsearch.search.aggregations.metrics.ScriptedMetric;
-import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.dataframe.transforms.pivot.GroupConfig;
+import org.elasticsearch.xpack.core.transform.DataFrameField;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.dataframe.transforms.IDGenerator;
 
 import java.util.Arrays;

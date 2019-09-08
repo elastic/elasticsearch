@@ -25,7 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStats;
 import org.junit.Before;
 
 import java.io.IOException;

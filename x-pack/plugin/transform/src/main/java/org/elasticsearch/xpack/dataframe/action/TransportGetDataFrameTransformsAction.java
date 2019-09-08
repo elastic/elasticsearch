@@ -22,15 +22,15 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.AbstractTransportGetResourcesAction;
-import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
-import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction;
-import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction.Request;
-import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction.Response;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.transform.DataFrameField;
+import org.elasticsearch.xpack.core.transform.DataFrameMessages;
+import org.elasticsearch.xpack.core.transform.action.GetDataFrameTransformsAction;
+import org.elasticsearch.xpack.core.transform.action.GetDataFrameTransformsAction.Request;
+import org.elasticsearch.xpack.core.transform.action.GetDataFrameTransformsAction.Response;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 
-import static org.elasticsearch.xpack.core.dataframe.DataFrameField.INDEX_DOC_TYPE;
+import static org.elasticsearch.xpack.core.transform.DataFrameField.INDEX_DOC_TYPE;
 
 
 public class TransportGetDataFrameTransformsAction extends AbstractTransportGetResourcesAction<DataFrameTransformConfig,

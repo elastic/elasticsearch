@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.dataframe.notifications;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
-import org.elasticsearch.xpack.core.dataframe.notifications.DataFrameAuditMessage;
+import org.elasticsearch.xpack.core.transform.notifications.DataFrameAuditMessage;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 
 import static org.elasticsearch.xpack.core.ClientHelper.DATA_FRAME_ORIGIN;

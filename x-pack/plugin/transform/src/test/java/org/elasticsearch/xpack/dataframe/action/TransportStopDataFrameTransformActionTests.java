@@ -12,11 +12,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.transform.DataFrameMessages;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransform;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformState;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformTaskState;
 
 import java.util.Arrays;
 import java.util.Collections;

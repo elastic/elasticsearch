@@ -20,8 +20,8 @@ import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigUpd
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.transform.DataFrameField;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;

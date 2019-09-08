@@ -18,9 +18,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.dataframe.transforms.TimeSyncConfig;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpoint;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 

@@ -23,9 +23,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction;
-import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction.Request;
-import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
+import org.elasticsearch.xpack.core.transform.action.DeleteDataFrameTransformAction;
+import org.elasticsearch.xpack.core.transform.action.StopDataFrameTransformAction;
+import org.elasticsearch.xpack.core.transform.action.DeleteDataFrameTransformAction.Request;
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 

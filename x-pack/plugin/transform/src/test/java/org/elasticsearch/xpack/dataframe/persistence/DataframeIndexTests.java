@@ -13,7 +13,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfigTests;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;

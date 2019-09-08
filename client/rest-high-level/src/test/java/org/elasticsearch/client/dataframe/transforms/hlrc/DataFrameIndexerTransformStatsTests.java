@@ -20,8 +20,8 @@
 package org.elasticsearch.client.dataframe.transforms.hlrc;
 
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.client.AbstractHlrcXContentTestCase;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 
 import java.io.IOException;
 

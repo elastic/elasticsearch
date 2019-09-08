@@ -10,11 +10,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerPosition;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointingInfo;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
-import org.elasticsearch.xpack.core.dataframe.transforms.TimeSyncConfig;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerPosition;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformProgress;
+import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 

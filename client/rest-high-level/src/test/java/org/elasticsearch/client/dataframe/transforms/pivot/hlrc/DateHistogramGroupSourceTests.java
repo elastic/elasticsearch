@@ -23,7 +23,7 @@ import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.xpack.core.dataframe.transforms.pivot.DateHistogramGroupSource;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
 
 import static org.hamcrest.Matchers.equalTo;
 

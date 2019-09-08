@@ -56,9 +56,9 @@ import org.elasticsearch.search.aggregations.pipeline.ParsedSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.ParsedStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.dataframe.transforms.pivot.GroupConfig;
+import org.elasticsearch.xpack.core.transform.DataFrameField;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 
 import java.io.IOException;
 import java.util.Arrays;

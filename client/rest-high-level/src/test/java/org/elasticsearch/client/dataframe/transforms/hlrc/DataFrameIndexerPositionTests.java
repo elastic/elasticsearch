@@ -22,7 +22,7 @@ package org.elasticsearch.client.dataframe.transforms.hlrc;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerPosition;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerPosition;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

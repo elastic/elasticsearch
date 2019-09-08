@@ -30,12 +30,12 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.PageParams;
-import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
-import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
-import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction.Request;
-import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction.Response;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
+import org.elasticsearch.xpack.core.transform.DataFrameMessages;
+import org.elasticsearch.xpack.core.transform.action.StopDataFrameTransformAction;
+import org.elasticsearch.xpack.core.transform.action.StopDataFrameTransformAction.Request;
+import org.elasticsearch.xpack.core.transform.action.StopDataFrameTransformAction.Response;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformState;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
@@ -47,7 +47,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static org.elasticsearch.xpack.core.dataframe.DataFrameMessages.DATA_FRAME_CANNOT_STOP_FAILED_TRANSFORM;
+import static org.elasticsearch.xpack.core.transform.DataFrameMessages.DATA_FRAME_CANNOT_STOP_FAILED_TRANSFORM;
 
 public class TransportStopDataFrameTransformAction extends TransportTasksAction<DataFrameTransformTask, Request, Response, Response> {
 

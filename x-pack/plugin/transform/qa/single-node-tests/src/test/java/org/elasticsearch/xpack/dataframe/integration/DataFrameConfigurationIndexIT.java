@@ -14,8 +14,8 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.transform.DataFrameField;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 
 import java.io.IOException;

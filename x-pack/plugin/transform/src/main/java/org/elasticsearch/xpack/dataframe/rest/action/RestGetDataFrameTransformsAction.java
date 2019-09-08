@@ -12,10 +12,10 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
-import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction;
+import org.elasticsearch.xpack.core.transform.DataFrameField;
+import org.elasticsearch.xpack.core.transform.action.GetDataFrameTransformsAction;
 
-import static org.elasticsearch.xpack.core.dataframe.DataFrameField.ALLOW_NO_MATCH;
+import static org.elasticsearch.xpack.core.transform.DataFrameField.ALLOW_NO_MATCH;
 
 public class RestGetDataFrameTransformsAction extends BaseRestHandler {
 

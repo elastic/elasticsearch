@@ -7,12 +7,12 @@
 package org.elasticsearch.xpack.dataframe.transforms;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerPosition;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerPosition;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpoint;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformProgress;
 import org.elasticsearch.xpack.dataframe.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;

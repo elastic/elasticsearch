@@ -9,9 +9,8 @@ package org.elasticsearch.xpack.dataframe.integration;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStoredDoc;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformStoredDoc;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 import org.junit.Before;
 
@@ -21,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.dataframe.DataFrameField.INDEX_DOC_TYPE;
+import static org.elasticsearch.xpack.core.transform.DataFrameField.INDEX_DOC_TYPE;
 import static org.elasticsearch.xpack.dataframe.DataFrameInfoTransportAction.PROVIDED_STATS;
 
 public class DataFrameUsageIT extends DataFrameRestTestCase {

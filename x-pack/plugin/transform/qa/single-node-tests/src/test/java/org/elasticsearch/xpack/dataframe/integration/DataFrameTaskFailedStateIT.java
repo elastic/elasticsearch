@@ -14,7 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStats;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformStats;
 import org.junit.After;
 import org.junit.Before;
 

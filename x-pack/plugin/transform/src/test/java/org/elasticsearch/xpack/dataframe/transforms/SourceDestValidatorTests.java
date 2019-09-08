@@ -17,10 +17,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.dataframe.transforms.DestConfig;
-import org.elasticsearch.xpack.core.dataframe.transforms.SourceConfig;
-import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;

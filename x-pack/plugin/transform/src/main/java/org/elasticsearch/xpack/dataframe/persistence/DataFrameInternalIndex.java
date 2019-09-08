@@ -14,20 +14,20 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
-import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStoredDoc;
-import org.elasticsearch.xpack.core.dataframe.transforms.DestConfig;
-import org.elasticsearch.xpack.core.dataframe.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.DataFrameField;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformProgress;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformState;
+import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformStoredDoc;
+import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 
 import java.io.IOException;
 import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
-import static org.elasticsearch.xpack.core.dataframe.DataFrameField.TRANSFORM_ID;
+import static org.elasticsearch.xpack.core.transform.DataFrameField.TRANSFORM_ID;
 
 public final class DataFrameInternalIndex {
 

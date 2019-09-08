@@ -28,21 +28,21 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.IOException;
 
 public class TimeSyncConfigTests
-        extends AbstractResponseTestCase<org.elasticsearch.xpack.core.dataframe.transforms.TimeSyncConfig, TimeSyncConfig> {
+        extends AbstractResponseTestCase<org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig, TimeSyncConfig> {
 
-    public static org.elasticsearch.xpack.core.dataframe.transforms.TimeSyncConfig randomTimeSyncConfig() {
-        return new org.elasticsearch.xpack.core.dataframe.transforms.TimeSyncConfig(randomAlphaOfLengthBetween(1, 10),
+    public static org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig randomTimeSyncConfig() {
+        return new org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig(randomAlphaOfLengthBetween(1, 10),
                 new TimeValue(randomNonNegativeLong()));
     }
 
-    public static void assertHlrcEquals(org.elasticsearch.xpack.core.dataframe.transforms.TimeSyncConfig serverTestInstance,
+    public static void assertHlrcEquals(org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig serverTestInstance,
             TimeSyncConfig clientInstance) {
         assertEquals(serverTestInstance.getField(), clientInstance.getField());
         assertEquals(serverTestInstance.getDelay(), clientInstance.getDelay());
     }
 
     @Override
-    protected org.elasticsearch.xpack.core.dataframe.transforms.TimeSyncConfig createServerTestInstance(XContentType xContentType) {
+    protected org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig createServerTestInstance(XContentType xContentType) {
         return randomTimeSyncConfig();
     }
 
@@ -52,7 +52,7 @@ public class TimeSyncConfigTests
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.xpack.core.dataframe.transforms.TimeSyncConfig serverTestInstance,
+    protected void assertInstances(org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig serverTestInstance,
             TimeSyncConfig clientInstance) {
         assertHlrcEquals(serverTestInstance, clientInstance);
     }

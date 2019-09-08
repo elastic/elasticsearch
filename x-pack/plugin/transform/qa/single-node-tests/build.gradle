@@ -8,7 +8,7 @@ dependencies {
   if (isEclipse) {
     testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
   }
-  testCompile project(path: xpackModule('data-frame'), configuration: 'runtime')
+  testCompile project(path: xpackModule('transform'), configuration: 'runtime')
 }
 
 testClusters.integTest {

@@ -2,8 +2,8 @@ evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
-  name 'data-frame'
-  description 'A plugin to build data frames'
+  name 'transform'
+  description 'A plugin to transform data'
   classname 'org.elasticsearch.xpack.dataframe.DataFrame'
   extendedPlugins = ['x-pack-core']
 }

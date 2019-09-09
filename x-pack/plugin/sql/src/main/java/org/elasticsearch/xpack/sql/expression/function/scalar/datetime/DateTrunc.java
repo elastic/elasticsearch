@@ -20,9 +20,10 @@ import org.elasticsearch.xpack.sql.util.StringUtils;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -51,13 +52,22 @@ public class DateTrunc extends BinaryScalarFunction {
         MICROSECOND("microseconds", "mcs"),
         NANOSECOND("nanoseconds", "ns");
 
-        private static Set<String> ALL_DATE_PARTS;
+        private static final Set<String> ALL_DATE_PARTS;
+        private static final Map<String, DatePart> RESOLVE_MAP;
 
         static {
             ALL_DATE_PARTS = new HashSet<>();
+            RESOLVE_MAP = new HashMap<>();
+
             for (DatePart datePart : DatePart.values()) {
-                ALL_DATE_PARTS.add(datePart.name().toLowerCase(IsoLocale.ROOT));
-                ALL_DATE_PARTS.addAll(datePart.aliases());
+                String lowerCaseName = datePart.name().toLowerCase(IsoLocale.ROOT);
+                ALL_DATE_PARTS.add(lowerCaseName);
+                ALL_DATE_PARTS.addAll(datePart.aliases);
+
+                RESOLVE_MAP.put(lowerCaseName, datePart);
+                for (String alias : datePart.aliases) {
+                    RESOLVE_MAP.put(alias, datePart);
+                }
             }
         }
 
@@ -67,18 +77,8 @@ public class DateTrunc extends BinaryScalarFunction {
             this.aliases = Set.of(aliases);
         }
 
-        public Set<String> aliases() {
-            return aliases;
-        }
-
         public static DatePart resolveTruncate(String truncateTo) {
-            for (DatePart datePart : DatePart.values()) {
-                truncateTo = truncateTo.toLowerCase(Locale.ROOT);
-                if (datePart.name().equalsIgnoreCase(truncateTo) || datePart.aliases().contains(truncateTo)) {
-                    return datePart;
-                }
-            }
-            return null;
+            return RESOLVE_MAP.get(truncateTo.toLowerCase(IsoLocale.ROOT));
         }
 
         public static List<String> findSimilar(String match) {

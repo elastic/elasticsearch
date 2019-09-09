@@ -54,7 +54,7 @@ GET /test/_mget
 
 And type:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /test/_doc/_mget
 {

@@ -52,7 +52,7 @@ POST /<leader_index>/_ccr/forget_follower
 // TEST[s/<leader_remote_cluster>/leader_remote_cluster/]
 // TEST[skip_shard_failures]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_shards" : {
@@ -142,7 +142,7 @@ POST /leader_index/_ccr/forget_follower
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_shards" : {

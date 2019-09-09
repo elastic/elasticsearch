@@ -98,19 +98,18 @@ other supported grant type.
 The following example obtains a token using the `client_credentials` grant type,
 which simply creates a token as the authenticated user:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/oauth2/token
 {
   "grant_type" : "client_credentials"
 }
 --------------------------------------------------
-// CONSOLE
 
 The following example output contains the access token, the amount of time (in
 seconds) that the token expires in, and the type:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "access_token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==",
@@ -134,7 +133,7 @@ The following example obtains a token for the `test_admin` user using the
 `password` grant type. This request needs to be made by an authenticated user with sufficient privileges that may
 or may not be the same as the one whose username is passed in the `username` parameter:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/oauth2/token
 {
@@ -143,12 +142,11 @@ POST /_security/oauth2/token
   "password" : "x-pack-test-password"
 }
 --------------------------------------------------
-// CONSOLE
 
 The following example output contains the access token, the amount of time (in
 seconds) that the token expires in, the type, and the refresh token:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "access_token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==",
@@ -165,7 +163,7 @@ To extend the life of an existing token obtained using the `password` grant type
 you can call the API again with the refresh token within 24 hours of the token's
 creation. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/oauth2/token
 {
@@ -173,14 +171,13 @@ POST /_security/oauth2/token
     "refresh_token": "vLBPvmAB6KvwvJZr27cS"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/vLBPvmAB6KvwvJZr27cS/$body.refresh_token/]
 // TEST[continued]
 
 The API will return a new token and refresh token. Each refresh token may only 
 be used one time.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "access_token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==",

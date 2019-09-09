@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.dataframe;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
@@ -44,6 +46,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class DataFrameUsageTransportAction extends XPackUsageFeatureTransportAction {
+
+    private static final Logger logger = LogManager.getLogger(DataFrameUsageTransportAction.class);
 
     private final boolean enabled;
     private final XPackLicenseState licenseState;
@@ -114,7 +118,7 @@ public class DataFrameUsageTransportAction extends XPackUsageFeatureTransportAct
             }
         );
 
-        SearchRequest totalTransformCount = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME)
+        SearchRequest totalTransformCount = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME_PATTERN)
             .setTrackTotalHits(true)
             .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), DataFrameTransformConfig.NAME))))

@@ -93,7 +93,7 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
         public Request(StreamInput in) throws IOException {
             super(in);
             indices = in.readStringArray();
-            if (in.getVersion().onOrAfter(Version.CURRENT)) {
+            if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
                 if (in.readBoolean()) {
                     queryProvider = QueryProvider.fromStream(in);
                 }
@@ -138,7 +138,7 @@ public class EvaluateDataFrameAction extends ActionType<EvaluateDataFrameAction.
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeStringArray(indices);
-            if (out.getVersion().onOrAfter(Version.CURRENT)) {
+            if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
                 if (queryProvider != null) {
                     out.writeBoolean(true);
                     queryProvider.writeTo(out);

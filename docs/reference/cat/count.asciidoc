@@ -14,7 +14,7 @@ which have not yet been removed by the merge process.
 [[cat-count-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/count/{index}`
+`GET /_cat/count/<index>`
 
 
 [[cat-count-api-path-params]]

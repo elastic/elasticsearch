@@ -43,10 +43,9 @@ DELETE _ml/data_frame/analytics/loganalytics
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 ----
 {
   "acknowledged" : true
 }
 ----
-// TESTRESPONSE

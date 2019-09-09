@@ -56,6 +56,7 @@ public class SnapshotLifecycleMetadata implements XPackMetaDataCustom {
             v -> {
                 throw new IllegalArgumentException("ordered " + POLICIES_FIELD.getPreferredName() + " are not supported");
             }, POLICIES_FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), OPERATION_MODE_FIELD);
     }
 
     private final Map<String, SnapshotLifecyclePolicyMetadata> snapshotConfigurations;

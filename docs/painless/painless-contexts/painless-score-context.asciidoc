@@ -36,7 +36,7 @@ To run this example, first follow the steps in
 The following query finds all unsold seats, with lower 'row' values
 scored higher.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /seats/_search
 {
@@ -54,5 +54,4 @@ GET /seats/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:seats]

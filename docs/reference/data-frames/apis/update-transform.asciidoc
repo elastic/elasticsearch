@@ -121,7 +121,7 @@ delays.
 [[update-data-frame-transform-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _data_frame/transforms/simple-kibana-ecomm-pivot/_update
 {
@@ -149,7 +149,6 @@ POST _data_frame/transforms/simple-kibana-ecomm-pivot/_update
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:simple_kibana_continuous_pivot]
 
 When the transform is updated, you receive the updated configuration:

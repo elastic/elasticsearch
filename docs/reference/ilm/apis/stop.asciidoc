@@ -40,7 +40,7 @@ The following example stops the ILM plugin.
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -66,16 +66,14 @@ PUT _ilm/policy/my_policy
 
 PUT my_index
 --------------------------------------------------
-// CONSOLE
 // TEST
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ilm/stop
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 If the request does not encounter errors, you receive the following result:
@@ -89,11 +87,10 @@ If the request does not encounter errors, you receive the following result:
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ilm/start
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 //////////////////////////

@@ -195,6 +195,22 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         assertThat(params.keySet(), not(contains(allowPartialParamName)));
     }
 
+    public void testInitialSearchExplicitlyAllowPartialResults() {
+        final String allowPartialParamName = "allow_partial_search_results";
+
+        BytesReference query = new BytesArray("{}");
+        SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder()).allowPartialSearchResults(true);
+
+        // we explicitly set it against 7.5+, to not rely on the default anymore.
+        Version allowVersion = Version.fromId(between(Version.V_7_5_0.id, Version.CURRENT.id));
+        Map<String, String> params = initialSearch(searchRequest, query, allowVersion).getParameters();
+        assertEquals("true", params.get(allowPartialParamName));
+
+        Version notSetVersion = Version.fromId(between(0, Version.V_7_5_0.id-1));
+        params = initialSearch(searchRequest, query, notSetVersion).getParameters();
+        assertThat(params.keySet(), not(contains(allowPartialParamName)));
+    }
+
     private void assertScroll(Version remoteVersion, Map<String, String> params, TimeValue requested) {
         // V_5_0_0
         if (remoteVersion.before(Version.fromId(5000099))) {

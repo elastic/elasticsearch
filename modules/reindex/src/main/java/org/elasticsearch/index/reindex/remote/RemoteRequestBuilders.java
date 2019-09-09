@@ -125,9 +125,13 @@ final class RemoteRequestBuilders {
             request.addParameter(storedFieldsParamName, fields.toString());
         }
 
+        // allow_partial_results introduced in 6.3, running remote reindex against earlier versions still silently discards RED shards.
         if (remoteVersion.onOrAfter(Version.fromId(6030099))) {
-            // allow_partial_results introduced in 6.3, running remote reindex against earlier versions still silently discards RED shards.
-            request.addParameter("allow_partial_search_results", "false");
+            boolean allowPartialSearchResults = searchRequest.allowPartialSearchResults() == Boolean.TRUE;
+            // be explicit always from 7.5 to stop relying on the default.
+            if (allowPartialSearchResults == false || remoteVersion.onOrAfter(Version.V_7_5_0)) {
+                request.addParameter("allow_partial_search_results", Boolean.toString(allowPartialSearchResults));
+            }
         }
 
         // EMPTY is safe here because we're not calling namedObject

@@ -106,10 +106,15 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
         TaskId parentTask = new TaskId("thenode", randomInt());
         AtomicInteger actualSearchRetries = new AtomicInteger();
         int expectedSearchRetries = 0;
+        SearchRequest searchRequest = new SearchRequest().scroll("1m");
+        boolean allowPartialSearchResults = randomBoolean();
+        if (allowPartialSearchResults || randomBoolean()) {
+            searchRequest.allowPartialSearchResults(allowPartialSearchResults);
+        }
         ClientScrollableHitSource hitSource = new ClientScrollableHitSource(logger, BackoffPolicy.constantBackoff(TimeValue.ZERO, retries),
             threadPool, actualSearchRetries::incrementAndGet, responses::add, failureHandler,
             new ParentTaskAssigningClient(client, parentTask),
-            new SearchRequest().scroll("1m"));
+            searchRequest);
 
         hitSource.start();
         for (int retry = 0; retry < randomIntBetween(minFailures, maxFailures); ++retry) {
@@ -117,7 +122,10 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             client.awaitOperation();
             ++expectedSearchRetries;
         }
-        client.validateRequest(SearchAction.INSTANCE, (SearchRequest r) -> assertTrue(r.allowPartialSearchResults() == Boolean.FALSE));
+
+        // we explicitly set it on 7.5+, to not rely on the default anymore.
+        client.validateRequest(SearchAction.INSTANCE,
+            (SearchRequest r) -> assertTrue(r.allowPartialSearchResults() == allowPartialSearchResults));
         SearchResponse searchResponse = createSearchResponse();
         client.respond(SearchAction.INSTANCE, searchResponse);
 

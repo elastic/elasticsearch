@@ -52,6 +52,11 @@
       "max_docs":{
         "type":"number",
         "description":"Maximum number of documents to process (default: all documents)"
+      },
+      "allow_partial_search_results":{
+        "type":"boolean",
+        "default":false,
+        "description":"Indicate if an error should be returned if there is a partial search failure or timeout"
       }
     },
     "body":{

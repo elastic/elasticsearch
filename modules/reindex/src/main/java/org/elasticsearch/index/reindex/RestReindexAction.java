@@ -64,6 +64,11 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         if (request.hasParam("scroll")) {
             internal.setScroll(parseTimeValue(request.param("scroll"), "scroll"));
         }
+
+        if (request.hasParam("allow_partial_search_results")) {
+            internal.getSearchRequest().allowPartialSearchResults(request.paramAsBoolean("allow_partial_search_results",false));
+        }
+
         return internal;
     }
 }

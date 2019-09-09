@@ -44,7 +44,7 @@ Updates the description of a filter, adds items, or removes items.
 You can change the description, add and remove items to the `safe_domains`
 filter as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/filters/safe_domains/_update
 {
@@ -53,7 +53,6 @@ POST _ml/filters/safe_domains/_update
   "remove_items": ["wikipedia.org"]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:ml_filter_safe_domains]
 
 The API returns the following results:

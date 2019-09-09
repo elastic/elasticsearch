@@ -21,7 +21,7 @@ To perform a {ccs}, you must have at least one remote cluster configured.
 The following <<cluster-update-settings,cluster update settings>> API request
 adds three remote clusters:`cluster_one`, `cluster_two`, and `cluster_three`.
 
-[source,js]
+[source,console]
 --------------------------------
 PUT _cluster/settings
 {
@@ -48,7 +48,6 @@ PUT _cluster/settings
   }
 }
 --------------------------------
-// CONSOLE
 // TEST[setup:host]
 // TEST[s/127.0.0.1:930\d+/\${transport_host}/]
 
@@ -59,7 +58,7 @@ PUT _cluster/settings
 The following <<search,search>> API request searches the
 `twitter` index on a single remote cluster, `cluster_one`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /cluster_one:twitter/_search
 {
@@ -70,7 +69,6 @@ GET /cluster_one:twitter/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 // TEST[setup:twitter]
 
@@ -132,7 +130,7 @@ three clusters:
 * Your local cluster
 * Two remote clusters, `cluster_one` and `cluster_two`
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter,cluster_one:twitter,cluster_two:twitter/_search
 {
@@ -143,7 +141,6 @@ GET /twitter,cluster_one:twitter,cluster_two:twitter/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The API returns the following response:
@@ -235,7 +232,7 @@ To skip an unavailable cluster during a {ccs}, set the
 The following <<cluster-update-settings,cluster update settings>> API request
 changes `cluster_two`'s `skip_unavailable` setting to `true`.
 
-[source,js]
+[source,console]
 --------------------------------
 PUT _cluster/settings
 {
@@ -244,7 +241,6 @@ PUT _cluster/settings
   }
 }
 --------------------------------
-// CONSOLE
 // TEST[continued]
 
 If `cluster_two` is disconnected or unavailable during a {ccs}, {es} won't

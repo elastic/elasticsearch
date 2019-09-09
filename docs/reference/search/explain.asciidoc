@@ -12,7 +12,7 @@ Note that a single index must be provided to the `index` parameter.
 
 Full query example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_explain/0
 {
@@ -21,7 +21,6 @@ GET /twitter/_explain/0
       }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 This will yield the following result:
@@ -105,11 +104,10 @@ parameter. The specified `q` parameter value is then parsed as if the
 `query_string` query was used. Example usage of the `q` parameter in the
 explain api:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_explain/0?q=message:search
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 This will yield the same result as the previous request.

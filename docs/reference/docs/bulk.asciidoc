@@ -69,7 +69,7 @@ Because this format uses literal `\n`'s as delimiters, please be sure
 that the JSON actions and sources are not pretty printed. Here is an
 example of a correct sequence of bulk commands:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _bulk
 { "index" : { "_index" : "test", "_id" : "1" } }
@@ -80,7 +80,6 @@ POST _bulk
 { "update" : {"_id" : "1", "_index" : "test"} }
 { "doc" : {"field2" : "value2"} }
 --------------------------------------------------
-// CONSOLE
 
 The result of this bulk operation is:
 
@@ -261,7 +260,7 @@ The `update` action payload supports the following options: `doc`
 script), `lang` (for script), and `_source`. See update documentation for details on
 the options. Example with update actions:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _bulk
 { "update" : {"_id" : "1", "_index" : "index1", "retry_on_conflict" : 3} }
@@ -275,7 +274,6 @@ POST _bulk
 { "update" : {"_id" : "4", "_index" : "index1"} }
 { "doc" : {"field" : "value"}, "_source": true}
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [float]

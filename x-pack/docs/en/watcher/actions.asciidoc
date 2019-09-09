@@ -44,7 +44,7 @@ time frame (`now - throttling period`).
 The following snippet shows a watch for the scenario described above - associating
 a throttle period with the `email_administrator` action:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _watcher/watch/error_logs_alert
 {
@@ -90,7 +90,7 @@ PUT _watcher/watch/error_logs_alert
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> There will be at least 15 minutes between subsequent `email_administrator`
 		action executions.
 <2> See <<actions-email, Email Action>> for more information.
@@ -99,7 +99,7 @@ You can also define a throttle period at the watch level. The watch-level
 throttle period serves as the default throttle period for all of the actions
 defined in the watch:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _watcher/watch/log_event_watch
 {
@@ -149,7 +149,6 @@ PUT _watcher/watch/log_event_watch
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> There will be at least 15 minutes between subsequent action executions
 		(applies to both `email_administrator` and `notify_pager` actions)
@@ -175,11 +174,10 @@ When that happens, the action's state changes to `awaits_successful_execution`.
 To acknowledge an action, you use the
 {ref}/watcher-api-ack-watch.html[Ack Watch API]:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------------
 POST _watcher/watch/<id>/_ack/<action_ids>
 ----------------------------------------------------------------------
-// CONSOLE
 // TEST[skip:https://github.com/elastic/x-plugins/issues/2513]
 
 Where `<id>` is the id of the watch and `<action_ids>` is a comma-separated list
@@ -203,7 +201,7 @@ field to limit the maximum amount of runs that each watch executes. If this limi
 is reached, the execution is gracefully stopped. If not set, this field defaults 
 to one hundred.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _watcher/watch/log_event_watch
 {
@@ -234,7 +232,6 @@ PUT _watcher/watch/log_event_watch
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> The logging statement will be executed for each of the returned search hits.
 
@@ -248,7 +245,7 @@ on a their respective conditions. The following watch would always send an email
 hits are found from the input search, but only trigger the `notify_pager` action when
 there are more than 5 hits in the search result.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _watcher/watch/log_event_watch
 {
@@ -300,7 +297,6 @@ PUT _watcher/watch/log_event_watch
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> A `condition` that only applies to the `notify_pager` action, which
     restricts its execution to when the condition succeeds (at least 5 hits in this case).

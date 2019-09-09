@@ -22,9 +22,6 @@ package org.elasticsearch.search.aggregations.pipeline;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.InternalDerivative;
-import org.elasticsearch.search.aggregations.pipeline.ParsedDerivative;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.Collections;
@@ -47,7 +44,7 @@ public class InternalDerivativeTests extends InternalAggregationTestCase<Interna
     @Override
     public void testReduceRandom() {
         expectThrows(UnsupportedOperationException.class,
-                () -> createTestInstance("name", Collections.emptyList(), null).reduce(null, null));
+                () -> createTestInstance("name", Collections.emptyList(), null).doReduce(null, null));
     }
 
     @Override

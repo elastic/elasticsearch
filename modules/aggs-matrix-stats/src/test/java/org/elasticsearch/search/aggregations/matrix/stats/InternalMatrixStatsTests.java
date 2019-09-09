@@ -164,7 +164,7 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
         MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         InternalAggregation.ReduceContext context =
             new InternalAggregation.ReduceContext(bigArrays, mockScriptService, true);
-        InternalMatrixStats reduced = (InternalMatrixStats) shardResults.get(0).reduce(shardResults, context);
+        InternalMatrixStats reduced = (InternalMatrixStats) shardResults.get(0).doReduce(shardResults, context);
         multiPassStats.assertNearlyEqual(reduced.getResults());
     }
 

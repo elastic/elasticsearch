@@ -22,9 +22,6 @@ package org.elasticsearch.search.aggregations.pipeline;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.BucketMetricValue;
-import org.elasticsearch.search.aggregations.pipeline.InternalBucketMetricValue;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.Arrays;
@@ -50,7 +47,7 @@ public class InternalBucketMetricValueTests extends InternalAggregationTestCase<
     @Override
     public void testReduceRandom() {
         expectThrows(UnsupportedOperationException.class,
-                () -> createTestInstance("name", Collections.emptyList(), null).reduce(null,
+                () -> createTestInstance("name", Collections.emptyList(), null).doReduce(null,
                         null));
     }
 

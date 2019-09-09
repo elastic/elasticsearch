@@ -144,13 +144,13 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         for (InternalAggregation agg : aggregations) {
             if (agg instanceof DoubleTerms) {
-                return agg.reduce(aggregations, reduceContext);
+                return agg.doReduce(aggregations, reduceContext);
             }
         }
-        return super.reduce(aggregations, reduceContext);
+        return super.doReduce(aggregations, reduceContext);
     }
 
     @Override

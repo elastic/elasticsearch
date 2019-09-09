@@ -93,7 +93,7 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
             aggregations.add(new InternalAvg("dummy1", value, 1, null, null, null));
         }
         InternalAvg internalAvg = new InternalAvg("dummy2", 0, 0, null, null, null);
-        InternalAvg reduced = internalAvg.reduce(aggregations, null);
+        InternalAvg reduced = internalAvg.doReduce(aggregations, null);
         assertEquals(expected, reduced.getValue(), delta);
     }
 

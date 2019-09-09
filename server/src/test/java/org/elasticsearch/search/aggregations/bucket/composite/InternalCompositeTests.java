@@ -238,7 +238,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         for (int i = 0; i < numSame; i++) {
             toReduce.add(result);
         }
-        InternalComposite finalReduce = (InternalComposite) result.reduce(toReduce,
+        InternalComposite finalReduce = (InternalComposite) result.doReduce(toReduce,
             new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, true));
         assertThat(finalReduce.getBuckets().size(), equalTo(result.getBuckets().size()));
         Iterator<InternalComposite.InternalBucket> expectedIt = result.getBuckets().iterator();

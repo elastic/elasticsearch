@@ -24,9 +24,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalExtendedStatsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalExtendedStats;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.InternalExtendedStatsBucket;
-import org.elasticsearch.search.aggregations.pipeline.ParsedExtendedStatsBucket;
 
 import java.util.Collections;
 import java.util.List;
@@ -47,7 +44,7 @@ public class InternalExtendedStatsBucketTests extends InternalExtendedStatsTests
     @Override
     public void testReduceRandom() {
         expectThrows(UnsupportedOperationException.class,
-                () -> createTestInstance("name", Collections.emptyList(), null).reduce(null, null));
+                () -> createTestInstance("name", Collections.emptyList(), null).doReduce(null, null));
     }
 
     @Override

@@ -144,7 +144,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      * try reusing an existing instance (typically the first in the given list) to save on redundant object
      * construction.
      */
-    public abstract InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext);
+    public abstract InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext);
 
     /**
      * Return true if this aggregation is mapped, and can lead a reduction.  If this agg returns

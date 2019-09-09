@@ -22,7 +22,7 @@ The watch <<input, input>> gets the data that you want to evaluate.
 The simplest way to define a schedule is to specify an interval. For example,
 the following schedule runs every 10 seconds:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _watcher/watch/cluster_health_watch
 {
@@ -31,7 +31,7 @@ PUT _watcher/watch/cluster_health_watch
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Schedules are typically configured to run less frequently. This example sets
     the interval to 10 seconds to you can easily see the watches being triggered.
     Since this watch runs so frequently, don't forget to <<health-delete, delete the watch>>
@@ -40,17 +40,16 @@ PUT _watcher/watch/cluster_health_watch
 To get the status of your cluster, you can call the Elasticsearch
 {ref}//cluster-health.html[cluster health] API:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _cluster/health?pretty
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 To load the health status into your watch, you simply add an
 <<input-http, HTTP input>> that calls the cluster health API:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _watcher/watch/cluster_health_watch
 {
@@ -68,11 +67,10 @@ PUT _watcher/watch/cluster_health_watch
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 If you're using Security, then you'll also need to supply some authentication credentials as part of the watch configuration:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _watcher/watch/cluster_health_watch
 {
@@ -96,7 +94,6 @@ PUT _watcher/watch/cluster_health_watch
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 It would be a good idea to create a user with the minimum privileges required for use with such a watch configuration.
 
@@ -109,7 +106,7 @@ as part of the `watch_record` each time the watch executes.
 For example, the following request retrieves the last ten watch records from
 the watch history:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET .watcher-history*/_search
 {
@@ -118,7 +115,6 @@ GET .watcher-history*/_search
   ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [float]
@@ -132,7 +128,7 @@ status.
 
 For example, you could add a condition to check to see if the status is RED.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _watcher/watch/cluster_health_watch
 {
@@ -155,7 +151,7 @@ PUT _watcher/watch/cluster_health_watch
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Schedules are typically configured to run less frequently. This example sets
     the interval to 10 seconds to you can easily see the watches being triggered.
 
@@ -164,7 +160,7 @@ as part of the `watch_record` each time the watch executes.
 
 To check to see if the condition was met, you can run the following query.
 
-[source,js]
+[source,console]
 ------------------------------------------------------
 GET .watcher-history*/_search?pretty
 {
@@ -173,7 +169,6 @@ GET .watcher-history*/_search?pretty
   }
 }
 ------------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [float]
@@ -189,7 +184,7 @@ Elasticsearch index or log when the watch condition is met.
 For example, you could add an action to index the cluster status information
 when the status is RED.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _watcher/watch/cluster_health_watch
 {
@@ -221,7 +216,6 @@ PUT _watcher/watch/cluster_health_watch
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 For {watcher} to send email, you must configure an email account in your
 `elasticsearch.yml` configuration file and restart Elasticsearch. To add an email
@@ -256,7 +250,7 @@ NOTE:   If you have advanced security options enabled for your email account,
 You can check the watch history or the `status_index` to see that the action was
 performed.
 
-[source,js]
+[source,console]
 -------------------------------------------------------
 GET .watcher-history*/_search?pretty
 {
@@ -265,7 +259,6 @@ GET .watcher-history*/_search?pretty
   }
 }
 -------------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [float]
@@ -278,9 +271,8 @@ indefinitely.
 
 To remove the watch, use the {ref}/watcher-api-delete-watch.html[DELETE watch API]:
 
-[source,js]
+[source,console]
 -------------------------------------------------------
 DELETE _watcher/watch/cluster_health_watch
 -------------------------------------------------------
-// CONSOLE
 // TEST[continued]

@@ -25,12 +25,11 @@ IMPORTANT:	You can only perform read actions on the `.watches` index. You must
 
 For example, the following returns the first 100 watches:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET .watches/_search
 {
   "size" : 100
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:my_active_watch]

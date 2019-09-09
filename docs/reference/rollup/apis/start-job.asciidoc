@@ -47,11 +47,10 @@ to start a job that is already started, nothing happens.
 
 If we have already created a {rollup-job} named `sensor`, it can be started with:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _rollup/job/sensor/_start
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_rollup_job]
 
 Which will return the response:

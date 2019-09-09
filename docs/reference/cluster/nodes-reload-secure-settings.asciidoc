@@ -9,12 +9,11 @@ reinitialized without restarting the node. The operation is
 complete when all compatible plugins have finished reinitializing. Subsequently,
 the keystore is closed and any changes to it will not be reflected on the node.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _nodes/reload_secure_settings
 POST _nodes/nodeId1,nodeId2/reload_secure_settings
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:node]
 // TEST[s/nodeId1,nodeId2/*/]
 

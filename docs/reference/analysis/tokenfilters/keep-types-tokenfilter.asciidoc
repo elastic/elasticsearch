@@ -17,7 +17,7 @@ if set to `exclude` the specified token types will be removed from the stream
 
 You can set it up like:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /keep_types_example
 {
@@ -39,11 +39,10 @@ PUT /keep_types_example
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 And test it like:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /keep_types_example/_analyze
 {
@@ -51,7 +50,6 @@ POST /keep_types_example/_analyze
   "text" : "this is just 1 a test"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The response will be:
@@ -77,7 +75,7 @@ Note how only the `<NUM>` token is in the output.
 
 If the `mode` parameter is set to `exclude` like in the following example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /keep_types_exclude_example
 {
@@ -100,11 +98,10 @@ PUT /keep_types_exclude_example
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 And we test it like:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /keep_types_exclude_example/_analyze
 {
@@ -112,7 +109,6 @@ POST /keep_types_exclude_example/_analyze
   "text" : "hello 101 world"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The response will be:

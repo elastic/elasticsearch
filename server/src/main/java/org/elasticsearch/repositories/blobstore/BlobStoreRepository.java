@@ -1306,7 +1306,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return IndexShardSnapshotStatus.newDone(snapshot.startTime(), snapshot.time(),
             snapshot.incrementalFileCount(), snapshot.totalFileCount(),
             snapshot.incrementalSize(), snapshot.totalSize(), "_na"); // Not adding a real generation here since that would
-                                                                               // require retrieving the root RepositoryData
+                                                                      // require retrieving the root RepositoryData
     }
 
     @Override
@@ -1386,14 +1386,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     .collect(Collectors.toSet());
                 final BlobStoreIndexShardSnapshots updatedSnapshots = new BlobStoreIndexShardSnapshots(newSnapshotsList);
                 indexShardSnapshotsFormat.writeAtomic(updatedSnapshots, shardContainer, indexGeneration);
-                // Delete all previous index-N, data- and meta-blobs and that are not referenced by the new index-N and temporary blobs
-                blobsToDelete = blobs.keySet().stream().filter(blob ->
-                    blob.startsWith(SNAPSHOT_INDEX_PREFIX)
-                        || (blob.startsWith(SNAPSHOT_PREFIX) && blob.endsWith(".dat")
-                            && survivingSnapshotUUIDs.contains(
-                                blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length())) == false)
-                        || (blob.startsWith(DATA_BLOB_PREFIX) && updatedSnapshots.findNameFile(canonicalName(blob)) == null)
-                        || FsBlobContainer.isTempBlobName(blob)).collect(Collectors.toList());
+                blobsToDelete = unusedBlobs(blobs, survivingSnapshotUUIDs, updatedSnapshots);
             }
             try {
                 shardContainer.deleteBlobsIgnoringIfNotExists(blobsToDelete);
@@ -1406,6 +1399,19 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 "Failed to finalize snapshot deletion [" + snapshotId + "] with shard index ["
                     + indexShardSnapshotsFormat.blobName(indexGeneration) + "]", e);
         }
+    }
+
+    // Unused blobs are all previous index-, data- and meta-blobs and that are not referenced by the new index- as well as all
+    // temporary blobs
+    private static List<String> unusedBlobs(Map<String, BlobMetaData> blobs, Set<String> survivingSnapshotUUIDs,
+                                            BlobStoreIndexShardSnapshots updatedSnapshots) {
+        return blobs.keySet().stream().filter(blob ->
+            blob.startsWith(SNAPSHOT_INDEX_PREFIX)
+                || (blob.startsWith(SNAPSHOT_PREFIX) && blob.endsWith(".dat")
+                    && survivingSnapshotUUIDs.contains(
+                        blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length())) == false)
+                || (blob.startsWith(DATA_BLOB_PREFIX) && updatedSnapshots.findNameFile(canonicalName(blob)) == null)
+                || FsBlobContainer.isTempBlobName(blob)).collect(Collectors.toList());
     }
 
     private static List<SnapshotFiles> newSnapshotsList(RepositoryData repositoryData, IndexId indexId,
@@ -1464,15 +1470,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     indexShardSnapshotsFormat.writeAtomic(updatedSnapshots, shardContainer, indexGeneration);
                     final Set<String> survivingSnapshotUUIDs = repositoryData.getSnapshots(indexId).stream().map(SnapshotId::getUUID)
                         .filter(Predicate.not(s -> s.equals(snapshotId.getUUID()))).collect(Collectors.toSet());
-                    // Delete all previous index-N, data- and meta-blobs and that are not referenced by the new index-N and temporary blobs
                     return new ShardSnapshotMetaDeleteResult(indexId, snapshotShardId.id(), indexGeneration,
-                        blobs.keySet().stream().filter(blob ->
-                            (blob.startsWith(SNAPSHOT_INDEX_PREFIX) && blob.equals(SNAPSHOT_INDEX_PREFIX + indexGeneration) == false)
-                                || (blob.startsWith(SNAPSHOT_PREFIX) && blob.endsWith(".dat")
-                                && survivingSnapshotUUIDs.contains(
-                                blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length())) == false)
-                                || (blob.startsWith(DATA_BLOB_PREFIX) && updatedSnapshots.findNameFile(canonicalName(blob)) == null)
-                                || FsBlobContainer.isTempBlobName(blob)).collect(Collectors.toSet()));
+                        new HashSet<>(unusedBlobs(blobs, survivingSnapshotUUIDs, updatedSnapshots)));
                 } else {
                     throw new IllegalArgumentException("Tried to delete a single snapshot from a shard that contains no other snapshots.");
                 }

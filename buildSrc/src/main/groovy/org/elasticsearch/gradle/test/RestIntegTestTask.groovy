@@ -27,6 +27,7 @@ import org.elasticsearch.gradle.tool.ClasspathUtils
 import org.gradle.api.DefaultTask
 import org.gradle.api.Task
 import org.gradle.api.execution.TaskExecutionAdapter
+import org.gradle.api.file.FileCopyDetails
 import org.gradle.api.logging.Logger
 import org.gradle.api.logging.Logging
 import org.gradle.api.tasks.Copy
@@ -125,7 +126,7 @@ class RestIntegTestTask extends DefaultTask {
             runner.systemProperty('test.clustername', System.getProperty("tests.clustername"))
         }
 
-        // copy the rest spec/tests into the test resources
+        // copy the rest spec/tests onto the test classpath
         Task copyRestSpec = createCopyRestSpecTask()
         runner.classpath += copyRestSpec.outputs.files
 
@@ -232,7 +233,7 @@ class RestIntegTestTask extends DefaultTask {
      * @param project The project to add the copy task to
      * @param includePackagedTests true if the packaged tests should be copied, false otherwise
      */
-    Task createCopyRestSpecTask() {
+    Copy createCopyRestSpecTask() {
         Boilerplate.maybeCreate(project.configurations, 'restSpec') {
             project.dependencies.add(
                     'restSpec',
@@ -245,9 +246,12 @@ class RestIntegTestTask extends DefaultTask {
             copy.dependsOn project.configurations.restSpec
             copy.into "${project.buildDir}/rest-spec"
             copy.from({ project.zipTree(project.configurations.restSpec.singleFile) }) {
-                include 'rest-api-spec/api/**'
-                if (includePackaged) {
-                    include 'rest-api-spec/test/**'
+                includeEmptyDirs = false
+                include 'rest-api-spec/**'
+                filesMatching('rest-api-spec/test/**') { FileCopyDetails details ->
+                    if (includePackaged == false) {
+                        details.exclude()
+                    }
                 }
             }
 

@@ -33,6 +33,8 @@ The API returns the following response:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"node_id": "1sFM8cmSROZYhPxVsiWew"/"node_id" : $body.coordinator_stats.0.node_id/]
+// TESTRESPONSE[s/"remote_requests_total": 0/"remote_requests_total" : $body.coordinator_stats.0.remote_requests_total/]
+// TESTRESPONSE[s/"executed_searches_total": 0/"executed_searches_total" : $body.coordinator_stats.0.executed_searches_total/]
 
 The top level `executing_policies` field includes an object for each policy that is currently executing.
 Each object contains the following fields:

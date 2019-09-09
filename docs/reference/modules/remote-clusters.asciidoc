@@ -99,7 +99,7 @@ For more information about the optional transport settings, see
 If you use <<cluster-update-settings,cluster settings>>, the remote clusters
 are available on every node in the cluster. For example:
 
-[source,js]
+[source,console]
 --------------------------------
 PUT _cluster/settings
 {
@@ -129,14 +129,13 @@ PUT _cluster/settings
   }
 }
 --------------------------------
-// CONSOLE
 // TEST[setup:host]
 // TEST[s/127.0.0.1:9300/\${transport_host}/]
 
 You can dynamically update the compression and ping schedule settings. However,
 you must re-include seeds in the settings update request. For example:
 
-[source,js]
+[source,console]
 --------------------------------
 PUT _cluster/settings
 {
@@ -160,7 +159,6 @@ PUT _cluster/settings
   }
 }
 --------------------------------
-// CONSOLE
 // TEST[continued]
 
 NOTE: When the compression or ping schedule settings change, all the existing
@@ -169,7 +167,7 @@ fail.
 
 A remote cluster can be deleted from the cluster settings by setting its seeds and optional settings to `null` :
 
-[source,js]
+[source,console]
 --------------------------------
 PUT _cluster/settings
 {
@@ -188,8 +186,8 @@ PUT _cluster/settings
   }
 }
 --------------------------------
-// CONSOLE
 // TEST[continued]
+
 <1> `cluster_two` would be removed from the cluster settings, leaving
 `cluster_one` and `cluster_three` intact.
 

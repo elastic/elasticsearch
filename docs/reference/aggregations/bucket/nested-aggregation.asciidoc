@@ -55,7 +55,7 @@ Then one can define any type of aggregation over these nested documents.
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   ...

@@ -17,7 +17,7 @@ With the default settings, the `ngram` tokenizer treats the initial text as a
 single token and produces N-grams with minimum length `1` and maximum length
 `2`:
 
-[source,js]
+[source,console]
 ---------------------------
 POST _analyze
 {
@@ -25,7 +25,6 @@ POST _analyze
   "text": "Quick Fox"
 }
 ---------------------------
-// CONSOLE
 
 /////////////////////
 
@@ -206,7 +205,7 @@ difference between `max_gram` and `min_gram`.
 In this example, we configure the `ngram` tokenizer to treat letters and
 digits as tokens, and to produce tri-grams (grams of length `3`):
 
-[source,js]
+[source,console]
 ----------------------------
 PUT my_index
 {
@@ -238,7 +237,6 @@ POST my_index/_analyze
   "text": "2 Quick Foxes."
 }
 ----------------------------
-// CONSOLE
 
 /////////////////////
 

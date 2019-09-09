@@ -17,7 +17,7 @@ You can use the `dis_max` to search for a term in fields mapped with different
 [[query-dsl-dis-max-query-ex-request]]
 ==== Example request
 
-[source,js]
+[source,console]
 ----
 GET /_search
 {
@@ -32,7 +32,6 @@ GET /_search
     }
 }    
 ----
-// CONSOLE
 
 [[query-dsl-dis-max-query-top-level-params]]
 ==== Top-level parameters for `dis_max`

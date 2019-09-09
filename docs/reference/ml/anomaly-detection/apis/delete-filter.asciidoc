@@ -38,11 +38,10 @@ update or delete the job before you can delete the filter.
 
 The following example deletes the `safe_domains` filter:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE _ml/filters/safe_domains
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:ml_filter_safe_domains]
 
 When the filter is deleted, you receive the following results:

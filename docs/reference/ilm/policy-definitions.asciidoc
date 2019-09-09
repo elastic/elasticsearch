@@ -30,7 +30,7 @@ duration format (see <<time-units, Time Units>>).
 
 `min_age` defaults to zero seconds `0s` for each phase if not specified.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -54,7 +54,6 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 The Above example configures a policy that moves the index into the warm
 phase after one day. Until then, the index is in a waiting state. After
@@ -151,7 +150,7 @@ is invalid.
 In this example, the index's number of replicas is changed to `2`, while allocation
 rules are unchanged.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -168,13 +167,12 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 ===== Example: Assign index to node with specific "box_type" attribute
 
 This example assigns the index to nodes with `box_type` attribute of "hot" or "warm".
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -193,14 +191,13 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 ===== Example: Assign index to a specific node and update replica settings
 
 This example updates the index to have one replica per shard and be allocated
 to nodes with a `box_type` attribute of "cold".
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -220,7 +217,6 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [[ilm-delete-action]]
 ==== Delete
@@ -231,7 +227,7 @@ The Delete Action does just that, it deletes the index.
 
 This action does not have any options associated with it.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -246,7 +242,6 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [[ilm-forcemerge-action]]
 ==== Force Merge
@@ -270,7 +265,7 @@ most a specific number of <<indices-segments,segments>>.
                                                            index, set it to `1`
 |======
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -287,7 +282,6 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [[ilm-freeze-action]]
 ==== Freeze
@@ -297,7 +291,7 @@ Phases allowed: cold.
 This action will <<frozen-indices, freeze>> the index
 by calling the <<freeze-index-api, Freeze Index API>>.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -312,7 +306,6 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [IMPORTANT]
 ================================
@@ -332,7 +325,7 @@ This action will set the index to be read-only
 
 This action does not have any options associated with it.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -347,7 +340,6 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [[ilm-rollover-action]]
 ==== Rollover
@@ -371,7 +363,7 @@ For example, if an index to be managed has an alias `my_data`. The managed
 index "my_index" must be the write index for the alias. For more information, read
 <<indices-rollover-is-write-index,Write Index Alias Behavior>>.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -386,7 +378,6 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 The Rollover Action rolls an alias over to a new index when the
 existing index meets one of the rollover conditions.
@@ -416,7 +407,7 @@ three are required to be specified.
 
 This example rolls the index over when it is at least 100 gigabytes.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -433,14 +424,13 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 ===== Example: Rollover when index has too many documents
 
 This example rolls the index over when it contains at least
 100000000 documents.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -457,14 +447,13 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 ===== Example: Rollover when index is too old
 
 This example rolls the index over when it has been created at least
 7 days ago.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -481,7 +470,6 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 ===== Example: Rollover when index is too old or too large
 
@@ -489,7 +477,7 @@ This example rolls the index over when it has been created at least
 7 days ago or it is at least 100 gigabytes. In this case, the index will be
 rolled over when any of the conditions is met.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -507,8 +495,6 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
-// CONSOLE
-
 
 ===== Example: Rollover condition stalls phase transition
 
@@ -516,7 +502,7 @@ The Rollover action will only complete once one of its conditions is
 met. This means that any proceeding phases will be blocked until Rollover
 succeeds.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_ilm/policy/rollover_policy
 {
@@ -539,7 +525,6 @@ PUT /_ilm/policy/rollover_policy
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 The above example illustrates a policy which attempts to delete an
 index one day after the index has been rolled over. It does not
@@ -568,7 +553,7 @@ Indicies that don't set this value have an implicit default priority of 1.
 
 |======
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -585,7 +570,6 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [[ilm-shrink-action]]
 ==== Shrink
@@ -621,7 +605,7 @@ then the new index will be named "shrink-logs".
                                                          source index.
 |======
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -638,7 +622,6 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [[ilm-unfollow-action]]
 ==== Unfollow
@@ -677,7 +660,7 @@ if it encounters a non follower index, then the
 unfollow action leaves that index untouched and
 lets the next action operate on this index.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -692,7 +675,6 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 === Full Policy
 
@@ -703,7 +685,7 @@ and increases the replicas to 2, force merges and shrinks. After 60 days
 it enters the cold phase and allocates to "cold" nodes, and after 90 days the
 index is deleted.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/full_policy
 {
@@ -751,4 +733,3 @@ PUT _ilm/policy/full_policy
   }
 }
 --------------------------------------------------
-// CONSOLE

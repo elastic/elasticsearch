@@ -6,11 +6,10 @@
 
 Opens a closed index.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /twitter/_open
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 // TEST[s/^/POST \/twitter\/_close\n/]
 
@@ -98,11 +97,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 A closed index can be re-opened like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /my_index/_open
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT my_index\nPOST my_index\/_close\n/]
 
 The API returns the following response:

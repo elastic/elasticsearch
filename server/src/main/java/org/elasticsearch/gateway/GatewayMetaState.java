@@ -115,8 +115,20 @@ public class GatewayMetaState implements PersistedState {
         } else {
             if (DiscoveryNode.isMasterNode(settings) == false) {
                 if (DiscoveryNode.isDataNode(settings)) {
-                    // use Zen1 way of writing cluster state for non-master-eligible nodes
-                    // this avoids concurrent manipulating of IndexMetadata with IndicesStore
+                    // Master-eligible nodes persist index metadata for all indices regardless of whether they hold any shards or not. It's
+                    // vitally important to the safety of the cluster coordination system that master-eligible nodes persist this metadata
+                    // when _accepting_ the cluster state (i.e. before it is committed). This persistence happens on the generic threadpool.
+                    //
+                    // In contrast, master-ineligible data nodes only persist the index metadata for shards that they hold. When all shards
+                    // of an index are moved off such a node the IndicesStore is responsible for removing the corresponding index directory,
+                    // including the metadata, and does so on the cluster applier thread.
+                    //
+                    // This presents a problem: if a shard is unassigned from a node and then reassigned back to it again then there is a
+                    // race between the IndicesStore deleting the index folder and the CoordinationState concurrently trying to write the
+                    // updated metadata into it. We could probably solve this with careful synchronization, but in fact there is no need.
+                    // The persisted state on master-ineligible data nodes is mostly ignored - it's only there to support dangling index
+                    // imports, which is inherently unsafe anyway. Thus we can safely delay metadata writes on master-ineligible data nodes
+                    // until applying the cluster state, which is what this does:
                     clusterService.addLowPriorityApplier(this::applyClusterState);
                 }
                 persistedState.set(new InMemoryPersistedState(getCurrentTerm(), getLastAcceptedState()));

@@ -20,7 +20,6 @@
 package org.elasticsearch.client.transform.transforms;
 
 import org.elasticsearch.client.core.IndexerJobStats;
-import org.elasticsearch.client.transform.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 

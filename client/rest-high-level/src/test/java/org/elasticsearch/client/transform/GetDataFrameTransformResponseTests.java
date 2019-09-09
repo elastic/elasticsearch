@@ -19,8 +19,6 @@
 
 package org.elasticsearch.client.transform;
 
-import org.elasticsearch.client.transform.DataFrameNamedXContentProvider;
-import org.elasticsearch.client.transform.GetDataFrameTransformResponse;
 import org.elasticsearch.client.transform.transforms.DataFrameTransformConfig;
 import org.elasticsearch.client.transform.transforms.DataFrameTransformConfigTests;
 import org.elasticsearch.common.settings.Settings;

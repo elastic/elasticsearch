@@ -20,8 +20,6 @@
 package org.elasticsearch.client.transform;
 
 import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.client.transform.DataFrameNamedXContentProvider;
-import org.elasticsearch.client.transform.UpdateDataFrameTransformRequest;
 import org.elasticsearch.client.transform.transforms.DataFrameTransformConfigUpdate;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;

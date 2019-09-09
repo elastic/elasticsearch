@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.transform.transforms;
 
-import org.elasticsearch.client.transform.transforms.DataFrameTransformStats;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;

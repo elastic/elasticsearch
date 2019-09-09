@@ -19,9 +19,9 @@
 
 package org.elasticsearch.client.transform.transforms.hlrc;
 
+import org.elasticsearch.client.AbstractHlrcXContentTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStats;
-import org.elasticsearch.client.AbstractHlrcXContentTestCase;
 
 import java.io.IOException;
 

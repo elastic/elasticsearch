@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.transform.transforms;
 
-import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;

@@ -20,7 +20,6 @@
 package org.elasticsearch.client.transform;
 
 import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.client.transform.StartDataFrameTransformRequest;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Optional;

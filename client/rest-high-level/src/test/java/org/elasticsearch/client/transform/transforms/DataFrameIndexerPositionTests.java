@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.transform.transforms;
 
-import org.elasticsearch.client.transform.transforms.DataFrameIndexerPosition;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 

@@ -21,7 +21,6 @@ package org.elasticsearch.client.transform;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.client.transform.GetDataFrameTransformStatsResponse;
 import org.elasticsearch.client.transform.transforms.DataFrameTransformStats;
 import org.elasticsearch.client.transform.transforms.DataFrameTransformStatsTests;
 import org.elasticsearch.common.xcontent.XContentBuilder;

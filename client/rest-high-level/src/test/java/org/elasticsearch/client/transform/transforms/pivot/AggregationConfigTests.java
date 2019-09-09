@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.transform.transforms.pivot;
 
-import org.elasticsearch.client.transform.transforms.pivot.AggregationConfig;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;

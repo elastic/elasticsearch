@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.transform.transforms.pivot;
 
-import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 

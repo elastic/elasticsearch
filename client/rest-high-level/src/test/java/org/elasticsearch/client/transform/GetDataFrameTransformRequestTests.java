@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.transform;
 
-import org.elasticsearch.client.transform.GetDataFrameTransformRequest;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.containsString;

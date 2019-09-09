@@ -20,8 +20,6 @@
 package org.elasticsearch.client.transform.transforms;
 
 import org.elasticsearch.client.transform.DataFrameNamedXContentProvider;
-import org.elasticsearch.client.transform.transforms.DataFrameTransformConfigUpdate;
-import org.elasticsearch.client.transform.transforms.SyncConfig;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;

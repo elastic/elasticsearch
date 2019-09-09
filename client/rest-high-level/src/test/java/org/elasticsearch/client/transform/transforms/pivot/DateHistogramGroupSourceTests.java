@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.transform.transforms.pivot;
 
-import org.elasticsearch.client.transform.transforms.pivot.DateHistogramGroupSource;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractXContentTestCase;

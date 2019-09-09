@@ -374,6 +374,11 @@ public class MissingValuesTests extends ESTestCase {
             public int docValueCount() {
                 return values[doc].length;
             }
+
+            @Override
+            public ValuesSourceType valuesSourceType() {
+                return ValuesSourceType.GEOPOINT;
+            }
         };
         final MultiGeoValues.GeoPointValue missing = new MultiGeoValues.GeoPointValue(
             new GeoPoint(randomDouble() * 90, randomDouble() * 180));

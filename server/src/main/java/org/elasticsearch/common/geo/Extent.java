@@ -39,7 +39,7 @@ public class Extent implements Writeable {
     public final int posLeft;
     public final int posRight;
 
-    Extent(int top, int bottom, int negLeft, int negRight, int posLeft, int posRight) {
+    public Extent(int top, int bottom, int negLeft, int negRight, int posLeft, int posRight) {
         this.top = top;
         this.bottom = bottom;
         this.negLeft = negLeft;

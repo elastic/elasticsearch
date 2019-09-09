@@ -23,6 +23,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.geometry.Rectangle;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -88,6 +89,15 @@ final class GeoTileUtils {
         return precision;
     }
 
+    static int getXTile(double longitude, long tiles) {
+        return (int) Math.floor((normalizeLon(longitude) + 180) / 360 * tiles);
+    }
+
+    static int getYTile(double latitude, long tiles) {
+        double latSin = Math.sin(Math.toRadians(normalizeLat(latitude)));
+        return (int) Math.floor((0.5 - (Math.log((1 + latSin) / (1 - latSin)) / (4 * Math.PI))) * tiles);
+    }
+
     /**
      * Encode lon/lat to the geotile based long format.
      * The resulting hash contains interleaved tile X and Y coordinates.
@@ -119,6 +129,10 @@ final class GeoTileUtils {
             yTile = tiles - 1;
         }
 
+        return longEncodeTiles(precision, xTile, yTile);
+    }
+
+    static long longEncodeTiles(int precision, long xTile, long yTile) {
         // Zoom value is placed in front of all the bits used for the geotile
         // e.g. when max zoom is 29, the largest index would use 58 bits (57th..0th),
         // leaving 5 bits unused for zoom. See MAX_ZOOM comment above.
@@ -168,6 +182,19 @@ final class GeoTileUtils {
             throw new IllegalArgumentException("Invalid geotile_grid hash string of " +
                 hashAsString + ". Must be three integers in a form \"zoom/x/y\".", e);
         }
+    }
+
+    static Rectangle toBoundingBox(int xTile, int yTile, int precision) {
+        final double tiles = validateZXY(precision, xTile, yTile);
+        final double minN = Math.PI - (2.0 * Math.PI * (yTile + 1)) / tiles;
+        final double maxN = Math.PI - (2.0 * Math.PI * (yTile)) / tiles;
+        final double minY = Math.toDegrees(Math.atan(Math.sinh(minN)));
+        final double minX = ((xTile) / tiles * 360.0) - 180;
+
+        final double maxY = Math.toDegrees(Math.atan(Math.sinh(maxN)));
+        final double maxX = ((xTile + 1) / tiles * 360.0) - 180;
+
+        return new Rectangle(minX, maxX, maxY, minY);
     }
 
     /**

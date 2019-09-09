@@ -101,7 +101,7 @@ GET /_ccr/stats
 
 The API returns the following results:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "auto_follow_stats" : {

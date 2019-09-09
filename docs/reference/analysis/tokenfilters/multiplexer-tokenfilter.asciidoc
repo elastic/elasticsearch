@@ -68,7 +68,7 @@ POST /multiplexer_example/_analyze
 
 And it'd respond:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "tokens": [
@@ -110,7 +110,6 @@ And it'd respond:
   ]
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 <1> The stemmer has also emitted a token `home` at position 1, but because it is a
 duplicate of this token it has been removed from the token stream

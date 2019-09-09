@@ -423,7 +423,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             logger.warn(() -> new ParameterizedMessage("[{}] Unable to delete global metadata files", snapshotId), e);
         }
         final var survivingIndices = updatedRepositoryData.getIndices();
-        deleteFromIndices(
+        deleteFromIndicesLegacy(
             updatedRepositoryData,
             Optional.ofNullable(snapshot).map(info -> info.indices().stream().filter(survivingIndices::containsKey)
                 .map(updatedRepositoryData::resolveIndexId).collect(Collectors.toList())).orElse(Collections.emptyList()),
@@ -637,8 +637,19 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return deleteResult;
     }
 
-    private void deleteFromIndices(RepositoryData repositoryData, List<IndexId> indices, SnapshotId snapshotId,
-                                   ActionListener<Void> listener) {
+    /**
+     *
+     * Note: This is a bwc method to be used as long as there are nodes older than {@link SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION}
+     * that removes a snapshot from all the given indices in the repository.
+     *
+     * @param repositoryData RepositoryData with the snapshot removed
+     * @param indices        Indices to remove the snapshot from (should not contain indices that become completely unreferenced with the
+     *                       removal of this snapshot as those are cleaned up afterwards by {@link #cleanupStaleBlobs})
+     * @param snapshotId     SnapshotId to remove from all the given indices
+     * @param listener       Listener to invoke when finished
+     */
+    private void deleteFromIndicesLegacy(RepositoryData repositoryData, List<IndexId> indices, SnapshotId snapshotId,
+                                         ActionListener<Void> listener) {
         if (indices.isEmpty()) {
             listener.onResponse(null);
             return;
@@ -1453,8 +1464,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
         if (latest != null) {
             try {
-                final BlobStoreIndexShardSnapshots shardSnapshots =
-                    indexShardSnapshotsFormat.read(shardContainer,latest);
+                final BlobStoreIndexShardSnapshots shardSnapshots = indexShardSnapshotsFormat.read(shardContainer,latest);
                 return new Tuple<>(shardSnapshots, latest);
             } catch (IOException e) {
                 final String file = SNAPSHOT_INDEX_PREFIX + latest;

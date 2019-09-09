@@ -160,11 +160,18 @@ for (Version version : bwcVersions.wireCompatible) {
     oldClusterTestRunner.configure {
         systemProperty 'tests.rest.suite', 'old_cluster'
         systemProperty 'tests.upgrade_from_version', version.toString().replace('-SNAPSHOT', '')
+
+        def toBlackList = []
         // Dataframe transforms were not added until 7.2.0
         if (version.before('7.2.0')) {
-            systemProperty 'tests.rest.blacklist', [
-                    'old_cluster/80_data_frame_jobs_crud/Test put batch data frame transforms on old cluster'
-            ].join(',')
+            toBlackList << 'old_cluster/80_data_frame_jobs_crud/Test put batch data frame transforms on old cluster'
+        }
+        // continuous Dataframe transforms were not added until 7.3.0
+        if (version.before('7.3.0')) {
+            toBlackList << 'old_cluster/80_data_frame_jobs_crud/Test put continuous data frame transform on old cluster'
+        }
+        if (!toBlackList.empty) {
+            systemProperty 'tests.rest.blacklist', toBlackList.join(',')
         }
     }
 
@@ -261,8 +268,9 @@ for (Version version : bwcVersions.wireCompatible) {
             toBlackList << 'mixed_cluster/80_data_frame_jobs_crud/Test put continuous data frame transform on mixed cluster'
             toBlackList << 'mixed_cluster/80_data_frame_jobs_crud/Test GET, stop, start, old continuous transforms'
         }
-
-        systemProperty 'tests.rest.blacklist', toBlackList.join(',')
+        if (!toBlackList.empty) {
+            systemProperty 'tests.rest.blacklist', toBlackList.join(',')
+        }
     }
 
     Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask)
@@ -297,6 +305,10 @@ for (Version version : bwcVersions.wireCompatible) {
         // Dataframe transforms were not added until 7.2.0
         if (version.before('7.2.0')) {
             toBlackList << 'upgraded_cluster/80_data_frame_jobs_crud/Get start, stop, and delete old and mixed cluster batch data frame transforms'
+        }
+        // continuous Dataframe transforms were not added until 7.3.0
+        if (version.before('7.3.0')) {
+            toBlackList << 'upgraded_cluster/80_data_frame_jobs_crud/Test GET, stop, delete, old and mixed continuous transforms'
         }
         if (!toBlackList.empty) {
             systemProperty 'tests.rest.blacklist', toBlackList.join(',')

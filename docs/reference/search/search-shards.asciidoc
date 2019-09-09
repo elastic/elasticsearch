@@ -3,11 +3,10 @@
 
 Returns the indices and shards that a search request would be executed against.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_search_shards
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT twitter\n{"settings":{"index.number_of_shards":5}}\n/]
 
 
@@ -55,16 +54,15 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=routing]
 [[search-shards-api-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_search_shards
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT twitter\n{"settings":{"index.number_of_shards":5}}\n/]
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "nodes": ...,
@@ -140,16 +138,15 @@ The API returns the following result:
 
 Specifying the same request, this time with a routing value:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_search_shards?routing=foo,bar
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT twitter\n{"settings":{"index.number_of_shards":5}}\n/]
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "nodes": ...,

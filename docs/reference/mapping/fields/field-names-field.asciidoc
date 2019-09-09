@@ -18,7 +18,7 @@ Disabling `_field_names` is often not necessary because it no longer
 carries the index overhead it once did. If you have a lot of fields
 which have `doc_values` and `norms` disabled and you do not need to
 execute `exists` queries using those fields you might want to disable
-`_field_names` be adding the following to the mappings:
+`_field_names` by adding the following to the mappings:
 
 [source,console]
 --------------------------------------------------

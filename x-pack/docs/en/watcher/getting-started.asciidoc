@@ -26,7 +26,7 @@ watch, you could use an {xpack-ref}/trigger-schedule.html#schedule-interval[inte
 {xpack-ref}/input-search.html[search] input. For example, the following Watch searches
 the `logs` index for errors every 10 seconds:
 
-[source,js]
+[source,console]
 ------------------------------------------------------------
 PUT _watcher/watch/log_error_watch
 {
@@ -47,7 +47,7 @@ PUT _watcher/watch/log_error_watch
   }
 }
 ------------------------------------------------------------
-// CONSOLE
+
 <1> Schedules are typically configured to run less frequently. This example sets
     the interval to 10 seconds so you can easily see the watches being triggered.
     Since this watch runs so frequently, don't forget to <<log-delete, delete the watch>>
@@ -60,7 +60,7 @@ into the watch payload.
 For example, the following request retrieves the last ten watch executions (watch
 records) from the watch history:
 
-[source,js]
+[source,console]
 ------------------------------------------------------------
 GET .watcher-history*/_search?pretty
 {
@@ -69,7 +69,6 @@ GET .watcher-history*/_search?pretty
   ]
 }
 ------------------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [float]
@@ -84,7 +83,7 @@ found.
 For example, the following compare condition simply checks to see if the
 search input returned any hits.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _watcher/watch/log_error_watch
 {
@@ -106,7 +105,7 @@ PUT _watcher/watch/log_error_watch
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The {xpack-ref}/condition-compare.html[compare] condition lets you easily compare against
     values in the execution context.
 
@@ -114,7 +113,7 @@ For this compare condition to evaluate to `true`, you need to add an event
 to the `logs` index that contains an error. For example, the following request
 adds a 404 error to the `logs` index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST logs/event
 {
@@ -124,7 +123,6 @@ POST logs/event
     "message" : "Error: File not found"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Once you add this event, the next time the watch executes its condition will
@@ -132,7 +130,7 @@ evaluate to `true`. The condition result is recorded as part of the
 `watch_record` each time the watch executes, so you can verify whether or
 not the condition was met by searching the watch history:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET .watcher-history*/_search?pretty
 {
@@ -146,7 +144,6 @@ GET .watcher-history*/_search?pretty
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [float]
@@ -163,7 +160,7 @@ Elasticsearch log files.
 For example, the following action writes a message to the Elasticsearch
 log when an error is detected.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _watcher/watch/log_error_watch
 {
@@ -192,7 +189,6 @@ PUT _watcher/watch/log_error_watch
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 [[log-delete]]
@@ -205,11 +201,10 @@ log file.
 
 To remove the watch, use the {ref}/watcher-api-delete-watch.html[DELETE watch API]:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE _watcher/watch/log_error_watch
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [float]

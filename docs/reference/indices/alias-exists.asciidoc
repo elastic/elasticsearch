@@ -6,14 +6,7 @@
 
 Checks if an index alias exists.
 
-//tag::index-alias-def[]
-An index alias is a secondary name
-used to refer to one or more existing indices.
-//end::index-alias-def[]
-
-The returned HTTP status code indicates whether the index alias exists or not.
-A `404` means it does not exist,
-and `200` means it does.
+include::{docdir}/glossary.asciidoc[tag=index-alias-def]
 
 [source,console]
 ----

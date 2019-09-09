@@ -186,7 +186,7 @@ POST _ingest/pipeline/_simulate
 
 response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "docs": [
@@ -246,7 +246,7 @@ POST _ingest/pipeline/_simulate
 --------------------------------------------------
 ////
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "docs": [

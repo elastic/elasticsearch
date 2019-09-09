@@ -89,7 +89,8 @@ GET _ml/anomaly_detectors/total-requests
 // TEST[skip:setup:server_metrics_job]
 
 The API returns the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "count": 1,

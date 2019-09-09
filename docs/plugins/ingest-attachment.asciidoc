@@ -55,7 +55,7 @@ GET my_index/_doc/my_id
 
 Returns this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
@@ -140,7 +140,7 @@ GET my_index/_doc/my_id
 
 Returns this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
@@ -190,7 +190,7 @@ GET my_index/_doc/my_id_2
 
 Returns this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
@@ -284,7 +284,8 @@ GET my_index/_doc/my_id
 // CONSOLE
 
 Returns this:
-[source,js]
+
+[source,console-result]
 --------------------------------------------------
 {
   "_index" : "my_index",

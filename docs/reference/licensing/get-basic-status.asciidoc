@@ -39,7 +39,8 @@ GET /_license/basic_status
 ------------------------------------------------------------
 
 Example response:
-[source,js]
+
+[source,console-result]
 ------------------------------------------------------------
 {
   "eligible_to_start_basic": true

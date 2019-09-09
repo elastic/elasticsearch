@@ -28,7 +28,7 @@
     from the analysis.
   
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ml/data_frame/analytics/loganalytics
 {
@@ -48,7 +48,6 @@ PUT _ml/data_frame/analytics/loganalytics
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:setup_logdata]
 
 `description`::

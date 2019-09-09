@@ -56,7 +56,8 @@ POST _ingest/pipeline/set_os/_simulate
 --------------------------------------------------
 
 Result:
-[source,js]
+
+[source,console-result]
 --------------------------------------------------
 {
   "docs" : [

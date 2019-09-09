@@ -96,7 +96,7 @@ GET twitter/_stats?filter_path=**.commit&level=shards <1>
 
 which returns something similar to:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "indices": {
@@ -165,7 +165,7 @@ sync-flushed and information about any failure.
 Here is what it looks like when all shards of a two shards and one replica
 index successfully sync-flushed:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "_shards": {

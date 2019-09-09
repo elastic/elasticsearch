@@ -15,7 +15,7 @@ POST twitter/_update_by_query?conflicts=proceed
 
 That will return something like this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took" : 147,
@@ -260,7 +260,7 @@ POST /twitter/_update_by_query?conflicts=proceed
 
 The JSON response looks like this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took" : 147,

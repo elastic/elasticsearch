@@ -414,7 +414,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESCloudBasedRepo
         protected boolean canFailRequest(final HttpExchange exchange) {
             // Batch requests are not retried so we don't want to fail them
             // The batched request are supposed to be retried (not tested here)
-            return exchange.getRequestURI().toString().startsWith("/batch/");
+            return exchange.getRequestURI().toString().startsWith("/batch/") == false;
         }
     }
 }

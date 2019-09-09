@@ -25,7 +25,7 @@ PUT /products
 --------------------------------------------------
 <1> `resellers` is an array that holds nested documents.
 
-We are adding one example product with two resellers:
+The following request adds a product with two resellers:
 
 [source,console]
 --------------------------------------------------

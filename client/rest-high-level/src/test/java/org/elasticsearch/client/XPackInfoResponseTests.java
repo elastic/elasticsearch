@@ -19,6 +19,7 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.BuildInfo;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo;
@@ -85,7 +86,7 @@ public class XPackInfoResponseTests extends AbstractResponseTestCase<XPackInfoRe
     }
 
     @Override
-    protected XPackInfoResponse createServerTestInstance() {
+    protected XPackInfoResponse createServerTestInstance(XContentType xContentType) {
         return new XPackInfoResponse(
             randomBoolean() ? null : randomBuildInfo(),
             randomBoolean() ? null : randomLicenseInfo(),

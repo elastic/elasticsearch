@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.MockInternalClusterInfoService.DevNullClusterInfo;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -1001,5 +1000,21 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 rn.shardsWithState(INITIALIZING),
                 rn.shardsWithState(RELOCATING),
                 rn.shardsWithState(STARTED));
+    }
+
+    /**
+     * ClusterInfo that always reports /dev/null for the shards' data paths.
+     */
+    static class DevNullClusterInfo extends ClusterInfo {
+        DevNullClusterInfo(ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsage,
+                           ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsage,
+                           ImmutableOpenMap<String, Long> shardSizes) {
+            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null);
+        }
+
+        @Override
+        public String getDataPath(ShardRouting shardRouting) {
+            return "/dev/null";
+        }
     }
 }

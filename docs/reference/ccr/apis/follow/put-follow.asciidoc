@@ -110,7 +110,7 @@ PUT /follower_index/_ccr/follow?wait_for_active_shards=1
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "follow_index_created" : true,
@@ -118,4 +118,3 @@ The API returns the following result:
   "index_following_started" : true
 }
 --------------------------------------------------
-// TESTRESPONSE

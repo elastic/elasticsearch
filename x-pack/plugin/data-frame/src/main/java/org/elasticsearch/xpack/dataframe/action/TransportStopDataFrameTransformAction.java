@@ -254,7 +254,55 @@ public class TransportStopDataFrameTransformAction extends TransportTasksAction<
 
                 listener.onFailure(new ElasticsearchStatusException(message, RestStatus.CONFLICT));
             },
-            listener::onFailure
+            e -> {
+                // waitForPersistentTasksCondition throws a IllegalStateException on timeout
+                if (e instanceof IllegalStateException && e.getMessage().startsWith("Timed out")) {
+                    PersistentTasksCustomMetaData persistentTasksCustomMetaData = clusterService.state().metaData()
+                        .custom(PersistentTasksCustomMetaData.TYPE);
+
+                    if (persistentTasksCustomMetaData == null) {
+                        listener.onResponse(new Response(Boolean.TRUE));
+                        return;
+                    }
+
+                    // collect which tasks are still running
+                    Set<String> stillRunningTasks = new HashSet<>();
+                    for (String persistentTaskId : persistentTaskIds) {
+                        if (persistentTasksCustomMetaData.getTask(persistentTaskId) != null) {
+                            stillRunningTasks.add(persistentTaskId);
+                        }
+                    }
+
+                    if (stillRunningTasks.isEmpty()) {
+                        // should not happen
+                        listener.onResponse(new Response(Boolean.TRUE));
+                        return;
+                    } else {
+                        StringBuilder message = new StringBuilder();
+                        if (persistentTaskIds.size() - stillRunningTasks.size() - exceptions.size() > 0) {
+                            message.append("Successfully stopped [");
+                            message.append(persistentTaskIds.size() - stillRunningTasks.size() - exceptions.size());
+                            message.append("] transforms. ");
+                        }
+
+                        if (exceptions.size() > 0) {
+                            message.append("Could not stop the transforms ");
+                            message.append(exceptions.keySet());
+                            message.append(" as they were failed. Use force stop to stop the transforms. ");
+                        }
+
+                        if (stillRunningTasks.size() > 0) {
+                            message.append("Could not stop the transforms ");
+                            message.append(stillRunningTasks);
+                            message.append(" as they timed out.");
+                        }
+
+                        listener.onFailure(new ElasticsearchStatusException(message.toString(), RestStatus.REQUEST_TIMEOUT));
+                        return;
+                    }
+                }
+                listener.onFailure(e);
+            }
         ));
     }
 }

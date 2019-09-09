@@ -58,7 +58,7 @@ POST /condition_example/_analyze
 
 And it'd respond:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "tokens": [
@@ -72,7 +72,6 @@ And it'd respond:
   ]
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 <1> The token 'What' has been removed from the tokenstream because it does not
 match the predicate.

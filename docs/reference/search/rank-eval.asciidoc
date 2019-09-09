@@ -147,7 +147,7 @@ Documents in the collection need to be rated either as relevant or irrelevant wi
 P@k does not take into account where in the top k results the relevant documents occur, so a ranking of ten results that 
 contains one relevant result in position 10 is equally good as a ranking of ten results that contains one relevant result in position 1.
 
-[source,js]
+[source,console]
 --------------------------------
 GET /twitter/_rank_eval
 {
@@ -166,7 +166,6 @@ GET /twitter/_rank_eval
    }
 }
 --------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 The `precision` metric takes the following optional parameters
@@ -190,7 +189,7 @@ first relevant document. For example finding the first relevant result
 in position 3 means the reciprocal rank is 1/3. The reciprocal rank for each query
 is averaged across all queries in the test suite to give the https://en.wikipedia.org/wiki/Mean_reciprocal_rank[mean reciprocal rank].
 
-[source,js]
+[source,console]
 --------------------------------
 GET /twitter/_rank_eval
 {
@@ -208,7 +207,6 @@ GET /twitter/_rank_eval
     }
 }
 --------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 The `mean_reciprocal_rank` metric takes the following optional parameters
@@ -229,7 +227,7 @@ In contrast to the two metrics above, https://en.wikipedia.org/wiki/Discounted_c
 
 The assumption is that highly relevant documents are more useful for the user when appearing at the top of the result list. Therefore, the DCG formula reduces the contribution that high ratings for documents on lower search ranks have on the overall DCG metric.
 
-[source,js]
+[source,console]
 --------------------------------
 GET /twitter/_rank_eval
 {
@@ -247,7 +245,6 @@ GET /twitter/_rank_eval
     }
 }
 --------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 The `dcg` metric takes the following optional parameters:
@@ -278,7 +275,7 @@ even more so if there are some relevant (but maybe less relevant) documents prec
 In this way, the ERR metric discounts documents which are shown after very relevant documents. This introduces 
 a notion of dependency in the ordering of relevant documents that e.g. Precision or DCG don't account for.
 
-[source,js]
+[source,console]
 --------------------------------
 GET /twitter/_rank_eval
 {
@@ -296,7 +293,6 @@ GET /twitter/_rank_eval
     }
 }
 --------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 The `expected_reciprocal_rank` metric takes the following parameters:

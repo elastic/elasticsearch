@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -28,8 +29,10 @@ import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -154,19 +157,23 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
             private final DataFrameAnalyticsState state;
             @Nullable
             private final String failureReason;
-            @Nullable
-            private final Integer progressPercentage;
+
+            /**
+             * The progress is described as a list of each phase and its completeness percentage.
+             */
+            private final List<PhaseProgress> progress;
+
             @Nullable
             private final DiscoveryNode node;
             @Nullable
             private final String assignmentExplanation;
 
-            public Stats(String id, DataFrameAnalyticsState state, @Nullable String failureReason, @Nullable Integer progressPercentage,
+            public Stats(String id, DataFrameAnalyticsState state, @Nullable String failureReason, List<PhaseProgress> progress,
                          @Nullable DiscoveryNode node, @Nullable String assignmentExplanation) {
                 this.id = Objects.requireNonNull(id);
                 this.state = Objects.requireNonNull(state);
                 this.failureReason = failureReason;
-                this.progressPercentage = progressPercentage;
+                this.progress = Objects.requireNonNull(progress);
                 this.node = node;
                 this.assignmentExplanation = assignmentExplanation;
             }
@@ -175,9 +182,45 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 id = in.readString();
                 state = DataFrameAnalyticsState.fromStream(in);
                 failureReason = in.readOptionalString();
-                progressPercentage = in.readOptionalInt();
+                if (in.getVersion().before(Version.V_7_4_0)) {
+                    progress = readProgressFromLegacy(state, in);
+                } else {
+                    progress = in.readList(PhaseProgress::new);
+                }
                 node = in.readOptionalWriteable(DiscoveryNode::new);
                 assignmentExplanation = in.readOptionalString();
+            }
+
+            private static List<PhaseProgress> readProgressFromLegacy(DataFrameAnalyticsState state, StreamInput in) throws IOException {
+                Integer legacyProgressPercent = in.readOptionalInt();
+                if (legacyProgressPercent == null) {
+                    return Collections.emptyList();
+                }
+
+                int reindexingProgress = 0;
+                int loadingDataProgress = 0;
+                int analyzingProgress = 0;
+                switch (state) {
+                    case ANALYZING:
+                        reindexingProgress = 100;
+                        loadingDataProgress = 100;
+                        analyzingProgress = legacyProgressPercent;
+                        break;
+                    case REINDEXING:
+                        reindexingProgress = legacyProgressPercent;
+                        break;
+                    case STARTED:
+                    case STOPPED:
+                    case STOPPING:
+                    default:
+                        return null;
+                }
+
+                return Arrays.asList(
+                    new PhaseProgress("reindexing", reindexingProgress),
+                    new PhaseProgress("loading_data", loadingDataProgress),
+                    new PhaseProgress("analyzing", analyzingProgress),
+                    new PhaseProgress("writing_results", 0));
             }
 
             public String getId() {
@@ -186,6 +229,10 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
 
             public DataFrameAnalyticsState getState() {
                 return state;
+            }
+
+            public List<PhaseProgress> getProgress() {
+                return progress;
             }
 
             @Override
@@ -204,8 +251,8 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 if (failureReason != null) {
                     builder.field("failure_reason", failureReason);
                 }
-                if (progressPercentage != null) {
-                    builder.field("progress_percent", progressPercentage);
+                if (progress != null) {
+                    builder.field("progress", progress);
                 }
                 if (node != null) {
                     builder.startObject("node");
@@ -232,14 +279,43 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 out.writeString(id);
                 state.writeTo(out);
                 out.writeOptionalString(failureReason);
-                out.writeOptionalInt(progressPercentage);
+                if (out.getVersion().before(Version.V_7_4_0)) {
+                    writeProgressToLegacy(out);
+                } else {
+                    out.writeList(progress);
+                }
                 out.writeOptionalWriteable(node);
                 out.writeOptionalString(assignmentExplanation);
             }
 
+            private void writeProgressToLegacy(StreamOutput out) throws IOException {
+                String targetPhase = null;
+                switch (state) {
+                    case ANALYZING:
+                        targetPhase = "analyzing";
+                        break;
+                    case REINDEXING:
+                        targetPhase = "reindexing";
+                        break;
+                    case STARTED:
+                    case STOPPED:
+                    case STOPPING:
+                    default:
+                        break;
+                }
+
+                Integer legacyProgressPercent = null;
+                for (PhaseProgress phaseProgress : progress) {
+                    if (phaseProgress.getPhase().equals(targetPhase)) {
+                        legacyProgressPercent = phaseProgress.getProgressPercent();
+                    }
+                }
+                out.writeOptionalInt(legacyProgressPercent);
+            }
+
             @Override
             public int hashCode() {
-                return Objects.hash(id, state, failureReason, progressPercentage, node, assignmentExplanation);
+                return Objects.hash(id, state, failureReason, progress, node, assignmentExplanation);
             }
 
             @Override

@@ -99,10 +99,10 @@ POST _data_frame/transforms/ecommerce_transform/_stop
 // TEST[skip:set up kibana samples]
 
 When the {dataframe-transform} stops, you receive the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "acknowledged" : true
 }
 ----
-// TESTRESPONSE

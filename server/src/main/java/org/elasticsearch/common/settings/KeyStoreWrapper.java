@@ -507,8 +507,9 @@ public class KeyStoreWrapper implements SecureSettings {
         } catch (final AccessDeniedException e) {
             final String message = String.format(
                 Locale.ROOT,
-                "unable to create temporary keystore at [%s], please check filesystem permissions",
-                configDir.resolve(tmpFile));
+                "unable to create temporary keystore at [%s], write permissions required for [%s] or run [elasticsearch-keystore upgrade]",
+                configDir.resolve(tmpFile),
+                configDir);
             throw new UserException(ExitCodes.CONFIG, message, e);
         }
 

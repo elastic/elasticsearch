@@ -202,17 +202,23 @@ public class MetaDataCreateIndexService {
      */
     public void createIndex(final CreateIndexClusterStateUpdateRequest request,
                             final ActionListener<CreateIndexClusterStateUpdateResponse> listener) {
+        logger.trace("createIndex[{}]", request);
         onlyCreateIndex(request, ActionListener.wrap(response -> {
             if (response.isAcknowledged()) {
+                logger.trace("[{}] index creation acknowledged, waiting for active shards [{}]",
+                    request.index(), request.waitForActiveShards());
                 activeShardsObserver.waitForActiveShards(new String[]{request.index()}, request.waitForActiveShards(), request.ackTimeout(),
                     shardsAcknowledged -> {
                         if (shardsAcknowledged == false) {
                             logger.debug("[{}] index created, but the operation timed out while waiting for " +
                                              "enough shards to be started.", request.index());
+                        } else {
+                            logger.trace("[{}] index created and shards acknowledged", request.index());
                         }
                         listener.onResponse(new CreateIndexClusterStateUpdateResponse(response.isAcknowledged(), shardsAcknowledged));
                     }, listener::onFailure);
             } else {
+                logger.trace("index creation not acknowledged for [{}]", request);
                 listener.onResponse(new CreateIndexClusterStateUpdateResponse(false, false));
             }
         }, listener::onFailure));
@@ -278,6 +284,7 @@ public class MetaDataCreateIndexService {
 
         @Override
         public ClusterState execute(ClusterState currentState) throws Exception {
+            logger.trace("executing IndexCreationTask for [{}] against cluster state version [{}]", request, currentState.version());
             Index createdIndex = null;
             String removalExtraInfo = null;
             IndexRemovalReason removalReason = IndexRemovalReason.FAILURE;

@@ -14,7 +14,7 @@ position within the input) are supported.
 
 When adding a field of this type to a mapping
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -27,7 +27,6 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 This creates the following fields
 
@@ -68,14 +67,13 @@ The same input text is indexed into each of these fields automatically, with
 their differing analysis chains, when an indexed document has a value for the
 root field `my_field`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index/_doc/1?refresh
 {
   "my_field": "quick brown fox jump lazy dog"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The most efficient way of querying to serve a search-as-you-type use case is
@@ -85,7 +83,7 @@ usually a <<query-dsl-multi-match-query,`multi_match`>> query of type
 terms in any order, but will score documents higher if they contain the terms
 in order in a shingle subfield.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET my_index/_search
 {
@@ -102,10 +100,9 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took" : 44,
@@ -147,7 +144,7 @@ field. A <<query-dsl-match-query-phrase,`match_phrase` query>> can also be used
 if the last term should be matched exactly, and not as a prefix. Using phrase
 queries may be less efficient than using the `match_bool_prefix` query.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET my_index/_search
 {
@@ -158,7 +155,6 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [[specific-params]]

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.transform.action.StartDataFrameTransformTaskAction;
 
 public class StartDataFrameTransformTaskActionResponseTests extends
         AbstractWireSerializingTestCase<StartDataFrameTransformTaskAction.Response> {

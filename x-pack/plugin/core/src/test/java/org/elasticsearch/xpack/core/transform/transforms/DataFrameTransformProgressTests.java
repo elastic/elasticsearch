@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformProgress;
 
 import java.io.IOException;
 

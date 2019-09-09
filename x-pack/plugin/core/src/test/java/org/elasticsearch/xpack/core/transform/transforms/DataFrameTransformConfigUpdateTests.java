@@ -14,13 +14,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpoint;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfigUpdate;
-import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
-import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
-import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
-import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 
 import java.io.IOException;

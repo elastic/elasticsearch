@@ -10,8 +10,6 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformState;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformTaskState;
 
 import java.io.IOException;
 import java.util.function.Predicate;

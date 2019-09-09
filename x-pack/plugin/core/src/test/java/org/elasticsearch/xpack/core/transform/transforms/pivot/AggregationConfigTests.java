@@ -21,7 +21,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.xpack.core.transform.transforms.AbstractSerializingDataFrameTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.MockDeprecatedAggregationBuilder;
-import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig;
 import org.junit.Before;
 
 import java.io.IOException;

@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.transform.utils;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.transform.utils.DataFrameStrings;
 
 public class DataFrameStringsTests extends ESTestCase {
 

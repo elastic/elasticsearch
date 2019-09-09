@@ -12,7 +12,6 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.transform.transforms.AbstractSerializingDataFrameTestCase;
-import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 
 import java.io.IOException;
 import java.util.Arrays;

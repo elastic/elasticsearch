@@ -10,7 +10,6 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformStoredDoc;
 
 import java.io.IOException;
 import java.util.Collections;

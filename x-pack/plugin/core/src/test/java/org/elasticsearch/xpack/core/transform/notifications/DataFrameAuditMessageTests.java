@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.transform.notifications;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xpack.core.common.notifications.Level;
-import org.elasticsearch.xpack.core.transform.notifications.DataFrameAuditMessage;
 
 import java.util.Date;
 

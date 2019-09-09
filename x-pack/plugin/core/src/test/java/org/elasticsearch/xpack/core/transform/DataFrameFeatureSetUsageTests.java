@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.transform;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
-import org.elasticsearch.xpack.core.transform.DataFrameFeatureSetUsage;
 import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStatsTests;
 
 import java.util.HashMap;

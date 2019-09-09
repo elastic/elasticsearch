@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpoint;
 
 import java.io.IOException;
 import java.util.ArrayList;

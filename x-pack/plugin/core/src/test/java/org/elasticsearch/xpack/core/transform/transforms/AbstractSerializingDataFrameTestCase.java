@@ -20,8 +20,6 @@ import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.transform.DataFrameField;
 import org.elasticsearch.xpack.core.transform.DataFrameNamedXContentProvider;
-import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
-import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.junit.Before;
 
 import java.util.Collections;

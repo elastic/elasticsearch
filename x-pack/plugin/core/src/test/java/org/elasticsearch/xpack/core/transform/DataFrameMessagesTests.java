@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.transform;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.transform.DataFrameMessages;
 
 import java.lang.reflect.Field;
 import java.text.MessageFormat;

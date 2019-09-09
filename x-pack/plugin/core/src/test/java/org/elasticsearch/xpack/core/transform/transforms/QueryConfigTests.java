@@ -20,7 +20,6 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.junit.Before;
 
 import java.io.IOException;

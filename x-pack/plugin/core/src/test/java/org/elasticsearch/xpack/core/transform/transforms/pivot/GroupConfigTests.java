@@ -17,8 +17,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
-import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource.Type;
 
 import java.io.IOException;

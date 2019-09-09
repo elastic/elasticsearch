@@ -91,7 +91,6 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
             if (values[i] instanceof Double) continue;
             if (values[i] instanceof Float) continue;
             if (values[i] instanceof Boolean) continue;
-            if (values[i] instanceof Boolean) continue;
             throw new IllegalArgumentException("Can't handle " + SEARCH_AFTER + " field value of type [" + values[i].getClass() + "]");
         }
         sortValues = new Object[values.length];

@@ -19,7 +19,7 @@ the root parent document.
 To use the `nested` query, your index must include a <<nested,nested>> field
 mapping. For example:
 
-[source,js]
+[source,console]
 ----
 PUT /my_index
 {
@@ -33,13 +33,12 @@ PUT /my_index
 }
 
 ----
-// CONSOLE
 // TESTSETUP
 
 [[nested-query-ex-query]]
 ===== Example query
 
-[source,js]
+[source,console]
 ----
 GET /my_index/_search
 {
@@ -59,7 +58,6 @@ GET /my_index/_search
     }
 }
 ----
-// CONSOLE
 
 [[nested-top-level-params]]
 ==== Top-level parameters for `nested`

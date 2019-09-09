@@ -84,7 +84,7 @@ POST _bulk
 
 The result of this bulk operation is:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "took": 30,

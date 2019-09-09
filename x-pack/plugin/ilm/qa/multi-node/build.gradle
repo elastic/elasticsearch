@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.test.RestIntegTestTask
-
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
@@ -27,4 +25,8 @@ testClusters.integTest {
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.poll_interval', '1000ms'
+    // TODO: Find a way to run these tests with more than one snapshot pool thread. Currently we need to limit to one thread so that the
+    //       rate limiting settings in SnapshotLifecycleIT doesn't result in blocked snapshot threads because multiple threads overshoot
+    //       the limit simultaneously and the rate limiter then moves to wait minutes to make up for this.
+    setting 'thread_pool.snapshot.max', '1'
 }

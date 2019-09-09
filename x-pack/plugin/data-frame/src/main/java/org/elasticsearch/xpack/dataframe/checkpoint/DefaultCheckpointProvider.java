@@ -183,8 +183,8 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
             String indexName = shard.getShardRouting().getIndexName();
 
             if (userIndices.contains(indexName)) {
-                // SeqNoStats could be `null`, assume the global checkpoint to be 0 in this case
-                long globalCheckpoint = shard.getSeqNoStats() == null ? 0 : shard.getSeqNoStats().getGlobalCheckpoint();
+                // SeqNoStats could be `null`, assume the global checkpoint to be -1 in this case
+                long globalCheckpoint = shard.getSeqNoStats() == null ? -1L : shard.getSeqNoStats().getGlobalCheckpoint();
                 if (checkpointsByIndex.containsKey(indexName)) {
                     // we have already seen this index, just check/add shards
                     TreeMap<Integer, Long> checkpoints = checkpointsByIndex.get(indexName);
@@ -215,8 +215,7 @@ public class DefaultCheckpointProvider implements CheckpointProvider {
 
             userIndicesClone.removeAll(checkpointsByIndex.keySet());
             if (userIndicesClone.isEmpty() == false) {
-                logger.debug("Original set of user indices contained more indexes [{}]",
-                        userIndicesClone);
+                logger.debug("Original set of user indices contained more indexes [{}]", userIndicesClone);
             }
         }
 

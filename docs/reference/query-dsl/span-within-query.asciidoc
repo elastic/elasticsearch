@@ -7,7 +7,7 @@
 Returns matches which are enclosed inside another span query. The span within
 query maps to Lucene `SpanWithinQuery`. Here is an example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -30,7 +30,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The `big` and `little` clauses can be any span type query. Matching
 spans from `little` that are enclosed within `big` are returned.

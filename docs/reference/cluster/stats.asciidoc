@@ -9,7 +9,7 @@ Returns cluster statistics.
 
 `GET /_cluster/stats` +
 
-`GET /_cluster/stats/nodes/{node_id}`
+`GET /_cluster/stats/nodes/<node_id>`
 
 
 [[cluster-stats-api-desc]]

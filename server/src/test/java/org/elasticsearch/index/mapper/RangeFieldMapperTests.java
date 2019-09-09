@@ -416,7 +416,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     public void testIllegalArguments() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", RangeFieldMapper.RangeType.INTEGER.name)
+            .startObject("properties").startObject("field").field("type", RangeType.INTEGER.name)
             .field("format", DATE_FORMAT).endObject().endObject().endObject().endObject();
 
         ThrowingRunnable runnable = () -> parser.parse("type", new CompressedXContent(Strings.toString(mapping)));

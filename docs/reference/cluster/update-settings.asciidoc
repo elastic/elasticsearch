@@ -87,7 +87,7 @@ PUT /_cluster/settings?flat_settings=true
 The response to an update returns the changed setting, as in this response to 
 the transient example:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -116,7 +116,7 @@ PUT /_cluster/settings
 
 The response does not include settings that have been reset:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...

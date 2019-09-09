@@ -199,7 +199,8 @@
  * {@code /indices/${index-snapshot-uuid}/${i}/index-${uuid}} (The shard's generation is determined from the map of shard generations in
  * the {@link org.elasticsearch.repositories.RepositoryData} in the root {@code index-${N}} blob of the repository.</li>
  * <li>Collect all segment blobs (identified by having the data blob prefix {@code __}) in the shard directory which are not referenced by
- * the new {@code BlobStoreIndexShardSnapshots} that has been written in the previous step.</li>
+ * the new {@code BlobStoreIndexShardSnapshots} that has been written in the previous step as well as the previous index-${uuid}
+ * blob so that it can be deleted at the end of the snapshot delete process.</li>
  * </ol>
  * </li>
  * <li>Write an updated {@code RepositoryData} blob with the deleted snapshot removed to key {@code /index-${N+1}} directly under the

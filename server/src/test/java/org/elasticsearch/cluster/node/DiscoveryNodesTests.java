@@ -191,7 +191,6 @@ public class DiscoveryNodesTests extends ESTestCase {
         assertThat(nodes0.delta(nodes02Local).shortSummary(), oneOf(
             "removed {" + discoveryNodes.get(1) + "," + discoveryNodes.get(2) + "}",
             "removed {" + discoveryNodes.get(2) + "," + discoveryNodes.get(1) + "}"));
-
     }
 
     public void testDeltas() {

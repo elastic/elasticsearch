@@ -23,14 +23,16 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public abstract class DataFrameSingleNodeTestCase extends ESSingleNodeTestCase {
 
     @Before
     public void waitForTemplates() throws Exception {
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
-            assertTrue("Timed out waiting for the data frame templates to be installed",
-                    TemplateUtils.checkTemplateExistsAndVersionIsGTECurrentVersion(DataFrameInternalIndex.INDEX_TEMPLATE_NAME, state));
+            assertTrue("Timed out waiting for the data frame templates to be installed", TemplateUtils
+                .checkTemplateExistsAndVersionIsGTECurrentVersion(DataFrameInternalIndex.LATEST_INDEX_VERSIONED_NAME, state));
         });
     }
 
@@ -56,7 +58,7 @@ public abstract class DataFrameSingleNodeTestCase extends ESSingleNodeTestCase {
             if (expected == null) {
                 fail("expected an exception but got a response");
             } else {
-                assertEquals(r, expected);
+                assertThat(r, equalTo(expected));
             }
             if (onAnswer != null) {
                 onAnswer.accept(r);

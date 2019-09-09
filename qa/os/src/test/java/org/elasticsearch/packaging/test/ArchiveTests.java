@@ -21,7 +21,6 @@ package org.elasticsearch.packaging.test;
 
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.Archives;
-import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
@@ -52,7 +51,6 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
-import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.isEmptyString;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
@@ -60,9 +58,8 @@ import static org.junit.Assume.assumeTrue;
 public class ArchiveTests extends PackagingTestCase {
 
     @BeforeClass
-    public static void assumptions() {
-        assumeTrue("only archive distributions",
-            distribution().packaging == Distribution.Packaging.TAR || distribution().packaging == Distribution.Packaging.ZIP);
+    public static void filterDistros() {
+        assumeTrue("only archives", distribution.isArchive());
     }
 
     public void test10Install() throws Exception {
@@ -71,20 +68,14 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test20PluginsListWithNoPlugins() throws Exception {
-        assumeThat(installation, is(notNullValue()));
-
         final Installation.Executables bin = installation.executables();
-        final Shell sh = newShell();
         final Result r = sh.run(bin.elasticsearchPlugin + " list");
 
         assertThat(r.stdout, isEmptyString());
     }
 
     public void test30NoJava() throws Exception {
-        assumeThat(installation, is(notNullValue()));
-
         final Installation.Executables bin = installation.executables();
-        final Shell sh = newShell();
         sh.getEnv().remove("JAVA_HOME");
 
         final Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
@@ -105,10 +96,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test40CreateKeystoreManually() throws Exception {
-        assumeThat(installation, is(notNullValue()));
-
         final Installation.Executables bin = installation.executables();
-        final Shell sh = newShell();
 
         Platforms.onLinux(() -> sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " create"));
 
@@ -138,12 +126,10 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test50StartAndStop() throws Exception {
-        assumeThat(installation, is(notNullValue()));
-
         // cleanup from previous test
         rm(installation.config("elasticsearch.keystore"));
 
-        Archives.runElasticsearch(installation, newShell());
+        Archives.runElasticsearch(installation, sh);
 
         assertTrue("gc logs exist", Files.exists(installation.logs.resolve("gc.log")));
         ServerUtils.runElasticsearchTests();
@@ -152,8 +138,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void assertRunsWithJavaHome() throws Exception {
-        Shell sh = newShell();
-
         Platforms.onLinux(() -> {
             String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
             sh.getEnv().put("JAVA_HOME", systemJavaHome);
@@ -173,13 +157,10 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test51JavaHomeOverride() throws Exception {
-        assumeThat(installation, is(notNullValue()));
-
         assertRunsWithJavaHome();
     }
 
     public void test52BundledJdkRemoved() throws Exception {
-        assumeThat(installation, is(notNullValue()));
         assumeThat(distribution().hasJdk, is(true));
 
         Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
@@ -192,8 +173,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test53JavaHomeWithSpecialCharacters() throws Exception {
-        assumeThat(installation, is(notNullValue()));
-
         Platforms.onWindows(() -> {
             final Shell sh = new Shell();
             try {
@@ -247,13 +226,9 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test60AutoCreateKeystore() throws Exception {
-        assumeThat(installation, is(notNullValue()));
-
         assertThat(installation.config("elasticsearch.keystore"), file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660));
 
         final Installation.Executables bin = installation.executables();
-        final Shell sh = newShell();
-
         Platforms.onLinux(() -> {
             final Result result = sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " list");
             assertThat(result.stdout, containsString("keystore.seed"));
@@ -266,7 +241,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test70CustomPathConfAndJvmOptions() throws Exception {
-        assumeThat(installation, is(notNullValue()));
 
         final Path tempConf = getTempDir().resolve("esconf-alternate");
 
@@ -284,7 +258,6 @@ public class ArchiveTests extends PackagingTestCase {
                 "-Dlog4j2.disable.jmx=true\n";
             append(tempConf.resolve("jvm.options"), jvmOptions);
 
-            final Shell sh = newShell();
             Platforms.onLinux(() -> sh.run("chown -R elasticsearch:elasticsearch " + tempConf));
             Platforms.onWindows(() -> sh.run(
                 "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
@@ -297,11 +270,10 @@ public class ArchiveTests extends PackagingTestCase {
                 "}"
             ));
 
-            final Shell serverShell = newShell();
-            serverShell.getEnv().put("ES_PATH_CONF", tempConf.toString());
-            serverShell.getEnv().put("ES_JAVA_OPTS", "-XX:-UseCompressedOops");
+            sh.getEnv().put("ES_PATH_CONF", tempConf.toString());
+            sh.getEnv().put("ES_JAVA_OPTS", "-XX:-UseCompressedOops");
 
-            Archives.runElasticsearch(installation, serverShell);
+            Archives.runElasticsearch(installation, sh);
 
             final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
@@ -315,7 +287,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test80RelativePathConf() throws Exception {
-        assumeThat(installation, is(notNullValue()));
 
         final Path temp = getTempDir().resolve("esconf-alternate");
         final Path tempConf = temp.resolve("config");
@@ -330,7 +301,6 @@ public class ArchiveTests extends PackagingTestCase {
 
             append(tempConf.resolve("elasticsearch.yml"), "node.name: relative");
 
-            final Shell sh = newShell();
             Platforms.onLinux(() -> sh.run("chown -R elasticsearch:elasticsearch " + temp));
             Platforms.onWindows(() -> sh.run(
                 "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
@@ -343,10 +313,9 @@ public class ArchiveTests extends PackagingTestCase {
                 "}"
             ));
 
-            final Shell serverShell = newShell();
-            serverShell.setWorkingDirectory(temp);
-            serverShell.getEnv().put("ES_PATH_CONF", "config");
-            Archives.runElasticsearch(installation, serverShell);
+            sh.setWorkingDirectory(temp);
+            sh.getEnv().put("ES_PATH_CONF", "config");
+            Archives.runElasticsearch(installation, sh);
 
             final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
             assertThat(nodesResponse, containsString("\"name\":\"relative\""));
@@ -359,10 +328,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test90SecurityCliPackaging() throws Exception {
-        assumeThat(installation, is(notNullValue()));
-
         final Installation.Executables bin = installation.executables();
-        final Shell sh = newShell();
 
         if (distribution().isDefault()) {
             assertTrue(Files.exists(installation.lib.resolve("tools").resolve("security-cli")));
@@ -383,10 +349,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test91ElasticsearchShardCliPackaging() throws Exception {
-        assumeThat(installation, is(notNullValue()));
-
         final Installation.Executables bin = installation.executables();
-        final Shell sh = newShell();
 
         Platforms.PlatformAction action = () -> {
             final Result result = sh.run(bin.elasticsearchShard + " -h");
@@ -401,10 +364,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test92ElasticsearchNodeCliPackaging() throws Exception {
-        assumeThat(installation, is(notNullValue()));
-
         final Installation.Executables bin = installation.executables();
-        final Shell sh = newShell();
 
         Platforms.PlatformAction action = () -> {
             final Result result = sh.run(bin.elasticsearchNode + " -h");
@@ -420,12 +380,9 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test93ElasticsearchNodeCustomDataPathAndNotEsHomeWorkDir() throws Exception {
-        assumeThat(installation, is(notNullValue()));
-
         Path relativeDataPath = installation.data.relativize(installation.home);
         append(installation.config("elasticsearch.yml"), "path.data: " + relativeDataPath);
 
-        final Shell sh = newShell();
         sh.setWorkingDirectory(getTempDir());
 
         Archives.runElasticsearch(installation, sh);
@@ -436,10 +393,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test94ElasticsearchNodeExecuteCliNotEsHomeWorkDir() throws Exception {
-        assumeThat(installation, is(notNullValue()));
-
         final Installation.Executables bin = installation.executables();
-        final Shell sh = newShell();
         // Run the cli tools from the tmp dir
         sh.setWorkingDirectory(getTempDir());
 

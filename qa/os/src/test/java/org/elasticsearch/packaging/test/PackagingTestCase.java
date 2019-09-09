@@ -32,48 +32,84 @@ import org.elasticsearch.packaging.util.Shell;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.rules.TestName;
+import org.junit.rules.TestWatcher;
+import org.junit.runner.Description;
 import org.junit.runner.RunWith;
 
 import java.nio.file.Paths;
 
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
+import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
+/**
+ * Class that all packaging test cases should inherit from
+ */
 @RunWith(RandomizedRunner.class)
 @TestMethodProviders({
     JUnit3MethodProvider.class
 })
 @TestCaseOrdering(TestCaseOrdering.AlphabeticOrder.class)
-/**
- * Class that all packaging test cases should inherit from. This makes working with the packaging tests more similar to what we're
- * familiar with from {@link org.elasticsearch.test.ESTestCase} without having to apply its behavior that's not relevant here
- */
 public abstract class PackagingTestCase extends Assert {
 
     protected final Log logger = LogFactory.getLog(getClass());
 
-    private static Distribution distribution;
+    // the distribution being tested
+    protected static final Distribution distribution;
     static {
         distribution = new Distribution(Paths.get(System.getProperty("tests.distribution")));
     }
 
+    // the java installation already installed on the system
+    protected static final String systemJavaHome;
+    static {
+        Shell sh = new Shell();
+        if (Platforms.LINUX) {
+            systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+        } else {
+            assert Platforms.WINDOWS;
+            systemJavaHome = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
+        }
+    }
+
+    // the current installation of the distribution being tested
+    protected static Installation installation;
+
+    private static boolean failed;
+
+    @ClassRule
+    public static final TestWatcher testFailureRule = new TestWatcher() {
+        @Override
+        protected void failed(Throwable e, Description description) {
+            failed = true;
+        }
+    };
+
+    // a shell to run system commands with
+    protected Shell sh;
+
     @Rule
     public final TestName testNameRule = new TestName();
 
-    @Before
-    public void setup() {
-        assumeTrue("only compatible distributions", distribution().packaging.compatible);
-        logger.info("[" + testNameRule.getMethodName() + "]: before test");
+    @BeforeClass
+    public static void filterCompatible() {
+        assumeTrue("only compatible distributions", distribution.packaging.compatible);
     }
-
-    protected static Installation installation;
 
     @BeforeClass
     public static void cleanup() throws Exception {
         installation = null;
         cleanEverything();
+    }
+
+    @Before
+    public void setup() throws Exception {
+        assumeFalse(failed); // skip rest of tests once one fails
+
+        sh = newShell();
     }
 
     /** The {@link Distribution} that should be tested in this case */
@@ -85,11 +121,9 @@ public abstract class PackagingTestCase extends Assert {
         Shell sh = new Shell();
         if (distribution().hasJdk == false) {
             Platforms.onLinux(() -> {
-                String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
                 sh.getEnv().put("JAVA_HOME", systemJavaHome);
             });
             Platforms.onWindows(() -> {
-                final String systemJavaHome = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
                 sh.getEnv().put("JAVA_HOME", systemJavaHome);
             });
         }

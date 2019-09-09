@@ -109,7 +109,7 @@ GET /sensor_rollup/_rollup_search
 The query is targeting the `sensor_rollup` data, since this contains the rollup data as configured in the job.  A `max`
 aggregation has been used on the `temperature` field, yielding the following response:
 
-[source,js]
+[source,console-result]
 ----
 {
   "took" : 102,
@@ -159,7 +159,7 @@ GET sensor_rollup/_rollup_search
 // TEST[continued]
 // TEST[catch:/illegal_argument_exception/]
 
-[source,js]
+[source,console-result]
 ----
 {
     "error" : {
@@ -215,7 +215,7 @@ index will be used.
 
 The response to the above query will look as expected, despite spanning rollup and non-rollup indices:
 
-[source,js]
+[source,console-result]
 ----
 {
   "took" : 102,

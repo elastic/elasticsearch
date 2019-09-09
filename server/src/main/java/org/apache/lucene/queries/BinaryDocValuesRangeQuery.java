@@ -32,6 +32,7 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.RangeType;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -40,13 +41,13 @@ public final class BinaryDocValuesRangeQuery extends Query {
 
     private final String fieldName;
     private final QueryType queryType;
-    private final LengthType lengthType;
+    private final RangeType.LengthType lengthType;
     private final BytesRef from;
     private final BytesRef to;
     private final Object originalFrom;
     private final Object originalTo;
 
-    public BinaryDocValuesRangeQuery(String fieldName, QueryType queryType, LengthType lengthType,
+    public BinaryDocValuesRangeQuery(String fieldName, QueryType queryType, RangeType.LengthType lengthType,
                                      BytesRef from, BytesRef to,
                                      Object originalFrom, Object originalTo) {
         this.fieldName = fieldName;
@@ -178,42 +179,4 @@ public final class BinaryDocValuesRangeQuery extends Query {
 
     }
 
-    public enum LengthType {
-        FIXED_4 {
-            @Override
-            int readLength(byte[] bytes, int offset) {
-                return 4;
-            }
-        },
-        FIXED_8 {
-            @Override
-            int readLength(byte[] bytes, int offset) {
-                return 8;
-            }
-        },
-        FIXED_16 {
-            @Override
-            int readLength(byte[] bytes, int offset) {
-                return 16;
-            }
-        },
-        VARIABLE {
-            @Override
-            int readLength(byte[] bytes, int offset) {
-                // the first bit encodes the sign and the next 4 bits encode the number
-                // of additional bytes
-                int token = Byte.toUnsignedInt(bytes[offset]);
-                int length = (token >>> 3) & 0x0f;
-                if ((token & 0x80) == 0) {
-                    length = 0x0f - length;
-                }
-                return 1 + length;
-            }
-        };
-
-        /**
-         * Return the length of the value that starts at {@code offset} in {@code bytes}.
-         */
-        abstract int readLength(byte[] bytes, int offset);
-    }
 }

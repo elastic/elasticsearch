@@ -94,7 +94,7 @@ public class Packages {
         return result;
     }
 
-    public static Installation install(Distribution distribution) throws IOException {
+    public static Installation installPackage(Distribution distribution) throws IOException {
         Shell sh = new Shell();
         String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
         if (distribution.hasJdk == false) {

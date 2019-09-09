@@ -6,7 +6,7 @@ Returns the health status of a cluster.
 [[cluster-health-api-request]]
 ==== {api-request-title}
 
-`GET _cluster/health/{index}`
+`GET _cluster/health/<index>`
 
 [[cluster-health-api-desc]]
 ==== {api-description-title}
@@ -147,7 +147,7 @@ GET _cluster/health
 The API returns the following response in case of a quiet single node cluster 
 with a single index with one shard and one replica:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "cluster_name" : "testcluster",

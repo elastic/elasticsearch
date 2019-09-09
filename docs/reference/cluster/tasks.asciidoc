@@ -10,7 +10,7 @@ Returns information about the tasks currently executing in the cluster.
 
 `GET /_tasks` +
 
-`GET /_tasks/{task_id}`
+`GET /_tasks/<task_id>`
 
 
 [[tasks-api-desc]]
@@ -23,7 +23,7 @@ executing on one or more nodes in the cluster.
 [[tasks-api-path-params]]
 ==== {api-path-parms-title}
 
-{task_id}
+`<task_id>`::
     (Optional, string) The ID of the task to return (`node_id:task_number`).
 
 
@@ -64,7 +64,7 @@ GET _tasks?nodes=nodeId1,nodeId2&actions=cluster:* <3>
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "nodes" : {
@@ -98,7 +98,6 @@ The API returns the following result:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 ===== Retrieve information from a particular task
 
@@ -141,7 +140,7 @@ GET _tasks?actions=*search&detailed
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "nodes" : {
@@ -166,7 +165,6 @@ The API returns the following result:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 The new `description` field contains human readable text that identifies the
 particular request that the task is performing such as identifying the search

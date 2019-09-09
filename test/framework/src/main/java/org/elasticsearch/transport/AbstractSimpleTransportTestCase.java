@@ -1907,8 +1907,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testTimeoutPerConnection() throws IOException {
-        assumeTrue("Works only on BSD network stacks and apparently windows",
-            Constants.MAC_OS_X || Constants.FREE_BSD || Constants.WINDOWS);
+        assumeTrue("Works only on BSD network stacks", Constants.MAC_OS_X || Constants.FREE_BSD);
         try (ServerSocket socket = new MockServerSocket()) {
             // note - this test uses backlog=1 which is implementation specific ie. it might not work on some TCP/IP stacks
             // on linux (at least newer ones) the listen(addr, backlog=1) should just ignore new connections if the queue is full which
@@ -2529,7 +2528,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertTrue(profileBoundAddresses.get("some_profile").publishAddress().getPort() < 9000);
             assertTrue(profileBoundAddresses.get("some_other_profile").publishAddress().getPort() >= 8700);
             assertTrue(profileBoundAddresses.get("some_other_profile").publishAddress().getPort() < 8800);
-            assertEquals(profileBoundAddresses.get("some_profile").boundAddresses().length, 1);
+            assertTrue(profileBoundAddresses.get("some_profile").boundAddresses().length >= 1);
             if (doIPV6) {
                 assertTrue(profileBoundAddresses.get("some_other_profile").boundAddresses().length >= 2);
                 int ipv4 = 0;
@@ -2546,7 +2545,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertTrue("num ipv4 is wrong: " + ipv4, ipv4 >= 1);
                 assertTrue("num ipv6 is wrong: " + ipv6, ipv6 >= 1);
             } else {
-                assertEquals(profileBoundAddresses.get("some_other_profile").boundAddresses().length, 1);
+                assertTrue(profileBoundAddresses.get("some_other_profile").boundAddresses().length >= 1);
             }
             assertTrue(profileBoundAddresses.get("some_other_profile").publishAddress().address().getAddress() instanceof Inet4Address);
         }

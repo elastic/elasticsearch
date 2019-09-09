@@ -80,12 +80,10 @@ certificate, this field has a value of `true`.
 The following example provides information about the certificates on a single
 node of {es}:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_ssl/certificates
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 The API returns the following results:
 

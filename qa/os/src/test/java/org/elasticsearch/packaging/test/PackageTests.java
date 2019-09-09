@@ -19,15 +19,12 @@
 
 package org.elasticsearch.packaging.test;
 
-import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.http.client.fluent.Request;
-import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
-import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.hamcrest.CoreMatchers;
-import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -50,53 +47,39 @@ import static org.elasticsearch.packaging.util.FileUtils.slurp;
 import static org.elasticsearch.packaging.util.Packages.SYSTEMD_SERVICE;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
-import static org.elasticsearch.packaging.util.Packages.install;
+import static org.elasticsearch.packaging.util.Packages.installPackage;
 import static org.elasticsearch.packaging.util.Packages.remove;
 import static org.elasticsearch.packaging.util.Packages.restartElasticsearch;
 import static org.elasticsearch.packaging.util.Packages.startElasticsearch;
 import static org.elasticsearch.packaging.util.Packages.stopElasticsearch;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.elasticsearch.packaging.util.Platforms.getOsRelease;
-import static org.elasticsearch.packaging.util.Platforms.isDPKG;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.elasticsearch.packaging.util.ServerUtils.runElasticsearchTests;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
-import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.isEmptyString;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 
-@TestCaseOrdering(TestCaseOrdering.AlphabeticOrder.class)
 public class PackageTests extends PackagingTestCase {
-    private Shell sh;
 
-    @Before
-    public void onlyCompatibleDistributions() throws Exception {
-        assumeTrue("only compatible distributions", distribution().packaging.compatible);
-        assumeTrue("rpm or deb",
-            distribution().packaging == Distribution.Packaging.DEB || distribution().packaging == Distribution.Packaging.RPM);
-        sh = newShell();
-    }
-
-    public void test05CheckLintian() throws Exception {
-        assumeTrue(isDPKG());
-        sh.run("lintian --fail-on-warnings " + FileUtils.getDistributionFile(distribution()));
+    @BeforeClass
+    public static void filterDistros() {
+        assumeTrue("rpm or deb", distribution.isPackage());
     }
 
     public void test10InstallPackage() throws Exception {
         assertRemoved(distribution());
-        installation = install(distribution());
+        installation = installPackage(distribution());
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution(), sh);
     }
 
     public void test20PluginsCommandWhenNoPlugins() throws Exception {
-        assumeThat(installation, is(notNullValue()));
-
         assertThat(sh.run(installation.bin("elasticsearch-plugin") + " list").stdout, isEmptyString());
     }
 
@@ -109,13 +92,10 @@ public class PackageTests extends PackagingTestCase {
     }
 
     public void test31InstallDoesNotStartServer() {
-        assumeThat(installation, is(notNullValue()));
-
         assertThat(sh.run("ps aux").stdout, not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
     }
 
     public void assertRunsWithJavaHome() throws Exception {
-        String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
         byte[] originalEnvFile = Files.readAllBytes(installation.envFile);
         try {
             Files.write(installation.envFile, ("JAVA_HOME=" + systemJavaHome + "\n").getBytes(StandardCharsets.UTF_8),
@@ -132,7 +112,6 @@ public class PackageTests extends PackagingTestCase {
     }
 
     public void test32JavaHomeOverride() throws Exception {
-        assumeThat(installation, is(notNullValue()));
         // we always run with java home when no bundled jdk is included, so this test would be repetitive
         assumeThat(distribution().hasJdk, is(true));
 
@@ -159,7 +138,6 @@ public class PackageTests extends PackagingTestCase {
     }
 
     public void test42BundledJdkRemoved() throws Exception {
-        assumeThat(installation, is(notNullValue()));
         assumeThat(distribution().hasJdk, is(true));
 
         Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
@@ -173,8 +151,6 @@ public class PackageTests extends PackagingTestCase {
 
     public void test40StartServer() throws Exception {
         String start = sh.runIgnoreExitCode("date ").stdout.trim();
-        assumeThat(installation, is(notNullValue()));
-
         startElasticsearch(sh);
 
         String journalEntries = sh.runIgnoreExitCode("journalctl _SYSTEMD_UNIT=elasticsearch.service " +
@@ -189,8 +165,6 @@ public class PackageTests extends PackagingTestCase {
     }
 
     public void test50Remove() throws Exception {
-        assumeThat(installation, is(notNullValue()));
-
         // add fake bin directory as if a plugin was installed
         Files.createDirectories(installation.bin.resolve("myplugin"));
 
@@ -242,9 +216,7 @@ public class PackageTests extends PackagingTestCase {
     }
 
     public void test60Reinstall() throws Exception {
-        assumeThat(installation, is(notNullValue()));
-
-        installation = install(distribution());
+        installation = installPackage(distribution());
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution(), sh);
 
@@ -254,7 +226,7 @@ public class PackageTests extends PackagingTestCase {
 
     public void test70RestartServer() throws Exception {
         try {
-            installation = install(distribution());
+            installation = installPackage(distribution());
             assertInstalled(distribution());
 
             startElasticsearch(sh);
@@ -269,7 +241,7 @@ public class PackageTests extends PackagingTestCase {
 
     public void test72TestRuntimeDirectory() throws Exception {
         try {
-            installation = install(distribution());
+            installation = installPackage(distribution());
             FileUtils.rm(installation.pidDir);
             startElasticsearch(sh);
             assertPathsExist(installation.pidDir);
@@ -280,7 +252,7 @@ public class PackageTests extends PackagingTestCase {
     }
 
     public void test73gcLogsExist() throws Exception {
-        installation = install(distribution());
+        installation = installPackage(distribution());
         startElasticsearch(sh);
         // it can be gc.log or gc.log.0.current
         assertThat(installation.logs, fileWithGlobExist("gc.log*"));
@@ -315,7 +287,6 @@ public class PackageTests extends PackagingTestCase {
     public void test81CustomPathConfAndJvmOptions() throws Exception {
         assumeTrue(isSystemd());
 
-        assumeThat(installation, is(notNullValue()));
         assertPathsExist(installation.envFile);
 
         stopElasticsearch(sh);
@@ -343,18 +314,17 @@ public class PackageTests extends PackagingTestCase {
 
             sh.runIgnoreExitCode("chown -R elasticsearch:elasticsearch " + tempConf);
 
-            final Shell serverShell = newShell();
             cp(installation.envFile, tempConf.resolve("elasticsearch.bk"));//backup
             append(installation.envFile, "ES_PATH_CONF=" + tempConf + "\n");
             append(installation.envFile, "ES_JAVA_OPTS=-XX:-UseCompressedOops");
 
-            startElasticsearch(serverShell);
+            startElasticsearch(sh);
 
             final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
             assertThat(nodesResponse, CoreMatchers.containsString("\"heap_init_in_bytes\":536870912"));
             assertThat(nodesResponse, CoreMatchers.containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
 
-            stopElasticsearch(serverShell);
+            stopElasticsearch(sh);
 
         } finally {
             rm(installation.envFile);
@@ -370,7 +340,7 @@ public class PackageTests extends PackagingTestCase {
 
             sh.run("systemctl mask systemd-sysctl.service");
 
-            installation = install(distribution());
+            installation = installPackage(distribution());
 
             sh.run("systemctl unmask systemd-sysctl.service");
         } finally {
@@ -382,7 +352,7 @@ public class PackageTests extends PackagingTestCase {
         // Limits are changed on systemd platforms only
         assumeTrue(isSystemd());
 
-        installation = install(distribution());
+        installation = installPackage(distribution());
 
         startElasticsearch(sh);
 

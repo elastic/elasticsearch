@@ -49,6 +49,14 @@ public class Distribution {
         return flavor.equals(Flavor.OSS);
     }
 
+    public boolean isArchive() {
+        return packaging == Packaging.TAR || packaging == Packaging.ZIP;
+    }
+
+    public boolean isPackage() {
+        return packaging == Packaging.RPM || packaging == Packaging.DEB;
+    }
+
     public enum Packaging {
 
         TAR(".tar.gz", Platforms.LINUX || Platforms.DARWIN),

@@ -107,6 +107,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         "is a pre-release version of Elasticsearch",
         "max virtual memory areas vm.max_map_count"
     );
+    private static final String HOSTNAME_OVERRIDE = "LinuxDarwinHostname";
+    private static final String COMPUTERNAME_OVERRIDE = "WindowsComputername";
 
     private final String path;
     private final String name;
@@ -462,13 +464,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     public void restart() {
         LOGGER.info("Restarting {}", this);
         stop(false);
-        try {
-            Files.delete(httpPortsFile);
-            Files.delete(transportPortFile);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-
         start();
     }
 
@@ -477,11 +472,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         if (currentDistro + 1 >= distributions.size()) {
             throw new TestClustersException("Ran out of versions to go to for " + this);
         }
-        LOGGER.info("Switch version from {} to {} for {}",
-            getVersion(), distributions.get(currentDistro + 1).getVersion(), this
-        );
+        logToProcessStdout("Switch version from " + getVersion() + " to " + distributions.get(currentDistro + 1).getVersion());
+        stop(false);
         currentDistro += 1;
-        restart();
+        setting("node.attr.upgraded", "true");
+        start();
     }
 
     private boolean isSettingMissingOrTrue(String name) {
@@ -643,6 +638,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // Windows requires this as it defaults to `c:\windows` despite ES_TMPDIR
         defaultEnv.put("TMP", tmpDir.toString());
 
+        // Override the system hostname variables for testing
+        defaultEnv.put("HOSTNAME", HOSTNAME_OVERRIDE);
+        defaultEnv.put("COMPUTERNAME", COMPUTERNAME_OVERRIDE);
+
         Set<String> commonKeys = new HashSet<>(environment.keySet());
         commonKeys.retainAll(defaultEnv.keySet());
         if (commonKeys.isEmpty() == false) {
@@ -710,6 +709,17 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public synchronized void stop(boolean tailLogs) {
+        logToProcessStdout("Stopping node");
+        try {
+            if (Files.exists(httpPortsFile)) {
+                Files.delete(httpPortsFile);
+            }
+            if (Files.exists(transportPortFile)) {
+                Files.delete(transportPortFile);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
         if (esProcess == null && tailLogs) {
             // This is a special case. If start() throws an exception the plugin will still call stop
             // Another exception here would eat the orriginal.
@@ -861,6 +871,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void createWorkingDir(Path distroExtractDir) throws IOException {
         syncWithLinks(distroExtractDir, distroDir);
+        // Start configuration from scratch in case of a restart
+        project.delete(configFile.getParent());
         Files.createDirectories(configFile.getParent());
         Files.createDirectories(confPathRepo);
         Files.createDirectories(confPathData);
@@ -951,6 +963,17 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
         // Don't wait for state, just start up quickly. This will also allow new and old nodes in the BWC case to become the master
         defaultConfig.put("discovery.initial_state_timeout", "0s");
+
+        // TODO: Remove these once https://github.com/elastic/elasticsearch/issues/46091 is fixed
+        defaultConfig.put("logger.org.elasticsearch.action.support.master.TransportMasterNodeAction", "TRACE");
+        defaultConfig.put("logger.org.elasticsearch.cluster.metadata.MetaDataCreateIndexService", "TRACE");
+        defaultConfig.put("logger.org.elasticsearch.cluster.service", "DEBUG");
+        defaultConfig.put("logger.org.elasticsearch.cluster.coordination", "DEBUG");
+        defaultConfig.put("logger.org.elasticsearch.gateway.MetaStateService", "TRACE");
+        if (getVersion().getMajor() >= 8) {
+            defaultConfig.put("cluster.service.slow_task_logging_threshold", "5s");
+            defaultConfig.put("cluster.service.slow_master_task_logging_threshold", "5s");
+        }
 
         HashSet<String> overriden = new HashSet<>(defaultConfig.keySet());
         overriden.retainAll(settings.keySet());

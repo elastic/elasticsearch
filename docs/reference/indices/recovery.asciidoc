@@ -174,7 +174,7 @@ Statistics about time to open and start the index.
 
 [source,console]
 --------------------------------------------------
-GET index1,index2/_recovery
+GET index1,index2/_recovery?human
 --------------------------------------------------
 // TEST[s/^/PUT index1\nPUT index2\n/]
 
@@ -228,7 +228,7 @@ POST /_snapshot/my_repository/snap_1/_restore?wait_for_completion=true
 
 [source,console]
 --------------------------------------------------
-GET /_recovery
+GET /_recovery?human
 --------------------------------------------------
 // TEST[continued]
 
@@ -328,7 +328,7 @@ set the `detailed` query parameter to `true`.
 
 [source,console]
 --------------------------------------------------
-GET _recovery?detailed=true
+GET _recovery?human&detailed=true
 --------------------------------------------------
 // TEST[s/^/PUT index1\n{"settings": {"index.number_of_shards": 1}}\n/]
 

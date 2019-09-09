@@ -64,7 +64,7 @@ GET _tasks?nodes=nodeId1,nodeId2&actions=cluster:* <3>
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "nodes" : {
@@ -98,7 +98,6 @@ The API returns the following result:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 ===== Retrieve information from a particular task
 
@@ -141,7 +140,7 @@ GET _tasks?actions=*search&detailed
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "nodes" : {
@@ -166,7 +165,6 @@ The API returns the following result:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 The new `description` field contains human readable text that identifies the
 particular request that the task is performing such as identifying the search

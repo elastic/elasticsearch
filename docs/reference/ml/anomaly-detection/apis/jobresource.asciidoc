@@ -357,7 +357,7 @@ If it is an object it has the following properties:
 
 If you omit the `categorization_analyzer`, the following default values are used:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/anomaly_detectors/_validate
 {
@@ -384,7 +384,6 @@ POST _ml/anomaly_detectors/_validate
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 If you specify any part of the `categorization_analyzer`, however, any omitted
 sub-properties are _not_ set to default values.

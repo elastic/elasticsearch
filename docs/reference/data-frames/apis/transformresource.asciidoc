@@ -90,6 +90,7 @@ pivot function `group by` fields and the aggregation to reduce the data.
 * {ref}/search-aggregations-metrics-avg-aggregation.html[Average]
 * {ref}/search-aggregations-metrics-weight-avg-aggregation.html[Weighted Average]
 * {ref}/search-aggregations-metrics-cardinality-aggregation.html[Cardinality]
+* {ref}/search-aggregations-metrics-geobounds-aggregation.html[Geo Bounds]
 * {ref}/search-aggregations-metrics-geocentroid-aggregation.html[Geo Centroid]
 * {ref}/search-aggregations-metrics-max-aggregation.html[Max]
 * {ref}/search-aggregations-metrics-min-aggregation.html[Min]
@@ -97,6 +98,7 @@ pivot function `group by` fields and the aggregation to reduce the data.
 * {ref}/search-aggregations-metrics-sum-aggregation.html[Sum]
 * {ref}/search-aggregations-metrics-valuecount-aggregation.html[Value Count]
 * {ref}/search-aggregations-pipeline-bucket-script-aggregation.html[Bucket Script]
+* {ref}/search-aggregations-pipeline-bucket-selector-aggregation.html[Bucket Selector]
 
 IMPORTANT: {dataframe-transforms-cap} support a subset of the functionality in
 composite aggregations. See

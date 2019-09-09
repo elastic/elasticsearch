@@ -58,7 +58,7 @@ POST _ml/filters/safe_domains/_update
 
 The API returns the following results:
 
-[source,js]
+[source,console-result]
 ----
 {
   "filter_id": "safe_domains",
@@ -66,4 +66,3 @@ The API returns the following results:
   "items": ["*.google.com", "*.myorg.com"]
 }
 ----
-// TESTRESPONSE

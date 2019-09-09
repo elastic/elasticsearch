@@ -107,14 +107,12 @@ POST _ilm/move/my_index
 
 If the request succeeds, you receive the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "acknowledged": true
 }
 --------------------------------------------------
-// CONSOLE
-// TESTRESPONSE
 
 The request will fail if the index is not in the `new` phase as specified
 by the `current_step`.

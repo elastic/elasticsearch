@@ -280,6 +280,10 @@ Other index settings are available in index modules:
 
     Control over the transaction log and background flush operations.
 
+<<index-modules-history-retention,History retention>>::
+
+    Control over the retention of a history of operations in the index.
+
 [float]
 [[x-pack-index-settings]]
 === [xpack]#{xpack} index settings#
@@ -304,5 +308,7 @@ include::index-modules/slowlog.asciidoc[]
 include::index-modules/store.asciidoc[]
 
 include::index-modules/translog.asciidoc[]
+
+include::index-modules/history-retention.asciidoc[]
 
 include::index-modules/index-sorting.asciidoc[]

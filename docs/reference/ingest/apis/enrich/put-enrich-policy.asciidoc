@@ -63,7 +63,7 @@ If you use {es} {security-features}, you must have:
 Use the put enrich policy API
 to create a new enrich policy.
 
-// tag::enrich-policy-def
+// tag::enrich-policy-def[]
 An *enrich policy* is a set of rules the enrich processor uses
 to append the appropriate data to incoming documents.
 An enrich policy contains:
@@ -71,15 +71,15 @@ An enrich policy contains:
 * The *policy type*,
   which determines how the processor enriches incoming documents
 * A list of source indices
-* The *match field*, a field used to match incoming documents
-* *Enrich fields*, fields appended to incoming documents
+* The *match field* used to match incoming documents
+* *Enrich fields* appended to incoming documents
   from matching documents
-// end::enrich-policy-def
+// end::enrich-policy-def[]
 
 
 ===== Update an enrich policy
 
-// tag::update-enrich-policy
+// tag::update-enrich-policy[]
 You cannot update an existing enrich policy.
 Instead, you can:
 
@@ -91,7 +91,7 @@ Instead, you can:
 
 .   Use the <<delete-enrich-policy-api, delete enrich policy API>>
     to delete the previous enrich policy.
-// end::update-enrich-policy
+// end::update-enrich-policy[]
 
 
 [[put-enrich-policy-api-path-params]]

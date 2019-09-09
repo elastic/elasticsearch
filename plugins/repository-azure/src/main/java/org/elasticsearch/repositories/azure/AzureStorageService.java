@@ -24,6 +24,7 @@ import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.OperationContext;
 import com.microsoft.azure.storage.RetryExponentialRetry;
 import com.microsoft.azure.storage.RetryPolicy;
+import com.microsoft.azure.storage.RetryPolicyFactory;
 import com.microsoft.azure.storage.StorageErrorCodeStrings;
 import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.BlobInputStream;
@@ -110,7 +111,7 @@ public class AzureStorageService {
         }
     }
 
-    private static CloudBlobClient buildClient(AzureStorageSettings azureStorageSettings) throws InvalidKeyException, URISyntaxException {
+    private CloudBlobClient buildClient(AzureStorageSettings azureStorageSettings) throws InvalidKeyException, URISyntaxException {
         final CloudBlobClient client = createClient(azureStorageSettings);
         // Set timeout option if the user sets cloud.azure.storage.timeout or
         // cloud.azure.storage.xxx.timeout (it's negative by default)
@@ -122,10 +123,14 @@ public class AzureStorageService {
             client.getDefaultRequestOptions().setTimeoutIntervalInMs((int) timeout);
         }
         // We define a default exponential retry policy
-        client.getDefaultRequestOptions()
-                .setRetryPolicyFactory(new RetryExponentialRetry(RetryPolicy.DEFAULT_CLIENT_BACKOFF, azureStorageSettings.getMaxRetries()));
+        client.getDefaultRequestOptions().setRetryPolicyFactory(createRetryPolicy(azureStorageSettings));
         client.getDefaultRequestOptions().setLocationMode(azureStorageSettings.getLocationMode());
         return client;
+    }
+
+    // non-static, package private for testing
+    RetryPolicyFactory createRetryPolicy(final AzureStorageSettings azureStorageSettings) {
+        return new RetryExponentialRetry(RetryPolicy.DEFAULT_CLIENT_BACKOFF, azureStorageSettings.getMaxRetries());
     }
 
     private static CloudBlobClient createClient(AzureStorageSettings azureStorageSettings) throws InvalidKeyException, URISyntaxException {

@@ -19,34 +19,22 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.http.AmazonHttpClient;
-import com.amazonaws.services.s3.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import com.sun.net.httpserver.HttpServer;
-import org.apache.http.HttpStatus;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
+import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -57,41 +45,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.Matchers.nullValue;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
-public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCase {
-
-    private static HttpServer httpServer;
-
-    @BeforeClass
-    public static void startHttpServer() throws Exception {
-        httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-        httpServer.start();
-    }
-
-    @Before
-    public void setUpHttpServer() {
-        HttpHandler handler = new InternalHttpHandler();
-        if (randomBoolean()) {
-            handler = new ErroneousHttpHandler(handler, randomIntBetween(2, 3));
-        }
-        httpServer.createContext("/bucket", handler);
-    }
-
-    @AfterClass
-    public static void stopHttpServer() {
-        httpServer.stop(0);
-        httpServer = null;
-    }
-
-    @After
-    public void tearDownHttpServer() {
-        httpServer.removeContext("/bucket");
-    }
+public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
     @Override
     protected String repositoryType() {
@@ -112,16 +71,23 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
     }
 
     @Override
+    protected Map<String, HttpHandler> createHttpHandlers() {
+        return Collections.singletonMap("/bucket", new InternalHttpHandler());
+    }
+
+    @Override
+    protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
+        return new S3ErroneousHttpHandler(delegate, randomIntBetween(2, 3));
+    }
+
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(S3ClientSettings.ACCESS_KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), "access");
         secureSettings.setString(S3ClientSettings.SECRET_KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), "secret");
 
-        final InetSocketAddress address = httpServer.getAddress();
-        final String endpoint = "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
-
         return Settings.builder()
-            .put(S3ClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace("test").getKey(), endpoint)
+            .put(S3ClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl())
             // Disable chunked encoding as it simplifies a lot the request parsing on the httpServer side
             .put(S3ClientSettings.DISABLE_CHUNKED_ENCODING.getConcreteSettingForNamespace("test").getKey(), true)
             // Disable request throttling because some random values in tests might generate too many failures for the S3 client
@@ -243,45 +209,19 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
      * HTTP handler that injects random S3 service errors
      *
      * Note: it is not a good idea to allow this handler to simulate too many errors as it would
-     * slow down the test suite and/or could trigger SDK client request throttling (and request
-     * would fail before reaching the max retry attempts - this can be mitigated by disabling
-     * {@link S3ClientSettings#USE_THROTTLE_RETRIES_SETTING})
+     * slow down the test suite.
      */
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
-    private static class ErroneousHttpHandler implements HttpHandler {
+    private static class S3ErroneousHttpHandler extends ErroneousHttpHandler {
 
-        // first key is the remote address, second key is the HTTP request unique id provided by the AWS SDK client,
-        // value is the number of times the request has been seen
-        private final Map<String, AtomicInteger> requests;
-        private final HttpHandler delegate;
-        private final int maxErrorsPerRequest;
-
-        private ErroneousHttpHandler(final HttpHandler delegate, final int maxErrorsPerRequest) {
-            this.requests = new ConcurrentHashMap<>();
-            this.delegate = delegate;
-            this.maxErrorsPerRequest = maxErrorsPerRequest;
-            assert maxErrorsPerRequest > 1;
+        S3ErroneousHttpHandler(final HttpHandler delegate, final int maxErrorsPerRequest) {
+            super(delegate, maxErrorsPerRequest);
         }
 
         @Override
-        public void handle(final HttpExchange exchange) throws IOException {
-            final String requestId = exchange.getRequestHeaders().getFirst(AmazonHttpClient.HEADER_SDK_TRANSACTION_ID);
-            assert Strings.hasText(requestId);
-
-            final int count = requests.computeIfAbsent(requestId, req -> new AtomicInteger(0)).incrementAndGet();
-            if (count >= maxErrorsPerRequest || randomBoolean()) {
-                requests.remove(requestId);
-                delegate.handle(exchange);
-            } else {
-                handleAsError(exchange, requestId);
-            }
-        }
-
-        private void handleAsError(final HttpExchange exchange, final String requestId) throws IOException {
-            Streams.readFully(exchange.getRequestBody());
-            exchange.getResponseHeaders().add(Headers.REQUEST_ID, requestId);
-            exchange.sendResponseHeaders(HttpStatus.SC_INTERNAL_SERVER_ERROR, -1);
-            exchange.close();
+        protected String requestUniqueId(final HttpExchange exchange) {
+            // Amazon SDK client provides a unique ID per request
+            return exchange.getRequestHeaders().getFirst(AmazonHttpClient.HEADER_SDK_TRANSACTION_ID);
         }
     }
 }

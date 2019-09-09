@@ -39,18 +39,16 @@ information, see {stack-ov}/security-privileges.html[Security privileges].
 [[watcher-api-stop-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _watcher/_stop
 --------------------------------------------------
-// CONSOLE
 
 {watcher} returns the following response if the request is successful:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "acknowledged": true
 }
 --------------------------------------------------
-// TESTRESPONSE

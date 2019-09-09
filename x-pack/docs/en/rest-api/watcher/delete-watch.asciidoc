@@ -56,16 +56,15 @@ IMPORTANT:  Deleting a watch must be done via this API only. Do not delete the
 
 The following example deletes a watch with the `my-watch` id:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE _watcher/watch/my_watch
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:my_active_watch]
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "found": true,
@@ -73,4 +72,3 @@ Response:
    "_version": 2
 }
 --------------------------------------------------
-// TESTRESPONSE

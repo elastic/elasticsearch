@@ -130,8 +130,8 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         // We want the rest of the state to be populated in the task when it is loaded on the node so that users can force start it again
         // later if they want.
 
-        final DataFrameTransformTask.ClientDataFrameIndexerBuilder indexerBuilder =
-            new DataFrameTransformTask.ClientDataFrameIndexerBuilder(transformId)
+        final ClientDataFrameIndexerBuilder indexerBuilder =
+            new ClientDataFrameIndexerBuilder()
                 .setAuditor(auditor)
                 .setClient(client)
                 .setTransformsCheckpointService(dataFrameTransformsCheckpointService)
@@ -300,7 +300,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
     }
 
     private void startTask(DataFrameTransformTask buildTask,
-                           DataFrameTransformTask.ClientDataFrameIndexerBuilder indexerBuilder,
+                           ClientDataFrameIndexerBuilder indexerBuilder,
                            Long previousCheckpoint,
                            ActionListener<StartDataFrameTransformTaskAction.Response> listener) {
         buildTask.initializeIndexer(indexerBuilder);

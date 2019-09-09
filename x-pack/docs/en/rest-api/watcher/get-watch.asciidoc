@@ -45,16 +45,15 @@ this API. For more information, see
 
 The following example gets a watch with `my-watch` id:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _watcher/watch/my_watch
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:my_active_watch]
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
@@ -106,4 +105,5 @@ Response:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"timestamp": "2015-05-26T18:21:08.630Z"/"timestamp": "$body.status.state.timestamp"/]
+
 <1> The current status of the watch

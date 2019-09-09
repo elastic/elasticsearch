@@ -76,6 +76,10 @@ public class GatewayMetaState implements PersistedState {
 
     private final MetaStateService metaStateService;
     private final Settings settings;
+
+    // On master-eligible Zen2 nodes, we use this very object for the PersistedState (so that the state is actually persisted); on other
+    // nodes we use an InMemoryPersistedState instead and persist using a cluster applier if needed. In all cases it's an error to try and
+    // use this object as a PersistedState before calling start(). TODO stop implementing PersistedState at the top level.
     private final SetOnce<PersistedState> persistedState = new SetOnce<>();
 
     // on master-eligible nodes we call updateClusterState under the Coordinator's mutex; on master-ineligible data nodes we call

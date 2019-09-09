@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor.LoadSource;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -87,7 +88,7 @@ public class StoredNumericValuesTests extends ESSingleNodeTestCase {
 
         Set<String> fieldNames = Sets.newHashSet("field1", "field2", "field3", "field4", "field5",
             "field6", "field7", "field8", "field9", "field10");
-        CustomFieldsVisitor fieldsVisitor = new CustomFieldsVisitor(fieldNames, false);
+        CustomFieldsVisitor fieldsVisitor = new CustomFieldsVisitor(fieldNames, LoadSource.NO);
         searcher.doc(0, fieldsVisitor);
 
         fieldsVisitor.postProcess(mapperService);

@@ -42,6 +42,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor.LoadSource;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -102,7 +103,7 @@ public class FetchPhase implements SearchPhase {
             if (!context.hasScriptFields() && !context.hasFetchSourceContext()) {
                 context.fetchSourceContext(new FetchSourceContext(true));
             }
-            fieldsVisitor = new FieldsVisitor(context.sourceRequested());
+            fieldsVisitor = new FieldsVisitor(context.sourceRequested() ? LoadSource.YES : LoadSource.NO);
         } else if (storedFieldsContext.fetchFields() == false) {
             // disable stored fields entirely
             fieldsVisitor = null;
@@ -134,9 +135,9 @@ public class FetchPhase implements SearchPhase {
             boolean loadSource = context.sourceRequested();
             if (storedToRequestedFields.isEmpty()) {
                 // empty list specified, default to disable _source if no explicit indication
-                fieldsVisitor = new FieldsVisitor(loadSource);
+                fieldsVisitor = new FieldsVisitor(loadSource ? LoadSource.YES : LoadSource.NO);
             } else {
-                fieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), loadSource);
+                fieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), loadSource ? LoadSource.YES : LoadSource.NO);
             }
         }
 
@@ -264,7 +265,7 @@ public class FetchPhase implements SearchPhase {
         final BytesReference source;
         final boolean needSource = context.sourceRequested() || context.highlight() != null;
         if (needSource || (context instanceof InnerHitsContext.InnerHitSubContext == false)) {
-            FieldsVisitor rootFieldsVisitor = new FieldsVisitor(needSource);
+            FieldsVisitor rootFieldsVisitor = new FieldsVisitor(needSource ? LoadSource.YES : LoadSource.NO);
             loadStoredFields(context, subReaderContext, rootFieldsVisitor, rootSubDocId);
             rootFieldsVisitor.postProcess(context.mapperService());
             uid = rootFieldsVisitor.uid();
@@ -277,7 +278,7 @@ public class FetchPhase implements SearchPhase {
 
         Map<String, DocumentField> searchFields = null;
         if (context.hasStoredFields() && !context.storedFieldsContext().fieldNames().isEmpty()) {
-            FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), false);
+            FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), LoadSource.NO);
             searchFields = getSearchFields(context, nestedFieldsVisitor, nestedSubDocId,
                 storedToRequestedFields, subReaderContext);
         }

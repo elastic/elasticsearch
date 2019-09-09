@@ -122,6 +122,9 @@ public interface XContentParser extends Closeable {
 
     XContentType contentType();
 
+    /**
+     * Return the next {@link Token} or {@code null} if the content is exhausted.
+     */
     Token nextToken() throws IOException;
 
     void skipChildren() throws IOException;

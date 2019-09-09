@@ -31,10 +31,15 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.support.SplitXContentSchemaData;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -51,6 +56,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_source";
     public static final String RECOVERY_SOURCE_NAME = "_recovery_source";
+    public static final String SOURCE_SCHEMA_NAME = "_source_schema";
+    public static final String SOURCE_DATA_NAME = "_source_data";
 
     public static final String CONTENT_TYPE = "_source";
     private final Function<Map<String, ?>, Map<String, Object>> filter;
@@ -241,8 +248,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 builder.close();
                 source = bStream.bytes();
             }
-            BytesRef ref = source.toBytesRef();
-            fields.add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
         } else {
             source = null;
         }
@@ -253,7 +258,21 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             fields.add(new StoredField(RECOVERY_SOURCE_NAME, ref.bytes, ref.offset, ref.length));
             fields.add(new NumericDocValuesField(RECOVERY_SOURCE_NAME, 1));
         }
-     }
+
+        if (source != null) {
+            XContentParser parser = context.sourceToParse().getXContentType().xContent().createParser(
+                    NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source.streamInput());
+            if (parser.nextToken() != Token.START_OBJECT) {
+                // TODO include ID in message
+                throw new IllegalArgumentException("Document to index doesn't start with a START_OBJECT");
+            }
+            BytesStreamOutput schema = new BytesStreamOutput();
+            BytesStreamOutput data = new BytesStreamOutput();
+            SplitXContentSchemaData.splitXContent(parser, schema, data);
+            fields.add(new StoredField(SOURCE_SCHEMA_NAME, schema.bytes().toBytesRef()));
+            fields.add(new StoredField(SOURCE_DATA_NAME, data.bytes().toBytesRef()));
+        }
+    }
 
     @Override
     protected String contentType() {

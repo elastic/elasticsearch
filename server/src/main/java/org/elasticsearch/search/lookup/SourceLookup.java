@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor.LoadSource;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.util.Collection;
@@ -65,7 +66,7 @@ public class SourceLookup implements Map {
             return source;
         }
         try {
-            FieldsVisitor sourceFieldVisitor = new FieldsVisitor(true);
+            FieldsVisitor sourceFieldVisitor = new FieldsVisitor(LoadSource.YES);
             reader.document(docId, sourceFieldVisitor);
             BytesReference source = sourceFieldVisitor.source();
             if (source == null) {

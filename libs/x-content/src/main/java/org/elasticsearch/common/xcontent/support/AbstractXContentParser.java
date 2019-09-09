@@ -397,4 +397,36 @@ public abstract class AbstractXContentParser implements XContentParser {
     public DeprecationHandler getDeprecationHandler() {
         return deprecationHandler;
     }
+
+    @Override
+    public Object objectText() throws IOException {
+        Token currentToken = currentToken();
+        if (currentToken == Token.VALUE_STRING) {
+            return text();
+        } else if (currentToken == Token.VALUE_NUMBER) {
+            return numberValue();
+        } else if (currentToken == Token.VALUE_BOOLEAN) {
+            return booleanValue();
+        } else if (currentToken == Token.VALUE_NULL) {
+            return null;
+        } else {
+            return text();
+        }
+    }
+
+    @Override
+    public Object objectBytes() throws IOException {
+        Token currentToken = currentToken();
+        if (currentToken == Token.VALUE_STRING) {
+            return text();
+        } else if (currentToken == Token.VALUE_NUMBER) {
+            return numberValue();
+        } else if (currentToken == Token.VALUE_BOOLEAN) {
+            return booleanValue();
+        } else if (currentToken == Token.VALUE_NULL) {
+            return null;
+        } else {
+            return charBuffer();
+        }
+    }
 }

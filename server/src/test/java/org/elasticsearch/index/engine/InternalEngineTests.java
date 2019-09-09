@@ -109,6 +109,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor.LoadSource;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
@@ -2235,7 +2236,7 @@ public class InternalEngineTests extends EngineTestCase {
                 for (int op = 0; op < opsPerThread; op++) {
                     try (Engine.GetResult get = engine.get(new Engine.Get(true, false,
                         doc.type(), doc.id(), uidTerm), searcherFactory)) {
-                        FieldsVisitor visitor = new FieldsVisitor(true);
+                        FieldsVisitor visitor = new FieldsVisitor(LoadSource.YES);
                         get.docIdAndVersion().reader.document(get.docIdAndVersion().docId, visitor);
                         List<String> values = new ArrayList<>(Strings.commaDelimitedListToSet(visitor.source().utf8ToString()));
                         String removed = op % 3 == 0 && values.size() > 0 ? values.remove(0) : null;
@@ -2278,7 +2279,7 @@ public class InternalEngineTests extends EngineTestCase {
 
         try (Engine.GetResult get = engine.get(new Engine.Get(true, false,
                 doc.type(), doc.id(), uidTerm), searcherFactory)) {
-            FieldsVisitor visitor = new FieldsVisitor(true);
+            FieldsVisitor visitor = new FieldsVisitor(LoadSource.YES);
             get.docIdAndVersion().reader.document(get.docIdAndVersion().docId, visitor);
             List<String> values = Arrays.asList(Strings.commaDelimitedListToStringArray(visitor.source().utf8ToString()));
             assertThat(currentValues, equalTo(new HashSet<>(values)));

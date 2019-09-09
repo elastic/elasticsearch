@@ -38,7 +38,6 @@ import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.translog.Translog;
 
@@ -231,9 +230,10 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             return null;
         }
         final long version = parallelArray.version[docIndex];
-        final String sourceField = parallelArray.hasRecoverySource[docIndex] ? SourceFieldMapper.RECOVERY_SOURCE_NAME :
-            SourceFieldMapper.NAME;
-        final FieldsVisitor fields = new FieldsVisitor(true, sourceField);
+        final FieldsVisitor.LoadSource loadSource = parallelArray.hasRecoverySource[docIndex]
+                ? FieldsVisitor.LoadSource.RECOVERY_SOURCE
+                : FieldsVisitor.LoadSource.YES;
+        final FieldsVisitor fields = new FieldsVisitor(loadSource);
         leaf.reader().document(segmentDocID, fields);
         fields.postProcess(mapperService);
 

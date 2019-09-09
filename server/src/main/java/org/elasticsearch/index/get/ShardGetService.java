@@ -39,6 +39,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor.LoadSource;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
@@ -251,9 +252,9 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
     private static FieldsVisitor buildFieldsVisitors(String[] fields, FetchSourceContext fetchSourceContext) {
         if (fields == null || fields.length == 0) {
-            return fetchSourceContext.fetchSource() ? new FieldsVisitor(true) : null;
+            return fetchSourceContext.fetchSource() ? new FieldsVisitor(LoadSource.YES) : null;
         }
 
-        return new CustomFieldsVisitor(Sets.newHashSet(fields), fetchSourceContext.fetchSource());
+        return new CustomFieldsVisitor(Sets.newHashSet(fields), fetchSourceContext.fetchSource() ? LoadSource.YES : LoadSource.NO);
     }
 }

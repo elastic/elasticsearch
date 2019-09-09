@@ -44,6 +44,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor.LoadSource;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -293,7 +294,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         try {
             recoverShardFromStore(targetShard);
             String index = targetShard.shardId().getIndexName();
-            FieldsVisitor rootFieldsVisitor = new FieldsVisitor(true);
+            FieldsVisitor rootFieldsVisitor = new FieldsVisitor(LoadSource.YES);
             for (LeafReaderContext ctx : reader.leaves()) {
                 LeafReader leafReader = ctx.reader();
                 Bits liveDocs = leafReader.getLiveDocs();

@@ -23,6 +23,12 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.xcontent.XContentGenerator;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.support.SplitXContentSchemaData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
@@ -33,6 +39,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -49,24 +56,26 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
  * Base {@link StoredFieldVisitor} that retrieves all non-redundant metadata.
  */
 public class FieldsVisitor extends StoredFieldVisitor {
+
+    // TODO: better name?
+    public enum LoadSource {
+        YES,
+        NO,
+        RECOVERY_SOURCE
+    }
+
     private static final Set<String> BASE_REQUIRED_FIELDS = unmodifiableSet(newHashSet(
             IdFieldMapper.NAME,
             RoutingFieldMapper.NAME));
 
-    private final boolean loadSource;
-    private final String sourceFieldName;
+    private final LoadSource loadSource;
     private final Set<String> requiredFields;
-    protected BytesReference source;
+    protected BytesReference source, sourceSchema, sourceData;
     protected String type, id;
     protected Map<String, List<Object>> fieldsValues;
 
-    public FieldsVisitor(boolean loadSource) {
-        this(loadSource, SourceFieldMapper.NAME);
-    }
-
-    public FieldsVisitor(boolean loadSource, String sourceFieldName) {
+    public FieldsVisitor(LoadSource loadSource) {
         this.loadSource = loadSource;
-        this.sourceFieldName = sourceFieldName;
         requiredFields = new HashSet<>();
         reset();
     }
@@ -109,8 +118,14 @@ public class FieldsVisitor extends StoredFieldVisitor {
 
     @Override
     public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
-        if (sourceFieldName.equals(fieldInfo.name)) {
+        if (loadSource == LoadSource.RECOVERY_SOURCE && SourceFieldMapper.RECOVERY_SOURCE_NAME.equals(fieldInfo.name)) {
             source = new BytesArray(value);
+        } else if (loadSource == LoadSource.YES && SourceFieldMapper.NAME.equals(fieldInfo.name)) {
+            source = new BytesArray(value);
+        } else if (loadSource == LoadSource.YES && SourceFieldMapper.SOURCE_SCHEMA_NAME.equals(fieldInfo.name)) {
+            sourceSchema = new BytesArray(value);
+        } else if (loadSource == LoadSource.YES && SourceFieldMapper.SOURCE_DATA_NAME.equals(fieldInfo.name)) {
+            sourceData = new BytesArray(value);
         } else if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
             id = Uid.decodeId(value);
         } else {
@@ -145,6 +160,27 @@ public class FieldsVisitor extends StoredFieldVisitor {
     }
 
     public BytesReference source() {
+        if (source == null && sourceSchema != null) {
+            try {
+                if (sourceData == null) {
+                    throw new IOException("Corrupt source: schema without data");
+                }
+                BytesStreamOutput sourceOut = new BytesStreamOutput();
+                XContentGenerator generator = XContentType.JSON.xContent().createGenerator(sourceOut);
+                XContentParser parser = SplitXContentSchemaData.mergeXContent(sourceSchema.streamInput(), sourceData.streamInput());
+                if (parser.nextToken() != Token.START_OBJECT) {
+                    throw new IOException("Corrupt source");
+                }
+                generator.copyCurrentStructure(parser);
+                generator.flush();
+                source = sourceOut.bytes();
+                sourceSchema = null;
+                sourceData = null;
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
         return source;
     }
 
@@ -176,12 +212,24 @@ public class FieldsVisitor extends StoredFieldVisitor {
     public void reset() {
         if (fieldsValues != null) fieldsValues.clear();
         source = null;
+        sourceSchema = null;
+        sourceData = null;
         type = null;
         id = null;
 
         requiredFields.addAll(BASE_REQUIRED_FIELDS);
-        if (loadSource) {
-            requiredFields.add(sourceFieldName);
+        switch (loadSource) {
+        case YES:
+            // TODO: remove SourceFieldMapper.NAME in 9.0
+            requiredFields.add(SourceFieldMapper.NAME);
+            requiredFields.add(SourceFieldMapper.SOURCE_SCHEMA_NAME);
+            requiredFields.add(SourceFieldMapper.SOURCE_DATA_NAME);
+            break;
+        case RECOVERY_SOURCE:
+            requiredFields.add(SourceFieldMapper.RECOVERY_SOURCE_NAME);
+            break;
+        default:
+            break;
         }
     }
 

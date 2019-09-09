@@ -33,7 +33,7 @@ public class CustomFieldsVisitor extends FieldsVisitor {
 
     private final Set<String> fields;
 
-    public CustomFieldsVisitor(Set<String> fields, boolean loadSource) {
+    public CustomFieldsVisitor(Set<String> fields, LoadSource loadSource) {
         super(loadSource);
         this.fields = fields;
     }

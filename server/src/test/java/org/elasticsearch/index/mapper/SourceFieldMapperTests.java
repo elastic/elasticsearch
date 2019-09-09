@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.xcontent.support.SplitXContentSchemaData;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -87,9 +88,12 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()),
             XContentType.JSON));
 
-        IndexableField sourceField = doc.rootDoc().getField("_source");
+        IndexableField sourceSchema = doc.rootDoc().getField("_source_schema");
+        IndexableField sourceData = doc.rootDoc().getField("_source_data");
         Map<String, Object> sourceAsMap;
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, new BytesArray(sourceField.binaryValue()))) {
+        try (XContentParser parser = SplitXContentSchemaData.mergeXContent(
+                new BytesArray(sourceSchema.binaryValue()).streamInput(),
+                new BytesArray(sourceData.binaryValue()).streamInput())) {
             sourceAsMap = parser.map();
         }
         assertThat(sourceAsMap.containsKey("path1"), equalTo(true));
@@ -111,9 +115,12 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()),
             XContentType.JSON));
 
-        IndexableField sourceField = doc.rootDoc().getField("_source");
+        IndexableField sourceSchema = doc.rootDoc().getField("_source_schema");
+        IndexableField sourceData = doc.rootDoc().getField("_source_data");
         Map<String, Object> sourceAsMap;
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, new BytesArray(sourceField.binaryValue()))) {
+        try (XContentParser parser = SplitXContentSchemaData.mergeXContent(
+                new BytesArray(sourceSchema.binaryValue()).streamInput(),
+                new BytesArray(sourceData.binaryValue()).streamInput())) {
             sourceAsMap = parser.map();
         }
         assertThat(sourceAsMap.containsKey("path1"), equalTo(false));

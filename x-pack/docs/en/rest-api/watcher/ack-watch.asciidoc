@@ -58,7 +58,7 @@ status from a watch execution.
 
 To demonstrate let's create a new watch:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _watcher/watch/my_watch
 {
@@ -89,17 +89,15 @@ PUT _watcher/watch/my_watch
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
 
 The current status of a watch and the state of its actions is returned with the
 watch definition when you call the <<watcher-api-get-watch, Get Watch API>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _watcher/watch/my_watch
 --------------------------------------------------
-// CONSOLE
 
 The action state of a newly-created watch is `awaits_successful_execution`:
 
@@ -134,7 +132,7 @@ When the watch executes and the condition matches, the value of the `ack.state`
 changes to `ackable`. Let's force execution of the watch and fetch it again to
 check the status:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _watcher/watch/my_watch/_execute
 {
@@ -143,7 +141,6 @@ POST _watcher/watch/my_watch/_execute
 
 GET _watcher/watch/my_watch
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 and the action is now in `ackable` state:
@@ -191,12 +188,11 @@ and the action is now in `ackable` state:
 
 Now we can acknowledge it:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _watcher/watch/my_watch/_ack/test_index
 GET _watcher/watch/my_watch
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [source,console-result]
@@ -247,21 +243,19 @@ condition of the watch is not met (the condition evaluates to `false`).
 You can acknowledge multiple actions by assigning the `actions` parameter a
 comma-separated list of action ids:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _watcher/watch/my_watch/_ack/action1,action2
 --------------------------------------------------
-// CONSOLE
 
 To acknowledge all of the actions of a watch, simply omit the `actions`
 parameter:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _watcher/watch/my_watch/_ack
 --------------------------------------------------
 // TEST[s/^/POST _watcher\/watch\/my_watch\/_execute\n{ "record_execution" : true }\n/]
-// CONSOLE
 
 
 The response looks like a get watch response, but only contains the status:

@@ -101,21 +101,19 @@ are no matches or only partial matches.
 The following example skips for the first five {dataframe-transforms} and
 gets usage information for a maximum of ten results: 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _data_frame/transforms/_stats?from=5&size=10
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:todo]
 
 The following example gets usage information for the `ecommerce_transform`
 {dataframe-transform}:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _data_frame/transforms/ecommerce_transform/_stats
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:todo]
 
 The API returns the following results:

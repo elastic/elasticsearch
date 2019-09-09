@@ -31,7 +31,7 @@ type:
 
 The `stopwords` parameter accepts either an array of stopwords:
 
-[source,js]
+[source,console]
 ------------------------------------
 PUT /my_index
 {
@@ -47,11 +47,10 @@ PUT /my_index
     }
 }
 ------------------------------------
-// CONSOLE
 
 or a predefined language-specific list:
 
-[source,js]
+[source,console]
 ------------------------------------
 PUT /my_index
 {
@@ -67,7 +66,6 @@ PUT /my_index
     }
 }
 ------------------------------------
-// CONSOLE
 
 Elasticsearch provides the following predefined list of languages:
 

@@ -38,7 +38,7 @@ The following example deletes `my_policy`:
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -62,16 +62,14 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE _ilm/policy/my_policy
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 When the policy is successfully deleted, you receive the following result:

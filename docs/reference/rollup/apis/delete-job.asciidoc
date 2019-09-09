@@ -76,11 +76,10 @@ POST my_rollup_index/_delete_by_query
 
 If we have a rollup job named `sensor`, it can be deleted with:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE _rollup/job/sensor
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_rollup_job]
 
 Which will return the response:

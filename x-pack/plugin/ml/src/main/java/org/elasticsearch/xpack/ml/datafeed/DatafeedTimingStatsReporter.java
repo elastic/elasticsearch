@@ -34,7 +34,7 @@ public class DatafeedTimingStatsReporter {
     /** Object used to persist current timing stats. */
     private final DatafeedTimingStatsPersister persister;
     /** Whether or not timing stats will be persisted by the persister object. */
-    private boolean allowedPersisting;
+    private volatile boolean allowedPersisting;
 
     public DatafeedTimingStatsReporter(DatafeedTimingStats timingStats, DatafeedTimingStatsPersister persister) {
         Objects.requireNonNull(timingStats);

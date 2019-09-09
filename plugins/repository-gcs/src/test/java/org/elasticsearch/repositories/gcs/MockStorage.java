@@ -40,6 +40,7 @@ import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.StorageRpcOptionUtils;
 import com.google.cloud.storage.StorageTestUtils;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.mockito.stubbing.Answer;
 
@@ -54,7 +55,6 @@ import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
@@ -242,7 +242,7 @@ class MockStorage implements Storage {
         return null;
     }
 
-    private final Set<BlobInfo> simulated410s = new HashSet<>();
+    private final Set<BlobInfo> simulated410s = ConcurrentCollections.newConcurrentSet();
 
     @Override
     public WriteChannel writer(BlobInfo blobInfo, BlobWriteOption... options) {
@@ -250,7 +250,7 @@ class MockStorage implements Storage {
             final ByteArrayOutputStream output = new ByteArrayOutputStream();
             return new WriteChannel() {
 
-                private boolean failed;
+                private volatile boolean failed;
 
                 final WritableByteChannel writableByteChannel = Channels.newChannel(output);
 

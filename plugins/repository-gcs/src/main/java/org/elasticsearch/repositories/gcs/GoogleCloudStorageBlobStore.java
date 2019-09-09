@@ -33,6 +33,7 @@ import com.google.cloud.storage.StorageBatch;
 import com.google.cloud.storage.StorageException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -233,12 +234,12 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         // We retry 410 GONE errors to cover the unlikely but possible scenario where a resumable upload session becomes broken and
         // needs to be restarted from scratch. Given how unlikely a 410 error should be according to SLAs we retry only twice.
         assert inputStream.markSupported();
+        inputStream.mark(Integer.MAX_VALUE);
         StorageException storageException = null;
+        final Storage.BlobWriteOption[] writeOptions = failIfAlreadyExists ?
+            new Storage.BlobWriteOption[]{Storage.BlobWriteOption.doesNotExist()} : new Storage.BlobWriteOption[0];
         for (int retry = 0; retry < 3; ++retry) {
             try {
-                final Storage.BlobWriteOption[] writeOptions = failIfAlreadyExists ?
-                    new Storage.BlobWriteOption[]{Storage.BlobWriteOption.doesNotExist()} :
-                    new Storage.BlobWriteOption[0];
                 final WriteChannel writeChannel = SocketAccess
                     .doPrivilegedIOException(() -> client().writer(blobInfo, writeOptions));
                 Streams.copy(inputStream, Channels.newOutputStream(new WritableByteChannel() {
@@ -262,7 +263,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             } catch (final StorageException se) {
                 final int errorCode = se.getCode();
                 if (errorCode == HTTP_GONE) {
-                    logger.warn("Retrying broken resumable upload session for blob {}", blobInfo);
+                    logger.warn(() -> new ParameterizedMessage("Retrying broken resumable upload session for blob {}", blobInfo), se);
                     storageException = ExceptionsHelper.useOrSuppress(storageException, se);
                     inputStream.reset();
                     continue;
@@ -276,7 +277,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             }
         }
         assert storageException != null;
-        throw new IOException(storageException);
+        throw storageException;
     }
 
     /**

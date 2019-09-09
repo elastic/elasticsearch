@@ -95,7 +95,7 @@ GET _rollup/data/sensor-*
 
 Which will yield the following response:
 
-[source,js]
+[source,console-result]
 ----
 {
   "sensor-*" : {
@@ -140,7 +140,6 @@ Which will yield the following response:
   }
 }
 ----
-// TESTRESPONSE
 
 The response that is returned contains information that is similar to the original Rollup configuration, but formatted
 differently.  First, there are some house-keeping details: the Rollup job's ID, the index that holds the rolled data,
@@ -172,13 +171,12 @@ GET _rollup/data/sensor-1
 // CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 ----
 {
 
 }
 ----
-// TESTRESPONSE
 
 Why is this?  The original rollup job was configured against a specific index pattern (`sensor-*`) not a concrete index
 (`sensor-1`).  So while the index belongs to the pattern, the rollup job is only valid across the entirety of the pattern

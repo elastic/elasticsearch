@@ -94,7 +94,7 @@ GET polish_stop_example/_analyze
 
 The above request returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "tokens" : [
@@ -115,4 +115,3 @@ The above request returns:
   ]
 }
 --------------------------------------------------
-// TESTRESPONSE

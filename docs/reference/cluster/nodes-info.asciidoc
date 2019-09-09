@@ -195,7 +195,7 @@ GET /_nodes/plugins
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_nodes": ...
@@ -267,7 +267,7 @@ GET /_nodes/ingest
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_nodes": ...

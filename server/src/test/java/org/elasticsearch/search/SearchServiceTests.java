@@ -30,6 +30,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
@@ -679,5 +680,29 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             assertSame(searchShardTarget, searchContext.queryResult().getSearchShardTarget());
             assertSame(searchShardTarget, searchContext.fetchResult().getSearchShardTarget());
         }
+    }
+
+    /**
+     * While we have no NPE in DefaultContext constructor anymore, we still want to guard against it (or other failures) in the future to
+     * avoid leaking searchers.
+     */
+    public void testCreateSearchContextFailure() throws IOException {
+        final String index = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
+        final IndexService indexService = createIndex(index);
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final ShardId shardId = new ShardId(indexService.index(), 0);
+
+        NullPointerException e = expectThrows(NullPointerException.class,
+            () -> service.createContext(
+                new ShardSearchLocalRequest(shardId, 0, null) {
+                    @Override
+                    public SearchType searchType() {
+                        // induce an artificial NPE
+                        throw new NullPointerException("expected");
+                    }
+                }
+            ));
+        assertEquals("expected", e.getMessage());
+        assertEquals("should have 2 store refs (IndexService + InternalEngine)", 2, indexService.getShard(0).store().refCount());
     }
 }

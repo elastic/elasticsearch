@@ -41,7 +41,7 @@ POST _analyze
 
 returns
 
-[source,js]
+[source,console-result]
 ---------------------------
 {
   "tokens": [
@@ -76,5 +76,3 @@ returns
   ]
 }
 ---------------------------
-// TESTRESPONSE
-

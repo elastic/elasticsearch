@@ -74,7 +74,7 @@ packages together commonly used metrics for various analyses.
 [[ml-evaluate-dfanalytics-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/data_frame/_evaluate
 {
@@ -87,7 +87,6 @@ POST _ml/data_frame/_evaluate
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:TBD]
 
 The API returns the following results:

@@ -46,7 +46,7 @@ For example, the following snippet shows a
 {ref}/watcher-api-put-watch.html[Put Watch] request that defines a watch that
 looks for log error events:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _watcher/watch/log_errors
 {
@@ -110,7 +110,7 @@ PUT _watcher/watch/log_errors
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Metadata  - You can attach optional static metadata to a watch.
 <2> Trigger   - This schedule trigger executes the watch every 5 minutes.
 <3> Input     - This input searches for errors in the `log-events` index and
@@ -152,14 +152,13 @@ dedicated watcher nodes by using shard allocation filtering.
 You could configure nodes with a dedicated `node.attr.role: watcher` property and
 then configure the `.watches` index like this:
 
-[source,js]
+[source,console]
 ------------------------
 PUT .watches/_settings
 {
   "index.routing.allocation.include.role": "watcher"
 }
 ------------------------
-// CONSOLE
 // TEST[skip:indexes don't assign]
 
 When the {watcher} service is stopped, the scheduler stops with it. Trigger

@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -155,13 +156,15 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
     }
 
     private List<B> reducePipelineBuckets(ReduceContext reduceContext) {
-        return getBuckets().stream().map(internalBucket -> {
-            List<InternalAggregation> aggs = internalBucket.getAggregations().asList()
-                .stream().map(aggregation
-                    -> ((InternalAggregation)aggregation).reducePipelines((InternalAggregation)aggregation, reduceContext))
-                .collect(Collectors.toList());
-            return createBucket(new InternalAggregations(aggs), internalBucket);
-        }).collect(Collectors.toList());
+        List<B> reducedBuckets = new ArrayList<>();
+        for (B bucket : getBuckets()) {
+            List<InternalAggregation> aggs = new ArrayList<>();
+            for (Aggregation agg : bucket.getAggregations()) {
+                aggs.add(((InternalAggregation)agg).reducePipelines((InternalAggregation)agg, reduceContext));
+            }
+            reducedBuckets.add(createBucket(new InternalAggregations(aggs), bucket));
+        }
+        return reducedBuckets;
     }
 
     public abstract static class InternalBucket implements Bucket, Writeable {

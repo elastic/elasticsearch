@@ -28,7 +28,7 @@ production cluster. By default, it is is disabled (`false`).
 
 You can use the following APIs to review and change this setting:
 
-[source,js]
+[source,console]
 ----------------------------------
 GET _cluster/settings
 
@@ -38,8 +38,7 @@ PUT _cluster/settings
     "xpack.monitoring.collection.enabled": true
   }
 }
-----------------------------------
-// CONSOLE 
+---------------------------------- 
 
 If {es} {security-features} are enabled, you must have `monitor` cluster privileges to 
 view the cluster settings and `manage` cluster privileges to change them.
@@ -194,7 +193,7 @@ production cluster.
 
 You can use the following API to change this setting:
 
-[source,js]
+[source,console]
 ----------------------------------
 PUT _cluster/settings
 {
@@ -203,7 +202,6 @@ PUT _cluster/settings
   }
 }
 ----------------------------------
-// CONSOLE
 
 If {es} {security-features} are enabled, you must have `monitor` cluster
 privileges to  view the cluster settings and `manage` cluster privileges

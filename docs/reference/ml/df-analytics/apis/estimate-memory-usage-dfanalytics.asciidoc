@@ -54,7 +54,7 @@ Serves as an advice on how to set `model_memory_limit` when creating {dfanalytic
 [[ml-estimate-memory-usage-dfanalytics-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/data_frame/analytics/_estimate_memory_usage
 {
@@ -68,7 +68,6 @@ POST _ml/data_frame/analytics/_estimate_memory_usage
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:TBD]
 
 The API returns the following results:

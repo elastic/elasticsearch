@@ -61,6 +61,7 @@ List<Version> additionalVersion = [
 
         testClusters {
             "${baseName}" {
+                numberOfNodes = 2
                 testDistribution = distro
                 version = bwcVersion.toString()
                 javaHome = project.file(project.ext.runtimeJavaHome)

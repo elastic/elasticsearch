@@ -77,7 +77,7 @@ that are **not** loaded into memory. Defaults to `false`.
 end::include-unloaded-segments[]
 
 tag::index[]
-`{index}`::
+`<index>`::
 (Optional, string) Comma-separated list or wildcard expression of index names
 used to limit the request.
 end::index[]
@@ -90,12 +90,12 @@ the master node.
 end::local[]
 
 tag::name[]
-`{name}`::
+`<name>`::
 (Optional, string) Comma-separated list of alias names to return.
 end::name[]
 
 tag::node-id[]
-`{node_id}`::
+`<node_id>`::
 (Optional, string) Comma-separated list of node IDs or names used to limit
 returned information.
 end::node-id[]

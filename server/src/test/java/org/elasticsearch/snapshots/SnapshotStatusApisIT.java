@@ -19,11 +19,14 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.List;
 
@@ -71,5 +74,39 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         final SnapshotStatus snStatus = snapshotStatus.get(0);
         assertEquals(snStatus.getStats().getStartTime(), snapshotInfo.startTime());
         assertEquals(snStatus.getStats().getTime(), snapshotInfo.endTime() - snapshotInfo.startTime());
+    }
+
+    public void testStatusAPICallInProgressSnapshot() throws InterruptedException {
+        Client client = client();
+
+        logger.info("-->  creating repository");
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo").setType("mock").setSettings(
+            Settings.builder().put("location", randomRepoPath()).put("block_on_data", true)));
+
+        createIndex("test-idx-1");
+        ensureGreen();
+
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            index("test-idx-1", "_doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+
+        logger.info("--> snapshot");
+        ActionFuture<CreateSnapshotResponse> createSnapshotResponseActionFuture =
+            client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute();
+
+        logger.info("--> wait for data nodes to get blocked");
+        waitForBlockOnAnyDataNode("test-repo", TimeValue.timeValueMinutes(1));
+
+        final List<SnapshotStatus> snapshotStatus = client.admin().cluster().snapshotsStatus(
+            new SnapshotsStatusRequest("test-repo", new String[]{"test-snap"})).actionGet().getSnapshots();
+        assertEquals(snapshotStatus.get(0).getState(), SnapshotsInProgress.State.STARTED);
+
+        logger.info("--> unblock all data nodes");
+        unblockAllDataNodes("test-repo");
+
+        logger.info("--> wait for snapshot to finish");
+        createSnapshotResponseActionFuture.actionGet();
     }
 }

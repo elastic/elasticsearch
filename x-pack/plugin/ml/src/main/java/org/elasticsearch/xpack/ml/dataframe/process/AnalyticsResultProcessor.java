@@ -9,13 +9,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction.DataFrameAnalyticsTask.ProgressTracker;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
 
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public class AnalyticsResultProcessor {
@@ -25,16 +25,16 @@ public class AnalyticsResultProcessor {
     private final String dataFrameAnalyticsId;
     private final DataFrameRowsJoiner dataFrameRowsJoiner;
     private final Supplier<Boolean> isProcessKilled;
-    private final Consumer<Integer> progressConsumer;
+    private final ProgressTracker progressTracker;
     private final CountDownLatch completionLatch = new CountDownLatch(1);
     private volatile String failure;
 
     public AnalyticsResultProcessor(String dataFrameAnalyticsId, DataFrameRowsJoiner dataFrameRowsJoiner, Supplier<Boolean> isProcessKilled,
-                                    Consumer<Integer> progressConsumer) {
+                                    ProgressTracker progressTracker) {
         this.dataFrameAnalyticsId = Objects.requireNonNull(dataFrameAnalyticsId);
         this.dataFrameRowsJoiner = Objects.requireNonNull(dataFrameRowsJoiner);
         this.isProcessKilled = Objects.requireNonNull(isProcessKilled);
-        this.progressConsumer = Objects.requireNonNull(progressConsumer);
+        this.progressTracker = Objects.requireNonNull(progressTracker);
     }
 
     @Nullable
@@ -52,12 +52,25 @@ public class AnalyticsResultProcessor {
     }
 
     public void process(AnalyticsProcess<AnalyticsResult> process) {
+        long totalRows = process.getConfig().rows();
+        LOGGER.info("Total rows = {}", totalRows);
+        long processedRows = 0;
+
         // TODO When java 9 features can be used, we will not need the local variable here
         try (DataFrameRowsJoiner resultsJoiner = dataFrameRowsJoiner) {
             Iterator<AnalyticsResult> iterator = process.readAnalyticsResults();
             while (iterator.hasNext()) {
                 AnalyticsResult result = iterator.next();
                 processResult(result, resultsJoiner);
+                if (result.getRowResults() != null) {
+                    processedRows++;
+                    progressTracker.writingResultsPercent.set(processedRows >= totalRows ? 100 : (int) (processedRows * 100.0 / totalRows));
+                }
+            }
+            if (isProcessKilled.get() == false) {
+                // This means we completed successfully so we need to set the progress to 100.
+                // This is because due to skipped rows, it is possible the processed rows will not reach the total rows.
+                progressTracker.writingResultsPercent.set(100);
             }
         } catch (Exception e) {
             if (isProcessKilled.get()) {
@@ -79,7 +92,7 @@ public class AnalyticsResultProcessor {
         }
         Integer progressPercent = result.getProgressPercent();
         if (progressPercent != null) {
-            progressConsumer.accept(progressPercent);
+            progressTracker.analyzingPercent.set(progressPercent);
         }
     }
 }

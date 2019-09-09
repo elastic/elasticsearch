@@ -129,7 +129,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                 // Finally, asynchronously retrieve all the snapshots, deleting them serially,
                 // before updating the cluster state with the new metrics and setting 'running'
                 // back to false
-                getAllSuccessfulSnapshots(repositioriesToFetch, new ActionListener<>() {
+                getAllSuccessfulSnapshots(repositioriesToFetch, new ActionListener<Map<String, List<SnapshotInfo>>>() {
                     @Override
                     public void onResponse(Map<String, List<SnapshotInfo>> allSnapshots) {
                         try {

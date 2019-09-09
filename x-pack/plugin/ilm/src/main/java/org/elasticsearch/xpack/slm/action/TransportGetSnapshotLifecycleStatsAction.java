@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
@@ -47,7 +46,7 @@ public class TransportGetSnapshotLifecycleStatsAction extends
     }
 
     @Override
-    protected void masterOperation(Task task, GetSnapshotLifecycleStatsAction.Request request,
+    protected void masterOperation(GetSnapshotLifecycleStatsAction.Request request,
                                    ClusterState state, ActionListener<GetSnapshotLifecycleStatsAction.Response> listener) {
         SnapshotLifecycleMetadata slmMeta = state.metaData().custom(SnapshotLifecycleMetadata.TYPE);
         if (slmMeta == null) {

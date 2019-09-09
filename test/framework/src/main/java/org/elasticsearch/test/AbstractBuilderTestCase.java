@@ -358,7 +358,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             searchModule = new SearchModule(nodeSettings, pluginsService.filterPlugins(SearchPlugin.class));
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-            entries.addAll(indicesModule.getNamedWriteables());
+            entries.addAll(IndicesModule.getNamedWriteables());
             entries.addAll(searchModule.getNamedWriteables());
             namedWriteableRegistry = new NamedWriteableRegistry(entries);
             xContentRegistry = new NamedXContentRegistry(Stream.of(

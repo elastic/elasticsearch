@@ -1,5 +1,8 @@
 [[query-dsl-has-child-query]]
-=== Has Child Query
+=== Has child query
+++++
+<titleabbrev>Has child</titleabbrev>
+++++
 
 Returns parent documents whose <<parent-join,joined>> child documents match a
 provided query. You can create parent-child relationships between documents in
@@ -70,19 +73,19 @@ GET /_search
 ==== Top-level parameters for `has_child`
 
 `type`::
-(string) Required. Name of the child relationship mapped for the
+(Required, string) Name of the child relationship mapped for the
 <<parent-join,join>> field.
 
 `query`::
-(query object) Required. Query you wish to run on child documents of the `type`
+(Required, query object) Query you wish to run on child documents of the `type`
 field. If a child document matches the search, the query returns the parent
 document.
 
 `ignore_unmapped`::
 +
 --
-(boolean) Optional. Indicates whether to ignore an unmapped `type` and not return
-any documents instead of an error. Defaults to `false`.
+(Optional, boolean) Indicates whether to ignore an unmapped `type` and not
+return any documents instead of an error. Defaults to `false`.
 
 If `false`, {es} returns an error if the `type` is unmapped.
 
@@ -91,20 +94,20 @@ You can use this parameter to query multiple indices that may not contain the
 --
 
 `max_children`::
-(integer) Optional. Maximum number of child documents that match the `query`
+(Optional, integer) Maximum number of child documents that match the `query`
 allowed for a returned parent document. If the parent document exceeds this
 limit, it is excluded from the search results.
 
 `min_children`::
-(integer) Optional. Minimum number of child documents that match the `query`
+(Optional, integer) Minimum number of child documents that match the `query`
 required to match the query for a returned parent document. If the parent
 document does not meet this limit, it is excluded from the search results.
 
 `score_mode`::
 +
 --
-(string) Optional. Indicates how scores for matching child documents affect the
-root parent document's <<query-filter-context,relevance score>>. Valid values
+(Optional, string) Indicates how scores for matching child documents affect the
+root parent document's <<relevance-scores,relevance score>>. Valid values
 are:
 
 `none` (Default)::
@@ -130,7 +133,7 @@ Add together the relevance scores of all matching child documents.
 [[has-child-query-performance]]
 ===== Sorting
 You cannot sort the results of a `has_child` query using standard
-<<search-request-sort,sort options>>.
+<<request-body-search-sort,sort options>>.
 
 If you need to sort returned documents by a field in their child documents, use
 a `function_score` query and sort by `_score`. For example, the following query

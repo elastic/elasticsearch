@@ -17,7 +17,11 @@ import java.util.function.Function;
 public class TextEsField extends EsField {
 
     public TextEsField(String name, Map<String, EsField> properties, boolean hasDocValues) {
-        super(name, DataType.TEXT, properties, hasDocValues);
+        this(name, properties, hasDocValues, false);
+    }
+    
+    public TextEsField(String name, Map<String, EsField> properties, boolean hasDocValues, boolean isAlias) {
+        super(name, DataType.TEXT, properties, hasDocValues, isAlias);
     }
 
     @Override

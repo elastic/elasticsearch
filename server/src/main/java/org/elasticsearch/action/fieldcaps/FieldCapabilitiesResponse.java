@@ -116,11 +116,6 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         return responseMap.get(field);
     }
 
-    @Override
-    public void readFrom(StreamInput in) {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
     private static Map<String, FieldCapabilities> readField(StreamInput in) throws IOException {
         return in.readMap(StreamInput::readString, FieldCapabilities::new);
     }

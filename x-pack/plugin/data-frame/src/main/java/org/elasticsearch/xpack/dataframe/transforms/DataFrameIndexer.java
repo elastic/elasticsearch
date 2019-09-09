@@ -14,10 +14,13 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -72,7 +75,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
 
     protected final DataFrameAuditor auditor;
 
-    protected final DataFrameTransformConfig transformConfig;
+    protected volatile DataFrameTransformConfig transformConfig;
     protected volatile DataFrameTransformProgress progress;
     private final Map<String, String> fieldMappings;
 
@@ -114,6 +117,11 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
         return pageSize;
     }
 
+    @Override
+    protected String getJobId() {
+        return transformConfig.getId();
+    }
+
     public DataFrameTransformConfig getConfig() {
         return transformConfig;
     }
@@ -130,13 +138,21 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
         return progress;
     }
 
+    public DataFrameTransformCheckpoint getLastCheckpoint() {
+        return lastCheckpoint;
+    }
+
+    public DataFrameTransformCheckpoint getNextCheckpoint() {
+        return nextCheckpoint;
+    }
+
     /**
      * Request a checkpoint
      */
     protected abstract void createCheckpoint(ActionListener<DataFrameTransformCheckpoint> listener);
 
     @Override
-    protected void onStart(long now, ActionListener<Void> listener) {
+    protected void onStart(long now, ActionListener<Boolean> listener) {
         try {
             pivot = new Pivot(getConfig().getPivotConfig());
 
@@ -146,7 +162,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
             }
 
             runState = determineRunStateAtStart();
-            listener.onResponse(null);
+            listener.onResponse(true);
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -166,7 +182,20 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
 
     @Override
     protected IterationResult<DataFrameIndexerPosition> doProcess(SearchResponse searchResponse) {
-        final CompositeAggregation agg = searchResponse.getAggregations().get(COMPOSITE_AGGREGATION_NAME);
+        final Aggregations aggregations = searchResponse.getAggregations();
+        // Treat this as a "we reached the end".
+        // This should only happen when all underlying indices have gone away. Consequently, there is no more data to read.
+        if (aggregations == null) {
+            logger.info("[" + getJobId() + "] unexpected null aggregations in search response. " +
+                "Source indices have been deleted or closed.");
+            auditor.info(getJobId(),
+                "Source indices have been deleted or closed. " +
+                    "Please verify that these indices exist and are open [" +
+                    Strings.arrayToCommaDelimitedString(getConfig().getSource().getIndex()) +
+                    "].");
+            return new IterationResult<>(Collections.emptyList(), null, true);
+        }
+        final CompositeAggregation agg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
 
         switch (runState) {
         case FULL_RUN:
@@ -200,8 +229,10 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
                 newPosition,
                 agg.getBuckets().isEmpty());
 
+        // NOTE: progress is also mutated in ClientDataFrameIndexer#onFinished
         if (progress != null) {
-            progress.docsProcessed(getStats().getNumDocuments() - docsBeforeProcess);
+            progress.incrementDocsProcessed(getStats().getNumDocuments() - docsBeforeProcess);
+            progress.incrementDocsIndexed(result.getToIndex().size());
         }
 
         return result;
@@ -323,7 +354,8 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
         assert nextCheckpoint != null;
 
         SearchRequest searchRequest = new SearchRequest(getConfig().getSource().getIndex())
-                .allowPartialSearchResults(false);
+                .allowPartialSearchResults(false)
+                .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
                 .size(0);
 
@@ -498,5 +530,5 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
         return null;
     }
 
-    protected abstract boolean sourceHasChanged();
+    protected abstract void sourceHasChanged(ActionListener<Boolean> hasChangedListener);
 }

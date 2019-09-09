@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -45,6 +46,11 @@ final class PSubMapShortcut extends AStoreable {
 
         this.targetClass = Objects.requireNonNull(targetClass);
         this.index = Objects.requireNonNull(index);
+    }
+
+    @Override
+    void storeSettings(CompilerSettings settings) {
+        throw createError(new IllegalStateException("illegal tree structure"));
     }
 
     @Override

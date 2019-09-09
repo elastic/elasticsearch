@@ -12,7 +12,7 @@ _fetch_ requests, like <<docs-get,get>> or <<search-search,search>>.
 Though very handy to have around, the source field does incur storage overhead
 within the index. For this reason, it can be disabled as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT tweets
 {
@@ -23,7 +23,6 @@ PUT tweets
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [WARNING]
 .Think before disabling the `_source` field
@@ -36,7 +35,7 @@ available then a number of features are not supported:
 * The <<docs-update,`update`>>, <<docs-update-by-query,`update_by_query`>>,
 and <<docs-reindex,`reindex`>> APIs.
 
-* On the fly <<search-request-highlighting,highlighting>>.
+* On the fly <<request-body-search-highlighting,highlighting>>.
 
 * The ability to reindex from one Elasticsearch index to another, either
   to change mappings or analysis, or to upgrade an index to a new major
@@ -77,12 +76,12 @@ stored.
 WARNING: Removing fields from the `_source` has similar downsides to disabling
 `_source`, especially the fact that you cannot reindex documents from one
 Elasticsearch index to another. Consider using
-<<search-request-source-filtering,source filtering>> instead.
+<<request-body-search-source-filtering,source filtering>> instead.
 
 The `includes`/`excludes` parameters (which also accept wildcards) can be used
 as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT logs
 {
@@ -125,7 +124,6 @@ GET logs/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> These fields will be removed from the stored `_source` field.
 <2> We can still search on this field, even though it is not in the stored `_source`.

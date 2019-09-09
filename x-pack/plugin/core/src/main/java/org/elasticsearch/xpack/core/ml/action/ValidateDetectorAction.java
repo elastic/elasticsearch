@@ -55,6 +55,11 @@ public class ValidateDetectorAction extends ActionType<AcknowledgedResponse> {
             this.detector = detector;
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            detector = new Detector(in);
+        }
+
         public Detector getDetector() {
             return detector;
         }
@@ -68,12 +73,6 @@ public class ValidateDetectorAction extends ActionType<AcknowledgedResponse> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             detector.writeTo(out);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            detector = new Detector(in);
         }
 
         @Override

@@ -52,8 +52,4 @@ public final class PutPrivilegesResponse extends ActionResponse implements ToXCo
         out.writeMap(created, StreamOutput::writeString, StreamOutput::writeStringCollection);
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
-}

@@ -73,11 +73,6 @@ public class PutFilterAction extends ActionType<PutFilterAction.Response> {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             filter.writeTo(out);
@@ -128,11 +123,6 @@ public class PutFilterAction extends ActionType<PutFilterAction.Response> {
 
         public Response(MlFilter filter) {
             this.filter = filter;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

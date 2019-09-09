@@ -45,7 +45,7 @@ public class IndicesStatsResponse extends BroadcastResponse {
 
     IndicesStatsResponse(StreamInput in) throws IOException {
         super(in);
-        shards = in.readArray(ShardStats::readShardStats, (size) -> new ShardStats[size]);
+        shards = in.readArray(ShardStats::new, (size) -> new ShardStats[size]);
     }
 
     IndicesStatsResponse(ShardStats[] shards, int totalShards, int successfulShards, int failedShards,

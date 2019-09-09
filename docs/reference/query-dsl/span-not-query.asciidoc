@@ -1,5 +1,8 @@
 [[query-dsl-span-not-query]]
-=== Span Not Query
+=== Span not query
+++++
+<titleabbrev>Span not</titleabbrev>
+++++
 
 Removes matches which overlap with another span query or which are
 within x tokens before (controlled by the parameter `pre`) or y tokens

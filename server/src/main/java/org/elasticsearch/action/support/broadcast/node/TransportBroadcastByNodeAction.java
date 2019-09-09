@@ -42,7 +42,6 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -76,7 +75,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRequest<Request>,
         Response extends BroadcastResponse,
-        ShardOperationResult extends Streamable> extends HandledTransportAction<Request, Response> {
+        ShardOperationResult extends Writeable> extends HandledTransportAction<Request, Response> {
 
     private final ClusterService clusterService;
     private final TransportService transportService;
@@ -112,7 +111,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
         transportNodeBroadcastAction = actionName + "[n]";
 
-        transportService.registerRequestHandler(transportNodeBroadcastAction, NodeRequest::new, executor, false, canTripCircuitBreaker,
+        transportService.registerRequestHandler(transportNodeBroadcastAction, executor, false, canTripCircuitBreaker, NodeRequest::new,
             new BroadcastByNodeTransportRequestHandler());
     }
 
@@ -453,7 +452,11 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
         protected Request indicesLevelRequest;
 
-        public NodeRequest() {
+        public NodeRequest(StreamInput in) throws IOException {
+            super(in);
+            indicesLevelRequest = readRequestFrom(in);
+            shards = in.readList(ShardRouting::new);
+            nodeId = in.readString();
         }
 
         public NodeRequest(String nodeId, Request request, List<ShardRouting> shards) {
@@ -478,14 +481,6 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         @Override
         public IndicesOptions indicesOptions() {
             return indicesLevelRequest.indicesOptions();
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            indicesLevelRequest = readRequestFrom(in);
-            shards = in.readList(ShardRouting::new);
-            nodeId = in.readString();
         }
 
         @Override
@@ -542,17 +537,12 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(nodeId);
             out.writeVInt(totalShards);
             out.writeVInt(results.size());
             for (ShardOperationResult result : results) {
-                out.writeOptionalStreamable(result);
+                out.writeOptionalWriteable(result);
             }
             out.writeBoolean(exceptions != null);
             if (exceptions != null) {
@@ -565,19 +555,15 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
      * Can be used for implementations of {@link #shardOperation(BroadcastRequest, ShardRouting) shardOperation} for
      * which there is no shard-level return value.
      */
-    public static final class EmptyResult implements Streamable {
+    public static final class EmptyResult implements Writeable {
         public static EmptyResult INSTANCE = new EmptyResult();
 
-        private EmptyResult() {
-        }
+        private EmptyResult() {}
+
+        private EmptyResult(StreamInput in) {}
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-        }
+        public void writeTo(StreamOutput out) { }
 
         public static EmptyResult readEmptyResultFrom(StreamInput in) {
             return INSTANCE;

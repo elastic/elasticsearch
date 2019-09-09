@@ -18,8 +18,7 @@ public class TransportValidateJobConfigAction extends HandledTransportAction<Val
 
     @Inject
     public TransportValidateJobConfigAction(TransportService transportService, ActionFilters actionFilters) {
-        super(ValidateJobConfigAction.NAME, transportService, ValidateJobConfigAction.Request::new, actionFilters
-        );
+        super(ValidateJobConfigAction.NAME, transportService, actionFilters, ValidateJobConfigAction.Request::new);
     }
 
     @Override

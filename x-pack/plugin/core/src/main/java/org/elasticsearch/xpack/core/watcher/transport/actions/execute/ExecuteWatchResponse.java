@@ -77,11 +77,6 @@ public class ExecuteWatchResponse extends ActionResponse implements ToXContentOb
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(recordId);
         XContentSource.writeTo(recordSource, out);

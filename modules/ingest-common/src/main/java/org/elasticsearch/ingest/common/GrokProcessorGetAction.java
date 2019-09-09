@@ -29,7 +29,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -55,15 +54,16 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
     }
 
     public static class Request extends ActionRequest {
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
 
-        Request() {}
+        public Request() {}
 
         Request(StreamInput in) throws IOException {
             super(in);
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            return null;
         }
     }
 
@@ -93,11 +93,6 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
         }
 
         @Override
-        public void readFrom(StreamInput in) {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(grokPatterns, StreamOutput::writeString, StreamOutput::writeString);
         }
@@ -121,8 +116,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
     }
 
     public static class RestAction extends BaseRestHandler {
-        RestAction(Settings settings, RestController controller) {
-            super(settings);
+        RestAction(RestController controller) {
             controller.registerHandler(GET, "/_ingest/processor/grok", this);
         }
 

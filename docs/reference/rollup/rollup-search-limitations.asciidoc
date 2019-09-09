@@ -61,7 +61,7 @@ GET sensor_rollup/_rollup_search
 
 The response will tell you that the field and aggregation were not possible, because no rollup jobs were found which contained them:
 
-[source,js]
+[source,console-result]
 ----
 {
     "error" : {

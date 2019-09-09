@@ -22,6 +22,9 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -35,6 +38,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,12 +46,17 @@ import java.nio.file.NoSuchFileException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.Locale;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasKey;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -165,6 +174,75 @@ public final class BlobStoreTestUtil {
                             hasKey(String.format(Locale.ROOT, BlobStoreRepository.SNAPSHOT_NAME_FORMAT, snapshotId.getUUID())));
                     }
                 }
+            }
+        }
+    }
+
+    public static long createDanglingIndex(BlobStoreRepository repository, String name, Set<String> files)
+            throws InterruptedException, ExecutionException {
+        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        final AtomicLong totalSize = new AtomicLong();
+        repository.threadPool().generic().execute(new ActionRunnable<>(future) {
+            @Override
+            protected void doRun() throws Exception {
+                final BlobStore blobStore = repository.blobStore();
+                BlobContainer container =
+                    blobStore.blobContainer(repository.basePath().add("indices").add(name));
+                for (String file : files) {
+                    int size = randomIntBetween(0, 10);
+                    totalSize.addAndGet(size);
+                    container.writeBlob(file, new ByteArrayInputStream(new byte[size]), size, false);
+                }
+                future.onResponse(null);
+            }
+        });
+        future.get();
+        return totalSize.get();
+    }
+
+    public static void assertCorruptionVisible(BlobStoreRepository repository, Map<String, Set<String>> indexToFiles) {
+        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        repository.threadPool().generic().execute(new ActionRunnable<>(future) {
+            @Override
+            protected void doRun() throws Exception {
+                final BlobStore blobStore = repository.blobStore();
+                for (String index : indexToFiles.keySet()) {
+                    if (blobStore.blobContainer(repository.basePath().add("indices"))
+                        .children().containsKey(index) == false) {
+                        future.onResponse(false);
+                        return;
+                    }
+                    for (String file : indexToFiles.get(index)) {
+                        try (InputStream ignored =
+                                     blobStore.blobContainer(repository.basePath().add("indices").add(index)).readBlob(file)) {
+                        } catch (NoSuchFileException e) {
+                            future.onResponse(false);
+                            return;
+                        }
+                    }
+                }
+                future.onResponse(true);
+            }
+        });
+        assertTrue(future.actionGet());
+    }
+
+    public static void assertBlobsByPrefix(BlobStoreRepository repository, BlobPath path, String prefix, Map<String, BlobMetaData> blobs) {
+        final PlainActionFuture<Map<String, BlobMetaData>> future = PlainActionFuture.newFuture();
+        repository.threadPool().generic().execute(new ActionRunnable<>(future) {
+            @Override
+            protected void doRun() throws Exception {
+                final BlobStore blobStore = repository.blobStore();
+                future.onResponse(blobStore.blobContainer(path).listBlobsByPrefix(prefix));
+            }
+        });
+        Map<String, BlobMetaData> foundBlobs = future.actionGet();
+        if (blobs.isEmpty()) {
+            assertThat(foundBlobs.keySet(), empty());
+        } else {
+            assertThat(foundBlobs.keySet(), containsInAnyOrder(blobs.keySet().toArray(Strings.EMPTY_ARRAY)));
+            for (Map.Entry<String, BlobMetaData> entry : foundBlobs.entrySet()) {
+                assertEquals(entry.getValue().length(), blobs.get(entry.getKey()).length());
             }
         }
     }

@@ -36,6 +36,12 @@ public class GetCertificateInfoAction extends ActionType<GetCertificateInfoActio
 
     public static class Request extends ActionRequest {
 
+        Request() {}
+
+        Request(StreamInput in) throws IOException {
+            super(in);
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -77,11 +83,7 @@ public class GetCertificateInfoAction extends ActionType<GetCertificateInfoActio
             }
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
-    }
 
     public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 

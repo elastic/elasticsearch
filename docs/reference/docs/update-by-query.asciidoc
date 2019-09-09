@@ -1,5 +1,5 @@
 [[docs-update-by-query]]
-== Update By Query API
+=== Update By Query API
 
 The simplest usage of `_update_by_query` just performs an update on every
 document in the index without changing the source. This is useful to
@@ -15,7 +15,7 @@ POST twitter/_update_by_query?conflicts=proceed
 
 That will return something like this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took" : 147,
@@ -196,7 +196,7 @@ POST twitter/_update_by_query?pipeline=set-foo
 // TEST[setup:twitter]
 
 [float]
-=== URL Parameters
+==== URL Parameters
 
 In addition to the standard parameters like `pretty`, the Update By Query API
 also supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, `timeout`,
@@ -246,7 +246,7 @@ starting the next set. This is "bursty" instead of "smooth". The default is `-1`
 
 [float]
 [[docs-update-by-query-response-body]]
-=== Response body
+==== Response body
 
 //////////////////////////
 [source,js]
@@ -260,7 +260,7 @@ POST /twitter/_update_by_query?conflicts=proceed
 
 The JSON response looks like this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took" : 147,
@@ -351,7 +351,7 @@ version conflicts.
 
 [float]
 [[docs-update-by-query-task-api]]
-=== Works with the Task API
+==== Works with the Task API
 
 You can fetch the status of all running update by query requests with the
 <<tasks,Task API>>:
@@ -365,7 +365,7 @@ GET _tasks?detailed=true&actions=*byquery
 
 The responses looks like:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "nodes" : {
@@ -405,7 +405,6 @@ The responses looks like:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 <1> This object contains the actual status. It is just like the response JSON
 with the important addition of the `total` field. `total` is the total number
@@ -433,7 +432,7 @@ you to delete that document.
 
 [float]
 [[docs-update-by-query-cancel-task-api]]
-=== Works with the Cancel Task API
+==== Works with the Cancel Task API
 
 Any update by query can be cancelled using the <<tasks,Task Cancel API>>:
 
@@ -452,7 +451,7 @@ that it has been cancelled and terminates itself.
 
 [float]
 [[docs-update-by-query-rethrottle]]
-=== Rethrottling
+==== Rethrottling
 
 The value of `requests_per_second` can be changed on a running update by query
 using the `_rethrottle` API:
@@ -474,7 +473,7 @@ timeouts.
 
 [float]
 [[docs-update-by-query-slice]]
-=== Slicing
+==== Slicing
 
 Update by query supports <<sliced-scroll>> to parallelize the updating process.
 This parallelization can improve efficiency and provide a convenient way to
@@ -482,7 +481,7 @@ break the request down into smaller parts.
 
 [float]
 [[docs-update-by-query-manual-slice]]
-==== Manual slicing
+===== Manual slicing
 Slice an update by query manually by providing a slice id and total number of
 slices to each request:
 
@@ -524,7 +523,7 @@ POST twitter/_search?size=0&q=extra:test&filter_path=hits.total
 
 Which results in a sensible `total` like this one:
 
-[source,js]
+[source,console-result]
 ----------------------------------------------------------------
 {
   "hits": {
@@ -535,11 +534,10 @@ Which results in a sensible `total` like this one:
   }
 }
 ----------------------------------------------------------------
-// TESTRESPONSE
 
 [float]
 [[docs-update-by-query-automatic-slice]]
-==== Automatic slicing
+===== Automatic slicing
 
 You can also let update by query automatically parallelize using
 <<sliced-scroll>> to slice on `_id`. Use `slices` to specify the number of
@@ -568,7 +566,7 @@ POST twitter/_search?size=0&q=extra:test&filter_path=hits.total
 
 Which results in a sensible `total` like this one:
 
-[source,js]
+[source,console-result]
 ----------------------------------------------------------------
 {
   "hits": {
@@ -579,7 +577,6 @@ Which results in a sensible `total` like this one:
   }
 }
 ----------------------------------------------------------------
-// TESTRESPONSE
 
 Setting `slices` to `auto` will let Elasticsearch choose the number of slices
 to use. This setting will use one slice per shard, up to a certain limit. If
@@ -612,7 +609,7 @@ though these are all taken at approximately the same time.
 
 [float]
 [[docs-update-by-query-picking-slices]]
-===== Picking the number of slices
+====== Picking the number of slices
 
 If slicing automatically, setting `slices` to `auto` will choose a reasonable
 number for most indices. If you're slicing manually or otherwise tuning
@@ -632,7 +629,7 @@ documents being reindexed and cluster resources.
 
 [float]
 [[picking-up-a-new-property]]
-=== Pick up a new property
+==== Pick up a new property
 
 Say you created an index without dynamic mapping, filled it with data, and then
 added a mapping value to pick up more fields from the data:
@@ -690,7 +687,7 @@ POST test/_search?filter_path=hits.total
 // CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "hits" : {
@@ -701,7 +698,6 @@ POST test/_search?filter_path=hits.total
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 But you can issue an `_update_by_query` request to pick up the new mapping:
 
@@ -720,7 +716,7 @@ POST test/_search?filter_path=hits.total
 // CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "hits" : {
@@ -731,6 +727,5 @@ POST test/_search?filter_path=hits.total
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 You can do the exact same thing when adding a field to a multifield.

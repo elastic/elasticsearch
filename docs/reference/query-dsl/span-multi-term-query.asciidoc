@@ -1,5 +1,8 @@
 [[query-dsl-span-multi-term-query]]
-=== Span Multi Term Query
+=== Span multi-term query
+++++
+<titleabbrev>Span multi-term</titleabbrev>
+++++
 
 The `span_multi` query allows you to wrap a `multi term query` (one of wildcard,
 fuzzy, prefix, range or regexp query) as a `span query`, so

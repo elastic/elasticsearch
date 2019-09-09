@@ -1,21 +1,28 @@
 {
-  "ml.put_datafeed": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-datafeed.html",
-    "stability": "stable",
-    "methods": [ "PUT" ],
-    "url": {
-      "paths": [ "/_ml/datafeeds/{datafeed_id}" ],
-      "parts": {
-        "datafeed_id": {
-          "type": "string",
-          "required": true,
-          "description": "The ID of the datafeed to create"
-        }
-      }
+  "ml.put_datafeed":{
+    "documentation":{
+      "url":"http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-datafeed.html"
     },
-    "body": {
-      "description" : "The datafeed config",
-      "required" : true
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/datafeeds/{datafeed_id}",
+          "methods":[
+            "PUT"
+          ],
+          "parts":{
+            "datafeed_id":{
+              "type":"string",
+              "description":"The ID of the datafeed to create"
+            }
+          }
+        }
+      ]
+    },
+    "body":{
+      "description":"The datafeed config",
+      "required":true
     }
   }
 }

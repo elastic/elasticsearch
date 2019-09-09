@@ -52,7 +52,7 @@ public class IndicesSegmentResponse extends BroadcastResponse {
         super(in);
         shards = new ShardSegments[in.readVInt()];
         for (int i = 0; i < shards.length; i++) {
-            shards[i] = ShardSegments.readShardSegments(in);
+            shards[i] = new ShardSegments(in);
         }
     }
 

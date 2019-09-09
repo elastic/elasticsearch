@@ -69,7 +69,7 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
     public void testRetryFailedResetForAllocationCommands() {
         final int retries = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
         clusterState = strategy.reroute(clusterState, "initial allocation");
-        clusterState = strategy.applyStartedShards(clusterState, Collections.singletonList(getPrimary()));
+        clusterState = startShardsAndReroute(strategy, clusterState, getPrimary());
 
         // Exhaust all replica allocation attempts with shard failures
         for (int i = 0; i < retries; i++) {
@@ -90,7 +90,7 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
         clusterState = result.getClusterState();
 
         assertEquals(ShardRoutingState.INITIALIZING, getReplica().state());
-        clusterState = strategy.applyStartedShards(clusterState, Collections.singletonList(getReplica()));
+        clusterState = startShardsAndReroute(strategy, clusterState, getReplica());
         assertEquals(ShardRoutingState.STARTED, getReplica().state());
         assertFalse(clusterState.getRoutingNodes().hasUnassignedShards());
     }

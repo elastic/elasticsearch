@@ -33,6 +33,10 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
 
         public Request() {}
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -59,11 +63,6 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
         public Response(StreamInput in) throws IOException {
             super(in);
             deleted = in.readBoolean();
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

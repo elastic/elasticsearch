@@ -23,8 +23,8 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -146,7 +146,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedRespon
         }
     }
 
-    public static class TaskParams implements XPackPlugin.XPackPersistentTaskParams {
+    public static class TaskParams implements PersistentTaskParams {
 
         public static final Version VERSION_INTRODUCED = Version.V_7_3_0;
 

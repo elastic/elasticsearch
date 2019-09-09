@@ -47,7 +47,7 @@ You can use the `search` input to load Elasticsearch search results as the watch
 initial payload.
 
 A <<input-search, search>> input contains a `request` object that specifies the
-indices you want to search, the {ref}/search-request-search-type.html[search type],
+indices you want to search, the {ref}/search-request-body.html#request-body-search-search-type[search type],
 and the search request body. The `body` field of a search input is the same as
 the body of an Elasticsearch `_search` request, making the full Elasticsearch
 Query DSL available for you to use.

@@ -22,7 +22,7 @@ necessary if it has been stopped using the <<ilm-stop, Stop {ilm-init} API>>.
 
 ==== Request Parameters
 
-include::{docdir}/rest-api/timeoutparms.asciidoc[]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 ==== Authorization
 
@@ -77,11 +77,9 @@ POST _ilm/start
 
 If the request succeeds, you receive the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "acknowledged": true
 }
 --------------------------------------------------
-// CONSOLE
-// TESTRESPONSE

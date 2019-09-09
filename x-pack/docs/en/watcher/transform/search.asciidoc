@@ -52,7 +52,7 @@ The following table lists all available settings for the search transform:
 |======
 | Name                                          |Required   | Default           | Description
 
-| `request.search_type`                         | no        | query_then_fetch  | The search {ref}/search-request-search-type.html[type].
+| `request.search_type`                         | no        | query_then_fetch  | The search {ref}/search-request-body.html#request-body-search-search-type[type].
 
 | `request.indices`                             | no        | all indices       | One or more indices to search on.
 

@@ -202,17 +202,15 @@ For more information, see
                                                             to specify either the text or the html body or both (using
                                                             the fields below)
 
-| `body.text`           | yes       | -                   | The plain text body of the email. The body can be static text
-                                                            or contain Mustache <<templates, templates>>. The email `body`
-                                                            must contain at least one `text` or `html` field.
+| `body.text`           | no       | -                   | The plain text body of the email. The body can be static text
+                                                            or contain Mustache <<templates, templates>>.
 
-| `body.html`           | yes       | -                   | The html body of the email. The body can be static text or
+| `body.html`           | no       | -                   | The html body of the email. The body can be static text or
                                                             contain Mustache <<templates, templates>>. This body will be
                                                             sanitized to remove dangerous content such as scripts. This
                                                             behavior can be disabled by setting
                                                             `xpack.notification.email.html.sanitization.enabled: false` in
-                                                            `elasticsearch.yaml`. The email `body` must contain at least
-                                                            one `text` or `html` field.
+                                                            `elasticsearch.yaml`.
 
 | `priority`            | no        | -                   | The priority of this email. Valid values are: `lowest`, `low`,
                                                             `normal`, `high` and `highest`. The priority can contain a

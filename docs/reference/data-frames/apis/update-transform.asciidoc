@@ -1,0 +1,204 @@
+[role="xpack"]
+[testenv="basic"]
+[[update-data-frame-transform]]
+=== Update {dataframe-transforms} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Update {dataframe-transforms}</titleabbrev>
+++++
+
+Updates an existing {dataframe-transform}.
+
+beta[]
+
+[[update-data-frame-transform-request]]
+==== {api-request-title}
+
+`POST _data_frame/transforms/<data_frame_transform_id>/_update`
+
+[[update-data-frame-transform-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have
+`manage_data_frame_transforms` cluster privileges to use this API. The built-in
+`data_frame_transforms_admin` role has these privileges. You must also
+have `read` and `view_index_metadata` privileges on the source index and `read`,
+`create_index`, and `index` privileges on the destination index. For more
+information, see {stack-ov}/security-privileges.html[Security privileges] and
+{stack-ov}/built-in-roles.html[Built-in roles].
+
+[[update-data-frame-transform-desc]]
+==== {api-description-title}
+
+This API updates an existing {dataframe-transform}. All settings except description do not
+take effect until after the {dataframe-transform} starts the next checkpoint. This is
+so there is consistency with the pivoted data in each checkpoint.
+
+IMPORTANT: When {es} {security-features} are enabled, your {dataframe-transform}
+remembers which roles the user who updated it had at the time of update and
+runs with those privileges.
+
+IMPORTANT:  You must use {kib} or this API to update a {dataframe-transform}.
+            Do not update a {dataframe-transform} directly via
+            `.data-frame-internal*` indices using the Elasticsearch index API.
+            If {es} {security-features} are enabled, do not give users any
+            privileges on `.data-frame-internal*` indices.
+
+[[update-data-frame-transform-path-parms]]
+==== {api-path-parms-title}
+
+`<data_frame_transform_id>`::
+  (Required, string) Identifier for the {dataframe-transform}. This identifier
+  can contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
+  underscores. It must start and end with alphanumeric characters.
+
+[[update-data-frame-transform-query-parms]]
+==== {api-query-parms-title}
+
+`defer_validation`::
+  (Optional, boolean) When `true`, deferrable validations are not run. This
+  behavior may be desired if the source index does not exist until after the
+  {dataframe-transform} is updated.
+
+[[update-data-frame-transform-request-body]]
+==== {api-request-body-title}
+
+`description`::
+  (Optional, string) Free text description of the {dataframe-transform}.
+
+`dest`::
+  (Optional, object) The destination configuration, which has the
+  following properties:
+  
+  `index`:::
+    (Required, string) The _destination index_ for the {dataframe-transform}.
+
+  `pipeline`:::
+    (Optional, string) The unique identifier for a <<pipeline,pipeline>>.
+
+`frequency`::
+  (Optional, <<time-units, time units>>) The interval between checks for changes 
+  in the source indices when the {dataframe-transform} is running continuously. 
+  Also determines the retry interval in the event of transient failures while 
+  the {dataframe-transform} is searching or indexing. The minimum value is `1s` 
+  and the maximum is `1h`. The default value is `1m`.
+
+`source`::
+  (Optional, object) The source configuration, which has the following
+  properties:
+  
+  `index`:::
+    (Required, string or array) The _source indices_ for the
+    {dataframe-transform}. It can be a single index, an index pattern (for
+    example, `"myindex*"`), or an array of indices (for example,
+    `["index1", "index2"]`).
+    
+    `query`:::
+      (Optional, object) A query clause that retrieves a subset of data from the
+      source index. See <<query-dsl>>.
+  
+`sync`::
+  (Optional, object) Defines the properties required to run continuously.
+  `time`:::
+    (Required, object) Specifies that the {dataframe-transform} uses a time
+    field to synchronize the source and destination indices.
+    `field`::::
+      (Required, string) The date field that is used to identify new documents
+      in the source.
++
+--
+TIP: In general, it’s a good idea to use a field that contains the
+<<accessing-ingest-metadata,ingest timestamp>>. If you use a different field,
+you might need to set the `delay` such that it accounts for data transmission
+delays.
+
+--
+    `delay`::::
+      (Optional, <<time-units, time units>>) The time delay between the current 
+      time and the latest input data time. The default value is `60s`.
+
+[[update-data-frame-transform-example]]
+==== {api-examples-title}
+
+[source,js]
+--------------------------------------------------
+POST _data_frame/transforms/simple-kibana-ecomm-pivot/_update
+{
+  "source": {
+    "index": "kibana_sample_data_ecommerce",
+    "query": {
+      "term": {
+        "geoip.continent_name": {
+          "value": "Asia"
+        }
+      }
+    }
+  },
+  "description": "Maximum priced ecommerce data by customer_id in Asia",
+  "dest": {
+    "index": "kibana_sample_data_ecommerce_transform_v2",
+    "pipeline": "add_timestamp_pipeline"
+  },
+  "frequency": "15m",
+  "sync": {
+    "time": {
+      "field": "order_date",
+      "delay": "120s"
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:simple_kibana_continuous_pivot]
+
+When the transform is updated, you receive the updated configuration:
+
+[source,console-result]
+----
+{
+  "id": "simple-kibana-ecomm-pivot",
+  "source": {
+    "index": ["kibana_sample_data_ecommerce"],
+    "query": {
+      "term": {
+        "geoip.continent_name": {
+          "value": "Asia"
+        }
+      }
+    }
+  },
+  "pivot": {
+    "group_by": {
+      "customer_id": {
+        "terms": {
+          "field": "customer_id"
+        }
+      }
+    },
+    "aggregations": {
+      "max_price": {
+        "max": {
+          "field": "taxful_total_price"
+        }
+      }
+    }
+  },
+  "description": "Maximum priced ecommerce data by customer_id in Asia",
+  "dest": {
+    "index": "kibana_sample_data_ecommerce_transform_v2",
+    "pipeline": "add_timestamp_pipeline"
+  },
+  "frequency": "15m",
+  "sync": {
+    "time": {
+      "field": "order_date",
+      "delay": "120s"
+    }
+  },
+  "version": "8.0.0-alpha1",
+  "create_time": 1518808660505
+}
+----
+// TESTRESPONSE[s/"version": "8.0.0-alpha1"/"version": $body.version/]
+// TESTRESPONSE[s/"create_time": 1518808660505/"create_time": $body.create_time/]

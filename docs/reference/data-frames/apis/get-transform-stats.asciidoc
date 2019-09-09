@@ -119,23 +119,15 @@ GET _data_frame/transforms/ecommerce_transform/_stats
 // TEST[skip:todo]
 
 The API returns the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "count" : 1,
   "transforms" : [
     {
       "id" : "ecommerce_transform",
-      "state" : {
-        "task_state" : "started",
-        "indexer_state" : "started",
-        "checkpoint" : 1,
-        "progress" : {
-          "total_docs" : 1220,
-          "docs_remaining" : 0,
-          "percent_complete" : 100.0
-        }
-      },
+      "state" : "indexing",
       "stats" : {
         "pages_processed" : 2,
         "documents_processed" : 1220,
@@ -146,16 +138,38 @@ The API returns the following results:
         "index_failures" : 0,
         "search_time_in_ms" : 52,
         "search_total" : 2,
-        "search_failures" : 0
+        "search_failures" : 0,
+        "exponential_avg_checkpoint_duration_ms" : 77,
+        "exponential_avg_documents_indexed" : 2,
+        "exponential_avg_documents_processed" : 12
       },
       "checkpointing" : {
-        "current" : {
-          "timestamp_millis" : 1557474786393
+        "last" : {
+          "checkpoint" : 100,
+          "timestamp_millis" : 1561740252497,
+          "time_upper_bound_millis" : 1561740192497
         },
-        "operations_behind" : 0
+        "next" : {
+          "checkpoint" : 101,
+          "position" : {
+            "indexer_position" : {
+              "hashtag" : "abcd1234"
+            },
+            "buckets_position" : {
+              "hashtag" : "abcd5678"
+            }
+          },
+          "checkpoint_progress" : {
+            "documents_processed": 100,
+            "documents_indexed": 1
+          },
+          "changes_last_detected_at": 1561740629170,
+          "timestamp_millis" : 1561740629172,
+          "time_upper_bound_millis" : 1561740569172
+        },
+        "operations_behind": 27000
       }
     }
   ]
 }
 ----
-// TESTRESPONSE

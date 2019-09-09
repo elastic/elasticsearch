@@ -98,6 +98,7 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
         return true;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/46230")
     public void testThatHttpFailsWithoutSslClientAuth() throws IOException {
         SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(SSLContexts.createDefault(), NoopHostnameVerifier.INSTANCE);
         try (RestClient restClient = createRestClient(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy), "https")) {
@@ -164,7 +165,7 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
     private static List<String> getProtocols() {
         JavaVersion full =
             AccessController.doPrivileged(
-                    (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.specification.version")));
+                (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version")));
         if (full.compareTo(JavaVersion.parse("11.0.3")) < 0) {
             return List.of("TLSv1.2");
         }

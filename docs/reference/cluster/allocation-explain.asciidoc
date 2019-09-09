@@ -1,28 +1,75 @@
 [[cluster-allocation-explain]]
-== Cluster Allocation Explain API
+=== Cluster Allocation Explain API
+
+Provides explanations for shard allocations in the cluster.
+
+
+[[cluster-allocation-explain-api-request]]
+==== {api-request-title}
+
+`GET /_cluster/allocation/explain`
+
+
+[[cluster-allocation-explain-api-desc]]
+==== {api-description-title}
 
 The purpose of the cluster allocation explain API is to provide
 explanations for shard allocations in the cluster.  For unassigned shards,
 the explain API provides an explanation for why the shard is unassigned.
 For assigned shards, the explain API provides an explanation for why the
 shard is remaining on its current node and has not moved or rebalanced to
-another node.  This API can be very useful when attempting to diagnose why
-a shard is unassigned or why a shard continues to remain on its current node
-when you might expect otherwise.
+another node. This API can be very useful when attempting to diagnose why a 
+shard is unassigned or why a shard continues to remain on its current node when 
+you might expect otherwise.
 
-[float]
-=== Explain API Request
 
-To explain the allocation of a shard, first an index should exist:
+[[cluster-allocation-explain-api-query-params]]
+==== {api-query-parms-title}
 
-[source,js]
---------------------------------------------------
-PUT /myindex
---------------------------------------------------
-// CONSOLE
+`include_disk_info`::
+    (Optional, boolean) If `true`, returns information about disk usage and 
+    shard sizes. Defaults to `false`.
+    
+`include_yes_decisions`::
+    (Optional, boolean) If `true`, returns 'YES' decisions in explanation. 
+    Defaults to `false`.
+
+
+[[cluster-allocation-explain-api-request-body]]
+==== {api-request-body-title}
+
+`current_node`::
+    (Optional, string) Specifies the node ID or the name of the node to only 
+    explain a shard that is currently located on the specified node.
+
+`index`::
+    (Optional, string) Specifies the name of the index that you would like an 
+    explanation for.
+
+`primary`::
+    (Optional, boolean) If `true`, returns explanation for the primary shard 
+    for the given shard ID.
+
+`shard`::
+    (Optional, integer) Specifies the ID of the shard that you would like an 
+    explanation for.
+
+You can also have {es} explain the allocation of the first unassigned shard that 
+it finds by sending an empty body for the request.
+
+
+[[cluster-allocation-explain-api-examples]]
+==== {api-examples-title}
+
+
+//////
+[source,js]	
+--------------------------------------------------	
+PUT /myindex	
+--------------------------------------------------	
+// CONSOLE	
 // TESTSETUP
-
-And then the allocation for shards of that index can be explained:
+//////
 
 [source,js]
 --------------------------------------------------
@@ -35,14 +82,8 @@ GET /_cluster/allocation/explain
 --------------------------------------------------
 // CONSOLE
 
-Specify the `index` and `shard` id of the shard you would like an explanation
-for, as well as the `primary` flag to indicate whether to explain the primary
-shard for the given shard id or one of its replica shards.  These three request
-parameters are required.
 
-You may also specify an optional `current_node` request parameter to only explain
-a shard that is currently located on `current_node`.  The `current_node` can be
-specified as either the node id or node name.
+===== Example of the current_node parameter
 
 [source,js]
 --------------------------------------------------
@@ -58,22 +99,8 @@ GET /_cluster/allocation/explain
 // TEST[skip:no way of knowing the current_node]
 <1> The node where shard 0 currently has a replica on
 
-You can also have Elasticsearch explain the allocation of the first unassigned
-shard that it finds by sending an empty body for the request:
 
-[source,js]
---------------------------------------------------
-GET /_cluster/allocation/explain
---------------------------------------------------
-// CONSOLE
-
-[float]
-=== Explain API Response
-
-This section includes examples of the cluster allocation explain API response output
-under various scenarios.
-
-//////////////////////////
+===== Examples of unassigned primary shard explanations
 
 [source,js]
 --------------------------------------------------
@@ -89,11 +116,10 @@ GET /_cluster/allocation/explain
 --------------------------------------------------
 // CONSOLE
 
-//////////////////////////
 
-The API response for an unassigned shard:
+The API returns the following response for an unassigned primary shard:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "index" : "idx",
@@ -131,36 +157,13 @@ The API response for an unassigned shard:
 // TESTRESPONSE[s/"transport_address" : "[^"]*"/"transport_address" : $body.$_path/]
 // TESTRESPONSE[s/"node_attributes" : \{\}/"node_attributes" : $body.$_path/]
 
-<1> The current state of the shard
-<2> The reason for the shard originally becoming unassigned
-<3> Whether to allocate the shard
-<4> Whether to allocate the shard to the particular node
-<5> The decider which led to the `no` decision for the node
-<6> An explanation as to why the decider returned a `no` decision, with a helpful hint pointing to the setting that led to the decision
+<1> The current state of the shard.
+<2> The reason for the shard originally becoming unassigned.
+<3> Whether to allocate the shard.
+<4> Whether to allocate the shard to the particular node.
+<5> The decider which led to the `no` decision for the node.
+<6> An explanation as to why the decider returned a `no` decision, with a helpful hint pointing to the setting that led to the decision.
 
-You can return information gathered by the cluster info service about disk usage
-and shard sizes by setting the `include_disk_info` parameter to `true`:
-
-[source,js]
---------------------------------------------------
-GET /_cluster/allocation/explain?include_disk_info=true
---------------------------------------------------
-// CONSOLE
-
-Additionally, if you would like to include all decisions that were factored into the final
-decision, the `include_yes_decisions` parameter will return all decisions for each node:
-
-[source,js]
---------------------------------------------------
-GET /_cluster/allocation/explain?include_yes_decisions=true
---------------------------------------------------
-// CONSOLE
-
-The default value for `include_yes_decisions` is `false`, which will only
-include the `no` decisions in the response.  This is generally what you would
-want, as the `no` decisions indicate why a shard is unassigned or cannot be moved,
-and including all decisions include the `yes` ones adds a lot of verbosity to the
-API's response output.
 
 The API response output for an unassigned primary shard that had previously been
 allocated to a node in the cluster:
@@ -184,7 +187,11 @@ allocated to a node in the cluster:
 --------------------------------------------------
 // NOTCONSOLE
 
-The API response output for a replica that is unassigned due to delayed allocation:
+
+===== Example of an unassigned replica shard explanation
+
+The API response output for a replica that is unassigned due to delayed 
+allocation:
 
 [source,js]
 --------------------------------------------------
@@ -233,12 +240,15 @@ The API response output for a replica that is unassigned due to delayed allocati
 }
 --------------------------------------------------
 // NOTCONSOLE
-<1> The configured delay before allocating a replica shard that does not exist due to the node holding it leaving the cluster
-<2> The remaining delay before allocating the replica shard
-<3> Information about the shard data found on a node
+<1> The configured delay before allocating a replica shard that does not exist due to the node holding it leaving the cluster.
+<2> The remaining delay before allocating the replica shard.
+<3> Information about the shard data found on a node.
 
-The API response output for an assigned shard that is not allowed to
-remain on its current node and is required to move:
+
+===== Examples of allocated shard explanations
+
+The API response output for an assigned shard that is not allowed to remain on 
+its current node and is required to move:
 
 [source,js]
 --------------------------------------------------
@@ -281,9 +291,10 @@ remain on its current node and is required to move:
 }
 --------------------------------------------------
 // NOTCONSOLE
-<1> Whether the shard is allowed to remain on its current node
-<2> The deciders that factored into the decision of why the shard is not allowed to remain on its current node
-<3> Whether the shard is allowed to be allocated to another node
+<1> Whether the shard is allowed to remain on its current node.
+<2> The deciders that factored into the decision of why the shard is not allowed to remain on its current node.
+<3> Whether the shard is allowed to be allocated to another node.
+
 
 The API response output for an assigned shard that remains on its current node
 because moving the shard to another node does not form a better cluster balance:
@@ -317,6 +328,6 @@ because moving the shard to another node does not form a better cluster balance:
 }
 --------------------------------------------------
 // NOTCONSOLE
-<1> Whether rebalancing is allowed on the cluster
-<2> Whether the shard can be rebalanced to another node
-<3> The reason the shard cannot be rebalanced to the node, in this case indicating that it offers no better balance than the current node
+<1> Whether rebalancing is allowed on the cluster.
+<2> Whether the shard can be rebalanced to another node.
+<3> The reason the shard cannot be rebalanced to the node, in this case indicating that it offers no better balance than the current node.

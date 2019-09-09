@@ -341,12 +341,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private <T> void runAsync(long id, Supplier<T> executable, ActionListener<T> listener) {
-        getExecutor(id).execute(new ActionRunnable<T>(listener) {
-            @Override
-            protected void doRun() {
-                listener.onResponse(executable.get());
-            }
-        });
+        getExecutor(id).execute(ActionRunnable.wrap(listener, l -> l.onResponse(executable.get())));
     }
 
     private SearchPhaseResult executeQueryPhase(ShardSearchRequest request, SearchTask task) throws Exception {
@@ -631,11 +626,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 indexShard.shardId(), request.getClusterAlias(), OriginalIndices.NONE);
         Engine.Searcher searcher = indexShard.acquireSearcher(source);
 
-        final DefaultSearchContext searchContext = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget,
-            searcher, clusterService, indexService, indexShard, bigArrays, threadPool::relativeTimeInMillis, timeout,
-            fetchPhase, clusterService.state().nodes().getMinNodeVersion());
         boolean success = false;
+        DefaultSearchContext searchContext = null;
         try {
+            searchContext = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget,
+                searcher, clusterService, indexService, indexShard, bigArrays, threadPool::relativeTimeInMillis, timeout,
+                fetchPhase, clusterService.state().nodes().getMinNodeVersion());
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services
             // during rewrite and normalized / evaluate templates etc.
@@ -646,6 +642,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         } finally {
             if (success == false) {
                 IOUtils.closeWhileHandlingException(searchContext);
+                if (searchContext == null) {
+                    // we handle the case where the DefaultSearchContext constructor throws an exception since we would otherwise
+                    // leak a searcher and this can have severe implications (unable to obtain shard lock exceptions).
+                    IOUtils.closeWhileHandlingException(searcher);
+                }
             }
         }
         return searchContext;
@@ -1044,15 +1045,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         IndexShard shard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
         Executor executor = getExecutor(shard);
         ActionListener<Rewriteable> actionListener = ActionListener.wrap(r ->
-            // now we need to check if there is a pending refresh and register
-            shard.awaitShardSearchActive(b ->
-                executor.execute(new ActionRunnable<ShardSearchRequest>(listener) {
-                    @Override
-                    protected void doRun() {
-                        listener.onResponse(request);
-                    }
-                })
-            ), listener::onFailure);
+                // now we need to check if there is a pending refresh and register
+                shard.awaitShardSearchActive(b -> executor.execute(ActionRunnable.wrap(listener, l -> l.onResponse(request)))),
+            listener::onFailure);
         // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here for BWC as well as
         // AliasFilters that might need to be rewritten. These are edge-cases but we are every efficient doing the rewrite here so it's not
         // adding a lot of overhead

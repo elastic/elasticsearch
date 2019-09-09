@@ -1,0 +1,416 @@
+[role="xpack"]
+[testenv="basic"]
+[[ilm-with-existing-indices]]
+== Using {ilm-init} with existing indices
+
+While it is recommended to use {ilm-init} to manage the index lifecycle from
+start to finish, it may be useful to use {ilm-init} with existing indices,
+particularly when transitioning from an alternative method of managing the index
+lifecycle such as Curator, or when migrating from daily indices to
+rollover-based indices. Such use cases are fully supported, but there are some
+configuration differences from when {ilm-init} can manage the complete index
+lifecycle.
+
+This section describes strategies to leverage {ilm-init} for existing periodic
+indices when migrating to fully {ilm-init}-manged indices, which can be done in
+a few different ways, each providing different tradeoffs. As an example, we'll
+walk through a use case of a very simple logging index with just a field for the
+log message and a timestamp.
+
+First, we need to create a template for these indices:
+
+[source,js]
+-----------------------
+PUT _template/mylogs_template
+{
+  "index_patterns": [
+    "mylogs-*"
+  ],
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 1
+  },
+  "mappings": {
+    "properties": {
+      "message": {
+        "type": "text"
+      },
+      "@timestamp": {
+        "type": "date"
+      }
+    }
+  }
+}
+-----------------------
+// CONSOLE
+// TEST
+
+And we'll ingest a few documents to create a few daily indices:
+
+[source,js]
+-----------------------
+POST mylogs-pre-ilm-2019.06.24/_doc
+{
+  "@timestamp": "2019-06-24T10:34:00",
+  "message": "this is one log message"
+}
+-----------------------
+// CONSOLE
+// TEST[continued]
+
+[source,js]
+-----------------------
+POST mylogs-pre-ilm-2019.06.25/_doc
+{
+  "@timestamp": "2019-06-25T17:42:00",
+  "message": "this is another log message"
+}
+-----------------------
+// CONSOLE
+// TEST[continued]
+
+Now that we have these indices, we'll look at a few different ways of migrating
+these indices to ILM.
+
+[[ilm-with-existing-periodic-indices]]
+=== Managing existing periodic indices with {ilm-init}
+
+NOTE: The examples in this section assume daily indices as set up in
+<<ilm-with-existing-indices,the previous section>>.
+
+The simplest way to manage existing indices while transitioning to fully
+{ilm-init}-managed indices is to allow all new indices to be fully managed by
+{ilm-init} before attaching {ilm-init} policies to existing indices. To do this,
+all new documents should be directed to {ilm-init}-managed indices - if you are
+using Beats or Logstash data shippers, upgrading all of those shippers to
+version 7.0.0 or higher will take care of that part for you. If you are not
+using Beats or Logstash, you may need to set up ILM for new indices yourself as
+demonstrated in the <<getting-started-index-lifecycle-management,getting started
+guide>>.
+
+NOTE: If you are using Beats through Logstash, you may need to change your
+Logstash output configuration and invoke the Beats setup to use ILM for new
+data.
+
+Once all new documents are being written to fully {ilm-init}-managed indices, it
+is easy to add an {ilm-init} policy to existing indices. However, there are two
+things to keep in mind when doing this, and a trick that makes those two things
+much easier to handle.
+
+The two biggest things to keep in mind are:
+
+1. Existing periodic indices shouldn't use policies with rollover, because
+rollover is used to manage where new data goes. Since existing indices should no
+longer be receiving new documents, there is no point to using rollover for them.
+
+2. {ilm-init} policies attached to existing indices will compare the `min_age`
+for each phase to the original creation date of the index, and so might proceed
+through multiple phases immediately.
+
+The first one is the most important, because it makes it difficult to use the
+same policy for new and existing periodic indices. But that's easy to solve
+with one simple trick: Create a second policy for existing indices, in addition
+to the one for new indices. {ilm-init} policies are cheap to create, so don't be
+afraid to have more than one. Modifying a policy designed for new indices to be
+used on existing indices is generally very simple: just remove the `rollover`
+action.
+
+For example, if you created a policy for your new indices with each phase
+like so:
+[source,js]
+-----------------------
+PUT _ilm/policy/mylogs_policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover": {
+            "max_size": "25GB"
+          }
+        }
+      },
+      "warm": {
+        "min_age": "1d",
+        "actions": {
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "cold": {
+        "min_age": "7d",
+        "actions": {
+          "freeze": {}
+        }
+      },
+      "delete": {
+        "min_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+-----------------------
+// CONSOLE
+// TEST[continued]
+
+You can create a policy for pre-existing indices by removing the `rollover`
+action, and in this case, the `hot` phase is now empty so we can remove that
+too:
+
+[source,js]
+-----------------------
+PUT _ilm/policy/mylogs_policy_existing
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "min_age": "1d",
+        "actions": {
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "cold": {
+        "min_age": "7d",
+        "actions": {
+          "freeze": {}
+        }
+      },
+      "delete": {
+        "min_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+-----------------------
+// CONSOLE
+// TEST[continued]
+
+Creating a separate policy for existing indices will also allow using different
+`min_age` values. You may want to use higher values to prevent many indices from
+running through the policy at once, which may be important if your policy
+includes potentially resource-intensive operations like force merge.
+
+You can configure the lifecycle for many indices at once by using wildcards in
+the index name when calling the <<indices-update-settings,Update Settings API>>
+to set the policy name, but be careful that you don't include any indices that
+you don't want to change the policy for:
+
+[source,js]
+-----------------------
+PUT mylogs-pre-ilm*/_settings <1>
+{
+  "index": {
+    "lifecycle": {
+      "name": "mylogs_policy_existing"
+    }
+  }
+}
+-----------------------
+// CONSOLE
+// TEST[continued]
+
+<1> This pattern will match all indices with names that start with
+`mylogs-pre-ilm`
+
+Once all pre-{ilm-init} indices have aged out and been deleted, the policy for
+older periodic indices can be deleted.
+
+[[ilm-reindexing-into-rollover]]
+=== Reindexing via {ilm-init}
+
+NOTE: The examples in this section assume daily indices as set up in
+<<ilm-with-existing-indices,the previous section>>.
+
+In some cases, it may be useful to reindex data into {ilm-init}-managed indices.
+This is more complex than simply attaching policies to existing indices as
+described in <<ilm-with-existing-periodic-indices,the previous section>>, and
+requires pausing indexing during the reindexing process. However, this technique
+may be useful in cases where periodic indices were created with very small
+amounts of data leading to excessive shard counts, or for indices which grow
+steadily over time, but have not been broken up into time-series indices leading
+to shards which are much too large, situations that cause significant
+performance problems.
+
+Before getting started with reindexing data, the new index structure should be
+set up. For this section, we'll be using the same setup described in
+<<ilm-with-existing-indices,{ilm-imit} with existing indices>>.
+
+First, we'll set up a policy with rollover, and can include any additional
+phases required. For simplicity, we'll just use rollover:
+
+[source,js]
+-----------------------
+PUT _ilm/policy/sample_policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover": {
+            "max_age": "7d",
+            "max_size": "50G"
+          }
+        }
+      }
+    }
+  }
+}
+-----------------------
+// CONSOLE
+// TEST[continued]
+
+And now we'll update the index template for our indices to include the relevant
+{ilm-init} settings:
+
+[source,js]
+-----------------------
+PUT _template/mylogs_template
+{
+  "index_patterns": [
+    "ilm-mylogs-*" <1>
+  ],
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 1,
+    "index": {
+      "lifecycle": {
+        "name": "mylogs_condensed_policy", <2>
+        "rollover_alias": "mylogs" <3>
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "message": {
+        "type": "text"
+      },
+      "@timestamp": {
+        "type": "date"
+      }
+    }
+  }
+}
+-----------------------
+// CONSOLE
+// TEST[continued]
+<1> The new index pattern has a prefix compared to the old one, this will
+    make it easier to reindex later
+<2> The name of the policy we defined above
+<3> The name of the alias we'll use to write to and query
+
+And create the first index with the alias specified in the `rollover_alias`
+setting in the index template:
+
+[source,js]
+-----------------------
+PUT ilm-mylogs-000001
+{
+  "aliases": {
+    "mylogs": {
+      "is_write_index": true
+    }
+  }
+}
+-----------------------
+// CONSOLE
+// TEST[continued]
+
+All new documents should be indexed via the `mylogs` alias at this point. Adding
+new data to the old indices during the reindexing process can cause data to be
+added to the old indices, but not be reindexed into the new indices.
+
+NOTE: If you do not want to mix new data and old data in the new ILM-managed
+indices, indexing of new data should be paused entirely while the reindex
+completes. Mixing old and new data within one index is safe, but keep in mind
+that the indices with mixed data should be retained in their entirety until you
+are ready to delete both the old and new data.
+
+By default, {ilm-init} only checks rollover conditions every 10 minutes. Under
+normal indexing load, this usually works well, but during reindexing, indices
+can grow very, very quickly. We'll need to set the poll interval to something
+shorter to ensure that the new indices don't grow too large while waiting for
+the rollover check:
+
+[source,js]
+-----------------------
+PUT _cluster/settings
+{
+  "transient": {
+    "indices.lifecycle.poll_interval": "1m" <1>
+  }
+}
+-----------------------
+// CONSOLE
+// TEST[skip:don't want to overwrite this setting for other tests]
+<1> This tells ILM to check for rollover conditions every minute
+
+We're now ready to reindex our data using the <<docs-reindex,reindex API>>. If
+you have a timestamp or date field in your documents, as in this example, it may
+be useful to specify that the documents should be sorted by that field - this
+will mean that all documents in `ilm-mylogs-000001` come before all documents in
+`ilm-mylogs-000002`, and so on. However, if this is not a requirement, omitting
+the sort will allow the data to be reindexed more quickly.
+
+IMPORTANT: If your data uses document IDs generated by means other than
+Elasticsearch's automatic ID generation, you may need to do additional
+processing to ensure that the document IDs don't conflict during the reindex, as
+documents will retain their original IDs. One way to do this is to use a
+<<reindex-scripts,script>> in the reindex call to append the original index name
+to the document ID.
+
+[source,js]
+-----------------------
+POST _reindex
+{
+  "source": {
+    "index": "mylogs-*", <1>
+    "sort": { "@timestamp": "desc" }
+  },
+  "dest": {
+    "index": "mylogs", <2>
+    "op_type": "create" <3>
+  }
+}
+-----------------------
+// CONSOLE
+// TEST[continued]
+<1> This index pattern matches our existing indices. Using the prefix for
+    the new indices makes using this index pattern much easier.
+<2> The alias set up above
+<3> This option will cause the reindex to abort if it encounters multiple
+    documents with the same ID. This is optional, but recommended to prevent
+    accidentally overwriting documents if two documents from different indices
+    have the same ID.
+
+Once this completes, indexing new data can be resumed, as long as all new
+documents are indexed into the alias used above. All data, existing and new, can
+be queried using that alias as well. We should also be sure to set the
+{ilm-init} poll interval back to its default value, because keeping it set too
+low can cause unnecessary load on the current master node:
+
+[source,js]
+-----------------------
+PUT _cluster/settings
+{
+  "transient": {
+    "indices.lifecycle.poll_interval": null
+  }
+}
+
+-----------------------
+// CONSOLE
+// TEST[skip:don't want to overwrite this setting for other tests]
+
+All of the reindexed data should now be accessible via the alias set up above,
+in this case `mylogs`. Once you have verified that all the data has been
+reindexed and is available in the new indices, the existing indices can be
+safely removed.

@@ -64,11 +64,6 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(datafeedId);
@@ -118,11 +113,6 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
 
         public Response(BytesReference preview) {
             this.preview = preview;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

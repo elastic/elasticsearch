@@ -37,7 +37,7 @@ public class SqlStatsResponse extends BaseNodesResponse<SqlStatsResponse.NodeSta
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeStatsResponse> nodes) throws IOException {
-        out.writeStreamableList(nodes);
+        out.writeList(nodes);
     }
 
     @Override
@@ -58,7 +58,7 @@ public class SqlStatsResponse extends BaseNodesResponse<SqlStatsResponse.NodeSta
         public NodeStatsResponse(StreamInput in) throws IOException {
             super(in);
             if (in.readBoolean()) {
-                stats = Counters.read(in);
+                stats = new Counters(in);
             }
         }
 

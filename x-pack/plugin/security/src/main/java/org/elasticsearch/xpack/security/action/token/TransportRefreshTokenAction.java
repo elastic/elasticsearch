@@ -24,7 +24,7 @@ public class TransportRefreshTokenAction extends HandledTransportAction<CreateTo
 
     @Inject
     public TransportRefreshTokenAction(TransportService transportService, ActionFilters actionFilters, TokenService tokenService) {
-        super(RefreshTokenAction.NAME, transportService, CreateTokenRequest::new, actionFilters);
+        super(RefreshTokenAction.NAME, transportService, actionFilters, CreateTokenRequest::new);
         this.tokenService = tokenService;
     }
 

@@ -10,15 +10,22 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.Before;
@@ -27,12 +34,12 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClusterRestartTestCase {
@@ -40,14 +47,23 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
     private static final String OLD_CLUSTER_JOB_ID = "ml-config-mappings-old-cluster-job";
     private static final String NEW_CLUSTER_JOB_ID = "ml-config-mappings-new-cluster-job";
 
-    private static final Map<String, Object> EXPECTED_DATA_FRAME_ANALYSIS_MAPPINGS =
-        mapOf(
-            "properties", mapOf(
-                "outlier_detection", mapOf(
-                    "properties", mapOf(
-                        "method", mapOf("type", "keyword"),
-                        "n_neighbors", mapOf("type", "integer"),
-                        "feature_influence_threshold", mapOf("type", "double")))));
+    private static final Map<String, Object> EXPECTED_DATA_FRAME_ANALYSIS_MAPPINGS = getDataFrameAnalysisMappings();
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> getDataFrameAnalysisMappings() {
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+            ElasticsearchMappings.addDataFrameAnalyticsFields(builder);
+            builder.endObject();
+
+            Map<String, Object> asMap = builder.generator().contentType().xContent().createParser(
+                NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput()).map();
+            return (Map<String, Object>) asMap.get(DataFrameAnalyticsConfig.ANALYSIS.getPreferredName());
+        } catch (IOException e) {
+            fail("Failed to initialize expected data frame analysis mappings");
+        }
+        return null;
+    }
 
     @Override
     protected Settings restClientSettings() {
@@ -69,8 +85,8 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
             // trigger .ml-config index creation
             createAnomalyDetectorJob(OLD_CLUSTER_JOB_ID);
             if (getOldClusterVersion().onOrAfter(Version.V_7_3_0)) {
-                // .ml-config has correct mappings from the start
-                assertThat(mappingsForDataFrameAnalysis(), is(equalTo(EXPECTED_DATA_FRAME_ANALYSIS_MAPPINGS)));
+                // .ml-config has mappings for analytics as the feature was introduced in 7.3.0
+                assertThat(mappingsForDataFrameAnalysis(), is(notNullValue()));
             } else {
                 // .ml-config does not yet have correct mappings, it will need an update after cluster is upgraded
                 assertThat(mappingsForDataFrameAnalysis(), is(nullValue()));
@@ -117,19 +133,5 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
         }
         mappings = (Map<String, Object>) XContentMapValues.extractValue(mappings, "properties", "analysis");
         return mappings;
-    }
-
-    private static <K, V> Map<K, V> mapOf(K k1, V v1) {
-        Map<K, V> map = new HashMap<>();
-        map.put(k1, v1);
-        return map;
-    }
-
-    private static <K, V> Map<K, V> mapOf(K k1, V v1, K k2, V v2, K k3, V v3) {
-        Map<K, V> map = new HashMap<>();
-        map.put(k1, v1);
-        map.put(k2, v2);
-        map.put(k3, v3);
-        return map;
     }
 }

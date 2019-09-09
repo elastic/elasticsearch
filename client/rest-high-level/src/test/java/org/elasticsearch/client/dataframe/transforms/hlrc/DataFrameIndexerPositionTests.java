@@ -21,6 +21,7 @@ package org.elasticsearch.client.dataframe.transforms.hlrc;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerPosition;
 
 import java.util.LinkedHashMap;
@@ -40,9 +41,13 @@ public class DataFrameIndexerPositionTests extends AbstractResponseTestCase<
         return new DataFrameIndexerPosition(instance.getIndexerPosition(), instance.getBucketsPosition());
     }
 
-    @Override
-    protected DataFrameIndexerPosition createServerTestInstance() {
+    public static DataFrameIndexerPosition randomDataFrameIndexerPosition() {
         return new DataFrameIndexerPosition(randomPositionMap(), randomPositionMap());
+    }
+
+    @Override
+    protected DataFrameIndexerPosition createServerTestInstance(XContentType xContentType) {
+        return randomDataFrameIndexerPosition();
     }
 
     @Override

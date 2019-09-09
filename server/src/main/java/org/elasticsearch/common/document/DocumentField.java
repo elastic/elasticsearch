@@ -21,7 +21,7 @@ package org.elasticsearch.common.document;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -44,12 +44,18 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsV
  * @see SearchHit
  * @see GetResult
  */
-public class DocumentField implements Streamable, ToXContentFragment, Iterable<Object> {
+public class DocumentField implements Writeable, ToXContentFragment, Iterable<Object> {
 
     private String name;
     private List<Object> values;
 
-    private DocumentField() {
+    public DocumentField(StreamInput in) throws IOException {
+        name = in.readString();
+        int size = in.readVInt();
+        values = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            values.add(in.readGenericValue());
+        }
     }
 
     public DocumentField(String name, List<Object> values) {
@@ -91,22 +97,6 @@ public class DocumentField implements Streamable, ToXContentFragment, Iterable<O
     @Override
     public Iterator<Object> iterator() {
         return values.iterator();
-    }
-
-    public static DocumentField readDocumentField(StreamInput in) throws IOException {
-        DocumentField result = new DocumentField();
-        result.readFrom(in);
-        return result;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
-        int size = in.readVInt();
-        values = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            values.add(in.readGenericValue());
-        }
     }
 
     @Override

@@ -74,7 +74,7 @@ public class TransportIndicesSegmentsAction
 
     @Override
     protected ShardSegments readShardResult(StreamInput in) throws IOException {
-        return ShardSegments.readShardSegments(in);
+        return new ShardSegments(in);
     }
 
     @Override

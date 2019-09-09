@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.security.action.saml;
 
-import java.io.IOException;
-
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationRequest;
 import org.elasticsearch.xpack.security.authc.saml.SamlTestCase;
 import org.hamcrest.Matchers;
+
+import java.io.IOException;
 
 public class SamlPrepareAuthenticationRequestTests extends SamlTestCase {
 
@@ -32,8 +32,7 @@ public class SamlPrepareAuthenticationRequestTests extends SamlTestCase {
         final BytesStreamOutput out = new BytesStreamOutput();
         req1.writeTo(out);
 
-        final SamlPrepareAuthenticationRequest req2 = new SamlPrepareAuthenticationRequest();
-        req2.readFrom(out.bytes().streamInput());
+        final SamlPrepareAuthenticationRequest req2 = new SamlPrepareAuthenticationRequest(out.bytes().streamInput());
 
         assertThat(req2.getRealmName(), Matchers.equalTo(req1.getRealmName()));
         assertThat(req2.getAssertionConsumerServiceURL(), Matchers.equalTo(req1.getAssertionConsumerServiceURL()));

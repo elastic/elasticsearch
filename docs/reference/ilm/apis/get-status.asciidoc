@@ -23,7 +23,7 @@ or `STOPPED`. You can change the status of the {ilm-init} plugin with the
 
 ==== Request Parameters
 
-include::{docdir}/rest-api/timeoutparms.asciidoc[]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 ==== Authorization
 
@@ -42,11 +42,9 @@ GET _ilm/status
 
 If the request succeeds, the body of the response shows the operation mode:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "operation_mode": "RUNNING"
 }
 --------------------------------------------------
-// CONSOLE
-// TESTRESPONSE

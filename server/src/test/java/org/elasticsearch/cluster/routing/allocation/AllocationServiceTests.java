@@ -49,8 +49,8 @@ public class AllocationServiceTests extends ESTestCase {
     }
 
     public void testFirstListElementsToCommaDelimitedStringReportsFirstElementsIfLong() {
-        List<String> strings = IntStream.range(0, between(11, 100)).mapToObj(i -> randomAlphaOfLength(10))
-            .distinct().collect(Collectors.toList());
+        List<String> strings = IntStream.range(0, between(0, 100))
+            .mapToObj(i -> randomAlphaOfLength(between(6, 10))).distinct().collect(Collectors.toList());
         final String abbreviated = AllocationService.firstListElementsToCommaDelimitedString(strings, Function.identity(), false);
         for (int i = 0; i < strings.size(); i++) {
             if (i < 10) {
@@ -59,8 +59,13 @@ public class AllocationServiceTests extends ESTestCase {
                 assertThat(abbreviated, not(containsString(strings.get(i))));
             }
         }
-        assertThat(abbreviated, containsString("..."));
-        assertThat(abbreviated, containsString("[" + strings.size() + " items in total]"));
+
+        if (strings.size() > 10) {
+            assertThat(abbreviated, containsString("..."));
+            assertThat(abbreviated, containsString("[" + strings.size() + " items in total]"));
+        } else {
+            assertThat(abbreviated, not(containsString("...")));
+        }
     }
 
     public void testFirstListElementsToCommaDelimitedStringUsesFormatterNotToString() {

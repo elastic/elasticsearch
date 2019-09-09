@@ -47,7 +47,7 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
 
         for (int i = 0; i < size; i++) {
             locations.add(in.readVInt());
-            items.add(MultiGetRequest.Item.readItem(in));
+            items.add(new MultiGetRequest.Item(in));
         }
 
         preference = in.readOptionalString();

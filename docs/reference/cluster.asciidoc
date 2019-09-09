@@ -1,8 +1,8 @@
 [[cluster]]
-= Cluster APIs
+== Cluster APIs
 
 ["float",id="cluster-nodes"]
-== Node specification
+=== Node specification
 
 Some cluster-level APIs may operate on a subset of the nodes which can be
 specified with _node filters_. For example, the <<tasks,Task Management>>,

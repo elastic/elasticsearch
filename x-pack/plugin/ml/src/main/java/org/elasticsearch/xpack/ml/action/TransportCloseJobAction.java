@@ -37,7 +37,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -53,14 +53,14 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
     private final ThreadPool threadPool;
     private final Client client;
     private final ClusterService clusterService;
-    private final Auditor auditor;
+    private final AnomalyDetectionAuditor auditor;
     private final PersistentTasksService persistentTasksService;
     private final JobConfigProvider jobConfigProvider;
     private final DatafeedConfigProvider datafeedConfigProvider;
 
     @Inject
     public TransportCloseJobAction(TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
-                                   ClusterService clusterService, Client client, Auditor auditor,
+                                   ClusterService clusterService, Client client, AnomalyDetectionAuditor auditor,
                                    PersistentTasksService persistentTasksService, JobConfigProvider jobConfigProvider,
                                    DatafeedConfigProvider datafeedConfigProvider) {
         // We fork in innerTaskOperation(...), so we can use ThreadPool.Names.SAME here:
@@ -242,8 +242,10 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
         }
     }
 
-    static TransportCloseJobAction.WaitForCloseRequest buildWaitForCloseRequest(List<String> openJobIds, List<String> closingJobIds,
-                                                                                PersistentTasksCustomMetaData tasks, Auditor auditor) {
+    static TransportCloseJobAction.WaitForCloseRequest buildWaitForCloseRequest(List<String> openJobIds,
+                                                                                List<String> closingJobIds,
+                                                                                PersistentTasksCustomMetaData tasks,
+                                                                                AnomalyDetectionAuditor auditor) {
         TransportCloseJobAction.WaitForCloseRequest waitForCloseRequest = new TransportCloseJobAction.WaitForCloseRequest();
 
         for (String jobId : openJobIds) {

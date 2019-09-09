@@ -19,7 +19,7 @@ time. You can then detect anomalies and surface rare events or unusual types of
 messages by using count or rare functions. For example:
 
 //Obtained from it_ops_new_app_logs.sh
-[source,js]
+[source,console]
 ----------------------------------
 PUT _ml/anomaly_detectors/it_ops_new_logs
 {
@@ -43,8 +43,8 @@ PUT _ml/anomaly_detectors/it_ops_new_logs
   }
 }
 ----------------------------------
-//CONSOLE
 // TEST[skip:needs-licence]
+
 <1> The `categorization_field_name` property indicates which field will be
 categorized.
 <2> The resulting categories are used in a detector by setting `by_field_name`,
@@ -68,8 +68,8 @@ we do not want the detailed SQL to be considered in the message categorization.
 This particular categorization filter removes the SQL statement from the categorization
 algorithm.
 
-If your data is stored in {es}, you can create an advanced job with these same
-properties:
+If your data is stored in {es}, you can create an advanced {anomaly-job} with
+these same properties:
 
 [role="screenshot"]
 image::images/ml-category-advanced.jpg["Advanced job configuration options related to categorization"]
@@ -89,7 +89,7 @@ supported, as described in the <<ml-limitations>>.
 You can, however, change the tokenization rules by customizing the way the
 categorization field values are interpreted. For example:
 
-[source,js]
+[source,console]
 ----------------------------------
 PUT _ml/anomaly_detectors/it_ops_new_logs2
 {
@@ -127,8 +127,8 @@ PUT _ml/anomaly_detectors/it_ops_new_logs2
   }
 }
 ----------------------------------
-//CONSOLE
 // TEST[skip:needs-licence]
+
 <1> The
 {ref}/analysis-pattern-replace-charfilter.html[`pattern_replace` character filter]
 here achieves exactly the same as the `categorization_filters` in the first
@@ -151,7 +151,7 @@ equivalent to the following analyzer, which is defined using only built-in {es}
 {ref}/analysis-tokenizers.html[tokenizers] and
 {ref}/analysis-tokenfilters.html[token filters]:
 
-[source,js]
+[source,console]
 ----------------------------------
 PUT _ml/anomaly_detectors/it_ops_new_logs3
 {
@@ -194,8 +194,8 @@ PUT _ml/anomaly_detectors/it_ops_new_logs3
   }
 }
 ----------------------------------
-//CONSOLE
 // TEST[skip:needs-licence]
+
 <1> Tokens basically consist of hyphens, digits, letters, underscores and dots.
 <2> By default, categorization ignores tokens that begin with a digit.
 <3> By default, categorization also ignores tokens that are hexadecimal numbers.
@@ -209,7 +209,7 @@ letters in tokens whereas the `ml_classic` tokenizer does, although that could
 be fixed by using more complex regular expressions.
 
 For more information about the `categorization_analyzer` property, see
-{ref}/ml-job-resource.html#ml-categorizationanalyzer[Categorization Analyzer].
+{ref}/ml-job-resource.html#ml-categorizationanalyzer[Categorization analyzer].
 
 NOTE: To add the `categorization_analyzer` property in {kib}, you must use the
 **Edit JSON** tab and copy the `categorization_analyzer` object from one of the

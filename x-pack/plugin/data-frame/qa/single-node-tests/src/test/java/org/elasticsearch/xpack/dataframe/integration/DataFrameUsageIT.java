@@ -11,7 +11,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStoredDoc;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 import org.junit.Before;
 
@@ -54,9 +54,9 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
         stopDataFrameTransform("test_usage", false);
 
         Request statsExistsRequest = new Request("GET",
-            DataFrameInternalIndex.INDEX_NAME+"/_search?q=" +
+            DataFrameInternalIndex.LATEST_INDEX_NAME+"/_search?q=" +
                 INDEX_DOC_TYPE.getPreferredName() + ":" +
-                DataFrameTransformStateAndStats.NAME);
+                DataFrameTransformStoredDoc.NAME);
         // Verify that we have one stat document
         assertBusy(() -> {
             Map<String, Object> hasStatsMap = entityAsMap(client().performRequest(statsExistsRequest));
@@ -96,7 +96,7 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
                     XContentMapValues.extractValue("data_frame.stats." + statName, statsMap));
             }
             // Refresh the index so that statistics are searchable
-            refreshIndex(DataFrameInternalIndex.INDEX_TEMPLATE_NAME);
+            refreshIndex(DataFrameInternalIndex.LATEST_INDEX_VERSIONED_NAME);
         }, 60, TimeUnit.SECONDS);
 
 

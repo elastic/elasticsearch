@@ -40,7 +40,6 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetaData;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
@@ -280,9 +279,9 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
         List<RestHandler> handlers = new ArrayList<>();
-        handlers.add(new RestXPackInfoAction(settings, restController));
-        handlers.add(new RestXPackUsageAction(settings, restController));
-        handlers.add(new RestReloadAnalyzersAction(settings, restController));
+        handlers.add(new RestXPackInfoAction(restController));
+        handlers.add(new RestXPackUsageAction(restController));
+        handlers.add(new RestReloadAnalyzersAction(restController));
         handlers.addAll(licensing.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
                 indexNameExpressionResolver, nodesInCluster));
         return handlers;
@@ -309,32 +308,6 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
             }
         }
         return config;
-    }
-
-    public interface XPackClusterStateCustom extends ClusterState.Custom {
-
-        @Override
-        default Optional<String> getRequiredFeature() {
-            return XPackClientPlugin.X_PACK_FEATURE;
-        }
-
-    }
-
-    public interface XPackMetaDataCustom extends MetaData.Custom {
-
-        @Override
-        default Optional<String> getRequiredFeature() {
-            return XPackClientPlugin.X_PACK_FEATURE;
-        }
-
-    }
-
-    public interface XPackPersistentTaskParams extends PersistentTaskParams {
-
-        @Override
-        default Optional<String> getRequiredFeature() {
-            return XPackClientPlugin.X_PACK_FEATURE;
-        }
     }
 
     @Override

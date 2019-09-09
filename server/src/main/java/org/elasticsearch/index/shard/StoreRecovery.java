@@ -354,7 +354,6 @@ final class StoreRecovery {
         final RecoveryState recoveryState = indexShard.recoveryState();
         final boolean indexShouldExists = recoveryState.getRecoverySource().getType() != RecoverySource.Type.EMPTY_STORE;
         indexShard.prepareForIndexRecovery();
-        long version = -1;
         SegmentInfos si = null;
         final Store store = indexShard.store();
         store.incRef();
@@ -376,21 +375,16 @@ final class StoreRecovery {
                             "shard allocated for local recovery (post api), should exist, but doesn't, current files: " + files, e);
                     }
                 }
-                if (si != null) {
-                    if (indexShouldExists) {
-                        version = si.getVersion();
-                    } else {
-                        // it exists on the directory, but shouldn't exist on the FS, its a leftover (possibly dangling)
-                        // its a "new index create" API, we have to do something, so better to clean it than use same data
-                        logger.trace("cleaning existing shard, shouldn't exists");
-                        Lucene.cleanLuceneIndex(store.directory());
-                        si = null;
-                    }
+                if (si != null && indexShouldExists == false) {
+                    // it exists on the directory, but shouldn't exist on the FS, its a leftover (possibly dangling)
+                    // its a "new index create" API, we have to do something, so better to clean it than use same data
+                    logger.trace("cleaning existing shard, shouldn't exists");
+                    Lucene.cleanLuceneIndex(store.directory());
+                    si = null;
                 }
             } catch (Exception e) {
                 throw new IndexShardRecoveryException(shardId, "failed to fetch index version after copying it over", e);
             }
-            recoveryState.getIndex().updateVersion(version);
             if (recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
                 assert indexShouldExists;
                 bootstrap(indexShard, store);

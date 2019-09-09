@@ -1,5 +1,8 @@
 [[query-dsl-function-score-query]]
-=== Function Score Query
+=== Function score query
+++++
+<titleabbrev>Function score</titleabbrev>
+++++
 
 The `function_score` allows you to modify the score of documents that are
 retrieved by a query. This can be useful if, for example, a score

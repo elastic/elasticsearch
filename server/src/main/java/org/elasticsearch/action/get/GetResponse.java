@@ -50,7 +50,7 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
 
     GetResponse(StreamInput in) throws IOException {
         super(in);
-        getResult = GetResult.readGetResult(in);
+        getResult = new GetResult(in);
     }
 
     public GetResponse(GetResult getResult) {
@@ -201,11 +201,6 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
                     String.format(Locale.ROOT, "Missing required fields [%s,%s,%s]", GetResult._INDEX, GetResult._TYPE, GetResult._ID));
         }
         return new GetResponse(getResult);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

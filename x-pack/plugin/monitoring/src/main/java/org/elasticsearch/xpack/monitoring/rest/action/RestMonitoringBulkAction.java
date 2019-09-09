@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -44,8 +43,7 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
     private final Map<MonitoredSystem, List<String>> supportedApiVersions;
 
-    public RestMonitoringBulkAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestMonitoringBulkAction(RestController controller) {
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(POST, "/_monitoring/bulk", this,
             POST, "/_xpack/monitoring/_bulk", deprecationLogger);

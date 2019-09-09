@@ -48,7 +48,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
     public TransportMultiGetAction(TransportService transportService, ClusterService clusterService,
                                    NodeClient client, ActionFilters actionFilters,
                                    IndexNameExpressionResolver resolver) {
-        super(MultiGetAction.NAME, transportService, MultiGetRequest::new, actionFilters);
+        super(MultiGetAction.NAME, transportService, actionFilters, MultiGetRequest::new);
         this.clusterService = clusterService;
         this.client = client;
         this.indexNameExpressionResolver = resolver;

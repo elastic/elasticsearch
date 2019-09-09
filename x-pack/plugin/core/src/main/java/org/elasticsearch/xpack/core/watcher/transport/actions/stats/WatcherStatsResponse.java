@@ -54,7 +54,7 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<Node> nodes) throws IOException {
-        out.writeStreamableList(nodes);
+        out.writeList(nodes);
     }
 
     @Override
@@ -100,13 +100,13 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
             watcherState = WatcherState.fromId(in.readByte());
 
             if (in.readBoolean()) {
-                snapshots = in.readStreamableList(WatchExecutionSnapshot::new);
+                snapshots = in.readList(WatchExecutionSnapshot::new);
             }
             if (in.readBoolean()) {
-                queuedWatches = in.readStreamableList(QueuedWatch::new);
+                queuedWatches = in.readList(QueuedWatch::new);
             }
             if (in.readBoolean()) {
-                stats = Counters.read(in);
+                stats = new Counters(in);
             }
         }
 
@@ -194,11 +194,11 @@ public class WatcherStatsResponse extends BaseNodesResponse<WatcherStatsResponse
 
             out.writeBoolean(snapshots != null);
             if (snapshots != null) {
-                out.writeStreamableList(snapshots);
+                out.writeList(snapshots);
             }
             out.writeBoolean(queuedWatches != null);
             if (queuedWatches != null) {
-                out.writeStreamableList(queuedWatches);
+                out.writeList(queuedWatches);
             }
             out.writeBoolean(stats != null);
             if (stats != null) {

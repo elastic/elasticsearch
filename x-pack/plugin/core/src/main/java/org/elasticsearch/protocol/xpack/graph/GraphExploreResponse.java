@@ -114,11 +114,6 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
         return shardFailures;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
     public Collection<Connection> getConnections() {
         return connections.values();
     }

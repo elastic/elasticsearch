@@ -65,16 +65,16 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
         ConstructingObjectParser<DataFrameTransformCheckpoint, Void> parser = new ConstructingObjectParser<>(NAME,
                 lenient, args -> {
                     String id = (String) args[0];
-                    Long timestamp = (Long) args[1];
-                    Long checkpoint = (Long) args[2];
+                    long timestamp = (Long) args[1];
+                    long checkpoint = (Long) args[2];
 
                     @SuppressWarnings("unchecked")
                     Map<String, long[]> checkpoints = (Map<String, long[]>) args[3];
 
-                    Long timestamp_checkpoint = (Long) args[4];
+                    Long timeUpperBound = (Long) args[4];
 
                     // ignored, only for internal storage: String docType = (String) args[5];
-                    return new DataFrameTransformCheckpoint(id, timestamp, checkpoint, checkpoints, timestamp_checkpoint);
+                    return new DataFrameTransformCheckpoint(id, timestamp, checkpoint, checkpoints, timeUpperBound);
                 });
 
         parser.declareString(constructorArg(), DataFrameField.ID);
@@ -108,13 +108,13 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
         return parser;
     }
 
-    public DataFrameTransformCheckpoint(String transformId, Long timestamp, Long checkpoint, Map<String, long[]> checkpoints,
+    public DataFrameTransformCheckpoint(String transformId, long timestamp, long checkpoint, Map<String, long[]> checkpoints,
             Long timeUpperBound) {
-        this.transformId = transformId;
-        this.timestampMillis = timestamp.longValue();
+        this.transformId = Objects.requireNonNull(transformId);
+        this.timestampMillis = timestamp;
         this.checkpoint = checkpoint;
         this.indicesCheckpoints = Collections.unmodifiableMap(checkpoints);
-        this.timeUpperBoundMillis = timeUpperBound == null ? 0 : timeUpperBound.longValue();
+        this.timeUpperBoundMillis = timeUpperBound == null ? 0 : timeUpperBound;
     }
 
     public DataFrameTransformCheckpoint(StreamInput in) throws IOException {
@@ -279,28 +279,30 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
             throw new IllegalArgumentException("old checkpoint is newer than new checkpoint");
         }
 
-        // get the sum of of shard checkpoints
+        // get the sum of of shard operations (that are fully replicated), which is 1 higher than the global checkpoint for each shard
         // note: we require shard checkpoints to strictly increase and never decrease
-        long oldCheckPointSum = 0;
-        long newCheckPointSum = 0;
+        long oldCheckPointOperationsSum = 0;
+        long newCheckPointOperationsSum = 0;
 
         for (Entry<String, long[]> entry : oldCheckpoint.indicesCheckpoints.entrySet()) {
             // ignore entries that aren't part of newCheckpoint, e.g. deleted indices
             if (newCheckpoint.indicesCheckpoints.containsKey(entry.getKey())) {
-                oldCheckPointSum += Arrays.stream(entry.getValue()).sum();
+                // Add 1 per shard as sequence numbers start at 0, i.e. sequence number 0 means there has been 1 operation
+                oldCheckPointOperationsSum += Arrays.stream(entry.getValue()).sum() + entry.getValue().length;
             }
         }
 
         for (long[] v : newCheckpoint.indicesCheckpoints.values()) {
-            newCheckPointSum += Arrays.stream(v).sum();
+            // Add 1 per shard as sequence numbers start at 0, i.e. sequence number 0 means there has been 1 operation
+            newCheckPointOperationsSum += Arrays.stream(v).sum() + v.length;
         }
 
         // this should not be possible
-        if (newCheckPointSum < oldCheckPointSum) {
+        if (newCheckPointOperationsSum < oldCheckPointOperationsSum) {
             return -1L;
         }
 
-        return newCheckPointSum - oldCheckPointSum;
+        return newCheckPointOperationsSum - oldCheckPointOperationsSum;
     }
 
     private static Map<String, long[]> readCheckpoints(Map<String, Object> readMap) {

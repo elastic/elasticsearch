@@ -33,14 +33,14 @@ For more information, see
 
 The following example checks whether you are eligible to start a basic:
 
-[source,js]
+[source,console]
 ------------------------------------------------------------
 GET /_license/basic_status
 ------------------------------------------------------------
-// CONSOLE
 
 Example response:
-[source,js]
+
+[source,console-result]
 ------------------------------------------------------------
 {
   "eligible_to_start_basic": true

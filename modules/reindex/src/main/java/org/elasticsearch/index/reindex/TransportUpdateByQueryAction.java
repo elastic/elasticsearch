@@ -70,7 +70,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                 ClusterState state = clusterService.state();
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(),
                     bulkByScrollTask);
-                new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, this, request, state,
+                new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, scriptService, request, state,
                     listener).start();
             }
         );
@@ -82,19 +82,19 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<UpdateByQueryRequest, TransportUpdateByQueryAction> {
 
         AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
-                ThreadPool threadPool, TransportUpdateByQueryAction action, UpdateByQueryRequest request, ClusterState clusterState,
-                ActionListener<BulkByScrollResponse> listener) {
+                                 ThreadPool threadPool, ScriptService scriptService, UpdateByQueryRequest request,
+                                 ClusterState clusterState, ActionListener<BulkByScrollResponse> listener) {
             super(task,
                 // use sequence number powered optimistic concurrency control
                 false, true,
-                logger, client, threadPool, action, request, listener);
+                logger, client, threadPool, request, listener, scriptService, null);
         }
 
         @Override
         public BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
             Script script = mainRequest.getScript();
             if (script != null) {
-                return new UpdateByQueryScriptApplier(worker, mainAction.scriptService, script, script.getParams());
+                return new UpdateByQueryScriptApplier(worker, scriptService, script, script.getParams());
             }
             return super.buildScriptApplier();
         }

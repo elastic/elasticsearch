@@ -368,8 +368,8 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         protected Result result = null;
         protected boolean forcedRefresh;
         protected ShardInfo shardInfo = null;
-        protected Long seqNo = UNASSIGNED_SEQ_NO;
-        protected Long primaryTerm = UNASSIGNED_PRIMARY_TERM;
+        protected long seqNo = UNASSIGNED_SEQ_NO;
+        protected long primaryTerm = UNASSIGNED_PRIMARY_TERM;
 
         public ShardId getShardId() {
             return shardId;
@@ -411,11 +411,11 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             this.shardInfo = shardInfo;
         }
 
-        public void setSeqNo(Long seqNo) {
+        public void setSeqNo(long seqNo) {
             this.seqNo = seqNo;
         }
 
-        public void setPrimaryTerm(Long primaryTerm) {
+        public void setPrimaryTerm(long primaryTerm) {
             this.primaryTerm = primaryTerm;
         }
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
@@ -41,7 +42,14 @@ public final class EDecimal extends AExpression {
     }
 
     @Override
-    void extractVariables(Set<String> variables) {}
+    void storeSettings(CompilerSettings settings) {
+        // Do nothing.
+    }
+
+    @Override
+    void extractVariables(Set<String> variables) {
+        // Do nothing.
+    }
 
     @Override
     void analyze(Locals locals) {

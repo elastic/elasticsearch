@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.graph.rest.action;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -18,7 +17,7 @@ public class RestGraphActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        new RestGraphAction(Settings.EMPTY, controller());
+        new RestGraphAction(controller());
     }
 
     public void testTypeInPath() {

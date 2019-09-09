@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStatsTests;
+import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -78,7 +79,8 @@ public class GetDatafeedStatsActionResponseTests extends AbstractWireSerializing
                 Set.of(),
                 Version.CURRENT);
 
-        DatafeedTimingStats timingStats = new DatafeedTimingStats("my-job-id", 5, 10, 100.0);
+        DatafeedTimingStats timingStats =
+            new DatafeedTimingStats("my-job-id", 5, 10, 100.0, new ExponentialAverageCalculationContext(50.0, null, null));
 
         Response.DatafeedStats stats = new Response.DatafeedStats("df-id", DatafeedState.STARTED, node, null, timingStats);
 
@@ -110,11 +112,12 @@ public class GetDatafeedStatsActionResponseTests extends AbstractWireSerializing
         assertThat(nodeAttributes, hasEntry("ml.max_open_jobs", "5"));
 
         Map<String, Object> timingStatsMap = (Map<String, Object>) dfStatsMap.get("timing_stats");
-        assertThat(timingStatsMap.size(), is(equalTo(5)));
+        assertThat(timingStatsMap.size(), is(equalTo(6)));
         assertThat(timingStatsMap, hasEntry("job_id", "my-job-id"));
         assertThat(timingStatsMap, hasEntry("search_count", 5));
         assertThat(timingStatsMap, hasEntry("bucket_count", 10));
         assertThat(timingStatsMap, hasEntry("total_search_time_ms", 100.0));
         assertThat(timingStatsMap, hasEntry("average_search_time_per_bucket_ms", 10.0));
+        assertThat(timingStatsMap, hasEntry("exponential_average_search_time_per_hour_ms", 50.0));
     }
 }

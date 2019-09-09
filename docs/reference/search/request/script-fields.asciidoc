@@ -1,5 +1,5 @@
 [[request-body-search-script-fields]]
-=== Script Fields
+==== Script Fields
 
 Allows to return a <<modules-scripting,script
 evaluation>> (based on different fields) for each hit, for example:

@@ -21,6 +21,8 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -41,6 +43,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
 
@@ -95,15 +98,21 @@ public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
 
         ClusterState cs = csBuilder.build();
         Client client = mock(Client.class);
+        DataFrameAuditor mockAuditor = mock(DataFrameAuditor.class);
         DataFrameTransformsConfigManager transformsConfigManager = new DataFrameTransformsConfigManager(client, xContentRegistry());
         DataFrameTransformsCheckpointService dataFrameTransformsCheckpointService = new DataFrameTransformsCheckpointService(client,
-            transformsConfigManager);
-
+            transformsConfigManager, mockAuditor);
+        ClusterSettings cSettings = new ClusterSettings(Settings.EMPTY,
+            Collections.singleton(DataFrameTransformTask.NUM_FAILURE_RETRIES_SETTING));
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(cSettings);
         DataFrameTransformPersistentTasksExecutor executor = new DataFrameTransformPersistentTasksExecutor(client,
             transformsConfigManager,
             dataFrameTransformsCheckpointService, mock(SchedulerEngine.class),
             new DataFrameAuditor(client, ""),
-            mock(ThreadPool.class));
+            mock(ThreadPool.class),
+            clusterService,
+            Settings.EMPTY);
 
         assertThat(executor.getAssignment(new DataFrameTransform("new-task-id", Version.CURRENT, null), cs).getExecutorNode(),
             equalTo("current-data-node-with-1-tasks"));
@@ -125,7 +134,7 @@ public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
 
         metaData = new MetaData.Builder(cs.metaData());
         routingTable = new RoutingTable.Builder(cs.routingTable());
-        String indexToRemove = DataFrameInternalIndex.INDEX_NAME;
+        String indexToRemove = DataFrameInternalIndex.LATEST_INDEX_NAME;
         if (randomBoolean()) {
             routingTable.remove(indexToRemove);
         } else {
@@ -148,7 +157,7 @@ public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
     private void addIndices(MetaData.Builder metaData, RoutingTable.Builder routingTable) {
         List<String> indices = new ArrayList<>();
         indices.add(DataFrameInternalIndex.AUDIT_INDEX);
-        indices.add(DataFrameInternalIndex.INDEX_NAME);
+        indices.add(DataFrameInternalIndex.LATEST_INDEX_NAME);
         for (String indexName : indices) {
             IndexMetaData.Builder indexMetaData = IndexMetaData.builder(indexName);
             indexMetaData.settings(Settings.builder()

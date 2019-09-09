@@ -4,10 +4,12 @@
 :response: AcknowledgedResponse
 --
 [id="{upid}-{api}"]
-=== Delete Data Frame Transform API
+=== Delete {dataframe-transform} API
+
+Deletes an existing {dataframe-transform}.
 
 [id="{upid}-{api}-request"]
-==== Delete Data Frame Transform Request
+==== Delete {dataframe-transform} request
 
 A +{request}+ object requires a non-null `id`.
 
@@ -16,6 +18,9 @@ A +{request}+ object requires a non-null `id`.
 include-tagged::{doc-tests-file}[{api}-request]
 ---------------------------------------------------
 <1> Constructing a new request referencing an existing {dataframe-transform}
+<2> Sets the optional argument `force`. When `true`, the {dataframe-transform}
+is deleted regardless of its current state. The default value is `false`,
+meaning that only `stopped` {dataframe-transforms} can be deleted.
 
 include::../execution.asciidoc[]
 

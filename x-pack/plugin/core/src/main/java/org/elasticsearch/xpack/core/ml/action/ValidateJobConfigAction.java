@@ -72,6 +72,11 @@ public class ValidateJobConfigAction extends ActionType<AcknowledgedResponse> {
             this.job = job;
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            job = new Job(in);
+        }
+
         public Job getJob() {
             return job;
         }
@@ -85,12 +90,6 @@ public class ValidateJobConfigAction extends ActionType<AcknowledgedResponse> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             job.writeTo(out);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            job = new Job(in);
         }
 
         @Override

@@ -1,5 +1,8 @@
 [[query-dsl-geo-distance-query]]
-=== Geo Distance Query
+=== Geo-distance query
+++++
+<titleabbrev>Geo-distance</titleabbrev>
+++++
 
 Filters documents that include only hits that exists within a specific
 distance from a geo point. Assuming the following mapping and indexed

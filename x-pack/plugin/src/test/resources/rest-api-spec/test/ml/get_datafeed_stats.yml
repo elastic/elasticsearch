@@ -255,3 +255,62 @@ setup:
   - match: { datafeeds.0.state: "stopped"}
   - match: { datafeeds.1.datafeed_id: "datafeed-2"}
   - match: { datafeeds.1.state: "stopped"}
+
+---
+"Test get datafeed stats when total_search_time_ms mapping is missing":
+
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.delete:
+        index: ".ml-anomalies-shared"
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.create:
+        index: ".ml-special-index-to-avoid-picking-up-template"
+        body:
+          mappings:
+            properties:
+              timestamp:
+                type: date
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.put_alias:
+        index: ".ml-special-index-to-avoid-picking-up-template"
+        name: ".ml-anomalies-get-datafeed-stats-1"
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.put_alias:
+        index: ".ml-special-index-to-avoid-picking-up-template"
+        name: ".ml-anomalies-.write-get-datafeed-stats-1"
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.put_alias:
+        index: ".ml-special-index-to-avoid-picking-up-template"
+        name: ".ml-anomalies-get-datafeed-stats-2"
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.put_alias:
+        index: ".ml-special-index-to-avoid-picking-up-template"
+        name: ".ml-anomalies-.write-get-datafeed-stats-2"
+
+  - do:
+      ml.get_datafeed_stats: {}
+  - match: { count: 2 }
+  - match: { datafeeds.0.datafeed_id: "datafeed-1"}
+  - match: { datafeeds.0.state: "stopped"}
+  - match: { datafeeds.1.datafeed_id: "datafeed-2"}
+  - match: { datafeeds.1.state: "stopped"}

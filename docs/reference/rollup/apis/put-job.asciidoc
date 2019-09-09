@@ -105,10 +105,9 @@ PUT _rollup/job/sensor
 
 When the job is created, you receive the following results:
 
-[source,js]
+[source,console-result]
 ----
 {
   "acknowledged": true
 }
 ----
-// TESTRESPONSE

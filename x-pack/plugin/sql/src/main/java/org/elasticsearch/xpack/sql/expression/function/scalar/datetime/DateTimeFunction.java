@@ -49,7 +49,6 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
               .variable(extractor.chronoField().name());
         
         return new ScriptTemplate(template, params.build(), dataType());
-
     }
 
     @Override

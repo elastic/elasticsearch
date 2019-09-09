@@ -85,10 +85,9 @@ DELETE _rollup/job/sensor
 
 Which will return the response:
 
-[source,js]
+[source,console-result]
 ----
 {
   "acknowledged": true
 }
 ----
-// TESTRESPONSE

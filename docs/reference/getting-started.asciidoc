@@ -227,7 +227,7 @@ indexes the `name` field.
 Since this is a new document, the response shows that the result of the
 operation was that version 1 of the document was created:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index" : "customer",
@@ -262,7 +262,7 @@ GET /customer/_doc/1
 The response indicates that a document with the specified ID was found
 and shows the original source fields that were indexed.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index" : "customer",
@@ -373,7 +373,7 @@ GET /bank/_search
 By default, the `hits` section of the response includes the first 10 documents
 that match the search criteria:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took" : 63,
@@ -573,7 +573,7 @@ The `buckets` in the response are the values of the `state` field. The
 can see that there are 27 accounts in `ID` (Idaho). Because the request
 set `size=0`, the response only contains the aggregation results.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 29,

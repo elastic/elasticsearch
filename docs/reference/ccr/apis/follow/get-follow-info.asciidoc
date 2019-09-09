@@ -146,7 +146,7 @@ GET /follower_index/_ccr/info
 
 The API returns the following results:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "follower_indices" : [
@@ -171,4 +171,3 @@ The API returns the following results:
     ]
 }
 --------------------------------------------------
-// TESTRESPONSE

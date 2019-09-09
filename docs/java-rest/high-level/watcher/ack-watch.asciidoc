@@ -5,12 +5,12 @@
 --
 
 [id="{upid}-{api}"]
-=== Ack Watch API
+=== Ack watch API
 
 [id="{upid}-{api}-request"]
 ==== Execution
 
-{xpack-ref}/actions.html#actions-ack-throttle[Acknowledging a watch] enables you
+{stack-ov}/actions.html#actions-ack-throttle[Acknowledging a watch] enables you
 to manually throttle execution of a watch's actions. A watch can be acknowledged
 through the following request:
 

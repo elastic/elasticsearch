@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 
 import java.util.ArrayList;
@@ -50,7 +51,7 @@ import java.util.stream.Collectors;
  * TODO Add to the upgrade mode action
  */
 public class TransportStopDataFrameAnalyticsAction
-    extends TransportTasksAction<TransportStartDataFrameAnalyticsAction.DataFrameAnalyticsTask, StopDataFrameAnalyticsAction.Request,
+    extends TransportTasksAction<DataFrameAnalyticsTask, StopDataFrameAnalyticsAction.Request,
         StopDataFrameAnalyticsAction.Response, StopDataFrameAnalyticsAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportStopDataFrameAnalyticsAction.class);
@@ -222,7 +223,7 @@ public class TransportStopDataFrameAnalyticsAction
 
     @Override
     protected void taskOperation(StopDataFrameAnalyticsAction.Request request,
-                                 TransportStartDataFrameAnalyticsAction.DataFrameAnalyticsTask task,
+                                 DataFrameAnalyticsTask task,
                                  ActionListener<StopDataFrameAnalyticsAction.Response> listener) {
         DataFrameAnalyticsTaskState stoppingState =
             new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.STOPPING, task.getAllocationId(), null);

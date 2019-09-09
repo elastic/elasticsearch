@@ -176,7 +176,7 @@ DELETE /twitter/_doc/1
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "_shards" : {

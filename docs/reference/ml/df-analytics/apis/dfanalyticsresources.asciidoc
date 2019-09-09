@@ -178,7 +178,7 @@ https://arxiv.org/pdf/1603.02754.pdf[**XGBoost: A Scalable Tree Boosting System*
 paper. 
 
 `gamma`::
-  (Optional, double) It multiplies a linear penalty associated with the size of 
+  (Optional, double) Multiplies a linear penalty associated with the size of 
   individual trees in the forest. The higher the value the more training will 
   prefer smaller trees. This will reduce the number of distinct values the 
   prediction function can take. To have an effect, `gamma` value must be 

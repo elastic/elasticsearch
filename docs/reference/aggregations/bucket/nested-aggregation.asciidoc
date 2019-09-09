@@ -23,7 +23,7 @@ PUT /products
     }
 }
 --------------------------------------------------
-<1> The `resellers` is an array that holds nested documents.
+<1> `resellers` is an array that holds nested documents.
 
 We are adding one example product with two resellers:
 

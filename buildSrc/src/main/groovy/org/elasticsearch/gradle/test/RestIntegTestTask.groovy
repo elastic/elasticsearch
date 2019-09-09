@@ -127,8 +127,8 @@ class RestIntegTestTask extends DefaultTask {
         }
 
         // copy the rest spec/tests onto the test classpath
-        Task copyRestSpec = createCopyRestSpecTask()
-        runner.classpath += copyRestSpec.outputs.files
+        Copy copyRestSpec = createCopyRestSpecTask()
+        project.sourceSets.test.output.builtBy(copyRestSpec)
 
         // this must run after all projects have been configured, so we know any project
         // references can be accessed as a fully configured
@@ -227,12 +227,6 @@ class RestIntegTestTask extends DefaultTask {
 
     }
 
-    /**
-     * Creates a task (if necessary) to copy the rest spec files.
-     *
-     * @param project The project to add the copy task to
-     * @param includePackagedTests true if the packaged tests should be copied, false otherwise
-     */
     Copy createCopyRestSpecTask() {
         Boilerplate.maybeCreate(project.configurations, 'restSpec') {
             project.dependencies.add(
@@ -244,7 +238,7 @@ class RestIntegTestTask extends DefaultTask {
 
         return Boilerplate.maybeCreate(project.tasks, 'copyRestSpec', Copy) { Copy copy ->
             copy.dependsOn project.configurations.restSpec
-            copy.into "${project.buildDir}/rest-spec"
+            copy.into(project.sourceSets.test.output.resourcesDir)
             copy.from({ project.zipTree(project.configurations.restSpec.singleFile) }) {
                 includeEmptyDirs = false
                 include 'rest-api-spec/**'

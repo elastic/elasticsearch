@@ -117,9 +117,9 @@ public class RepositoryDataTests extends ESTestCase {
             Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
         // test that initializing indices works
         Map<IndexId, Set<SnapshotId>> indices = randomIndices(snapshotIds);
-        final Map<IndexId, String[]> shardGenerations = new HashMap<>();
+        final Map<IndexId, List<String>> shardGenerations = new HashMap<>();
         for (IndexId indexId : indices.keySet()) {
-            shardGenerations.put(indexId, Strings.EMPTY_ARRAY);
+            shardGenerations.put(indexId, Collections.emptyList());
         }
         RepositoryData newRepoData =
             new RepositoryData(repositoryData.getGenId(), snapshotIds, snapshotStates, indices, shardGenerations);
@@ -188,7 +188,7 @@ public class RepositoryDataTests extends ESTestCase {
         final IndexId corruptedIndexId = randomFrom(parsedRepositoryData.getIndices().values());
 
         Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>();
-        final Map<IndexId, String[]> indexGenerations = new HashMap<>();
+        final Map<IndexId, List<String>> indexGenerations = new HashMap<>();
         for (Map.Entry<String, IndexId> snapshottedIndex : parsedRepositoryData.getIndices().entrySet()) {
             IndexId indexId = snapshottedIndex.getValue();
             Set<SnapshotId> snapshotsIds = new LinkedHashSet<>(parsedRepositoryData.getSnapshots(indexId));
@@ -196,7 +196,7 @@ public class RepositoryDataTests extends ESTestCase {
                 snapshotsIds.add(new SnapshotId("_uuid", "_does_not_exist"));
             }
             indexSnapshots.put(indexId, snapshotsIds);
-            indexGenerations.put(indexId, Strings.EMPTY_ARRAY);
+            indexGenerations.put(indexId, Collections.emptyList());
         }
         assertNotNull(corruptedIndexId);
 

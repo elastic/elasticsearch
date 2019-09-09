@@ -34,6 +34,7 @@ import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -83,11 +84,13 @@ public final class RepositoryData {
      */
     private final Map<IndexId, Set<SnapshotId>> indexSnapshots;
 
-    @Nullable
+    /**
+     * Shard generations.
+     */
     private final ShardGenerations shardGenerations;
 
     public RepositoryData(long genId, Map<String, SnapshotId> snapshotIds, Map<String, SnapshotState> snapshotStates,
-                          Map<IndexId, Set<SnapshotId>> indexSnapshots, @Nullable Map<IndexId, String[]> shardGenerations) {
+                          Map<IndexId, Set<SnapshotId>> indexSnapshots, @Nullable Map<IndexId, List<String>> shardGenerations) {
         this(genId, snapshotIds, snapshotStates, indexSnapshots, shardGenerations == null ? null : new ShardGenerations(shardGenerations));
     }
 
@@ -110,7 +113,7 @@ public final class RepositoryData {
      * Computes the obsolete shard index generations that can be deleted if this instance was written to the repository.
      *
      * @param previous Previous RepositoryData
-     * @return Map of obsolete shard index generations
+     * @return Map of obsolete shard index generations. The keys in the nested maps are the integer shard ids that have been updated.
      */
     public Map<IndexId, Map<Integer, String>> obsoleteShardGenerations(RepositoryData previous) {
         return shardGenerations.obsoleteShardGenerations(previous.shardGenerations);
@@ -158,15 +161,28 @@ public final class RepositoryData {
         return indices;
     }
 
-    public List<IndexId> indicesWithout(SnapshotId snapshotId) {
+    /**
+     * Returns the list of {@link IndexId} that will still be in use by the snapshots referenced in this instance after removing the given
+     * snapshot.
+     *
+     * @param snapshotId SnapshotId that would be remove
+     * @return List of indices that would still be referenced
+     */
+    public List<IndexId> indicesAfterRemovingSnapshot(SnapshotId snapshotId) {
         return indexSnapshots.entrySet().stream()
-            .filter(Predicate.not(entry -> entry.getValue().size() == 1 && entry.getValue().contains(snapshotId))).map(Map.Entry::getKey)
+            .filter(Predicate.not(entry -> entry.getValue().size() == 1 && entry.getValue().contains(snapshotId)))
+            .map(Map.Entry::getKey)
             .collect(Collectors.toList());
     }
 
     /**
      * Add a snapshot and its indices to the repository; returns a new instance.  If the snapshot
      * already exists in the repository data, this method throws an IllegalArgumentException.
+     *
+     * @param snapshotId       Id of the new snapshot
+     * @param snapshotState    State of the new snapshot
+     * @param shardGenerations Updated shard generations in the new snapshot. For each index contained in the snapshot an array of new
+     *                         generations indexed by the shard id they correspond to must be supplied.
      */
     public RepositoryData addSnapshot(final SnapshotId snapshotId,
                                       final SnapshotState snapshotState,
@@ -207,6 +223,8 @@ public final class RepositoryData {
      *
      * @param snapshotId              Snapshot Id
      * @param updatedShardGenerations Shard generations that changed as a result of removing the snapshot.
+     *                                The {@code String[]} passed for each {@link IndexId} contains the new shard generation id for each
+     *                                changed shard indexed by its shardId.
      *                                Pass {@code null} when this instance should not track shard generations while the cluster still
      *                                contains nodes from before {@link SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION}.
      */
@@ -226,7 +244,8 @@ public final class RepositoryData {
             assert snapshotIds != null;
             if (snapshotIds.contains(snapshotId)) {
                 if (snapshotIds.size() == 1) {
-                    // removing the snapshot will mean no more snapshots have this index, so just skip over it
+                    // Removing the snapshot will mean no more snapshots reference this index, so we just skip over it since we will delete
+                    // it from the repository anyway
                     continue;
                 }
                 set = new LinkedHashSet<>(snapshotIds);
@@ -237,7 +256,6 @@ public final class RepositoryData {
             indexSnapshots.put(indexId, set);
         }
 
-        assert updatedShardGenerations != null || shardGenerations == null;
         final ShardGenerations updatedGenerations = updatedShardGenerations == null ? null
             : shardGenerations.updatedGenerations(updatedShardGenerations).forIndices(indexSnapshots.keySet());
 
@@ -267,12 +285,13 @@ public final class RepositoryData {
         return snapshotIds.equals(that.snapshotIds)
                    && snapshotStates.equals(that.snapshotStates)
                    && indices.equals(that.indices)
-                   && indexSnapshots.equals(that.indexSnapshots);
+                   && indexSnapshots.equals(that.indexSnapshots)
+                   && shardGenerations.equals(that.shardGenerations);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(snapshotIds, snapshotStates, indices, indexSnapshots);
+        return Objects.hash(snapshotIds, snapshotStates, indices, indexSnapshots, shardGenerations);
     }
 
     /**
@@ -494,7 +513,7 @@ public final class RepositoryData {
         } else {
             throw new ElasticsearchParseException("start object expected");
         }
-        final Map<IndexId, String[]> shardGenerations;
+        final Map<IndexId, List<String>> shardGenerations;
         if (containedShardGens) {
             shardGenerations = new HashMap<>();
             final Map<String, IndexId> indexLookup =
@@ -502,7 +521,7 @@ public final class RepositoryData {
             shardStatus.forEach((indexId, gens) -> {
                 final IndexId idx = indexLookup.get(indexId);
                 assert idx != null;
-                shardGenerations.put(idx, gens);
+                shardGenerations.put(idx, Arrays.asList(gens));
             });
         } else {
             shardGenerations = null;

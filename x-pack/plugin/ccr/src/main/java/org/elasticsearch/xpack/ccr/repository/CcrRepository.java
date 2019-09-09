@@ -247,7 +247,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             indexSnapshots.put(new IndexId(indexName, index.getUUID()), Collections.singleton(snapshotId));
         }
         return new RepositoryData(1, copiedSnapshotIds, snapshotStates, indexSnapshots,
-            indexSnapshots.keySet().stream().collect(Collectors.toMap(Function.identity(), i -> Strings.EMPTY_ARRAY)));
+            indexSnapshots.keySet().stream().collect(Collectors.toMap(Function.identity(), i -> Collections.emptyList())));
     }
 
     @Override

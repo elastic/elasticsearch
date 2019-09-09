@@ -106,7 +106,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -167,7 +166,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private static final String DATA_BLOB_PREFIX = "__";
 
     /**
-     * When set to true metadata files are stored in compressed format. This setting doesn’t affect index
+     * When set to true metadata files are stored in compressed format. This setting does not affect index
      * files that are already compressed by default. Changing the setting does not invalidate existing files since reads
      * do not observe the setting, instead they examine the file to see if it is compressed or not.
      */
@@ -469,7 +468,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // listener to complete once all shards folders affected by this delete have been added new metadata blobs without this snapshot
         final StepListener<List<ShardSnapshotMetaDeleteResult>> deleteFromMetaListener = new StepListener<>();
 
-        final List<IndexId> indices = repositoryData.indicesWithout(snapshotId);
+        final List<IndexId> indices = repositoryData.indicesAfterRemovingSnapshot(snapshotId);
         if (indices.isEmpty()) {
             // No indices folders have to be updated, we go straight to the next step
             deleteFromMetaListener.onResponse(Collections.emptyList());
@@ -537,7 +536,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 .collect(Collectors.toMap(
                     Map.Entry::getKey,
                     entry -> entry.getValue().stream()
-                        .sorted(Comparator.comparing(shardSnapshotMetaDeleteResult -> shardSnapshotMetaDeleteResult.shardId))
                         .map(shardSnapshotMetaDeleteResult -> shardSnapshotMetaDeleteResult.newGeneration)
                         .toArray(String[]::new))));
 
@@ -560,11 +558,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }, listener::onFailure);
     }
 
+    // Make sure that each of the given lists is only contains a single index and is ordered by shard id such that the shard id is equal
+    // to the position in the list.
     private static boolean assertShardUpdatesCorrectlyOrdered(Collection<List<ShardSnapshotMetaDeleteResult>> updates) {
         updates.forEach(chunk -> {
             for (int i = 0; i < chunk.size(); i++) {
                 assert chunk.get(i).shardId == i;
             }
+            assert chunk.stream().map(s -> s.indexId).distinct().count() == 1L;
         });
         return true;
     }
@@ -799,17 +800,24 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 existingRepositoryData.addSnapshot(snapshotId, blobStoreSnapshot.state(), shardGenerations);
             snapshotFormat.write(blobStoreSnapshot, blobContainer(), snapshotId.getUUID(), false);
             writeIndexGen(updatedRepositoryData, repositoryStateId, version);
-            final List<String> toDelete = new ArrayList<>();
-            final int prefixPathLen = basePath().buildAsString().length();
-            for (Map.Entry<IndexId, Map<Integer, String>> entry
-                : updatedRepositoryData.obsoleteShardGenerations(existingRepositoryData).entrySet()) {
-                final IndexId indexId = entry.getKey();
-                for (Map.Entry<Integer, String> shardEntry : entry.getValue().entrySet()) {
-                    toDelete.add(shardContainer(indexId, shardEntry.getKey()).path().buildAsString().substring(prefixPathLen)
-                        + INDEX_FILE_PREFIX + shardEntry.getValue());
+
+            // Once we are done writing the updated index-N blob we remove the now unreferenced index-${uuid} blobs in each shard directory
+            // if all nodes are at least at version SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION
+            // If there are older version nodes in the cluster, we don't need to run this cleanup as it will have already happened when
+            // writing the index-${N} to each shard directory.
+            if (version.onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
+                final List<String> toDelete = new ArrayList<>();
+                final int prefixPathLen = basePath().buildAsString().length();
+                for (Map.Entry<IndexId, Map<Integer, String>> entry
+                    : updatedRepositoryData.obsoleteShardGenerations(existingRepositoryData).entrySet()) {
+                    final IndexId indexId = entry.getKey();
+                    for (Map.Entry<Integer, String> shardEntry : entry.getValue().entrySet()) {
+                        toDelete.add(shardContainer(indexId, shardEntry.getKey()).path().buildAsString().substring(prefixPathLen)
+                            + INDEX_FILE_PREFIX + shardEntry.getValue());
+                    }
                 }
+                blobContainer().deleteBlobsIgnoringIfNotExists(toDelete);
             }
-            blobContainer().deleteBlobsIgnoringIfNotExists(toDelete);
         } catch (FileAlreadyExistsException ex) {
             // if another master was elected and took over finalizing the snapshot, it is possible
             // that both nodes try to finalize the snapshot and write to the same blobs, so we just

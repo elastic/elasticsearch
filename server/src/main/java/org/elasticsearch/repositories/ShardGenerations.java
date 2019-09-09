@@ -19,6 +19,7 @@
 
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -26,16 +27,18 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 final class ShardGenerations implements ToXContent {
 
     public static final ShardGenerations EMPTY = new ShardGenerations(Collections.emptyMap());
 
-    private final Map<IndexId, String[]> shardGenerations;
+    private final Map<IndexId, List<String>> shardGenerations;
 
-    ShardGenerations(Map<IndexId, String[]> shardGenerations) {
+    ShardGenerations(Map<IndexId, List<String>> shardGenerations) {
         this.shardGenerations = shardGenerations;
     }
 
@@ -48,14 +51,15 @@ final class ShardGenerations implements ToXContent {
      Map<IndexId, Map<Integer, String>> obsoleteShardGenerations(ShardGenerations previous) {
         final Map<IndexId, Map<Integer, String>> result = new HashMap<>();
         previous.shardGenerations.forEach(((indexId, oldGens) -> {
-            final String[] updatedGenerations = shardGenerations.get(indexId);
+            final List<String> updatedGenerations = shardGenerations.get(indexId);
             final Map<Integer, String> obsoleteShardIndices = new HashMap<>();
             if (updatedGenerations != null) {
-                if (oldGens.length > 0 && Arrays.equals(updatedGenerations, oldGens) == false) {
-                    assert oldGens.length == updatedGenerations.length;
-                    for (int i = 0; i < oldGens.length; i++) {
-                        if (updatedGenerations[i] != null && oldGens[i] != null && oldGens[i].equals(updatedGenerations[i]) == false) {
-                            obsoleteShardIndices.put(i, oldGens[i]);
+                if (oldGens.isEmpty() == false && oldGens.equals(updatedGenerations) == false) {
+                    assert oldGens.size() == updatedGenerations.size();
+                    for (int i = 0; i < oldGens.size(); i++) {
+                        if (updatedGenerations.get(i) != null && oldGens.get(i) != null
+                            && oldGens.get(i).equals(updatedGenerations.get(i)) == false) {
+                            obsoleteShardIndices.put(i, oldGens.get(i));
                         }
                     }
                 }
@@ -66,46 +70,45 @@ final class ShardGenerations implements ToXContent {
     }
 
     String getShardGen(IndexId indexId, int shardId) {
-        final String[] generations = shardGenerations.get(indexId);
-        if (generations == null || generations.length == 0) {
+        final List<String> generations = shardGenerations.get(indexId);
+        if (generations == null || generations.isEmpty()) {
             return null;
         }
-        if (generations.length < shardId - 1) {
+        if (generations.size() < shardId - 1) {
             throw new IllegalArgumentException(
-                "Index [" + indexId + "] only has [" + generations.length + "] shards but requested shard [" + shardId + "]");
+                "Index [" + indexId + "] only has [" + generations.size() + "] shards but requested shard [" + shardId + "]");
         }
-        return generations[shardId];
+        return generations.get(shardId);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(RepositoryData.SHARDS);
-        for (Map.Entry<IndexId, String[]> entry : shardGenerations.entrySet()) {
-            builder.array(entry.getKey().getId(), entry.getValue());
+        for (Map.Entry<IndexId, List<String>> entry : shardGenerations.entrySet()) {
+            builder.array(entry.getKey().getId(), entry.getValue().toArray(Strings.EMPTY_ARRAY));
         }
         builder.endObject();
         return builder;
     }
 
     ShardGenerations updatedGenerations(final Map<IndexId, String[]> shardGenerations) {
-        final Map<IndexId, String[]> updatedGenerations = new HashMap<>(this.shardGenerations);
+        final Map<IndexId, List<String>> updatedGenerations = new HashMap<>(this.shardGenerations);
         shardGenerations.forEach(((indexId, updatedGens) -> {
-            final String[] existing = updatedGenerations.put(indexId, updatedGens);
+            final List<String> existing = updatedGenerations.put(indexId, Arrays.asList(updatedGens));
             if (existing != null) {
                 for (int i = 0; i < updatedGens.length; ++i) {
                     if (updatedGens[i] == null) {
-                        updatedGens[i] = existing[i];
+                        updatedGens[i] = existing.get(i);
                     }
                 }
             }
         }));
-        updatedGenerations.putAll(shardGenerations);
         assert assertShardGensUpdateConsistent(updatedGenerations);
         return new ShardGenerations(updatedGenerations);
     }
 
     ShardGenerations forIndices(Set<IndexId> indices) {
-        final Map<IndexId, String[]> updatedGenerations = new HashMap<>(this.shardGenerations);
+        final Map<IndexId, List<String>> updatedGenerations = new HashMap<>(this.shardGenerations);
         for (IndexId indexId : shardGenerations.keySet()) {
             if (indices.contains(indexId) == false) {
                 updatedGenerations.remove(indexId);
@@ -115,17 +118,34 @@ final class ShardGenerations implements ToXContent {
         return new ShardGenerations(updatedGenerations);
     }
 
-    private boolean assertShardGensUpdateConsistent(Map<IndexId, String[]> updated) {
+    private boolean assertShardGensUpdateConsistent(Map<IndexId, List<String>> updated) {
         shardGenerations.forEach((indexId, gens) -> {
-            final String[] newGens = updated.get(indexId);
-            assert newGens == null || gens.length == 0
-                || newGens.length == gens.length : "Previous " + Arrays.asList(gens) + ", updated " + Arrays.asList(newGens);
-            if (newGens != null && gens.length != 0) {
-                for (int i = 0; i < newGens.length; i++) {
-                    assert (newGens[i] == null && gens[i] != null) == false;
+            final List<String> newGens = updated.get(indexId);
+            assert newGens == null || gens.size() == 0
+                || newGens.size() == gens.size() : "Previous " + gens + ", updated " + newGens;
+            if (newGens != null && gens.size() != 0) {
+                for (int i = 0; i < newGens.size(); i++) {
+                    assert (newGens.get(i) == null && gens.get(i) != null) == false;
                 }
             }
         });
         return true;
+    }
+
+    @Override
+    public boolean equals(final Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        final ShardGenerations that = (ShardGenerations) o;
+        return shardGenerations.equals(that.shardGenerations);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(shardGenerations);
     }
 }

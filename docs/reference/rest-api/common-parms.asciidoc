@@ -4,6 +4,12 @@ Comma-separated list or wildcard expression of index alias names
 used to limit the request.
 end::index-alias[]
 
+tag::aliases[]
+`aliases`::
+(Optional, <<indices-aliases,alias object>>) Index aliases which include the
+index. See <<indices-aliases>>.
+end::aliases[]
+
 tag::index-alias-filter[]
 <<query-dsl-bool-query, Filter query>>
 used to limit the index alias.
@@ -14,10 +20,13 @@ end::index-alias-filter[]
 
 tag::allow-no-indices[]
 `allow_no_indices`::
-(Optional, boolean) If `true`, the request returns an error if a wildcard
-expression or `_all` value retrieves only missing or closed indices. This
-parameter also applies to <<indices-aliases,index aliases>> that point to a
-missing or closed index.
+(Optional, boolean) If `true`,
+the request does *not* return an error
+if a wildcard expression
+or `_all` value retrieves only missing or closed indices.
++
+This parameter also applies to <<indices-aliases,index aliases>>
+that point to a missing or closed index.
 end::allow-no-indices[]
 
 tag::analyzer[]
@@ -36,6 +45,23 @@ tag::bytes[]
 (Optional, <<byte-units,byte size units>>) Unit used to display byte values.
 end::bytes[]
 
+tag::committed[]
+If `true`,
+the segments is synced to disk. Segments that are synced can survive a hard reboot.
++
+If `false`, 
+the data from uncommitted segments is also stored in
+the transaction log so that Elasticsearch is able to replay
+changes on the next start.
+end::committed[]
+
+tag::completion-fields[]
+`completion_fields`::
+(Optional, string)
+Comma-separated list or wildcard expressions of fields
+to include in `fielddata` and `suggest` statistics.
+end::completion-fields[]
+
 tag::default_operator[]
 `default_operator`::
 (Optional, string) The default operator for query string query: AND or OR. 
@@ -47,6 +73,18 @@ tag::df[]
 (Optional, string) Field to use as default where no field prefix is 
 given in the query string.
 end::df[]
+
+tag::docs-count[]
+Number of non-deleted documents in the segment, such as `25`. This
+number is based on Lucene documents and may include documents from
+<<nested,nested>> fields.
+end::docs-count[]
+
+tag::docs-deleted[]
+Number of deleted documents in the segment, such as `0`. This number
+is based on Lucene documents. {es} reclaims the disk space of deleted Lucene
+documents when a segment is merged.
+end::docs-deleted[]
 
 tag::expand-wildcards[]
 `expand_wildcards`::
@@ -69,11 +107,53 @@ Wildcard expressions are not accepted.
 --
 end::expand-wildcards[]
 
+tag::index-alias-filter[]
+<<query-dsl-bool-query, Filter query>>
+used to limit the index alias.
++
+If specified,
+the index alias only applies to documents returned by the filter.
+end::index-alias-filter[]
+
+tag::fielddata-fields[]
+`fielddata_fields`::
+(Optional, string)
+Comma-separated list or wildcard expressions of fields
+to include in `fielddata` statistics.
+end::fielddata-fields[]
+
+tag::fields[]
+`fields`::
++
+--
+(Optional, string)
+Comma-separated list or wildcard expressions of fields
+to include in the statistics.
+
+Used as the default list
+unless a specific field list is provided
+in the `completion_fields` or `fielddata_fields` parameters.
+--
+end::fields[]
+
+tag::index-alias-filter[]
+<<query-dsl-bool-query, Filter query>>
+used to limit the index alias.
++
+If specified,
+the index alias only applies to documents returned by the filter.
+end::index-alias-filter[]
+
 tag::flat-settings[]
 `flat_settings`::
 (Optional, boolean) If `true`, returns settings in flat format. Defaults to
 `false`.
 end::flat-settings[]
+
+tag::generation[]
+Generation number, such as `0`. {es} increments this generation number
+for each segment written. {es} then uses this number to derive the segment name.
+end::generation[]
 
 tag::http-format[]
 `format`::
@@ -86,6 +166,13 @@ tag::from[]
 `from`::
 (Optional, integer) Starting document offset. Defaults to `0`.
 end::from[]
+
+tag::groups[]
+`groups`::
+(Optional, string)
+Comma-separated list of search groups
+to include in the `search` statistics.
+end::groups[]
 
 tag::cat-h[]
 `h`::
@@ -110,16 +197,11 @@ tag::if_seq_no[]
 sequence number. See <<optimistic-concurrency-control-index>>.
 end::if_seq_no[]
 
-tag::cat-h[]
-`h`::
-(Optional, string) Comma-separated list of column names to display.
-end::cat-h[]
-
-tag::help[]
-`help`::
-(Optional, boolean) If `true`, the response returns help information. Defaults
-to `false`.
-end::help[]
+tag::index-ignore-unavailable[]
+`ignore_unavailable`::
+(Optional, boolean) If `true`, missing or closed indices are not included in the
+response. Defaults to `false`.
+end::index-ignore-unavailable[]
 
 tag::include-defaults[]
 `include_defaults`::
@@ -127,18 +209,20 @@ tag::include-defaults[]
 Defaults to `false`.
 end::include-defaults[]
 
+tag::include-segment-file-sizes[]
+`include_segment_file_sizes`::
+(Optional, boolean)
+If `true`, the call reports the aggregated disk usage of 
+each one  of the Lucene index files (only applies if segment stats are 
+requested). Defaults to `false`.
+end::include-segment-file-sizes[]
+
 tag::include-type-name[]
 `include_type_name`::
 deprecated:[7.0.0, Mapping types have been deprecated. See <<removal-of-types>>.]
 (Optional, boolean) If `true`, a mapping type is expected in the body of
 mappings. Defaults to `false`.
 end::include-type-name[]
-
-tag::index-ignore-unavailable[]
-`ignore_unavailable`::
-(Optional, boolean) If `true`, missing or closed indices are not included in the
-response. Defaults to `false`.
-end::index-ignore-unavailable[]
 
 tag::include-unloaded-segments[]
 `include_unloaded_segments`::
@@ -151,6 +235,78 @@ tag::index[]
 (Optional, string) Comma-separated list or wildcard expression of index names
 used to limit the request.
 end::index[]
+
+tag::index-metric[]
+`<index-metric>`::
++
+--
+(Optional, string)
+Comma-separated list of metrics used to limit the request.
+Supported metrics are:
+
+`_all`::
+Return all statistics.
+
+`completion`::
+<<completion-suggester,Completion suggester>> statistics.
+
+`docs`::
+Number of documents and deleted docs, which have not yet merged out.
+<<indices-refresh,Index refreshes>> can affect this statistic.
+
+`fielddata`::
+<<fielddata,Fielddata>> statistics.
+
+`flush`::
+<<indices-flush,Flush>> statistics.
+
+`get`::
+Get statistics,
+including missing stats.
+
+`indexing`::
+<<docs-index_,Indexing>> statistics.
+
+`merge`::
+<<index-modules-merge,Merge>> statistics.
+
+`query_cache`::
+<<query-cache,Query cache>> statistics.
+
+`refresh`::
+<<indices-refresh,Refresh>> statistics.
+
+`request_cache`::
+<<shard-request-cache,Shard request cache>> statistics.
+
+`search`::
+Search statistics including suggest statistics.
+You can include statistics for custom groups
+by adding an extra `groups` parameter
+(search operations can be associated with one or more groups).
+The `groups` parameter accepts a comma separated list of group names.
+Use `_all` to return statistics for all groups.
+
+`segments`::
+Memory use of all open segments.
++
+If the `include_segment_file_sizes` parameter is `true`,
+this metric includes the aggregated disk usage
+of each Lucene index file.
+
+`store`::
+Size of the index in <<byte-units, byte units>>.
+
+`suggest`::
+<<search-suggesters,Suggester>> statistics.
+
+`translog`::
+<<index-modules-translog,Translog>> statistics.
+
+`warmer`::
+<<indices-warmers,Warmer>> statistics.
+--
+end::index-metric[]
 
 tag::index-template[]
 `<index-template>`::
@@ -165,6 +321,22 @@ tag::lenient[]
 providing text to a numeric field) will be ignored. Defaults to `false`.
 end::lenient[]
 
+tag::level[]
+`level`::
++
+--
+(Optional, string)
+Indicates whether statistics are aggregated
+at the cluster, index, or shard level.
+
+Valid values are:
+
+*   `cluster`
+*   `indices`
+*   `shards`
+--
+end::level[]
+
 tag::local[]
 `local`::
 (Optional, boolean) If `true`, the request retrieves information from the local
@@ -172,11 +344,33 @@ node only. Defaults to `false`, which means information is retrieved from
 the master node.
 end::local[]
 
+tag::mappings[]
+`mappings`::
++
+--
+(Optional, <<mapping,mapping object>>) Mapping for fields in the index. If
+specified, this mapping can include:
+
+* Field names
+* <<mapping-types,Field datatypes>>
+* <<mapping-params,Mapping parameters>>
+
+See <<mapping>>.
+--
+end::mappings[]
+
 tag::max_docs[]
 `max_docs`::
 (Optional, integer) Maximum number of documents to process. Defaults to all
 documents.
 end::max_docs[]
+
+tag::memory[]
+Bytes of segment data stored in memory for efficient search,
+such as `1264`.
++
+A value of `-1` indicates {es} was unable to compute this number.
+end::memory[]
 
 tag::name[]
 `<name>`::
@@ -196,8 +390,8 @@ end::pipeline[]
 
 tag::preference[]
 `preference`::
-  (Optional, string) Specifies the node or shard the operation should be 
-  performed on. Random by default.
+(Optional, string) Specifies the node or shard the operation should be 
+performed on. Random by default.
 end::preference[]
 
 tag::search-q[]
@@ -221,8 +415,8 @@ end::request_cache[]
 
 tag::requests_per_second[]
 `requests_per_second`::
-  (Optional, integer) The throttle for this request in sub-requests per second.
-  -1 means no throttle. Defaults to 0.
+(Optional, integer) The throttle for this request in sub-requests per second.
+-1 means no throttle. Defaults to 0.
 end::requests_per_second[]
 
 tag::routing[]
@@ -268,6 +462,31 @@ tag::search_type[]
 * `dfs_query_then_fetch`
 end::search_type[]
 
+tag::segment[]
+Name of the segment, such as `_0`. The segment name is derived from
+the segment generation and used internally to create file names in the directory
+of the shard.
+end::segment[]
+
+tag::segment-search[]
+If `true`,
+the segment is searchable.
++
+If `false`,
+the segment has most likely been written to disk
+but needs a <<indices-refresh,refresh>> to be searchable.
+end::segment-search[]
+
+tag::settings[]
+`settings`::
+(Optional, <<index-modules-settings,index setting object>>) Configuration
+options for the index. See <<index-modules-settings>>.
+end::settings[]
+
+tag::segment-size[]
+Disk space used by the segment, such as `50kb`.
+end::segment-size[]
+
 tag::slices[]
 `slices`::
 (Optional, integer) The number of slices this task should be divided into. 
@@ -299,8 +518,8 @@ end::source_includes[]
 
 tag::stats[]
 `stats`::
-  (Optional, string) Specific `tag` of the request for logging and statistical 
-  purposes.
+(Optional, string) Specific `tag` of the request for logging and statistical 
+purposes.
 end::stats[]
 
 tag::terminate_after[]
@@ -344,6 +563,10 @@ tag::doc-version[]
 The specified version must match the current version of the document for the
 request to succeed.
 end::doc-version[]
+
+tag::segment-version[]
+Version of Lucene used to write the segment.
+end::segment-version[]
 
 tag::version_type[]
 `version_type`::

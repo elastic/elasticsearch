@@ -383,54 +383,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return response;
     }
 
-
-    /** Modes for executing item request on replica depending on corresponding primary execution result */
-    public enum ReplicaItemExecutionMode {
-
-        /**
-         * When primary execution succeeded
-         */
-        NORMAL,
-
-        /**
-         * When primary execution failed before sequence no was generated
-         * or primary execution was a noop (only possible when request is originating from pre-6.0 nodes)
-         */
-        NOOP,
-
-        /**
-         * When primary execution failed after sequence no was generated
-         */
-        FAILURE
-    }
-
-    /**
-     * Determines whether a bulk item request should be executed on the replica.
-     *
-     * @return {@link ReplicaItemExecutionMode#NORMAL} upon normal primary execution with no failures
-     * {@link ReplicaItemExecutionMode#FAILURE} upon primary execution failure after sequence no generation
-     * {@link ReplicaItemExecutionMode#NOOP} upon primary execution failure before sequence no generation or
-     * when primary execution resulted in noop (only possible for write requests from pre-6.0 nodes)
-     */
-    static ReplicaItemExecutionMode replicaItemExecutionMode(final BulkItemRequest request, final int index) {
-        final BulkItemResponse primaryResponse = request.getPrimaryResponse();
-        assert primaryResponse != null : "expected primary response to be set for item [" + index + "] request [" + request.request() + "]";
-        if (primaryResponse.isFailed()) {
-            return primaryResponse.getFailure().getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
-                ? ReplicaItemExecutionMode.FAILURE // we have a seq no generated with the failure, replicate as no-op
-                : ReplicaItemExecutionMode.NOOP; // no seq no generated, ignore replication
-        } else {
-            // TODO: once we know for sure that every operation that has been processed on the primary is assigned a seq#
-            // (i.e., all nodes on the cluster are on v6.0.0 or higher) we can use the existence of a seq# to indicate whether
-            // an operation should be processed or be treated as a noop. This means we could remove this method and the
-            // ReplicaItemExecutionMode enum and have a simple boolean check for seq != UNASSIGNED_SEQ_NO which will work for
-            // both failures and indexing operations.
-            return primaryResponse.getResponse().getResult() != DocWriteResponse.Result.NOOP
-                ? ReplicaItemExecutionMode.NORMAL // execution successful on primary
-                : ReplicaItemExecutionMode.NOOP; // ignore replication
-        }
-    }
-
     @Override
     public WriteReplicaResult<BulkShardRequest> shardOperationOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
         final Translog.Location location = performOnReplica(request, replica);
@@ -440,28 +392,23 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     public static Translog.Location performOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
         Translog.Location location = null;
         for (int i = 0; i < request.items().length; i++) {
-            BulkItemRequest item = request.items()[i];
+            final BulkItemRequest item = request.items()[i];
+            final BulkItemResponse response = item.getPrimaryResponse();
             final Engine.Result operationResult;
-            DocWriteRequest<?> docWriteRequest = item.request();
-            switch (replicaItemExecutionMode(item, i)) {
-                case NORMAL:
-                    final DocWriteResponse primaryResponse = item.getPrimaryResponse().getResponse();
-                    operationResult = performOpOnReplica(primaryResponse, docWriteRequest, replica);
-                    assert operationResult != null : "operation result must never be null when primary response has no failure";
-                    location = syncOperationResultOrThrow(operationResult, location);
-                    break;
-                case NOOP:
-                    break;
-                case FAILURE:
-                    final BulkItemResponse.Failure failure = item.getPrimaryResponse().getFailure();
-                    assert failure.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "seq no must be assigned";
-                    operationResult = replica.markSeqNoAsNoop(failure.getSeqNo(), failure.getMessage());
-                    assert operationResult != null : "operation result must never be null when primary response has no failure";
-                    location = syncOperationResultOrThrow(operationResult, location);
-                    break;
-                default:
-                    throw new IllegalStateException("illegal replica item execution mode for: " + docWriteRequest);
+            if (item.getPrimaryResponse().isFailed()) {
+                if (response.getFailure().getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                    continue; // ignore replication as we didn't generate a sequence number for this request.
+                }
+                operationResult = replica.markSeqNoAsNoop(response.getFailure().getSeqNo(), response.getFailure().getMessage());
+            } else {
+                if (response.getResponse().getResult() == DocWriteResponse.Result.NOOP) {
+                    continue; // ignore replication as it's a noop
+                }
+                assert response.getResponse().getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
+                operationResult = performOpOnReplica(response.getResponse(), item.request(), replica);
             }
+            assert operationResult != null : "operation result must never be null when primary response has no failure";
+            location = syncOperationResultOrThrow(operationResult, location);
         }
         return location;
     }
@@ -485,8 +432,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     deleteRequest.type(), deleteRequest.id());
                 break;
             default:
-                throw new IllegalStateException("Unexpected request operation type on replica: "
-                    + docWriteRequest.opType().getLowercase());
+                assert false : "Unexpected request operation type on replica: " + docWriteRequest + ";primary result: " + primaryResponse;
+                throw new IllegalStateException("Unexpected request operation type on replica: " + docWriteRequest.opType().getLowercase());
         }
         if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
             // Even though the primary waits on all nodes to ack the mapping changes to the master

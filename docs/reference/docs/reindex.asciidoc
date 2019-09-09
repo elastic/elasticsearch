@@ -29,7 +29,7 @@ POST _reindex
 
 That will return something like this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took" : 147,
@@ -689,7 +689,7 @@ POST /_reindex?wait_for_completion
 
 The JSON response looks like this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 639,
@@ -795,7 +795,7 @@ GET _tasks?detailed=true&actions=*reindex
 
 The response looks like:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "nodes" : {
@@ -841,7 +841,7 @@ The response looks like:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
+
 <1> This object contains the actual status. It is identical to the response JSON
 except for the important addition of the `total` field. `total` is the total number
 of operations that the `_reindex` expects to perform. You can estimate the
@@ -956,7 +956,7 @@ GET test2/_doc/1
 
 which will return:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
@@ -1032,7 +1032,7 @@ POST new_twitter/_search?size=0&filter_path=hits.total
 
 which results in a sensible `total` like this one:
 
-[source,js]
+[source,console-result]
 ----------------------------------------------------------------
 {
   "hits": {
@@ -1043,7 +1043,6 @@ which results in a sensible `total` like this one:
   }
 }
 ----------------------------------------------------------------
-// TESTRESPONSE
 
 [float]
 [[docs-reindex-automatic-slice]]
@@ -1078,7 +1077,7 @@ POST new_twitter/_search?size=0&filter_path=hits.total
 
 which results in a sensible `total` like this one:
 
-[source,js]
+[source,console-result]
 ----------------------------------------------------------------
 {
   "hits": {
@@ -1089,7 +1088,6 @@ which results in a sensible `total` like this one:
   }
 }
 ----------------------------------------------------------------
-// TESTRESPONSE
 
 Setting `slices` to `auto` will let Elasticsearch choose the number of slices
 to use. This setting will use one slice per shard, up to a certain limit. If

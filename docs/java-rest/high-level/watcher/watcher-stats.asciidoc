@@ -4,7 +4,7 @@
 :response: WatcherStatsResponse
 --
 [id="{upid}-{api}"]
-=== Watcher Stats API
+=== Get Watcher stats API
 
 [id="{upid}-{api}-request"]
 ==== Execution

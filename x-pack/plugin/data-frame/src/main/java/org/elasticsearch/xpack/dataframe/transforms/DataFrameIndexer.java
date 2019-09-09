@@ -117,6 +117,11 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
         return pageSize;
     }
 
+    @Override
+    protected String getJobId() {
+        return transformConfig.getId();
+    }
+
     public DataFrameTransformConfig getConfig() {
         return transformConfig;
     }

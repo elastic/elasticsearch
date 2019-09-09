@@ -106,17 +106,17 @@ public class CompositeRolesStore {
                                ReservedRolesStore reservedRolesStore, NativePrivilegeStore privilegeStore,
                                List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> rolesProviders,
                                ThreadContext threadContext, XPackLicenseState licenseState, FieldPermissionsCache fieldPermissionsCache,
-                               ApiKeyService apiKeyService, @Nullable DocumentSubsetBitsetCache dlsBitsetCache,
+                               ApiKeyService apiKeyService, DocumentSubsetBitsetCache dlsBitsetCache,
                                Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer) {
-        this.fileRolesStore = fileRolesStore;
-        this.dlsBitsetCache = dlsBitsetCache;
+        this.fileRolesStore = Objects.requireNonNull(fileRolesStore);
+        this.dlsBitsetCache = Objects.requireNonNull(dlsBitsetCache);
         fileRolesStore.addListener(this::invalidate);
-        this.nativeRolesStore = nativeRolesStore;
-        this.privilegeStore = privilegeStore;
-        this.licenseState = licenseState;
-        this.fieldPermissionsCache = fieldPermissionsCache;
-        this.apiKeyService = apiKeyService;
-        this.effectiveRoleDescriptorsConsumer = effectiveRoleDescriptorsConsumer;
+        this.nativeRolesStore = Objects.requireNonNull(nativeRolesStore);
+        this.privilegeStore = Objects.requireNonNull(privilegeStore);
+        this.licenseState = Objects.requireNonNull(licenseState);
+        this.fieldPermissionsCache = Objects.requireNonNull(fieldPermissionsCache);
+        this.apiKeyService = Objects.requireNonNull(apiKeyService);
+        this.effectiveRoleDescriptorsConsumer = Objects.requireNonNull(effectiveRoleDescriptorsConsumer);
         CacheBuilder<RoleKey, Role> builder = CacheBuilder.builder();
         final int cacheSize = CACHE_SIZE_SETTING.get(settings);
         if (cacheSize >= 0) {
@@ -415,9 +415,7 @@ public class CompositeRolesStore {
         try (ReleasableLock ignored = roleCacheHelper.acquireUpdateLock()) {
             roleCache.invalidateAll();
         }
-        if (dlsBitsetCache != null) {
-            dlsBitsetCache.clear("role store invalidation");
-        }
+        dlsBitsetCache.clear("role store invalidation");
     }
 
     public void invalidate(String role) {

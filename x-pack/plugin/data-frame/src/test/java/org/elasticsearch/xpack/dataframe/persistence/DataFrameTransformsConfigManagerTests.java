@@ -261,23 +261,50 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         String transformId = "transform_test_stored_doc_create_read_update";
 
         DataFrameTransformStoredDoc storedDocs = DataFrameTransformStoredDocTests.randomDataFrameTransformStoredDoc(transformId);
+        SeqNoPrimaryTermAndIndex firstIndex = new SeqNoPrimaryTermAndIndex(0, 1, DataFrameInternalIndex.LATEST_INDEX_NAME);
 
-        assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStoredDoc(storedDocs, listener), Boolean.TRUE, null, null);
-        assertAsync(listener -> transformsConfigManager.getTransformStoredDoc(transformId, listener), storedDocs, null, null);
+        assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStoredDoc(storedDocs, null, listener),
+            firstIndex,
+            null,
+            null);
+        assertAsync(listener -> transformsConfigManager.getTransformStoredDoc(transformId, listener),
+            Tuple.tuple(storedDocs, firstIndex),
+            null,
+            null);
 
+        SeqNoPrimaryTermAndIndex secondIndex = new SeqNoPrimaryTermAndIndex(1, 1, DataFrameInternalIndex.LATEST_INDEX_NAME);
         DataFrameTransformStoredDoc updated = DataFrameTransformStoredDocTests.randomDataFrameTransformStoredDoc(transformId);
-        assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStoredDoc(updated, listener), Boolean.TRUE, null, null);
-        assertAsync(listener -> transformsConfigManager.getTransformStoredDoc(transformId, listener), updated, null, null);
+        assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStoredDoc(updated, firstIndex, listener),
+            secondIndex,
+            null,
+            null);
+        assertAsync(listener -> transformsConfigManager.getTransformStoredDoc(transformId, listener),
+            Tuple.tuple(updated, secondIndex),
+            null,
+            null);
+
+        assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStoredDoc(updated, firstIndex, listener),
+            (SeqNoPrimaryTermAndIndex)null,
+            r -> fail("did not fail with version conflict."),
+            e -> assertThat(
+                e.getMessage(),
+                equalTo("Failed to persist data frame statistics for transform [transform_test_stored_doc_create_read_update]"))
+            );
     }
 
     public void testGetStoredDocMultiple() throws InterruptedException {
         int numStats = randomIntBetween(10, 15);
         List<DataFrameTransformStoredDoc> expectedDocs = new ArrayList<>();
         for (int i=0; i<numStats; i++) {
+            SeqNoPrimaryTermAndIndex initialSeqNo =
+                new SeqNoPrimaryTermAndIndex(i, 1, DataFrameInternalIndex.LATEST_INDEX_NAME);
             DataFrameTransformStoredDoc stat =
-                    DataFrameTransformStoredDocTests.randomDataFrameTransformStoredDoc(randomAlphaOfLength(6));
+                    DataFrameTransformStoredDocTests.randomDataFrameTransformStoredDoc(randomAlphaOfLength(6) + i);
             expectedDocs.add(stat);
-            assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStoredDoc(stat, listener), Boolean.TRUE, null, null);
+            assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStoredDoc(stat, null, listener),
+                initialSeqNo,
+                null,
+                null);
         }
 
         // remove one of the put docs so we don't retrieve all
@@ -338,8 +365,11 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
             client().index(request).actionGet();
         }
 
-        assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStoredDoc(dataFrameTransformStoredDoc, listener),
-            true,
+        // Put when referencing the old index should create the doc in the new index, even if we have seqNo|primaryTerm info
+        assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStoredDoc(dataFrameTransformStoredDoc,
+            new SeqNoPrimaryTermAndIndex(3, 1, oldIndex),
+            listener),
+            new SeqNoPrimaryTermAndIndex(0, 1, DataFrameInternalIndex.LATEST_INDEX_NAME),
             null,
             null);
 

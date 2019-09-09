@@ -158,7 +158,7 @@ This request will return a response that includes the policy, as well as
 information about the last time the policy succeeded and failed, as well as the
 next time the policy will be executed.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "nightly-snapshots" : {
@@ -190,6 +190,7 @@ next time the policy will be executed.
 }
 --------------------------------------------------
 // TESTRESPONSE[skip:the presence of last_failure and last_success is asynchronous and will be present for users, but is untestable]
+
 <1> information about the last time the policy successfully initated a snapshot
 <2> the name of the snapshot that was successfully initiated
 <3> information about the last time the policy failed to initiate a snapshot

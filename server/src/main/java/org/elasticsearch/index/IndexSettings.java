@@ -179,7 +179,7 @@ public final class IndexSettings {
      * N filters is (N*N)/2 so a limit of 100 filters is imposed by default.
      */
     public static final Setting<Integer> MAX_ADJACENCY_MATRIX_FILTERS_SETTING =
-        Setting.intSetting("index.max_adjacency_matrix_filters", 100, 2, Property.Dynamic, Property.IndexScope);
+        Setting.intSetting("index.max_adjacency_matrix_filters", 100, 2, Property.Dynamic, Property.IndexScope, Property.Deprecated);
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
     public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING =
         Setting.timeSetting("index.refresh_interval", DEFAULT_REFRESH_INTERVAL, new TimeValue(-1, TimeUnit.MILLISECONDS),
@@ -823,11 +823,18 @@ public final class IndexSettings {
 
     /**
      * Returns the max number of filters in adjacency_matrix aggregation search requests
+     * @deprecated This setting will be removed in 8.0
      */
+    @Deprecated    
     public int getMaxAdjacencyMatrixFilters() {
         return this.maxAdjacencyMatrixFilters;
     }
 
+    /**
+     * @param maxAdjacencyFilters the max number of filters in adjacency_matrix aggregation search requests
+     * @deprecated This setting will be removed in 8.0
+     */
+    @Deprecated    
     private void setMaxAdjacencyMatrixFilters(int maxAdjacencyFilters) {
         this.maxAdjacencyMatrixFilters = maxAdjacencyFilters;
     }

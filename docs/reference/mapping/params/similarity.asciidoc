@@ -34,7 +34,7 @@ configuration are:
 The `similarity` can be set on the field level when a field is first created,
 as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -51,6 +51,6 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The `default_field` uses the `BM25` similarity.
 <2> The `boolean_sim_field` uses the `boolean` similarity.

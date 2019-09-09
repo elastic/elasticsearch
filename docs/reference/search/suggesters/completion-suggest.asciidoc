@@ -171,7 +171,7 @@ POST music/_search?pretty
 
 returns this response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_shards" : {
@@ -243,7 +243,7 @@ POST music/_search
 
 Which should look like:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "took": 6,

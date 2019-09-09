@@ -76,7 +76,7 @@ GET /cluster_one:twitter/_search
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 150,
@@ -148,7 +148,7 @@ GET /twitter,cluster_one:twitter,cluster_two:twitter/_search
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 150,

@@ -180,6 +180,18 @@ public class DiscoveryNodesTests extends ESTestCase {
         assertThat(nodes0.delta(nodes012).shortSummary(), oneOf(
             "removed {" + discoveryNodes.get(1) + "," + discoveryNodes.get(2) + "}",
             "removed {" + discoveryNodes.get(2) + "," + discoveryNodes.get(1) + "}"));
+
+        final DiscoveryNodes nodes01Local = DiscoveryNodes.builder(nodes01).localNodeId(discoveryNodes.get(1).getId()).build();
+        final DiscoveryNodes nodes02Local = DiscoveryNodes.builder(nodes012).localNodeId(discoveryNodes.get(1).getId()).build();
+
+        assertThat(nodes01Local.delta(nodes0).shortSummary(), equalTo(""));
+        assertThat(nodes02Local.delta(nodes0).shortSummary(), equalTo("added {" + discoveryNodes.get(2) + "}"));
+
+        assertThat(nodes0.delta(nodes01Local).shortSummary(), equalTo("removed {" + discoveryNodes.get(1) + "}"));
+        assertThat(nodes0.delta(nodes02Local).shortSummary(), oneOf(
+            "removed {" + discoveryNodes.get(1) + "," + discoveryNodes.get(2) + "}",
+            "removed {" + discoveryNodes.get(2) + "," + discoveryNodes.get(1) + "}"));
+
     }
 
     public void testDeltas() {

@@ -110,6 +110,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
@@ -1048,16 +1049,26 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final GroupedActionListener<Void> filesListener =
                 new GroupedActionListener<>(allFilesUploadedListener, indexIncrementalFileCount);
             final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+            // Flag to signal that the snapshot has been aborted/failed so we can stop any further blob uploads from starting
+            final AtomicBoolean alreadyFailed = new AtomicBoolean();
             for (BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo : filesToSnapshot) {
                 executor.execute(new ActionRunnable<>(filesListener) {
                     @Override
                     protected void doRun() {
                         try {
-                            snapshotFile(snapshotFileInfo, indexId, shardId, snapshotId, snapshotStatus, store);
+                            if (alreadyFailed.get() == false) {
+                                snapshotFile(snapshotFileInfo, indexId, shardId, snapshotId, snapshotStatus, store);
+                            }
                             filesListener.onResponse(null);
                         } catch (IOException e) {
                             throw new IndexShardSnapshotFailedException(shardId, "Failed to perform snapshot (index files)", e);
                         }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        alreadyFailed.set(true);
+                        super.onFailure(e);
                     }
                 });
             }

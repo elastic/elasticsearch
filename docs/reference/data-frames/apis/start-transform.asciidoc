@@ -69,10 +69,10 @@ POST _data_frame/transforms/ecommerce_transform/_start
 // TEST[skip:set up kibana samples]
 
 When the {dataframe-transform} starts, you receive the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "acknowledged" : true
 }
 ----
-// TESTRESPONSE

@@ -38,7 +38,6 @@ import java.util.List;
 import java.util.jar.JarInputStream;
 import java.util.zip.ZipEntry;
 
-import static java.time.ZoneOffset.UTC;
 import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.CLI;
 
 final class JdbcTestUtils {
@@ -240,10 +239,5 @@ final class JdbcTestUtils {
     static Time asTime(long millis, ZoneId zoneId) {
         return new Time(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), zoneId)
                 .toLocalTime().atDate(JdbcTestUtils.EPOCH).atZone(zoneId).toInstant().toEpochMilli());
-    }
-
-    // Used to convert the DATE read from CSV file to a java.sql.Date at the System's timezone (-Dtests.timezone=XXXX)
-    static Date convertDateToSystemTimezone(Date date) {
-        return new Date(date.toLocalDate().atStartOfDay(UTC).toInstant().toEpochMilli());
     }
 }

@@ -11,12 +11,14 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
 import org.elasticsearch.xpack.sql.expression.gen.processor.BinaryProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTrunc.DatePart;
 
 public class DateTruncProcessor extends BinaryProcessor {
 
@@ -32,6 +34,15 @@ public class DateTruncProcessor extends BinaryProcessor {
     public DateTruncProcessor(StreamInput in) throws IOException {
         super(in);
         zoneId = SqlStreamInput.asSqlStream(in).zoneId();
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    protected void doWrite(StreamOutput out) {
     }
 
     ZoneId zoneId() {
@@ -57,25 +68,23 @@ public class DateTruncProcessor extends BinaryProcessor {
         if (!(source1 instanceof String)) {
             throw new SqlIllegalArgumentException("A string is required; received [{}]", source1);
         }
-        DateTrunc.DatePart truncateDateField = DateTrunc.DatePart.resolveTruncate((String) source1);
+        DatePart truncateDateField = DatePart.resolveTruncate((String) source1);
         if (truncateDateField == null) {
-            throw new SqlIllegalArgumentException("A value of {} or their aliases is required; received [{}]",
-                DateTrunc.DatePart.values(), source2);
+            List<String> similar = DatePart.findSimilar((String) source1);
+            if (similar.isEmpty()) {
+                throw new SqlIllegalArgumentException("A value of {} or their aliases is required; received [{}]",
+                    DatePart.values(), source1);
+            } else {
+                throw new SqlIllegalArgumentException("Received value [{}] is not valid date part for truncation; " + "" +
+                    "did you mean {}?", source1, similar);
+            }
         }
+
         if (!(source2 instanceof ZonedDateTime)) {
             throw new SqlIllegalArgumentException("A datetime/date is required; received [{}]", source2);
         }
 
-        return DateUtils.truncate(((ZonedDateTime) source2).withZoneSameInstant(zoneId), truncateDateField);
-    }
-
-    @Override
-    public String getWriteableName() {
-        return NAME;
-    }
-
-    @Override
-    protected void doWrite(StreamOutput out) {
+        return DatePart.truncate(((ZonedDateTime) source2).withZoneSameInstant(zoneId), truncateDateField);
     }
 
     @Override

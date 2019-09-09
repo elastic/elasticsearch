@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.relique.jdbc.csv.CsvResultSet;
 
 import java.io.IOException;
+import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -37,7 +38,7 @@ import static java.sql.Types.INTEGER;
 import static java.sql.Types.REAL;
 import static java.sql.Types.SMALLINT;
 import static java.sql.Types.TINYINT;
-import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.convertDateToSystemTimezone;
+import static java.time.ZoneOffset.UTC;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.logResultSetMetadata;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.resultSetCurrentData;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -334,5 +335,10 @@ public class JdbcAssert {
         }
 
         return columnType;
+    }
+
+    // Used to convert the DATE read from CSV file to a java.sql.Date at the System's timezone (-Dtests.timezone=XXXX)
+    private static Date convertDateToSystemTimezone(Date date) {
+        return new Date(date.toLocalDate().atStartOfDay(UTC).toInstant().toEpochMilli());
     }
 }

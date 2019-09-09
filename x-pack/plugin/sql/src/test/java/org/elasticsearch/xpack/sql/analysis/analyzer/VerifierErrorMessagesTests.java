@@ -212,6 +212,12 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 "YEAR, QUARTER, MONTH, WEEK, DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND] " +
                 "or their aliases, found value ['invalid']",
             error("SELECT DATE_TRUNC('invalid', keyword) FROM test"));
+        assertEquals("1:8: Unknown value ['millenioum'] for first argument of [DATE_TRUNC('millenioum', keyword)]; " +
+                "did you mean [millennium, millennia]?",
+            error("SELECT DATE_TRUNC('millenioum', keyword) FROM test"));
+        assertEquals("1:8: Unknown value ['yyyz'] for first argument of [DATE_TRUNC('yyyz', keyword)]; " +
+                "did you mean [yyyy, yy]?",
+            error("SELECT DATE_TRUNC('yyyz', keyword) FROM test"));
     }
 
     public void testDateTruncValidArgs() {

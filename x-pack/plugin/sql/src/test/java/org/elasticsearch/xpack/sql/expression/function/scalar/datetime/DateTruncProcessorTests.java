@@ -23,7 +23,6 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTes
 import static org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils.randomDatetimeLiteral;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
 import static org.elasticsearch.xpack.sql.proto.StringUtils.ISO_DATE_WITH_NANOS;
-import static org.hamcrest.Matchers.startsWith;
 
 public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<DateTruncProcessor> {
 
@@ -68,9 +67,14 @@ public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<
 
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new DateTrunc(Source.EMPTY, l("invalid"), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));
-        assertThat(siae.getMessage(), startsWith("A value of [MILLENNIUM, CENTURY, DECADE, YEAR, " +
-            "QUARTER, MONTH, WEEK, DAY, HOUR, MINUTE, " +
-            "SECOND, MILLISECOND, MICROSECOND, NANOSECOND] or their aliases is required; received ["));
+        assertEquals("A value of [MILLENNIUM, CENTURY, DECADE, YEAR, QUARTER, MONTH, WEEK, DAY, HOUR, MINUTE, " +
+            "SECOND, MILLISECOND, MICROSECOND, NANOSECOND] or their aliases is required; received [invalid]",
+            siae.getMessage());
+
+        siae = expectThrows(SqlIllegalArgumentException.class,
+            () -> new DateTrunc(Source.EMPTY, l("dacede"), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));
+        assertEquals("Received value [dacede] is not valid date part for truncation; did you mean [decade, decades]?",
+             siae.getMessage());
     }
 
     public void testWithNulls() {

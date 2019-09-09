@@ -80,8 +80,7 @@ public class SnapshotLifecycleMetadata implements XPackMetaDataCustom {
     public SnapshotLifecycleMetadata(StreamInput in) throws IOException {
         this.snapshotConfigurations = in.readMap(StreamInput::readString, SnapshotLifecyclePolicyMetadata::new);
         this.operationMode = in.readEnum(OperationMode.class);
-        // TODO: version qualify this with the correct version (7.5) once available
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
             this.slmStats = new SnapshotLifecycleStats(in);
         } else {
             this.slmStats = new SnapshotLifecycleStats();
@@ -124,8 +123,7 @@ public class SnapshotLifecycleMetadata implements XPackMetaDataCustom {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(this.snapshotConfigurations, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
         out.writeEnum(this.operationMode);
-        // TODO: version qualify this with the correct version (7.5) once available
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
             this.slmStats.writeTo(out);
         }
     }
@@ -180,8 +178,7 @@ public class SnapshotLifecycleMetadata implements XPackMetaDataCustom {
                 SnapshotLifecyclePolicyMetadata::new,
                 SnapshotLifecycleMetadataDiff::readLifecyclePolicyDiffFrom);
             this.operationMode = in.readEnum(OperationMode.class);
-            // TODO: version qualify this with the correct version (7.5) once available
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
                 this.slmStats = new SnapshotLifecycleStats(in);
             } else {
                 this.slmStats = new SnapshotLifecycleStats();
@@ -204,8 +201,7 @@ public class SnapshotLifecycleMetadata implements XPackMetaDataCustom {
         public void writeTo(StreamOutput out) throws IOException {
             lifecycles.writeTo(out);
             out.writeEnum(this.operationMode);
-            // TODO: version qualify this with the correct version (7.5) once available
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
                 this.slmStats.writeTo(out);
             }
         }

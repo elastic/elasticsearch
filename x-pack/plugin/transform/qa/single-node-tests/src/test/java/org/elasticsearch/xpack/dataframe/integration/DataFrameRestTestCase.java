@@ -20,7 +20,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
+import org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndex;
 import org.junit.After;
 import org.junit.AfterClass;
 

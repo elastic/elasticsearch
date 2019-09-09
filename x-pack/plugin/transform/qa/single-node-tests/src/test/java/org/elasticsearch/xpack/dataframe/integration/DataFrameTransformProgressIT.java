@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.HistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
-import org.elasticsearch.xpack.dataframe.transforms.TransformProgressGatherer;
+import org.elasticsearch.xpack.transform.transforms.TransformProgressGatherer;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;

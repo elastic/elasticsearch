@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.dataframe.integration;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
+import org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndex;
 import org.junit.Before;
 
 import java.io.IOException;

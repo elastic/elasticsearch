@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xpack.core.transform.DataFrameField;
 import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndex;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.transform.GetDataFrameTransformRequest;
 import org.elasticsearch.client.transform.GetDataFrameTransformResponse;
@@ -27,15 +28,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collections;
 
-import static org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex.addDataFrameTransformsConfigMappings;
 import static org.hamcrest.Matchers.is;
+import static org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndex.addDataFrameTransformsConfigMappings;
 import static org.hamcrest.Matchers.equalTo;
 
 

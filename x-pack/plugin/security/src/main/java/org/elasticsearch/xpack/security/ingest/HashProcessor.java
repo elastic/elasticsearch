@@ -78,7 +78,7 @@ public final class HashProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument document) {
+    public IngestDocument execute(IngestDocument document) {
         Map<String, String> hashedFieldValues = fields.stream().map(f -> {
             String value = document.getFieldValue(f, String.class, ignoreMissing);
             if (value == null && ignoreMissing) {
@@ -95,6 +95,7 @@ public final class HashProcessor extends AbstractProcessor {
         } else {
             document.setFieldValue(targetField, hashedFieldValues);
         }
+        return document;
     }
 
     @Override

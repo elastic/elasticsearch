@@ -589,26 +589,25 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     private static Map<IndexId, String[]> shardGenerations(SnapshotsInProgress.Entry snapshot) {
+        final Map<String, IndexId> indexLookup = new HashMap<>();
+        snapshot.indices().forEach(idx -> indexLookup.put(idx.getName(), idx));
         final Map<IndexId, List<Tuple<ShardId, ShardSnapshotStatus>>> res = new HashMap<>();
         for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : snapshot.shards()) {
-            final IndexId indexId = snapshot.indices()
-                .stream()
-                .filter(i -> i.getName().equals(shard.key.getIndexName())).findAny()
-                .orElseThrow(() -> new AssertionError("Inconsistent snapshot entry"));
+            final IndexId indexId = indexLookup.get(shard.key.getIndexName());
+            assert indexId != null;
             res.computeIfAbsent(indexId, k -> new ArrayList<>()).add(new Tuple<>(shard.key, shard.value));
         }
-        final Map<IndexId, String[]> result = new HashMap<>();
-        res.forEach((indexId, shards) -> {
-            final String[] gens = result.computeIfAbsent(indexId,
-                k -> new String[shards.stream().mapToInt(s -> s.v1().getId()).max().orElse(0) + 1]);
-            for (Tuple<ShardId, ShardSnapshotStatus> shard : shards) {
-                if (shard.v2().state().failed() == false) {
-                    assert gens[shard.v1().getId()] == null;
-                    gens[shard.v1().getId()] = shard.v2().generation();
+        return res.entrySet().stream().collect(
+            Collectors.toMap(Map.Entry::getKey, entry -> {
+                final String[] gens = new String[entry.getValue().stream().mapToInt(s -> s.v1().getId()).max().orElse(0) + 1];
+                for (Tuple<ShardId, ShardSnapshotStatus> shard : entry.getValue()) {
+                    if (shard.v2().state().failed() == false) {
+                        assert gens[shard.v1().getId()] == null;
+                        gens[shard.v1().getId()] = shard.v2().generation();
+                    }
                 }
-            }
-        });
-        return result;
+                return gens;
+            }));
     }
 
     private static MetaData metaDataForSnapshot(SnapshotsInProgress.Entry snapshot, MetaData metaData) {

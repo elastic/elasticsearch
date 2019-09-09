@@ -55,7 +55,7 @@ public abstract class ESCloudBasedRepositoryIntegTestCase extends ESBlobStoreRep
     public static void startHttpServer() throws Exception {
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
-        randomServerErrors = false;//randomBoolean();
+        randomServerErrors = randomBoolean();
     }
 
     @Before

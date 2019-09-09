@@ -98,10 +98,5 @@ public abstract class PipelineAggregator implements NamedWriteable {
         return metaData;
     }
 
-    public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
-        // no-op
-        return aggregation;
-    }
-
-    public abstract InternalAggregation materializePipeline(InternalAggregation aggregation, ReduceContext reduceContext);
+    public abstract InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext);
 }

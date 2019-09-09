@@ -143,22 +143,22 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
     }
 
     /**
-     * Unlike {@link InternalAggregation#materializePipelines(InternalAggregation, ReduceContext)}, a multi-bucket
-     * agg needs to first materialize the buckets (and their parent pipelines) before allowing sibling pipelines
+     * Unlike {@link InternalAggregation#reducePipelines(InternalAggregation, ReduceContext)}, a multi-bucket
+     * agg needs to first reduce the buckets (and their parent pipelines) before allowing sibling pipelines
      * to materialize
      */
     @Override
-    public final InternalAggregation materializePipelines(InternalAggregation reducedAggs, ReduceContext reduceContext) {
+    public final InternalAggregation reducePipelines(InternalAggregation reducedAggs, ReduceContext reduceContext) {
         assert reduceContext.isFinalReduce();
-        List<B> materializedBuckets = materializeBuckets(reduceContext);
-        return super.materializePipelines(create(materializedBuckets), reduceContext);
+        List<B> materializedBuckets = reducePipelineBuckets(reduceContext);
+        return super.reducePipelines(create(materializedBuckets), reduceContext);
     }
 
-    private List<B> materializeBuckets(ReduceContext reduceContext) {
+    private List<B> reducePipelineBuckets(ReduceContext reduceContext) {
         return getBuckets().stream().map(internalBucket -> {
             List<InternalAggregation> aggs = internalBucket.getAggregations().asList()
                 .stream().map(aggregation
-                    -> ((InternalAggregation)aggregation).materializePipelines((InternalAggregation)aggregation, reduceContext))
+                    -> ((InternalAggregation)aggregation).reducePipelines((InternalAggregation)aggregation, reduceContext))
                 .collect(Collectors.toList());
             return createBucket(new InternalAggregations(aggs), internalBucket);
         }).collect(Collectors.toList());

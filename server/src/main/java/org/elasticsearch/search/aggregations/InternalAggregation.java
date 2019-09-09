@@ -130,10 +130,10 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      * Creates the output from all pipeline aggs that this aggregation is associated with.  Should only
      * be called after all aggregations have been fully reduced
      */
-    public InternalAggregation materializePipelines(InternalAggregation reducedAggs, ReduceContext reduceContext) {
+    public InternalAggregation reducePipelines(InternalAggregation reducedAggs, ReduceContext reduceContext) {
         assert reduceContext.isFinalReduce();
         for (PipelineAggregator pipelineAggregator : pipelineAggregators) {
-            reducedAggs = pipelineAggregator.materializePipeline(reducedAggs, reduceContext);
+            reducedAggs = pipelineAggregator.reduce(reducedAggs, reduceContext);
         }
         return reducedAggs;
     }

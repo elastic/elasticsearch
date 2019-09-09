@@ -102,7 +102,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
      * SearchPhaseController or anywhere else that wants to initiate a reduction.  It _should not_ be called
      * as an intermediate reduction step (e.g. in the middle of an aggregation tree).
      *
-     * This method first reduces the aggregations, and if it is the final reduce, then materializes the pipeline
+     * This method first reduces the aggregations, and if it is the final reduce, then reduce the pipeline
      * aggregations (both embedded parent/sibling as well as top-level sibling pipelines)
      */
     public static InternalAggregations topLevelReduce(List<InternalAggregations> aggregationsList, ReduceContext context) {
@@ -114,12 +114,12 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         if (context.isFinalReduce()) {
             List<InternalAggregation> reducedInternalAggs = reduced.getInternalAggregations();
             reducedInternalAggs = reducedInternalAggs.stream()
-                .map(agg -> agg.materializePipelines(agg, context)).collect(Collectors.toList());
+                .map(agg -> agg.reducePipelines(agg, context)).collect(Collectors.toList());
 
             List<SiblingPipelineAggregator> topLevelPipelineAggregators = aggregationsList.get(0).getTopLevelPipelineAggregators();
             for (SiblingPipelineAggregator pipelineAggregator : topLevelPipelineAggregators) {
                 InternalAggregation newAgg
-                    = pipelineAggregator.doMaterializePipelines(new InternalAggregations(reducedInternalAggs), context);
+                    = pipelineAggregator.doReduce(new InternalAggregations(reducedInternalAggs), context);
                 reducedInternalAggs.add(newAgg);
             }
             return new InternalAggregations(reducedInternalAggs);

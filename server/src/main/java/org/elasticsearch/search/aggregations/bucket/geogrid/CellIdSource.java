@@ -185,9 +185,11 @@ class CellIdSource extends ValuesSource.Numeric {
                         }
                         break;
                     case GEOSHAPE:
+                    case GEO:
                         MultiGeoValues.GeoValue target = geoValues.nextValue();
                         resize(tiler.getCandidateTileCount(target, precision));
-                        tiler.setValues(values, target, precision);
+                        int matched = tiler.setValues(values, target, precision);
+                        resize(matched);
                         break;
                     default:
                         throw new IllegalArgumentException("unsupported geo type");

@@ -25,7 +25,7 @@ fi
 unset KEYSTORE_PASSWORD
 KEYSTORE_PASSWORD=
 if ! echo $* | grep -E -q '(^-h |-h$| -h |--help$|--help |^-V |-V$| -V |--version$|--version )' \
-    && "`dirname "$0"`"/elasticsearch-keystore has-passwd >/dev/null 2>&1
+    && "`dirname "$0"`"/elasticsearch-keystore has-passwd --silent
 then
   if [ -e "$ES_KEYSTORE_PASSPHRASE_FILE" ] ; then
     if ! read -s -r KEYSTORE_PASSWORD <"$ES_KEYSTORE_PASSPHRASE_FILE" ; then

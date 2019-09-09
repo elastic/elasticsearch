@@ -58,7 +58,7 @@ IF ERRORLEVEL 1 (
 
 SET KEYSTORE_PASSWORD=
 IF "%checkpassword%"=="Y" (
-  CALL "%~dp0elasticsearch-keystore.bat" has-passwd >NUL 2>NUL
+  CALL "%~dp0elasticsearch-keystore.bat" has-passwd --silent
   IF !ERRORLEVEL! EQU 0 (
     IF DEFINED ES_KEYSTORE_PASSPHRASE_FILE (
       IF EXIST "%ES_KEYSTORE_PASSPHRASE_FILE%" (

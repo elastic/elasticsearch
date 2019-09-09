@@ -25,7 +25,9 @@ import org.elasticsearch.env.Environment;
 
 import java.util.Map;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyString;
 
 public class HasPasswordKeyStoreCommandTests extends KeyStoreCommandTestCase {
     @Override
@@ -60,6 +62,6 @@ public class HasPasswordKeyStoreCommandTests extends KeyStoreCommandTestCase {
     public void testSilentSucceedsWhenKeystoreHasPassword() throws Exception {
         createKeystore("password");
         String output = execute("--silent");
-        assertEquals("", output);
+        assertThat(output, is(emptyString()));
     }
 }

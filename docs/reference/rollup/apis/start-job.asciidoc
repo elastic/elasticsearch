@@ -56,10 +56,9 @@ POST _rollup/job/sensor/_start
 
 Which will return the response:
 
-[source,js]
+[source,console-result]
 ----
 {
   "started": true
 }
 ----
-// TESTRESPONSE

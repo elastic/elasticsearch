@@ -25,7 +25,7 @@ In the above example, we calculate the average price of all the products that ar
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...

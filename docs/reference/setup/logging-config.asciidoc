@@ -215,6 +215,7 @@ log level to `error`.
 
 You can identify what is triggering deprecated functionality if `X-Opaque-Id` was used as an HTTP header.
 The user ID is included in the `X-Opaque-ID` field in deprecation JSON logs.
+
 [source,js]
 ---------------------------
 {

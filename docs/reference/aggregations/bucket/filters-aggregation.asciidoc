@@ -39,7 +39,7 @@ and another for all those containing a warning.
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 9,
@@ -91,7 +91,7 @@ GET logs/_search
 The filtered buckets are returned in the same order as provided in the
 request.  The response for this example would be:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 4,
@@ -158,7 +158,7 @@ GET logs/_search
 
 The response would be something like the following:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 3,

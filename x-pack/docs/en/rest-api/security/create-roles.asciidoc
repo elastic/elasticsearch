@@ -122,4 +122,5 @@ created or updated.
   }
 }
 --------------------------------------------------
+
 <1> When an existing role is updated, `created` is set to false.

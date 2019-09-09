@@ -127,6 +127,7 @@ created or updated.
   "created": true <1>
 }
 --------------------------------------------------
+
 <1> When an existing user is updated, `created` is set to false.
 
 After you add a user, requests from that user can be authenticated. For example:

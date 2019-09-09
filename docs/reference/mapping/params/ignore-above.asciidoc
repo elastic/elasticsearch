@@ -6,7 +6,7 @@ For arrays of strings, `ignore_above` will be applied for each array element sep
 
 NOTE: All strings/array elements will still be present in the `_source` field, if the latter is enabled which is the default in Elasticsearch.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -41,7 +41,7 @@ GET my_index/_search <4>
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> This field will ignore any string longer than 20 characters.
 <2> This document is indexed successfully.
 <3> This document will be indexed, but without indexing the `message` field.

@@ -63,7 +63,7 @@ POST /condition_example/_analyze
 
 And it'd respond:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "tokens": [
@@ -84,7 +84,7 @@ And it'd respond:
   ]
 }
 --------------------------------------------------
-// TESTRESPONSE
+
 <1> The term `What` has been lowercased, because it is only 4 characters long
 <2> The term `Flapdoodle` has been left in its original case, because it doesn't pass
     the predicate

@@ -1,3 +1,4 @@
+[role="xpack"]
 [[watch-cluster-status]]
 === Watching the Status of an Elasticsearch Cluster
 

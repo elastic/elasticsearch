@@ -143,14 +143,17 @@ A `{regression}` configuration object has the following properties:
 `eta`::
   (Optional, double) The shrinkage applied to the weights. Smaller values result 
   in larger forests which have better generalization error. However, the smaller 
-  the value the longer the training will take and the inference will also be 
-  larger and slower. For more information, see 
+  the value the longer the training will take. As a result the model will be 
+  larger and the inference slower. If this parameter is not supplied, its value 
+  is automatically tuned to give minimum validation error. For more information, 
+  see 
   https://en.wikipedia.org/wiki/Gradient_boosting#Shrinkage[this wiki article] 
   about shrinkage.
 
 `feature_bag_fraction`::
   (Optional, double) Defines the fraction of features which will be used when 
-  selecting a random bag for each candidate split.
+  selecting a random bag for each candidate split. If this parameter is not 
+  supplied, its value is automatically tuned to give minimum validation error.
   
 `maximum_number_trees`::
   (Optional, integer) Defines the maximum number of trees the forest is 
@@ -170,12 +173,12 @@ A `{regression}` configuration object has the following properties:
 Regularization parameters are constant multipliers of a regularization term 
 added to the optimization objective. They aim to prevent overfitting on the 
 training data set and improve generalization performance. These parameters are 
-calculated and set automatically by 
-<<ml-hyperparameter-optimization,hyperparameter optimization>> if you don't 
-supply their values manually. For more 
-information about regularization parameters and optimization, read the 
+set automatically by 
+<<ml-hyperparameter-optimization,hyperparameter optimization>> to give minimum 
+validation error if you don't supply their values manually. For more information 
+about regularization parameters and optimization, read the 
 https://arxiv.org/pdf/1603.02754.pdf[**XGBoost: A Scalable Tree Boosting System**] 
-paper. 
+paper.
 
 `gamma`::
   (Optional, double) Multiplies a linear penalty associated with the size of 
@@ -183,8 +186,9 @@ paper.
   prefer smaller trees. This will reduce the number of distinct values the 
   prediction function can take. To have an effect, `gamma` value must be 
   comparable to the reduction in the expected loss for splitting the data. The 
-  smaller this parameter the larger individual trees will be. This will result 
-  in slower train time and larger models for which inference is slower.
+  smaller this parameter the larger individual trees will be. The smaller this 
+  parameter the longer train will take. It will also produce larger models for 
+  which inference is slower.
 
 `lambda`::
   (Optional, double) Multiplies an L2 regularisation term which applies to leaf 

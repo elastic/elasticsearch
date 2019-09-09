@@ -16,7 +16,9 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyItem;
@@ -40,6 +42,7 @@ import static org.hamcrest.Matchers.greaterThan;
 /**
  * Tests for Snapshot Lifecycle Management that require a slow or blocked snapshot repo (using {@link MockRepository}
  */
+@TestLogging(value = "org.elasticsearch.snapshots.mockstore:DEBUG", reason = "d")
 public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
 
     @After
@@ -57,6 +60,38 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         return Arrays.asList(MockRepository.Plugin.class, LocalStateCompositeXPackPlugin.class, IndexLifecycle.class);
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+        settings.put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), true);
+        settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
+        settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
+        settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
+        settings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
+        settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
+        settings.put(XPackSettings.LOGSTASH_ENABLED.getKey(), false);
+        return settings.build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        return Arrays.asList(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class);
+    }
+
+    @Override
+    protected Settings transportClientSettings() {
+        Settings.Builder settings = Settings.builder().put(super.transportClientSettings());
+        settings.put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), true);
+        settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
+        settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
+        settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
+        settings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
+        settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
+        settings.put(XPackSettings.LOGSTASH_ENABLED.getKey(), false);
+        return settings.build();
+    }
+
+
     public void testSnapshotInProgress() throws Exception {
         final String indexName = "test";
         final String policyName = "test-policy";
@@ -73,6 +108,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         createSnapshotPolicy(policyName, "snap", "1 2 3 4 5 ?", repoId, indexName, true);
 
         logger.info("--> blocking master from completing snapshot");
+        blockAllDataNodes(repoId);
         blockMasterFromFinalizingSnapshotOnIndexFile(repoId);
 
         logger.info("--> executing snapshot lifecycle");
@@ -95,6 +131,7 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         });
 
         logger.info("--> unblocking snapshots");
+        unblockAllDataNodes(repoId);
         unblockRepo(repoId);
 
         // Cancel/delete the snapshot
@@ -253,11 +290,10 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
         }
     }
 
-    public static String blockMasterFromFinalizingSnapshotOnIndexFile(final String repositoryName) {
-        final String masterName = internalCluster().getMasterName();
-        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)
-            .repository(repositoryName)).setBlockOnWriteIndexFile(true);
-        return masterName;
+    public static void blockMasterFromFinalizingSnapshotOnIndexFile(final String repositoryName) {
+        for(RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
+            ((MockRepository)repositoriesService.repository(repositoryName)).setBlockOnWriteIndexFile(true);
+        }
     }
 
     public static String unblockRepo(final String repositoryName) {

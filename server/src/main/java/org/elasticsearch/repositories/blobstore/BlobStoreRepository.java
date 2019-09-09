@@ -1374,7 +1374,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         String fileListGeneration = tuple.v2();
 
         // Build a list of snapshots that should be preserved
-        final List<SnapshotFiles> newSnapshotsList = newSnapshotsList(repositoryData, indexId, snapshots);
+        final List<SnapshotFiles> newSnapshotsList = new ArrayList<>();
+        final Set<String> survivingSnapshotNames =
+            repositoryData.getSnapshots(indexId).stream().map(SnapshotId::getName).collect(Collectors.toSet());
+        for (SnapshotFiles point : snapshots) {
+            if (survivingSnapshotNames.contains(point.snapshot())) {
+                newSnapshotsList.add(point);
+            }
+        }
         final String indexGeneration = Long.toString(Long.parseLong(fileListGeneration) + 1);
         try {
             final List<String> blobsToDelete;
@@ -1412,19 +1419,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length())) == false)
                 || (blob.startsWith(DATA_BLOB_PREFIX) && updatedSnapshots.findNameFile(canonicalName(blob)) == null)
                 || FsBlobContainer.isTempBlobName(blob)).collect(Collectors.toList());
-    }
-
-    private static List<SnapshotFiles> newSnapshotsList(RepositoryData repositoryData, IndexId indexId,
-                                                        BlobStoreIndexShardSnapshots snapshots) {
-        List<SnapshotFiles> newSnapshotsList = new ArrayList<>();
-        final Set<String> survivingSnapshotNames =
-            repositoryData.getSnapshots(indexId).stream().map(SnapshotId::getName).collect(Collectors.toSet());
-        for (SnapshotFiles point : snapshots) {
-            if (survivingSnapshotNames.contains(point.snapshot())) {
-                newSnapshotsList.add(point);
-            }
-        }
-        return newSnapshotsList;
     }
 
     /**

@@ -389,7 +389,7 @@ keyed by node. For each node:
 [[cluster-nodes-stats-api-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 # return just indices
 GET /_nodes/stats/indices
@@ -400,7 +400,6 @@ GET /_nodes/stats/os,process
 # return just process for node with IP address 10.0.0.1
 GET /_nodes/10.0.0.1/stats/process
 --------------------------------------------------
-// CONSOLE
 
 All stats can be explicitly requested via `/_nodes/stats/_all` or 
 `/_nodes/stats?metric=_all`.
@@ -408,7 +407,7 @@ All stats can be explicitly requested via `/_nodes/stats/_all` or
 You can get information about indices stats on `node`, `indices`, or `shards` 
 level.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 # Fielddata summarized by node
 GET /_nodes/stats/indices/fielddata?fields=field1,field2
@@ -422,12 +421,11 @@ GET /_nodes/stats/indices/fielddata?level=shards&fields=field1,field2
 # You can use wildcards for field names
 GET /_nodes/stats/indices/fielddata?fields=field*
 --------------------------------------------------
-// CONSOLE
 
 You can get statistics about search groups for searches executed
 on this node.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 # All groups with all stats
 GET /_nodes/stats?groups=_all
@@ -435,4 +433,3 @@ GET /_nodes/stats?groups=_all
 # Some groups from just the indices stats
 GET /_nodes/stats/indices?groups=foo,bar
 --------------------------------------------------
-// CONSOLE

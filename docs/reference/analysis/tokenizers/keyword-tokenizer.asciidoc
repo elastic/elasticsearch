@@ -8,7 +8,7 @@ with token filters to normalise output, e.g. lower-casing email addresses.
 [float]
 === Example output
 
-[source,js]
+[source,console]
 ---------------------------
 POST _analyze
 {
@@ -16,7 +16,6 @@ POST _analyze
   "text": "New York"
 }
 ---------------------------
-// CONSOLE
 
 /////////////////////
 

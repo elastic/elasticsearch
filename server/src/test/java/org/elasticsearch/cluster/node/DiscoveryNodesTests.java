@@ -44,6 +44,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 public class DiscoveryNodesTests extends ESTestCase {
 
@@ -161,6 +162,24 @@ public class DiscoveryNodesTests extends ESTestCase {
         final List<DiscoveryNode> sortedNodes = new ArrayList<>(returnedNodes);
         Collections.sort(sortedNodes, Comparator.comparing(n -> n.isMasterNode() == false));
         assertEquals(sortedNodes, returnedNodes);
+    }
+
+    public void testDeltaListsMultipleNodes() {
+        final List<DiscoveryNode> discoveryNodes = randomNodes(3);
+
+        final DiscoveryNodes nodes0 = DiscoveryNodes.builder().add(discoveryNodes.get(0)).build();
+        final DiscoveryNodes nodes01 = DiscoveryNodes.builder(nodes0).add(discoveryNodes.get(1)).build();
+        final DiscoveryNodes nodes012 = DiscoveryNodes.builder(nodes01).add(discoveryNodes.get(2)).build();
+
+        assertThat(nodes01.delta(nodes0).shortSummary(), equalTo("added {" + discoveryNodes.get(1) + "}"));
+        assertThat(nodes012.delta(nodes0).shortSummary(), oneOf(
+            "added {" + discoveryNodes.get(1) + "," + discoveryNodes.get(2) + "}",
+            "added {" + discoveryNodes.get(2) + "," + discoveryNodes.get(1) + "}"));
+
+        assertThat(nodes0.delta(nodes01).shortSummary(), equalTo("removed {" + discoveryNodes.get(1) + "}"));
+        assertThat(nodes0.delta(nodes012).shortSummary(), oneOf(
+            "removed {" + discoveryNodes.get(1) + "," + discoveryNodes.get(2) + "}",
+            "removed {" + discoveryNodes.get(2) + "," + discoveryNodes.get(1) + "}"));
     }
 
     public void testDeltas() {

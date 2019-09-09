@@ -518,8 +518,14 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                     summary.append(", ");
                 }
                 summary.append("removed {");
+                boolean first = true;
                 for (DiscoveryNode node : removedNodes()) {
-                    summary.append(node).append(',');
+                    if (first) {
+                        first = false;
+                    } else {
+                        summary.append(',');
+                    }
+                    summary.append(node);
                 }
                 summary.append("}");
             }
@@ -530,10 +536,17 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                         summary.append(", ");
                     }
                     summary.append("added {");
+                    boolean first = true;
                     for (DiscoveryNode node : addedNodes()) {
-                        if (!node.getId().equals(localNodeId)) {
+                        if (node.getId().equals(localNodeId) == false) {
                             // don't print ourself
-                            summary.append(node).append(',');
+
+                            if (first) {
+                                first = false;
+                            } else {
+                                summary.append(',');
+                            }
+                            summary.append(node);
                         }
                     }
                     summary.append("}");

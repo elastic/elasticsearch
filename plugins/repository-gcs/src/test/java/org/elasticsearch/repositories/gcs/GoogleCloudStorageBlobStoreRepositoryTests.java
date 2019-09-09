@@ -39,7 +39,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.blobstore.ESCloudBasedRepositoryIntegTestCase;
+import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 import org.threeten.bp.Duration;
@@ -74,7 +74,7 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BU
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.CLIENT_NAME;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a Google Cloud Storage endpoint")
-public class GoogleCloudStorageBlobStoreRepositoryTests extends ESCloudBasedRepositoryIntegTestCase {
+public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
     private static byte[] serviceAccount;
 
@@ -177,25 +177,22 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESCloudBasedRepo
 
         @Override
         protected GoogleCloudStorageService createStorageService() {
-            if (hasRandomServerErrors()) {
-                return new GoogleCloudStorageService() {
-                    @Override
-                    StorageOptions createStorageOptions(final GoogleCloudStorageClientSettings clientSettings,
-                                                        final HttpTransportOptions httpTransportOptions) {
-                        return super.createStorageOptions(clientSettings, httpTransportOptions)
-                            .toBuilder()
-                            .setRetrySettings(RetrySettings.newBuilder()
-                                .setMaxAttempts(10)
-                                .setInitialRetryDelay(Duration.ofMillis(10L))
-                                .setRetryDelayMultiplier(2.0d)
-                                .setMaxRetryDelay(Duration.ofSeconds(1L))
-                                .setTotalTimeout(Duration.ofSeconds(30L))
-                                .build())
-                            .build();
-                    }
-                };
-            }
-            return super.createStorageService();
+            return new GoogleCloudStorageService() {
+                @Override
+                StorageOptions createStorageOptions(final GoogleCloudStorageClientSettings clientSettings,
+                                                    final HttpTransportOptions httpTransportOptions) {
+                    return super.createStorageOptions(clientSettings, httpTransportOptions)
+                        .toBuilder()
+                        .setRetrySettings(RetrySettings.newBuilder()
+                            .setMaxAttempts(10)
+                            .setInitialRetryDelay(Duration.ofMillis(10L))
+                            .setRetryDelayMultiplier(2.0d)
+                            .setMaxRetryDelay(Duration.ofSeconds(1L))
+                            .setTotalTimeout(Duration.ofSeconds(30L))
+                            .build())
+                        .build();
+                }
+            };
         }
     }
 
@@ -220,7 +217,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESCloudBasedRepo
             }
             return out.toByteArray();
         } catch (Exception e) {
-            throw new RuntimeException("Unable to create service account file", e);
+            throw new AssertionError("Unable to create service account file", e);
         }
     }
 
@@ -408,6 +405,13 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESCloudBasedRepo
 
         GoogleErroneousHttpHandler(final HttpHandler delegate, final int maxErrorsPerRequest) {
             super(delegate, maxErrorsPerRequest);
+        }
+
+        @Override
+        protected String requestUniqueId(HttpExchange exchange) {
+            return exchange.getRemoteAddress().toString()
+                + " " + exchange.getRequestMethod()
+                + " " + exchange.getRequestURI();
         }
 
         @Override

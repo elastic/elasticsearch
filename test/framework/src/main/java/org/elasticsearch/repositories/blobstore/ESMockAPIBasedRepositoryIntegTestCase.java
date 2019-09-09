@@ -40,22 +40,18 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Integration tests for {@link BlobStoreRepository} implementations that relies on cloud-based
- * services. This abstract class is responsible of starting and stopping an internal HTTP server
- * which is used to simulate an external storage service like S3.
+ * Integration tests for {@link BlobStoreRepository} implementations rely on mock APIs that emulate cloud-based services.
  */
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a cloud-based storage service")
-public abstract class ESCloudBasedRepositoryIntegTestCase extends ESBlobStoreRepositoryIntegTestCase {
+public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreRepositoryIntegTestCase {
 
     private static HttpServer httpServer;
-    private static Boolean randomServerErrors;
     private Map<String, HttpHandler> handlers;
 
     @BeforeClass
     public static void startHttpServer() throws Exception {
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
-        randomServerErrors = randomBoolean();
     }
 
     @Before
@@ -63,7 +59,7 @@ public abstract class ESCloudBasedRepositoryIntegTestCase extends ESBlobStoreRep
         handlers = createHttpHandlers();
         handlers.forEach((c, h) -> {
             HttpHandler handler = h;
-            if (randomServerErrors) {
+            if (randomBoolean()) {
                 handler = createErroneousHttpHandler(handler);
             }
             httpServer.createContext(c, handler);
@@ -74,7 +70,6 @@ public abstract class ESCloudBasedRepositoryIntegTestCase extends ESBlobStoreRep
     public static void stopHttpServer() {
         httpServer.stop(0);
         httpServer = null;
-        randomServerErrors = null;
     }
 
     @After
@@ -88,11 +83,6 @@ public abstract class ESCloudBasedRepositoryIntegTestCase extends ESBlobStoreRep
 
     protected abstract HttpHandler createErroneousHttpHandler(HttpHandler delegate);
 
-    protected static boolean hasRandomServerErrors() {
-        assert randomServerErrors != null;
-        return randomServerErrors;
-    }
-
     protected static String httpServerUrl() {
         InetSocketAddress address = httpServer.getAddress();
         return "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
@@ -105,7 +95,7 @@ public abstract class ESCloudBasedRepositoryIntegTestCase extends ESBlobStoreRep
      * slow down the test suite.
      */
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate a cloud-based storage service")
-    protected static class ErroneousHttpHandler implements HttpHandler {
+    protected abstract static class ErroneousHttpHandler implements HttpHandler {
 
         // first key is a unique identifier for the incoming HTTP request,
         // value is the number of times the request has been seen
@@ -142,11 +132,7 @@ public abstract class ESCloudBasedRepositoryIntegTestCase extends ESBlobStoreRep
             exchange.close();
         }
 
-        protected String requestUniqueId(final HttpExchange exchange) {
-            return exchange.getRemoteAddress().toString()
-                + " " + exchange.getRequestMethod()
-                + " " + exchange.getRequestURI();
-        }
+        protected abstract String requestUniqueId(HttpExchange exchange);
 
         protected boolean canFailRequest(final HttpExchange exchange) {
             return true;

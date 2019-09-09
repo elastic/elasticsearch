@@ -287,7 +287,7 @@ include::repository-shared-settings.asciidoc[]
 `storage_class`::
 
     Sets the S3 storage class for objects stored in the snapshot repository.
-    Values may be `standard`, `reduced_redundancy`, `standard_ia`
+    Values may be `standard`, `reduced_redundancy`, `standard_ia`, `onezone_ia`
     and `intelligent_tiering`. Defaults to `standard`.
     Changing this setting on an existing repository only affects the
     storage class for newly created objects, resulting in a mixed usage of

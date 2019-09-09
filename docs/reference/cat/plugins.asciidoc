@@ -1,5 +1,8 @@
 [[cat-plugins]]
-=== cat plugins
+=== cat plugins API
+++++
+<titleabbrev>cat plugins</titleabbrev>
+++++
 
 Returns a list of plugins running on each node of a cluster.
 

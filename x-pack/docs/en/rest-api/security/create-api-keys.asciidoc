@@ -65,7 +65,7 @@ expire.
 
 The following example creates an API key:
 
-[source, js]
+[source,console]
 ------------------------------------------------------------
 POST /_security/api_key
 {
@@ -93,7 +93,6 @@ POST /_security/api_key
   }
 }
 ------------------------------------------------------------
-// CONSOLE
 <1> optional expiration for the API key being generated. If expiration is not
  provided then the API keys do not expire.
 <2> optional role descriptors for this API key, if not provided then permissions
@@ -102,7 +101,7 @@ POST /_security/api_key
 A successful call returns a JSON structure that provides
 API key information.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "id":"VuaCfGcBCdbkQm-e5aOx", <1>

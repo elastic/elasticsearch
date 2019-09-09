@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStats
 import org.elasticsearch.xpack.core.dataframe.transforms.NodeAttributes;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -97,14 +98,19 @@ public class DataFrameTransformStatsTests extends AbstractHlrcXContentTestCase<D
     }
 
     public static DataFrameTransformProgress randomDataFrameTransformProgress() {
-        long totalDocs = randomNonNegativeLong();
-        Long remainingDocs = randomBoolean() ? null : randomLongBetween(0, totalDocs);
-        return new DataFrameTransformProgress(totalDocs, remainingDocs);
+        Long totalDocs = randomBoolean() ? null : randomNonNegativeLong();
+        Long docsRemaining = totalDocs != null ? randomLongBetween(0, totalDocs) : null;
+        return new DataFrameTransformProgress(
+            totalDocs,
+            docsRemaining,
+            totalDocs != null ? totalDocs - docsRemaining : randomNonNegativeLong(),
+            randomBoolean() ? null : randomNonNegativeLong());
     }
 
     public static DataFrameTransformCheckpointingInfo randomDataFrameTransformCheckpointingInfo() {
         return new DataFrameTransformCheckpointingInfo(randomDataFrameTransformCheckpointStats(),
-            randomDataFrameTransformCheckpointStats(), randomNonNegativeLong());
+            randomDataFrameTransformCheckpointStats(), randomNonNegativeLong(),
+            randomBoolean() ? null : Instant.ofEpochMilli(randomNonNegativeLong()));
     }
 
     public static DataFrameTransformCheckpointStats randomDataFrameTransformCheckpointStats() {
@@ -132,7 +138,10 @@ public class DataFrameTransformStatsTests extends AbstractHlrcXContentTestCase<D
         return new DataFrameIndexerTransformStats(randomLongBetween(10L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
-            randomLongBetween(0L, 10000L));
+            randomLongBetween(0L, 10000L),
+            randomBoolean() ? null : randomDouble(),
+            randomBoolean() ? null : randomDouble(),
+            randomBoolean() ? null : randomDouble());
     }
 
     @Override

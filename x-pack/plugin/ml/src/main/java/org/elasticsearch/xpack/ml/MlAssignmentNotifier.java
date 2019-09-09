@@ -21,7 +21,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.Objects;
 
@@ -29,18 +29,20 @@ import java.util.Objects;
 public class MlAssignmentNotifier implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(MlAssignmentNotifier.class);
 
-    private final Auditor auditor;
+    private final AnomalyDetectionAuditor auditor;
     private final MlConfigMigrator mlConfigMigrator;
     private final ThreadPool threadPool;
 
-    MlAssignmentNotifier(Settings settings, Auditor auditor, ThreadPool threadPool, Client client, ClusterService clusterService) {
+    MlAssignmentNotifier(Settings settings, AnomalyDetectionAuditor auditor, ThreadPool threadPool, Client client,
+                         ClusterService clusterService) {
         this.auditor = auditor;
         this.mlConfigMigrator = new MlConfigMigrator(settings, client, clusterService);
         this.threadPool = threadPool;
         clusterService.addListener(this);
     }
 
-    MlAssignmentNotifier(Auditor auditor, ThreadPool threadPool, MlConfigMigrator mlConfigMigrator, ClusterService clusterService) {
+    MlAssignmentNotifier(AnomalyDetectionAuditor auditor, ThreadPool threadPool, MlConfigMigrator mlConfigMigrator,
+                         ClusterService clusterService) {
         this.auditor = auditor;
         this.mlConfigMigrator = mlConfigMigrator;
         this.threadPool = threadPool;

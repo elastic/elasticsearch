@@ -42,13 +42,13 @@ public class DataFrameConfigurationIndexIT extends DataFrameRestTestCase {
             builder.endObject();
             final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
             Request req = new Request("PUT",
-                    DataFrameInternalIndex.INDEX_NAME + "/_doc/" + DataFrameTransformConfig.documentId(fakeTransformName));
+                    DataFrameInternalIndex.LATEST_INDEX_NAME + "/_doc/" + DataFrameTransformConfig.documentId(fakeTransformName));
             req.setEntity(entity);
             client().performRequest(req);
         }
 
         // refresh the index
-        assertOK(client().performRequest(new Request("POST", DataFrameInternalIndex.INDEX_NAME + "/_refresh")));
+        assertOK(client().performRequest(new Request("POST", DataFrameInternalIndex.LATEST_INDEX_NAME + "/_refresh")));
 
         Request deleteRequest = new Request("DELETE", DATAFRAME_ENDPOINT + fakeTransformName);
         Response deleteResponse = client().performRequest(deleteRequest);

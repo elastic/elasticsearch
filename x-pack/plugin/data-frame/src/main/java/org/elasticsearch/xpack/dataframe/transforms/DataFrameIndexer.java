@@ -117,6 +117,11 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
         return pageSize;
     }
 
+    @Override
+    protected String getJobId() {
+        return transformConfig.getId();
+    }
+
     public DataFrameTransformConfig getConfig() {
         return transformConfig;
     }
@@ -147,7 +152,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
     protected abstract void createCheckpoint(ActionListener<DataFrameTransformCheckpoint> listener);
 
     @Override
-    protected void onStart(long now, ActionListener<Void> listener) {
+    protected void onStart(long now, ActionListener<Boolean> listener) {
         try {
             pivot = new Pivot(getConfig().getPivotConfig());
 
@@ -157,7 +162,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
             }
 
             runState = determineRunStateAtStart();
-            listener.onResponse(null);
+            listener.onResponse(true);
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -226,7 +231,8 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
 
         // NOTE: progress is also mutated in ClientDataFrameIndexer#onFinished
         if (progress != null) {
-            progress.docsProcessed(getStats().getNumDocuments() - docsBeforeProcess);
+            progress.incrementDocsProcessed(getStats().getNumDocuments() - docsBeforeProcess);
+            progress.incrementDocsIndexed(result.getToIndex().size());
         }
 
         return result;
@@ -524,5 +530,5 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
         return null;
     }
 
-    protected abstract boolean sourceHasChanged();
+    protected abstract void sourceHasChanged(ActionListener<Boolean> hasChangedListener);
 }

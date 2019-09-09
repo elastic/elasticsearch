@@ -20,8 +20,10 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
 
 public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
@@ -211,7 +213,7 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testGetProgressResetWithContinuous() throws Exception {
+    public void testGetStatsWithContinuous() throws Exception {
         String transformId = "pivot_progress_continuous";
         String transformDest = transformId + "_idx";
         String transformSrc = "reviews_cont_pivot_test";
@@ -244,18 +246,20 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
         List<Map<String, Object>> transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);
         assertEquals(1, transformsStats.size());
-        /* TODO progress is now checkpoint progress and it may be that no checkpoint is in progress here
-        // Verify that the transforms progress
+        // No continuous checkpoints have been seen and thus all exponential averages should be 0.0
         for (Map<String, Object> transformStats : transformsStats) {
-            Map<String, Object> progress =
-                (Map<String, Object>)XContentMapValues.extractValue("checkpointing.next.checkpoint_progress", transformStats);
-            assertThat("total_docs is not 1000", progress.get("total_docs"), equalTo(1000));
-            assertThat("docs_remaining is not 0", progress.get("docs_remaining"), equalTo(0));
-            assertThat("percent_complete is not 100.0", progress.get("percent_complete"), equalTo(100.0));
+            transformStats = (Map<String, Object>)transformStats.get("stats");
+            assertThat("exponential_avg_checkpoint_duration_ms is not 0.0",
+                transformStats.get("exponential_avg_checkpoint_duration_ms"),
+                equalTo(0.0));
+            assertThat("exponential_avg_documents_indexed is not 0.0",
+                transformStats.get("exponential_avg_documents_indexed"),
+                equalTo(0.0));
+            assertThat("exponential_avg_documents_processed is not 0.0",
+                transformStats.get("exponential_avg_documents_processed"),
+                equalTo(0.0));
         }
-        */
 
-        // add more docs to verify total_docs gets updated with continuous
         int numDocs = 10;
         final StringBuilder bulk = new StringBuilder();
         long now = Instant.now().toEpochMilli() - 1_000;
@@ -282,19 +286,27 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
 
         waitForDataFrameCheckpoint(transformId, 2L);
 
+        // We should now have exp avgs since we have processed a continuous checkpoint
         assertBusy(() -> {
             Map<String, Object> statsResponse = entityAsMap(client().performRequest(getRequest));
             List<Map<String, Object>> contStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", statsResponse);
             assertEquals(1, contStats.size());
-            /* TODO progress is now checkpoint progress and it may be that no checkpoint is in progress here
             for (Map<String, Object> transformStats : contStats) {
-                Map<String, Object> progress =
-                    (Map<String, Object>)XContentMapValues.extractValue("checkpointing.next.checkpoint_progress", transformStats);
-                assertThat("total_docs is not 10", progress.get("total_docs"), equalTo(numDocs));
-                assertThat("docs_remaining is not 0", progress.get("docs_remaining"), equalTo(0));
-                assertThat("percent_complete is not 100.0", progress.get("percent_complete"), equalTo(100.0));
+                Map<String, Object> statsObj = (Map<String, Object>)transformStats.get("stats");
+                assertThat("exponential_avg_checkpoint_duration_ms is 0",
+                    (Double)statsObj.get("exponential_avg_checkpoint_duration_ms"),
+                    greaterThan(0.0));
+                assertThat("exponential_avg_documents_indexed is 0",
+                    (Double)statsObj.get("exponential_avg_documents_indexed"),
+                    greaterThan(0.0));
+                assertThat("exponential_avg_documents_processed is 0",
+                    (Double)statsObj.get("exponential_avg_documents_processed"),
+                    greaterThan(0.0));
+                Map<String, Object> checkpointing = (Map<String, Object>)transformStats.get("checkpointing");
+                assertThat("changes_last_detected_at is null",
+                    checkpointing.get("changes_last_detected_at"),
+                    is(notNullValue()));
             }
-            */
-        }, 60, TimeUnit.SECONDS);
+        }, 120, TimeUnit.SECONDS);
     }
 }

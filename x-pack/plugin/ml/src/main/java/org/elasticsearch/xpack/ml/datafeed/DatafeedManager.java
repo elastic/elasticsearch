@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -58,7 +58,7 @@ public class DatafeedManager {
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final Supplier<Long> currentTimeSupplier;
-    private final Auditor auditor;
+    private final AnomalyDetectionAuditor auditor;
     // Use allocationId as key instead of datafeed id
     private final ConcurrentMap<Long, Holder> runningDatafeedsOnThisNode = new ConcurrentHashMap<>();
     private final DatafeedJobBuilder datafeedJobBuilder;
@@ -66,7 +66,8 @@ public class DatafeedManager {
     private final AutodetectProcessManager autodetectProcessManager;
 
     public DatafeedManager(ThreadPool threadPool, Client client, ClusterService clusterService, DatafeedJobBuilder datafeedJobBuilder,
-                           Supplier<Long> currentTimeSupplier, Auditor auditor, AutodetectProcessManager autodetectProcessManager) {
+                           Supplier<Long> currentTimeSupplier, AnomalyDetectionAuditor auditor,
+                           AutodetectProcessManager autodetectProcessManager) {
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.threadPool = threadPool;

@@ -31,7 +31,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.TypeMissingException;
@@ -62,8 +61,7 @@ public class RestGetMappingAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get" +
         " mapping requests is deprecated. The parameter will be removed in the next major version.";
 
-    public RestGetMappingAction(final Settings settings, final RestController controller) {
-        super(settings);
+    public RestGetMappingAction(final RestController controller) {
         controller.registerHandler(GET, "/_mapping", this);
         controller.registerHandler(GET, "/_mappings", this);
         controller.registerHandler(GET, "/{index}/{type}/_mapping", this);

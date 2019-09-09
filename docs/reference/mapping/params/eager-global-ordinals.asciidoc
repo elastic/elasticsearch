@@ -34,7 +34,7 @@ interested in search speed, it could be beneficial to set
 `eager_global_ordinals: true` on fields that you plan to use in terms
 aggregations:
 
-[source,js]
+[source,console]
 ------------
 PUT my_index/_mapping
 {
@@ -46,7 +46,6 @@ PUT my_index/_mapping
   }
 }
 ------------
-// CONSOLE
 // TEST[s/^/PUT my_index\n/]
 
 This will shift the cost of building the global ordinals from search-time to
@@ -73,7 +72,7 @@ If you ever decide that you do not need to run `terms` aggregations on this
 field anymore, then you can disable eager loading of global ordinals at any
 time:
 
-[source,js]
+[source,console]
 ------------
 PUT my_index/_mapping
 {
@@ -85,6 +84,4 @@ PUT my_index/_mapping
   }
 }
 ------------
-// CONSOLE
 // TEST[continued]
-

@@ -121,14 +121,14 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
         }
 
         return Arrays.asList(
-                new RestPutDataFrameTransformAction(settings, restController),
-                new RestStartDataFrameTransformAction(settings, restController),
-                new RestStopDataFrameTransformAction(settings, restController),
-                new RestDeleteDataFrameTransformAction(settings, restController),
-                new RestGetDataFrameTransformsAction(settings, restController),
-                new RestGetDataFrameTransformsStatsAction(settings, restController),
-                new RestPreviewDataFrameTransformAction(settings, restController),
-                new RestUpdateDataFrameTransformAction(settings, restController)
+                new RestPutDataFrameTransformAction(restController),
+                new RestStartDataFrameTransformAction(restController),
+                new RestStopDataFrameTransformAction(restController),
+                new RestDeleteDataFrameTransformAction(restController),
+                new RestGetDataFrameTransformsAction(restController),
+                new RestGetDataFrameTransformsStatsAction(restController),
+                new RestPreviewDataFrameTransformAction(restController),
+                new RestUpdateDataFrameTransformAction(restController)
         );
     }
 
@@ -186,7 +186,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
         return templates -> {
             try {
-                templates.put(DataFrameInternalIndex.INDEX_TEMPLATE_NAME, DataFrameInternalIndex.getIndexTemplateMetaData());
+                templates.put(DataFrameInternalIndex.LATEST_INDEX_VERSIONED_NAME, DataFrameInternalIndex.getIndexTemplateMetaData());
             } catch (IOException e) {
                 logger.error("Error creating data frame index template", e);
             }

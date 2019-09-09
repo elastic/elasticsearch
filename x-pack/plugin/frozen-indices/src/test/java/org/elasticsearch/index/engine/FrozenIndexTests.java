@@ -403,7 +403,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
     public void testTranslogStats()  {
         final String indexName = "test";
-        createIndex(indexName, Settings.builder()
+        IndexService indexService = createIndex(indexName, Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .build());
 
@@ -412,7 +412,6 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         for (long i = 0; i < nbDocs; i++) {
             final IndexResponse indexResponse = client().prepareIndex(indexName, "_doc", Long.toString(i)).setSource("field", i).get();
             assertThat(indexResponse.status(), is(RestStatus.CREATED));
-
             if (rarely()) {
                 client().admin().indices().prepareFlush(indexName).get();
                 uncommittedOps = 0;
@@ -423,7 +422,8 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
         IndicesStatsResponse stats = client().admin().indices().prepareStats(indexName).clear().setTranslog(true).get();
         assertThat(stats.getIndex(indexName), notNullValue());
-        assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(), equalTo(nbDocs));
+        assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(), equalTo(
+            indexService.getIndexSettings().isSoftDeleteEnabled() ? uncommittedOps : nbDocs));
         assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().getUncommittedOperations(), equalTo(uncommittedOps));
 
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(indexName)).actionGet());
@@ -432,7 +432,8 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
         stats = client().admin().indices().prepareStats(indexName).setIndicesOptions(indicesOptions).clear().setTranslog(true).get();
         assertThat(stats.getIndex(indexName), notNullValue());
-        assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(), equalTo(nbDocs));
+        assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(),
+            equalTo(indexService.getIndexSettings().isSoftDeleteEnabled() ? 0 : nbDocs));
         assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().getUncommittedOperations(), equalTo(0));
     }
 }

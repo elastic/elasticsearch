@@ -61,10 +61,10 @@ POST _ml/anomaly_detectors/_validate
 // TEST[skip:needs-licence]
 
 When the validation is complete, you receive the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "acknowledged": true
 }
 ----
-// TESTRESPONSE

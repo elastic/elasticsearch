@@ -73,7 +73,7 @@ The API returns the following information:
 
 The following example gets influencer information for the `it_ops_new_kpi` job:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ml/anomaly_detectors/it_ops_new_kpi/results/influencers
 {
@@ -81,7 +81,6 @@ GET _ml/anomaly_detectors/it_ops_new_kpi/results/influencers
   "desc": true
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:todo]
 
 In this example, the API returns the following information, sorted based on the

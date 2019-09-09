@@ -47,8 +47,6 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
     // types of transforms
     public static final ParseField PIVOT_TRANSFORM = new ParseField("pivot");
 
-    public static final ParseField VERSION = new ParseField("version");
-    public static final ParseField CREATE_TIME = new ParseField("create_time");
     private static final ConstructingObjectParser<DataFrameTransformConfig, String> STRICT_PARSER = createParser(false);
     private static final ConstructingObjectParser<DataFrameTransformConfig, String> LENIENT_PARSER = createParser(true);
     static final int MAX_DESCRIPTION_LENGTH = 1_000;
@@ -98,8 +96,8 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
                     // on strict parsing do not allow injection of headers, transform version, or create time
                     if (lenient == false) {
                         validateStrictParsingParams(args[6], HEADERS.getPreferredName());
-                        validateStrictParsingParams(args[9], CREATE_TIME.getPreferredName());
-                        validateStrictParsingParams(args[10], VERSION.getPreferredName());
+                        validateStrictParsingParams(args[9], DataFrameField.CREATE_TIME.getPreferredName());
+                        validateStrictParsingParams(args[10], DataFrameField.VERSION.getPreferredName());
                     }
 
                     @SuppressWarnings("unchecked")
@@ -132,8 +130,9 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         parser.declareObject(optionalConstructorArg(), (p, c) -> PivotConfig.fromXContent(p, lenient), PIVOT_TRANSFORM);
         parser.declareString(optionalConstructorArg(), DataFrameField.DESCRIPTION);
         parser.declareField(optionalConstructorArg(),
-            p -> TimeUtils.parseTimeFieldToInstant(p, CREATE_TIME.getPreferredName()), CREATE_TIME, ObjectParser.ValueType.VALUE);
-        parser.declareString(optionalConstructorArg(), VERSION);
+            p -> TimeUtils.parseTimeFieldToInstant(p, DataFrameField.CREATE_TIME.getPreferredName()), DataFrameField.CREATE_TIME,
+            ObjectParser.ValueType.VALUE);
+        parser.declareString(optionalConstructorArg(), DataFrameField.VERSION);
         return parser;
     }
 
@@ -256,7 +255,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
     }
 
     public DataFrameTransformConfig setCreateTime(Instant createTime) {
-        ExceptionsHelper.requireNonNull(createTime, CREATE_TIME.getPreferredName());
+        ExceptionsHelper.requireNonNull(createTime, DataFrameField.CREATE_TIME.getPreferredName());
         this.createTime = Instant.ofEpochMilli(createTime.toEpochMilli());
         return this;
     }
@@ -332,10 +331,11 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
             builder.field(DataFrameField.DESCRIPTION.getPreferredName(), description);
         }
         if (transformVersion != null) {
-            builder.field(VERSION.getPreferredName(), transformVersion);
+            builder.field(DataFrameField.VERSION.getPreferredName(), transformVersion);
         }
         if (createTime != null) {
-            builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
+            builder.timeField(DataFrameField.CREATE_TIME.getPreferredName(), DataFrameField.CREATE_TIME.getPreferredName() + "_string",
+                    createTime.toEpochMilli());
         }
         builder.endObject();
         return builder;

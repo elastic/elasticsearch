@@ -1,0 +1,82 @@
+[role="xpack"]
+[testenv="platinum"]
+[[estimate-memory-usage-dfanalytics]]
+=== Estimate memory usage API
+
+[subs="attributes"]
+++++
+<titleabbrev>Estimate memory usage for {dfanalytics-jobs}</titleabbrev>
+++++
+
+Estimates memory usage for the given {dataframe-analytics-config}.
+
+experimental[]
+
+[[ml-estimate-memory-usage-dfanalytics-request]]
+==== {api-request-title}
+
+`POST _ml/data_frame/analytics/_estimate_memory_usage`
+
+[[ml-estimate-memory-usage-dfanalytics-prereq]]
+==== {api-prereq-title}
+
+* You must have `monitor_ml` privilege to use this API. For more 
+information, see {stack-ov}/security-privileges.html[Security privileges] and 
+{stack-ov}/built-in-roles.html[Built-in roles].
+
+[[ml-estimate-memory-usage-dfanalytics-desc]]
+==== {api-description-title}
+
+This API estimates memory usage for the given {dataframe-analytics-config} before the {dfanalytics-job} is even created.
+
+Serves as an advice on how to set `model_memory_limit` when creating {dfanalytics-job}.
+
+[[ml-estimate-memory-usage-dfanalytics-request-body]]
+==== {api-request-body-title}
+
+`data_frame_analytics_config`::
+  (Required, object) Intended configuration of {dfanalytics-job}. For more information, see
+  <<ml-dfanalytics-resources>>.
+  Note that `id` and `dest` don't need to be provided in the context of this API.
+
+[[ml-estimate-memory-usage-dfanalytics-results]]
+==== {api-response-body-title}
+
+`expected_memory_without_disk`::
+  (string) Estimated memory usage under the assumption that the whole {dfanalytics} should happen in memory
+  (i.e. without overflowing to disk).
+  
+`expected_memory_with_disk`::
+  (string) Estimated memory usage under the assumption that overflowing to disk is allowed during {dfanalytics}.
+  `expected_memory_with_disk` is usually smaller than `expected_memory_without_disk` as using disk allows to
+  limit the main memory needed to perform {dfanalytics}.
+
+[[ml-estimate-memory-usage-dfanalytics-example]]
+==== {api-examples-title}
+
+[source,js]
+--------------------------------------------------
+POST _ml/data_frame/analytics/_estimate_memory_usage
+{
+  "data_frame_analytics_config": {
+    "source": {
+      "index": "logdata"
+    },
+    "analysis": {
+      "outlier_detection": {}
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:TBD]
+
+The API returns the following results:
+
+[source,console-result]
+----
+{
+  "expected_memory_without_disk": "128MB",
+  "expected_memory_with_disk": "32MB"
+}
+----

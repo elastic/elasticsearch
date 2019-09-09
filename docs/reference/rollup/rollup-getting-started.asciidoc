@@ -96,13 +96,12 @@ For more details about the job syntax, see <<rollup-job-config>>.
 
 After you execute the above command and create the job, you'll receive the following response:
 
-[source,js]
+[source,console-result]
 ----
 {
   "acknowledged": true
 }
 ----
-// TESTRESPONSE
 
 [float]
 === Starting the job
@@ -150,7 +149,7 @@ is exactly as you'd expect.
 
 If you were to execute that query, you'd receive a result that looks like a normal aggregation response:
 
-[source,js]
+[source,console-result]
 ----
 {
   "took" : 102,
@@ -224,7 +223,7 @@ GET /sensor_rollup/_rollup_search
 
 Which returns a corresponding response:
 
-[source,js]
+[source,console-result]
 ----
 {
    "took" : 93,

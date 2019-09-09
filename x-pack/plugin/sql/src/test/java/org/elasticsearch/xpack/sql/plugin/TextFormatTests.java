@@ -76,17 +76,17 @@ public class TextFormatTests extends ESTestCase {
     }
 
     public void testCsvFormatWithEmptyData() {
-        String text = CSV.format(null, req(), emptyData());
+        String text = CSV.format(req(), emptyData());
         assertEquals("name\r\n", text);
     }
 
     public void testTsvFormatWithEmptyData() {
-        String text = TSV.format(null, req(), emptyData());
+        String text = TSV.format(req(), emptyData());
         assertEquals("name\n", text);
     }
 
     public void testCsvFormatWithRegularData() {
-        String text = CSV.format(null, req(), regularData());
+        String text = CSV.format(req(), regularData());
         assertEquals("string,number\r\n" +
                 "Along The River Bank,708\r\n" +
                 "Mind Train,280\r\n",
@@ -94,7 +94,7 @@ public class TextFormatTests extends ESTestCase {
     }
 
     public void testTsvFormatWithRegularData() {
-        String text = TSV.format(null, req(), regularData());
+        String text = TSV.format(req(), regularData());
         assertEquals("string\tnumber\n" +
                 "Along The River Bank\t708\n" +
                 "Mind Train\t280\n",
@@ -102,7 +102,7 @@ public class TextFormatTests extends ESTestCase {
     }
 
     public void testCsvFormatWithEscapedData() {
-        String text = CSV.format(null, req(), escapedData());
+        String text = CSV.format(req(), escapedData());
         assertEquals("first,\"\"\"special\"\"\"\r\n" +
                 "normal,\"\"\"quo\"\"ted\"\",\n\"\r\n" +
                 "commas,\"a,b,c,\n,d,e,\t\n\"\r\n"
@@ -110,7 +110,7 @@ public class TextFormatTests extends ESTestCase {
     }
 
     public void testTsvFormatWithEscapedData() {
-        String text = TSV.format(null, req(), escapedData());
+        String text = TSV.format(req(), escapedData());
         assertEquals("first\t\"special\"\n" +
                 "normal\t\"quo\"ted\",\\n\n" +
                 "commas\ta,b,c,\\n,d,e,\\t\\n\n"

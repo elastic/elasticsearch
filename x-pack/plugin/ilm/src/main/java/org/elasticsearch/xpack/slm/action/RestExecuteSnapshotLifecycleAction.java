@@ -7,19 +7,15 @@
 package org.elasticsearch.xpack.slm.action;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotLifecycleAction;
 
-import java.io.IOException;
-
 public class RestExecuteSnapshotLifecycleAction extends BaseRestHandler {
 
-    public RestExecuteSnapshotLifecycleAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestExecuteSnapshotLifecycleAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.PUT, "/_slm/policy/{name}/_execute", this);
     }
 
@@ -29,7 +25,7 @@ public class RestExecuteSnapshotLifecycleAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         String snapLifecycleId = request.param("name");
         ExecuteSnapshotLifecycleAction.Request req = new ExecuteSnapshotLifecycleAction.Request(snapLifecycleId);
         req.timeout(request.paramAsTime("timeout", req.timeout()));

@@ -48,7 +48,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -270,12 +269,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      */
     public PutIndexTemplateRequest mapping(String type, BytesReference source, XContentType xContentType) {
         Objects.requireNonNull(xContentType);
-        try {
-            mappings.put(type, XContentHelper.convertToJson(source, false, false, xContentType));
-            return this;
-        } catch (IOException e) {
-            throw new UncheckedIOException("failed to convert source to json", e);
-        }
+        Map<String, Object> mappingAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
+        return mapping(type, mappingAsMap);
     }
 
     /**
@@ -290,9 +285,10 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             source = MapBuilder.<String, Object>newMapBuilder().put(type, source).map();
         }
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.map(source);
-            return mapping(type, builder);
+            mappings.put(type, Strings.toString(builder));
+            return this;
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }

@@ -1,5 +1,8 @@
 [[cat-master]]
-=== cat master
+=== cat master API
+++++
+<titleabbrev>cat master</titleabbrev>
+++++
 
 Returns information about the master node, including the ID, bound IP address,
 and name.

@@ -34,7 +34,7 @@ public class RestIndexActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action =  new RestIndexAction(Settings.EMPTY, controller());
+        action =  new RestIndexAction(controller());
     }
 
     public void testTypeInPath() {
@@ -69,7 +69,7 @@ public class RestIndexActionTests extends RestActionTestCase {
 
     public void testCreateOpTypeValidation() {
         Settings settings = settings(Version.CURRENT).build();
-        RestIndexAction.CreateHandler create = action.new CreateHandler(settings);
+        RestIndexAction.CreateHandler create = action.new CreateHandler();
 
         String opType = randomFrom("CREATE", null);
         create.validateOpType(opType);

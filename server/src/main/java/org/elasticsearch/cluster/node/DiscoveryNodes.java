@@ -526,6 +526,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                     .filter(node -> node.getId().equals(localNodeId) == false).map(DiscoveryNode::toString)
                     .collect(Collectors.joining(","));
                 if (addedNodesExceptLocalNode.length() > 0) {
+                    // ignore ourselves when reporting on nodes being added
                     if (summary.length() > 0) {
                         summary.append(", ");
                     }

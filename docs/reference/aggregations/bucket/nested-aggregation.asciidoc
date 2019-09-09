@@ -49,7 +49,7 @@ PUT /products/_doc/0
 <1> We are using a dynamic mapping for the `name` attribute.
 
 
-The following aggregations will return the minimum price a product can be purchased for:
+The following request returns the minimum price a product can be purchased for:
 
 [source,console]
 --------------------------------------------------

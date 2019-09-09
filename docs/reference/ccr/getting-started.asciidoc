@@ -90,7 +90,7 @@ The {ccr} features require that you
 cluster]. In this tutorial, we will connect our local cluster to a remote
 cluster with the cluster alias `leader`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_cluster/settings
 {
@@ -107,7 +107,6 @@ PUT /_cluster/settings
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:host]
 // TEST[s/127.0.0.1:9300/\${transport_host}/]
 <1> Specifies the hostname and transport port of a seed node in the remote
@@ -116,11 +115,10 @@ PUT /_cluster/settings
 You can verify that the local cluster is successfully connected to the remote
 cluster.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_remote/info
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The API will respond by showing that the local cluster is connected to the
@@ -162,7 +160,7 @@ image::images/remote-clusters.jpg["The Remote Clusters page in {kib}"]
 
 In the following example, we will create a leader index in the remote cluster:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /server-metrics
 {
@@ -199,7 +197,6 @@ PUT /server-metrics
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [float]
@@ -212,7 +209,7 @@ API]. When you create a follower index, you must reference the
 <<ccr-getting-started-leader-index,leader index>> that you created in the remote
 cluster.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /server-metrics-copy/_ccr/follow?wait_for_active_shards=1
 {
@@ -220,7 +217,6 @@ PUT /server-metrics-copy/_ccr/follow?wait_for_active_shards=1
   "leader_index" : "server-metrics"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 //////////////////////////
@@ -248,7 +244,7 @@ inspect the status of replication using the
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /server-metrics-copy/_ccr/pause_follow
 
@@ -256,7 +252,6 @@ POST /server-metrics-copy/_close
 
 POST /server-metrics-copy/_ccr/unfollow
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 //////////////////////////
@@ -276,7 +271,7 @@ indices you want to automatically follow.
 
 For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_ccr/auto_follow/beats
 {
@@ -289,7 +284,6 @@ PUT /_ccr/auto_follow/beats
   "follow_index_pattern" : "{{leader_index}}-copy" <3>
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 <1> Automatically follow new {metricbeat} indices.
 <2> Automatically follow new {packetbeat} indices.
@@ -309,11 +303,10 @@ PUT /_ccr/auto_follow/beats
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_ccr/auto_follow/beats
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 //////////////////////////

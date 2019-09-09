@@ -19,7 +19,7 @@ allows taking snapshots even for indices the role may not have access to.
 
 An example of configuring an administrator role for SLM follows:
 
-[source,js]
+[source,console]
 -----------------------------------
 POST /_security/role/slm-admin
 {
@@ -32,13 +32,12 @@ POST /_security/role/slm-admin
   ]
 }
 -----------------------------------
-// CONSOLE
 // TEST[skip:security is not enabled here]
 
 Or, for a read-only role that can retrieve policies (but not update, execute, or
 delete them), as well as only view the history index:
 
-[source,js]
+[source,console]
 -----------------------------------
 POST /_security/role/slm-read-only
 {
@@ -51,7 +50,6 @@ POST /_security/role/slm-read-only
   ]
 }
 -----------------------------------
-// CONSOLE
 // TEST[skip:security is not enabled here]
 
 [float]
@@ -64,7 +62,7 @@ stored. Repositories can use {plugins}/repository.html[many different backends],
 including cloud storage providers. You'll probably want to use one of these in
 production, but for this example we'll use a shared file system repository:
 
-[source,js]
+[source,console]
 -----------------------------------
 PUT /_snapshot/my_repository
 {
@@ -74,8 +72,6 @@ PUT /_snapshot/my_repository
   }
 }
 -----------------------------------
-// CONSOLE
-// TEST
 
 [float]
 === Setting up a policy
@@ -86,7 +82,7 @@ snapshots, what the snapshots should be named, and which indices should be
 included, among other things.  We'll use the <<slm-api-put,Put Policy>> API
 to create the policy.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_slm/policy/nightly-snapshots
 {
@@ -99,7 +95,6 @@ PUT /_slm/policy/nightly-snapshots
   "retention": {}
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 <1> when the snapshot should be taken, using 
     {xpack-ref}/trigger-schedule.html#schedule-cron[Cron syntax], in this 
@@ -135,11 +130,10 @@ Instead of waiting for our policy to run, let's tell SLM to take a snapshot
 as using the configuration from our policy right now instead of waiting for
 1:30AM.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_slm/policy/nightly-snapshots/_execute
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:we can't easily handle snapshots from docs tests]
 
 This request will kick off a snapshot for our policy right now, regardless of
@@ -148,11 +142,10 @@ a configuration change, upgrading, or for our purposes, making sure our policy
 is going to work successfully. The policy will continue to run on its configured
 schedule after this execution of the policy.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_slm/policy/nightly-snapshots?human
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 This request will return a response that includes the policy, as well as

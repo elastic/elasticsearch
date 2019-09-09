@@ -30,6 +30,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SnapshotRetentionServiceTests extends ESTestCase {
 
@@ -69,12 +70,18 @@ public class SnapshotRetentionServiceTests extends ESTestCase {
 
     private static class FakeRetentionTask extends SnapshotRetentionTask {
         FakeRetentionTask() {
-            super(mock(Client.class), null, System::nanoTime, mock(SnapshotHistoryStore.class), mock(ThreadPool.class));
+            super(fakeClient(), null, System::nanoTime, mock(SnapshotHistoryStore.class), mock(ThreadPool.class));
         }
 
         @Override
         public void triggered(SchedulerEngine.Event event) {
             super.triggered(event);
         }
+    }
+
+    private static Client fakeClient() {
+        Client c = mock(Client.class);
+        when(c.settings()).thenReturn(Settings.EMPTY);
+        return c;
     }
 }

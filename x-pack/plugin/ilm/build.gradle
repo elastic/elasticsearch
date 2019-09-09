@@ -27,4 +27,3 @@ gradle.projectsEvaluated {
 }
 
 integTest.enabled = false
-

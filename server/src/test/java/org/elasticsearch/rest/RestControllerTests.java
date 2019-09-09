@@ -192,8 +192,7 @@ public class RestControllerTests extends ESTestCase {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> restController.registerHandler(secondMethod, path + "/{wildcard2}", handler));
 
-        assertThat(exception.getMessage(), containsString("wildcard1"));
-        assertThat(exception.getMessage(), containsString("wildcard2"));
+        assertThat(exception.getMessage(), equalTo("Trying to use conflicting wildcard names for same path: wildcard1 and wildcard2"));
     }
 
     public void testRestHandlerWrapper() throws Exception {

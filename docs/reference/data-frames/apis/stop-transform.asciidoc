@@ -30,6 +30,7 @@ beta[]
 see {stack-ov}/security-privileges.html[Security privileges] and
 {stack-ov}/built-in-roles.html[Built-in roles].
 
+
 [[stop-data-frame-transform-desc]]
 ==== {api-description-title}
 
@@ -38,6 +39,7 @@ comma-separated list of {dataframe-transforms} or a wildcard expression.
 All {dataframe-transforms} can be stopped by using `_all` or `*` as the
 `<data_frame_transform_id>`.
 
+
 [[stop-data-frame-transform-path-parms]]
 ==== {api-path-parms-title}
 
@@ -45,6 +47,7 @@ All {dataframe-transforms} can be stopped by using `_all` or `*` as the
   (Required, string) Identifier for the {dataframe-transform}. This identifier
   can contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
   underscores. It must start and end with alphanumeric characters.
+
 
 [[stop-data-frame-transform-query-parms]]
 ==== {api-query-parms-title}
@@ -67,6 +70,11 @@ that match `test-id1*`.
 If this parameter is `false`, the request returns a `404` status code when there
 are no matches or only partial matches.
 --
+
+`force`::
+  (Optional, boolean) If `true`, resets the state of a failed job back to 
+  started. It is required to do in order to delete or restart the job (after 
+  resolving root cause of the original issue).
 
 `timeout`::
   (Optional, time value) If `wait_for_completion=true`, the API blocks for (at

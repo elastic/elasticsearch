@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
-import org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -138,17 +138,17 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
 
     protected SearchResponse searchStoredProgress(String id) {
         return client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
-            .setQuery(QueryBuilders.idsQuery().addIds(TransportStartDataFrameAnalyticsAction.DataFrameAnalyticsTask.progressDocId(id)))
+            .setQuery(QueryBuilders.idsQuery().addIds(DataFrameAnalyticsTask.progressDocId(id)))
             .get();
     }
 
     protected static DataFrameAnalyticsConfig buildRegressionAnalytics(String id, String[] sourceIndex, String destIndex,
-                                                                       @Nullable String resultsField, String dependentVariable) {
+                                                                       @Nullable String resultsField, Regression regression) {
         DataFrameAnalyticsConfig.Builder configBuilder = new DataFrameAnalyticsConfig.Builder();
         configBuilder.setId(id);
         configBuilder.setSource(new DataFrameAnalyticsSource(sourceIndex, null));
         configBuilder.setDest(new DataFrameAnalyticsDest(destIndex, resultsField));
-        configBuilder.setAnalysis(new Regression(dependentVariable));
+        configBuilder.setAnalysis(regression);
         return configBuilder.build();
     }
 }

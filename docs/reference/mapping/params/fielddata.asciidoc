@@ -54,7 +54,7 @@ Instead, you should have a `text` field for full text searches, and an
 unanalyzed <<keyword,`keyword`>> field with <<doc-values,`doc_values`>>
 enabled for aggregations, as follows:
 
-[source,js]
+[source,console]
 ---------------------------------
 PUT my_index
 {
@@ -72,7 +72,7 @@ PUT my_index
   }
 }
 ---------------------------------
-// CONSOLE
+
 <1> Use the `my_field` field for searches.
 <2> Use the `my_field.keyword` field for aggregations, sorting, or in scripts.
 
@@ -82,7 +82,7 @@ PUT my_index
 You can enable fielddata on an existing `text` field using the
 <<indices-put-mapping,PUT mapping API>> as follows:
 
-[source,js]
+[source,console]
 -----------------------------------
 PUT my_index/_mapping
 {
@@ -94,7 +94,6 @@ PUT my_index/_mapping
   }
 }
 -----------------------------------
-// CONSOLE
 // TEST[continued]
 
 <1> The mapping that you specify for `my_field` should consist of the existing
@@ -116,7 +115,7 @@ value for the field, as opposed to all docs in the segment.
 Small segments can be excluded completely by specifying the minimum
 number of docs that the segment should contain with `min_segment_size`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -135,4 +134,3 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// CONSOLE

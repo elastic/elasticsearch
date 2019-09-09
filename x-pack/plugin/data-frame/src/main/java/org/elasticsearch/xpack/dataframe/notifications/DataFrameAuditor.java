@@ -16,7 +16,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.DATA_FRAME_ORIGIN;
  * DataFrameAuditor class that abstracts away generic templating for easier injection
  */
 public class DataFrameAuditor extends AbstractAuditor<DataFrameAuditMessage> {
+
     public DataFrameAuditor(Client client, String nodeName) {
-        super(client, nodeName, DataFrameInternalIndex.AUDIT_INDEX, DATA_FRAME_ORIGIN, DataFrameAuditMessage.builder());
+        super(client, nodeName, DataFrameInternalIndex.AUDIT_INDEX, DATA_FRAME_ORIGIN, DataFrameAuditMessage::new);
     }
 }

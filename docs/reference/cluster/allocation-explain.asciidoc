@@ -119,7 +119,7 @@ GET /_cluster/allocation/explain
 
 The API returns the following response for an unassigned primary shard:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "index" : "idx",

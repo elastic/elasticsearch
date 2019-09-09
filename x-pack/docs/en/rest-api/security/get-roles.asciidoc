@@ -51,14 +51,13 @@ If the role is not defined in the native realm, the request returns 404.
 The following example retrieves information about the `my_admin_role` role in 
 the native realm:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_security/role/my_admin_role
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:admin_role]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "my_admin_role": {
@@ -83,14 +82,12 @@ GET /_security/role/my_admin_role
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 To retrieve all roles, omit the role name:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_security/role
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 

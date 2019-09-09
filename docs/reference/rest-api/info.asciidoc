@@ -48,7 +48,8 @@ GET /_xpack
 // CONSOLE
 
 Example response:
-[source,js]
+
+[source,console-result]
 ------------------------------------------------------------
 {
    "build" : {
@@ -68,6 +69,10 @@ Example response:
         "enabled" : true
       },
       "data_frame" : {
+          "available" : true,
+          "enabled" : true
+      },
+      "analytics" : {
           "available" : true,
           "enabled" : true
       },

@@ -375,7 +375,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                     indexSettings.getSettings(), "index");
             mapperService.merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY);
             SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
-            final Engine.Warmer warmer = reader -> {};
+            final Engine.Warmer warmer = createTestWarmer(indexSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             CircuitBreakerService breakerService = new HierarchyCircuitBreakerService(nodeSettings, clusterSettings);
             indexShard = new IndexShard(
@@ -832,12 +832,14 @@ public abstract class IndexShardTestCase extends ESTestCase {
                                  final Snapshot snapshot,
                                  final Repository repository) throws IOException {
         final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing();
+        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(true)) {
             Index index = shard.shardId().getIndex();
             IndexId indexId = new IndexId(index.getName(), index.getUUID());
 
             repository.snapshotShard(shard.store(), shard.mapperService(), snapshot.getSnapshotId(), indexId,
-                indexCommitRef.getIndexCommit(), snapshotStatus);
+                indexCommitRef.getIndexCommit(), snapshotStatus, future);
+            future.actionGet();
         }
 
         final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
@@ -859,5 +861,18 @@ public abstract class IndexShardTestCase extends ESTestCase {
 
     public static ReplicationTracker getReplicationTracker(IndexShard indexShard) {
         return indexShard.getReplicationTracker();
+    }
+
+    public static Engine.Warmer createTestWarmer(IndexSettings indexSettings) {
+        return reader -> {
+            // This isn't a warmer but sometimes verify the content in the reader
+            if (randomBoolean()) {
+                try {
+                    EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(indexSettings, reader);
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            }
+        };
     }
 }

@@ -14,6 +14,13 @@ import java.util.Map;
 public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
 
     /**
+     * @return Name of this analysis that can be presented to the user
+     */
+    default String getUserFriendlyName() {
+        return getWriteableName().replace('_', ' ');
+    }
+
+    /**
      * @return The analysis parameters as a map
      */
     Map<String, Object> getParams();

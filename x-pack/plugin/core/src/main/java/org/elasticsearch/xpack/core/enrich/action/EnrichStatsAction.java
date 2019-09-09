@@ -85,7 +85,11 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                 try {
                     builder.startObject();
                     builder.field("name", policy.getName());
-                    builder.field("task", policy.getTaskInfo());
+                    {
+                        builder.startObject("task");
+                        builder.value(policy.getTaskInfo());
+                        builder.endObject();
+                    }
                     builder.endObject();
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);

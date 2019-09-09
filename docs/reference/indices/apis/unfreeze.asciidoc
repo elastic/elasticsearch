@@ -38,10 +38,9 @@ limitation might be removed in the future.
 
 The following example freezes and unfreezes an index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /my_index/_freeze
 POST /my_index/_unfreeze
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT my_index\n/]

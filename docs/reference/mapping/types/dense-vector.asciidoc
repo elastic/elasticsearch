@@ -18,7 +18,7 @@ a given query vector and the indexed document vector.
 
 You index a dense vector as an array of floats.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -48,7 +48,6 @@ PUT my_index/_doc/2
 }
 
 --------------------------------------------------
-// CONSOLE
 
 <1> dims—the number of dimensions in the vector, required parameter.
 

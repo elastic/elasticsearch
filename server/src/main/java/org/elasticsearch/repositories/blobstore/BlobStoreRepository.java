@@ -736,7 +736,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     if (indexMetaData != null) {
                         for (int shardId = 0; shardId < indexMetaData.getNumberOfShards(); shardId++) {
                             try {
-                                deleteShardSnapshot(repositoryData, indexId, new ShardId(indexMetaData.getIndex(), shardId), snapshotId);
+                                deleteShardSnapshotLegacy(
+                                    repositoryData, indexId, new ShardId(indexMetaData.getIndex(), shardId), snapshotId);
                             } catch (Exception ex) {
                                 final int finalShardId = shardId;
                                 logger.warn(() -> new ParameterizedMessage("[{}] failed to delete shard data for shard [{}][{}]",
@@ -1105,7 +1106,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final BlobContainer shardContainer = shardContainer(indexId, shardId);
             final Set<String> blobs;
             if (generation == null) {
-                blobs = recoverShardGenBlobs(shardId, shardContainer);
+                try {
+                    blobs = shardContainer.listBlobsByPrefix(INDEX_FILE_PREFIX).keySet();
+                } catch (IOException e) {
+                    throw new IndexShardSnapshotFailedException(shardId, "failed to list blobs", e);
+                }
             } else {
                 blobs = Collections.singleton(INDEX_FILE_PREFIX + generation);
             }
@@ -1262,18 +1267,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    // Find shard index blobs from listing a shard directories contents. Used as a fallback if a shard generation could not be
-    // determined from the repository meta-data.
-    private static Set<String> recoverShardGenBlobs(ShardId shardId, BlobContainer shardContainer) {
-        final Set<String> blobs;
-        try {
-            blobs = shardContainer.listBlobsByPrefix(INDEX_FILE_PREFIX).keySet();
-        } catch (IOException e) {
-            throw new IndexShardSnapshotFailedException(shardId, "failed to list blobs", e);
-        }
-        return blobs;
-    }
-
     @Override
     public void restoreShard(Store store, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
                              RecoveryState recoveryState) {
@@ -1356,9 +1349,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     /**
-     * Delete shard snapshot
+     * Delete shard snapshot in a mixed version cluster containing nodes older than
+     * {@link SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION}.
      */
-    private void deleteShardSnapshot(RepositoryData repositoryData, IndexId indexId, ShardId snapshotShardId, SnapshotId snapshotId) {
+    private void deleteShardSnapshotLegacy(RepositoryData repositoryData, IndexId indexId, ShardId snapshotShardId,
+                                           SnapshotId snapshotId) {
         final BlobContainer shardContainer = shardContainer(indexId, snapshotShardId);
         final Map<String, BlobMetaData> blobs;
         try {

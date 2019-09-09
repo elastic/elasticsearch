@@ -77,24 +77,26 @@ projectsLoaded {
     }
 }
 
-final String buildCacheUrl = System.getProperty('org.elasticsearch.build.cache.url')
 final boolean buildCachePush = Boolean.valueOf(System.getProperty('org.elasticsearch.build.cache.push', 'false'))
 
-if (buildCacheUrl) {
-    final Map<String,String> buildCacheCredentials = vault.logical()
-            .read("secret/elasticsearch-ci/gradle-build-cache")
-            .getData();
-    gradle.settingsEvaluated { settings ->
-        settings.buildCache {
-            remote(HttpBuildCache) {
-                url = buildCacheUrl
-                push = buildCachePush
-                credentials {
-                        username = buildCacheCredentials.get("username")
-                        password = buildCacheCredentials.get("password")
-                }
+final Map<String,String> buildCacheCredentials = vault.logical()
+        .read("secret/elasticsearch-ci/gradle-build-cache")
+        .getData();
+
+gradle.settingsEvaluated { settings ->
+    settings.buildCache {
+        local(DirectoryBuildCache) {
+            directory = new File(settings.rootDir, 'build-cache')
+        }
+        remote(HttpBuildCache) {
+            url = "https://gradle-enterprise.elastic.co/cache/"
+            push = buildCachePush
+            credentials {
+                    username = buildCacheCredentials.get("username")
+                    password = buildCacheCredentials.get("password")
             }
         }
     }
 }
+
 

@@ -227,7 +227,7 @@ public class Realms implements Iterable<Realm> {
         Set<String> duplicateNameRealms = new HashSet<>();
         for (Realm r : realms) {
             if (realms.stream().filter(realm -> realm.name().equals(r.name())).count() > 1) {
-                duplicateNameRealms.add(RealmSettings.realmSettingPrefix(r.type()) + "." + r.name());
+                duplicateNameRealms.add(RealmSettings.realmSettingPrefix(r.type()) + r.name());
             }
         }
         if (duplicateNameRealms.isEmpty() == false) {

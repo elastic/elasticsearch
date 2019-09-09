@@ -102,13 +102,14 @@ public class FsRepositoryTests extends ESTestCase {
             IndexCommit indexCommit = Lucene.getIndexCommit(Lucene.readSegmentInfos(store.directory()), store.directory());
             final PlainActionFuture<String> future1 = PlainActionFuture.newFuture();
             runGeneric(threadPool, () -> {
-                IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing("-1");
+                IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
                 repository.snapshotShard(store, null, snapshotId, indexId, indexCommit,
-                    snapshotStatus, future1);
+                    snapshotStatus, Version.CURRENT, future1);
                 future1.actionGet();
                 IndexShardSnapshotStatus.Copy copy = snapshotStatus.asCopy();
                 assertEquals(copy.getTotalFileCount(), copy.getIncrementalFileCount());
             });
+            final String shardGeneration = future1.actionGet();
             Lucene.cleanLuceneIndex(directory);
             expectThrows(org.apache.lucene.index.IndexNotFoundException.class, () -> Lucene.readSegmentInfos(directory));
             DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
@@ -129,8 +130,9 @@ public class FsRepositoryTests extends ESTestCase {
             Collection<String> commitFileNames = incIndexCommit.getFileNames();
             final PlainActionFuture<String> future2 = PlainActionFuture.newFuture();
             runGeneric(threadPool, () -> {
-                IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing("-1");
-                repository.snapshotShard(store, null, incSnapshotId, indexId, incIndexCommit, snapshotStatus, future2);
+                IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
+                repository.snapshotShard(store, null, incSnapshotId, indexId, incIndexCommit, snapshotStatus,
+                    Version.CURRENT, future2);
                 future2.actionGet();
                 IndexShardSnapshotStatus.Copy copy = snapshotStatus.asCopy();
                 assertEquals(2, copy.getIncrementalFileCount());

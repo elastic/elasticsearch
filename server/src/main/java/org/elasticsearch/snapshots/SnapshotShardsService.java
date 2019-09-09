@@ -24,6 +24,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -154,7 +155,10 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             if ((previousSnapshots == null && currentSnapshots != null)
                 || (previousSnapshots != null && previousSnapshots.equals(currentSnapshots) == false)) {
                 synchronized (shardSnapshots) {
-                    processIndexShardSnapshots(currentSnapshots);
+                    cancelRemoved(currentSnapshots);
+                    if (currentSnapshots != null) {
+                        startNewSnapshots(currentSnapshots, event.state().nodes().getMinNodeVersion());
+                    }
                 }
             }
 
@@ -200,18 +204,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         }
     }
 
-    /**
-     * Checks if any new shards should be snapshotted on this node
-     *
-     * @param snapshotsInProgress Current snapshots in progress in cluster state
-     */
-    private void processIndexShardSnapshots(SnapshotsInProgress snapshotsInProgress) {
-        cancelRemoved(snapshotsInProgress);
-        if (snapshotsInProgress != null) {
-            startNewSnapshots(snapshotsInProgress);
-        }
-    }
-
     private void cancelRemoved(@Nullable SnapshotsInProgress snapshotsInProgress) {
         // First, remove snapshots that are no longer there
         Iterator<Map.Entry<Snapshot, Map<ShardId, IndexShardSnapshotStatus>>> it = shardSnapshots.entrySet().iterator();
@@ -231,7 +223,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         }
     }
 
-    private void startNewSnapshots(SnapshotsInProgress snapshotsInProgress) {
+    private void startNewSnapshots(SnapshotsInProgress snapshotsInProgress, Version version) {
         // For now we will be mostly dealing with a single snapshot at a time but might have multiple simultaneously running
         // snapshots in the future
         // Now go through all snapshots and update existing or create missing
@@ -258,7 +250,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 }
                 if (startedShards != null && startedShards.isEmpty() == false) {
                     shardSnapshots.computeIfAbsent(snapshot, s -> new HashMap<>()).putAll(startedShards);
-                    startNewShards(entry, startedShards);
+                    startNewShards(entry, startedShards, version);
                 }
             } else if (entryState == State.ABORTED) {
                 // Abort all running shards for this snapshot
@@ -294,7 +286,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         }
     }
 
-    private void startNewShards(SnapshotsInProgress.Entry entry, Map<ShardId, IndexShardSnapshotStatus> startedShards) {
+    private void startNewShards(SnapshotsInProgress.Entry entry, Map<ShardId, IndexShardSnapshotStatus> startedShards, Version version) {
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
             final Snapshot snapshot = entry.snapshot();
             final Map<String, IndexId> indicesMap =
@@ -304,7 +296,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 final IndexShardSnapshotStatus snapshotStatus = shardEntry.getValue();
                 final IndexId indexId = indicesMap.get(shardId.getIndexName());
                 assert indexId != null;
-                snapshot(shardId, snapshot, indexId, snapshotStatus, new ActionListener<>() {
+                snapshot(shardId, snapshot, indexId, snapshotStatus, version, new ActionListener<>() {
                     @Override
                     public void onResponse(String newGeneration) {
                         if (logger.isDebugEnabled()) {
@@ -331,7 +323,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
      * @param snapshotStatus snapshot status
      */
     private void snapshot(final ShardId shardId, final Snapshot snapshot, final IndexId indexId,
-                          final IndexShardSnapshotStatus snapshotStatus, ActionListener<String> listener) {
+                          final IndexShardSnapshotStatus snapshotStatus, Version version, ActionListener<String> listener) {
         try {
             final IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShardOrNull(shardId.id());
             if (indexShard.routingEntry().primary() == false) {
@@ -354,7 +346,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 // we flush first to make sure we get the latest writes snapshotted
                 snapshotRef = indexShard.acquireLastIndexCommit(true);
                 repository.snapshotShard(indexShard.store(), indexShard.mapperService(), snapshot.getSnapshotId(), indexId,
-                    snapshotRef.getIndexCommit(), snapshotStatus, ActionListener.runBefore(listener, snapshotRef::close));
+                    snapshotRef.getIndexCommit(), snapshotStatus, version, ActionListener.runBefore(listener, snapshotRef::close));
             } catch (Exception e) {
                 IOUtils.close(snapshotRef);
                 throw e;

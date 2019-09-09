@@ -90,6 +90,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.StoredScriptsIT;
@@ -1466,7 +1467,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         for (String index : indices) {
             Path shardZero = indicesPath.resolve(indexIds.get(index).getId()).resolve("0");
             if (randomBoolean()) {
-                Files.delete(shardZero.resolve("index-0"));
+                Files.delete(shardZero.resolve("index-" + getRepositoryData(repository).getShardGen(indexIds.get(index), 0)));
             }
             Files.delete(shardZero.resolve("snap-" + snapshotInfo.snapshotId().getUUID() + ".dat"));
         }
@@ -1646,7 +1647,15 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         try (Stream<Path> files = Files.list(repo.resolve("indices"))) {
             files.forEach(indexPath -> {
                 try {
-                    Files.delete(indexPath.resolve("0").resolve("index-0"));
+                    final String shardGen;
+                    try (Stream<Path> shardFiles = Files.list(indexPath.resolve("0"))) {
+                        shardGen = shardFiles
+                            .filter(file -> file.getFileName().toString().startsWith(BlobStoreRepository.INDEX_FILE_PREFIX))
+                            .findFirst()
+                            .orElseThrow(() -> new AssertionError("Failed to find shard index blob"))
+                            .getFileName().toString().substring(BlobStoreRepository.INDEX_FILE_PREFIX.length());
+                    }
+                    Files.delete(indexPath.resolve("0").resolve("index-" + shardGen));
                 } catch (IOException e) {
                     throw new RuntimeException("Failed to delete expected file", e);
                 }
@@ -3077,7 +3086,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         final IndexId corruptedIndex = indexIds.get(indexName);
         final Path shardIndexFile = repo.resolve("indices")
             .resolve(corruptedIndex.getId()).resolve("0")
-            .resolve("index-0");
+            .resolve("index-" + repositoryData.getShardGen(corruptedIndex, 0));
 
         logger.info("-->  truncating shard index file [{}]", shardIndexFile);
         try (SeekableByteChannel outChan = Files.newByteChannel(shardIndexFile, StandardOpenOption.WRITE)) {

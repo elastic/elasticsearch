@@ -501,8 +501,8 @@
 ---
 "Script Score With Highlight":
   - skip:
-      version: " - 7.4.99"
-      reason: "highlight for script_score was introduce in 7.5"
+      version: " - 7.4.09"
+      reason: "highlight for script_score was introduced in 7.4.1"
 
   - do:
       indices.create:

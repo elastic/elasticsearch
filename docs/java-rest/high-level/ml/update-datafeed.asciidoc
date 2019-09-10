@@ -3,6 +3,7 @@
 :request: UpdateDatafeedRequest
 :response: PutDatafeedResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Update datafeed API
 

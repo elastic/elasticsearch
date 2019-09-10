@@ -57,6 +57,7 @@ one of the active allocation ids in the cluster state.
       the same shard on a single host, based on host name and host address.
       Defaults to `false`, meaning that no check is performed by default. This
       setting only applies if multiple nodes are started on the same machine.
+      Will perform by this setting apply when "Same host name" or "Same address".
 
 [float]
 === Shard rebalancing settings

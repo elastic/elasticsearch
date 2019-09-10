@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.enrich.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.enrich.PolicyExecutionResult;
 import java.io.IOException;
 
 public class TransportExecuteEnrichPolicyAction
-    extends TransportMasterNodeReadAction<ExecuteEnrichPolicyAction.Request, AcknowledgedResponse> {
+    extends TransportMasterNodeAction<ExecuteEnrichPolicyAction.Request, AcknowledgedResponse> {
 
     private final EnrichPolicyExecutor executor;
 

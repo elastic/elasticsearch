@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.enrich.action;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -24,7 +24,7 @@ public class ExecuteEnrichPolicyAction extends ActionType<AcknowledgedResponse> 
         super(NAME, AcknowledgedResponse::new);
     }
 
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static class Request extends MasterNodeRequest<Request> {
 
         private final String name;
 

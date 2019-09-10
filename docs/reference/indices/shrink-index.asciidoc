@@ -34,7 +34,7 @@ same node and have <<cluster-health,health>> `green`.
 
 These two conditions can be achieved with the following request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /my_source_index/_settings
 {
@@ -44,8 +44,8 @@ PUT /my_source_index/_settings
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT my_source_index\n{"settings":{"index.number_of_shards":2}}\n/]
+
 <1> Forces the relocation of a copy of each shard to the node with name
     `shrink_node_name`.  See <<shard-allocation-filtering>> for more options.
 
@@ -63,7 +63,7 @@ with the `wait_for_no_relocating_shards` parameter.
 To shrink `my_source_index` into a new index called `my_target_index`, issue
 the following request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST my_source_index/_shrink/my_target_index
 {
@@ -73,7 +73,6 @@ POST my_source_index/_shrink/my_target_index
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 <1> Clear the allocation requirement copied from the source index.
@@ -107,7 +106,7 @@ Indices can only be shrunk if they satisfy the following requirements:
 The `_shrink` API is similar to the <<indices-create-index, `create index` API>>
 and accepts `settings` and `aliases` parameters for the target index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST my_source_index/_shrink/my_target_index
 {
@@ -121,7 +120,6 @@ POST my_source_index/_shrink/my_target_index
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT my_source_index\n{"settings": {"index.number_of_shards":5,"index.blocks.write": true}}\n/]
 
 <1> The number of shards in the target index. This must be a factor of the

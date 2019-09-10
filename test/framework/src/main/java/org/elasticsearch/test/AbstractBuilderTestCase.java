@@ -23,6 +23,7 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.AssertingIndexSearcher;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -423,8 +424,13 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         }
 
         QueryShardContext createShardContext(IndexReader reader) {
-            AssertingIndexSearcher searcher = new AssertingIndexSearcher(random(), reader);
-            searcher.setQueryCache(null);
+            final IndexSearcher searcher;
+            if (reader != null) {
+                searcher = new AssertingIndexSearcher(random(), reader);
+                searcher.setQueryCache(null);
+            } else {
+                searcher = null;
+            }
             return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache,
                 indexFieldDataService::getForField, mapperService, similarityService, scriptService, xContentRegistry,
                 namedWriteableRegistry, this.client, searcher, () -> nowInMillis, null);

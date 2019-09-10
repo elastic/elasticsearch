@@ -1,0 +1,218 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.gradle.tar;
+
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
+import org.gradle.api.GradleException;
+import org.gradle.api.file.RegularFile;
+import org.gradle.api.internal.file.CopyActionProcessingStreamAction;
+import org.gradle.api.internal.file.archive.compression.ArchiveOutputStreamFactory;
+import org.gradle.api.internal.file.archive.compression.Bzip2Archiver;
+import org.gradle.api.internal.file.archive.compression.GzipArchiver;
+import org.gradle.api.internal.file.archive.compression.SimpleCompressor;
+import org.gradle.api.internal.file.copy.CopyAction;
+import org.gradle.api.internal.file.copy.CopyActionProcessingStream;
+import org.gradle.api.internal.file.copy.FileCopyDetailsInternal;
+import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.WorkResult;
+import org.gradle.api.tasks.WorkResults;
+import org.gradle.api.tasks.bundling.AbstractArchiveTask;
+import org.gradle.api.tasks.bundling.Compression;
+import shadow.org.apache.tools.tar.TarConstants;
+import shadow.org.apache.tools.tar.TarOutputStream;
+import shadow.org.apache.tools.zip.UnixStat;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.util.HashSet;
+import java.util.Objects;
+import java.util.Set;
+
+public class SymbolicLinkPreservingTar extends AbstractArchiveTask {
+
+    private Compression compression  = Compression.NONE;
+
+    /**
+     * Returns the compression that is used for this archive.
+     *
+     * @return The compression. Never returns null.
+     */
+    @Input
+    public Compression getCompression() {
+        return compression;
+    }
+
+    /**
+     * Configures the compressor based on passed in compression.
+     *
+     * @param compression the compression
+     */
+    public void setCompression(final Compression compression) {
+        Objects.requireNonNull(compression);
+        this.compression = compression;
+    }
+
+    @Override
+    protected CopyAction createCopyAction() {
+        final ArchiveOutputStreamFactory compressor;
+        switch (compression) {
+            case BZIP2:
+                compressor = Bzip2Archiver.getCompressor();
+                break;
+            case GZIP:
+                compressor = GzipArchiver.getCompressor();
+                break;
+            default:
+                compressor = new SimpleCompressor();
+                break;
+        }
+        return new SymbolicLinkPreservingTarCopyAction(getArchiveFile(), compressor);
+    }
+
+    private static class SymbolicLinkPreservingTarCopyAction implements CopyAction {
+
+        private final Provider<RegularFile> tarFile;
+        private final ArchiveOutputStreamFactory compressor;
+
+        SymbolicLinkPreservingTarCopyAction(final Provider<RegularFile> tarFile, final ArchiveOutputStreamFactory compressor) {
+            this.tarFile = tarFile;
+            this.compressor = compressor;
+        }
+
+        @Override
+        public WorkResult execute(final CopyActionProcessingStream stream) {
+            try (OutputStream out = compressor.createArchiveOutputStream(tarFile.get().getAsFile());
+                TarArchiveOutputStream tar = new TarArchiveOutputStream(out)) {
+                tar.setLongFileMode(TarOutputStream.LONGFILE_GNU);
+                stream.process(new SymbolicLinkPreservingTarStreamAction(tar));
+            } catch (final IOException e) {
+                throw new GradleException("failed writing tar file [" + tarFile + "]", e);
+            }
+
+            return WorkResults.didWork(true);
+        }
+
+        private class SymbolicLinkPreservingTarStreamAction implements CopyActionProcessingStreamAction {
+
+            private final TarArchiveOutputStream tar;
+            private final Set<File> visitedSymbolicLinks = new HashSet<>();
+
+            public SymbolicLinkPreservingTarStreamAction(final TarArchiveOutputStream tar) {
+                this.tar = tar;
+            }
+
+            @Override
+            public void processFile(final FileCopyDetailsInternal details) {
+                if (isChildOfVisitedSymbolicLink(details) == false) {
+                    if (isSymbolicLink(details)) {
+                        visitSymbolicLink(details);
+                    } else if (details.isDirectory()) {
+                        visitDirectory(details);
+                    } else {
+                        visitFile(details);
+                    }
+                }
+            }
+
+            private boolean isChildOfVisitedSymbolicLink(final FileCopyDetailsInternal details) {
+                final File file;
+                try {
+                    file = details.getFile();
+                } catch (final UnsupportedOperationException e) {
+                    return false;
+                }
+                for (final File symbolicLink : visitedSymbolicLinks) {
+                    if (isChildOf(symbolicLink, file)) return true;
+                }
+                return false;
+            }
+
+            private boolean isChildOf(final File directory, final File file) {
+                File parent = file.getParentFile();
+                while (parent != null) {
+                    if (directory.toPath().equals(file.toPath())) return true;
+                    parent = parent.getParentFile();
+                }
+                return false;
+            }
+
+            private boolean isSymbolicLink(final FileCopyDetailsInternal details) {
+                final File file;
+                try {
+                    file = details.getFile();
+                } catch (final UnsupportedOperationException e) {
+                    return false;
+                }
+                return Files.isSymbolicLink(file.toPath());
+            }
+
+            private void visitSymbolicLink(final FileCopyDetailsInternal details) {
+                visitedSymbolicLinks.add(details.getFile());
+                final TarArchiveEntry entry = new TarArchiveEntry(details.getRelativePath().getPathString(), TarConstants.LF_SYMLINK);
+                entry.setModTime(details.getLastModified());
+                entry.setMode(UnixStat.LINK_FLAG | details.getMode());
+                try {
+                    entry.setLinkName(Files.readSymbolicLink(details.getFile().toPath()).toString());
+                    tar.putArchiveEntry(entry);
+                    tar.closeArchiveEntry();
+                } catch (final IOException e) {
+                    handleProcessingException(details, e);
+                }
+            }
+
+            private void visitDirectory(final FileCopyDetailsInternal details) {
+                final TarArchiveEntry entry = new TarArchiveEntry(details.getRelativePath().getPathString() + "/");
+                entry.setModTime(details.getLastModified());
+                entry.setMode(UnixStat.DIR_FLAG | details.getMode());
+                try {
+                    tar.putArchiveEntry(entry);
+                    tar.closeArchiveEntry();
+                } catch (final IOException e) {
+                    handleProcessingException(details, e);
+                }
+            }
+
+            private void visitFile(final FileCopyDetailsInternal details) {
+                final TarArchiveEntry entry = new TarArchiveEntry(details.getRelativePath().getPathString());
+                entry.setModTime(details.getLastModified());
+                entry.setMode(UnixStat.FILE_FLAG | details.getMode());
+                entry.setSize(details.getSize());
+                try {
+                    tar.putArchiveEntry(entry);
+                    details.copyTo(tar);
+                    tar.closeArchiveEntry();
+                } catch (final IOException e) {
+                    handleProcessingException(details, e);
+                }
+            }
+
+            private void handleProcessingException(final FileCopyDetailsInternal details, final IOException e) {
+                throw new GradleException("could not add [" + details + "] to tar file [" + tarFile + "]", e);
+            }
+
+        }
+
+    }
+
+}

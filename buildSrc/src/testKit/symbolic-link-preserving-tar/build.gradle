@@ -1,0 +1,35 @@
+import org.elasticsearch.gradle.tar.SymbolicLinkPreservingTar
+
+plugins {
+    id 'base'
+    id 'distribution'
+    id 'elasticsearch.symbolic-link-preserving-tar'
+}
+
+final String source = Objects.requireNonNull(System.getProperty('tests.symbolic_link_preserving_tar_source'))
+
+task buildBZip2Tar(type: SymbolicLinkPreservingTar) {
+    archiveExtension = 'tar.bz2'
+    compression = Compression.BZIP2
+    from fileTree(source)
+    doLast {
+        println archiveFile.get().asFile.path
+    }
+}
+
+task buildGZipTar(type: SymbolicLinkPreservingTar) {
+    archiveExtension = 'tar.gz'
+    compression = Compression.GZIP
+    from fileTree(source)
+    doLast{
+        println archiveFile.get().asFile.path
+    }
+}
+
+task buildTar(type: SymbolicLinkPreservingTar) {
+    archiveExtension = 'tar'
+    from fileTree(source)
+    doLast{
+        println archiveFile.get().asFile.path
+    }
+}

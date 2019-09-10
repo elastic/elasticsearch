@@ -44,8 +44,6 @@ public final class SecurityQueryTemplateEvaluator {
      * @return resultant query string after compiling and executing the script.
      * If the source does not contain template then it will return the query
      * source without any modifications.
-     * @throws IOException thrown when there is any error parsing the query
-     * string.
      */
     public static String evaluateTemplate(final String querySource, final ScriptService scriptService, final User user) {
         // EMPTY is safe here because we never use namedObject

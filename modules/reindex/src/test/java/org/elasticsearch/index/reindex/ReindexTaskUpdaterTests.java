@@ -22,6 +22,7 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 
 import java.util.Collections;
@@ -45,7 +46,7 @@ public class ReindexTaskUpdaterTests extends ReindexTestCase {
 
         updater.assign(new ReindexTaskUpdater.AssignmentListener() {
             @Override
-            public void onAssignment(ReindexTaskState reindexTaskState) {
+            public void onAssignment(ReindexTaskStateDoc stateDoc) {
                 successLatch.countDown();
             }
 
@@ -64,7 +65,7 @@ public class ReindexTaskUpdaterTests extends ReindexTestCase {
 
         oldAllocationUpdater.assign(new ReindexTaskUpdater.AssignmentListener() {
             @Override
-            public void onAssignment(ReindexTaskState reindexTaskState) {
+            public void onAssignment(ReindexTaskStateDoc stateDoc) {
                 failureLatch.countDown();
                 fail();
             }
@@ -93,7 +94,7 @@ public class ReindexTaskUpdaterTests extends ReindexTestCase {
                 LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(randomIntBetween(1, 25)));
                 updater.assign(new ReindexTaskUpdater.AssignmentListener() {
                     @Override
-                    public void onAssignment(ReindexTaskState reindexTaskState) {
+                    public void onAssignment(ReindexTaskStateDoc stateDoc) {
                         latch.countDown();
                     }
 
@@ -124,7 +125,7 @@ public class ReindexTaskUpdaterTests extends ReindexTestCase {
 
         updater.assign(new ReindexTaskUpdater.AssignmentListener() {
             @Override
-            public void onAssignment(ReindexTaskState reindexTaskState) {
+            public void onAssignment(ReindexTaskStateDoc stateDoc) {
                 firstAssignmentLatch.countDown();
             }
 
@@ -145,7 +146,7 @@ public class ReindexTaskUpdaterTests extends ReindexTestCase {
 
         newAllocationUpdater.assign(new ReindexTaskUpdater.AssignmentListener() {
             @Override
-            public void onAssignment(ReindexTaskState reindexTaskState) {
+            public void onAssignment(ReindexTaskStateDoc stateDoc) {
                 secondAssignmentLatch.countDown();
             }
 
@@ -165,6 +166,91 @@ public class ReindexTaskUpdaterTests extends ReindexTestCase {
         reindexClient.getReindexTaskDoc(taskId, future);
         ReindexTaskState reindexTaskState = future.actionGet();
         assertEquals(10, reindexTaskState.getStateDoc().getCheckpoint().getRestartFromValue());
+    }
+
+    public void testFinishWillStopCheckpoints() throws Exception {
+        String taskId = randomAlphaOfLength(10);
+        ReindexIndexClient reindexClient = getReindexClient();
+        createDoc(reindexClient, taskId);
+
+        AtomicInteger committed = new AtomicInteger(0);
+
+        ReindexTaskUpdater updater = new ReindexTaskUpdater(reindexClient, taskId, 0, (s) -> committed.incrementAndGet());
+        CountDownLatch firstAssignmentLatch = new CountDownLatch(1);
+
+        updater.assign(new ReindexTaskUpdater.AssignmentListener() {
+            @Override
+            public void onAssignment(ReindexTaskStateDoc stateDoc) {
+                firstAssignmentLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(ReindexJobState.Status status, Exception exception) {
+                firstAssignmentLatch.countDown();
+                fail();
+            }
+        });
+        firstAssignmentLatch.await();
+
+        BulkByScrollTask.Status status = new BulkByScrollTask.Status(Collections.emptyList(), null);
+        updater.onCheckpoint(new ScrollableHitSource.Checkpoint(10), status);
+        assertBusy(() -> assertEquals(1, committed.get()));
+
+
+        BulkByScrollResponse response = new BulkByScrollResponse(TimeValue.timeValueSeconds(5), status, Collections.emptyList(),
+            Collections.emptyList(), false);
+        PlainActionFuture<ReindexTaskStateDoc> finishedFuture = PlainActionFuture.newFuture();
+        updater.finish(response, null, finishedFuture);
+        finishedFuture.actionGet();
+
+        updater.onCheckpoint(new ScrollableHitSource.Checkpoint(20), status);
+        assertEquals(committed.get(), 1);
+    }
+
+    public void testFinishStoresResult() throws Exception {
+        String taskId = randomAlphaOfLength(10);
+        ReindexIndexClient reindexClient = getReindexClient();
+        createDoc(reindexClient, taskId);
+
+        AtomicInteger committed = new AtomicInteger(0);
+
+        ReindexTaskUpdater updater = new ReindexTaskUpdater(reindexClient, taskId, 0, (s) -> committed.incrementAndGet());
+        CountDownLatch firstAssignmentLatch = new CountDownLatch(1);
+
+        updater.assign(new ReindexTaskUpdater.AssignmentListener() {
+            @Override
+            public void onAssignment(ReindexTaskStateDoc stateDoc) {
+                firstAssignmentLatch.countDown();
+            }
+
+            @Override
+            public void onFailure(ReindexJobState.Status status, Exception exception) {
+                firstAssignmentLatch.countDown();
+                fail();
+            }
+        });
+        firstAssignmentLatch.await();
+
+        BulkByScrollTask.Status status = new BulkByScrollTask.Status(Collections.emptyList(), null);
+        updater.onCheckpoint(new ScrollableHitSource.Checkpoint(10), status);
+        assertBusy(() -> assertEquals(1, committed.get()));
+
+
+        BulkByScrollResponse response = new BulkByScrollResponse(TimeValue.timeValueSeconds(5), status, Collections.emptyList(),
+            Collections.emptyList(), false);
+        PlainActionFuture<ReindexTaskStateDoc> finishedFuture = PlainActionFuture.newFuture();
+        updater.finish(response, null, finishedFuture);
+        finishedFuture.actionGet();
+
+        PlainActionFuture<ReindexTaskState> storedStateFuture = PlainActionFuture.newFuture();
+        reindexClient.getReindexTaskDoc(taskId, storedStateFuture);
+        ReindexTaskState storedState = storedStateFuture.actionGet();
+        assertNotNull(storedState.getStateDoc().getReindexResponse());
+        assertEquals(response.isTimedOut(), storedState.getStateDoc().getReindexResponse().isTimedOut());
+        assertEquals(response.getSearchFailures(), storedState.getStateDoc().getReindexResponse().getSearchFailures());
+        assertEquals(response.getBulkFailures(), storedState.getStateDoc().getReindexResponse().getBulkFailures());
+        assertEquals(response.getTook(), storedState.getStateDoc().getReindexResponse().getTook());
+        assertEquals(10, storedState.getStateDoc().getCheckpoint().getRestartFromValue());
     }
 
     private void createDoc(ReindexIndexClient client, String taskId) {

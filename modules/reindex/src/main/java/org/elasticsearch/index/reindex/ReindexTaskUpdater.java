@@ -23,8 +23,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.rest.RestStatus;
 
 import java.util.concurrent.Semaphore;
 import java.util.function.Consumer;
@@ -50,6 +50,8 @@ public class ReindexTaskUpdater implements Reindexer.CheckpointListener {
         this.reindexIndexClient = reindexIndexClient;
         this.persistentTaskId = persistentTaskId;
         this.allocationId = allocationId;
+        // TODO: At some point I think we would like to replace a single universal callback to a listener that
+        //  is passed to the checkpoint method and handles the version conflict
         this.committedCallback = committedCallback;
     }
 
@@ -61,20 +63,14 @@ public class ReindexTaskUpdater implements Reindexer.CheckpointListener {
                 long term = taskState.getPrimaryTerm();
                 long seqNo = taskState.getSeqNo();
                 ReindexTaskStateDoc oldDoc = taskState.getStateDoc();
-                ReindexRequest request = oldDoc.getReindexRequest();
-                BulkByScrollResponse response = oldDoc.getReindexResponse();
-                ElasticsearchException exception = oldDoc.getException();
-                RestStatus failureStatusCode = oldDoc.getFailureStatusCode();
-                ScrollableHitSource.Checkpoint checkpoint = oldDoc.getCheckpoint();
 
                 if (oldDoc.getAllocationId() == null || allocationId > oldDoc.getAllocationId()) {
-                    ReindexTaskStateDoc newDoc = new ReindexTaskStateDoc(request, allocationId, response, exception, failureStatusCode,
-                        checkpoint);
+                    ReindexTaskStateDoc newDoc = oldDoc.withNewAllocation(allocationId);
                     reindexIndexClient.updateReindexTaskDoc(persistentTaskId, newDoc, term, seqNo, new ActionListener<>() {
                         @Override
                         public void onResponse(ReindexTaskState newTaskState) {
                             lastState = newTaskState;
-                            listener.onAssignment(newTaskState);
+                            listener.onAssignment(newTaskState.getStateDoc());
                         }
 
                         @Override
@@ -110,55 +106,67 @@ public class ReindexTaskUpdater implements Reindexer.CheckpointListener {
 
     @Override
     public void onCheckpoint(ScrollableHitSource.Checkpoint checkpoint, BulkByScrollTask.Status status) {
-        // todo: need some kind of throttling here, no need to do this all the time.
+        // TODO: Need some kind of throttling here, no need to do this all the time.
         // only do one checkpoint at a time, in case checkpointing is too slow.
-        if (semaphore.tryAcquire() && isDone == false) {
-            ReindexTaskStateDoc nextState = lastState.getStateDoc().withCheckpoint(checkpoint, status);
-            // todo: clarify whether updateReindexTaskDoc can fail with exception and use conditional update
+        if (semaphore.tryAcquire()) {
+            if (isDone) {
+                semaphore.release();
+            } else {
+                ReindexTaskStateDoc nextState = lastState.getStateDoc().withCheckpoint(checkpoint, status);
+                // TODO: This can fail due to conditional update. Need to hook into ability to cancel reindex process
+                long term = lastState.getPrimaryTerm();
+                long seqNo = lastState.getSeqNo();
+                reindexIndexClient.updateReindexTaskDoc(persistentTaskId, nextState, term, seqNo, new ActionListener<>() {
+                    @Override
+                    public void onResponse(ReindexTaskState taskState) {
+                        lastState = taskState;
+                        committedCallback.accept(status);
+                        semaphore.release();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        semaphore.release();
+                    }
+                });
+            }
+        }
+    }
+
+    public void finish(@Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception,
+                       ActionListener<ReindexTaskStateDoc> listener) {
+        // TODO: Move to try acquire and a scheduled retry if there is currently contention
+        semaphore.acquireUninterruptibly();
+        if (isDone) {
+            semaphore.release();
+            listener.onFailure(new ElasticsearchException("Reindex task already finished locally"));
+        } else {
+            ReindexTaskStateDoc state = lastState.getStateDoc().withFinishedState(reindexResponse, exception);
+            isDone = true;
             long term = lastState.getPrimaryTerm();
             long seqNo = lastState.getSeqNo();
-            reindexIndexClient.updateReindexTaskDoc(persistentTaskId, nextState, term, seqNo, new ActionListener<>() {
+            reindexIndexClient.updateReindexTaskDoc(persistentTaskId, state, term, seqNo, new ActionListener<>() {
                 @Override
                 public void onResponse(ReindexTaskState taskState) {
-                    lastState = taskState;
-                    committedCallback.accept(status);
+                    lastState = null;
                     semaphore.release();
+                    listener.onResponse(taskState.getStateDoc());
+
                 }
 
                 @Override
                 public void onFailure(Exception e) {
+                    lastState = null;
                     semaphore.release();
+                    listener.onFailure(e);
                 }
             });
         }
     }
 
-    public void finish(ReindexTaskStateDoc state, ActionListener<ReindexTaskState> listener) {
-        // TODO: Maybe just normal acquire
-        semaphore.acquireUninterruptibly();
-        isDone = true;
-        long term = lastState.getPrimaryTerm();
-        long seqNo = lastState.getSeqNo();
-        reindexIndexClient.updateReindexTaskDoc(persistentTaskId, state, term, seqNo, new ActionListener<>() {
-            @Override
-            public void onResponse(ReindexTaskState taskState) {
-                lastState = null;
-                semaphore.release();
-                listener.onResponse(taskState);
-
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                semaphore.release();
-                listener.onFailure(e);
-            }
-        });
-    }
-
     interface AssignmentListener {
 
-        void onAssignment(ReindexTaskState reindexTaskState);
+        void onAssignment(ReindexTaskStateDoc stateDoc);
 
         void onFailure(ReindexJobState.Status status, Exception exception);
     }

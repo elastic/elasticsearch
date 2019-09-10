@@ -76,7 +76,13 @@ public class ReindexTaskStateDoc implements ToXContentObject {
 
     public ReindexTaskStateDoc(ReindexRequest reindexRequest, @Nullable Long allocationId,
                                @Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception,
-                               @Nullable RestStatus failureStatusCode, @Nullable ScrollableHitSource.Checkpoint checkpoint) {
+                               @Nullable ScrollableHitSource.Checkpoint checkpoint) {
+        this(reindexRequest, allocationId, reindexResponse, exception, exception != null ? exception.status() : null, checkpoint);
+    }
+
+    private ReindexTaskStateDoc(ReindexRequest reindexRequest, @Nullable Long allocationId,
+                                @Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception,
+                                @Nullable RestStatus failureStatusCode, @Nullable ScrollableHitSource.Checkpoint checkpoint) {
         this.allocationId = allocationId;
         assert (reindexResponse == null) || (exception == null) : "Either response or exception must be null";
         this.reindexRequest = reindexRequest;
@@ -145,5 +151,14 @@ public class ReindexTaskStateDoc implements ToXContentObject {
     public ReindexTaskStateDoc withCheckpoint(ScrollableHitSource.Checkpoint checkpoint, BulkByScrollTask.Status status) {
         // todo: also store and resume from status.
         return new ReindexTaskStateDoc(reindexRequest, allocationId, reindexResponse, exception, failureStatusCode, checkpoint);
+    }
+
+    public ReindexTaskStateDoc withNewAllocation(long newAllocationId) {
+        return new ReindexTaskStateDoc(reindexRequest, newAllocationId, reindexResponse, exception, failureStatusCode, checkpoint);
+    }
+
+    public ReindexTaskStateDoc withFinishedState(@Nullable BulkByScrollResponse reindexResponse,
+                                                 @Nullable ElasticsearchException exception) {
+        return new ReindexTaskStateDoc(reindexRequest, allocationId, reindexResponse, exception, checkpoint);
     }
 }

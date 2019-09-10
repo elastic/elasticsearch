@@ -29,12 +29,10 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -43,7 +41,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.Semaphore;
 import java.util.function.Supplier;
 
 public class ReindexTask extends AllocatedPersistentTask {
@@ -104,6 +101,7 @@ public class ReindexTask extends AllocatedPersistentTask {
         this.reindexer = reindexer;
         this.taskId = new TaskId(clusterService.localNode().getId(), id);
         this.childTask = new BulkByScrollTask(id, type, action, getDescription(), parentTask, headers);
+
     }
 
     @Override
@@ -116,13 +114,14 @@ public class ReindexTask extends AllocatedPersistentTask {
     }
 
     private void execute(ReindexJob reindexJob) {
-        Assigner assigner = new Assigner(reindexIndexClient, getPersistentTaskId(), getAllocationId());
-        assigner.assign(new Assigner.Listener() {
+        String taskId = getPersistentTaskId();
+        long allocationId = getAllocationId();
+        ReindexTaskUpdater taskUpdater = new ReindexTaskUpdater(reindexIndexClient, taskId, allocationId, childTask::setCommittedStatus);
+        taskUpdater.assign(new ReindexTaskUpdater.AssignmentListener() {
             @Override
-            public void onAssignment(ReindexTaskState taskState) {
-                ReindexRequest reindexRequest = taskState.getStateDoc().getReindexRequest();
-                ProgressState progressState = new ProgressState(taskState);
-                Runnable performReindex = () -> performReindex(reindexJob, reindexRequest, progressState);
+            public void onAssignment(ReindexTaskStateDoc stateDoc) {
+                ReindexRequest reindexRequest = stateDoc.getReindexRequest();
+                Runnable performReindex = () -> performReindex(reindexJob, stateDoc, taskUpdater);
                 reindexer.initTask(childTask, reindexRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(Void aVoid) {
@@ -131,7 +130,7 @@ public class ReindexTask extends AllocatedPersistentTask {
 
                     @Override
                     public void onFailure(Exception e) {
-                        handleError(reindexJob.shouldStoreResult(), reindexRequest, progressState, e);
+                        handleError(reindexJob.shouldStoreResult(), taskUpdater, e);
                     }
                 });
             }
@@ -158,8 +157,9 @@ public class ReindexTask extends AllocatedPersistentTask {
         });
     }
 
-    private void performReindex(ReindexJob reindexJob, ReindexRequest reindexRequest, ProgressState progressState) {
-        ScrollableHitSource.Checkpoint checkpoint = progressState.lastState.getStateDoc().getCheckpoint();
+    private void performReindex(ReindexJob reindexJob, ReindexTaskStateDoc stateDoc, ReindexTaskUpdater taskUpdater) {
+        ReindexRequest reindexRequest = stateDoc.getReindexRequest();
+        ScrollableHitSource.Checkpoint checkpoint = stateDoc.getCheckpoint();
         ThreadContext threadContext = client.threadPool().getThreadContext();
 
         // todo: need to store status in state so we can continue from it.
@@ -174,26 +174,25 @@ public class ReindexTask extends AllocatedPersistentTask {
             reindexer.execute(childTask, reindexRequest, new ContextPreservingActionListener<>(context, new ActionListener<>() {
                 @Override
                 public void onResponse(BulkByScrollResponse response) {
-                    handleDone(shouldStoreResult, reindexRequest, progressState, response);
+                    handleDone(shouldStoreResult, reindexRequest, taskUpdater, response);
                 }
 
                 @Override
                 public void onFailure(Exception ex) {
-                    handleError(shouldStoreResult, reindexRequest, progressState, ex);
+                    handleError(shouldStoreResult, taskUpdater, ex);
                 }
-            }), checkpoint, progressState);
+            }), checkpoint, taskUpdater);
         }
     }
 
-    private void handleDone(boolean shouldStoreResult, ReindexRequest reindexRequest, ProgressState progressState,
+    private void handleDone(boolean shouldStoreResult, ReindexRequest reindexRequest, ReindexTaskUpdater taskUpdater,
                             BulkByScrollResponse response) {
         TaskManager taskManager = getTaskManager();
         assert taskManager != null : "TaskManager should have been set before reindex started";
 
-        ReindexTaskStateDoc state = new ReindexTaskStateDoc(reindexRequest, getAllocationId(), response, null, (RestStatus) null, null);
-        progressState.setDone(state, new ActionListener<>() {
+        taskUpdater.finish(response, null, new ActionListener<>() {
             @Override
-            public void onResponse(ReindexTaskState taskState) {
+            public void onResponse(ReindexTaskStateDoc stateDoc) {
                 updatePersistentTaskState(new ReindexJobState(taskId, ReindexJobState.Status.DONE), new ActionListener<>() {
                     @Override
                     public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
@@ -231,17 +230,13 @@ public class ReindexTask extends AllocatedPersistentTask {
         });
     }
 
-    private void handleError(boolean shouldStoreResult, ReindexRequest reindexRequest, ProgressState progressState, Exception ex) {
+    private void handleError(boolean shouldStoreResult, ReindexTaskUpdater taskUpdater, Exception ex) {
         TaskManager taskManager = getTaskManager();
         assert taskManager != null : "TaskManager should have been set before reindex started";
 
-        ElasticsearchException exception = wrapException(ex);
-        long allocationId = getAllocationId();
-        ReindexTaskStateDoc state = new ReindexTaskStateDoc(reindexRequest, allocationId, null, exception, exception.status(), null);
-
-        progressState.setDone(state, new ActionListener<>() {
+        taskUpdater.finish(null, wrapException(ex), new ActionListener<>() {
             @Override
-            public void onResponse(ReindexTaskState taskState) {
+            public void onResponse(ReindexTaskStateDoc stateDoc) {
                 updateClusterStateToFailed(shouldStoreResult, ReindexJobState.Status.DONE, ex);
             }
 
@@ -298,139 +293,5 @@ public class ReindexTask extends AllocatedPersistentTask {
         }
         threadContext.copyHeaders(headers.entrySet());
         return storedContext;
-    }
-
-    private static class Assigner {
-
-        private final ReindexIndexClient reindexIndexClient;
-        private final String persistentTaskId;
-        private final long allocationId;
-        private int assignmentAttempts = 0;
-
-        private Assigner(ReindexIndexClient reindexIndexClient, String persistentTaskId, long allocationId) {
-            this.reindexIndexClient = reindexIndexClient;
-            this.persistentTaskId = persistentTaskId;
-            this.allocationId = allocationId;
-        }
-
-        private void assign(Listener assignmentListener) {
-            ++assignmentAttempts;
-            reindexIndexClient.getReindexTaskDoc(persistentTaskId, new ActionListener<>() {
-                @Override
-                public void onResponse(ReindexTaskState taskState) {
-                    long term = taskState.getPrimaryTerm();
-                    long seqNo = taskState.getSeqNo();
-                    ReindexTaskStateDoc oldDoc = taskState.getStateDoc();
-                    ReindexRequest request = oldDoc.getReindexRequest();
-                    BulkByScrollResponse response = oldDoc.getReindexResponse();
-                    ElasticsearchException exception = oldDoc.getException();
-                    RestStatus failureStatusCode = oldDoc.getFailureStatusCode();
-                    ScrollableHitSource.Checkpoint checkpoint = oldDoc.getCheckpoint();
-
-                    if (oldDoc.getAllocationId() == null || allocationId > oldDoc.getAllocationId()) {
-                        ReindexTaskStateDoc newDoc = new ReindexTaskStateDoc(request, allocationId, response, exception, failureStatusCode,
-                            checkpoint);
-                        reindexIndexClient.updateReindexTaskDoc(persistentTaskId, newDoc, term, seqNo, new ActionListener<>() {
-                            @Override
-                            public void onResponse(ReindexTaskState newTaskState) {
-                                assignmentListener.onAssignment(newTaskState);
-                            }
-
-                            @Override
-                            public void onFailure(Exception ex) {
-                                if (ex instanceof VersionConflictEngineException) {
-                                    // There has been an indexing operation since the GET operation. Try
-                                    // again if there are assignment attempts left.
-                                    if (assignmentAttempts < 3) {
-                                        assign(assignmentListener);
-                                    } else {
-                                        logger.info("Failed to write allocation id to reindex task doc after maximum retry attempts", ex);
-                                        assignmentListener.onFailure(ReindexJobState.Status.ASSIGNMENT_FAILED, ex);
-                                    }
-                                } else {
-                                    logger.info("Failed to write allocation id to reindex task doc", ex);
-                                    assignmentListener.onFailure(ReindexJobState.Status.FAILED_TO_WRITE_TO_REINDEX_INDEX, ex);
-                                }
-                            }
-                        });
-                    } else {
-                        ElasticsearchException ex = new ElasticsearchException("A newer task has already been allocated");
-                        assignmentListener.onFailure(ReindexJobState.Status.ASSIGNMENT_FAILED, ex);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception ex) {
-                    logger.info("Failed to fetch reindex task doc", ex);
-                    assignmentListener.onFailure(ReindexJobState.Status.FAILED_TO_READ_FROM_REINDEX_INDEX, ex);
-                }
-            });
-        }
-
-        private interface Listener {
-
-            void onAssignment(ReindexTaskState reindexTaskState);
-
-            void onFailure(ReindexJobState.Status status, Exception exception);
-        }
-    }
-
-    private class ProgressState implements Reindexer.CheckpointListener {
-
-        private final Semaphore semaphore = new Semaphore(1);
-        private ReindexTaskState lastState;
-        private boolean isDone = false;
-
-        ProgressState(ReindexTaskState initialState) {
-            this.lastState = initialState;
-        }
-
-        @Override
-        public void onCheckpoint(ScrollableHitSource.Checkpoint checkpoint, BulkByScrollTask.Status status) {
-            // todo: need some kind of throttling here, no need to do this all the time.
-            // only do one checkpoint at a time, in case checkpointing is too slow.
-            if (semaphore.tryAcquire() && isDone == false) {
-                ReindexTaskStateDoc nextState = lastState.getStateDoc().withCheckpoint(checkpoint, status);
-                // todo: clarify whether updateReindexTaskDoc can fail with exception and use conditional update
-                long term = lastState.getPrimaryTerm();
-                long seqNo = lastState.getSeqNo();
-                reindexIndexClient.updateReindexTaskDoc(getPersistentTaskId(), nextState, term, seqNo, new ActionListener<>() {
-                        @Override
-                        public void onResponse(ReindexTaskState taskState) {
-                            lastState = taskState;
-                            childTask.setCommittedStatus(status);
-                            semaphore.release();
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            semaphore.release();
-                        }
-                    });
-            }
-        }
-
-        private void setDone(ReindexTaskStateDoc state, ActionListener<ReindexTaskState> listener) {
-            // TODO: Maybe just normal acquire
-            semaphore.acquireUninterruptibly();
-            isDone = true;
-            long term = lastState.getPrimaryTerm();
-            long seqNo = lastState.getSeqNo();
-            reindexIndexClient.updateReindexTaskDoc(getPersistentTaskId(), state, term, seqNo, new ActionListener<>() {
-                @Override
-                public void onResponse(ReindexTaskState taskState) {
-                    lastState = null;
-                    semaphore.release();
-                    listener.onResponse(taskState);
-
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    semaphore.release();
-                    listener.onFailure(e);
-                }
-            });
-        }
     }
 }

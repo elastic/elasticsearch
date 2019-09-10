@@ -164,7 +164,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private static final String DATA_BLOB_PREFIX = "__";
 
     /**
-     * When set to true metadata files are stored in compressed format. This setting does not affect index
+     * When set to true metadata files are stored in compressed format. This setting doesn’t affect index
      * files that are already compressed by default. Changing the setting does not invalidate existing files since reads
      * do not observe the setting, instead they examine the file to see if it is compressed or not.
      */
@@ -452,6 +452,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * Delete a snapshot from the repository in a cluster that does not contain any nodes older than
      * {@link SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION}.
+     *
      * @param snapshotId        SnapshotId to delete
      * @param repositoryStateId Expected repository state id
      * @param version           Node version that must be able to read this repositories contents after the delete has finished
@@ -1502,6 +1503,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } else if (blobs.isEmpty() == false) {
             logger.warn("Could not find a readable index-N file in a non-empty shard snapshot directory [{}]", shardContainer.path());
         }
+        // TODO: Stop defaulting to "-1" and use UUID here once there is no more need for BwC with versions prior to
+        //       SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION
         return new Tuple<>(BlobStoreIndexShardSnapshots.EMPTY, latest == null ? "-1" : latest);
     }
 

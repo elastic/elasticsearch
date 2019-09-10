@@ -394,6 +394,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             throw new RetentionLeaseNotFoundException(id);
         }
         if (retainingSequenceNumber < existingRetentionLease.retainingSequenceNumber()) {
+            assert PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(source) == false :
+                "renewing peer recovery retention lease [" + id + "] with a lower retaining sequence number "
+                    + retainingSequenceNumber + " < " + existingRetentionLease.retainingSequenceNumber();
             throw new IllegalArgumentException(
                 "the current retention lease with [" + id + "]" +
                     " is retaining a higher sequence number [" + existingRetentionLease.retainingSequenceNumber() + "]" +

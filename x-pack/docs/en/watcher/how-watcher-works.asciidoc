@@ -1,3 +1,4 @@
+[role="xpack"]
 [[how-watcher-works]]
 == How {watcher} Works
 

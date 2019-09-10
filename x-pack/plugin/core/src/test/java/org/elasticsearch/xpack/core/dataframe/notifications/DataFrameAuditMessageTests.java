@@ -11,7 +11,14 @@ import org.elasticsearch.xpack.core.common.notifications.Level;
 
 import java.util.Date;
 
+import static org.hamcrest.Matchers.nullValue;
+
 public class DataFrameAuditMessageTests extends AbstractXContentTestCase<DataFrameAuditMessage> {
+
+    public void testGetJobType() {
+        DataFrameAuditMessage message = createTestInstance();
+        assertThat(message.getJobType(), nullValue());
+    }
 
     @Override
     protected DataFrameAuditMessage doParseInstance(XContentParser parser) {

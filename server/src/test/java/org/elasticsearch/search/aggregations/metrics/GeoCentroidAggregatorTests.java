@@ -25,14 +25,32 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.geo.CentroidCalculator;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Circle;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.GeometryVisitor;
+import org.elasticsearch.geometry.Line;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiLine;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.MultiPolygon;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.index.mapper.BinaryGeoShapeDocValuesField;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
+import java.util.function.Function;
 
 public class GeoCentroidAggregatorTests extends AggregatorTestCase {
 
@@ -84,7 +102,7 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    public void testSingleValuedField() throws Exception {
+    public void testSingleValuedGeoPointField() throws Exception {
         int numDocs = scaledRandomIntBetween(64, 256);
         int numUniqueGeoPoints = randomIntBetween(1, numDocs);
         try (Directory dir = newDirectory();
@@ -103,11 +121,11 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
                 expectedCentroid = expectedCentroid.reset(expectedCentroid.lat() + (singleVal.lat() - expectedCentroid.lat()) / (i + 1),
                         expectedCentroid.lon() + (singleVal.lon() - expectedCentroid.lon()) / (i + 1));
             }
-            assertCentroid(w, expectedCentroid);
+            assertCentroid(w, expectedCentroid, new GeoPointFieldMapper.GeoPointFieldType());
         }
     }
 
-    public void testMultiValuedField() throws Exception {
+    public void testMultiValuedGeoPointField() throws Exception {
         int numDocs = scaledRandomIntBetween(64, 256);
         int numUniqueGeoPoints = randomIntBetween(1, numDocs);
         try (Directory dir = newDirectory();
@@ -131,12 +149,115 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
                 expectedCentroid = expectedCentroid.reset(expectedCentroid.lat() + (newMVLat - expectedCentroid.lat()) / (i + 1),
                         expectedCentroid.lon() + (newMVLon - expectedCentroid.lon()) / (i + 1));
             }
-            assertCentroid(w, expectedCentroid);
+            assertCentroid(w, expectedCentroid, new GeoPointFieldMapper.GeoPointFieldType());
         }
     }
 
-    private void assertCentroid(RandomIndexWriter w, GeoPoint expectedCentroid) throws IOException {
-        MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
+    @SuppressWarnings("unchecked")
+    public void testGeoShapeField() throws Exception {
+        int numDocs = scaledRandomIntBetween(64, 256);
+        Function<Boolean, Geometry> geometryGenerator = ESTestCase.randomFrom(
+            GeometryTestUtils::randomLine,
+            GeometryTestUtils::randomPoint,
+            GeometryTestUtils::randomPolygon,
+            GeometryTestUtils::randomMultiLine,
+            GeometryTestUtils::randomMultiPoint,
+            (hasAlt) -> GeometryTestUtils.randomRectangle(),
+            GeometryTestUtils::randomMultiPolygon
+        );
+        try (Directory dir = newDirectory();
+             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            GeoPoint expectedCentroid = new GeoPoint(0, 0);
+            CentroidCalculator centroidOfCentroidsCalculator = new CentroidCalculator();
+            for (int i = 0; i < numDocs; i++) {
+                CentroidCalculator calculator = new CentroidCalculator();
+                Document document = new Document();
+                Geometry geometry = geometryGenerator.apply(false);
+                geometry.visit(new GeometryVisitor<Void, Exception>() {
+                    @Override
+                    public Void visit(Circle circle) throws Exception {
+                        calculator.addCoordinate(circle.getX(), circle.getY());
+                        return null;
+                    }
+
+                    @Override
+                    public Void visit(GeometryCollection<?> collection) throws Exception {
+                        for (Geometry shape : collection) {
+                            shape.visit(this);
+                        }
+                        return null;
+                    }
+
+                    @Override
+                    public Void visit(Line line) throws Exception {
+                        for (int i = 0; i < line.length(); i++) {
+                            calculator.addCoordinate(line.getX(i), line.getY(i));
+                        }
+                        return null;
+                    }
+
+                    @Override
+                    public Void visit(LinearRing ring) throws Exception {
+                        for (int i = 0; i < ring.length() - 1; i++) {
+                            calculator.addCoordinate(ring.getX(i), ring.getY(i));
+                        }
+                        return null;
+                    }
+
+                    @Override
+                    public Void visit(MultiLine multiLine) throws Exception {
+                        for (Line line : multiLine) {
+                            visit(line);
+                        }
+                        return null;
+                    }
+
+                    @Override
+                    public Void visit(MultiPoint multiPoint) throws Exception {
+                        for (Point point : multiPoint) {
+                            visit(point);
+                        }
+                        return null;
+                    }
+
+                    @Override
+                    public Void visit(MultiPolygon multiPolygon) throws Exception {
+                        for (Polygon polygon : multiPolygon) {
+                            visit(polygon);
+                        }
+                        return null;
+                    }
+
+                    @Override
+                    public Void visit(Point point) throws Exception {
+                        calculator.addCoordinate(point.getX(), point.getY());
+                        return null;
+                    }
+
+                    @Override
+                    public Void visit(Polygon polygon) throws Exception {
+                        return visit(polygon.getPolygon());
+                    }
+
+                    @Override
+                    public Void visit(Rectangle rectangle) throws Exception {
+                        calculator.addCoordinate(rectangle.getMinX(), rectangle.getMinY());
+                        calculator.addCoordinate(rectangle.getMinX(), rectangle.getMaxY());
+                        calculator.addCoordinate(rectangle.getMaxX(), rectangle.getMinY());
+                        calculator.addCoordinate(rectangle.getMaxX(), rectangle.getMaxY());
+                        return null;
+                    }
+                });
+                document.add(new BinaryGeoShapeDocValuesField("field", geometry));
+                w.addDocument(document);
+                centroidOfCentroidsCalculator.addCoordinate(calculator.getX(), calculator.getY());
+            }
+            expectedCentroid.reset(centroidOfCentroidsCalculator.getY(), centroidOfCentroidsCalculator.getX());
+            assertCentroid(w, expectedCentroid, new GeoShapeFieldMapper.GeoShapeFieldType());
+        }
+    }
+
+    private void assertCentroid(RandomIndexWriter w, GeoPoint expectedCentroid, MappedFieldType fieldType) throws IOException {
         fieldType.setHasDocValues(true);
         fieldType.setName("field");
         GeoCentroidAggregationBuilder aggBuilder = new GeoCentroidAggregationBuilder("my_agg")

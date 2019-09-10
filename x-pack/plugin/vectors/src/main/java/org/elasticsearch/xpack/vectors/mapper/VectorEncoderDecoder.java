@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.vectors.mapper;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.InPlaceMergeSorter;
+import org.elasticsearch.Version;
+
+import java.nio.ByteBuffer;
 
 // static utility functions for encoding and decoding dense_vector and sparse_vector fields
 public final class VectorEncoderDecoder {
@@ -19,80 +22,83 @@ public final class VectorEncoderDecoder {
 
     /**
      * Encodes a sparse array represented by values, dims and dimCount into a bytes array - BytesRef
-     * BytesRef: int[] floats encoded as integers values, 2 bytes for each dimension
-     * @param values - values of the sparse array
+     * BytesRef: int[] floats encoded as integers values, 2 bytes for each dimension, length of vector
+     * @param indexVersion - index version
      * @param dims - dims of the sparse array
+     * @param values - values of the sparse array
      * @param dimCount - number of the dimensions, necessary as values and dims are dynamically created arrays,
      *          and may be over-allocated
      * @return BytesRef
      */
-    public static BytesRef encodeSparseVector(int[] dims, float[] values, int dimCount) {
+    public static BytesRef encodeSparseVector(Version indexVersion, int[] dims, float[] values, int dimCount) {
         // 1. Sort dims and values
         sortSparseDimsValues(dims, values, dimCount);
-        byte[] buf = new byte[dimCount * (INT_BYTES + SHORT_BYTES)];
 
         // 2. Encode dimensions
         // as each dimension is a positive value that doesn't exceed 65535, 2 bytes is enough for encoding it
-        int offset = 0;
+        byte[] bytes = indexVersion.onOrAfter(Version.V_7_5_0) ? new byte[dimCount * (INT_BYTES + SHORT_BYTES) + INT_BYTES] :
+            new byte[dimCount * (INT_BYTES + SHORT_BYTES)];
+        ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
+
         for (int dim = 0; dim < dimCount; dim++) {
-            buf[offset] = (byte) (dims[dim] >>  8);
-            buf[offset+1] = (byte) dims[dim];
-            offset += SHORT_BYTES;
+            int dimValue = dims[dim];
+            byteBuffer.put((byte) (dimValue >> 8));
+            byteBuffer.put((byte) dimValue);
         }
 
         // 3. Encode values
+        double dotProduct = 0.0f;
         for (int dim = 0; dim < dimCount; dim++) {
-            int intValue = Float.floatToIntBits(values[dim]);
-            buf[offset] =  (byte) (intValue >> 24);
-            buf[offset+1] = (byte) (intValue >> 16);
-            buf[offset+2] = (byte) (intValue >>  8);
-            buf[offset+3] = (byte) intValue;
-            offset += INT_BYTES;
+            float value = values[dim];
+            byteBuffer.putFloat(value);
+            dotProduct += value * value;
         }
 
-        return new BytesRef(buf);
+        // 4. Encode vector magnitude at the end
+        if (indexVersion.onOrAfter(Version.V_7_5_0)) {
+            float vectorMagnitude = (float) Math.sqrt(dotProduct);
+            byteBuffer.putFloat(vectorMagnitude);
+        }
+
+        return new BytesRef(bytes);
     }
 
     /**
      * Decodes the first part of BytesRef into sparse vector dimensions
+     * @param indexVersion - index version
      * @param vectorBR - sparse vector encoded in BytesRef
      */
-    public static int[] decodeSparseVectorDims(BytesRef vectorBR) {
-        if (vectorBR == null) {
-            throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
-        }
-        int dimCount = vectorBR.length / (INT_BYTES + SHORT_BYTES);
+    public static int[] decodeSparseVectorDims(Version indexVersion, BytesRef vectorBR) {
+        int dimCount = indexVersion.onOrAfter(Version.V_7_5_0)
+            ? (vectorBR.length - INT_BYTES) / (INT_BYTES + SHORT_BYTES)
+            : vectorBR.length / (INT_BYTES + SHORT_BYTES);
+        ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, dimCount * SHORT_BYTES);
+
         int[] dims = new int[dimCount];
-        int offset = vectorBR.offset;
         for (int dim = 0; dim < dimCount; dim++) {
-            dims[dim] = ((vectorBR.bytes[offset] & 0xFF) << 8) | (vectorBR.bytes[offset+1] & 0xFF);
-            offset += SHORT_BYTES;
+            dims[dim] = ((byteBuffer.get() & 0xFF) << 8) | (byteBuffer.get() & 0xFF);
         }
         return dims;
     }
 
     /**
      * Decodes the second part of the BytesRef into sparse vector values
+     * @param indexVersion - index version
      * @param vectorBR - sparse vector encoded in BytesRef
      */
-    public static float[] decodeSparseVector(BytesRef vectorBR) {
-        if (vectorBR == null) {
-            throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
-        }
-        int dimCount = vectorBR.length / (INT_BYTES + SHORT_BYTES);
-        int offset =  vectorBR.offset + SHORT_BYTES * dimCount; //calculate the offset from where values are encoded
+    public static float[] decodeSparseVector(Version indexVersion, BytesRef vectorBR) {
+        int dimCount = indexVersion.onOrAfter(Version.V_7_5_0)
+            ? (vectorBR.length - INT_BYTES) / (INT_BYTES + SHORT_BYTES)
+            : vectorBR.length / (INT_BYTES + SHORT_BYTES);
+        int offset =  vectorBR.offset + SHORT_BYTES * dimCount;
         float[] vector = new float[dimCount];
+
+        ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, offset, dimCount * INT_BYTES);
         for (int dim = 0; dim < dimCount; dim++) {
-            int intValue = ((vectorBR.bytes[offset] & 0xFF) << 24)   |
-                ((vectorBR.bytes[offset+1] & 0xFF) << 16) |
-                ((vectorBR.bytes[offset+2] & 0xFF) <<  8) |
-                (vectorBR.bytes[offset+3] & 0xFF);
-            vector[dim] = Float.intBitsToFloat(intValue);
-            offset = offset + INT_BYTES;
+            vector[dim] = byteBuffer.getFloat();
         }
         return vector;
     }
-
 
     /**
      * Sorts dimensions in the ascending order and
@@ -150,24 +156,20 @@ public final class VectorEncoderDecoder {
         }.sort(0, n);
     }
 
+    public static int denseVectorLength(Version indexVersion, BytesRef vectorBR) {
+        return indexVersion.onOrAfter(Version.V_7_5_0)
+            ? (vectorBR.length - INT_BYTES) / INT_BYTES
+            : vectorBR.length / INT_BYTES;
+    }
+
     /**
-     * Decodes a BytesRef into an array of floats
-     * @param vectorBR - dense vector encoded in BytesRef
+     * Decodes the last 4 bytes of the encoded vector, which contains the vector magnitude.
+     * NOTE: this function can only be called on vectors from an index version greater than or
+     * equal to 7.5.0, since vectors created prior to that do not store the magnitude.
      */
-    public static float[] decodeDenseVector(BytesRef vectorBR) {
-        if (vectorBR == null) {
-            throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
-        }
-        int dimCount = vectorBR.length / INT_BYTES;
-        float[] vector = new float[dimCount];
-        int offset = vectorBR.offset;
-        for (int dim = 0; dim < dimCount; dim++) {
-            int intValue = ((vectorBR.bytes[offset++] & 0xFF) << 24)   |
-                ((vectorBR.bytes[offset++] & 0xFF) << 16) |
-                ((vectorBR.bytes[offset++] & 0xFF) <<  8) |
-                (vectorBR.bytes[offset++] & 0xFF);
-            vector[dim] = Float.intBitsToFloat(intValue);
-        }
-        return vector;
+    public static float decodeVectorMagnitude(Version indexVersion, BytesRef vectorBR) {
+        assert indexVersion.onOrAfter(Version.V_7_5_0);
+        ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
+        return byteBuffer.getFloat(vectorBR.offset + vectorBR.length - 4);
     }
 }

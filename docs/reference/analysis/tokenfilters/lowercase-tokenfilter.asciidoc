@@ -8,7 +8,7 @@ Lowercase token filter supports Greek, Irish, and Turkish lowercase token
 filters through the `language` parameter. Below is a usage example in a
 custom analyzer
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /lowercase_example
 {
@@ -36,4 +36,3 @@ PUT /lowercase_example
   }
 }
 --------------------------------------------------
-// CONSOLE

@@ -96,7 +96,8 @@ user:
 <3> The distinguished name of an LDAP or Active Directory user.
 
 You can use the role-mapping API to define equivalent mappings as follows:
-[source,js]
+
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/admins
 {
@@ -105,9 +106,8 @@ PUT /_security/role_mapping/admins
   "enabled": true
 }
 --------------------------------------------------
-// CONSOLE
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/basic_users
 {
@@ -119,7 +119,6 @@ PUT /_security/role_mapping/basic_users
   "enabled": true
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 [[pki-role-mapping]]
@@ -140,7 +139,7 @@ user:
 
 The following example creates equivalent mappings using the API:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/admin_user
 {
@@ -149,9 +148,8 @@ PUT /_security/role_mapping/admin_user
   "enabled": true
 }
 --------------------------------------------------
-// CONSOLE
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/basic_user
 {
@@ -160,4 +158,3 @@ PUT /_security/role_mapping/basic_user
   "enabled": true
 }
 --------------------------------------------------
-// CONSOLE

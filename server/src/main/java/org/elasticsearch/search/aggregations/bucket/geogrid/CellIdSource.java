@@ -35,12 +35,12 @@ import java.io.IOException;
  * Wrapper class to help convert {@link MultiGeoValues}
  * to numeric long values for bucketing.
  */
-class CellIdSource extends ValuesSource.Numeric {
+public class CellIdSource extends ValuesSource.Numeric {
     private final ValuesSource.Geo valuesSource;
     private final int precision;
     private final GeoGridTiler encoder;
 
-    CellIdSource(Geo valuesSource, int precision, GeoGridTiler encoder) {
+    public CellIdSource(Geo valuesSource, int precision, GeoGridTiler encoder) {
         this.valuesSource = valuesSource;
         //different GeoPoints could map to the same or different hashing cells.
         this.precision = precision;

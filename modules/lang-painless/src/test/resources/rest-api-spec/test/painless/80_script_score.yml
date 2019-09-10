@@ -501,7 +501,7 @@
 ---
 "Script Score With Highlight":
   - skip:
-      version: " - 7.4.09"
+      version: " - 7.4.0"
       reason: "highlight for script_score was introduced in 7.4.1"
 
   - do:

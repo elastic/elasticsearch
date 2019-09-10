@@ -1,3 +1,4 @@
+[role="xpack"]
 [[watching-meetup-data]]
 === Watching Event Data
 

@@ -548,6 +548,6 @@ public final class InternalSqlScriptUtils {
     public static Object cast(Object value, String typeName) {
         // we call asDateTime here to make sure we handle JodaCompatibleZonedDateTime properly,
         // since casting works for ZonedDateTime objects only
-        return DataTypeConversion.convert(asDateTime(value, true), DataType.fromTypeName(typeName));
+        return DataTypeConversion.convert(asDateTime(value, true), DataType.fromSqlOrEsType(typeName));
     }
 }

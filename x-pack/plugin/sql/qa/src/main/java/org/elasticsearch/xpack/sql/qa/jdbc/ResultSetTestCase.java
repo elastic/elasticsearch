@@ -1157,6 +1157,40 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertEquals(expectedTimestamp, results.getObject("date", java.sql.Timestamp.class));
         });
     }
+    
+    public void testGetDateTypeFromAggregation() throws Exception {
+        createIndex("test");
+        updateMapping("test", builder -> builder.startObject("test_date").field("type", "date").endObject());
+
+        // 1984-05-02 14:59:12 UTC
+        Long timeInMillis = 452357952000L;
+        index("test", "1", builder -> builder.field("test_date", timeInMillis));
+
+        String timeZoneId1 = "UTC";
+        Calendar c = Calendar.getInstance(TimeZone.getTimeZone(timeZoneId1), Locale.ROOT);
+
+        doWithQueryAndTimezone("SELECT CONVERT(test_date, DATE) AS converted FROM test GROUP BY converted",
+                timeZoneId1, results -> {
+            results.next();
+            c.setTimeInMillis(timeInMillis);
+            c.set(HOUR_OF_DAY, 0);
+            c.set(MINUTE, 0);
+            c.set(SECOND, 0);
+            c.set(MILLISECOND, 0);
+
+            java.sql.Date expectedDate = new java.sql.Date(c.getTimeInMillis());
+            assertEquals(expectedDate, results.getDate("converted"));
+            assertEquals(expectedDate, results.getObject("converted", java.sql.Date.class));
+
+            java.sql.Time expectedTime = new java.sql.Time(0L);
+            assertEquals(expectedTime, results.getTime("converted"));
+            assertEquals(expectedTime, results.getObject("converted", java.sql.Time.class));
+
+            java.sql.Timestamp expectedTimestamp = new java.sql.Timestamp(c.getTimeInMillis());
+            assertEquals(expectedTimestamp, results.getTimestamp("converted"));
+            assertEquals(expectedTimestamp, results.getObject("converted", java.sql.Timestamp.class));
+        });
+    }
 
     public void testGetTimeType() throws Exception {
         createIndex("test");

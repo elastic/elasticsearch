@@ -56,10 +56,24 @@ public abstract class AbstractRequestTestCase<C extends ToXContent, S> extends E
         assertInstances(serverInstance, clientTestInstance);
     }
 
+    /**
+     * @return The client test instance to be serialized to xcontent as bytes
+     */
     protected abstract C createClientTestInstance();
 
+    /**
+     * @param parser The xcontent parser
+     * @return The server side instance that is parsed from the xcontent which originates from the client side test instance
+     */
     protected abstract S doParseToServerInstance(XContentParser parser) throws IOException;
 
+    /**
+     * Assert that the server instance and client test instance contain the same content.
+     * Typically by asserting whether each property of both instances are equal to each other.
+     *
+     * @param serverInstance        The server side instance that was created by {@link #doParseToServerInstance(XContentParser)}
+     * @param clientTestInstance    The client side test instance that was created by {@link #createClientTestInstance()}
+     */
     protected abstract void assertInstances(S serverInstance, C clientTestInstance);
 
 }

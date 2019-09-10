@@ -8,47 +8,16 @@ package org.elasticsearch.xpack.core.dataframe.notifications;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xpack.core.common.notifications.Level;
-import org.junit.Before;
 
 import java.util.Date;
 
+import static org.hamcrest.Matchers.nullValue;
+
 public class DataFrameAuditMessageTests extends AbstractXContentTestCase<DataFrameAuditMessage> {
-    private long startMillis;
 
-    @Before
-    public void setStartTime() {
-        startMillis = System.currentTimeMillis();
-    }
-
-    public void testNewInfo() {
-        DataFrameAuditMessage info = DataFrameAuditMessage.builder().info("foo", "some info", "some_node");
-        assertEquals("foo", info.getResourceId());
-        assertEquals("some info", info.getMessage());
-        assertEquals(Level.INFO, info.getLevel());
-        assertDateBetweenStartAndNow(info.getTimestamp());
-    }
-
-    public void testNewWarning() {
-        DataFrameAuditMessage warning = DataFrameAuditMessage.builder().warning("bar", "some warning", "some_node");
-        assertEquals("bar", warning.getResourceId());
-        assertEquals("some warning", warning.getMessage());
-        assertEquals(Level.WARNING, warning.getLevel());
-        assertDateBetweenStartAndNow(warning.getTimestamp());
-    }
-
-
-    public void testNewError() {
-        DataFrameAuditMessage error = DataFrameAuditMessage.builder().error("foo", "some error", "some_node");
-        assertEquals("foo", error.getResourceId());
-        assertEquals("some error", error.getMessage());
-        assertEquals(Level.ERROR, error.getLevel());
-        assertDateBetweenStartAndNow(error.getTimestamp());
-    }
-
-    private void assertDateBetweenStartAndNow(Date timestamp) {
-        long timestampMillis = timestamp.getTime();
-        assertTrue(timestampMillis >= startMillis);
-        assertTrue(timestampMillis <= System.currentTimeMillis());
+    public void testGetJobType() {
+        DataFrameAuditMessage message = createTestInstance();
+        assertThat(message.getJobType(), nullValue());
     }
 
     @Override
@@ -67,6 +36,7 @@ public class DataFrameAuditMessageTests extends AbstractXContentTestCase<DataFra
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomAlphaOfLengthBetween(1, 20),
             randomFrom(Level.values()),
+            new Date(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20)
         );
     }

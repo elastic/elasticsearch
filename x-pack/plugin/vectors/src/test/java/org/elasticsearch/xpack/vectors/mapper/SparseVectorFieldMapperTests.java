@@ -10,9 +10,12 @@ package org.elasticsearch.xpack.vectors.mapper;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
@@ -43,7 +46,7 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
 
     @Before
     public void setUpMapper() throws Exception {
-        IndexService indexService =  createIndex("test-index");
+        IndexService indexService = createIndex("test-index");
         DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
             .startObject()
@@ -62,7 +65,14 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
         return pluginList(Vectors.class, XPackPlugin.class);
     }
 
+    // this allows to set indexVersion as it is a private setting
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
+    }
+
     public void testDefaults() throws Exception {
+        Version indexVersion = Version.CURRENT;
         int[] indexedDims = {65535, 50, 2};
         float[] indexedValues = {0.5f, 1800f, -34567.11f};
         ParsedDocument doc1 = mapper.parse(new SourceToParse("test-index", "_doc", "1", BytesReference
@@ -82,16 +92,76 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
         // assert that after decoding the indexed values are equal to expected
         int[] expectedDims = {2, 50, 65535}; //the same as indexed but sorted
         float[] expectedValues = {-34567.11f, 1800f, 0.5f}; //the same as indexed but sorted by their dimensions
+        double dotProduct = 0.0f;
+        for (float value: expectedValues) {
+            dotProduct += value * value;
+        }
+        float expectedMagnitude = (float) Math.sqrt(dotProduct);
 
-        // assert that after decoding the indexed dims and values are equal to expected
-        BytesRef vectorBR = ((BinaryDocValuesField) fields[0]).binaryValue();
-        int[] decodedDims = VectorEncoderDecoder.decodeSparseVectorDims(vectorBR);
+        // assert that after decoded magnitude, dims and values are equal to expected
+        BytesRef vectorBR = fields[0].binaryValue();
+        int[] decodedDims = VectorEncoderDecoder.decodeSparseVectorDims(indexVersion, vectorBR);
         assertArrayEquals(
             "Decoded sparse vector dimensions are not equal to the indexed ones.",
             expectedDims,
             decodedDims
         );
-        float[] decodedValues = VectorEncoderDecoder.decodeSparseVector(vectorBR);
+        float[] decodedValues = VectorEncoderDecoder.decodeSparseVector(indexVersion, vectorBR);
+        assertArrayEquals(
+            "Decoded sparse vector values are not equal to the indexed ones.",
+            expectedValues,
+            decodedValues,
+            0.001f
+        );
+        float decodedMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(indexVersion, vectorBR);
+        assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
+    }
+
+    public void testAddDocumentsToIndexBefore_V_7_5_0() throws Exception {
+        Version indexVersion = Version.V_7_4_0;
+        IndexService indexService = createIndex("test-index7_4",
+            Settings.builder().put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), indexVersion).build());
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("_doc")
+                    .startObject("properties")
+                        .startObject("my-sparse-vector").field("type", "sparse_vector")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject());
+        mapper = parser.parse("_doc", new CompressedXContent(mapping));
+
+        int[] indexedDims = {65535, 50, 2};
+        float[] indexedValues = {0.5f, 1800f, -34567.11f};
+        ParsedDocument doc1 = mapper.parse(new SourceToParse("test-index7_4", "_doc", "1", BytesReference
+            .bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("my-sparse-vector")
+                .field(Integer.toString(indexedDims[0]), indexedValues[0])
+                .field(Integer.toString(indexedDims[1]), indexedValues[1])
+                .field(Integer.toString(indexedDims[2]), indexedValues[2])
+                .endObject()
+                .endObject()),
+            XContentType.JSON));
+        IndexableField[] fields = doc1.rootDoc().getFields("my-sparse-vector");
+        assertEquals(1, fields.length);
+        assertThat(fields[0], Matchers.instanceOf(BinaryDocValuesField.class));
+
+        // assert that after decoding the indexed values are equal to expected
+        int[] expectedDims = {2, 50, 65535}; //the same as indexed but sorted
+        float[] expectedValues = {-34567.11f, 1800f, 0.5f}; //the same as indexed but sorted by their dimensions
+
+        // assert that after decoded magnitude, dims and values are equal to expected
+        BytesRef vectorBR = fields[0].binaryValue();
+        int[] decodedDims = VectorEncoderDecoder.decodeSparseVectorDims(indexVersion, vectorBR);
+        assertArrayEquals(
+            "Decoded sparse vector dimensions are not equal to the indexed ones.",
+            expectedDims,
+            decodedDims
+        );
+        float[] decodedValues = VectorEncoderDecoder.decodeSparseVector(indexVersion, vectorBR);
         assertArrayEquals(
             "Decoded sparse vector values are not equal to the indexed ones.",
             expectedValues,
@@ -185,4 +255,5 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
             new SourceToParse("test-index", "_doc", "1", invalidDoc, XContentType.JSON)));
         assertThat(e.getDetailedMessage(), containsString("has exceeded the maximum allowed number of dimensions"));
     }
+
 }

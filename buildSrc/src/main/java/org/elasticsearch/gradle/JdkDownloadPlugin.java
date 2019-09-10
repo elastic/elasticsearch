@@ -19,9 +19,7 @@
 
 package org.elasticsearch.gradle;
 
-import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
-import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
-import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
+import org.elasticsearch.gradle.tar.SymbolicLinkPreservingUntarTask;
 import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -34,16 +32,13 @@ import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.dsl.RepositoryHandler;
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.file.CopySpec;
+import org.gradle.api.file.Directory;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.RelativePath;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Copy;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -184,8 +179,8 @@ public class JdkDownloadPlugin implements Plugin<Project> {
         rootProject.getDependencies().add(configName(version, platform), jdkDep);
 
         // add task for extraction
-        final String extractDir =
-            rootProject.getBuildDir().toPath().resolve("jdks/" + jdkDistribution + "-" + jdkVersion + "_" + platform).toString();
+        final Provider<Directory> extractPath =
+            rootProject.getLayout().getBuildDirectory().dir("jdks/" + jdkDistribution + "-" + jdkVersion + "_" + platform);
 
         // delay resolving jdkConfig until runtime
         Supplier<File> jdkArchiveGetter = jdkConfig::getSingleFile;
@@ -224,10 +219,10 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                 copyTask.doFirst(new Action<Task>() {
                     @Override
                     public void execute(Task t) {
-                        rootProject.delete(extractDir);
+                        rootProject.delete(extractPath);
                     }
                 });
-                copyTask.into(extractDir);
+                copyTask.into(extractPath);
                 copyTask.from(fileGetter, removeRootDir);
             });
         } else {
@@ -235,70 +230,42 @@ public class JdkDownloadPlugin implements Plugin<Project> {
              * Gradle TarFileTree does not resolve symlinks, so we have to manually extract and preserve the symlinks.
              * cf. https://github.com/gradle/gradle/issues/3982 and https://discuss.gradle.org/t/tar-and-untar-losing-symbolic-links/2039
              */
-            extractTask = rootProject.getTasks().register(extractTaskName, Task.class, task -> {
-                task.doLast(new Action<Task>() {
-                    @Override
-                    public void execute(final Task task) {
-                        final Path extractPath = Paths.get(extractDir);
-                        try {
-                            // ensure the target extraction path is empty
-                            rootProject.delete(extractPath);
-                            final TarArchiveInputStream tar =
-                                new TarArchiveInputStream(new GzipCompressorInputStream(new FileInputStream(jdkArchiveGetter.get())));
-                            TarArchiveEntry entry = tar.getNextTarEntry();
-                            while (entry != null) {
-                                /*
-                                 * We want to remove up to the and including the jdk-.* relative paths. That is a JDK archive is structured
-                                 * as:
-                                 *   jdk-12.0.1/
-                                 *   jdk-12.0.1/Contents
-                                 *   ...
-                                 *
-                                 * and we want to remove the leading jdk-12.0.1. Note however that there could also be a leading ./ as in
-                                 *   ./
-                                 *   ./jdk-12.0.1/
-                                 *   ./jdk-12.0.1/Contents
-                                 *
-                                 * so we account for this and search the path components until we find the jdk-12.0.1, and strip the leading
-                                 * components.
-                                 */
-                                final Path entryName = Paths.get(entry.getName());
-                                int index = 0;
-                                for (; index < entryName.getNameCount(); index++) {
-                                    if (entryName.getName(index).toString().matches("jdk-.*")) break;
-                                }
-                                if (index + 1 >= entryName.getNameCount()) {
-                                    // this happens on the top-level directories in the archive, which we are removing
-                                    entry = tar.getNextTarEntry();
-                                    continue;
-                                }
-                                // finally remove the top-level directories from the output path
-                                final Path destination = extractPath.resolve(entryName.subpath(index + 1, entryName.getNameCount()));
-                                final Path parent = destination.getParent();
-                                if (Files.exists(parent) == false) {
-                                    Files.createDirectories(parent);
-                                }
-                                if (entry.isDirectory()) {
-                                    Files.createDirectory(destination);
-                                } else if (entry.isSymbolicLink()) {
-                                    Files.createSymbolicLink(destination, Paths.get(entry.getLinkName()));
-                                } else {
-                                    // copy the file from the archive using a small buffer to avoid heaping
-                                    Files.createFile(destination);
-                                    tar.transferTo(new FileOutputStream(destination.toFile()));
-                                }
-                                entry = tar.getNextTarEntry();
-                            }
-                            tar.close();
-                        } catch (final IOException e) {
-                            throw new UncheckedIOException(e);
+            final Configuration jdkConfiguration = jdkConfig;
+            extractTask = rootProject.getTasks().register(extractTaskName, SymbolicLinkPreservingUntarTask.class, task -> {
+                task.getTarFile().set(jdkConfiguration.getSingleFile());
+                task.getExtractPath().set(extractPath);
+                task.setTransform(
+                    name -> {
+                        /*
+                         * We want to remove up to the and including the jdk-.* relative paths. That is a JDK archive is structured as:
+                         *   jdk-12.0.1/
+                         *   jdk-12.0.1/Contents
+                         *   ...
+                         *
+                         * and we want to remove the leading jdk-12.0.1. Note however that there could also be a leading ./ as in
+                         *   ./
+                         *   ./jdk-12.0.1/
+                         *   ./jdk-12.0.1/Contents
+                         *
+                         * so we account for this and search the path components until we find the jdk-12.0.1, and strip the leading
+                         * components.
+                         */
+                        final Path entryName = Paths.get(name);
+                        int index = 0;
+                        for (; index < entryName.getNameCount(); index++) {
+                            if (entryName.getName(index).toString().matches("jdk-.*")) break;
                         }
-                    }
-                });
+                        if (index + 1 >= entryName.getNameCount()) {
+                            // this happens on the top-level directories in the archive, which we are removing
+                            return null;
+                        }
+                        // finally remove the top-level directories from the output path
+                        return entryName.subpath(index + 1, entryName.getNameCount());
+                    });
             });
         }
         rootProject.getArtifacts().add(localConfigName,
-            rootProject.getLayout().getProjectDirectory().dir(extractDir),
+            extractPath,
             artifact -> artifact.builtBy(extractTask));
     }
 

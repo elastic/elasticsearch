@@ -1,0 +1,110 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.gradle.tar;
+
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
+import org.gradle.api.DefaultTask;
+import org.gradle.api.GradleException;
+import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.InputFile;
+import org.gradle.api.tasks.OutputDirectory;
+import org.gradle.api.tasks.TaskAction;
+
+import javax.inject.Inject;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.function.Function;
+
+public class SymbolicLinkPreservingUntarTask extends DefaultTask {
+
+    private final RegularFileProperty tarFile;
+
+    @InputFile
+    public RegularFileProperty getTarFile() {
+        return tarFile;
+    }
+
+    private final DirectoryProperty extractPath;
+
+    @OutputDirectory
+    public DirectoryProperty getExtractPath() {
+        return extractPath;
+    }
+
+    private Function<String, Path> transform;
+
+    @Input
+    public void setTransform(Function<String, Path> transform) {
+        this.transform = transform;
+    }
+
+    @Inject
+    public SymbolicLinkPreservingUntarTask(final ObjectFactory objectFactory) {
+        this.tarFile = objectFactory.fileProperty();
+        this.extractPath = objectFactory.directoryProperty();
+        this.transform = name -> Paths.get(name);
+    }
+
+    @TaskAction
+    final void execute() {
+        // ensure the target extraction path is empty
+        getProject().getRootProject().delete(extractPath);
+        try (TarArchiveInputStream tar =
+                 new TarArchiveInputStream(new GzipCompressorInputStream(new FileInputStream(tarFile.getAsFile().get())))) {
+            TarArchiveEntry entry = tar.getNextTarEntry();
+            while (entry != null) {
+                final Path relativePath = transform.apply(entry.getName());
+                if (relativePath == null) {
+                    entry = tar.getNextTarEntry();
+                    continue;
+                }
+                final Path destination = extractPath.get().getAsFile().toPath().resolve(relativePath);
+                final Path parent = destination.getParent();
+                if (Files.exists(parent) == false) {
+                    Files.createDirectories(parent);
+                }
+                if (entry.isDirectory()) {
+                    Files.createDirectory(destination);
+                } else if (entry.isSymbolicLink()) {
+                    Files.createSymbolicLink(destination, Paths.get(entry.getLinkName()));
+                } else {
+                    // copy the file from the archive using a small buffer to avoid heaping
+                    Files.createFile(destination);
+                    try (FileOutputStream fos = new FileOutputStream(destination.toFile())) {
+                        tar.transferTo(fos);
+                    }
+                }
+                entry = tar.getNextTarEntry();
+            }
+        } catch (final IOException e) {
+            throw new GradleException("unable to extract tar [" + tarFile.getAsFile().get().toPath() + "]");
+        }
+    }
+
+}

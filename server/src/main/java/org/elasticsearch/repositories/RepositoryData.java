@@ -186,7 +186,7 @@ public final class RepositoryData {
      */
     public RepositoryData addSnapshot(final SnapshotId snapshotId,
                                       final SnapshotState snapshotState,
-                                      final Map<IndexId, String[]> shardGenerations) {
+                                      final ShardGenerations shardGenerations) {
         if (snapshotIds.containsKey(snapshotId.getUUID())) {
             // if the snapshot id already exists in the repository data, it means an old master
             // that is blocked from the cluster is trying to finalize a snapshot concurrently with
@@ -198,7 +198,7 @@ public final class RepositoryData {
         Map<String, SnapshotState> newSnapshotStates = new HashMap<>(snapshotStates);
         newSnapshotStates.put(snapshotId.getUUID(), snapshotState);
         Map<IndexId, Set<SnapshotId>> allIndexSnapshots = new HashMap<>(indexSnapshots);
-        for (final IndexId indexId : shardGenerations.keySet()) {
+        for (final IndexId indexId : shardGenerations.indices()) {
             allIndexSnapshots.computeIfAbsent(indexId, k -> new LinkedHashSet<>()).add(snapshotId);
         }
         return new RepositoryData(genId, snapshots, newSnapshotStates, allIndexSnapshots,
@@ -228,7 +228,7 @@ public final class RepositoryData {
      *                                Pass {@code null} when this instance should not track shard generations while the cluster still
      *                                contains nodes from before {@link SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION}.
      */
-    public RepositoryData removeSnapshot(final SnapshotId snapshotId, @Nullable final Map<IndexId, String[]> updatedShardGenerations) {
+    public RepositoryData removeSnapshot(final SnapshotId snapshotId, @Nullable final ShardGenerations updatedShardGenerations) {
         Map<String, SnapshotId> newSnapshotIds = snapshotIds.values().stream()
             .filter(id -> !snapshotId.equals(id))
             .collect(Collectors.toMap(SnapshotId::getUUID, Function.identity()));

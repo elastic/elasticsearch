@@ -88,6 +88,7 @@ import org.elasticsearch.repositories.RepositoryCleanupResult;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
+import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.snapshots.SnapshotCreationException;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -532,12 +533,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 updatedShardGenerations.computeIfAbsent(newGen.indexId, i -> new ArrayList<>()).add(newGen);
             }
             assert assertShardUpdatesCorrectlyOrdered(updatedShardGenerations.values());
-            final RepositoryData newRepoData = repositoryData.removeSnapshot(snapshotId, updatedShardGenerations.entrySet().stream()
+            final RepositoryData newRepoData = repositoryData.removeSnapshot(snapshotId, new ShardGenerations(
+                updatedShardGenerations.entrySet().stream()
                 .collect(Collectors.toMap(
                     Map.Entry::getKey,
                     entry -> entry.getValue().stream()
                         .map(shardSnapshotMetaDeleteResult -> shardSnapshotMetaDeleteResult.newGeneration)
-                        .toArray(String[]::new))));
+                        .collect(Collectors.toList())))));
 
             // Write out new RepositoryData
             writeIndexGen(newRepoData, repositoryStateId, version);
@@ -762,7 +764,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public SnapshotInfo finalizeSnapshot(final SnapshotId snapshotId,
-                                         final Map<IndexId, String[]> shardGenerations,
+                                         final ShardGenerations shardGenerations,
                                          final long startTime,
                                          final String failure,
                                          final int totalShards,
@@ -772,8 +774,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                          final MetaData clusterMetaData,
                                          final Map<String, Object> userMetadata,
                                          final Version version) {
+        final List<IndexId> indices = shardGenerations.indices();
         SnapshotInfo blobStoreSnapshot = new SnapshotInfo(snapshotId,
-            shardGenerations.keySet().stream().map(IndexId::getName).collect(Collectors.toList()),
+            indices.stream().map(IndexId::getName).collect(Collectors.toList()),
             startTime, failure, threadPool.absoluteTimeInMillis(), totalShards, shardFailures,
             includeGlobalState, userMetadata);
 
@@ -788,7 +791,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             globalMetaDataFormat.write(clusterMetaData, blobContainer(), snapshotId.getUUID(), false);
 
             // write the index metadata for each index in the snapshot
-            for (IndexId index : shardGenerations.keySet()) {
+            for (IndexId index : indices) {
                 indexMetaDataFormat.write(clusterMetaData.index(index.getName()), indexContainer(index), snapshotId.getUUID(), false);
             }
         } catch (IOException ex) {

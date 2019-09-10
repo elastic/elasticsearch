@@ -37,6 +37,7 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.repositories.FilterRepository;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.ShardGenerations;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -91,7 +92,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     }
 
     @Override
-    public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, Map<IndexId, String[]> shardGenerations, long startTime, String failure,
+    public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
                                          int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                                          boolean includeGlobalState, MetaData metaData, Map<String, Object> userMetadata,
                                          Version version) {
@@ -100,7 +101,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         // required engine, that the index is read-only and the mapping to a default mapping
         try {
             return super.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
-                includeGlobalState, metadataToSnapshot(new ArrayList<>(shardGenerations.keySet()), metaData), userMetadata, version);
+                includeGlobalState, metadataToSnapshot(shardGenerations.indices(), metaData), userMetadata, version);
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }

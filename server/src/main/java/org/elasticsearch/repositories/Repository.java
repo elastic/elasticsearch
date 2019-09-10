@@ -127,7 +127,7 @@ public interface Repository extends LifecycleComponent {
      * This method is called on master after all shards are snapshotted.
      *
      * @param snapshotId         snapshot id
-     * @param shardGenerations   map of indices in snapshot to snapshot shard generation
+     * @param shardGenerations   updated shard generations
      * @param startTime          start time of the snapshot
      * @param failure            global failure reason or null
      * @param totalShards        total number of shards
@@ -139,7 +139,7 @@ public interface Repository extends LifecycleComponent {
      * @param version            minimum ES version the repository should be readable by
      * @return snapshot description
      */
-    SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, Map<IndexId, String[]> shardGenerations, long startTime, String failure,
+    SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
                                   int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                                   boolean includeGlobalState, MetaData clusterMetaData, Map<String, Object> userMetadata,
                                   Version version);

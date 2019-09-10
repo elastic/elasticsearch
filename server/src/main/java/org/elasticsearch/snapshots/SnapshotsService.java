@@ -71,6 +71,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -567,7 +568,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     try {
                         repositoriesService.repository(snapshot.snapshot().getRepository())
                             .finalizeSnapshot(snapshot.snapshot().getSnapshotId(),
-                                shardGenerations(snapshot),
+                                ShardGenerations.fromSnapshot(snapshot),
                                 snapshot.startTime(),
                                 ExceptionsHelper.detailedMessage(exception),
                                 0,
@@ -586,28 +587,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 userCreateSnapshotListener.onFailure(e);
             });
         }
-    }
-
-    private static Map<IndexId, String[]> shardGenerations(SnapshotsInProgress.Entry snapshot) {
-        final Map<String, IndexId> indexLookup = new HashMap<>();
-        snapshot.indices().forEach(idx -> indexLookup.put(idx.getName(), idx));
-        final Map<IndexId, List<Tuple<ShardId, ShardSnapshotStatus>>> res = new HashMap<>();
-        for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : snapshot.shards()) {
-            final IndexId indexId = indexLookup.get(shard.key.getIndexName());
-            assert indexId != null;
-            res.computeIfAbsent(indexId, k -> new ArrayList<>()).add(new Tuple<>(shard.key, shard.value));
-        }
-        return res.entrySet().stream().collect(
-            Collectors.toMap(Map.Entry::getKey, entry -> {
-                final String[] gens = new String[entry.getValue().stream().mapToInt(s -> s.v1().getId()).max().orElse(0) + 1];
-                for (Tuple<ShardId, ShardSnapshotStatus> shard : entry.getValue()) {
-                    if (shard.v2().state().failed() == false) {
-                        assert gens[shard.v1().getId()] == null;
-                        gens[shard.v1().getId()] = shard.v2().generation();
-                    }
-                }
-                return gens;
-            }));
     }
 
     private static MetaData metaDataForSnapshot(SnapshotsInProgress.Entry snapshot, MetaData metaData) {
@@ -1032,7 +1011,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 List<SnapshotShardFailure> shardFailures = extractFailure(entry.shards());
                 SnapshotInfo snapshotInfo = repository.finalizeSnapshot(
                     snapshot.getSnapshotId(),
-                    shardGenerations(entry),
+                    ShardGenerations.fromSnapshot(entry),
                     entry.startTime(),
                     failure,
                     entry.shards().size(),

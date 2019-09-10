@@ -159,7 +159,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, Map<IndexId, String[]> indices, long startTime, String failure,
+        public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, ShardGenerations indices, long startTime, String failure,
                                              int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                                              boolean includeGlobalState, MetaData metaData, Map<String, Object> userMetadata,
                                              Version version) {

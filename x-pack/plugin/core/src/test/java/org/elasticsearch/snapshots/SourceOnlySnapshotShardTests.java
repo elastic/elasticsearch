@@ -59,6 +59,7 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
@@ -207,7 +208,9 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                     indexShardSnapshotStatus, Version.CURRENT, future);
                 future.actionGet();
                 repository.finalizeSnapshot(
-                    snapshotId, Collections.singletonMap(indexId, new String[]{indexShardSnapshotStatus.generation()}),
+                    snapshotId,
+                    new ShardGenerations(
+                        Collections.singletonMap(indexId, Collections.singletonList(indexShardSnapshotStatus.generation()))),
                     indexShardSnapshotStatus.asCopy().getStartTime(), null, 1, Collections.emptyList(),
                     repository.getRepositoryData().getGenId(), true,
                     MetaData.builder().put(shard.indexSettings().getIndexMetaData(), false).build(), Collections.emptyMap(),

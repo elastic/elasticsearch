@@ -43,6 +43,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -165,7 +166,8 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
             final String shardGen = snapshotShard(shard, snapshot, repository);
             final Snapshot snapshotWithSameName = new Snapshot(repository.getMetadata().name(), new SnapshotId(
                 snapshot.getSnapshotId().getName(), "_uuid2"));
-            repository.finalizeSnapshot(snapshot.getSnapshotId(), Collections.singletonMap(indexId, new String[] {shardGen}),
+            repository.finalizeSnapshot(snapshot.getSnapshotId(),
+                new ShardGenerations(Collections.singletonMap(indexId, Collections.singletonList(shardGen))),
                 0L, null, 1, Collections.emptyList(), -1L, false,
                 MetaData.builder().put(shard.indexSettings().getIndexMetaData(), false).build(), Collections.emptyMap(), Version.CURRENT);
             IndexShardSnapshotFailedException isfe = expectThrows(IndexShardSnapshotFailedException.class,

@@ -315,8 +315,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ShardSnapshotStatus status = (ShardSnapshotStatus) o;
-            return Objects.equals(nodeId, status.nodeId) && Objects.equals(reason, status.reason) && state == status.state;
-
+            return Objects.equals(nodeId, status.nodeId) && Objects.equals(reason, status.reason)
+                && Objects.equals(generation, status.generation) && state == status.state;
         }
 
         @Override
@@ -324,12 +324,13 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             int result = state != null ? state.hashCode() : 0;
             result = 31 * result + (nodeId != null ? nodeId.hashCode() : 0);
             result = 31 * result + (reason != null ? reason.hashCode() : 0);
+            result = 31 * result + (generation != null ? generation.hashCode() : 0);
             return result;
         }
 
         @Override
         public String toString() {
-            return "ShardSnapshotStatus[state=" + state + ", nodeId=" + nodeId + ", reason=" + reason + "]";
+            return "ShardSnapshotStatus[state=" + state + ", nodeId=" + nodeId + ", reason=" + reason + ", generation=" + generation + "]";
         }
     }
 

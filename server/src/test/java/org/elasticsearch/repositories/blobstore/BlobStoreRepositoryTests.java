@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -36,6 +35,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -180,7 +180,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
         // removing a snapshot and writing to a new index generational file
         repositoryData = repository.getRepositoryData().removeSnapshot(
-            repositoryData.getSnapshotIds().iterator().next(), Collections.emptyMap());
+            repositoryData.getSnapshotIds().iterator().next(), ShardGenerations.EMPTY);
         repository.writeIndexGen(repositoryData, repositoryData.getGenId(), Version.CURRENT);
         assertEquals(repository.getRepositoryData(), repositoryData);
         assertThat(repository.latestIndexBlobId(), equalTo(2L));
@@ -245,12 +245,12 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         for (int i = 0; i < numSnapshots; i++) {
             SnapshotId snapshotId = new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID());
             int numIndices = inclIndices ? randomIntBetween(0, 20) : 0;
-            Map<IndexId, String[]> indexIds = new HashMap<>();
+            Map<IndexId, List<String>> indexIds = new HashMap<>();
             for (int j = 0; j < numIndices; j++) {
-                indexIds.put(new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID()), Strings.EMPTY_ARRAY);
+                indexIds.put(new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID()), Collections.emptyList());
             }
             repoData = repoData.addSnapshot(snapshotId,
-                randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED), indexIds);
+                randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED), new ShardGenerations(indexIds));
         }
         return repoData;
     }

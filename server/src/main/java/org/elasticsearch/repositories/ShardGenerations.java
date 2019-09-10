@@ -19,11 +19,16 @@
 
 package org.elasticsearch.repositories;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,15 +36,45 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
-final class ShardGenerations implements ToXContent {
+public final class ShardGenerations implements ToXContent {
 
     public static final ShardGenerations EMPTY = new ShardGenerations(Collections.emptyMap());
 
     private final Map<IndexId, List<String>> shardGenerations;
 
-    ShardGenerations(Map<IndexId, List<String>> shardGenerations) {
+    public ShardGenerations(Map<IndexId, List<String>> shardGenerations) {
         this.shardGenerations = shardGenerations;
+    }
+
+    public static ShardGenerations fromSnapshot(SnapshotsInProgress.Entry snapshot) {
+        final Map<String, IndexId> indexLookup = new HashMap<>();
+        snapshot.indices().forEach(idx -> indexLookup.put(idx.getName(), idx));
+        final Map<IndexId, List<Tuple<ShardId, SnapshotsInProgress.ShardSnapshotStatus>>> res = new HashMap<>();
+        for (final ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : snapshot.shards()) {
+            final ShardId shardId = shard.key;
+            res.computeIfAbsent(indexLookup.get(shardId.getIndexName()), k -> new ArrayList<>()).add(new Tuple<>(shardId, shard.value));
+        }
+        return new ShardGenerations(res.entrySet().stream().collect(
+            Collectors.toMap(Map.Entry::getKey, entry -> {
+                final List<Tuple<ShardId, SnapshotsInProgress.ShardSnapshotStatus>> status = entry.getValue();
+                final String[] gens = new String[
+                    status.stream().mapToInt(s -> s.v1().getId())
+                        .max().orElseThrow(() -> new AssertionError("0-shard index is impossible")) + 1];
+                for (Tuple<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : status) {
+                    if (shard.v2().state().failed() == false) {
+                        final int id = shard.v1().getId();
+                        assert gens[id] == null;
+                        gens[id] = shard.v2().generation();
+                    }
+                }
+                return Arrays.asList(gens);
+            })));
+    }
+
+    public List<IndexId> indices() {
+        return List.copyOf(shardGenerations.keySet());
     }
 
     /**
@@ -91,14 +126,14 @@ final class ShardGenerations implements ToXContent {
         return builder;
     }
 
-    ShardGenerations updatedGenerations(final Map<IndexId, String[]> shardGenerations) {
+    ShardGenerations updatedGenerations(ShardGenerations updates) {
         final Map<IndexId, List<String>> updatedGenerations = new HashMap<>(this.shardGenerations);
-        shardGenerations.forEach(((indexId, updatedGens) -> {
-            final List<String> existing = updatedGenerations.put(indexId, Arrays.asList(updatedGens));
+        updates.shardGenerations.forEach(((indexId, updatedGens) -> {
+            final List<String> existing = updatedGenerations.put(indexId, updatedGens);
             if (existing != null) {
-                for (int i = 0; i < updatedGens.length; ++i) {
-                    if (updatedGens[i] == null) {
-                        updatedGens[i] = existing.get(i);
+                for (int i = 0; i < updatedGens.size(); ++i) {
+                    if (updatedGens.get(i) == null) {
+                        updatedGens.set(i, existing.get(i));
                     }
                 }
             }

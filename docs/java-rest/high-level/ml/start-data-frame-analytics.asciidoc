@@ -3,6 +3,7 @@
 :request: StartDataFrameAnalyticsRequest
 :response: AcknowledgedResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Start Data Frame Analytics API
 

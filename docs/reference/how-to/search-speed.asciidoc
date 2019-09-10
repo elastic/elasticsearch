@@ -48,7 +48,7 @@ of an index containing movies that optimizes queries that search over both the
 name and the plot of the movie by indexing both values into the `name_and_plot`
 field.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT movies
 {
@@ -69,7 +69,6 @@ PUT movies
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 === Pre-index data
@@ -83,7 +82,7 @@ aggregations.
 
 For instance, if documents look like:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT index/_doc/1
 {
@@ -91,11 +90,10 @@ PUT index/_doc/1
   "price": 13
 }
 --------------------------------------------------
-// CONSOLE
 
 and search requests look like:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET index/_search
 {
@@ -113,13 +111,12 @@ GET index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Then documents could be enriched by a `price_range` field at index time, which
 should be mapped as a <<keyword,`keyword`>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT index
 {
@@ -139,12 +136,11 @@ PUT index/_doc/1
   "price_range": "10-100"
 }
 --------------------------------------------------
-// CONSOLE
 
 And then search requests could aggregate this new field rather than running a
 `range` aggregation on the `price` field.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET index/_search
 {
@@ -157,7 +153,6 @@ GET index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [float]
@@ -188,7 +183,7 @@ benefit of making better use of the query cache.
 
 For instance the below query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT index/_doc/1
 {
@@ -211,11 +206,10 @@ GET index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 could be replaced with the following query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET index/_search
 {
@@ -233,7 +227,6 @@ GET index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 In that case we rounded to the minute, so if the current time is `16:31:29`,
@@ -249,7 +242,7 @@ NOTE: It might be tempting to split ranges into a large cacheable part and
 smaller not cacheable parts in order to be able to leverage the query cache,
 as shown below:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET index/_search
 {
@@ -289,7 +282,6 @@ GET index/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 However such practice might make the query run slower in some cases since the
@@ -322,7 +314,7 @@ and which fields won't. You can tell Elasticsearch to load global ordinals
 eagerly when starting or refreshing a shard by configuring mappings as
 described below:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT index
 {
@@ -336,7 +328,6 @@ PUT index
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 === Warm up the filesystem cache

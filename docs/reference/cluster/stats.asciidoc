@@ -39,11 +39,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 [[cluster-stats-api-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cluster/stats?human&pretty
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 The API returns the following response:
@@ -263,8 +262,7 @@ The API returns the following response:
 This API can be restricted to a subset of the nodes using <<cluster-nodes,node
 filters>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cluster/stats/nodes/node1,node*,master:false
 --------------------------------------------------
-// CONSOLE

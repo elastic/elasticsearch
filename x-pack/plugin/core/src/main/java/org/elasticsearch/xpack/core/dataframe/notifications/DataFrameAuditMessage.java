@@ -24,6 +24,11 @@ public class DataFrameAuditMessage extends AbstractAuditMessage {
     }
 
     @Override
+    public final String getJobType() {
+        return null;
+    }
+
+    @Override
     protected String getResourceField() {
         return TRANSFORM_ID.getPreferredName();
     }

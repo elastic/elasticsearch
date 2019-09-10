@@ -3,6 +3,7 @@
 :request: DeleteCalendarEventRequest
 :response: AcknowledgedResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Delete Calendar Event API
 Removes a scheduled event from an existing {ml} calendar.

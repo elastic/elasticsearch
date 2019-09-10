@@ -3,6 +3,7 @@
 :request: GetCalendarEventsRequest
 :response: GetCalendarEventsResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Get Calendar Events API
 Retrieves a calendars events.

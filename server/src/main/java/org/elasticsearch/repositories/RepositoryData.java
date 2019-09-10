@@ -34,7 +34,6 @@ import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -61,7 +60,7 @@ public final class RepositoryData {
      * An instance initialized for an empty repository.
      */
     public static final RepositoryData EMPTY = new RepositoryData(EMPTY_REPO_GEN,
-        Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
+        Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), ShardGenerations.EMPTY);
 
     /**
      * The generational id of the index file from which the repository data was read.
@@ -90,19 +89,19 @@ public final class RepositoryData {
     private final ShardGenerations shardGenerations;
 
     public RepositoryData(long genId, Map<String, SnapshotId> snapshotIds, Map<String, SnapshotState> snapshotStates,
-                          Map<IndexId, Set<SnapshotId>> indexSnapshots, @Nullable Map<IndexId, List<String>> shardGenerations) {
-        this(genId, snapshotIds, snapshotStates, indexSnapshots, shardGenerations == null ? null : new ShardGenerations(shardGenerations));
+                          Map<IndexId, Set<SnapshotId>> indexSnapshots) {
+        this(genId, snapshotIds, snapshotStates, indexSnapshots, ShardGenerations.EMPTY);
     }
 
-    private RepositoryData(long genId, Map<String, SnapshotId> snapshotIds, Map<String, SnapshotState> snapshotStates,
-        Map<IndexId, Set<SnapshotId>> indexSnapshots, @Nullable ShardGenerations shardGenerations) {
+    public RepositoryData(long genId, Map<String, SnapshotId> snapshotIds, Map<String, SnapshotState> snapshotStates,
+        Map<IndexId, Set<SnapshotId>> indexSnapshots, ShardGenerations shardGenerations) {
         this.genId = genId;
         this.snapshotIds = Collections.unmodifiableMap(snapshotIds);
         this.snapshotStates = Collections.unmodifiableMap(snapshotStates);
         this.indices = Collections.unmodifiableMap(indexSnapshots.keySet().stream()
             .collect(Collectors.toMap(IndexId::getName, Function.identity())));
         this.indexSnapshots = Collections.unmodifiableMap(indexSnapshots);
-        this.shardGenerations = shardGenerations == null ? ShardGenerations.EMPTY : shardGenerations;
+        this.shardGenerations = shardGenerations;
     }
 
     protected RepositoryData copy() {
@@ -513,18 +512,21 @@ public final class RepositoryData {
         } else {
             throw new ElasticsearchParseException("start object expected");
         }
-        final Map<IndexId, List<String>> shardGenerations;
+        final ShardGenerations shardGenerations;
         if (containedShardGens) {
-            shardGenerations = new HashMap<>();
+            final ShardGenerations.Builder builder = ShardGenerations.builder();
             final Map<String, IndexId> indexLookup =
                 indexSnapshots.keySet().stream().collect(Collectors.toMap(IndexId::getId, Function.identity()));
             shardStatus.forEach((indexId, gens) -> {
                 final IndexId idx = indexLookup.get(indexId);
                 assert idx != null;
-                shardGenerations.put(idx, Arrays.asList(gens));
+                for (int i = 0; i < gens.length; i++) {
+                    builder.add(idx, i, gens[i]);
+                }
             });
+            shardGenerations = builder.build();
         } else {
-            shardGenerations = null;
+            shardGenerations = ShardGenerations.EMPTY;
         }
         return new RepositoryData(genId, snapshots, snapshotStates, indexSnapshots, shardGenerations);
     }

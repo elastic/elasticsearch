@@ -39,7 +39,7 @@ public final class ShardGenerations implements ToXContent {
 
     private final Map<IndexId, List<String>> shardGenerations;
 
-    public ShardGenerations(Map<IndexId, List<String>> shardGenerations) {
+    private ShardGenerations(Map<IndexId, List<String>> shardGenerations) {
         this.shardGenerations = shardGenerations;
     }
 

@@ -209,8 +209,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                 future.actionGet();
                 repository.finalizeSnapshot(
                     snapshotId,
-                    new ShardGenerations(
-                        Collections.singletonMap(indexId, Collections.singletonList(indexShardSnapshotStatus.generation()))),
+                    ShardGenerations.builder().add(indexId, 0, indexShardSnapshotStatus.generation()).build(),
                     indexShardSnapshotStatus.asCopy().getStartTime(), null, 1, Collections.emptyList(),
                     repository.getRepositoryData().getGenId(), true,
                     MetaData.builder().put(shard.indexSettings().getIndexMetaData(), false).build(), Collections.emptyMap(),

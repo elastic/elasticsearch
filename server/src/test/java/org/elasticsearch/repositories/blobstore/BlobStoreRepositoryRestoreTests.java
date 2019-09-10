@@ -167,7 +167,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
             final Snapshot snapshotWithSameName = new Snapshot(repository.getMetadata().name(), new SnapshotId(
                 snapshot.getSnapshotId().getName(), "_uuid2"));
             repository.finalizeSnapshot(snapshot.getSnapshotId(),
-                new ShardGenerations(Collections.singletonMap(indexId, Collections.singletonList(shardGen))),
+                ShardGenerations.builder().add(indexId, 0, shardGen).build(),
                 0L, null, 1, Collections.emptyList(), -1L, false,
                 MetaData.builder().put(shard.indexSettings().getIndexMetaData(), false).build(), Collections.emptyMap(), Version.CURRENT);
             IndexShardSnapshotFailedException isfe = expectThrows(IndexShardSnapshotFailedException.class,

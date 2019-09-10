@@ -1,0 +1,21 @@
+[role="xpack"]
+[[df-api-quickref]]
+== API quick reference
+
+All {transform} endpoints have the following base:
+
+[source,js]
+----
+/_data_frame/transforms/
+----
+// NOTCONSOLE
+
+* <<put-data-frame-transform>>
+* <<delete-data-frame-transform>>
+* <<get-data-frame-transform>>
+* <<get-data-frame-transform-stats>>
+* <<preview-data-frame-transform>>
+* <<start-data-frame-transform>>
+* <<stop-data-frame-transform>>
+
+For the full list, see <<data-frame-apis>>.

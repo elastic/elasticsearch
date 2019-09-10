@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.security.authz.support;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -76,7 +77,7 @@ public final class DLSRoleQueryValidator {
                 }
             }
         } catch (XContentParseException | IOException e) {
-            throw new ElasticsearchParseException("failed to parse field 'query' from the role descriptor", e);
+            throw new ElasticsearchParseException("failed to determine if the query is a template query", e);
         }
         return false;
     }
@@ -105,13 +106,9 @@ public final class DLSRoleQueryValidator {
                                                           NamedXContentRegistry xContentRegistry, User user) {
         QueryBuilder queryBuilder = null;
         if (query != null) {
-            try {
-                String templateResult = SecurityQueryTemplateEvaluator.evaluateTemplate(query.utf8ToString(), scriptService,
-                    user);
-                queryBuilder = validateAndVerifyRoleQuery(templateResult, xContentRegistry);
-            } catch (ElasticsearchParseException | ParsingException | XContentParseException | IOException e) {
-                throw new ElasticsearchParseException("failed to parse field 'query' from the role descriptor", e);
-            }
+            String templateResult = SecurityQueryTemplateEvaluator.evaluateTemplate(query.utf8ToString(), scriptService,
+                user);
+            queryBuilder = validateAndVerifyRoleQuery(templateResult, xContentRegistry);
         }
         return queryBuilder;
     }

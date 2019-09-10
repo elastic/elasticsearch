@@ -21,7 +21,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -157,7 +156,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
 
     public static Set<String> parseFileForRoleNames(Path path, Logger logger) {
         // EMPTY is safe here because we never use namedObject as we are just parsing role names
-        return parseRoleDescriptors(path, logger, false, Settings.EMPTY, null, NamedXContentRegistry.EMPTY).keySet();
+        return parseRoleDescriptors(path, logger, false, Settings.EMPTY, NamedXContentRegistry.EMPTY).keySet();
     }
 
     public static Map<String, RoleDescriptor> parseFile(Path path, Logger logger, Settings settings, XPackLicenseState licenseState,

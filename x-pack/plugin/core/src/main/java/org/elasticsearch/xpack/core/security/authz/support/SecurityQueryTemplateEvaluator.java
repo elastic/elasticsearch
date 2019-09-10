@@ -47,7 +47,7 @@ public final class SecurityQueryTemplateEvaluator {
      * @throws IOException thrown when there is any error parsing the query
      * string.
      */
-    public static String evaluateTemplate(final String querySource, final ScriptService scriptService, final User user) throws IOException {
+    public static String evaluateTemplate(final String querySource, final ScriptService scriptService, final User user) {
         // EMPTY is safe here because we never use namedObject
         try (XContentParser parser = XContentFactory.xContent(querySource).createParser(NamedXContentRegistry.EMPTY,
                 LoggingDeprecationHandler.INSTANCE, querySource)) {
@@ -76,6 +76,8 @@ public final class SecurityQueryTemplateEvaluator {
             } else {
                 return querySource;
             }
+        } catch (IOException ioe) {
+            throw new ElasticsearchParseException("failed to parse query");
         }
     }
 

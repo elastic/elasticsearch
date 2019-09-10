@@ -48,7 +48,7 @@ latest version of a policy. For more information, see
 The following creates a snapshot lifecycle policy with an id of
 `daily-snapshots`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_slm/policy/daily-snapshots
 {
@@ -63,8 +63,8 @@ PUT /_slm/policy/daily-snapshots
   "retention": {}
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:setup-repository]
+
 <1> When the snapshot should be taken, in this case, 1:30am daily
 <2> The name each snapshot should be given
 <3> Which repository to take the snapshot in
@@ -113,11 +113,10 @@ latest successful and failed invocation that the automatic snapshots have taken.
 
 To retrieve a policy, perform a `GET` with the policy's id
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_slm/policy/daily-snapshots?human
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The output looks similar to the following:
@@ -158,11 +157,10 @@ The output looks similar to the following:
 
 Or, to retrieve all policies:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_slm/policy
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [[slm-api-execute]]
@@ -182,11 +180,10 @@ waiting for a policy's scheduled invocation.
 
 To take an immediate snapshot using a policy, use the following
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_slm/policy/daily-snapshots/_execute
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:we can't easily handle snapshots from docs tests]
 
 This API will immediately return with the generated snapshot name
@@ -205,11 +202,10 @@ The snapshot will be taken in the background, you can use the
 Once a snapshot has been kicked off, you can see the latest successful or failed
 snapshot using the get snapshot lifecycle policy API:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_slm/policy/daily-snapshots?human
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:we already tested get policy above, the last_failure may not be present though]
 
 Which, in this case shows an error because the index did not exist:
@@ -259,7 +255,7 @@ In this case, it failed due to the "important" index not existing and
 Updating the policy to change the `ignore_unavailable` setting is done using the
 same put snapshot lifecycle policy API:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_slm/policy/daily-snapshots
 {
@@ -273,16 +269,14 @@ PUT /_slm/policy/daily-snapshots
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Another snapshot can immediately be executed to ensure the new policy works:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_slm/policy/daily-snapshots/_execute
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:we can't handle snapshots in docs tests]
 
 [source,console-result]
@@ -296,11 +290,10 @@ PUT /_slm/policy/daily-snapshots/_execute
 Now retriving the policy shows that the policy has successfully been executed:
 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_slm/policy/daily-snapshots?human
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:we already tested this above and the output may not be available yet]
 
 Which now includes the successful snapshot information:
@@ -407,9 +400,8 @@ any currently ongoing snapshots or remove any previously taken snapshots.
 
 ==== Example
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_slm/policy/daily-snapshots
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]

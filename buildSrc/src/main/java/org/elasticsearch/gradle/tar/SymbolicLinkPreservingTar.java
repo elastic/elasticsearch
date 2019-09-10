@@ -49,6 +49,11 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * A custom archive task that assembles a tar archive that preserves symbolic links.
+ *
+ * This task is necessary because the built-in task {@link org.gradle.api.tasks.bundling.Tar} does not preserve symbolic links.
+ */
 public class SymbolicLinkPreservingTar extends AbstractArchiveTask {
 
     private Compression compression  = Compression.NONE;
@@ -116,6 +121,13 @@ public class SymbolicLinkPreservingTar extends AbstractArchiveTask {
         private class SymbolicLinkPreservingTarStreamAction implements CopyActionProcessingStreamAction {
 
             private final TarArchiveOutputStream tar;
+
+            /*
+             * When Gradle walks the file tree, it will follow symbolic links. This means that if there is a symbolic link to a directory
+             * in the source file tree, we could otherwise end up duplicating the entry in the resulting tar archive. To avoid this, we
+             * track which symbolic links we have visited, and skip files that are children of symbolic links that we have already
+             * visited.
+             */
             private final Set<File> visitedSymbolicLinks = new HashSet<>();
 
             SymbolicLinkPreservingTarStreamAction(final TarArchiveOutputStream tar) {
@@ -140,6 +152,7 @@ public class SymbolicLinkPreservingTar extends AbstractArchiveTask {
                 try {
                     file = details.getFile();
                 } catch (final UnsupportedOperationException e) {
+                    // we get invoked with stubbed details, there is no way to introspect this other than catching this exception
                     return false;
                 }
                 for (final File symbolicLink : visitedSymbolicLinks) {
@@ -162,6 +175,7 @@ public class SymbolicLinkPreservingTar extends AbstractArchiveTask {
                 try {
                     file = details.getFile();
                 } catch (final UnsupportedOperationException e) {
+                    // we get invoked with stubbed details, there is no way to introspect this other than catching this exception
                     return false;
                 }
                 return Files.isSymbolicLink(file.toPath());

@@ -34,6 +34,7 @@ import org.gradle.api.Action;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
+import org.gradle.api.file.UnableToDeleteFileException;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.Classpath;
@@ -890,7 +891,23 @@ public class ElasticsearchNode implements TestClusterConfiguration {
      */
     private void syncWithLinks(Path sourceRoot, Path destinationRoot) {
         if (Files.exists(destinationRoot)) {
-            project.delete(destinationRoot);
+            for (int i = 1; i <= 5 ; i++) {
+                try {
+                    project.delete(destinationRoot);
+                    break;
+                } catch (UnableToDeleteFileException e) {
+                    if (OS.current().equals(OS.WINDOWS) == false || i>= 5) {
+                        throw e;
+                    }
+                    LOGGER.info("Failed to delete {} will retry ({i})", destinationRoot, i, e);
+                    try {
+                        Thread.sleep(TimeUnit.SECONDS.toMillis(1));
+                    } catch (InterruptedException ex) {
+                        Thread.currentThread().interrupt();
+                        throw e;
+                    }
+                }
+            }
         }
 
         try (Stream<Path> stream = Files.walk(sourceRoot)) {

@@ -179,9 +179,9 @@ null
 ;
 
 selectDateTruncWithScalars
-SELECT birth_date, DATE_TRUNC(CAST(CHAR(109) AS VARCHAR), birth_date + INTERVAL 12 YEAR) AS dt FROM test_emp ORDER BY 1 DESC LIMIT 5;
+SELECT birth_date, DATE_TRUNC(CAST(CHAR(109) AS VARCHAR), birth_date + INTERVAL 12 YEAR) AS dt FROM test_emp ORDER BY 1 DESC NULLS LAST LIMIT 5;
 
-     birth_date:Ts       |         dt:ts
+     birth_date:ts       |         dt:ts
 -------------------------+---------------------
 1965-01-03 00:00:00.000Z | 1977-01-01 00:00:00.000Z
 1964-10-18 00:00:00.000Z | 1976-10-01 00:00:00.000Z

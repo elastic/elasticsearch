@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.geogrid.CellIdSource;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridTiler;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -113,10 +113,11 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
             ValuesSource.Geo geoValue = (ValuesSource.Geo) orig;
             // is specified in the builder.
             final MappedFieldType fieldType = config.fieldContext() != null ? config.fieldContext().fieldType() : null;
-            CellIdSource cellIdSource = new CellIdSource(geoValue, precision, CellIdSource.GeoTileGridTiler.INSTANCE);
+            CellIdSource cellIdSource = new CellIdSource(geoValue, precision, GeoGridTiler.GeoTileGridTiler.INSTANCE);
             return new CompositeValuesSourceConfig(name, fieldType, cellIdSource, DocValueFormat.GEOTILE, order(), missingBucket());
         } else {
-            throw new IllegalArgumentException("invalid source, expected one of [geo_point, geo_shape], got " + orig.getClass().getSimpleName());
+            throw new IllegalArgumentException("invalid source, expected one of [geo_point, geo_shape], got "
+                + orig.getClass().getSimpleName());
         }
     }
 

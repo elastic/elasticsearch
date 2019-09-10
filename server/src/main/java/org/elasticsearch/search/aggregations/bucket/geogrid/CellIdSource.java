@@ -20,14 +20,11 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.locationtech.spatial4j.io.GeohashUtils;
 
 import java.io.IOException;
 
@@ -71,97 +68,6 @@ public class CellIdSource extends ValuesSource.Numeric {
         throw new UnsupportedOperationException();
     }
 
-    /**
-     * The tiler to use to convert a geopoint's (lon, lat, precision) into
-     * a long-encoded bucket key for aggregating.
-     */
-    public interface GeoGridTiler {
-        long encode(double lon, double lat, int precision);
-        int getCandidateTileCount(MultiGeoValues.GeoValue geoValue, int precision);
-        int setValues(long[] docValues, MultiGeoValues.GeoValue geoValue, int precision);
-    }
-
-    public static class GeoHashGridTiler implements GeoGridTiler {
-        public static final GeoHashGridTiler INSTANCE = new GeoHashGridTiler();
-
-        @Override
-        public long encode(double lon, double lat, int precision) {
-            return Geohash.longEncode(lon, lat, precision);
-        }
-
-        @Override
-        public int getCandidateTileCount(MultiGeoValues.GeoValue geoValue, int precision) {
-            MultiGeoValues.BoundingBox bounds = geoValue.boundingBox();
-            String rr = Geohash.stringEncode(bounds.minX(), bounds.minY(), precision);
-            Rectangle rrr = Geohash.toBoundingBox(rr);
-            double[] degStep = GeohashUtils.lookupDegreesSizeForHashLen(precision);
-            int numLonCells = (int) Math.ceil((bounds.maxX() - rrr.getMinX()) / degStep[1]);
-            int numLatCells = (int) Math.ceil((bounds.maxY() - rrr.getMinY()) / degStep[0]);
-            return numLonCells * numLatCells;
-        }
-
-        @Override
-        public int setValues(long[] values, MultiGeoValues.GeoValue geoValue, int precision) {
-            MultiGeoValues.BoundingBox bounds = geoValue.boundingBox();
-            double[] degStep = GeohashUtils.lookupDegreesSizeForHashLen(precision);
-            int idx = 0;
-            String rr = Geohash.stringEncode(bounds.minX(), bounds.minY(), precision);
-            Rectangle rrr = Geohash.toBoundingBox(rr);
-            for (double i = rrr.getMinX(); i < bounds.maxX(); i+= degStep[1]) {
-                for (double j = rrr.getMinY(); j < bounds.maxY(); j += degStep[0]) {
-                    Rectangle rectangle = Geohash.toBoundingBox(Geohash.stringEncode(i, j, precision));
-                    if (geoValue.intersects(rectangle)) {
-                        values[idx++] = encode(i, j, precision);
-                    }
-                }
-            }
-
-            return idx;
-        }
-    }
-
-    public static class GeoTileGridTiler implements GeoGridTiler {
-        public static final GeoTileGridTiler INSTANCE = new GeoTileGridTiler();
-
-        @Override
-        public long encode(double lon, double lat, int precision) {
-            return GeoTileUtils.longEncode(lon, lat, precision);
-        }
-
-        @Override
-        public int getCandidateTileCount(MultiGeoValues.GeoValue geoValue, int precision) {
-            MultiGeoValues.BoundingBox bounds = geoValue.boundingBox();
-            final double tiles = 1 << precision;
-            int minXTile = GeoTileUtils.getXTile(bounds.minX(), (long) tiles);
-            int minYTile = GeoTileUtils.getYTile(bounds.maxY(), (long) tiles);
-            int maxXTile = GeoTileUtils.getXTile(bounds.maxX(), (long) tiles);
-            int maxYTile = GeoTileUtils.getYTile(bounds.minY(), (long) tiles);
-            return (maxXTile - minXTile + 1) * (maxYTile - minYTile + 1);
-        }
-
-        @Override
-        public int setValues(long[] values, MultiGeoValues.GeoValue geoValue, int precision) {
-            MultiGeoValues.BoundingBox bounds = geoValue.boundingBox();
-
-            final double tiles = 1 << precision;
-            int minXTile = GeoTileUtils.getXTile(bounds.minX(), (long) tiles);
-            int minYTile = GeoTileUtils.getYTile(bounds.maxY(), (long) tiles);
-            int maxXTile = GeoTileUtils.getXTile(bounds.maxX(), (long) tiles);
-            int maxYTile = GeoTileUtils.getYTile(bounds.minY(), (long) tiles);
-            int idx = 0;
-            for (int i = minXTile; i <= maxXTile; i++) {
-                for (int j = minYTile; j <= maxYTile; j++) {
-                    Rectangle rectangle = GeoTileUtils.toBoundingBox(i, j, precision);
-                    if (geoValue.intersects(rectangle)) {
-                        values[idx++] = GeoTileUtils.longEncodeTiles(precision, i, j);
-                    }
-                }
-            }
-
-            return idx;
-        }
-    }
-
     private static class CellValues extends AbstractSortingNumericDocValues {
         private MultiGeoValues geoValues;
         private int precision;
@@ -188,8 +94,13 @@ public class CellIdSource extends ValuesSource.Numeric {
                     case GEO:
                         MultiGeoValues.GeoValue target = geoValues.nextValue();
                         // TODO(talevy): determine reasonable circuit-breaker here
-                        resize(tiler.getCandidateTileCount(target, precision));
+                        // must resize array to contain the upper-bound of matching cells, which
+                        // is the number of tiles that overlap the shape's bounding-box. No need
+                        // to be concerned with original docValueCount since shape doc-values are
+                        // single-valued.
+                        resize(tiler.getBoundingTileCount(target, precision));
                         int matched = tiler.setValues(values, target, precision);
+                        // must truncate array to only contain cells that actually intersected shape
                         resize(matched);
                         break;
                     default:

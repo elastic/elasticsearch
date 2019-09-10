@@ -70,7 +70,7 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory<
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, context, parent);
         }
-        CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, CellIdSource.GeoTileGridTiler.INSTANCE);
+        CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, GeoGridTiler.GeoTileGridTiler.INSTANCE);
         return new GeoTileGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, context, parent,
                 pipelineAggregators, metaData);
     }

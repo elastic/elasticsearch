@@ -69,7 +69,7 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory<
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, context, parent);
         }
-        CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, CellIdSource.GeoHashGridTiler.INSTANCE);
+        CellIdSource cellIdSource = new CellIdSource(valuesSource, precision, GeoGridTiler.GeoHashGridTiler.INSTANCE);
         return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, context, parent,
                 pipelineAggregators, metaData);
     }

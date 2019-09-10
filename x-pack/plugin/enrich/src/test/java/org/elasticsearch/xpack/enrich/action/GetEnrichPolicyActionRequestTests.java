@@ -13,7 +13,7 @@ public class GetEnrichPolicyActionRequestTests extends AbstractWireSerializingTe
 
     @Override
     protected GetEnrichPolicyAction.Request createTestInstance() {
-        return new GetEnrichPolicyAction.Request(randomAlphaOfLength(5));
+        return new GetEnrichPolicyAction.Request(generateRandomStringArray(0, 4, false));
     }
 
     @Override

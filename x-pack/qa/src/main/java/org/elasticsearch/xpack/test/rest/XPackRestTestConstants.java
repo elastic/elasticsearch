@@ -40,7 +40,7 @@ public final class XPackRestTestConstants {
             ML_META_INDEX_NAME,
             STATE_INDEX_PREFIX,
             RESULTS_INDEX_PREFIX,
-            CONFIG_INDEX);
+            CONFIG_INDEX));
 
     // Data Frame constants:
     public static final String DATA_FRAME_INTERNAL_INDEX = ".data-frame-internal-1";

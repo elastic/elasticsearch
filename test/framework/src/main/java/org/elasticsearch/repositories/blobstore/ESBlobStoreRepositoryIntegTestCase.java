@@ -73,13 +73,20 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
     }
 
     protected final String createRepository(final String name) {
+        return createRepository(name, Settings.EMPTY);
+    }
+
+    protected final String createRepository(final String name, final Settings additionalSettings) {
         final boolean verify = randomBoolean();
 
         logger.debug("-->  creating repository [name: {}, verify: {}]", name, verify);
         assertAcked(client().admin().cluster().preparePutRepository(name)
             .setType(repositoryType())
             .setVerify(verify)
-            .setSettings(repositorySettings()));
+            .setSettings(Settings.builder()
+                .put(repositorySettings())
+                .put(additionalSettings)
+                .build()));
 
         internalCluster().getDataOrMasterNodeInstances(RepositoriesService.class).forEach(repositories -> {
             assertThat(repositories.repository(name), notNullValue());
@@ -307,7 +314,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         assertThat(response.getSnapshotInfo().successfulShards(), equalTo(response.getSnapshotInfo().totalShards()));
     }
 
-    private static void assertSuccessfulRestore(RestoreSnapshotRequestBuilder requestBuilder) {
+    protected static void assertSuccessfulRestore(RestoreSnapshotRequestBuilder requestBuilder) {
         RestoreSnapshotResponse response = requestBuilder.get();
         assertSuccessfulRestore(response);
     }

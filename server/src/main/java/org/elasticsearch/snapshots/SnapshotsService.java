@@ -157,6 +157,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
     }
 
+    private static ShardGenerations buildGenerations(SnapshotsInProgress.Entry snapshot) {
+        ShardGenerations.Builder builder = ShardGenerations.builder();
+        final Map<String, IndexId> indexLookup = new HashMap<>();
+        snapshot.indices().forEach(idx -> indexLookup.put(idx.getName(), idx));
+        snapshot.shards().forEach(c -> builder.add(indexLookup.get(c.key.getIndexName()), c.key.id(), c.value.generation()));
+        return builder.build();
+    }
+
     /**
      * Gets the {@link RepositoryData} for the given repository.
      *
@@ -568,7 +576,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     try {
                         repositoriesService.repository(snapshot.snapshot().getRepository())
                             .finalizeSnapshot(snapshot.snapshot().getSnapshotId(),
-                                ShardGenerations.fromSnapshot(snapshot),
+                                buildGenerations(snapshot),
                                 snapshot.startTime(),
                                 ExceptionsHelper.detailedMessage(exception),
                                 0,
@@ -1011,7 +1019,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 List<SnapshotShardFailure> shardFailures = extractFailure(entry.shards());
                 SnapshotInfo snapshotInfo = repository.finalizeSnapshot(
                     snapshot.getSnapshotId(),
-                    ShardGenerations.fromSnapshot(entry),
+                    buildGenerations(entry),
                     entry.startTime(),
                     failure,
                     entry.shards().size(),

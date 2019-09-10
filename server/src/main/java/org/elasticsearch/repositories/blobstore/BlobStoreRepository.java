@@ -107,7 +107,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -401,6 +400,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * Delete a snapshot from the repository in a cluster that does contain one ore more nodes older than
      * {@link SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION}.
+     * The order of operations executed by this method differs the non-BwC delete {@link #doDeleteShardSnapshots} as follows:
+     * Instead of collecting the new shard generations for each shard touched by the delete and storing them in an updated
+     * {@link RepositoryData} this method writes and updated {@link RepositoryData} with the deleted snapshot removed as the first step.
+     * After updating the {@link RepositoryData} each of the shards directories is individually first moved to the next shard generation
+     * and then has all now unreferenced blobs in it deleted.
+     *
      * @param snapshotId        SnapshotId to delete
      * @param repositoryStateId Expected repository state id
      * @param version           Node version that must be able to read this repositories contents after the delete has finished
@@ -467,7 +472,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         assert version.onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION);
 
         // listener to complete once all shards folders affected by this delete have been added new metadata blobs without this snapshot
-        final StepListener<List<ShardSnapshotMetaDeleteResult>> deleteFromMetaListener = new StepListener<>();
+        final StepListener<Collection<ShardSnapshotMetaDeleteResult>> deleteFromMetaListener = new StepListener<>();
 
         final List<IndexId> indices = repositoryData.indicesAfterRemovingSnapshot(snapshotId);
         if (indices.isEmpty()) {
@@ -476,8 +481,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } else {
 
             // Listener that flattens out the delete results for each index
-            final ActionListener<List<ShardSnapshotMetaDeleteResult>> deleteIndexMetaDataListener = new GroupedActionListener<>(
-                ActionListener.map(deleteFromMetaListener, idxs -> idxs.stream().flatMap(List::stream).collect(Collectors.toList())),
+            final ActionListener<Collection<ShardSnapshotMetaDeleteResult>> deleteIndexMetaDataListener = new GroupedActionListener<>(
+                ActionListener.map(deleteFromMetaListener, idxs -> idxs.stream().flatMap(Collection::stream).collect(Collectors.toList())),
                 indices.size());
 
             for (IndexId indexId : indices) {
@@ -498,13 +503,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             assert shardCount > 0;
 
                             // Listener for collecting the results of removing the snapshot from each shard's metadata in the current index
-                            final ActionListener<ShardSnapshotMetaDeleteResult> allShardsListener = new GroupedActionListener<>(
-                                ActionListener.map(deleteIdxMetaListener, shardGenerations -> {
-                                    assert shardGenerations.size() == shardGenerations.stream().mapToInt(s -> s.shardId).max()
-                                        .orElseThrow(() -> new AssertionError("Empty shard gen array")) + 1
-                                        : "Highest shard id was larger than the number of shard generation updates received.";
-                                    return List.copyOf(shardGenerations);
-                                }), shardCount);
+                            final ActionListener<ShardSnapshotMetaDeleteResult> allShardsListener =
+                                new GroupedActionListener<>(deleteIdxMetaListener, shardCount);
 
                             for (int shardId = 0; shardId < shardCount; shardId++) {
                                 deleteShardSnapshotFromMeta(repositoryData, indexId, new ShardId(indexMetaData.getIndex(), shardId),
@@ -528,18 +528,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         //       will not be referenced by the existing RepositoryData and new RepositoryData is only written if all shard paths have been
         //       successfully updated.
         deleteFromMetaListener.whenComplete(newGens -> {
-            final Map<IndexId, List<ShardSnapshotMetaDeleteResult>> updatedShardGenerations = new HashMap<>();
+            final ShardGenerations.Builder builder = ShardGenerations.builder();
             for (ShardSnapshotMetaDeleteResult newGen : newGens) {
-                updatedShardGenerations.computeIfAbsent(newGen.indexId, i -> new ArrayList<>()).add(newGen);
+                builder.add(newGen.indexId, newGen.shardId, newGen.newGeneration);
             }
-            assert assertShardUpdatesCorrectlyOrdered(updatedShardGenerations.values());
-            final RepositoryData newRepoData = repositoryData.removeSnapshot(snapshotId, new ShardGenerations(
-                updatedShardGenerations.entrySet().stream()
-                .collect(Collectors.toMap(
-                    Map.Entry::getKey,
-                    entry -> entry.getValue().stream()
-                        .map(shardSnapshotMetaDeleteResult -> shardSnapshotMetaDeleteResult.newGeneration)
-                        .collect(Collectors.toList())))));
+            final RepositoryData newRepoData = repositoryData.removeSnapshot(snapshotId, builder.build());
 
             // Write out new RepositoryData
             writeIndexGen(newRepoData, repositoryStateId, version);
@@ -558,18 +551,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             );
             cleanupStaleBlobs(foundIndices, rootBlobs, newRepoData, newRepoData.getIndices().values(), listener);
         }, listener::onFailure);
-    }
-
-    // Make sure that each of the given lists is only contains a single index and is ordered by shard id such that the shard id is equal
-    // to the position in the list.
-    private static boolean assertShardUpdatesCorrectlyOrdered(Collection<List<ShardSnapshotMetaDeleteResult>> updates) {
-        updates.forEach(chunk -> {
-            for (int i = 0; i < chunk.size(); i++) {
-                assert chunk.get(i).shardId == i;
-            }
-            assert chunk.stream().map(s -> s.indexId).distinct().count() == 1L;
-        });
-        return true;
     }
 
     private void cleanupStaleBlobs(Map<String, BlobContainer> foundIndices, Set<String> rootBlobs, RepositoryData newRepoData,

@@ -19,16 +19,11 @@
 
 package org.elasticsearch.repositories;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -46,31 +41,6 @@ public final class ShardGenerations implements ToXContent {
 
     public ShardGenerations(Map<IndexId, List<String>> shardGenerations) {
         this.shardGenerations = shardGenerations;
-    }
-
-    public static ShardGenerations fromSnapshot(SnapshotsInProgress.Entry snapshot) {
-        final Map<String, IndexId> indexLookup = new HashMap<>();
-        snapshot.indices().forEach(idx -> indexLookup.put(idx.getName(), idx));
-        final Map<IndexId, List<Tuple<ShardId, SnapshotsInProgress.ShardSnapshotStatus>>> res = new HashMap<>();
-        for (final ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : snapshot.shards()) {
-            final ShardId shardId = shard.key;
-            res.computeIfAbsent(indexLookup.get(shardId.getIndexName()), k -> new ArrayList<>()).add(new Tuple<>(shardId, shard.value));
-        }
-        return new ShardGenerations(res.entrySet().stream().collect(
-            Collectors.toMap(Map.Entry::getKey, entry -> {
-                final List<Tuple<ShardId, SnapshotsInProgress.ShardSnapshotStatus>> status = entry.getValue();
-                final String[] gens = new String[
-                    status.stream().mapToInt(s -> s.v1().getId())
-                        .max().orElseThrow(() -> new AssertionError("0-shard index is impossible")) + 1];
-                for (Tuple<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : status) {
-                    if (shard.v2().state().failed() == false) {
-                        final int id = shard.v1().getId();
-                        assert gens[id] == null;
-                        gens[id] = shard.v2().generation();
-                    }
-                }
-                return Arrays.asList(gens);
-            })));
     }
 
     public List<IndexId> indices() {
@@ -182,5 +152,33 @@ public final class ShardGenerations implements ToXContent {
     @Override
     public int hashCode() {
         return Objects.hash(shardGenerations);
+    }
+
+    public static Builder builder() {
+         return new Builder();
+    }
+
+    public static final class Builder {
+
+         private final Map<IndexId, Map<Integer, String>> raw = new HashMap<>();
+
+         public Builder add(IndexId indexId, int shardId, String generation) {
+             raw.computeIfAbsent(indexId, i -> new HashMap<>()).put(shardId, generation);
+             return this;
+         }
+
+         public ShardGenerations build() {
+             return new ShardGenerations(raw.entrySet().stream().collect(Collectors.toMap(
+                 Map.Entry::getKey,
+                 entry -> {
+                     final int size = entry.getValue().keySet().stream().mapToInt(i -> i).max().orElse(-1) + 1;
+                     final String[] gens = new String[size];
+                     entry.getValue().forEach((shardId, generation) -> {
+                         gens[shardId] = generation;
+                     });
+                     return Arrays.asList(gens);
+                 }
+             )));
+         }
     }
 }

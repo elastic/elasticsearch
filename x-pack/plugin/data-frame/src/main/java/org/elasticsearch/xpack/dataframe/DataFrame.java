@@ -174,7 +174,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
             return emptyList();
         }
         dataFrameAuditor.set(new DataFrameAuditor(client, clusterService.getNodeName()));
-        dataFrameTransformsConfigManager.set(new DataFrameTransformsConfigManager(client, xContentRegistry));
+        dataFrameTransformsConfigManager.set(new DataFrameTransformsConfigManager(clusterService, client, xContentRegistry));
         dataFrameTransformsCheckpointService.set(new DataFrameTransformsCheckpointService(client,
                                                                                           dataFrameTransformsConfigManager.get(),
                                                                                           dataFrameAuditor.get()));

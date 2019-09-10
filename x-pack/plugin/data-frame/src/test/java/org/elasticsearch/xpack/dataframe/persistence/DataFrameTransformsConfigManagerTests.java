@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,6 +42,8 @@ import static org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsC
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTestCase {
 
@@ -48,7 +51,9 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
 
     @Before
     public void createComponents() {
-        transformsConfigManager = new DataFrameTransformsConfigManager(client(), xContentRegistry());
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(DataFrameInternalIndexTests.STATE_WITH_LATEST_VERSIONED_INDEX_TEMPLATE);
+        transformsConfigManager = new DataFrameTransformsConfigManager(clusterService, client(), xContentRegistry());
     }
 
     public void testGetMissingTransform() throws InterruptedException {

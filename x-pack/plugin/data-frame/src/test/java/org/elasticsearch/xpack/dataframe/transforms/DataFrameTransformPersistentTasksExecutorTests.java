@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
+import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndexTests;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 
 import java.util.ArrayList;
@@ -99,13 +100,15 @@ public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
         ClusterState cs = csBuilder.build();
         Client client = mock(Client.class);
         DataFrameAuditor mockAuditor = mock(DataFrameAuditor.class);
-        DataFrameTransformsConfigManager transformsConfigManager = new DataFrameTransformsConfigManager(client, xContentRegistry());
-        DataFrameTransformsCheckpointService dataFrameTransformsCheckpointService = new DataFrameTransformsCheckpointService(client,
-            transformsConfigManager, mockAuditor);
         ClusterSettings cSettings = new ClusterSettings(Settings.EMPTY,
             Collections.singleton(DataFrameTransformTask.NUM_FAILURE_RETRIES_SETTING));
         ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(DataFrameInternalIndexTests.STATE_WITH_LATEST_VERSIONED_INDEX_TEMPLATE);
         when(clusterService.getClusterSettings()).thenReturn(cSettings);
+        DataFrameTransformsConfigManager transformsConfigManager =
+            new DataFrameTransformsConfigManager(clusterService, client, xContentRegistry());
+        DataFrameTransformsCheckpointService dataFrameTransformsCheckpointService = new DataFrameTransformsCheckpointService(client,
+            transformsConfigManager, mockAuditor);
         DataFrameTransformPersistentTasksExecutor executor = new DataFrameTransformPersistentTasksExecutor(client,
             transformsConfigManager,
             dataFrameTransformsCheckpointService, mock(SchedulerEngine.class),

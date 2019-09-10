@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgr
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgressTests;
 import org.elasticsearch.xpack.dataframe.DataFrameSingleNodeTestCase;
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
+import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndexTests;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -130,7 +132,9 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
             mockClientForCheckpointing = new MockClientForCheckpointing("DataFrameTransformCheckpointServiceNodeTests");
         }
 
-        transformsConfigManager = new DataFrameTransformsConfigManager(client(), xContentRegistry());
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(DataFrameInternalIndexTests.STATE_WITH_LATEST_VERSIONED_INDEX_TEMPLATE);
+        transformsConfigManager = new DataFrameTransformsConfigManager(clusterService, client(), xContentRegistry());
 
         // use a mock for the checkpoint service
         DataFrameAuditor mockAuditor = mock(DataFrameAuditor.class);

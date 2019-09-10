@@ -20,7 +20,6 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.DocIdSet;
@@ -47,7 +46,6 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 
 import java.io.IOException;
-import java.util.function.Function;
 
 /**
  * Thread-safe utility class that allows to get per-segment values via the
@@ -115,14 +113,13 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
             private final BitSetProducer rootFilter;
             private final Query innerQuery;
             private final NestedSortBuilder nestedSort;
-            private final Function<IndexReaderContext, IndexSearcher> searcherFactory;
+            private final IndexSearcher searcher;
 
-            public Nested(BitSetProducer rootFilter, Query innerQuery, NestedSortBuilder nestedSort,
-                          Function<IndexReaderContext, IndexSearcher> searcherFactory) {
+            public Nested(BitSetProducer rootFilter, Query innerQuery, NestedSortBuilder nestedSort, IndexSearcher searcher) {
                 this.rootFilter = rootFilter;
                 this.innerQuery = innerQuery;
                 this.nestedSort = nestedSort;
-                this.searcherFactory = searcherFactory;
+                this.searcher = searcher;
             }
 
             public Query getInnerQuery() {
@@ -146,9 +143,8 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
              * Get a {@link DocIdSet} that matches the inner documents.
              */
             public DocIdSetIterator innerDocs(LeafReaderContext ctx) throws IOException {
-                final IndexReaderContext topLevelCtx = ReaderUtil.getTopLevelContext(ctx);
-                IndexSearcher indexSearcher = searcherFactory.apply(topLevelCtx);
-                Weight weight = indexSearcher.createWeight(indexSearcher.rewrite(innerQuery), ScoreMode.COMPLETE_NO_SCORES, 1f);
+                assert ReaderUtil.getTopLevelContext(ctx) == searcher.getIndexReader().getContext();
+                Weight weight = searcher.createWeight(searcher.rewrite(innerQuery), ScoreMode.COMPLETE_NO_SCORES, 1f);
                 Scorer s = weight.scorer(ctx);
                 return s == null ? null : s.iterator();
             }

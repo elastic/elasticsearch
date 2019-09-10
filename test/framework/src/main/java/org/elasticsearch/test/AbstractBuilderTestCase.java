@@ -22,7 +22,7 @@ package org.elasticsearch.test;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -422,9 +423,11 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         }
 
         QueryShardContext createShardContext(IndexReader reader) {
-            return new QueryShardContext(0, idxSettings, bitsetFilterCache, IndexSearcher::new, indexFieldDataService::getForField,
-                mapperService, similarityService, scriptService, xContentRegistry, namedWriteableRegistry, this.client, reader,
-                () -> nowInMillis, null);
+            AssertingIndexSearcher searcher = new AssertingIndexSearcher(random(), reader);
+            searcher.setQueryCache(null);
+            return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache,
+                indexFieldDataService::getForField, mapperService, similarityService, scriptService, xContentRegistry,
+                namedWriteableRegistry, this.client, searcher, () -> nowInMillis, null);
         }
 
         ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {

@@ -69,7 +69,7 @@ public class GeoShapeProjectedQueryTests extends ESSingleNodeTestCase {
         EnvelopeBuilder query = new EnvelopeBuilder(new Coordinate(166000.0, 9350000.0), new Coordinate(833980.0, -10.0));
 
         SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(geoIntersectionQuery("location", query))
+            .setQuery(geoIntersectionQuery("location", query.buildGeometry()))
             .get();
 
         assertSearchResponse(searchResponse);

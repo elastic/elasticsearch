@@ -103,7 +103,27 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testCRSParsing() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+        // test invalid crs
+        final String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties").startObject("location")
+            .field("type", "geo_shape")
+            .startObject("crs")
+            .field("type", "name")
+            .startObject("properties")
+            .field("name", "EPSG:4376")
+            .endObject()
+            .endObject()
+            .endObject().endObject()
+            .endObject().endObject());
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> createIndex("test").mapperService().documentMapperParser()
+                .parse("type1", new CompressedXContent(mapping))
+        );
+        assertThat(e.getMessage(), containsString("crs [EPSG:4376] not supported"));
+
+        // test valid crs (default WGS84)
+        final String validMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("location")
             .field("type", "geo_shape")
             .startObject("crs")
@@ -115,11 +135,10 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             .endObject().endObject()
             .endObject().endObject());
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> createIndex("test").mapperService().documentMapperParser()
-                .parse("type1", new CompressedXContent(mapping))
-        );
-        assertThat(e.getMessage(), containsString("crs [EPSG:4326] not supported"));
+        DocumentMapper defaultMapper = createIndex("test2").mapperService().documentMapperParser()
+            .parse("type1", new CompressedXContent(validMapping));
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
     }
 
     /**

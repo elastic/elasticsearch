@@ -58,7 +58,7 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
     public static List<CRSHandler> CRS_HANDLERS = new ArrayList<>();
 
     public static class Defaults extends AbstractGeometryFieldMapper.Defaults {
-        public static final Explicit<String> CRS = new Explicit<>(null, false);
+        public static final Explicit<String> CRS = new Explicit<>("EPSG:4326", false);
     }
 
     public static class Builder extends AbstractGeometryFieldMapper.Builder<AbstractGeometryFieldMapper.Builder, GeoShapeFieldMapper> {
@@ -71,8 +71,8 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
 
         public Builder(String name, Map<String, Object> params) {
             this(name);
-            this.crs = (String)params.get("crs");
-            this.crsHandler = resolveCRSHandler(this.crs);
+            this.crs = params.containsKey("crs") ? (String)params.get("crs") : Defaults.CRS.value();
+            this.crsHandler = resolveCRSHandler(this.crs());
         }
 
         @Override
@@ -159,7 +159,7 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
     @Override
     public void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
-        if (crs.value() != null && crs.explicit()) {
+        if (includeDefaults || crs.explicit()) {
             builder.startObject("crs")
                 .field("type", "name")
                 .startObject("properties")
@@ -173,17 +173,13 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
         CRS_HANDLERS.addAll(crsHandlers);
     }
 
-    private static CRSHandler resolveCRSHandler(String crs) {
-        if (crs == null) {
-            return DEFAULT_CRS_HANDLER;
-        }
-
+    private static CRSHandler resolveCRSHandler(Explicit<String> crs) {
         for (CRSHandler handler : CRS_HANDLERS) {
-            if (handler.supportsCRS(crs)) {
+            if (handler.supportsCRS(crs.value())) {
                 return handler;
             }
         }
-        throw new IllegalArgumentException("crs [" + crs + "] not supported");
+        throw new IllegalArgumentException("crs [" + crs.value() + "] not supported");
     }
 
     public interface CRSHandler {
@@ -206,7 +202,11 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
 
         @Override
         public boolean supportsCRS(String crs) {
-            return false;
+            return crs.equals(Defaults.CRS.value());
         }
     };
+
+    static {
+        CRS_HANDLERS.add(DEFAULT_CRS_HANDLER);
+    }
 }

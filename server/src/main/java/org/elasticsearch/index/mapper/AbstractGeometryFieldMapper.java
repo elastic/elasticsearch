@@ -51,6 +51,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_MALFORMED;
+import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
 /**
  * Base class for {@link GeoShapeFieldMapper} and {@link LegacyGeoShapeFieldMapper}
@@ -259,6 +260,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
                 params.remove(DEPRECATED_PARAMETERS_KEY);
             }
             Builder builder = newBuilder(name, params);
+            parseField(builder, name, node, parserContext);
 
             if (params.containsKey(Names.COERCE.getPreferredName())) {
                 builder.coerce((Boolean)params.get(Names.COERCE.getPreferredName()));
@@ -418,7 +420,7 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
 
     @Override
     public void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
-        builder.field("type", contentType());
+        super.doXContentBody(builder, includeDefaults, params);
         AbstractGeometryFieldType ft = (AbstractGeometryFieldType)fieldType();
         if (includeDefaults || ft.orientation() != Defaults.ORIENTATION.value()) {
             builder.field(Names.ORIENTATION.getPreferredName(), ft.orientation());

@@ -35,6 +35,7 @@ import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
@@ -55,6 +56,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -62,33 +64,9 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
-import static java.util.Map.entry;
 import static java.util.stream.Collectors.toSet;
 
 final class QueryAnalyzer {
-
-    private static final Map<Class<? extends Query>, BiFunction<Query, Version, Result>> QUERY_PROCESSORS = Map.ofEntries(
-        entry(MatchNoDocsQuery.class, matchNoDocsQuery()),
-        entry(MatchAllDocsQuery.class, matchAllDocsQuery()),
-        entry(ConstantScoreQuery.class, constantScoreQuery()),
-        entry(BoostQuery.class, boostQuery()),
-        entry(TermQuery.class, termQuery()),
-        entry(TermInSetQuery.class, termInSetQuery()),
-        entry(BlendedTermQuery.class, blendedTermQuery()),
-        entry(PhraseQuery.class, phraseQuery()),
-        entry(MultiPhraseQuery.class, multiPhraseQuery()),
-        entry(SpanTermQuery.class, spanTermQuery()),
-        entry(SpanNearQuery.class, spanNearQuery()),
-        entry(SpanOrQuery.class, spanOrQuery()),
-        entry(SpanFirstQuery.class, spanFirstQuery()),
-        entry(SpanNotQuery.class, spanNotQuery()),
-        entry(BooleanQuery.class, booleanQuery()),
-        entry(DisjunctionMaxQuery.class, disjunctionMaxQuery()),
-        entry(SynonymQuery.class, synonymQuery()),
-        entry(FunctionScoreQuery.class, functionScoreQuery()),
-        entry(PointRangeQuery.class, pointRangeQuery()),
-        entry(IndexOrDocValuesQuery.class, indexOrDocValuesQuery()),
-        entry(ESToParentBlockJoinQuery.class, toParentBlockJoinQuery()));
 
     private QueryAnalyzer() {
     }
@@ -121,18 +99,117 @@ final class QueryAnalyzer {
      * @param indexVersion  The create version of the index containing the percolator queries.
      */
     static Result analyze(Query query, Version indexVersion) {
-        Class<?> queryClass = query.getClass();
-        if (queryClass.isAnonymousClass()) {
-            // sometimes queries have anonymous classes in that case we need the direct super class (e.g., blended term query)
-            queryClass = queryClass.getSuperclass();
+        System.out.println("analyze");
+        ResultBuilder builder = new ResultBuilder(query, false);
+        query.visit(builder);
+        return builder.getResult();
+    }
+
+    private static final Set<Class<?>> verifiedQueries = Set.of(
+        TermQuery.class, TermInSetQuery.class, SynonymQuery.class, SpanTermQuery.class,
+        BooleanQuery.class, DisjunctionMaxQuery.class, ConstantScoreQuery.class, BoostQuery.class
+    );
+
+    private static boolean isVerified(Query query) {
+        if (query instanceof FunctionScoreQuery) {
+            return ((FunctionScoreQuery)query).getMinScore() == null;
         }
-        assert Query.class.isAssignableFrom(queryClass) : query.getClass();
-        BiFunction<Query, Version, Result> queryProcessor = QUERY_PROCESSORS.get(queryClass);
-        if (queryProcessor != null) {
-            return queryProcessor.apply(query, indexVersion);
-        } else {
-            throw new UnsupportedQueryException(query);
+        return verifiedQueries.contains(query.getClass());
+    }
+
+    private static class ResultBuilder extends QueryVisitor {
+
+        final boolean conjointTerms;
+        Map<Query, List<ResultBuilder>> conjunctions = new IdentityHashMap<>();
+        Map<Query, List<ResultBuilder>> disjunctions = new IdentityHashMap<>();
+        boolean verified = true;
+        int minimumShouldMatch = 0;
+        List<Result> results = new ArrayList<>();
+
+        private ResultBuilder(boolean conjointTerms) {
+            this.conjointTerms = conjointTerms;
         }
+
+        public Result getResult() {
+            List<Result> partialResults = new ArrayList<>();
+            if (results.size() > 0) {
+                partialResults.add(conjointTerms ? handleConjunction(results) : handleDisjunction(results, minimumShouldMatch));
+            }
+            if (disjunctions.isEmpty() == false && (minimumShouldMatch > 0 || conjunctions.isEmpty())) {
+                List<Result> toReduce = new ArrayList<>();
+                for (List<ResultBuilder> ds : disjunctions.values()) {
+                    List<Result> childResults = ds.stream().map(c -> c.getResult()).collect(Collectors.toList());
+                    if (childResults.size() > 1) {
+                        toReduce.add(handleDisjunction(childResults, minimumShouldMatch));
+                    }
+                    else {
+                        toReduce.add(childResults.get(0));
+                    }
+                }
+
+
+            }
+            if (conjunctions.isEmpty() == false) {
+                List<Result> childResults = conjunctions.stream().map(c -> c.getResult()).collect(Collectors.toList());
+                partialResults.addAll(childResults);
+            }
+            if (partialResults.isEmpty()) {
+                return new Result(true, Collections.emptySet(), 0);
+            }
+            Result result;
+            if (partialResults.size() == 1) {
+                result = partialResults.get(0);
+            } else {
+                result = conjointTerms ? handleConjunction(partialResults) : handleDisjunction(partialResults, minimumShouldMatch);
+            }
+            if (verified == false) {
+                result = result.unverify();
+            }
+            return result;
+        }
+
+        @Override
+        public QueryVisitor getSubVisitor(Occur occur, Query parent) {
+            System.out.println("getSubVisitor " + occur.name() + " " + parent);
+            this.verified = isVerified(parent);
+            if (occur == Occur.MUST || occur == Occur.FILTER) {
+                ResultBuilder builder = new ResultBuilder(true);
+                children.add(builder);
+                return builder;
+            }
+            if (occur == Occur.MUST_NOT) {
+                this.verified = false;
+                return QueryVisitor.EMPTY_VISITOR;
+            }
+            ResultBuilder builder = new ResultBuilder(parent, true);
+            if (parent instanceof BooleanQuery) {
+                builder.minimumShouldMatch = ((BooleanQuery)parent).getMinimumNumberShouldMatch();
+            }
+            children.add(builder);
+            return builder;
+        }
+
+        @Override
+        public void visitLeaf(Query query) {
+            if (query instanceof MatchAllDocsQuery) {
+                results.add(new Result(true, true));
+            }
+            else if (query instanceof MatchNoDocsQuery) {
+                results.add(new Result(true, Collections.emptySet(), 0));
+            }
+            else if (query instanceof PointRangeQuery) {
+                results.add(pointRangeQuery((PointRangeQuery)query));
+            }
+        }
+
+        @Override
+        public void consumeTerms(Query query, Term... terms) {
+            System.out.println("Terms " + Arrays.toString(terms));
+            boolean verified = verifiedQueries.contains(query.getClass());
+            Set<QueryExtraction> qe = Arrays.stream(terms).map(QueryExtraction::new).collect(Collectors.toUnmodifiableSet());
+            results.add(new Result(verified, qe, isDisjunction ? 1 : qe.size()));
+        }
+
     }
 
     private static BiFunction<Query, Version, Result> matchNoDocsQuery() {
@@ -365,27 +442,24 @@ final class QueryAnalyzer {
         };
     }
 
-    private static BiFunction<Query, Version, Result> pointRangeQuery() {
-        return (query, version) -> {
-            PointRangeQuery pointRangeQuery = (PointRangeQuery) query;
-            if (pointRangeQuery.getNumDims() != 1) {
-                throw new UnsupportedQueryException(query);
-            }
+    private static Result pointRangeQuery(PointRangeQuery query) {
+        if (query.getNumDims() != 1) {
+            throw new UnsupportedQueryException(query);
+        }
 
-            byte[] lowerPoint = pointRangeQuery.getLowerPoint();
-            byte[] upperPoint = pointRangeQuery.getUpperPoint();
+        byte[] lowerPoint = query.getLowerPoint();
+        byte[] upperPoint = query.getUpperPoint();
 
-            // Need to check whether upper is not smaller than lower, otherwise NumericUtils.subtract(...) fails IAE
-            // If upper is really smaller than lower then we deal with like MatchNoDocsQuery. (verified and no extractions)
-            if (new BytesRef(lowerPoint).compareTo(new BytesRef(upperPoint)) > 0) {
-                return new Result(true, Collections.emptySet(), 0);
-            }
+        // Need to check whether upper is not smaller than lower, otherwise NumericUtils.subtract(...) fails IAE
+        // If upper is really smaller than lower then we deal with like MatchNoDocsQuery. (verified and no extractions)
+        if (new BytesRef(lowerPoint).compareTo(new BytesRef(upperPoint)) > 0) {
+            return new Result(true, Collections.emptySet(), 0);
+        }
 
-            byte[] interval = new byte[16];
-            NumericUtils.subtract(16, 0, prepad(upperPoint), prepad(lowerPoint), interval);
-            return new Result(false, Collections.singleton(new QueryExtraction(
-                    new Range(pointRangeQuery.getField(), lowerPoint, upperPoint, interval))), 1);
-        };
+        byte[] interval = new byte[16];
+        NumericUtils.subtract(16, 0, prepad(upperPoint), prepad(lowerPoint), interval);
+        return new Result(false, Collections.singleton(new QueryExtraction(
+            new Range(query.getField(), lowerPoint, upperPoint, interval))), 1);
     }
 
     private static byte[] prepad(byte[] original) {
@@ -437,14 +511,14 @@ final class QueryAnalyzer {
                             return new Result(true, Collections.emptySet(), 0);
             }
                         }
-                    Result result = handleConjunction(results, version);
+                    Result result = handleConjunction(results);
         if (uqe != null) {
             result = result.unverify();
         }
         return result;
     }
 
-    private static Result handleConjunction(List<Result> conjunctions, Version version) {
+    private static Result handleConjunction(List<Result> conjunctions) {
         if (conjunctions.isEmpty()) {
             throw new IllegalArgumentException("Must have at least on conjunction sub result");
         }
@@ -521,10 +595,10 @@ final class QueryAnalyzer {
             Result subResult = analyze(query, version);
             subResults.add(subResult);
         }
-        return handleDisjunction(subResults, requiredShouldClauses, version);
+        return handleDisjunction(subResults, requiredShouldClauses);
     }
 
-    private static Result handleDisjunction(List<Result> disjunctions, int requiredShouldClauses, Version version) {
+    private static Result handleDisjunction(List<Result> disjunctions, int requiredShouldClauses) {
         // Keep track of the msm for each clause:
         List<Integer> clauses = new ArrayList<>(disjunctions.size());
         boolean verified = true;

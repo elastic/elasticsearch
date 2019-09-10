@@ -375,7 +375,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         builder.add(termQuery2, BooleanClause.Occur.SHOULD);
         builder.add(termQuery3, BooleanClause.Occur.SHOULD);
         result = analyze(builder.build(), Version.CURRENT);
-        assertThat("Minimum match has not impact on whether the result is verified", result.verified, is(true));
+        assertThat("Minimum match has no impact on whether the result is verified", result.verified, is(true));
         assertThat("msm is at least two so result.minimumShouldMatch should 2 too", result.minimumShouldMatch, equalTo(msm));
 
         builder = new BooleanQuery.Builder();
@@ -1055,7 +1055,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         Result result = analyze(builder.build(), Version.CURRENT);
         assertThat(result.verified, is(false));
         assertThat(result.matchAllDocs, is(false));
-        assertThat(result.minimumShouldMatch, equalTo(2));
+        assertThat(result.minimumShouldMatch, equalTo(4));
         assertTermsEqual(result.extractions, new Term("field", "value1"), new Term("field", "value2"),
                 new Term("field", "value3"), new Term("field", "value4"));
 

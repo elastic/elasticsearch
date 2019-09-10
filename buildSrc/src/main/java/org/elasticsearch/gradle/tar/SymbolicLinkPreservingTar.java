@@ -118,7 +118,7 @@ public class SymbolicLinkPreservingTar extends AbstractArchiveTask {
             private final TarArchiveOutputStream tar;
             private final Set<File> visitedSymbolicLinks = new HashSet<>();
 
-            public SymbolicLinkPreservingTarStreamAction(final TarArchiveOutputStream tar) {
+            SymbolicLinkPreservingTarStreamAction(final TarArchiveOutputStream tar) {
                 this.tar = tar;
             }
 

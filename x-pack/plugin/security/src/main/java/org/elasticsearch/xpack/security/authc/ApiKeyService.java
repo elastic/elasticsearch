@@ -331,15 +331,16 @@ public class ApiKeyService {
             }
 
             if (credentials != null) {
+                final String docId = credentials.getId();
                 final GetRequest getRequest = client
-                        .prepareGet(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, credentials.getId())
+                        .prepareGet(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, docId)
                         .setFetchSource(true)
                         .request();
                 executeAsyncWithOrigin(ctx, SECURITY_ORIGIN, getRequest, ActionListener.<GetResponse>wrap(response -> {
                     if (response.isExists()) {
                         try (ApiKeyCredentials ignore = credentials) {
                             final Map<String, Object> source = response.getSource();
-                            validateApiKeyCredentials(source, credentials, clock, listener);
+                            validateApiKeyCredentials(docId, source, credentials, clock, listener);
                         }
                     } else {
                         credentials.close();
@@ -434,17 +435,22 @@ public class ApiKeyService {
 
     /**
      * Validates the ApiKey using the source map
+     * @param docId the identifier of the document that was retrieved from the security index
      * @param source the source map from a get of the ApiKey document
      * @param credentials the credentials provided by the user
      * @param listener the listener to notify after verification
      */
-    void validateApiKeyCredentials(Map<String, Object> source, ApiKeyCredentials credentials, Clock clock,
+    void validateApiKeyCredentials(String docId, Map<String, Object> source, ApiKeyCredentials credentials, Clock clock,
                                    ActionListener<AuthenticationResult> listener) {
+        final String docType = (String) source.get("doc_type");
         final Boolean invalidated = (Boolean) source.get("api_key_invalidated");
-        if (invalidated == null) {
-            listener.onResponse(AuthenticationResult.terminate("api key document is missing invalidated field", null));
+        if ("api_key".equals(docType) == false) {
+            listener.onResponse(
+                AuthenticationResult.unsuccessful("document [" + docId + "] is [" + docType + "] not an api key", null));
+        } else if (invalidated == null) {
+            listener.onResponse(AuthenticationResult.unsuccessful("api key document is missing invalidated field", null));
         } else if (invalidated) {
-            listener.onResponse(AuthenticationResult.terminate("api key has been invalidated", null));
+            listener.onResponse(AuthenticationResult.unsuccessful("api key has been invalidated", null));
         } else {
             final String apiKeyHash = (String) source.get("api_key_hash");
             if (apiKeyHash == null) {
@@ -478,7 +484,7 @@ public class ApiKeyService {
                                 listener.onResponse(AuthenticationResult.unsuccessful("invalid credentials", null));
                             } else {
                                 apiKeyAuthCache.invalidate(credentials.getId(), listenableCacheEntry);
-                                validateApiKeyCredentials(source, credentials, clock, listener);
+                                validateApiKeyCredentials(docId, source, credentials, clock, listener);
                             }
                         }, listener::onFailure),
                         threadPool.generic(), threadPool.getThreadContext());
@@ -528,7 +534,7 @@ public class ApiKeyService {
             authResultMetadata.put(API_KEY_ID_KEY, credentials.getId());
             listener.onResponse(AuthenticationResult.success(apiKeyUser, authResultMetadata));
         } else {
-            listener.onResponse(AuthenticationResult.terminate("api key is expired", null));
+            listener.onResponse(AuthenticationResult.unsuccessful("api key is expired", null));
         }
     }
 

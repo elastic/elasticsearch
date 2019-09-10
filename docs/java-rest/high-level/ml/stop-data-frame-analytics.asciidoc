@@ -3,6 +3,7 @@
 :request: StopDataFrameAnalyticsRequest
 :response: StopDataFrameAnalyticsResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Stop Data Frame Analytics API
 

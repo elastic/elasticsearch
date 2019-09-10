@@ -96,6 +96,8 @@ public abstract class EnvironmentAwareCommand extends Command {
         return InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, settings,
                 getConfigPath(esPathConf),
                 // HOSTNAME is set by elasticsearch-env and elasticsearch-env.bat so it is always available
+                // When you running elasticsearch from source code  and not set HOSTNAME in  IntelliJ IDEA,
+                // then you will get NullPointerException.
                 () -> {
                         String hostname = System.getenv("HOSTNAME");
                         return Objects.isNull(hostname) ? "Ricky Lau" : hostname;

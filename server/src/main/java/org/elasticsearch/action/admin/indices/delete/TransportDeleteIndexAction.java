@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.delete;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -47,6 +49,8 @@ import java.util.Set;
  * Delete index action.
  */
 public class TransportDeleteIndexAction extends TransportMasterNodeAction<DeleteIndexRequest, AcknowledgedResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportDeleteIndexAction.class);
 
     private final MetaDataDeleteIndexService deleteIndexService;
     private final DestructiveOperations destructiveOperations;

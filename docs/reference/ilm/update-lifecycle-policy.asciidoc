@@ -25,7 +25,7 @@ If an index is assigned to the policy, it will be assigned the latest version of
 
 To show this, let's create a policy `my_policy`.
 
-[source,js]
+[source,console]
 ------------------------
 PUT _ilm/policy/my_policy
 {
@@ -48,7 +48,6 @@ PUT _ilm/policy/my_policy
   }
 }
 ------------------------
-// CONSOLE
 
 This newly defined policy will be created and assigned to have a version equal
 to 1. Since we haven't assigned any indices to this policy, any updates that
@@ -57,7 +56,7 @@ by this policy.
 
 Updating the Delete phase's minimum age can be done in an update request.
 
-[source,js]
+[source,console]
 ------------------------
 PUT _ilm/policy/my_policy
 {
@@ -80,23 +79,22 @@ PUT _ilm/policy/my_policy
   }
 }
 ------------------------
-// CONSOLE
 // TEST[continued]
+
 <1> update `min_age` to 10 days
 
 //////////
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ilm/policy/my_policy
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 //////////
 
 When we get the policy, we will see it reflect our latest changes, but
 with its version bumped to 2.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "my_policy": {
@@ -123,8 +121,8 @@ with its version bumped to 2.
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTRESPONSE[s/"modified_date": 82392349/"modified_date": $body.my_policy.modified_date/]
+
 <1> The updated version value
 <2> The timestamp when this policy was updated last.
 
@@ -140,7 +138,7 @@ indices that are currently executing the corresponding `hot` phase.
 
 Let's say we have an index `my_index` managed by the below `my_executing_policy` definition.
 
-[source,js]
+[source,console]
 ------------------------
 PUT _ilm/policy/my_executing_policy
 {
@@ -163,10 +161,9 @@ PUT _ilm/policy/my_executing_policy
   }
 }
 ------------------------
-// CONSOLE
 
 ////
-[source,js]
+[source,console]
 ------------------------
 PUT my_index
 {
@@ -175,21 +172,19 @@ PUT my_index
   }
 }
 ------------------------
-// CONSOLE
 // TEST[continued]
 ////
 
 The <<ilm-explain-lifecycle,Explain API>> is useful to introspect managed indices to see which phase definition they are currently executing.
 Using this API, we can find out that `my_index` is currently checking if it is ready to be rolled over.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET my_index/_ilm/explain
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "indices": {
@@ -222,12 +217,11 @@ GET my_index/_ilm/explain
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTRESPONSE[skip:no way to know if we will get this response immediately]
 
 We can update `my_executing_policy` to enter the hot phase after one day.
 
-[source,js]
+[source,console]
 ------------------------
 PUT _ilm/policy/my_executing_policy
 {
@@ -251,23 +245,22 @@ PUT _ilm/policy/my_executing_policy
   }
 }
 ------------------------
-// CONSOLE
 // TEST[continued]
+
 <1> updated `min_age` from "0ms" to "1d"
 
 The index `my_index` has already entered the hot phase, so it will still
 use version 1 of the policy until it completes the hot phase.
 
 ////
-[source,js]
+[source,console]
 --------------------------------------------------
 GET my_index/_ilm/explain
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 ////
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "indices": {
@@ -300,14 +293,14 @@ GET my_index/_ilm/explain
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTRESPONSE[skip:no way to know if we will get this response immediately]
+
 <1> the version of the policy used for executing the hot phase
 
 We can also update `my_executing_policy` to have no rollover action and,
 instead, go directly into a newly introduced `warm` phase.
 
-[source,js]
+[source,console]
 ------------------------
 PUT _ilm/policy/my_executing_policy
 {
@@ -331,7 +324,6 @@ PUT _ilm/policy/my_executing_policy
   }
 }
 ------------------------
-// CONSOLE
 // TEST[continued]
 
 Now, version 3 of this policy has no `hot` phase, but if we run the
@@ -339,15 +331,14 @@ Explain API again, we will see that nothing has changed. The index
 `my_index` is still executing version 1 of the policy.
 
 ////
-[source,js]
+[source,console]
 --------------------------------------------------
 GET my_index/_ilm/explain
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 ////
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "indices": {
@@ -380,8 +371,8 @@ GET my_index/_ilm/explain
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTRESPONSE[skip:no way to know if we will get this response immediately]
+
 <1> the version of the policy used for executing the hot phase
 
 After indexing one document into `my_index` so that rollover succeeds and
@@ -389,7 +380,7 @@ moves onto the next phase, we will notice something new. The index will
 move into the next phase in the updated version 3 of its policy.
 
 ////
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index/_doc/1
 {
@@ -398,11 +389,10 @@ PUT my_index/_doc/1
 
 GET my_index/_ilm/explain
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 ////
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "indices": {
@@ -435,8 +425,8 @@ GET my_index/_ilm/explain
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTRESPONSE[skip:There is no way to force the index to move to the next step in a timely manner]
+
 <1> The index has moved to using version 3 of the policy
 
 `my_index` will move to the next phase in the latest policy definition, which is the newly added `warm` phase.
@@ -453,7 +443,7 @@ it will move on to the next phase in `my_other_policy`. So if it was on the
 `hot` phase before, it will move to the `delete` phase after the `hot` phase concluded.
 
 ////
-[source,js]
+[source,console]
 ------------------------
 PUT _ilm/policy/my_policy
 {
@@ -497,18 +487,16 @@ PUT my_index
   }
 }
 ------------------------
-// CONSOLE
 
 ////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index/_settings
 {
   "lifecycle.name": "my_other_policy"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The change to the new policy will not happen immediately. The currently executing phase

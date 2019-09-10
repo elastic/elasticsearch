@@ -67,6 +67,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.index.shard.ShardId;
@@ -124,6 +125,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 public class AsyncBulkByScrollActionTests extends ESTestCase {
     private MyMockClient client;
@@ -710,11 +712,46 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
     }
 
+    public void testCheckpointListener() throws Exception {
+        long initialRestartFromValue = randomLongBetween(0, 1000);
+        ScrollableHitSource.Checkpoint initialCheckpoint = new ScrollableHitSource.Checkpoint(initialRestartFromValue);
+        AtomicReference<ScrollableHitSource.Checkpoint> resultCheckpoint = new AtomicReference<>();
+        AtomicReference<BulkByScrollTask.Status> resultStatus = new AtomicReference<>();
+        DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction(SeqNoFieldMapper.NAME, initialCheckpoint, (c, s) -> {
+            assertTrue(resultCheckpoint.compareAndSet(null, c));
+            assertTrue(resultStatus.compareAndSet(null, s));
+        }) {
+            @Override
+            protected RequestWrapper<?> buildRequest(Hit doc) {
+                return wrap(new IndexRequest().index("test"));
+            }
+        };
+
+        ScrollableHitSource.BasicHit hit = new ScrollableHitSource.BasicHit("index", "type", "id", 0);
+        hit.setSource(new BytesArray("{}"), XContentType.JSON);
+        hit.setSeqNo(randomLongBetween(initialRestartFromValue, 2000));
+        ScrollableHitSource.Response response = new ScrollableHitSource.Response(false, emptyList(), 1, singletonList(hit), null);
+
+        simulateScrollResponse(action, timeValueNanos(System.nanoTime()), randomIntBetween(1,1000), response, () -> {});
+
+        assertBusy(() -> {
+            assertNotNull(resultCheckpoint.get());
+            assertEquals(hit.getSeqNo(), resultCheckpoint.get().restartFromValue);
+            assertNotNull(resultStatus.get());
+            assertEquals(1, resultStatus.get().getCreated());
+        });
+    }
+
     /**
      * Simulate a scroll response by setting the scroll id and firing the onScrollResponse method.
      */
     private void simulateScrollResponse(DummyAsyncBulkByScrollAction action, TimeValue lastBatchTime, int lastBatchSize,
-            ScrollableHitSource.Response response) {
+                                        ScrollableHitSource.Response response) {
+        simulateScrollResponse(action, lastBatchTime, lastBatchSize, response, Assert::fail);
+    }
+
+    private void simulateScrollResponse(DummyAsyncBulkByScrollAction action, TimeValue lastBatchTime, int lastBatchSize,
+            ScrollableHitSource.Response response, Runnable doneHandler) {
         action.setScroll(scrollId());
         action.onScrollResponse(lastBatchTime, lastBatchSize, new ScrollableHitSource.AsyncResponse() {
             @Override
@@ -724,12 +761,13 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
             @Override
             public ScrollableHitSource.Checkpoint getCheckpoint() {
-                return null;
+                assertThat(response.getHits(), not(empty()));
+                return new ScrollableHitSource.Checkpoint(response.getHits().get(response.getHits().size()-1).getSeqNo());
             }
 
             @Override
             public void done(TimeValue extraKeepAlive) {
-                fail();
+                doneHandler.run();
             }
         });
     }
@@ -740,6 +778,12 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             super(testTask, randomBoolean(), randomBoolean(), AsyncBulkByScrollActionTests.this.logger,
                 new ParentTaskAssigningClient(client, localNode, testTask), client.threadPool(), testRequest, listener,
                 null, null, null, null, null);
+        }
+        DummyAsyncBulkByScrollAction(String restartFromField, ScrollableHitSource.Checkpoint checkpoint,
+                                     Reindexer.CheckpointListener checkpointListener) {
+            super(testTask, randomBoolean(), randomBoolean(), AsyncBulkByScrollActionTests.this.logger,
+                new ParentTaskAssigningClient(client, localNode, testTask), client.threadPool(), testRequest, listener,
+                null, null, restartFromField, checkpoint, checkpointListener);
         }
 
         @Override

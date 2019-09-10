@@ -896,6 +896,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             float minWeight = Float.POSITIVE_INFINITY;
             ModelNode minNode = null;
             Decision decision = null;
+            ModelNode delayNode = null;
+            Decision delayNodeDecision = null;
             if (throttledNodes.size() >= nodes.size() && explain == false) {
                 // all nodes are throttled, so we know we won't be able to allocate this round,
                 // so if we are not in explain mode, short circuit
@@ -923,6 +925,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     nodeExplanationMap.put(node.getNodeId(),
                         new NodeAllocationResult(node.getRoutingNode().node(), currentDecision, 0));
                     nodeWeights.add(Tuple.tuple(node.getNodeId(), currentWeight));
+                }
+                if (shard.unassignedInfo().getReason() == UnassignedInfo.Reason.NODE_LEFT
+                        && shard.unassignedInfo().getDetails().indexOf(node.getNodeId()) != -1) {
+                    delayNode = node;
+                    delayNodeDecision = currentDecision;
                 }
                 if (currentDecision.type() == Type.YES || currentDecision.type() == Type.THROTTLE) {
                     final boolean updateMinNode;
@@ -963,6 +970,24 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 // decision was not set and a node was not assigned, so treat it as a NO decision
                 decision = Decision.NO;
             }
+
+            // avoid allocating shard to other nodes before INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING
+            if (decision.type() == Type.YES || decision.type() == Type.THROTTLE) {
+                if (shard.unassignedInfo().getReason() == UnassignedInfo.Reason.NODE_LEFT
+                        && shard.unassignedInfo().isDelayed()) {
+                    if (delayNode == null) {
+                        return AllocateUnassignedDecision.no(AllocationStatus.DECIDERS_NO, null);
+                    } else if (!minNode.getNodeId().equals(delayNode.getNodeId())) {
+                        if (delayNodeDecision.type() == Type.YES || delayNodeDecision.type() == Type.THROTTLE) {
+                            minNode = delayNode;
+                            decision = delayNodeDecision;
+                        } else {
+                            return AllocateUnassignedDecision.no(AllocationStatus.DECIDERS_NO, null);
+                        }
+                    }
+                }
+            }
+
             List<NodeAllocationResult> nodeDecisions = null;
             if (explain) {
                 nodeDecisions = new ArrayList<>();

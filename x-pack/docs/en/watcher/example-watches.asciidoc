@@ -1,3 +1,4 @@
+[role="xpack"]
 [[example-watches]]
 == Example Watches
 The following examples show how to set up watches to:

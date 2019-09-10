@@ -60,10 +60,6 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
         final Task task = taskManager.register(channel.getChannelType(), action, request);
         boolean success = false;
         try {
-            //TODO REMOVE THIS!!!
-            if (action.contains("search")) {
-                Thread.sleep(10000L);
-            }
             handler.messageReceived(request, new TaskTransportChannel(taskManager, task, channel), task);
             success = true;
         } finally {

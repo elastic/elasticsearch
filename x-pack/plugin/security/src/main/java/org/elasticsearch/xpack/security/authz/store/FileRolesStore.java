@@ -211,7 +211,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
     }
 
     public static Map<String, RoleDescriptor> parseRoleDescriptors(Path path, Logger logger, boolean resolvePermission, Settings settings,
-                                                                   ScriptService scriptService, NamedXContentRegistry xContentRegistry) {
+                                                                   NamedXContentRegistry xContentRegistry) {
         if (logger == null) {
             logger = NoOpLogger.INSTANCE;
         }

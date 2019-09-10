@@ -50,4 +50,5 @@ public class AdoptOpenJdkDownloadPluginIT extends JdkDownloadPluginIT {
             return stream.readAllBytes();
         }
     }
+
 }

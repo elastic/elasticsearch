@@ -41,6 +41,12 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.function.Function;
 
+/**
+ * A custom task that explodes a tar archive that preserves symbolic links.
+ *
+ * This task is necessary because the built-in task {@link org.gradle.api.internal.file.archive.TarFileTree} does not preserve symbolic
+ * links.
+ */
 public class SymbolicLinkPreservingUntarTask extends DefaultTask {
 
     private final RegularFileProperty tarFile;
@@ -77,6 +83,7 @@ public class SymbolicLinkPreservingUntarTask extends DefaultTask {
         getProject().getRootProject().delete(extractPath);
         try (TarArchiveInputStream tar =
                  new TarArchiveInputStream(new GzipCompressorInputStream(new FileInputStream(tarFile.getAsFile().get())))) {
+            final Path destinationPath = extractPath.get().getAsFile().toPath();
             TarArchiveEntry entry = tar.getNextTarEntry();
             while (entry != null) {
                 final Path relativePath = transform.apply(entry.getName());
@@ -84,7 +91,8 @@ public class SymbolicLinkPreservingUntarTask extends DefaultTask {
                     entry = tar.getNextTarEntry();
                     continue;
                 }
-                final Path destination = extractPath.get().getAsFile().toPath().resolve(relativePath);
+
+                final Path destination = destinationPath.resolve(relativePath);
                 final Path parent = destination.getParent();
                 if (Files.exists(parent) == false) {
                     Files.createDirectories(parent);

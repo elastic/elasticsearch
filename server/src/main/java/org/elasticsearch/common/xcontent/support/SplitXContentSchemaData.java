@@ -270,8 +270,8 @@ public final class SplitXContentSchemaData {
                     }
                 } else {
                     double asDouble = asBigDecimal.doubleValue();
-                    // TODO: Is there a better way?
-                    if (asBigDecimal.toString().equals(Double.toString(asDouble))) {
+                    // TODO: make it faster
+                    if (asBigDecimal.equals(new BigDecimal(Double.toString(asDouble)))) {
                         return asDouble;
                     } else {
                         return asBigDecimal;

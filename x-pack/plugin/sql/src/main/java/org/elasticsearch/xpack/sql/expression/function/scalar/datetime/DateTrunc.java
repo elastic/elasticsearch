@@ -199,7 +199,7 @@ public class DateTrunc extends BinaryScalarFunction {
 
         if (left().foldable()) {
             String truncateToValue = (String) left().fold();
-            if (DatePart.resolveTruncate(truncateToValue) == null) {
+            if (truncateToValue != null && DatePart.resolveTruncate(truncateToValue) == null) {
                 List<String> similar = DatePart.findSimilar(truncateToValue);
                 if (similar.isEmpty()) {
                     return new TypeResolution(format(null, "first argument of [{}] must be one of {} or their aliases, found value [{}]",

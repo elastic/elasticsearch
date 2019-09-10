@@ -166,6 +166,57 @@ FROM test_emp WHERE emp_no >= 10032 AND emp_no <= 10042 ORDER BY 1;
 10042   | null                    | null                     | null                     | null                     | null                     | null                     | null                     | null                     | null
 ;
 
+selectDateTruncWithNullTruncateField
+SELECT DATE_TRUNC(null, birth_date) AS dt FROM test_emp LIMIT 5;
+
+ dt:ts
+------
+null
+null
+null
+null
+null
+;
+
+selectDateTruncWithScalars
+SELECT birth_date, DATE_TRUNC(CAST(CHAR(109) AS VARCHAR), birth_date + INTERVAL 12 YEAR) AS dt FROM test_emp ORDER BY 1 DESC LIMIT 5;
+
+     birth_date:Ts       |         dt:ts
+-------------------------+---------------------
+1965-01-03 00:00:00.000Z | 1977-01-01 00:00:00.000Z
+1964-10-18 00:00:00.000Z | 1976-10-01 00:00:00.000Z
+1964-06-11 00:00:00.000Z | 1976-06-01 00:00:00.000Z
+1964-06-02 00:00:00.000Z | 1976-06-01 00:00:00.000Z
+1964-04-18 00:00:00.000Z | 1976-04-01 00:00:00.000Z
+;
+
+selectDateTruncWithTruncArgFromField
+SELECT DATE_TRUNC(CONCAT(gender, 'illennium'), birth_date) AS dt FROM test_emp WHERE gender='M' ORDER BY 1 DESC LIMIT 2;
+
+     dt:ts
+------------------------
+0999-12-27 00:00:00.000Z
+0999-12-27 00:00:00.000Z
+;
+
+selectDateTruncWithComplexExpressions
+SELECT gender, birth_date, DATE_TRUNC(CASE WHEN gender = 'M' THEN CONCAT(gender, 'onths') WHEN gender = 'F' THEN 'decade' ELSE 'quarter' END,
+birth_date + INTERVAL 10 month) AS dt FROM test_emp WHERE dt > '1954-07-01'::date ORDER BY emp_no LIMIT 10;
+
+   gender:s |   birth_date:ts          |   dt:ts
+------------+--------------------------+---------------------
+F           | 1964-06-02 00:00:00.000Z | 1960-01-01 00:00:00.000Z
+M           | 1959-12-03 00:00:00.000Z | 1960-10-01 00:00:00.000Z
+M           | 1954-05-01 00:00:00.000Z | 1955-03-01 00:00:00.000Z
+M           | 1955-01-21 00:00:00.000Z | 1955-11-01 00:00:00.000Z
+M           | 1958-02-19 00:00:00.000Z | 1958-12-01 00:00:00.000Z
+null        | 1963-06-01 00:00:00.000Z | 1964-04-01 00:00:00.000Z
+null        | 1960-10-04 00:00:00.000Z | 1961-07-01 00:00:00.000Z
+null        | 1963-06-07 00:00:00.000Z | 1964-04-01 00:00:00.000Z
+null        | 1956-02-12 00:00:00.000Z | 1956-10-01 00:00:00.000Z
+null        | 1959-08-19 00:00:00.000Z | 1960-04-01 00:00:00.000Z
+;
+
 dateTruncOrderBy
 schema::emp_no:i|hire_date:ts|dt:ts
 SELECT emp_no, hire_date, DATE_TRUNC('quarter', hire_date) as dt FROM test_emp ORDER BY dt NULLS LAST, emp_no LIMIT 5;

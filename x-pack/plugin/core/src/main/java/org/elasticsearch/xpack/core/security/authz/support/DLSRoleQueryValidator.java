@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
@@ -31,14 +32,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * This class helps in evaluating the query field if it is template
- * and checking if the query type is allowed to be used in DLS role query.
+ * This class helps in evaluating the query field if it is template,
+ * validating the query and checking if the query type is allowed to be used in DLS role query.
  */
-public class DLSRoleQueryValidator {
+public final class DLSRoleQueryValidator {
+
+    private DLSRoleQueryValidator() {
+    }
 
     /**
-     * Evaluates the query field in the {@link RoleDescriptor.IndicesPrivileges} only if it is not a template
-     * query.<br>
+     * Validates the query field in the {@link RoleDescriptor.IndicesPrivileges} only if it is not a template query.<br>
      * It parses the query and builds the {@link QueryBuilder}, also checks if the query type is supported in DLS role query.
      *
      * @param indicesPrivileges {@link RoleDescriptor.IndicesPrivileges}
@@ -63,7 +66,7 @@ public class DLSRoleQueryValidator {
 
     private static boolean isTemplateQuery(BytesReference query, NamedXContentRegistry xContentRegistry) {
         try {
-            try (XContentParser parser = XContentFactory.xContent(query.utf8ToString()).createParser(xContentRegistry,
+            try (XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry,
                 LoggingDeprecationHandler.INSTANCE, query.utf8ToString())) {
                 expectedToken(parser.nextToken(), parser, XContentParser.Token.START_OBJECT);
                 expectedToken(parser.nextToken(), parser, XContentParser.Token.FIELD_NAME);

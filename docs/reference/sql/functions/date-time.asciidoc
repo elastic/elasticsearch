@@ -261,10 +261,10 @@ DATE_TRUNC(
 
 *Input*:
 
-<1> string expression denoting the unit to which the date/datetime should be truncated
+<1> string expression denoting the unit to which the date/datetime should be truncated to
 <2> date/datetime expression
 
-*Output*: date/datetime, same as datetime_exp
+*Output*: date/datetime, same as `datetime_exp`
 
 .Description:
 

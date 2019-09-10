@@ -414,11 +414,10 @@ public class JsonXContentGenerator implements XContentGenerator {
         if (parser.currentToken() == null) {
             parser.nextToken();
         }
-        if (parser instanceof JsonXContentParser) {
-            generator.copyCurrentStructure(((JsonXContentParser) parser).parser);
-        } else {
-            copyCurrentStructure(this, parser);
-        }
+        // We don't optimize by forwarding to the wrapped generator due to
+        // information loss with floating-point numbers that can't be
+        // represented as a double.
+        copyCurrentStructure(this, parser);
     }
 
     /**

@@ -22,7 +22,7 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
     public static final StepKey KEY = new StepKey(INITIALIZATION_PHASE, "init", "init");
     private static final Logger logger = LogManager.getLogger(InitializePolicyContextStep.class);
 
-    public InitializePolicyContextStep(Step.StepKey key, StepKey nextStepKey) {
+    InitializePolicyContextStep(Step.StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
     }
 
@@ -44,6 +44,7 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
 
         LifecycleExecutionState.Builder newCustomData = LifecycleExecutionState.builder(lifecycleState);
         newCustomData.setIndexCreationDate(indexMetaData.getCreationDate());
+        newCustomData.setIndexOriginationDate(indexMetaData.getOriginationDate());
         newClusterStateBuilder.metaData(MetaData.builder(clusterState.getMetaData()).put(IndexMetaData
             .builder(indexMetaData)
             .putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap())));

@@ -208,6 +208,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
     public static final String SETTING_VERSION_UPGRADED = "index.version.upgraded";
     public static final String SETTING_VERSION_UPGRADED_STRING = "index.version.upgraded_string";
     public static final String SETTING_CREATION_DATE = "index.creation_date";
+    public static final String SETTING_LIFECYCLE_ORIGINATION_DATE = "index.lifecycle.origination_date";
+
     /**
      * The user provided name for an index. This is the plain string provided by the user when the index was created.
      * It might still contain date math expressions etc. (added in 5.0)
@@ -217,6 +219,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
     public static final Setting<Integer> INDEX_PRIORITY_SETTING =
         Setting.intSetting("index.priority", 1, 0, Property.Dynamic, Property.IndexScope);
     public static final String SETTING_CREATION_DATE_STRING = "index.creation_date_string";
+    public static final String SETTING_LIFECYLE_ORIGINATION_DATE_STRING = "index.lifecyle.origination_date_string";
     public static final String SETTING_INDEX_UUID = "index.uuid";
     public static final String SETTING_DATA_PATH = "index.data_path";
     public static final Setting<String> INDEX_DATA_PATH_SETTING =
@@ -283,7 +286,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
     private final long mappingVersion;
 
     private final long settingsVersion;
-    
+
     private final long aliasesVersion;
 
     private final long[] primaryTerms;
@@ -437,6 +440,10 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
 
     public long getCreationDate() {
         return settings.getAsLong(SETTING_CREATION_DATE, -1L);
+    }
+
+    public long getOriginationDate() {
+        return settings.getAsLong(SETTING_LIFECYCLE_ORIGINATION_DATE, -1L);
     }
 
     public State getState() {
@@ -954,6 +961,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             return this;
         }
 
+        public Builder lifecycleOriginationDate(long originationDate) {
+            settings = Settings.builder().put(settings).put(SETTING_LIFECYCLE_ORIGINATION_DATE, originationDate).build();
+            return this;
+        }
+
         public Builder settings(Settings.Builder settings) {
             return settings(settings.build());
         }
@@ -1042,25 +1054,25 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             this.mappingVersion = mappingVersion;
             return this;
         }
-        
+
         public long settingsVersion() {
             return settingsVersion;
         }
-        
+
         public Builder settingsVersion(final long settingsVersion) {
             this.settingsVersion = settingsVersion;
             return this;
         }
-        
+
         public long aliasesVersion() {
             return aliasesVersion;
         }
-        
+
         public Builder aliasesVersion(final long aliasesVersion) {
             this.aliasesVersion = aliasesVersion;
             return this;
         }
-        
+
         /**
          * returns the primary term for the given shard.
          * See {@link IndexMetaData#primaryTerm(int)} for more information.
@@ -1439,6 +1451,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         if (creationDate != null) {
             ZonedDateTime creationDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(creationDate), ZoneOffset.UTC);
             builder.put(SETTING_CREATION_DATE_STRING, creationDateTime.toString());
+        }
+        Long lifecycleOriginationDate = settings.getAsLong(SETTING_LIFECYCLE_ORIGINATION_DATE, null);
+        if (lifecycleOriginationDate != null) {
+            ZonedDateTime originationDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(lifecycleOriginationDate), ZoneOffset.UTC);
+            builder.put(SETTING_LIFECYLE_ORIGINATION_DATE_STRING, originationDateTime.toString());
         }
         return builder.build();
     }

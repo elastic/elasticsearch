@@ -10,6 +10,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.scheduler.CronSchedule;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_LIFECYCLE_ORIGINATION_DATE;
+
 /**
  * Class encapsulating settings related to Index Lifecycle Management X-Pack Plugin
  */
@@ -29,6 +31,8 @@ public class LifecycleSettings {
         Setting.Property.Dynamic, Setting.Property.IndexScope);
     public static final Setting<Boolean> LIFECYCLE_INDEXING_COMPLETE_SETTING = Setting.boolSetting(LIFECYCLE_INDEXING_COMPLETE, false,
         Setting.Property.Dynamic, Setting.Property.IndexScope);
+    public static final Setting<Long> LIFECYCLE_ORIGINATION_DATE_SETTING =
+        Setting.longSetting(SETTING_LIFECYCLE_ORIGINATION_DATE, -1, -1, Setting.Property.IndexScope, Setting.Property.NodeScope);
 
     public static final Setting<Boolean> SLM_HISTORY_INDEX_ENABLED_SETTING = Setting.boolSetting(SLM_HISTORY_INDEX_ENABLED, true,
         Setting.Property.NodeScope);

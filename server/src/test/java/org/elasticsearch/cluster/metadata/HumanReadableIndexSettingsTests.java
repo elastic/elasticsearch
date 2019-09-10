@@ -34,10 +34,12 @@ public class HumanReadableIndexSettingsTests extends ESTestCase {
         Version versionCreated = randomVersion(random());
         Version versionUpgraded = randomVersion(random());
         long created = System.currentTimeMillis();
+        long lifecycleOriginationDate = System.currentTimeMillis();
         Settings testSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, versionCreated)
                 .put(IndexMetaData.SETTING_VERSION_UPGRADED, versionUpgraded)
                 .put(IndexMetaData.SETTING_CREATION_DATE, created)
+                .put(IndexMetaData.SETTING_LIFECYCLE_ORIGINATION_DATE, lifecycleOriginationDate)
                 .build();
 
         Settings humanSettings = IndexMetaData.addHumanReadableSettings(testSettings);
@@ -46,5 +48,7 @@ public class HumanReadableIndexSettingsTests extends ESTestCase {
         assertEquals(versionUpgraded.toString(), humanSettings.get(IndexMetaData.SETTING_VERSION_UPGRADED_STRING, null));
         ZonedDateTime creationDate = ZonedDateTime.ofInstant(Instant.ofEpochMilli(created), ZoneOffset.UTC);
         assertEquals(creationDate.toString(), humanSettings.get(IndexMetaData.SETTING_CREATION_DATE_STRING, null));
+        ZonedDateTime originationDate = ZonedDateTime.ofInstant(Instant.ofEpochMilli(lifecycleOriginationDate), ZoneOffset.UTC);
+        assertEquals(originationDate.toString(), humanSettings.get(IndexMetaData.SETTING_LIFECYLE_ORIGINATION_DATE_STRING));
     }
 }

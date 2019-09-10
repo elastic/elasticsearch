@@ -68,6 +68,25 @@ public class InitializePolicyContextStepTests extends AbstractStepTestCase<Initi
         assertThat(getIndexLifecycleDate(index, newState), equalTo(creationDate));
     }
 
+    public void testLifecyleOriginationDateSupersedesCreationDate() {
+        long creationDate = 1L;
+        long originationDate = 2L;
+        IndexMetaData indexMetadata = IndexMetaData.builder(randomAlphaOfLength(5))
+            .settings(settings(Version.CURRENT))
+            .creationDate(creationDate)
+            .lifecycleOriginationDate(originationDate)
+            .numberOfShards(1).numberOfReplicas(0).build();
+        MetaData metaData = MetaData.builder()
+            .persistentSettings(settings(Version.CURRENT).build())
+            .put(IndexMetaData.builder(indexMetadata))
+            .build();
+        Index index = indexMetadata.getIndex();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).build();
+        InitializePolicyContextStep step = new InitializePolicyContextStep(null, null);
+        ClusterState newState = step.performAction(index, clusterState);
+        assertThat(getIndexLifecycleDate(index, newState), equalTo(originationDate));
+    }
+
     public void testDoNothing() {
         long creationDate = randomNonNegativeLong();
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();

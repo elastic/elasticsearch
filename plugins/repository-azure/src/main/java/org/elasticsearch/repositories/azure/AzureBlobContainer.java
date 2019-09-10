@@ -40,7 +40,7 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
 import java.nio.file.NoSuchFileException;
-import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
@@ -136,7 +136,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(Collection<String> blobNames) throws IOException {
+    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
         final PlainActionFuture<Void> result = PlainActionFuture.newFuture();
         if (blobNames.isEmpty()) {
             result.onResponse(null);

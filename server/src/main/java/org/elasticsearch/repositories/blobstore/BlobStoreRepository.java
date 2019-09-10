@@ -104,8 +104,10 @@ import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -432,8 +434,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } catch (IllegalStateException | SnapshotException | ElasticsearchParseException ex) {
             logger.warn(() -> new ParameterizedMessage("cannot read snapshot file [{}]", snapshotId), ex);
         }
-        final Set<String> snapMetaFilesToDelete =
-            Set.of(snapshotFormat.blobName(snapshotId.getUUID()), globalMetaDataFormat.blobName(snapshotId.getUUID()));
+        final List<String> snapMetaFilesToDelete =
+            Arrays.asList(snapshotFormat.blobName(snapshotId.getUUID()), globalMetaDataFormat.blobName(snapshotId.getUUID()));
         try {
             blobContainer().deleteBlobsIgnoringIfNotExists(snapMetaFilesToDelete);
         } catch (IOException e) {
@@ -446,7 +448,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 .map(updatedRepositoryData::resolveIndexId).collect(Collectors.toList())).orElse(Collections.emptyList()),
             snapshotId,
             ActionListener.delegateFailure(listener,
-                (l, v) -> cleanupStaleBlobs(foundIndices, Sets.difference(rootBlobs, snapMetaFilesToDelete), updatedRepositoryData, l)));
+                (l, v) -> cleanupStaleBlobs(foundIndices, Sets.difference(rootBlobs, new HashSet<>(snapMetaFilesToDelete)),
+                    updatedRepositoryData, l)));
     }
 
     /**

@@ -50,7 +50,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -162,11 +161,11 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(Collection<String> blobNames) throws IOException {
+    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
         doDeleteBlobs(blobNames, true);
     }
 
-    private void doDeleteBlobs(Collection<String> blobNames, boolean relative) throws IOException {
+    private void doDeleteBlobs(List<String> blobNames, boolean relative) throws IOException {
         if (blobNames.isEmpty()) {
             return;
         }

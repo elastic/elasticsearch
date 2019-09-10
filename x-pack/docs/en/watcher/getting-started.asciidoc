@@ -1,9 +1,10 @@
+[role="xpack"]
 [[watcher-getting-started]]
-== Getting Started with {watcher}
+== Getting started with {watcher}
 
-By default, when you install {es} and {kib}, {xpack} is installed and the 
-{watcher} is enabled. You cannot use {watcher} with the free basic license, but 
-you can try all of the {xpack} features with a <<license-management,trial license>>. 
+TIP: To complete these steps, you must obtain a license that includes the
+{alert-features}. For more information about Elastic license levels, see 
+https://www.elastic.co/subscriptions and <<license-management>>.
 
 [[watch-log-data]]
 To set up a watch to start sending alerts:

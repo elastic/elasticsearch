@@ -1,3 +1,4 @@
+[role="xpack"]
 [[watching-time-series-data]]
 === Watching Time Series Data
 

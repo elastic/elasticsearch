@@ -1,3 +1,4 @@
+[role="xpack"]
 [[customizing-watches]]
 == Customizing Watches
 

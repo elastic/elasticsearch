@@ -1,3 +1,4 @@
+[role="xpack"]
 [[condition-compare]]
 === Compare Condition
 

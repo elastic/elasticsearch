@@ -26,12 +26,17 @@ public class AdoptOpenJdkDownloadPluginIT extends JdkDownloadPluginIT {
 
     @Override
     public String oldJdkVersion() {
-        return "adoptopenjdk-1+99";
+        return "1+99";
     }
 
     @Override
     public String jdkVersion() {
-        return "adoptopenjdk-12.0.2+10";
+        return "12.0.2+10";
+    }
+
+    @Override
+    public String jdkVendor() {
+        return "adoptopenjdk";
     }
 
     @Override

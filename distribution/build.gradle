@@ -393,6 +393,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         "bundled_${platform}" {
           it.platform = platform
           it.version = VersionProperties.bundledJdk
+          it.vendor = VersionProperties.bundledJdkVendor
         }
       }
       return copySpec {

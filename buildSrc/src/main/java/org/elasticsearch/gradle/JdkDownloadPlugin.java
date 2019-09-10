@@ -64,6 +64,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
         project.afterEvaluate(p -> {
             for (Jdk jdk : jdksContainer) {
                 jdk.finalizeValues();
+                String vendor = jdk.getVendor();
                 String version = jdk.getVersion();
                 String platform = jdk.getPlatform();
 
@@ -71,11 +72,11 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                 DependencyHandler dependencies = project.getDependencies();
                 Map<String, Object> depConfig = new HashMap<>();
                 depConfig.put("path", ":"); // root project
-                depConfig.put("configuration", configName("extracted_jdk", version, platform));
+                depConfig.put("configuration", configName("extracted_jdk", vendor, version, platform));
                 dependencies.add(jdk.getConfiguration().getName(), dependencies.project(depConfig));
 
                 // ensure a root level jdk download task exists
-                setupRootJdkDownload(project.getRootProject(), platform, version);
+                setupRootJdkDownload(project.getRootProject(), platform, vendor, version);
             }
         });
 
@@ -95,8 +96,8 @@ public class JdkDownloadPlugin implements Plugin<Project> {
         return (NamedDomainObjectContainer<Jdk>) project.getExtensions().getByName(CONTAINER_NAME);
     }
 
-    private static void setupRootJdkDownload(Project rootProject, String platform, String version) {
-        String extractTaskName = "extract" + capitalize(platform) + "Jdk-" + version;
+    private static void setupRootJdkDownload(Project rootProject, String platform, String vendor, String version) {
+        String extractTaskName = "extract" + capitalize(platform) + "Jdk-" + vendor + "-" + version;
         // NOTE: this is *horrendous*, but seems to be the only way to check for the existence of a registered task
         try {
             rootProject.getTasks().named(extractTaskName);
@@ -112,17 +113,16 @@ public class JdkDownloadPlugin implements Plugin<Project> {
         if (jdkVersionMatcher.matches() == false) {
             throw new IllegalArgumentException("Malformed jdk version [" + version + "]");
         }
-        String jdkDistribution = jdkVersionMatcher.group(1);
-        String jdkVersion = jdkVersionMatcher.group(2) + (jdkVersionMatcher.group(3) != null ? (jdkVersionMatcher.group(3)) : "");
-        String jdkMajor = jdkVersionMatcher.group(2);
-        String jdkBuild = jdkVersionMatcher.group(4);
-        String hash = jdkVersionMatcher.group(6);
+        String jdkVersion = jdkVersionMatcher.group(1) + (jdkVersionMatcher.group(2) != null ? (jdkVersionMatcher.group(2)) : "");
+        String jdkMajor = jdkVersionMatcher.group(1);
+        String jdkBuild = jdkVersionMatcher.group(3);
+        String hash = jdkVersionMatcher.group(5);
 
         // add fake ivy repo for jdk url
-        String repoName = REPO_NAME_PREFIX + version;
+        String repoName = REPO_NAME_PREFIX + vendor + "_" + version;
         RepositoryHandler repositories = rootProject.getRepositories();
         if (rootProject.getRepositories().findByName(repoName) == null) {
-            if (jdkDistribution.equals("adoptopenjdk")) {
+            if (vendor.equals("adoptopenjdk")) {
                 if (hash != null) {
                     throw new IllegalArgumentException("adoptopenjdk versions do not have hashes but was [" + version + "]");
                 }
@@ -139,7 +139,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                     ivyRepo.content(content -> content.includeGroup("adoptopenjdk"));
                 });
             } else {
-                assert jdkDistribution.equals("openjdk") : version;
+                assert vendor.equals("openjdk") : vendor;
                 if (hash != null) {
                     // current pattern since 12.0.1
                     repositories.ivy(ivyRepo -> {
@@ -166,21 +166,21 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
         // add the jdk as a "dependency"
         final ConfigurationContainer configurations = rootProject.getConfigurations();
-        String remoteConfigName = configName(version, platform);
-        String localConfigName = configName("extracted_jdk", version, platform);
+        String remoteConfigName = configName(vendor, version, platform);
+        String localConfigName = configName("extracted_jdk", vendor, version, platform);
         Configuration jdkConfig = configurations.findByName(remoteConfigName);
         if (jdkConfig == null) {
             jdkConfig = configurations.create(remoteConfigName);
             configurations.create(localConfigName);
         }
-        String platformDep = platform.equals("darwin") ? (jdkDistribution.equals("adoptopenjdk") ? "mac" : "osx") : platform;
+        String platformDep = platform.equals("darwin") ? (vendor.equals("adoptopenjdk") ? "mac" : "osx") : platform;
         String extension = platform.equals("windows") ? "zip" : "tar.gz";
-        String jdkDep = jdkDistribution + ":" + platformDep + ":" + jdkVersion + "@" + extension;
-        rootProject.getDependencies().add(configName(version, platform), jdkDep);
+        String jdkDep = vendor + ":" + platformDep + ":" + jdkVersion + "@" + extension;
+        rootProject.getDependencies().add(configName(vendor, version, platform), jdkDep);
 
         // add task for extraction
         final Provider<Directory> extractPath =
-            rootProject.getLayout().getBuildDirectory().dir("jdks/" + jdkDistribution + "-" + jdkVersion + "_" + platform);
+            rootProject.getLayout().getBuildDirectory().dir("jdks/" + vendor + "-" + jdkVersion + "_" + platform);
 
         // delay resolving jdkConfig until runtime
         Supplier<File> jdkArchiveGetter = jdkConfig::getSingleFile;
@@ -269,12 +269,12 @@ public class JdkDownloadPlugin implements Plugin<Project> {
             artifact -> artifact.builtBy(extractTask));
     }
 
-    private static String configName(String version, String platform) {
-        return version + "_" + platform;
+    private static String configName(String vendor, String version, String platform) {
+        return vendor + "_" + version + "_" + platform;
     }
 
-    private static String configName(String prefix, String version, String platform) {
-        return prefix + "_" + version + "_" + platform;
+    private static String configName(String prefix, String vendor, String version, String platform) {
+        return prefix + "_" + vendor + "_" + version + "_" + platform;
     }
 
     private static String capitalize(String s) {

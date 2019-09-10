@@ -45,8 +45,8 @@ public class VersionProperties {
         Properties props = getVersionProperties();
         elasticsearch = props.getProperty("elasticsearch");
         lucene = props.getProperty("lucene");
-        bundledJdk = props.getProperty("bundled_jdk");
         bundledJdkVendor = props.getProperty("bundled_jdk_vendor");
+        bundledJdk = props.getProperty("bundled_jdk");
 
         for (String property : props.stringPropertyNames()) {
             versions.put(property, props.getProperty(property));

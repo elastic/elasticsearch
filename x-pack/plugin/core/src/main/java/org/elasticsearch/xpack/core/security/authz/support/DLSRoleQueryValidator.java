@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.security.authz.support;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;

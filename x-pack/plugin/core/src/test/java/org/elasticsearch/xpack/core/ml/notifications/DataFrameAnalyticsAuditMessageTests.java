@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.dataframe.notifications;
+package org.elasticsearch.xpack.core.ml.notifications;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
@@ -11,18 +11,18 @@ import org.elasticsearch.xpack.core.common.notifications.Level;
 
 import java.util.Date;
 
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.equalTo;
 
-public class DataFrameAuditMessageTests extends AbstractXContentTestCase<DataFrameAuditMessage> {
+public class DataFrameAnalyticsAuditMessageTests extends AbstractXContentTestCase<DataFrameAnalyticsAuditMessage> {
 
     public void testGetJobType() {
-        DataFrameAuditMessage message = createTestInstance();
-        assertThat(message.getJobType(), nullValue());
+        DataFrameAnalyticsAuditMessage message = createTestInstance();
+        assertThat(message.getJobType(), equalTo("data_frame_analytics"));
     }
-
+    
     @Override
-    protected DataFrameAuditMessage doParseInstance(XContentParser parser) {
-        return DataFrameAuditMessage.PARSER.apply(parser, null);
+    protected DataFrameAnalyticsAuditMessage doParseInstance(XContentParser parser) {
+        return DataFrameAnalyticsAuditMessage.PARSER.apply(parser, null);
     }
 
     @Override
@@ -31,8 +31,8 @@ public class DataFrameAuditMessageTests extends AbstractXContentTestCase<DataFra
     }
 
     @Override
-    protected DataFrameAuditMessage createTestInstance() {
-        return new DataFrameAuditMessage(
+    protected DataFrameAnalyticsAuditMessage createTestInstance() {
+        return new DataFrameAnalyticsAuditMessage(
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomAlphaOfLengthBetween(1, 20),
             randomFrom(Level.values()),

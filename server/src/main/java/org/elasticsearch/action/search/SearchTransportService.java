@@ -45,7 +45,7 @@ import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
-import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
@@ -309,7 +309,8 @@ public class SearchTransportService {
 
         transportService.registerRequestHandler(DFS_ACTION_NAME, ThreadPool.Names.SAME, ShardSearchTransportRequest::new,
             (request, channel, task) -> {
-                searchService.executeDfsPhase(request, (SearchTask) task, new ActionListener<SearchPhaseResult>() {
+                searchService.executeDfsPhase(request, (SearchTask) task, taskInfoAwareActionListener(
+                    new ActionListener<SearchPhaseResult>() {
                     @Override
                     public void onResponse(SearchPhaseResult searchPhaseResult) {
                         try {
@@ -327,62 +328,75 @@ public class SearchTransportService {
                             throw new UncheckedIOException(e1);
                         }
                     }
-                });
+                }, transportService.getLocalNode().getId(), task));
             });
         TransportActionProxy.registerProxyAction(transportService, DFS_ACTION_NAME, DfsSearchResult::new);
 
         transportService.registerRequestHandler(QUERY_ACTION_NAME, ThreadPool.Names.SAME, ShardSearchTransportRequest::new,
             (request, channel, task) -> {
-                searchService.executeQueryPhase(request, (SearchTask) task, new ChannelActionListener<>(
-                    channel, QUERY_ACTION_NAME, request));
-            });
+                searchService.executeQueryPhase(request, (SearchTask) task, taskInfoAwareActionListener(
+                    new ChannelActionListener<>(channel, QUERY_ACTION_NAME, request), transportService.getLocalNode().getId(), task));
+                });
         TransportActionProxy.registerProxyActionWithDynamicResponseType(transportService, QUERY_ACTION_NAME,
             (request) -> ((ShardSearchRequest)request).numberOfShards() == 1 ? QueryFetchSearchResult::new : QuerySearchResult::new);
 
         transportService.registerRequestHandler(QUERY_ID_ACTION_NAME, ThreadPool.Names.SAME, QuerySearchRequest::new,
             (request, channel, task) -> {
-                searchService.executeQueryPhase(request, (SearchTask)task, new ChannelActionListener<>(channel, QUERY_ID_ACTION_NAME,
-                    request));
+                searchService.executeQueryPhase(request, (SearchTask)task, taskInfoAwareActionListener(
+                    new ChannelActionListener<>(channel, QUERY_ID_ACTION_NAME, request), transportService.getLocalNode().getId(), task));
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_ID_ACTION_NAME, QuerySearchResult::new);
 
         transportService.registerRequestHandler(QUERY_SCROLL_ACTION_NAME, ThreadPool.Names.SAME, InternalScrollSearchRequest::new,
             (request, channel, task) -> {
-                searchService.executeQueryPhase(request, (SearchTask)task, new ChannelActionListener<>(channel, QUERY_SCROLL_ACTION_NAME,
-                 request));
+                searchService.executeQueryPhase(request, (SearchTask)task, taskInfoAwareActionListener(
+                    new ChannelActionListener<>(channel, QUERY_SCROLL_ACTION_NAME, request),
+                    transportService.getLocalNode().getId(), task));
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_SCROLL_ACTION_NAME, ScrollQuerySearchResult::new);
 
         transportService.registerRequestHandler(QUERY_FETCH_SCROLL_ACTION_NAME, ThreadPool.Names.SAME, InternalScrollSearchRequest::new,
             (request, channel, task) -> {
-                searchService.executeFetchPhase(request, (SearchTask)task, new ChannelActionListener<>(channel,
-                    QUERY_FETCH_SCROLL_ACTION_NAME, request));
+                searchService.executeFetchPhase(request, (SearchTask)task, taskInfoAwareActionListener(
+                    new ChannelActionListener<>(channel, QUERY_FETCH_SCROLL_ACTION_NAME, request),
+                    transportService.getLocalNode().getId(), task));
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_FETCH_SCROLL_ACTION_NAME, ScrollQueryFetchSearchResult::new);
 
         transportService.registerRequestHandler(FETCH_ID_SCROLL_ACTION_NAME, ThreadPool.Names.SAME, ShardFetchRequest::new,
             (request, channel, task) -> {
-                searchService.executeFetchPhase(request, (SearchTask)task, new ChannelActionListener<>(channel,
-                    FETCH_ID_SCROLL_ACTION_NAME, request));
+                searchService.executeFetchPhase(request, (SearchTask)task, taskInfoAwareActionListener(
+                    new ChannelActionListener<>(channel, FETCH_ID_SCROLL_ACTION_NAME, request),
+                    transportService.getLocalNode().getId(), task));
             });
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_SCROLL_ACTION_NAME, FetchSearchResult::new);
 
         transportService.registerRequestHandler(FETCH_ID_ACTION_NAME, ThreadPool.Names.SAME, true, true, ShardFetchSearchRequest::new,
             (request, channel, task) -> {
-                searchService.executeFetchPhase(request, (SearchTask)task, new ChannelActionListener<>(channel, FETCH_ID_ACTION_NAME,
-                    request));
+                searchService.executeFetchPhase(request, (SearchTask)task, taskInfoAwareActionListener(
+                    new ChannelActionListener<>(channel, FETCH_ID_ACTION_NAME, request), transportService.getLocalNode().getId(), task));
             });
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_ACTION_NAME, FetchSearchResult::new);
 
         // this is cheap, it does not fetch during the rewrite phase, so we can let it quickly execute on a networking thread
         transportService.registerRequestHandler(QUERY_CAN_MATCH_NAME, ThreadPool.Names.SAME, ShardSearchTransportRequest::new,
             (request, channel, task) -> {
-                TaskInfo taskInfo = task.taskInfo(transportService.getLocalNode().getId(), false);
-                searchService.canMatch(request, taskInfo, new ChannelActionListener<>(channel, QUERY_CAN_MATCH_NAME, request));
+                searchService.canMatch(request, taskInfoAwareActionListener(
+                    new ChannelActionListener<>(channel, QUERY_CAN_MATCH_NAME, request), transportService.getLocalNode().getId(), task));
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_CAN_MATCH_NAME, SearchService.CanMatchResponse::new);
     }
 
+    private static <R extends SearchPhaseResult> ActionListener<R> taskInfoAwareActionListener(ActionListener<R> delegate,
+                                                                                               String localNodeId,
+                                                                                               Task task) {
+        return ActionListener.map(
+            delegate,
+            r -> {
+                r.setTaskInfo(task.taskInfo(localNodeId, false));
+                return r;
+            });
+    }
 
     /**
      * Returns a connection to the given node on the provided cluster. If the cluster alias is <code>null</code> the node will be resolved

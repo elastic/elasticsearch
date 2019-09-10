@@ -96,7 +96,6 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
-import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -390,7 +389,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             executor.success();
         }
-        return new QueryFetchSearchResult(context.queryResult(), context.fetchResult(), context.getTaskInfo());
+        return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
     }
 
     public void executeQueryPhase(InternalScrollSearchRequest request, SearchTask task, ActionListener<ScrollQuerySearchResult> listener) {
@@ -404,8 +403,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 queryPhase.execute(context);
                 contextProcessedSuccessfully(context);
                 executor.success();
-                TaskInfo taskInfo = task.taskInfo(context.shardTarget().getNodeId(), false);
-                return new ScrollQuerySearchResult(context.queryResult(), context.shardTarget(), taskInfo);
+                return new ScrollQuerySearchResult(context.queryResult(), context.shardTarget());
             } catch (Exception e) {
                 logger.trace("Query phase failed", e);
                 processFailure(context, e);
@@ -478,8 +476,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 queryPhase.execute(context);
                 final long afterQueryTime = executor.success();
                 QueryFetchSearchResult fetchSearchResult = executeFetchPhase(context, afterQueryTime);
-                TaskInfo taskInfo = task.taskInfo(context.shardTarget().getNodeId(), false);
-                return new ScrollQueryFetchSearchResult(fetchSearchResult, context.shardTarget(), taskInfo);
+                return new ScrollQueryFetchSearchResult(fetchSearchResult, context.shardTarget());
             } catch (Exception e) {
                 logger.trace("Fetch phase failed", e);
                 processFailure(context, e);
@@ -1013,9 +1010,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
 
-    public void canMatch(ShardSearchRequest request, TaskInfo taskInfo, ActionListener<CanMatchResponse> listener) {
+    public void canMatch(ShardSearchRequest request, ActionListener<CanMatchResponse> listener) {
         try {
-            CanMatchResponse canMatchResponse = new CanMatchResponse(canMatch(request), taskInfo);
+            CanMatchResponse canMatchResponse = new CanMatchResponse(canMatch(request));
             listener.onResponse(canMatchResponse);
         } catch (IOException e) {
             listener.onFailure(e);
@@ -1076,9 +1073,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             this.canMatch = in.readBoolean();
         }
 
-        public CanMatchResponse(boolean canMatch, TaskInfo taskInfo) {
+        public CanMatchResponse(boolean canMatch) {
             this.canMatch = canMatch;
-            setTaskInfo(taskInfo);
         }
 
         @Override

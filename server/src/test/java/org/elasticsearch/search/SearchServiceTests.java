@@ -627,7 +627,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null);
         Thread currentThread = Thread.currentThread();
         // we still make sure can match is executed on the network thread
-        service.canMatch(req, null, ActionListener.wrap(r -> assertSame(Thread.currentThread(), currentThread), e -> fail("unexpected")));
+        service.canMatch(req, ActionListener.wrap(r -> assertSame(Thread.currentThread(), currentThread), e -> fail("unexpected")));
     }
 
     public void testExpandSearchThrottled() {

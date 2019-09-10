@@ -60,7 +60,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             queryResult.size(1);
             FetchSearchResult fetchResult = new FetchSearchResult();
             fetchResult.hits(new SearchHits(new SearchHit[] {new SearchHit(42)}, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F));
-            QueryFetchSearchResult fetchSearchResult = new QueryFetchSearchResult(queryResult, fetchResult, null);
+            QueryFetchSearchResult fetchSearchResult = new QueryFetchSearchResult(queryResult, fetchResult);
             fetchSearchResult.setShardIndex(0);
             results.consumeResult(fetchSearchResult);
             numHits = 1;

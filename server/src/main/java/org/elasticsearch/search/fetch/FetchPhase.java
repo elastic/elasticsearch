@@ -89,8 +89,6 @@ public class FetchPhase implements SearchPhase {
     @Override
     public void execute(SearchContext context) {
 
-        context.fetchResult().setTaskInfo(context.getTaskInfo());
-
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("{}", new SearchContextSourcePrinter(context));
         }

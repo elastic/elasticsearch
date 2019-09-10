@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.tasks.TaskInfo;
 
 import java.io.IOException;
 
@@ -38,10 +37,9 @@ public final class ScrollQuerySearchResult extends SearchPhaseResult {
         setSearchShardTarget(shardTarget);
     }
 
-    public ScrollQuerySearchResult(QuerySearchResult result, SearchShardTarget shardTarget, TaskInfo taskInfo) {
+    public ScrollQuerySearchResult(QuerySearchResult result, SearchShardTarget shardTarget) {
         this.result = result;
         setSearchShardTarget(shardTarget);
-        setTaskInfo(taskInfo);
     }
 
     @Override

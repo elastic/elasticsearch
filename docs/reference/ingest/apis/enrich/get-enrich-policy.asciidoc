@@ -21,6 +21,15 @@ PUT /_enrich/policy/my-policy
         "enrich_fields": ["first_name", "last_name", "city", "zip", "state"]
     }
 }
+
+PUT /_enrich/policy/other-policy
+{
+    "match": {
+        "indices": "users",
+        "match_field": "email",
+        "enrich_fields": ["first_name", "last_name", "city", "zip", "state"]
+    }
+}
 ----
 ////
 
@@ -37,6 +46,8 @@ GET /_enrich/policy/my-policy
 `GET /_enrich/policy/<enrich-policy>`
 
 `GET /_enrich/policy`
+
+`GET /_enrich/policy1,policy2`
 
 
 [[get-enrich-policy-api-prereqs]]
@@ -98,6 +109,56 @@ The API returns the following response:
 --------------------------------------------------
 
 
+[[get-enrich-policy-api-commas-ex]]
+===== Get multiple policies
+
+[source,js]
+--------------------------------------------------
+GET /_enrich/policy/my-policy,other-policy
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+The API returns the following response:
+
+[source,js]
+--------------------------------------------------
+{
+    "policies": [
+        {
+            "match": {
+                "name" : "my-policy",
+                "indices" : ["users"],
+                "match_field" : "email",
+                "enrich_fields" : [
+                    "first_name",
+                    "last_name",
+                    "city",
+                    "zip",
+                    "state"
+                ]
+            }
+        },
+        {
+            "match": {
+                "name" : "other-policy",
+                "indices" : ["users"],
+                "match_field" : "email",
+                "enrich_fields" : [
+                    "first_name",
+                    "last_name",
+                    "city",
+                    "zip",
+                    "state"
+                ]
+            }
+        }
+    ]
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+
 [[get-enrich-policy-api-all-ex]]
 ===== Get all policies
 
@@ -126,6 +187,20 @@ The API returns the following response:
                     "state"
                 ]
             }
+        },
+        {
+            "match": {
+                "name" : "other-policy",
+                "indices" : ["users"],
+                "match_field" : "email",
+                "enrich_fields" : [
+                    "first_name",
+                    "last_name",
+                    "city",
+                    "zip",
+                    "state"
+                ]
+            }
         }
     ]
 }
@@ -135,6 +210,7 @@ The API returns the following response:
 [source,console]
 --------------------------------------------------
 DELETE /_enrich/policy/my-policy
+DELETE /_enrich/policy/other-policy
 --------------------------------------------------
 // TEST[continued]
 ////

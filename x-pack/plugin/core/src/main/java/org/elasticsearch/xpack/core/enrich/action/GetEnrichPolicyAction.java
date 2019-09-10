@@ -16,6 +16,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -33,17 +35,19 @@ public class GetEnrichPolicyAction extends ActionType<GetEnrichPolicyAction.Resp
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
-        private String name;
+        private final List<String> names;
 
-        public Request() { }
+        public Request() {
+            this.names = new ArrayList<>();
+        }
 
-        public Request(String name) {
-            this.name = name;
+        public Request(String[] names) {
+            this.names = Arrays.asList(names);
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.name = in.readOptionalString();
+            this.names = in.readStringList();
         }
 
         @Override
@@ -51,18 +55,14 @@ public class GetEnrichPolicyAction extends ActionType<GetEnrichPolicyAction.Resp
             return null;
         }
 
-        public String getName() {
-            return name;
-        }
-
-        public void setName(String name) {
-            this.name = name;
+        public List<String> getNames() {
+            return names;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeOptionalString(name);
+            out.writeStringCollection(names);
         }
 
         @Override
@@ -70,12 +70,12 @@ public class GetEnrichPolicyAction extends ActionType<GetEnrichPolicyAction.Resp
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(name, request.name);
+            return Objects.equals(names, request.names);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(name);
+            return Objects.hash(names);
         }
     }
 

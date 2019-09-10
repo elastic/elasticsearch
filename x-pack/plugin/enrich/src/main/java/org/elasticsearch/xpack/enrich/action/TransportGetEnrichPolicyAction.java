@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.enrich.action;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -23,7 +22,7 @@ import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichStore;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 public class TransportGetEnrichPolicyAction extends TransportMasterNodeReadAction<GetEnrichPolicyAction.Request,
@@ -58,15 +57,18 @@ public class TransportGetEnrichPolicyAction extends TransportMasterNodeReadActio
                                    ClusterState state,
                                    ActionListener<GetEnrichPolicyAction.Response> listener) throws Exception {
         Map<String, EnrichPolicy> policies;
-        if (request.getName() == null || request.getName().isEmpty()) {
+        if (request.getNames() == null || request.getNames().isEmpty()) {
             policies = EnrichStore.getPolicies(state);
         } else {
-            EnrichPolicy policy = EnrichStore.getPolicy(request.getName(), state);
-            if (policy == null) {
-                throw new ResourceNotFoundException("Policy [{}] not found", request.getName());
+            policies = new HashMap<>();
+            for (String name: request.getNames()) {
+                if (name.isEmpty() == false) {
+                    EnrichPolicy policy = EnrichStore.getPolicy(name, state);
+                    if (policy != null) {
+                        policies.put(name, policy);
+                    }
+                }
             }
-            policies = Collections.singletonMap(request.getName(), policy);
-
         }
         listener.onResponse(new GetEnrichPolicyAction.Response(policies));
     }
@@ -75,5 +77,4 @@ public class TransportGetEnrichPolicyAction extends TransportMasterNodeReadActio
     protected ClusterBlockException checkBlock(GetEnrichPolicyAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
-
 }

@@ -87,7 +87,7 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
 
             EnrichPolicy.NamedPolicy result =
                 client().execute(GetEnrichPolicyAction.INSTANCE,
-                    new GetEnrichPolicyAction.Request(policyName)).actionGet().getPolicies().get(0);
+                    new GetEnrichPolicyAction.Request(new String[]{policyName})).actionGet().getPolicies().get(0);
             assertThat(result, equalTo(new EnrichPolicy.NamedPolicy(policyName, enrichPolicy)));
             String enrichIndexPrefix = EnrichPolicy.getBaseName(policyName) + "*";
             refresh(enrichIndexPrefix);

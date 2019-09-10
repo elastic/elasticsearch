@@ -155,7 +155,7 @@ specify which one you want to send the email with. For more information, see
 
 The complete watch looks like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _watcher/watch/rss_watch
 {
@@ -203,8 +203,8 @@ PUT _watcher/watch/rss_watch
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/"id" : "threshold_hits"/"source": "return ctx.payload.hits.total.value > params.threshold"/]
+
 <1> Replace `username@example.org` with your email address to receive
     notifications.
 
@@ -213,7 +213,7 @@ PUT _watcher/watch/rss_watch
 To execute a watch immediately (without waiting for the schedule to trigger),
 use the {ref}/watcher-api-execute-watch.html[`_execute` API]:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _watcher/watch/rss_watch/_execute
 {
@@ -224,6 +224,5 @@ POST _watcher/watch/rss_watch/_execute
   "record_execution" : true
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 =================================================

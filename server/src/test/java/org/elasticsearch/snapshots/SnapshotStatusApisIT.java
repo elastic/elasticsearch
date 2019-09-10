@@ -77,6 +77,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         assertEquals(snStatus.getStats().getTime(), snapshotInfo.endTime() - snapshotInfo.startTime());
     }
 
+    @AwaitsFix(bugUrl = "https://gradle-enterprise.elastic.co/s/savzjd7eyqdf6/tests/kyv2y2z3r4v7m-fol5ler4lgsjg")
     public void testStatusAPICallInProgressSnapshot() throws Exception {
         Client client = client();
 

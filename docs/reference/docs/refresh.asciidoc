@@ -83,32 +83,29 @@ many times they modify the shard.
 
 These will create a document and immediately refresh the index so it is visible:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /test/_doc/1?refresh
 {"test": "test"}
 PUT /test/_doc/2?refresh=true
 {"test": "test"}
 --------------------------------------------------
-// CONSOLE
 
 These will create a document without doing anything to make it visible for
 search:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /test/_doc/3
 {"test": "test"}
 PUT /test/_doc/4?refresh=false
 {"test": "test"}
 --------------------------------------------------
-// CONSOLE
 
 This will create a document and wait for it to become visible for search:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /test/_doc/4?refresh=wait_for
 {"test": "test"}
 --------------------------------------------------
-// CONSOLE

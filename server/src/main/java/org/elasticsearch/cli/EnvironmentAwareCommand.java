@@ -32,6 +32,7 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 /** A cli command which requires an {@link org.elasticsearch.env.Environment} to use current paths and settings. */
 public abstract class EnvironmentAwareCommand extends Command {
@@ -95,7 +96,11 @@ public abstract class EnvironmentAwareCommand extends Command {
         return InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, settings,
                 getConfigPath(esPathConf),
                 // HOSTNAME is set by elasticsearch-env and elasticsearch-env.bat so it is always available
-                () -> System.getenv("HOSTNAME"));
+                () -> {
+                        String hostname = System.getenv("HOSTNAME");
+                        return Objects.isNull(hostname) ? "Ricky Lau" : hostname;
+                }
+        );
     }
 
     @SuppressForbidden(reason = "need path to construct environment")

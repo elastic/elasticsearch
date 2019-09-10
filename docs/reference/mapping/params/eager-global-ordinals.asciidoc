@@ -12,10 +12,10 @@ based on its lexicographic order. The field's doc values store only the
 ordinals for each document instead of the original terms, with a separate
 lookup structure to convert between ordinals and terms.
 
-When used during aggregations, ordinals can greatly reduce memory usage. As an
+When used during aggregations, ordinals can greatly improve performance. As an
 example, the `terms` aggregation relies only on ordinals to collect documents
-into buckets, then convert the ordinals back to their original term values
-before returning the result.
+into buckets at the shard-level, then converts the ordinals back to their
+original term values when combining results across shards.
 
 Each index segment defines its own ordinal mapping, but aggregations collect
 data across an entire shard. So to be able to use ordinals for shard-level
@@ -43,10 +43,11 @@ under `fielddata` in the <<cluster-nodes-stats, node stats>> response.
 ==== Loading global ordinals
 
 The global ordinal mapping must be built before ordinals can be used during a
-search. By default, the mapping is loaded at search-time only when ordinals are
-needed. This is is the right approach if you are optimizing for indexing speed.
-However if search performance is a priority, it's recommended to eagerly load
-global ordinals eagerly on fields that will be used in aggregations:
+search. By default, the mapping is loaded at search-time on the first time that
+global ordinals are needed. This is is the right approach if you are optimizing
+for indexing speed, but if search performance is a priority, it's recommended
+to eagerly load global ordinals eagerly on fields that will be used in
+aggregations:
 
 [source,console]
 ------------
@@ -62,12 +63,12 @@ PUT my_index/_mapping
 ------------
 // TEST[s/^/PUT my_index\n/]
 
-Enabling `eager_global_ordinals` shifts the cost of building the mapping
-from search to <<indices-refresh,refresh>>. Specifically, Elasticsearch will
-make sure that global ordinals are built before exposing any changes to the
-content of the index. Elasticsearch will also eagerly build global ordinals
-when creating a new copy of a shard, as can occur when increasing the number
-of replicas or relocating a shard onto a new node.
+When `eager_global_ordinals` is enabled, global ordinals are built when a shard
+is <<indices-refresh, refreshed>> -- Elasticsearch always loads them before
+exposing changes to the content of the index. This shifts the cost of building
+global ordinals from search to index-time. Elasticsearch will also eagerly
+build global ordinals when creating a new copy of a shard, as can occur when
+increasing the number of replicas or relocating a shard onto a new node.
 
 Eager loading can be disabled at any time by updating the `eager_global_ordinals` setting:
 
@@ -96,10 +97,10 @@ global ordinals altogether (more details can be found in the next section).
 
 Usually, global ordinals do not present a large overhead in terms of their
 loading time and memory usage. However, loading global ordinals can be
-expensive on indices with large shards, or if the fields have a high
-cardinality. Because global ordinals provide a unified mapping for all segments
-on the shard, they also need to be rebuilt entirely when a new segment becomes
-visible.
+expensive on indices with large shards, or if the fields contain a large
+number of unique term values. Because global ordinals provide a unified mapping
+for all segments on the shard, they also need to be rebuilt entirely when a new
+segment becomes visible.
 
 In some cases it is possible to avoid global ordinal loading altogether:
 

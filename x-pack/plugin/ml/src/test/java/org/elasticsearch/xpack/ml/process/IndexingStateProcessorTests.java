@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.job.process.autodetect.output;
+package org.elasticsearch.xpack.ml.process;
 
 import com.carrotsearch.randomizedtesting.annotations.Timeout;
 import org.elasticsearch.action.ActionFuture;
@@ -36,7 +36,7 @@ import static org.mockito.Mockito.when;
 /**
  * Tests for reading state from the native process.
  */
-public class AutodetectStateProcessorTests extends ESTestCase {
+public class IndexingStateProcessorTests extends ESTestCase {
 
     private static final String STATE_SAMPLE = ""
             + "{\"index\": {\"_index\": \"test\", \"_id\": \"1\"}}\n"
@@ -55,14 +55,14 @@ public class AutodetectStateProcessorTests extends ESTestCase {
     private static final int LARGE_DOC_SIZE = 1000000;
 
     private Client client;
-    private AutodetectStateProcessor stateProcessor;
+    private IndexingStateProcessor stateProcessor;
 
     @Before
     public void initialize() throws IOException {
         client = mock(Client.class);
         @SuppressWarnings("unchecked")
         ActionFuture<BulkResponse> bulkResponseFuture = mock(ActionFuture.class);
-        stateProcessor = spy(new AutodetectStateProcessor(client, JOB_ID));
+        stateProcessor = spy(new IndexingStateProcessor(client, JOB_ID));
         when(client.bulk(any(BulkRequest.class))).thenReturn(bulkResponseFuture);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);

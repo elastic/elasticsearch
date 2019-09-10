@@ -11,10 +11,12 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.junit.After;
 
 import java.util.Arrays;
@@ -109,6 +111,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Creating destination index [regression_single_numeric_feature_and_mixed_data_set_source_index_results]",
             "Finished reindexing to destination index [regression_single_numeric_feature_and_mixed_data_set_source_index_results]",
             "Finished analysis");
+        assertModelStatePersisted(jobId);
     }
 
     public void testWithOnlyTrainingRowsAndTrainingPercentIsHundred() throws Exception {
@@ -175,6 +178,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Creating destination index [regression_only_training_data_and_training_percent_is_hundred_source_index_results]",
             "Finished reindexing to destination index [regression_only_training_data_and_training_percent_is_hundred_source_index_results]",
             "Finished analysis");
+        assertModelStatePersisted(jobId);
     }
 
     public void testWithOnlyTrainingRowsAndTrainingPercentIsFifty() throws Exception {
@@ -251,5 +255,14 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Creating destination index [regression_only_training_data_and_training_percent_is_fifty_source_index_results]",
             "Finished reindexing to destination index [regression_only_training_data_and_training_percent_is_fifty_source_index_results]",
             "Finished analysis");
+        assertModelStatePersisted(jobId);
+    }
+
+    private void assertModelStatePersisted(String jobId) {
+        String docId = jobId + "_regression_state#1";
+        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
+            .setQuery(QueryBuilders.idsQuery().addIds(docId))
+            .get();
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
     }
 }

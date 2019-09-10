@@ -133,15 +133,15 @@ DATE_TRUNC('mcs', '2019-09-04T11:22:33.123Z'::datetime)::string as dt_micro, DAT
 ;
 
 selectDateTruncWithDate
-schema::dt_mil:date|dt_cent:date|dt_dec:date|dt_year:date|dt_quarter:date|dt_month:date|dt_week:date|dt_day:date
+schema::dt_mil:ts|dt_cent:ts|dt_dec:ts|dt_year:ts|dt_quarter:ts|dt_month:ts|dt_week:ts|dt_day:ts
 SELECT DATE_TRUNC('millennia', '2019-09-04'::date) as dt_mil,  DATE_TRUNC('century', '2019-09-04'::date) as dt_cent,
 DATE_TRUNC('decades', '2019-09-04'::date) as dt_dec,  DATE_TRUNC('year', '2019-09-04'::date) as dt_year,
 DATE_TRUNC('quarter', '2019-09-04'::date) as dt_quarter,  DATE_TRUNC('month', '2019-09-04'::date) as dt_month,
 DATE_TRUNC('week', '2019-09-04'::date) as dt_week,  DATE_TRUNC('day', '2019-09-04'::date) as dt_day;
 
- dt_mil    |  dt_cent   |  dt_dec    |  dt_year   |  dt_quarter |  dt_month  |  dt_week   |  dt_day
------------+------------+------------+------------+-------------+------------+------------+-----------
-2000-01-01 | 2000-01-01 | 2010-01-01 | 2019-01-01 | 2019-07-01  | 2019-09-01 | 2019-09-02 | 2019-09-04
+ dt_mil                  |       dt_cent            |        dt_dec            |        dt_year           |        dt_quarter        |        dt_month          |        dt_week           |        dt_day
+-------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+-------------------------
+2000-01-01T00:00:00.000Z | 2000-01-01T00:00:00.000Z | 2010-01-01T00:00:00.000Z | 2019-01-01T00:00:00.000Z | 2019-07-01T00:00:00.000Z | 2019-09-01T00:00:00.000Z | 2019-09-02T00:00:00.000Z | 2019-09-04T00:00:00.000Z
 ;
 
 selectDateTruncWithField

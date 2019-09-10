@@ -187,7 +187,7 @@ public class DateTrunc extends BinaryScalarFunction {
 
     @Override
     public DataType dataType() {
-        return right().dataType();
+        return DataType.DATETIME;
     }
 
     @Override

@@ -12,7 +12,6 @@
           "parts": {
             "repository": {
               "type": "string",
-              "required" : true,
               "description": "A repository name"
             }
           }

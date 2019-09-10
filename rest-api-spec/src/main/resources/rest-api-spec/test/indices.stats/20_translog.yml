@@ -182,6 +182,9 @@
 ---
 "Translog stats on closed indices with soft-deletes":
   - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/46535"
+  - skip:
       version: " - 7.9.99"
       reason:  "start ignoring translog retention policy with soft-deletes enabled in 8.0"
   - do:

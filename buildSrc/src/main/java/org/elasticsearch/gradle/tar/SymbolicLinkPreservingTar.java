@@ -124,9 +124,9 @@ public class SymbolicLinkPreservingTar extends AbstractArchiveTask {
 
             /*
              * When Gradle walks the file tree, it will follow symbolic links. This means that if there is a symbolic link to a directory
-             * in the source file tree, we could otherwise end up duplicating the entry in the resulting tar archive. To avoid this, we
-             * track which symbolic links we have visited, and skip files that are children of symbolic links that we have already
-             * visited.
+             * in the source file tree, we could otherwise end up duplicating the entries below that directory in the resulting tar archive.
+             * To avoid this, we track which symbolic links we have visited, and skip files that are children of symbolic links that we have
+             * already visited.
              */
             private final Set<File> visitedSymbolicLinks = new HashSet<>();
 

@@ -96,9 +96,9 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
 
-        public static final String ENABLED_DEPRECATION_MESSAGE = "Index [{}] uses the `enabled` setting for `_field_names`, which is no "
-                + "longer necessary. If possible, remove it from your mappings and templates. The setting will be removed in a future "
-                + "major version.";
+        public static final String ENABLED_DEPRECATION_MESSAGE = "Index [{}] uses the deprecated `enabled` setting for `_field_names`. "
+                + "Disabling _field_names is not necessary because it no longer carries a large index overhead. Support for this setting "
+                + "will be removed in a future major version. Please remove it from your mappings and templates.";
 
         @Override
         public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,

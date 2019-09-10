@@ -29,7 +29,7 @@ preserve_original:: if `true` (the default) then emit the original token in
 
 You can set it up like:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /multiplexer_example
 {
@@ -51,11 +51,10 @@ PUT /multiplexer_example
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 And test it like:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /multiplexer_example/_analyze
 {
@@ -63,7 +62,6 @@ POST /multiplexer_example/_analyze
   "text" : "Going HOME"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 And it'd respond:

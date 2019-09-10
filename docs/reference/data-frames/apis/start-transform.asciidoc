@@ -61,11 +61,10 @@ required privileges on the source and destination indices, the
 [[start-data-frame-transform-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _data_frame/transforms/ecommerce_transform/_start
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:set up kibana samples]
 
 When the {dataframe-transform} starts, you receive the following results:

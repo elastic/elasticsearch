@@ -67,7 +67,7 @@ on all the current data in the source index.
 
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _data_frame/transforms/_preview
 {
@@ -92,7 +92,6 @@ POST _data_frame/transforms/_preview
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:set up sample data]
 
 The data that is returned for this example is as follows:

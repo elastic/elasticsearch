@@ -16,7 +16,7 @@ is `false`.
 
 Here is an example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /limit_example
 {
@@ -39,4 +39,3 @@ PUT /limit_example
   }
 }
 --------------------------------------------------
-// CONSOLE

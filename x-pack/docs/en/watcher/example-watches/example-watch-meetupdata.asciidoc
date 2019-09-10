@@ -192,7 +192,8 @@ NOTE: To enable Watcher to send emails, you must configure an email account in `
 
 
 The complete watch looks like this:
-[source,js]
+
+[source,console]
 --------------------------------------------------
 PUT _watcher/watch/meetup
 {
@@ -288,7 +289,6 @@ PUT _watcher/watch/meetup
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> The email body can include Mustache templates to reference data in the watch payload. By default,it will be <<email-html-sanitization, sanitized>> to block dangerous content.
 <2> Replace the `from` address with the email address you configured in `elasticsearch.yml`.
@@ -298,9 +298,8 @@ PUT _watcher/watch/meetup
 Now that you've created your watch, you can use the
 {ref}/watcher-api-execute-watch.html[`_execute` API] to run it without waiting for the schedule to trigger execution:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _watcher/watch/meetup/_execute
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]

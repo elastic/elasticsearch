@@ -3,6 +3,7 @@
 :request: PutCalendarRequest
 :response: PutCalendarResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Put Calendar API
 Creates a new {ml} calendar.

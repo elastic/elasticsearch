@@ -3,6 +3,7 @@
 :request: PutDataFrameAnalyticsRequest
 :response: PutDataFrameAnalyticsResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Put Data Frame Analytics API
 

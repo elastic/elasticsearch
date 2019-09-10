@@ -3,33 +3,33 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.dataframe.notifications;
+package org.elasticsearch.xpack.core.ml.notifications;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 import org.elasticsearch.xpack.core.common.notifications.Level;
-import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.util.Date;
 
-public class DataFrameAuditMessage extends AbstractAuditMessage {
+public class DataFrameAnalyticsAuditMessage extends AbstractAuditMessage {
 
-    private static final ParseField TRANSFORM_ID = new ParseField(DataFrameField.TRANSFORM_ID);
-    public static final ConstructingObjectParser<DataFrameAuditMessage, Void> PARSER =
-        createParser("data_frame_audit_message", DataFrameAuditMessage::new, TRANSFORM_ID);
+    private static final ParseField JOB_ID = Job.ID;
+    public static final ConstructingObjectParser<DataFrameAnalyticsAuditMessage, Void> PARSER =
+        createParser("ml_analytics_audit_message", DataFrameAnalyticsAuditMessage::new, JOB_ID);
 
-    public DataFrameAuditMessage(String resourceId, String message, Level level, Date timestamp, String nodeName) {
+    public DataFrameAnalyticsAuditMessage(String resourceId, String message, Level level, Date timestamp, String nodeName) {
         super(resourceId, message, level, timestamp, nodeName);
     }
 
     @Override
     public final String getJobType() {
-        return null;
+        return "data_frame_analytics";
     }
 
     @Override
     protected String getResourceField() {
-        return TRANSFORM_ID.getPreferredName();
+        return JOB_ID.getPreferredName();
     }
 }

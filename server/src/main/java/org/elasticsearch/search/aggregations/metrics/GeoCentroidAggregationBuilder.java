@@ -39,13 +39,13 @@ import java.io.IOException;
 import java.util.Map;
 
 public class GeoCentroidAggregationBuilder
-        extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.GeoPoint, GeoCentroidAggregationBuilder> {
+        extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Geo, GeoCentroidAggregationBuilder> {
     public static final String NAME = "geo_centroid";
 
     private static final ObjectParser<GeoCentroidAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(GeoCentroidAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareGeoPointFields(PARSER, true, false);
+        ValuesSourceParserHelper.declareGeoFields(PARSER, true, false);
     }
 
     public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
@@ -78,7 +78,7 @@ public class GeoCentroidAggregationBuilder
     }
 
     @Override
-    protected GeoCentroidAggregatorFactory innerBuild(SearchContext context, ValuesSourceConfig<ValuesSource.GeoPoint> config,
+    protected GeoCentroidAggregatorFactory innerBuild(SearchContext context, ValuesSourceConfig<ValuesSource.Geo> config,
             AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         return new GeoCentroidAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metaData);
     }

@@ -36,10 +36,12 @@ public class Point2DWriter extends ShapeTreeWriter {
     // size of a leaf node where searches are done sequentially.
     static final int LEAF_SIZE = 64;
     private final CoordinateEncoder coordinateEncoder;
+    private final CentroidCalculator centroidCalculator;
 
     Point2DWriter(double[] x, double[] y, CoordinateEncoder coordinateEncoder) {
         assert x.length == y.length;
         this.coordinateEncoder = coordinateEncoder;
+        this.centroidCalculator = new CentroidCalculator();
         double top = Double.NEGATIVE_INFINITY;
         double bottom = Double.POSITIVE_INFINITY;
         double negLeft = Double.POSITIVE_INFINITY;
@@ -47,6 +49,7 @@ public class Point2DWriter extends ShapeTreeWriter {
         double posLeft = Double.POSITIVE_INFINITY;
         double posRight = Double.NEGATIVE_INFINITY;
         coords = new double[x.length * K];
+
         for (int i = 0; i < x.length; i++) {
             double xi = x[i];
             double yi = y[i];
@@ -66,6 +69,8 @@ public class Point2DWriter extends ShapeTreeWriter {
             }
             coords[2 * i] = xi;
             coords[2 * i + 1] = yi;
+
+            centroidCalculator.addCoordinate(xi, yi);
         }
         sort(0, x.length - 1, 0);
         this.extent = new Extent(coordinateEncoder.encodeY(top), coordinateEncoder.encodeY(bottom), coordinateEncoder.encodeX(negLeft),
@@ -76,6 +81,8 @@ public class Point2DWriter extends ShapeTreeWriter {
         this.coordinateEncoder = coordinateEncoder;
         coords = new double[] {x, y};
         this.extent = Extent.fromPoint(coordinateEncoder.encodeX(x), coordinateEncoder.encodeY(y));
+        this.centroidCalculator = new CentroidCalculator();
+        centroidCalculator.addCoordinate(x, y);
     }
 
     @Override
@@ -86,6 +93,11 @@ public class Point2DWriter extends ShapeTreeWriter {
     @Override
     public ShapeType getShapeType() {
         return ShapeType.MULTIPOINT;
+    }
+
+    @Override
+    public CentroidCalculator getCentroidCalculator() {
+        return centroidCalculator;
     }
 
     @Override

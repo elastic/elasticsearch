@@ -34,14 +34,17 @@ import java.util.Optional;
  */
 public class GeometryTreeReader {
 
+    private final int extentOffset = 8;
     private final ByteBufferStreamInput input;
+    private final CoordinateEncoder coordinateEncoder;
 
-    public GeometryTreeReader(BytesRef bytesRef) {
+    public GeometryTreeReader(BytesRef bytesRef, CoordinateEncoder coordinateEncoder) {
         this.input = new ByteBufferStreamInput(ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length));
+        this.coordinateEncoder = coordinateEncoder;
     }
 
     public Extent getExtent() throws IOException {
-        input.position(0);
+        input.position(extentOffset);
         Extent extent = input.readOptionalWriteable(Extent::new);
         if (extent != null) {
             return extent;
@@ -52,8 +55,18 @@ public class GeometryTreeReader {
         return reader.getExtent();
     }
 
-    public boolean intersects(Extent extent) throws IOException {
+    public double getCentroidX() throws IOException {
         input.position(0);
+        return coordinateEncoder.decodeX(input.readInt());
+    }
+
+    public double getCentroidY() throws IOException {
+        input.position(4);
+        return coordinateEncoder.decodeY(input.readInt());
+    }
+
+    public boolean intersects(Extent extent) throws IOException {
+        input.position(extentOffset);
         boolean hasExtent = input.readBoolean();
         if (hasExtent) {
             Optional<Boolean> extentCheck = EdgeTreeReader.checkExtent(new Extent(input), extent);

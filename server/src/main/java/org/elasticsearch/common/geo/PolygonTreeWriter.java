@@ -35,8 +35,8 @@ public class PolygonTreeWriter extends ShapeTreeWriter {
     private final EdgeTreeWriter holes;
 
     public PolygonTreeWriter(double[] x, double[] y, List<double[]> holesX, List<double[]> holesY, CoordinateEncoder coordinateEncoder) {
-        outerShell = new EdgeTreeWriter(x, y, coordinateEncoder);
-        holes = holesX.isEmpty() ? null : new EdgeTreeWriter(holesX, holesY, coordinateEncoder);
+        outerShell = new EdgeTreeWriter(x, y, coordinateEncoder, true);
+        holes = holesX.isEmpty() ? null : new EdgeTreeWriter(holesX, holesY, coordinateEncoder, true);
     }
 
     public Extent getExtent() {
@@ -45,6 +45,11 @@ public class PolygonTreeWriter extends ShapeTreeWriter {
 
     public ShapeType getShapeType() {
         return ShapeType.POLYGON;
+    }
+
+    @Override
+    public CentroidCalculator getCentroidCalculator() {
+        return outerShell.getCentroidCalculator();
     }
 
     @Override

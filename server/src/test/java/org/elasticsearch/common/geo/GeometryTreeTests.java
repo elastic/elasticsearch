@@ -52,9 +52,12 @@ public class GeometryTreeTests extends ESTestCase {
             BytesStreamOutput output = new BytesStreamOutput();
             writer.writeTo(output);
             output.close();
-            GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef());
+            GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef(), TestCoordinateEncoder.INSTANCE);
 
             assertThat(Extent.fromPoints(minX, minY, maxX, maxY), equalTo(reader.getExtent()));
+            // encoder loses precision when casting to integer, so centroid is calculated using integer division here
+            assertThat(reader.getCentroidX(), equalTo((double) ((minX + maxX)/2)));
+            assertThat(reader.getCentroidY(), equalTo((double) ((minY + maxY)/2)));
 
             // box-query touches bottom-left corner
             assertTrue(reader.intersects(Extent.fromPoints(minX - randomIntBetween(1, 10), minY - randomIntBetween(1, 10), minX, minY)));
@@ -105,7 +108,7 @@ public class GeometryTreeTests extends ESTestCase {
         BytesStreamOutput output = new BytesStreamOutput();
         writer.writeTo(output);
         output.close();
-        GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef());
+        GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef(), TestCoordinateEncoder.INSTANCE);
         assertTrue(reader.intersects(Extent.fromPoints(2, -1, 11, 1)));
         assertTrue(reader.intersects(Extent.fromPoints(-12, -12, 12, 12)));
         assertTrue(reader.intersects(Extent.fromPoints(-2, -1, 2, 0)));
@@ -121,7 +124,7 @@ public class GeometryTreeTests extends ESTestCase {
         BytesStreamOutput output = new BytesStreamOutput();
         writer.writeTo(output);
         output.close();
-        GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef());
+        GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef(), null);
 
         assertFalse(reader.intersects(Extent.fromPoints(6, -6, 6, -6))); // in the hole
         assertTrue(reader.intersects(Extent.fromPoints(25, -25, 25, -25))); // on the mainland
@@ -144,7 +147,7 @@ public class GeometryTreeTests extends ESTestCase {
         BytesStreamOutput output = new BytesStreamOutput();
         writer.writeTo(output);
         output.close();
-        GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef());
+        GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef(), TestCoordinateEncoder.INSTANCE);
         assertTrue(reader.intersects(Extent.fromPoints(5, 10, 5, 10)));
         assertFalse(reader.intersects(Extent.fromPoints(15, 10, 15, 10)));
         assertFalse(reader.intersects(Extent.fromPoints(25, 10, 25, 10)));
@@ -160,7 +163,7 @@ public class GeometryTreeTests extends ESTestCase {
         BytesStreamOutput output = new BytesStreamOutput();
         writer.writeTo(output);
         output.close();
-        GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef());
+        GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef(), TestCoordinateEncoder.INSTANCE);
         assertTrue(reader.intersects(Extent.fromPoints(2, -1, 11, 1)));
         assertTrue(reader.intersects(Extent.fromPoints(-12, -12, 12, 12)));
         assertTrue(reader.intersects(Extent.fromPoints(-2, -1, 2, 0)));
@@ -177,7 +180,7 @@ public class GeometryTreeTests extends ESTestCase {
         BytesStreamOutput output = new BytesStreamOutput();
         writer.writeTo(output);
         output.close();
-        GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef());
+        GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef(), TestCoordinateEncoder.INSTANCE);
         assertTrue(reader.intersects(Extent.fromPoints(2, -1, 11, 1)));
         assertTrue(reader.intersects(Extent.fromPoints(-12, -12, 12, 12)));
         assertTrue(reader.intersects(Extent.fromPoints(-2, -1, 2, 0)));
@@ -211,7 +214,7 @@ public class GeometryTreeTests extends ESTestCase {
         BytesStreamOutput output = new BytesStreamOutput();
         writer.writeTo(output);
         output.close();
-        GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef());
+        GeometryTreeReader reader = new GeometryTreeReader(output.bytes().toBytesRef(), TestCoordinateEncoder.INSTANCE);
         assertTrue(reader.intersects(Extent.fromPoints(xMin, yMin, xMax, yMax)));
     }
 }

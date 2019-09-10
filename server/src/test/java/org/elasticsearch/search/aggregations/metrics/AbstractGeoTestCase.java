@@ -68,7 +68,7 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
     protected static int numUniqueGeoPoints;
     protected static GeoPoint[] singleValues, multiValues;
     protected static GeoPoint singleTopLeft, singleBottomRight, multiTopLeft, multiBottomRight,
-        singleCentroid, multiCentroid, unmappedCentroid;
+        singleCentroid, singleShapeCentroid, multiCentroid, unmappedCentroid;
     protected static ObjectIntMap<String> expectedDocCountsForGeoHash = null;
     protected static ObjectObjectMap<String, GeoPoint> expectedCentroidsForGeoHash = null;
     protected static final double GEOHASH_TOLERANCE = 1E-5D;
@@ -85,6 +85,7 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
         multiTopLeft = new GeoPoint(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
         multiBottomRight = new GeoPoint(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
         singleCentroid = new GeoPoint(0, 0);
+        singleShapeCentroid = new GeoPoint(9.4, 34.4);
         multiCentroid = new GeoPoint(0, 0);
         unmappedCentroid = new GeoPoint(0, 0);
 

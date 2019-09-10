@@ -46,8 +46,12 @@ import java.util.List;
 public class GeometryTreeWriter implements Writeable {
 
     private final GeometryTreeBuilder builder;
+    private final CoordinateEncoder coordinateEncoder;
+    private CentroidCalculator centroidCalculator;
 
     public GeometryTreeWriter(Geometry geometry, CoordinateEncoder coordinateEncoder) {
+        this.coordinateEncoder = coordinateEncoder;
+        this.centroidCalculator = new CentroidCalculator();
         builder = new GeometryTreeBuilder(coordinateEncoder);
         geometry.visit(builder);
     }
@@ -62,6 +66,8 @@ public class GeometryTreeWriter implements Writeable {
         // contains multiple sub-shapes
         boolean prependExtent = builder.shapeWriters.size() > 1;
         Extent extent = null;
+        out.writeInt(coordinateEncoder.encodeX(centroidCalculator.getX()));
+        out.writeInt(coordinateEncoder.encodeY(centroidCalculator.getY()));
         if (prependExtent) {
             extent = new Extent(builder.top, builder.bottom, builder.negLeft, builder.negRight, builder.posLeft, builder.posRight);
         }
@@ -99,6 +105,7 @@ public class GeometryTreeWriter implements Writeable {
             posLeft = Math.min(posLeft, extent.posLeft);
             posRight = Math.max(posRight, extent.posRight);
             shapeWriters.add(writer);
+            centroidCalculator.addFrom(writer.getCentroidCalculator());
         }
 
         @Override
@@ -111,7 +118,7 @@ public class GeometryTreeWriter implements Writeable {
 
         @Override
         public Void visit(Line line) {
-            addWriter(new EdgeTreeWriter(line.getLons(), line.getLats(), coordinateEncoder));
+            addWriter(new EdgeTreeWriter(line.getLons(), line.getLats(), coordinateEncoder, false));
             return null;
         }
 
@@ -124,7 +131,7 @@ public class GeometryTreeWriter implements Writeable {
                 x.add(line.getLons());
                 y.add(line.getLats());
             }
-            addWriter(new EdgeTreeWriter(x, y, coordinateEncoder));
+            addWriter(new EdgeTreeWriter(x, y, coordinateEncoder, false));
             return null;
         }
 
@@ -181,7 +188,7 @@ public class GeometryTreeWriter implements Writeable {
 
         @Override
         public Void visit(LinearRing ring) {
-            throw new IllegalArgumentException("invalid shape type found [Circle]");
+            throw new IllegalArgumentException("invalid shape type found [LinearRing]");
         }
 
         @Override

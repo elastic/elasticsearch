@@ -106,6 +106,22 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         assertEquals(numDocs, geoCentroid.count());
     }
 
+    public void testShapeField() throws Exception {
+        SearchResponse response = client().prepareSearch(DATELINE_IDX_NAME)
+            .setQuery(matchAllQuery())
+            .addAggregation(geoCentroid(aggName).field(SINGLE_VALUED_GEOSHAPE_FIELD_NAME))
+            .get();
+        assertSearchResponse(response);
+
+        GeoCentroid geoCentroid = response.getAggregations().get(aggName);
+        assertThat(geoCentroid, notNullValue());
+        assertThat(geoCentroid.getName(), equalTo(aggName));
+        GeoPoint centroid = geoCentroid.centroid();
+        assertThat(centroid.lat(), closeTo(singleShapeCentroid.lat(), GEOHASH_TOLERANCE));
+        assertThat(centroid.lon(), closeTo(singleShapeCentroid.lon(), GEOHASH_TOLERANCE));
+        assertEquals(5, geoCentroid.count());
+    }
+
     public void testSingleValueFieldGetProperty() throws Exception {
         SearchResponse response = client().prepareSearch(IDX_NAME)
                 .setQuery(matchAllQuery())
@@ -123,7 +139,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         GeoCentroid geoCentroid = global.getAggregations().get(aggName);
         assertThat(geoCentroid, notNullValue());
         assertThat(geoCentroid.getName(), equalTo(aggName));
-        assertThat((GeoCentroid) ((InternalAggregation)global).getProperty(aggName), sameInstance(geoCentroid));
+        assertThat(((InternalAggregation)global).getProperty(aggName), sameInstance(geoCentroid));
         GeoPoint centroid = geoCentroid.centroid();
         assertThat(centroid.lat(), closeTo(singleCentroid.lat(), GEOHASH_TOLERANCE));
         assertThat(centroid.lon(), closeTo(singleCentroid.lon(), GEOHASH_TOLERANCE));

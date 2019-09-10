@@ -39,6 +39,7 @@ public class EdgeTreeWriter extends ShapeTreeWriter {
 
     private final Extent extent;
     private final int numShapes;
+    private final CentroidCalculator centroidCalculator;
     final Edge tree;
 
 
@@ -46,12 +47,14 @@ public class EdgeTreeWriter extends ShapeTreeWriter {
      * @param x                  array of the x-coordinate of points.
      * @param y                  array of the y-coordinate of points.
      * @param coordinateEncoder  class that encodes from real-valued x/y to serialized integer coordinate values.
+     * @param hasArea            whether the tree represents a Polygon that has a defined area
      */
-    EdgeTreeWriter(double[] x, double[] y, CoordinateEncoder coordinateEncoder) {
-        this(Collections.singletonList(x), Collections.singletonList(y), coordinateEncoder);
+    EdgeTreeWriter(double[] x, double[] y, CoordinateEncoder coordinateEncoder, boolean hasArea) {
+        this(Collections.singletonList(x), Collections.singletonList(y), coordinateEncoder, hasArea);
     }
 
-    EdgeTreeWriter(List<double[]> x, List<double[]> y, CoordinateEncoder coordinateEncoder) {
+    EdgeTreeWriter(List<double[]> x, List<double[]> y, CoordinateEncoder coordinateEncoder, boolean hasArea) {
+        this.centroidCalculator = new CentroidCalculator();
         this.numShapes = x.size();
         double top = Double.NEGATIVE_INFINITY;
         double bottom = Double.POSITIVE_INFINITY;
@@ -59,6 +62,7 @@ public class EdgeTreeWriter extends ShapeTreeWriter {
         double negRight = Double.NEGATIVE_INFINITY;
         double posLeft = Double.POSITIVE_INFINITY;
         double posRight = Double.NEGATIVE_INFINITY;
+
         List<Edge> edges = new ArrayList<>();
         for (int i = 0; i < y.size(); i++) {
             for (int j = 1; j < y.get(i).length; j++) {
@@ -108,6 +112,12 @@ public class EdgeTreeWriter extends ShapeTreeWriter {
                 if (x2 < 0 && x2 > negRight) {
                     negRight = x2;
                 }
+
+                // calculate centroid
+                centroidCalculator.addCoordinate(x1, y1);
+                if (j == y.get(i).length - 1 && hasArea == false) {
+                    centroidCalculator.addCoordinate(x2, y2);
+                }
             }
         }
         edges.sort(Edge::compareTo);
@@ -125,6 +135,11 @@ public class EdgeTreeWriter extends ShapeTreeWriter {
     @Override
     public ShapeType getShapeType() {
         return numShapes > 1 ? ShapeType.MULTILINESTRING: ShapeType.LINESTRING;
+    }
+
+    @Override
+    public CentroidCalculator getCentroidCalculator() {
+        return centroidCalculator;
     }
 
     @Override

@@ -128,14 +128,28 @@ public abstract class MultiGeoValues {
             return new BoundingBox(extent, GeoShapeCoordinateEncoder.INSTANCE);
         }
 
+        /**
+         * @return the latitude of the centroid of the shape
+         */
         @Override
         public double lat() {
-            throw new UnsupportedOperationException("centroid of GeoShape is not defined");
+            try {
+                return reader.getCentroidY();
+            } catch (IOException e) {
+                throw new IllegalStateException("unable to read centroid of shape", e);
+            }
         }
 
+        /**
+         * @return the longitude of the centroid of the shape
+         */
         @Override
         public double lon() {
-            throw new UnsupportedOperationException("centroid of GeoShape is not defined");
+            try {
+                return reader.getCentroidX();
+            } catch (IOException e) {
+                throw new IllegalStateException("unable to read centroid of shape", e);
+            }
         }
 
         public static GeoShapeValue missing(String missing) {

@@ -116,7 +116,7 @@ class CellIdSource extends ValuesSource.Numeric {
                 }
             }
 
-            return idx + 1;
+            return idx;
         }
     }
 
@@ -136,7 +136,7 @@ class CellIdSource extends ValuesSource.Numeric {
             int minYTile = GeoTileUtils.getYTile(bounds.maxY(), (long) tiles);
             int maxXTile = GeoTileUtils.getXTile(bounds.maxX(), (long) tiles);
             int maxYTile = GeoTileUtils.getYTile(bounds.minY(), (long) tiles);
-            return (maxXTile - minXTile) * (maxYTile - minYTile);
+            return (maxXTile - minXTile + 1) * (maxYTile - minYTile + 1);
         }
 
         @Override
@@ -158,7 +158,7 @@ class CellIdSource extends ValuesSource.Numeric {
                 }
             }
 
-            return idx + 1;
+            return idx;
         }
     }
 
@@ -187,6 +187,7 @@ class CellIdSource extends ValuesSource.Numeric {
                     case GEOSHAPE:
                     case GEO:
                         MultiGeoValues.GeoValue target = geoValues.nextValue();
+                        // TODO(talevy): determine reasonable circuit-breaker here
                         resize(tiler.getCandidateTileCount(target, precision));
                         int matched = tiler.setValues(values, target, precision);
                         resize(matched);

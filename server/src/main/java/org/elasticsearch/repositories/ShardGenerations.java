@@ -43,6 +43,11 @@ public final class ShardGenerations implements ToXContent {
         this.shardGenerations = shardGenerations;
     }
 
+    /**
+     * Returns all indices for which shard generations are tracked.
+     *
+     * @return indices for which shard generations are tracked
+     */
     public List<IndexId> indices() {
         return List.copyOf(shardGenerations.keySet());
     }

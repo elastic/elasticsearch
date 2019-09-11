@@ -82,11 +82,11 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
             ).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
         if (Strings.hasText(System.getProperty("test.azure.sas_token"))) {
-            ensureSasTokenHasMinimalPermissions();
+            ensureSasTokenPermissions();
         }
     }
 
-    private void ensureSasTokenHasMinimalPermissions() {
+    private void ensureSasTokenPermissions() {
         final BlobStoreRepository repository = getRepository();
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         repository.threadPool().generic().execute(ActionRunnable.wrap(future, l -> {

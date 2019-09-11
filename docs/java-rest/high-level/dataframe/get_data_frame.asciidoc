@@ -3,6 +3,7 @@
 :request: GetDataFrameTransformRequest
 :response: GetDataFrameTransformResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Get {dataframe-transform} API
 

@@ -17,12 +17,6 @@
               "description":"The id of the snapshot lifecycle policy to remove"
             }
           }
-        },
-        {
-          "path":"/_slm/policy",
-          "methods":[
-            "DELETE"
-          ]
         }
       ]
     },

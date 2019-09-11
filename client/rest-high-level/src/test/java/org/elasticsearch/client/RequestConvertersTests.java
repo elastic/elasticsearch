@@ -152,10 +152,6 @@ public class RequestConvertersTests extends ESTestCase {
         getAndExistsTest(RequestConverters::get, HttpGet.METHOD_NAME);
     }
 
-    public void testGetWithType() {
-        getAndExistsWithTypeTest(RequestConverters::get, HttpGet.METHOD_NAME);
-    }
-
     public void testSourceExists() throws IOException {
         doTestSourceExists((index, id) -> new GetRequest(index, id));
     }
@@ -308,10 +304,6 @@ public class RequestConvertersTests extends ESTestCase {
         getAndExistsTest(RequestConverters::exists, HttpHead.METHOD_NAME);
     }
 
-    public void testExistsWithType() {
-        getAndExistsWithTypeTest(RequestConverters::exists, HttpHead.METHOD_NAME);
-    }
-
     private static void getAndExistsTest(Function<GetRequest, Request> requestConverter, String method) {
         String index = randomAlphaOfLengthBetween(3, 10);
         String id = randomAlphaOfLengthBetween(3, 10);
@@ -363,7 +355,7 @@ public class RequestConvertersTests extends ESTestCase {
             }
         }
         Request request = requestConverter.apply(getRequest);
-        assertEquals("/" + index + "/" + id, request.getEndpoint());
+        assertEquals("/" + index + "/_doc/" + id, request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertNull(request.getEntity());
         assertEquals(method, request.getMethod());

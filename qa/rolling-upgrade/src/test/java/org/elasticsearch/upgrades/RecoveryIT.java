@@ -41,6 +41,7 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -653,13 +654,30 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2);
             createIndex(index, settings.build());
+            indexDocs(index, 0, 100);
         }
-        ensureGreen(index);
-        indexDocs(index, 0, 10);
-        for (int i = 0; i < 10; i++) {
-            Request update = new Request("POST", index + "/_update/" + i);
-            update.setJsonEntity("{\"doc\": {\"f\": " + randomNonNegativeLong() + "}}");
-            client().performRequest(update);
+        if (randomBoolean()) {
+            ensureGreen(index);
+        }
+        Map<Integer, Long> updates = new HashMap<>();
+        for (int docId = 0; docId < 100; docId++) {
+            final int times = randomIntBetween(0, 2);
+            for (int i = 0; i < times; i++) {
+                long value = randomNonNegativeLong();
+                Request update = new Request("POST", index + "/_update/" + docId);
+                update.setJsonEntity("{\"doc\": {\"updated_field\": " + value + "}}");
+                client().performRequest(update);
+                updates.put(docId, value);
+            }
+        }
+        client().performRequest(new Request("POST", index + "/_refresh"));
+        for (int docId : updates.keySet()) {
+            Request get = new Request("GET", index + "/_doc/" + docId);
+            Map<String, Object> doc = entityAsMap(client().performRequest(get));
+            assertThat(XContentMapValues.extractValue("_source.updated_field", doc), equalTo(updates.get(docId)));
+        }
+        if (randomBoolean()) {
+            syncedFlush(index);
         }
     }
 

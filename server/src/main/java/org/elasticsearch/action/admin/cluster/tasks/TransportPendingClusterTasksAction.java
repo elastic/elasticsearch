@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.cluster.tasks;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -38,6 +40,8 @@ import java.util.List;
 
 public class TransportPendingClusterTasksAction
         extends TransportMasterNodeReadAction<PendingClusterTasksRequest, PendingClusterTasksResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportPendingClusterTasksAction.class);
 
     private final ClusterService clusterService;
 

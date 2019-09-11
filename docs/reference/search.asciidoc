@@ -14,7 +14,7 @@ Which shards will be searched on can also be controlled by providing the
 `routing` parameter. For example, when indexing tweets, the routing value can be
 the user name:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /twitter/_doc?routing=kimchy
 {
@@ -23,13 +23,12 @@ POST /twitter/_doc?routing=kimchy
     "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
-// CONSOLE
 
 In such a case, if we want to search only on the tweets for a specific
 user, we can specify it as the routing, resulting in the search hitting
 only the relevant shard:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /twitter/_search?routing=kimchy
 {
@@ -47,7 +46,6 @@ POST /twitter/_search?routing=kimchy
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The routing parameter can be multi valued represented as a comma
@@ -70,7 +68,7 @@ based on a number of criteria:
 This can be turned off by changing the dynamic cluster setting
 `cluster.routing.use_adaptive_replica_selection` from `true` to `false`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_cluster/settings
 {
@@ -79,7 +77,6 @@ PUT /_cluster/settings
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 If adaptive replica selection is turned off, searches are sent to the
 index/indices shards in a round robin fashion between all copies of the data
@@ -95,7 +92,7 @@ statistics aggregation per group. It can later be retrieved using the
 specifically. For example, here is a search body request that associate
 the request with two different groups:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -105,7 +102,6 @@ POST /_search
     "stats" : ["group1", "group2"]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 [float]

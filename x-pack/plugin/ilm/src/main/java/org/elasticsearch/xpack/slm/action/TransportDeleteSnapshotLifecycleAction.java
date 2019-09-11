@@ -55,7 +55,7 @@ public class TransportDeleteSnapshotLifecycleAction extends
                                    ClusterState state,
                                    ActionListener<DeleteSnapshotLifecycleAction.Response> listener) throws Exception {
         clusterService.submitStateUpdateTask("delete-snapshot-lifecycle-" + request.getLifecycleId(),
-            new AckedClusterStateUpdateTask<DeleteSnapshotLifecycleAction.Response>(request, listener) {
+            new AckedClusterStateUpdateTask<>(request, listener) {
                 @Override
                 protected DeleteSnapshotLifecycleAction.Response newResponse(boolean acknowledged) {
                     return new DeleteSnapshotLifecycleAction.Response(acknowledged);
@@ -82,7 +82,8 @@ public class TransportDeleteSnapshotLifecycleAction extends
                     return ClusterState.builder(currentState)
                         .metaData(MetaData.builder(metaData)
                             .putCustom(SnapshotLifecycleMetadata.TYPE,
-                                new SnapshotLifecycleMetadata(newConfigs, snapMeta.getOperationMode())))
+                                new SnapshotLifecycleMetadata(newConfigs,
+                                    snapMeta.getOperationMode(), snapMeta.getStats().removePolicy(request.getLifecycleId()))))
                         .build();
                 }
             });

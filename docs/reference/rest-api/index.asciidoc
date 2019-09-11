@@ -16,6 +16,7 @@ not be included yet.
 * <<ccr-apis,{ccr-cap} APIs>>
 * <<data-frame-apis,{dataframe-transform-cap} APIs>>
 * <<docs, Document APIs>>
+* <<enrich-apis,Enrich APIs>>
 * <<graph-explore-api,Graph Explore API>>
 * <<indices, Index APIs>>
 * <<index-lifecycle-management-api,Index lifecycle management APIs>>
@@ -39,6 +40,7 @@ include::{es-repo-dir}/cluster.asciidoc[]
 include::{es-repo-dir}/ccr/apis/ccr-apis.asciidoc[]
 include::{es-repo-dir}/data-frames/apis/index.asciidoc[]
 include::{es-repo-dir}/docs.asciidoc[]
+include::{es-repo-dir}/ingest/apis/enrich/index.asciidoc[]
 include::{es-repo-dir}/graph/explore.asciidoc[]
 include::{es-repo-dir}/indices.asciidoc[]
 include::{es-repo-dir}/ilm/apis/ilm-api.asciidoc[]

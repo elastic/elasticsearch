@@ -3,6 +3,7 @@
 :request: StopDataFrameTransformRequest
 :response: StopDataFrameTransformResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Stop {dataframe-transform} API
 

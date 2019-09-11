@@ -3,6 +3,7 @@
 :request: PutDataFrameTransformRequest
 :response: AcknowledgedResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Put {dataframe-transform} API
 

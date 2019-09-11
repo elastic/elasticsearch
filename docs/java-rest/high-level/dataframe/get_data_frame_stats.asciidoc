@@ -3,6 +3,7 @@
 :request: GetDataFrameTransformStatsRequest
 :response: GetDataFrameTransformStatsResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Get {dataframe-transform} stats API
 

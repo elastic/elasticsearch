@@ -211,7 +211,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         config.put("max_matches", randomBoolean() ? between(-2048, 0) : between(129, 2048));
 
         Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(Collections.emptyMap(), "_tag", config));
-        assertThat(e.getMessage(), equalTo("[max_matches] should be between 1 and 1024"));
+        assertThat(e.getMessage(), equalTo("[max_matches] should be between 1 and 128"));
     }
 
     static MetaData createMetaData(String name, EnrichPolicy policy) throws IOException {

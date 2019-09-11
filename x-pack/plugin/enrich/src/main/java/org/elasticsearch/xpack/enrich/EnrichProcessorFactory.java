@@ -52,7 +52,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         String targetField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "target_field");
         int maxMatches = ConfigurationUtils.readIntProperty(TYPE, tag, config, "max_matches", 1);
         if (maxMatches < 1 || maxMatches > 128) {
-            throw ConfigurationUtils.newConfigurationException(TYPE, tag, "max_matches", "should be between 1 and 1024");
+            throw ConfigurationUtils.newConfigurationException(TYPE, tag, "max_matches", "should be between 1 and 128");
         }
 
         switch (policyType) {

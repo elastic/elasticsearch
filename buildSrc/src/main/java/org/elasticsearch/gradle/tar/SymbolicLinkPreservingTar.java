@@ -21,6 +21,8 @@ package org.elasticsearch.gradle.tar;
 
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
+import org.apache.commons.compress.archivers.tar.TarConstants;
+import org.apache.commons.compress.archivers.zip.UnixStat;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.internal.file.CopyActionProcessingStreamAction;
@@ -37,9 +39,6 @@ import org.gradle.api.tasks.WorkResult;
 import org.gradle.api.tasks.WorkResults;
 import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.gradle.api.tasks.bundling.Compression;
-import shadow.org.apache.tools.tar.TarConstants;
-import shadow.org.apache.tools.tar.TarOutputStream;
-import shadow.org.apache.tools.zip.UnixStat;
 
 import java.io.File;
 import java.io.IOException;
@@ -109,7 +108,7 @@ public class SymbolicLinkPreservingTar extends AbstractArchiveTask {
         public WorkResult execute(final CopyActionProcessingStream stream) {
             try (OutputStream out = compressor.createArchiveOutputStream(tarFile.get().getAsFile());
                 TarArchiveOutputStream tar = new TarArchiveOutputStream(out)) {
-                tar.setLongFileMode(TarOutputStream.LONGFILE_GNU);
+                tar.setLongFileMode(TarArchiveOutputStream.LONGFILE_GNU);
                 stream.process(new SymbolicLinkPreservingTarStreamAction(tar));
             } catch (final IOException e) {
                 throw new GradleException("failed writing tar file [" + tarFile + "]", e);

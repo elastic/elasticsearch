@@ -229,16 +229,14 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
     }
 
     private static int getRangeStart(HttpExchange exchange) {
-        final int rangeStart;
         final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
         if (rangeHeader == null) {
-            rangeStart = 0;
-        } else {
-            final Matcher matcher = Pattern.compile("^bytes=([0-9]+)-9223372036854775806$").matcher(rangeHeader);
-            assertTrue(rangeHeader + " matches expected pattern", matcher.matches());
-            rangeStart = Math.toIntExact(Long.parseLong(matcher.group(1)));
+            return 0;
         }
-        return rangeStart;
+
+        final Matcher matcher = Pattern.compile("^bytes=([0-9]+)-9223372036854775806$").matcher(rangeHeader);
+        assertTrue(rangeHeader + " matches expected pattern", matcher.matches());
+        return Math.toIntExact(Long.parseLong(matcher.group(1)));
     }
 
     private void sendIncompleteContent(HttpExchange exchange, byte[] bytes) throws IOException {

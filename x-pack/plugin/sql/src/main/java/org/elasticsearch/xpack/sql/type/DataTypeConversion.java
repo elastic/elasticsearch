@@ -20,7 +20,9 @@ import static org.elasticsearch.xpack.sql.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.sql.type.DataType.DATE;
 import static org.elasticsearch.xpack.sql.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.sql.type.DataType.LONG;
+import static org.elasticsearch.xpack.sql.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.sql.type.DataType.NULL;
+import static org.elasticsearch.xpack.sql.type.DataType.TEXT;
 
 /**
  * Conversions from one Elasticsearch data type to another Elasticsearch data types.
@@ -46,6 +48,12 @@ public abstract class DataTypeConversion {
         }
         if (DataTypes.isNull(right)) {
             return left;
+        }
+        if (left.isString() && right.isString()) {
+            if (left == TEXT) {
+                return TEXT;
+            }
+            return right;
         }
         if (left.isNumeric() && right.isNumeric()) {
             // if one is int

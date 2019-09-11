@@ -71,7 +71,7 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
     }
 
     public void testThatBulkUpdateDoesNotLoseFieldsHttp() throws IOException {
-        final String path = "/index1/type/1";
+        final String path = "/index1/_doc/1";
         final RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
         optionsBuilder.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
                 new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
@@ -107,7 +107,7 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
         Request bulkRequest = new Request("POST", "/_bulk");
         bulkRequest.setOptions(options);
         bulkRequest.setJsonEntity(
-                "{\"update\": {\"_index\": \"index1\", \"_type\": \"type\", \"_id\": \"1\"}}\n" +
+                "{\"update\": {\"_index\": \"index1\", \"_type\": \"_doc\", \"_id\": \"1\"}}\n" +
                 "{\"doc\": {\"bulk updated\":\"bulk updated\"}}\n");
         getRestClient().performRequest(bulkRequest);
 

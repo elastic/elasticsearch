@@ -286,7 +286,7 @@ public class IndexingIT extends ESRestTestCase {
     }
 
     private void assertVersion(final String index, final int docId, final String preference, final int expectedVersion) throws IOException {
-        Request request = new Request("GET", index + "/" + docId);
+        Request request = new Request("GET", index + "/_doc/" + docId);
         request.addParameter("preference", preference);
 
         final Response response = client().performRequest(request);

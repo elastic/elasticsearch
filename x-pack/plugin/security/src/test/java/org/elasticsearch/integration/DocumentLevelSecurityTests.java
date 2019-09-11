@@ -266,7 +266,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         MultiGetResponse response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "1")
+                .add("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -276,7 +276,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "2")
+                .add("test", "2")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -286,8 +286,8 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "1")
-                .add("test", "type1", "2")
+                .add("test", "1")
+                .add("test", "2")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -300,7 +300,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "1")
+                .add("test", "1")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -309,7 +309,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "2")
+                .add("test", "2")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();
@@ -318,7 +318,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
                 .prepareMultiGet()
-                .add("test", "type1", "3")
+                .add("test", "3")
                 .setRealtime(realtime)
                 .setRefresh(true)
                 .get();

@@ -58,7 +58,7 @@ ordered quantity. The result is a {dataframe} that shows the number of sold
 items in every product category in the last year.
 
 [role="screenshot"]
-image::data-frames/images/ml-dataframepivot.jpg["Example of a data frame pivot in {kib}"]
+image::images/ml-dataframepivot.jpg["Example of a data frame pivot in {kib}"]
 
 IMPORTANT: The {dataframe-transform} leaves your source index intact. It
 creates a new index that is dedicated to the {dataframe}.

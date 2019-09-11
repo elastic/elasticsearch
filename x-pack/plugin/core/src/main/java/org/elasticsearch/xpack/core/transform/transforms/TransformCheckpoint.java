@@ -16,7 +16,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
+import org.elasticsearch.xpack.core.transform.TransformField;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -30,7 +30,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * Checkpoint document to store the checkpoint of a data frame transform
+ * Checkpoint document to store the checkpoint of a transform
  *
  * The fields:
  *
@@ -40,9 +40,9 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  *  time_upper_bound for time-based indices this holds the upper time boundary of this checkpoint
  *
  */
-public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject {
+public class TransformCheckpoint implements Writeable, ToXContentObject {
 
-    public static DataFrameTransformCheckpoint EMPTY = new DataFrameTransformCheckpoint("empty", 0L, -1L, Collections.emptyMap(), 0L);
+    public static TransformCheckpoint EMPTY = new TransformCheckpoint("empty", 0L, -1L, Collections.emptyMap(), 0L);
 
     // the own checkpoint
     public static final ParseField CHECKPOINT = new ParseField("checkpoint");
@@ -52,8 +52,8 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
 
     private static final String NAME = "data_frame_transform_checkpoint";
 
-    private static final ConstructingObjectParser<DataFrameTransformCheckpoint, Void> STRICT_PARSER = createParser(false);
-    private static final ConstructingObjectParser<DataFrameTransformCheckpoint, Void> LENIENT_PARSER = createParser(true);
+    private static final ConstructingObjectParser<TransformCheckpoint, Void> STRICT_PARSER = createParser(false);
+    private static final ConstructingObjectParser<TransformCheckpoint, Void> LENIENT_PARSER = createParser(true);
 
     private final String transformId;
     private final long timestampMillis;
@@ -61,8 +61,8 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
     private final Map<String, long[]> indicesCheckpoints;
     private final long timeUpperBoundMillis;
 
-    private static ConstructingObjectParser<DataFrameTransformCheckpoint, Void> createParser(boolean lenient) {
-        ConstructingObjectParser<DataFrameTransformCheckpoint, Void> parser = new ConstructingObjectParser<>(NAME,
+    private static ConstructingObjectParser<TransformCheckpoint, Void> createParser(boolean lenient) {
+        ConstructingObjectParser<TransformCheckpoint, Void> parser = new ConstructingObjectParser<>(NAME,
                 lenient, args -> {
                     String id = (String) args[0];
                     long timestamp = (Long) args[1];
@@ -74,13 +74,13 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
                     Long timeUpperBound = (Long) args[4];
 
                     // ignored, only for internal storage: String docType = (String) args[5];
-                    return new DataFrameTransformCheckpoint(id, timestamp, checkpoint, checkpoints, timeUpperBound);
+                    return new TransformCheckpoint(id, timestamp, checkpoint, checkpoints, timeUpperBound);
                 });
 
-        parser.declareString(constructorArg(), DataFrameField.ID);
+        parser.declareString(constructorArg(), TransformField.ID);
 
         // note: this is never parsed from the outside where timestamp can be formatted as date time
-        parser.declareLong(constructorArg(), DataFrameField.TIMESTAMP_MILLIS);
+        parser.declareLong(constructorArg(), TransformField.TIMESTAMP_MILLIS);
         parser.declareLong(constructorArg(), CHECKPOINT);
 
         parser.declareObject(constructorArg(), (p,c) -> {
@@ -102,13 +102,13 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
             }
             return checkPointsByIndexName;
         }, INDICES);
-        parser.declareLong(optionalConstructorArg(), DataFrameField.TIME_UPPER_BOUND_MILLIS);
-        parser.declareString(optionalConstructorArg(), DataFrameField.INDEX_DOC_TYPE);
+        parser.declareLong(optionalConstructorArg(), TransformField.TIME_UPPER_BOUND_MILLIS);
+        parser.declareString(optionalConstructorArg(), TransformField.INDEX_DOC_TYPE);
 
         return parser;
     }
 
-    public DataFrameTransformCheckpoint(String transformId, long timestamp, long checkpoint, Map<String, long[]> checkpoints,
+    public TransformCheckpoint(String transformId, long timestamp, long checkpoint, Map<String, long[]> checkpoints,
             Long timeUpperBound) {
         this.transformId = Objects.requireNonNull(transformId);
         this.timestampMillis = timestamp;
@@ -117,7 +117,7 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
         this.timeUpperBoundMillis = timeUpperBound == null ? 0 : timeUpperBound;
     }
 
-    public DataFrameTransformCheckpoint(StreamInput in) throws IOException {
+    public TransformCheckpoint(StreamInput in) throws IOException {
         this.transformId = in.readString();
         this.timestampMillis = in.readLong();
         this.checkpoint = in.readLong();
@@ -151,19 +151,19 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        builder.field(DataFrameField.ID.getPreferredName(), transformId);
+        builder.field(TransformField.ID.getPreferredName(), transformId);
         builder.field(CHECKPOINT.getPreferredName(), checkpoint);
-        builder.field(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), NAME);
+        builder.field(TransformField.INDEX_DOC_TYPE.getPreferredName(), NAME);
         builder.startObject(INDICES.getPreferredName());
         for (Entry<String, long[]> entry : indicesCheckpoints.entrySet()) {
             builder.array(entry.getKey(), entry.getValue());
         }
         builder.endObject();
 
-        builder.field(DataFrameField.TIMESTAMP_MILLIS.getPreferredName(), timestampMillis);
+        builder.field(TransformField.TIMESTAMP_MILLIS.getPreferredName(), timestampMillis);
 
         if (timeUpperBoundMillis > 0) {
-            builder.field(DataFrameField.TIME_UPPER_BOUND_MILLIS.getPreferredName(), timeUpperBoundMillis);
+            builder.field(TransformField.TIME_UPPER_BOUND_MILLIS.getPreferredName(), timeUpperBoundMillis);
         }
 
         builder.endObject();
@@ -209,7 +209,7 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
             return false;
         }
 
-        final DataFrameTransformCheckpoint that = (DataFrameTransformCheckpoint) other;
+        final TransformCheckpoint that = (TransformCheckpoint) other;
 
         // compare the timestamp, id, checkpoint and than call matches for the rest
         return this.timestampMillis == that.timestampMillis && this.checkpoint == that.checkpoint
@@ -219,12 +219,12 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
     /**
      * Compares 2 checkpoints ignoring some inner fields.
      *
-     * This is for comparing 2 checkpoints to check whether the data frame transform requires an update
+     * This is for comparing 2 checkpoints to check whether the transform requires an update
      *
      * @param that other checkpoint
      * @return true if checkpoints match
      */
-    public boolean matches (DataFrameTransformCheckpoint that) {
+    public boolean matches (TransformCheckpoint that) {
         if (this == that) {
             return true;
         }
@@ -246,7 +246,7 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
         return hash;
     }
 
-    public static DataFrameTransformCheckpoint fromXContent(final XContentParser parser, boolean lenient) throws IOException {
+    public static TransformCheckpoint fromXContent(final XContentParser parser, boolean lenient) throws IOException {
         return lenient ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
     }
 
@@ -270,7 +270,7 @@ public class DataFrameTransformCheckpoint implements Writeable, ToXContentObject
      *
      * @return count number of operations the checkpoint is behind or -1L if it could not calculate the difference
      */
-    public static long getBehind(DataFrameTransformCheckpoint oldCheckpoint, DataFrameTransformCheckpoint newCheckpoint) {
+    public static long getBehind(TransformCheckpoint oldCheckpoint, TransformCheckpoint newCheckpoint) {
         if (oldCheckpoint.isTransient()) {
             if (newCheckpoint.isTransient() == false) {
                 throw new IllegalArgumentException("can not compare transient against a non transient checkpoint");

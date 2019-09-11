@@ -11,20 +11,20 @@ import org.elasticsearch.test.ESTestCase;
 public class DataFrameStringsTests extends ESTestCase {
 
     public void testValidId() {
-        assertTrue(DataFrameStrings.isValidId("valid-_id"));
+        assertTrue(TransformStrings.isValidId("valid-_id"));
     }
 
     public void testValidId_givenUppercase() {
-        assertFalse(DataFrameStrings.isValidId("MiXedCase"));
+        assertFalse(TransformStrings.isValidId("MiXedCase"));
     }
 
     public void testValidId_givenStartsWithUnderScore() {
-        assertFalse(DataFrameStrings.isValidId("_this_bit_is_ok"));
+        assertFalse(TransformStrings.isValidId("_this_bit_is_ok"));
     }
 
     public void testKasValidLengthForId_givenTooLong() {
-        assertTrue(DataFrameStrings.hasValidLengthForId("#".repeat(DataFrameStrings.ID_LENGTH_LIMIT )));
-        assertFalse(DataFrameStrings.hasValidLengthForId("#".repeat(DataFrameStrings.ID_LENGTH_LIMIT + 1)));
+        assertTrue(TransformStrings.hasValidLengthForId("#".repeat(TransformStrings.ID_LENGTH_LIMIT )));
+        assertFalse(TransformStrings.hasValidLengthForId("#".repeat(TransformStrings.ID_LENGTH_LIMIT + 1)));
     }
 }
 

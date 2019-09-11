@@ -26,10 +26,10 @@ import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DataFrameTransformConfigUpdateTests extends AbstractSerializingDataFrameTestCase<DataFrameTransformConfigUpdate> {
+public class DataFrameTransformConfigUpdateTests extends AbstractSerializingDataFrameTestCase<TransformConfigUpdate> {
 
-    public static DataFrameTransformConfigUpdate randomDataFrameTransformConfigUpdate() {
-        return new DataFrameTransformConfigUpdate(
+    public static TransformConfigUpdate randomDataFrameTransformConfigUpdate() {
+        return new TransformConfigUpdate(
             randomBoolean() ? null : randomSourceConfig(),
             randomBoolean() ? null : randomDestConfig(),
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
@@ -42,33 +42,33 @@ public class DataFrameTransformConfigUpdateTests extends AbstractSerializingData
     }
 
     @Override
-    protected DataFrameTransformConfigUpdate doParseInstance(XContentParser parser) throws IOException {
-        return DataFrameTransformConfigUpdate.fromXContent(parser);
+    protected TransformConfigUpdate doParseInstance(XContentParser parser) throws IOException {
+        return TransformConfigUpdate.fromXContent(parser);
     }
 
     @Override
-    protected DataFrameTransformConfigUpdate createTestInstance() {
+    protected TransformConfigUpdate createTestInstance() {
         return randomDataFrameTransformConfigUpdate();
     }
 
     @Override
-    protected Reader<DataFrameTransformConfigUpdate> instanceReader() {
-        return DataFrameTransformConfigUpdate::new;
+    protected Reader<TransformConfigUpdate> instanceReader() {
+        return TransformConfigUpdate::new;
     }
 
     public void testIsNoop() {
         for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
-            DataFrameTransformConfig config = randomDataFrameTransformConfig();
-            DataFrameTransformConfigUpdate update = new DataFrameTransformConfigUpdate(null, null, null, null, null);
+            TransformConfig config = randomDataFrameTransformConfig();
+            TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null);
             assertTrue("null update is not noop", update.isNoop(config));
-            update = new DataFrameTransformConfigUpdate(config.getSource(),
+            update = new TransformConfigUpdate(config.getSource(),
                 config.getDestination(),
                 config.getFrequency(),
                 config.getSyncConfig(),
                 config.getDescription());
             assertTrue("equal update is not noop", update.isNoop(config));
 
-            update = new DataFrameTransformConfigUpdate(config.getSource(),
+            update = new TransformConfigUpdate(config.getSource(),
                 config.getDestination(),
                 config.getFrequency(),
                 config.getSyncConfig(),
@@ -78,7 +78,7 @@ public class DataFrameTransformConfigUpdateTests extends AbstractSerializingData
     }
 
     public void testApply() {
-        DataFrameTransformConfig config = new DataFrameTransformConfig("time-transform",
+        TransformConfig config = new TransformConfig("time-transform",
             randomSourceConfig(),
             randomDestConfig(),
             TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
@@ -88,7 +88,7 @@ public class DataFrameTransformConfigUpdateTests extends AbstractSerializingData
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             randomBoolean() ? null : Instant.now(),
             randomBoolean() ? null : Version.V_7_2_0.toString());
-        DataFrameTransformConfigUpdate update = new DataFrameTransformConfigUpdate(null, null, null, null, null);
+        TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null);
 
         assertThat(config, equalTo(update.apply(config)));
         SourceConfig sourceConfig = new SourceConfig("the_new_index");
@@ -96,11 +96,11 @@ public class DataFrameTransformConfigUpdateTests extends AbstractSerializingData
         TimeValue frequency = TimeValue.timeValueSeconds(10);
         SyncConfig syncConfig = new TimeSyncConfig("time_field", TimeValue.timeValueSeconds(30));
         String newDescription = "new description";
-        update = new DataFrameTransformConfigUpdate(sourceConfig, destConfig, frequency, syncConfig, newDescription);
+        update = new TransformConfigUpdate(sourceConfig, destConfig, frequency, syncConfig, newDescription);
 
         Map<String, String> headers = Collections.singletonMap("foo", "bar");
         update.setHeaders(headers);
-        DataFrameTransformConfig updatedConfig = update.apply(config);
+        TransformConfig updatedConfig = update.apply(config);
 
         assertThat(updatedConfig.getSource(), equalTo(sourceConfig));
         assertThat(updatedConfig.getDestination(), equalTo(destConfig));
@@ -112,7 +112,7 @@ public class DataFrameTransformConfigUpdateTests extends AbstractSerializingData
     }
 
     public void testApplyWithSyncChange() {
-        DataFrameTransformConfig batchConfig = new DataFrameTransformConfig("batch-transform",
+        TransformConfig batchConfig = new TransformConfig("batch-transform",
             randomSourceConfig(),
             randomDestConfig(),
             TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
@@ -123,7 +123,7 @@ public class DataFrameTransformConfigUpdateTests extends AbstractSerializingData
             randomBoolean() ? null : Instant.now(),
             randomBoolean() ? null : Version.CURRENT.toString());
 
-        DataFrameTransformConfigUpdate update = new DataFrameTransformConfigUpdate(null,
+        TransformConfigUpdate update = new TransformConfigUpdate(null,
             null,
             null,
             TimeSyncConfigTests.randomTimeSyncConfig(),
@@ -133,7 +133,7 @@ public class DataFrameTransformConfigUpdateTests extends AbstractSerializingData
         assertThat(ex.getMessage(),
             equalTo("Cannot change the current sync configuration of transform [batch-transform] from [null] to [time]"));
 
-        DataFrameTransformConfig timeSyncedConfig = new DataFrameTransformConfig("time-transform",
+        TransformConfig timeSyncedConfig = new TransformConfig("time-transform",
             randomSourceConfig(),
             randomDestConfig(),
             TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
@@ -144,7 +144,7 @@ public class DataFrameTransformConfigUpdateTests extends AbstractSerializingData
             randomBoolean() ? null : Instant.now(),
             randomBoolean() ? null : Version.CURRENT.toString());
 
-        DataFrameTransformConfigUpdate fooSyncUpdate = new DataFrameTransformConfigUpdate(null,
+        TransformConfigUpdate fooSyncUpdate = new TransformConfigUpdate(null,
             null,
             null,
             new FooSync(),
@@ -163,12 +163,12 @@ public class DataFrameTransformConfigUpdateTests extends AbstractSerializingData
         }
 
         @Override
-        public QueryBuilder getRangeQuery(DataFrameTransformCheckpoint newCheckpoint) {
+        public QueryBuilder getRangeQuery(TransformCheckpoint newCheckpoint) {
             return null;
         }
 
         @Override
-        public QueryBuilder getRangeQuery(DataFrameTransformCheckpoint oldCheckpoint, DataFrameTransformCheckpoint newCheckpoint) {
+        public QueryBuilder getRangeQuery(TransformCheckpoint oldCheckpoint, TransformCheckpoint newCheckpoint) {
             return null;
         }
 

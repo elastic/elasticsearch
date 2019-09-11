@@ -19,7 +19,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
+import org.elasticsearch.xpack.core.transform.TransformField;
 
 import java.io.IOException;
 import java.util.Map;
@@ -28,16 +28,16 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class DataFrameTransformState implements Task.Status, PersistentTaskState {
-    public static final String NAME = DataFrameField.TASK_NAME;
+public class TransformState implements Task.Status, PersistentTaskState {
+    public static final String NAME = TransformField.TASK_NAME;
 
-    private final DataFrameTransformTaskState taskState;
+    private final TransformTaskState taskState;
     private final IndexerState indexerState;
-    private final DataFrameTransformProgress progress;
+    private final TransformProgress progress;
     private final long checkpoint;
 
     @Nullable
-    private final DataFrameIndexerPosition position;
+    private final TransformIndexerPosition position;
     @Nullable
     private final String reason;
     @Nullable
@@ -55,44 +55,44 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
     public static final ParseField NODE = new ParseField("node");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<DataFrameTransformState, Void> PARSER = new ConstructingObjectParser<>(NAME,
+    public static final ConstructingObjectParser<TransformState, Void> PARSER = new ConstructingObjectParser<>(NAME,
             true,
             args -> {
-                DataFrameTransformTaskState taskState = (DataFrameTransformTaskState) args[0];
+                TransformTaskState taskState = (TransformTaskState) args[0];
                 IndexerState indexerState = (IndexerState) args[1];
                 Map<String, Object> bwcCurrentPosition = (Map<String, Object>) args[2];
-                DataFrameIndexerPosition dataFrameIndexerPosition = (DataFrameIndexerPosition) args[3];
+                TransformIndexerPosition transformIndexerPosition = (TransformIndexerPosition) args[3];
 
                 // BWC handling, translate current_position to position iff position isn't set
-                if (bwcCurrentPosition != null && dataFrameIndexerPosition == null) {
-                    dataFrameIndexerPosition = new DataFrameIndexerPosition(bwcCurrentPosition, null);
+                if (bwcCurrentPosition != null && transformIndexerPosition == null) {
+                    transformIndexerPosition = new TransformIndexerPosition(bwcCurrentPosition, null);
                 }
 
                 long checkpoint = (long) args[4];
                 String reason = (String) args[5];
-                DataFrameTransformProgress progress = (DataFrameTransformProgress) args[6];
+                TransformProgress progress = (TransformProgress) args[6];
                 NodeAttributes node = (NodeAttributes) args[7];
 
-                return new DataFrameTransformState(taskState, indexerState, dataFrameIndexerPosition, checkpoint, reason, progress, node);
+                return new TransformState(taskState, indexerState, transformIndexerPosition, checkpoint, reason, progress, node);
             });
 
     static {
-        PARSER.declareField(constructorArg(), p -> DataFrameTransformTaskState.fromString(p.text()), TASK_STATE, ValueType.STRING);
+        PARSER.declareField(constructorArg(), p -> TransformTaskState.fromString(p.text()), TASK_STATE, ValueType.STRING);
         PARSER.declareField(constructorArg(), p -> IndexerState.fromString(p.text()), INDEXER_STATE, ValueType.STRING);
         PARSER.declareField(optionalConstructorArg(), XContentParser::mapOrdered, CURRENT_POSITION, ValueType.OBJECT);
-        PARSER.declareField(optionalConstructorArg(), DataFrameIndexerPosition::fromXContent, POSITION, ValueType.OBJECT);
+        PARSER.declareField(optionalConstructorArg(), TransformIndexerPosition::fromXContent, POSITION, ValueType.OBJECT);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), CHECKPOINT);
         PARSER.declareString(optionalConstructorArg(), REASON);
-        PARSER.declareField(optionalConstructorArg(), DataFrameTransformProgress.PARSER::apply, PROGRESS, ValueType.OBJECT);
+        PARSER.declareField(optionalConstructorArg(), TransformProgress.PARSER::apply, PROGRESS, ValueType.OBJECT);
         PARSER.declareField(optionalConstructorArg(), NodeAttributes.PARSER::apply, NODE, ValueType.OBJECT);
     }
 
-    public DataFrameTransformState(DataFrameTransformTaskState taskState,
+    public TransformState(TransformTaskState taskState,
                                    IndexerState indexerState,
-                                   @Nullable DataFrameIndexerPosition position,
+                                   @Nullable TransformIndexerPosition position,
                                    long checkpoint,
                                    @Nullable String reason,
-                                   @Nullable DataFrameTransformProgress progress,
+                                   @Nullable TransformProgress progress,
                                    @Nullable NodeAttributes node) {
         this.taskState = taskState;
         this.indexerState = indexerState;
@@ -103,27 +103,27 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
         this.node = node;
     }
 
-    public DataFrameTransformState(DataFrameTransformTaskState taskState,
+    public TransformState(TransformTaskState taskState,
                                    IndexerState indexerState,
-                                   @Nullable DataFrameIndexerPosition position,
+                                   @Nullable TransformIndexerPosition position,
                                    long checkpoint,
                                    @Nullable String reason,
-                                   @Nullable DataFrameTransformProgress progress) {
+                                   @Nullable TransformProgress progress) {
         this(taskState, indexerState, position, checkpoint, reason, progress, null);
     }
 
-    public DataFrameTransformState(StreamInput in) throws IOException {
-        taskState = DataFrameTransformTaskState.fromStream(in);
+    public TransformState(StreamInput in) throws IOException {
+        taskState = TransformTaskState.fromStream(in);
         indexerState = IndexerState.fromStream(in);
         if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-            position = in.readOptionalWriteable(DataFrameIndexerPosition::new);
+            position = in.readOptionalWriteable(TransformIndexerPosition::new);
         } else {
             Map<String, Object> pos = in.readMap();
-            position = new DataFrameIndexerPosition(pos, null);
+            position = new TransformIndexerPosition(pos, null);
         }
         checkpoint = in.readLong();
         reason = in.readOptionalString();
-        progress = in.readOptionalWriteable(DataFrameTransformProgress::new);
+        progress = in.readOptionalWriteable(TransformProgress::new);
         if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
             node = in.readOptionalWriteable(NodeAttributes::new);
         } else {
@@ -131,7 +131,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
         }
     }
 
-    public DataFrameTransformTaskState getTaskState() {
+    public TransformTaskState getTaskState() {
         return taskState;
     }
 
@@ -139,7 +139,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
         return indexerState;
     }
 
-    public DataFrameIndexerPosition getPosition() {
+    public TransformIndexerPosition getPosition() {
         return position;
     }
 
@@ -147,7 +147,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
         return checkpoint;
     }
 
-    public DataFrameTransformProgress getProgress() {
+    public TransformProgress getProgress() {
         return progress;
     }
 
@@ -159,12 +159,12 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
         return node;
     }
 
-    public DataFrameTransformState setNode(NodeAttributes node) {
+    public TransformState setNode(NodeAttributes node) {
         this.node = node;
         return this;
     }
 
-    public static DataFrameTransformState fromXContent(XContentParser parser) {
+    public static TransformState fromXContent(XContentParser parser) {
         try {
             return PARSER.parse(parser, null);
         } catch (IOException e) {
@@ -226,7 +226,7 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
             return false;
         }
 
-        DataFrameTransformState that = (DataFrameTransformState) other;
+        TransformState that = (TransformState) other;
 
         return Objects.equals(this.taskState, that.taskState) &&
             Objects.equals(this.indexerState, that.indexerState) &&

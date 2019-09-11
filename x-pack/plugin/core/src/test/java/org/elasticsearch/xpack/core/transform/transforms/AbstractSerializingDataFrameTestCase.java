@@ -18,8 +18,8 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.core.transform.DataFrameNamedXContentProvider;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.TransformNamedXContentProvider;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -31,7 +31,7 @@ public abstract class AbstractSerializingDataFrameTestCase<T extends ToXContent 
         extends AbstractSerializingTestCase<T> {
 
     protected static Params TO_XCONTENT_PARAMS = new ToXContent.MapParams(
-            Collections.singletonMap(DataFrameField.FOR_INTERNAL_STORAGE, "true"));
+            Collections.singletonMap(TransformField.FOR_INTERNAL_STORAGE, "true"));
 
     /**
      * Test case that ensures aggregation named objects are registered
@@ -49,7 +49,7 @@ public abstract class AbstractSerializingDataFrameTestCase<T extends ToXContent 
                 MockDeprecatedQueryBuilder::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(AggregationBuilder.class, MockDeprecatedAggregationBuilder.NAME,
                 MockDeprecatedAggregationBuilder::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(SyncConfig.class, DataFrameField.TIME_BASED_SYNC.getPreferredName(),
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SyncConfig.class, TransformField.TIME_BASED_SYNC.getPreferredName(),
                 TimeSyncConfig::new));
 
         List<NamedXContentRegistry.Entry> namedXContents = searchModule.getNamedXContents();
@@ -57,7 +57,7 @@ public abstract class AbstractSerializingDataFrameTestCase<T extends ToXContent 
                 new ParseField(MockDeprecatedQueryBuilder.NAME), (p, c) -> MockDeprecatedQueryBuilder.fromXContent(p)));
         namedXContents.add(new NamedXContentRegistry.Entry(BaseAggregationBuilder.class,
                 new ParseField(MockDeprecatedAggregationBuilder.NAME), (p, c) -> MockDeprecatedAggregationBuilder.fromXContent(p)));
-        namedXContents.addAll(new DataFrameNamedXContentProvider().getNamedXContentParsers());
+        namedXContents.addAll(new TransformNamedXContentProvider().getNamedXContentParsers());
 
         namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
         namedXContentRegistry = new NamedXContentRegistry(namedXContents);

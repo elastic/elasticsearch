@@ -14,23 +14,23 @@ import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransfo
 import java.util.HashMap;
 import java.util.Map;
 
-public class DataFrameFeatureSetUsageTests extends AbstractWireSerializingTestCase<DataFrameFeatureSetUsage> {
+public class DataFrameFeatureSetUsageTests extends AbstractWireSerializingTestCase<TransformFeatureSetUsage> {
 
     @Override
-    protected DataFrameFeatureSetUsage createTestInstance() {
+    protected TransformFeatureSetUsage createTestInstance() {
         Map<String, Long> transformCountByState = new HashMap<>();
 
         if (randomBoolean()) {
             transformCountByState.put(randomFrom(IndexerState.values()).toString(), randomLong());
         }
 
-        return new DataFrameFeatureSetUsage(randomBoolean(), randomBoolean(), transformCountByState,
+        return new TransformFeatureSetUsage(randomBoolean(), randomBoolean(), transformCountByState,
                 DataFrameIndexerTransformStatsTests.randomStats());
     }
 
     @Override
-    protected Reader<DataFrameFeatureSetUsage> instanceReader() {
-        return DataFrameFeatureSetUsage::new;
+    protected Reader<TransformFeatureSetUsage> instanceReader() {
+        return TransformFeatureSetUsage::new;
     }
 
 }

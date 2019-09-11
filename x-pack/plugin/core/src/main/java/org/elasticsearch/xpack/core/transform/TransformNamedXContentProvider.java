@@ -14,13 +14,13 @@ import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import java.util.Arrays;
 import java.util.List;
 
-public class DataFrameNamedXContentProvider implements NamedXContentProvider {
+public class TransformNamedXContentProvider implements NamedXContentProvider {
 
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
         return Arrays.asList(
                 new NamedXContentRegistry.Entry(SyncConfig.class,
-                        DataFrameField.TIME_BASED_SYNC,
+                        TransformField.TIME_BASED_SYNC,
                         TimeSyncConfig::parse));
     }
 }

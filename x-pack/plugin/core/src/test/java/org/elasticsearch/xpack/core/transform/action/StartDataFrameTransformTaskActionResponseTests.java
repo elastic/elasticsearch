@@ -10,14 +10,14 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 public class StartDataFrameTransformTaskActionResponseTests extends
-        AbstractWireSerializingTestCase<StartDataFrameTransformTaskAction.Response> {
+        AbstractWireSerializingTestCase<StartTransformTaskAction.Response> {
     @Override
-    protected StartDataFrameTransformTaskAction.Response createTestInstance() {
-        return new StartDataFrameTransformTaskAction.Response(randomBoolean());
+    protected StartTransformTaskAction.Response createTestInstance() {
+        return new StartTransformTaskAction.Response(randomBoolean());
     }
 
     @Override
-    protected Writeable.Reader<StartDataFrameTransformTaskAction.Response> instanceReader() {
-        return StartDataFrameTransformTaskAction.Response::new;
+    protected Writeable.Reader<StartTransformTaskAction.Response> instanceReader() {
+        return StartTransformTaskAction.Response::new;
     }
 }

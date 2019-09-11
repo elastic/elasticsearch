@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureSet.Usage;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
@@ -19,20 +19,20 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 
-public class DataFrameFeatureSetUsage extends Usage {
+public class TransformFeatureSetUsage extends Usage {
 
     private final Map<String, Long> transformCountByState;
-    private final DataFrameIndexerTransformStats accumulatedStats;
+    private final TransformIndexerStats accumulatedStats;
 
-    public DataFrameFeatureSetUsage(StreamInput in) throws IOException {
+    public TransformFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
         this.transformCountByState = in.readMap(StreamInput::readString, StreamInput::readLong);
-        this.accumulatedStats = new DataFrameIndexerTransformStats(in);
+        this.accumulatedStats = new TransformIndexerStats(in);
     }
 
-    public DataFrameFeatureSetUsage(boolean available, boolean enabled, Map<String, Long> transformCountByState,
-            DataFrameIndexerTransformStats accumulatedStats) {
-        super(XPackField.DATA_FRAME, available, enabled);
+    public TransformFeatureSetUsage(boolean available, boolean enabled, Map<String, Long> transformCountByState,
+            TransformIndexerStats accumulatedStats) {
+        super(XPackField.Transform, available, enabled);
         this.transformCountByState = Objects.requireNonNull(transformCountByState);
         this.accumulatedStats = Objects.requireNonNull(accumulatedStats);
     }
@@ -48,7 +48,7 @@ public class DataFrameFeatureSetUsage extends Usage {
     protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
         super.innerXContent(builder, params);
         if (transformCountByState.isEmpty() == false) {
-            builder.startObject(DataFrameField.TRANSFORMS.getPreferredName());
+            builder.startObject(TransformField.TRANSFORMS.getPreferredName());
             long all = 0L;
             for (Entry<String, Long> entry : transformCountByState.entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
@@ -58,7 +58,7 @@ public class DataFrameFeatureSetUsage extends Usage {
             builder.endObject();
 
             // if there are no transforms, do not show any stats
-            builder.field(DataFrameField.STATS_FIELD.getPreferredName(), accumulatedStats);
+            builder.field(TransformField.STATS_FIELD.getPreferredName(), accumulatedStats);
         }
     }
 
@@ -75,7 +75,7 @@ public class DataFrameFeatureSetUsage extends Usage {
         if (getClass() != obj.getClass()) {
             return false;
         }
-        DataFrameFeatureSetUsage other = (DataFrameFeatureSetUsage) obj;
+        TransformFeatureSetUsage other = (TransformFeatureSetUsage) obj;
         return Objects.equals(name, other.name) && available == other.available && enabled == other.enabled
                 && Objects.equals(transformCountByState, other.transformCountByState)
                 && Objects.equals(accumulatedStats, other.accumulatedStats);

@@ -12,8 +12,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.xpack.core.transform.action.GetDataFrameTransformsAction.Response;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.transform.action.GetTransformsAction.Response;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfigTests;
 import org.elasticsearch.xpack.core.watcher.watch.Payload.XContent;
 
@@ -25,7 +25,7 @@ import java.util.Map;
 public class GetDataFrameTransformsActionResponseTests extends AbstractWireSerializingDataFrameTestCase<Response> {
 
     public void testInvalidTransforms() throws IOException {
-        List<DataFrameTransformConfig> transforms = new ArrayList<>();
+        List<TransformConfig> transforms = new ArrayList<>();
 
         transforms.add(DataFrameTransformConfigTests.randomDataFrameTransformConfig());
         transforms.add(DataFrameTransformConfigTests.randomInvalidDataFrameTransformConfig());
@@ -46,7 +46,7 @@ public class GetDataFrameTransformsActionResponseTests extends AbstractWireSeria
 
     @SuppressWarnings("unchecked")
     public void testNoHeaderInResponse() throws IOException {
-        List<DataFrameTransformConfig> transforms = new ArrayList<>();
+        List<TransformConfig> transforms = new ArrayList<>();
 
         for (int i = 0; i < randomIntBetween(1, 10); ++i) {
             transforms.add(DataFrameTransformConfigTests.randomDataFrameTransformConfig());
@@ -71,7 +71,7 @@ public class GetDataFrameTransformsActionResponseTests extends AbstractWireSeria
 
     @Override
     protected Response createTestInstance() {
-        List<DataFrameTransformConfig> configs = new ArrayList<>();
+        List<TransformConfig> configs = new ArrayList<>();
         for (int i = 0; i < randomInt(10); ++i) {
             configs.add(DataFrameTransformConfigTests.randomDataFrameTransformConfig());
         }

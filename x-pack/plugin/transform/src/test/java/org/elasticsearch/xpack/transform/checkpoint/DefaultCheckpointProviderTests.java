@@ -15,7 +15,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.MockLogAppender.LoggingExpectation;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfigTests;
 import org.elasticsearch.xpack.transform.notifications.MockDataFrameAuditor;
 import org.elasticsearch.xpack.transform.notifications.MockDataFrameAuditor.AuditExpectation;
@@ -44,7 +44,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
 
     public void testReportSourceIndexChangesRunsEmpty() throws Exception {
         String transformId = getTestName();
-        DataFrameTransformConfig transformConfig = DataFrameTransformConfigTests.randomDataFrameTransformConfig(transformId);
+        TransformConfig transformConfig = DataFrameTransformConfigTests.randomDataFrameTransformConfig(transformId);
 
         DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
             client,
@@ -81,7 +81,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
 
     public void testReportSourceIndexChangesAddDelete() throws Exception {
         String transformId = getTestName();
-        DataFrameTransformConfig transformConfig = DataFrameTransformConfigTests.randomDataFrameTransformConfig(transformId);
+        TransformConfig transformConfig = DataFrameTransformConfigTests.randomDataFrameTransformConfig(transformId);
 
         DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
             client,
@@ -133,7 +133,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
 
     public void testReportSourceIndexChangesAddDeleteMany() throws Exception {
         String transformId = getTestName();
-        DataFrameTransformConfig transformConfig = DataFrameTransformConfigTests.randomDataFrameTransformConfig(transformId);
+        TransformConfig transformConfig = DataFrameTransformConfigTests.randomDataFrameTransformConfig(transformId);
 
         DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
             client,

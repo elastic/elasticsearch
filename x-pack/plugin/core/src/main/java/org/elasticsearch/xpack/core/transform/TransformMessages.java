@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.transform;
 import java.text.MessageFormat;
 import java.util.Locale;
 
-public class DataFrameMessages {
+public class TransformMessages {
 
     public static final String REST_STOP_TRANSFORM_WAIT_FOR_COMPLETION_TIMEOUT =
             "Timed out after [{0}] while waiting for data frame transform [{1}] to stop";
@@ -83,7 +83,7 @@ public class DataFrameMessages {
     public static final String ID_TOO_LONG = "The id cannot contain more than {0} characters.";
     public static final String INVALID_ID = "Invalid {0}; ''{1}'' can contain lowercase alphanumeric (a-z and 0-9), hyphens or " +
         "underscores; must start and end with alphanumeric";
-    private DataFrameMessages() {
+    private TransformMessages() {
     }
 
     /**

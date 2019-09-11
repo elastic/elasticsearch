@@ -22,8 +22,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.core.transform.DataFrameMessages;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
@@ -39,7 +39,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 /**
  * This class holds the configuration details of a data frame transform
  */
-public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransformConfig> implements Writeable, ToXContentObject {
+public class TransformConfig extends AbstractDiffable<TransformConfig> implements Writeable, ToXContentObject {
 
     public static final String NAME = "data_frame_transform_config";
     public static final ParseField HEADERS = new ParseField("headers");
@@ -47,8 +47,8 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
     // types of transforms
     public static final ParseField PIVOT_TRANSFORM = new ParseField("pivot");
 
-    private static final ConstructingObjectParser<DataFrameTransformConfig, String> STRICT_PARSER = createParser(false);
-    private static final ConstructingObjectParser<DataFrameTransformConfig, String> LENIENT_PARSER = createParser(true);
+    private static final ConstructingObjectParser<TransformConfig, String> STRICT_PARSER = createParser(false);
+    private static final ConstructingObjectParser<TransformConfig, String> LENIENT_PARSER = createParser(true);
     static final int MAX_DESCRIPTION_LENGTH = 1_000;
 
     private final String id;
@@ -71,8 +71,8 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         }
     }
 
-    private static ConstructingObjectParser<DataFrameTransformConfig, String> createParser(boolean lenient) {
-        ConstructingObjectParser<DataFrameTransformConfig, String> parser = new ConstructingObjectParser<>(NAME, lenient,
+    private static ConstructingObjectParser<TransformConfig, String> createParser(boolean lenient) {
+        ConstructingObjectParser<TransformConfig, String> parser = new ConstructingObjectParser<>(NAME, lenient,
                 (args, optionalId) -> {
                     String id = (String) args[0];
 
@@ -81,14 +81,14 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
                         id = optionalId;
                     } else if (optionalId != null && id.equals(optionalId) == false) {
                         throw new IllegalArgumentException(
-                                DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_INCONSISTENT_ID, id, optionalId));
+                                TransformMessages.getMessage(TransformMessages.REST_PUT_DATA_FRAME_INCONSISTENT_ID, id, optionalId));
                     }
 
                     SourceConfig source = (SourceConfig) args[1];
                     DestConfig dest = (DestConfig) args[2];
 
                     TimeValue frequency =
-                        args[3] == null ? null : TimeValue.parseTimeValue((String) args[3], DataFrameField.FREQUENCY.getPreferredName());
+                        args[3] == null ? null : TimeValue.parseTimeValue((String) args[3], TransformField.FREQUENCY.getPreferredName());
 
                     SyncConfig syncConfig = (SyncConfig) args[4];
                     // ignored, only for internal storage: String docType = (String) args[5];
@@ -96,8 +96,8 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
                     // on strict parsing do not allow injection of headers, transform version, or create time
                     if (lenient == false) {
                         validateStrictParsingParams(args[6], HEADERS.getPreferredName());
-                        validateStrictParsingParams(args[9], DataFrameField.CREATE_TIME.getPreferredName());
-                        validateStrictParsingParams(args[10], DataFrameField.VERSION.getPreferredName());
+                        validateStrictParsingParams(args[9], TransformField.CREATE_TIME.getPreferredName());
+                        validateStrictParsingParams(args[10], TransformField.VERSION.getPreferredName());
                     }
 
                     @SuppressWarnings("unchecked")
@@ -105,7 +105,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
 
                     PivotConfig pivotConfig = (PivotConfig) args[7];
                     String description = (String)args[8];
-                    return new DataFrameTransformConfig(id,
+                    return new TransformConfig(id,
                         source,
                         dest,
                         frequency,
@@ -117,22 +117,22 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
                         (String)args[10]);
                 });
 
-        parser.declareString(optionalConstructorArg(), DataFrameField.ID);
-        parser.declareObject(constructorArg(), (p, c) -> SourceConfig.fromXContent(p, lenient), DataFrameField.SOURCE);
-        parser.declareObject(constructorArg(), (p, c) -> DestConfig.fromXContent(p, lenient), DataFrameField.DESTINATION);
-        parser.declareString(optionalConstructorArg(), DataFrameField.FREQUENCY);
+        parser.declareString(optionalConstructorArg(), TransformField.ID);
+        parser.declareObject(constructorArg(), (p, c) -> SourceConfig.fromXContent(p, lenient), TransformField.SOURCE);
+        parser.declareObject(constructorArg(), (p, c) -> DestConfig.fromXContent(p, lenient), TransformField.DESTINATION);
+        parser.declareString(optionalConstructorArg(), TransformField.FREQUENCY);
 
-        parser.declareObject(optionalConstructorArg(), (p, c) -> parseSyncConfig(p, lenient), DataFrameField.SYNC);
+        parser.declareObject(optionalConstructorArg(), (p, c) -> parseSyncConfig(p, lenient), TransformField.SYNC);
 
-        parser.declareString(optionalConstructorArg(), DataFrameField.INDEX_DOC_TYPE);
+        parser.declareString(optionalConstructorArg(), TransformField.INDEX_DOC_TYPE);
 
         parser.declareObject(optionalConstructorArg(), (p, c) -> p.mapStrings(), HEADERS);
         parser.declareObject(optionalConstructorArg(), (p, c) -> PivotConfig.fromXContent(p, lenient), PIVOT_TRANSFORM);
-        parser.declareString(optionalConstructorArg(), DataFrameField.DESCRIPTION);
+        parser.declareString(optionalConstructorArg(), TransformField.DESCRIPTION);
         parser.declareField(optionalConstructorArg(),
-            p -> TimeUtils.parseTimeFieldToInstant(p, DataFrameField.CREATE_TIME.getPreferredName()), DataFrameField.CREATE_TIME,
+            p -> TimeUtils.parseTimeFieldToInstant(p, TransformField.CREATE_TIME.getPreferredName()), TransformField.CREATE_TIME,
             ObjectParser.ValueType.VALUE);
-        parser.declareString(optionalConstructorArg(), DataFrameField.VERSION);
+        parser.declareString(optionalConstructorArg(), TransformField.VERSION);
         return parser;
     }
 
@@ -148,7 +148,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         return NAME + "-" + transformId;
     }
 
-    DataFrameTransformConfig(final String id,
+    TransformConfig(final String id,
                              final SourceConfig source,
                              final DestConfig dest,
                              final TimeValue frequency,
@@ -158,9 +158,9 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
                              final String description,
                              final Instant createTime,
                              final String version){
-        this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
-        this.source = ExceptionsHelper.requireNonNull(source, DataFrameField.SOURCE.getPreferredName());
-        this.dest = ExceptionsHelper.requireNonNull(dest, DataFrameField.DESTINATION.getPreferredName());
+        this.id = ExceptionsHelper.requireNonNull(id, TransformField.ID.getPreferredName());
+        this.source = ExceptionsHelper.requireNonNull(source, TransformField.SOURCE.getPreferredName());
+        this.dest = ExceptionsHelper.requireNonNull(dest, TransformField.DESTINATION.getPreferredName());
         this.frequency = frequency;
         this.syncConfig = syncConfig;
         this.setHeaders(headers == null ? Collections.emptyMap() : headers);
@@ -169,7 +169,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
 
         // at least one function must be defined
         if (this.pivotConfig == null) {
-            throw new IllegalArgumentException(DataFrameMessages.DATA_FRAME_TRANSFORM_CONFIGURATION_NO_TRANSFORM);
+            throw new IllegalArgumentException(TransformMessages.DATA_FRAME_TRANSFORM_CONFIGURATION_NO_TRANSFORM);
         }
         if (this.description != null && this.description.length() > MAX_DESCRIPTION_LENGTH) {
             throw new IllegalArgumentException("[description] must be less than 1000 characters in length.");
@@ -178,7 +178,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         this.transformVersion = version == null ? null : Version.fromString(version);
     }
 
-    public DataFrameTransformConfig(final String id,
+    public TransformConfig(final String id,
                                     final SourceConfig source,
                                     final DestConfig dest,
                                     final TimeValue frequency,
@@ -189,7 +189,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         this(id, source, dest, frequency, syncConfig, headers, pivotConfig, description, null, null);
     }
 
-    public DataFrameTransformConfig(final StreamInput in) throws IOException {
+    public TransformConfig(final StreamInput in) throws IOException {
         id = in.readString();
         source = new SourceConfig(in);
         dest = new DestConfig(in);
@@ -236,7 +236,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         return headers;
     }
 
-    public DataFrameTransformConfig setHeaders(Map<String, String> headers) {
+    public TransformConfig setHeaders(Map<String, String> headers) {
         this.headers = headers;
         return this;
     }
@@ -245,7 +245,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         return transformVersion;
     }
 
-    public DataFrameTransformConfig setVersion(Version transformVersion) {
+    public TransformConfig setVersion(Version transformVersion) {
         this.transformVersion = transformVersion;
         return this;
     }
@@ -254,8 +254,8 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         return createTime;
     }
 
-    public DataFrameTransformConfig setCreateTime(Instant createTime) {
-        ExceptionsHelper.requireNonNull(createTime, DataFrameField.CREATE_TIME.getPreferredName());
+    public TransformConfig setCreateTime(Instant createTime) {
+        ExceptionsHelper.requireNonNull(createTime, TransformField.CREATE_TIME.getPreferredName());
         this.createTime = Instant.ofEpochMilli(createTime.toEpochMilli());
         return this;
     }
@@ -307,34 +307,34 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
-        builder.field(DataFrameField.ID.getPreferredName(), id);
-        builder.field(DataFrameField.SOURCE.getPreferredName(), source);
-        builder.field(DataFrameField.DESTINATION.getPreferredName(), dest);
+        builder.field(TransformField.ID.getPreferredName(), id);
+        builder.field(TransformField.SOURCE.getPreferredName(), source);
+        builder.field(TransformField.DESTINATION.getPreferredName(), dest);
         if (frequency != null) {
-            builder.field(DataFrameField.FREQUENCY.getPreferredName(), frequency.getStringRep());
+            builder.field(TransformField.FREQUENCY.getPreferredName(), frequency.getStringRep());
         }
         if (syncConfig != null) {
-            builder.startObject(DataFrameField.SYNC.getPreferredName());
+            builder.startObject(TransformField.SYNC.getPreferredName());
             builder.field(syncConfig.getWriteableName(), syncConfig);
             builder.endObject();
         }
         if (pivotConfig != null) {
             builder.field(PIVOT_TRANSFORM.getPreferredName(), pivotConfig);
         }
-        if (params.paramAsBoolean(DataFrameField.FOR_INTERNAL_STORAGE, false)) {
-            builder.field(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), NAME);
+        if (params.paramAsBoolean(TransformField.FOR_INTERNAL_STORAGE, false)) {
+            builder.field(TransformField.INDEX_DOC_TYPE.getPreferredName(), NAME);
         }
-        if (headers.isEmpty() == false && params.paramAsBoolean(DataFrameField.FOR_INTERNAL_STORAGE, false) == true) {
+        if (headers.isEmpty() == false && params.paramAsBoolean(TransformField.FOR_INTERNAL_STORAGE, false) == true) {
             builder.field(HEADERS.getPreferredName(), headers);
         }
         if (description != null) {
-            builder.field(DataFrameField.DESCRIPTION.getPreferredName(), description);
+            builder.field(TransformField.DESCRIPTION.getPreferredName(), description);
         }
         if (transformVersion != null) {
-            builder.field(DataFrameField.VERSION.getPreferredName(), transformVersion);
+            builder.field(TransformField.VERSION.getPreferredName(), transformVersion);
         }
         if (createTime != null) {
-            builder.timeField(DataFrameField.CREATE_TIME.getPreferredName(), DataFrameField.CREATE_TIME.getPreferredName() + "_string",
+            builder.timeField(TransformField.CREATE_TIME.getPreferredName(), TransformField.CREATE_TIME.getPreferredName() + "_string",
                     createTime.toEpochMilli());
         }
         builder.endObject();
@@ -351,7 +351,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
             return false;
         }
 
-        final DataFrameTransformConfig that = (DataFrameTransformConfig) other;
+        final TransformConfig that = (TransformConfig) other;
 
         return Objects.equals(this.id, that.id)
                 && Objects.equals(this.source, that.source)
@@ -375,7 +375,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         return Strings.toString(this, true, true);
     }
 
-    public static DataFrameTransformConfig fromXContent(final XContentParser parser, @Nullable final String optionalTransformId,
+    public static TransformConfig fromXContent(final XContentParser parser, @Nullable final String optionalTransformId,
             boolean lenient) {
 
         return lenient ? LENIENT_PARSER.apply(parser, optionalTransformId) : STRICT_PARSER.apply(parser, optionalTransformId);
@@ -395,7 +395,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
 
         public Builder() { }
 
-        public Builder(DataFrameTransformConfig config) {
+        public Builder(TransformConfig config) {
             this.id = config.id;
             this.source = config.source;
             this.dest = config.dest;
@@ -452,8 +452,8 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
             return this;
         }
 
-        public DataFrameTransformConfig build() {
-            return new DataFrameTransformConfig(id,
+        public TransformConfig build() {
+            return new TransformConfig(id,
                 source,
                 dest,
                 frequency,
@@ -475,7 +475,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
                 return false;
             }
 
-            final DataFrameTransformConfig.Builder that = (DataFrameTransformConfig.Builder) other;
+            final TransformConfig.Builder that = (TransformConfig.Builder) other;
 
             return Objects.equals(this.id, that.id)
                 && Objects.equals(this.source, that.source)

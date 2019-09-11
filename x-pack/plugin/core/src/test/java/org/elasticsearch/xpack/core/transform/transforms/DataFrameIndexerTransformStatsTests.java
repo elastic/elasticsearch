@@ -13,25 +13,25 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DataFrameIndexerTransformStatsTests extends AbstractSerializingTestCase<DataFrameIndexerTransformStats> {
+public class DataFrameIndexerTransformStatsTests extends AbstractSerializingTestCase<TransformIndexerStats> {
 
     @Override
-    protected DataFrameIndexerTransformStats createTestInstance() {
+    protected TransformIndexerStats createTestInstance() {
         return randomStats();
     }
 
     @Override
-    protected Writeable.Reader<DataFrameIndexerTransformStats> instanceReader() {
-        return DataFrameIndexerTransformStats::new;
+    protected Writeable.Reader<TransformIndexerStats> instanceReader() {
+        return TransformIndexerStats::new;
     }
 
     @Override
-    protected DataFrameIndexerTransformStats doParseInstance(XContentParser parser) {
-        return DataFrameIndexerTransformStats.fromXContent(parser);
+    protected TransformIndexerStats doParseInstance(XContentParser parser) {
+        return TransformIndexerStats.fromXContent(parser);
     }
 
-    public static DataFrameIndexerTransformStats randomStats() {
-        return new DataFrameIndexerTransformStats(randomLongBetween(10L, 10000L),
+    public static TransformIndexerStats randomStats() {
+        return new TransformIndexerStats(randomLongBetween(10L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L),
@@ -41,7 +41,7 @@ public class DataFrameIndexerTransformStatsTests extends AbstractSerializingTest
     }
 
     public void testExpAvgIncrement() {
-        DataFrameIndexerTransformStats stats = new DataFrameIndexerTransformStats();
+        TransformIndexerStats stats = new TransformIndexerStats();
 
         assertThat(stats.getExpAvgCheckpointDurationMs(), equalTo(0.0));
         assertThat(stats.getExpAvgDocumentsIndexed(), equalTo(0.0));

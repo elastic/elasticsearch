@@ -13,16 +13,16 @@ import java.util.Date;
 
 import static org.hamcrest.Matchers.nullValue;
 
-public class DataFrameAuditMessageTests extends AbstractXContentTestCase<DataFrameAuditMessage> {
+public class DataFrameAuditMessageTests extends AbstractXContentTestCase<TransformAuditMessage> {
 
     public void testGetJobType() {
-        DataFrameAuditMessage message = createTestInstance();
+        TransformAuditMessage message = createTestInstance();
         assertThat(message.getJobType(), nullValue());
     }
 
     @Override
-    protected DataFrameAuditMessage doParseInstance(XContentParser parser) {
-        return DataFrameAuditMessage.PARSER.apply(parser, null);
+    protected TransformAuditMessage doParseInstance(XContentParser parser) {
+        return TransformAuditMessage.PARSER.apply(parser, null);
     }
 
     @Override
@@ -31,8 +31,8 @@ public class DataFrameAuditMessageTests extends AbstractXContentTestCase<DataFra
     }
 
     @Override
-    protected DataFrameAuditMessage createTestInstance() {
-        return new DataFrameAuditMessage(
+    protected TransformAuditMessage createTestInstance() {
+        return new TransformAuditMessage(
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomAlphaOfLengthBetween(1, 20),
             randomFrom(Level.values()),

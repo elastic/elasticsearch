@@ -22,7 +22,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.xpack.core.transform.DataFrameMessages;
+import org.elasticsearch.xpack.core.transform.TransformMessages;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -78,9 +78,9 @@ public class AggregationConfig implements Writeable, ToXContentObject {
 
         if (source.isEmpty()) {
             if (lenient) {
-                logger.warn(DataFrameMessages.DATA_FRAME_TRANSFORM_CONFIGURATION_PIVOT_NO_AGGREGATION);
+                logger.warn(TransformMessages.DATA_FRAME_TRANSFORM_CONFIGURATION_PIVOT_NO_AGGREGATION);
             } else {
-                throw new IllegalArgumentException(DataFrameMessages.DATA_FRAME_TRANSFORM_CONFIGURATION_PIVOT_NO_AGGREGATION);
+                throw new IllegalArgumentException(TransformMessages.DATA_FRAME_TRANSFORM_CONFIGURATION_PIVOT_NO_AGGREGATION);
             }
         } else {
             try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
@@ -90,7 +90,7 @@ public class AggregationConfig implements Writeable, ToXContentObject {
                 aggregations = AggregatorFactories.parseAggregators(sourceParser);
             } catch (Exception e) {
                 if (lenient) {
-                    logger.warn(DataFrameMessages.LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_AGGREGATION, e);
+                    logger.warn(TransformMessages.LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_AGGREGATION, e);
                 } else {
                     throw e;
                 }

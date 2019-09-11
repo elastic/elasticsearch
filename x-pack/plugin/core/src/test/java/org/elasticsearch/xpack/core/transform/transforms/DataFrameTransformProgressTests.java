@@ -19,59 +19,59 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DataFrameTransformProgressTests extends AbstractSerializingDataFrameTestCase<DataFrameTransformProgress> {
+public class DataFrameTransformProgressTests extends AbstractSerializingDataFrameTestCase<TransformProgress> {
 
-    public static DataFrameTransformProgress randomDataFrameTransformProgress() {
-        return new DataFrameTransformProgress(
+    public static TransformProgress randomDataFrameTransformProgress() {
+        return new TransformProgress(
             randomBoolean() ? null : randomLongBetween(0, 10000),
             randomBoolean() ? null : randomLongBetween(0, 10000),
             randomBoolean() ? null : randomLongBetween(1, 10000));
     }
 
     @Override
-    protected DataFrameTransformProgress doParseInstance(XContentParser parser) throws IOException {
-        return DataFrameTransformProgress.PARSER.apply(parser, null);
+    protected TransformProgress doParseInstance(XContentParser parser) throws IOException {
+        return TransformProgress.PARSER.apply(parser, null);
     }
 
     @Override
-    protected DataFrameTransformProgress createTestInstance() {
+    protected TransformProgress createTestInstance() {
         return randomDataFrameTransformProgress();
     }
 
     @Override
-    protected Reader<DataFrameTransformProgress> instanceReader() {
-        return DataFrameTransformProgress::new;
+    protected Reader<TransformProgress> instanceReader() {
+        return TransformProgress::new;
     }
 
     public void testPercentComplete() {
-        DataFrameTransformProgress progress = new DataFrameTransformProgress(0L, 100L, null);
+        TransformProgress progress = new TransformProgress(0L, 100L, null);
         assertThat(progress.getPercentComplete(), equalTo(100.0));
 
-        progress = new DataFrameTransformProgress(100L, 0L, null);
+        progress = new TransformProgress(100L, 0L, null);
         assertThat(progress.getPercentComplete(), equalTo(0.0));
 
-        progress = new DataFrameTransformProgress(100L, 10000L, null);
+        progress = new TransformProgress(100L, 10000L, null);
         assertThat(progress.getPercentComplete(), equalTo(100.0));
 
-        progress = new DataFrameTransformProgress(100L, null, null);
+        progress = new TransformProgress(100L, null, null);
         assertThat(progress.getPercentComplete(), equalTo(0.0));
 
-        progress = new DataFrameTransformProgress(100L, 50L, null);
+        progress = new TransformProgress(100L, 50L, null);
         assertThat(progress.getPercentComplete(), closeTo(50.0, 0.000001));
 
-        progress = new DataFrameTransformProgress(null, 50L, 10L);
+        progress = new TransformProgress(null, 50L, 10L);
         assertThat(progress.getPercentComplete(), is(nullValue()));
     }
 
     public void testConstructor() {
         IllegalArgumentException ex =
-            expectThrows(IllegalArgumentException.class, () -> new DataFrameTransformProgress(-1L, null, null));
+            expectThrows(IllegalArgumentException.class, () -> new TransformProgress(-1L, null, null));
         assertThat(ex.getMessage(), equalTo("[total_docs] must be >0."));
 
-        ex = expectThrows(IllegalArgumentException.class, () -> new DataFrameTransformProgress(1L, -1L, null));
+        ex = expectThrows(IllegalArgumentException.class, () -> new TransformProgress(1L, -1L, null));
         assertThat(ex.getMessage(), equalTo("[docs_processed] must be >0."));
 
-        ex = expectThrows(IllegalArgumentException.class, () -> new DataFrameTransformProgress(1L, 1L, -1L));
+        ex = expectThrows(IllegalArgumentException.class, () -> new TransformProgress(1L, 1L, -1L));
         assertThat(ex.getMessage(), equalTo("[docs_indexed] must be >0."));
     }
 
@@ -79,25 +79,25 @@ public class DataFrameTransformProgressTests extends AbstractSerializingDataFram
         long totalDocs = 10_000;
         long processedDocs = randomLongBetween(0, totalDocs);
         // documentsIndexed are not in past versions, so it would be zero coming in
-        DataFrameTransformProgress progress = new DataFrameTransformProgress(totalDocs, processedDocs, 0L);
+        TransformProgress progress = new TransformProgress(totalDocs, processedDocs, 0L);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setVersion(Version.V_7_2_0);
             progress.writeTo(output);
             try (StreamInput in = output.bytes().streamInput()) {
                 in.setVersion(Version.V_7_2_0);
-                DataFrameTransformProgress streamedProgress = new DataFrameTransformProgress(in);
+                TransformProgress streamedProgress = new TransformProgress(in);
                 assertEquals(progress, streamedProgress);
             }
         }
 
-        progress = new DataFrameTransformProgress(null, processedDocs, 0L);
+        progress = new TransformProgress(null, processedDocs, 0L);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setVersion(Version.V_7_2_0);
             progress.writeTo(output);
             try (StreamInput in = output.bytes().streamInput()) {
                 in.setVersion(Version.V_7_2_0);
-                DataFrameTransformProgress streamedProgress = new DataFrameTransformProgress(in);
-                assertEquals(new DataFrameTransformProgress(0L, 0L, 0L), streamedProgress);
+                TransformProgress streamedProgress = new TransformProgress(in);
+                assertEquals(new TransformProgress(0L, 0L, 0L), streamedProgress);
             }
         }
 

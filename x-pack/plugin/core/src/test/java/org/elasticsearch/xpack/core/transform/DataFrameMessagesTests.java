@@ -17,13 +17,13 @@ import java.util.Locale;
 public class DataFrameMessagesTests extends ESTestCase {
 
     public void testGetMessage_WithFormatStrings() {
-        String formattedMessage = DataFrameMessages.getMessage(DataFrameMessages.REST_STOP_TRANSFORM_WAIT_FOR_COMPLETION_TIMEOUT, "30s",
+        String formattedMessage = TransformMessages.getMessage(TransformMessages.REST_STOP_TRANSFORM_WAIT_FOR_COMPLETION_TIMEOUT, "30s",
                 "my_transform");
         assertEquals("Timed out after [30s] while waiting for data frame transform [my_transform] to stop", formattedMessage);
     }
 
     public void testMessageProperFormat() throws IllegalArgumentException, IllegalAccessException {
-        Field[] declaredFields = DataFrameMessages.class.getFields();
+        Field[] declaredFields = TransformMessages.class.getFields();
         int checkedMessages = 0;
 
         for (Field field : declaredFields) {
@@ -31,7 +31,7 @@ public class DataFrameMessagesTests extends ESTestCase {
             if (java.lang.reflect.Modifier.isStatic(modifiers) && java.lang.reflect.Modifier.isFinal(modifiers)
                     && field.getType().isAssignableFrom(String.class)) {
 
-                assertSingleMessage((String) field.get(DataFrameMessages.class));
+                assertSingleMessage((String) field.get(TransformMessages.class));
                 ++checkedMessages;
             }
         }

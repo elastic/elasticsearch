@@ -30,21 +30,21 @@ import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTest
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameTestCase<DataFrameTransformConfig> {
+public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameTestCase<TransformConfig> {
 
     private String transformId;
     private boolean runWithHeaders;
 
-    public static DataFrameTransformConfig randomDataFrameTransformConfigWithoutHeaders() {
+    public static TransformConfig randomDataFrameTransformConfigWithoutHeaders() {
         return randomDataFrameTransformConfigWithoutHeaders(randomAlphaOfLengthBetween(1, 10));
     }
 
-    public static DataFrameTransformConfig randomDataFrameTransformConfig() {
+    public static TransformConfig randomDataFrameTransformConfig() {
         return randomDataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10));
     }
 
-    public static DataFrameTransformConfig randomDataFrameTransformConfigWithoutHeaders(String id) {
-        return new DataFrameTransformConfig(id,
+    public static TransformConfig randomDataFrameTransformConfigWithoutHeaders(String id) {
+        return new TransformConfig(id,
             randomSourceConfig(),
             randomDestConfig(),
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
@@ -56,8 +56,8 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
             null);
     }
 
-    public static DataFrameTransformConfig randomDataFrameTransformConfig(String id) {
-        return new DataFrameTransformConfig(id,
+    public static TransformConfig randomDataFrameTransformConfig(String id) {
+        return new TransformConfig(id,
             randomSourceConfig(),
             randomDestConfig(),
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
@@ -69,13 +69,13 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
             randomBoolean() ? null : Version.CURRENT.toString());
     }
 
-    public static DataFrameTransformConfig randomInvalidDataFrameTransformConfig() {
+    public static TransformConfig randomInvalidDataFrameTransformConfig() {
         if (randomBoolean()) {
-            return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomInvalidSourceConfig(), randomDestConfig(),
+            return new TransformConfig(randomAlphaOfLengthBetween(1, 10), randomInvalidSourceConfig(), randomDestConfig(),
                     null, randomBoolean() ? randomSyncConfig() : null, randomHeaders(), PivotConfigTests.randomPivotConfig(),
                     randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000));
         } // else
-        return new DataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10), randomSourceConfig(), randomDestConfig(),
+        return new TransformConfig(randomAlphaOfLengthBetween(1, 10), randomSourceConfig(), randomDestConfig(),
                 null, randomBoolean() ? randomSyncConfig() : null, randomHeaders(), PivotConfigTests.randomInvalidPivotConfig(),
                 randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000));
     }
@@ -91,22 +91,22 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
     }
 
     @Override
-    protected DataFrameTransformConfig doParseInstance(XContentParser parser) throws IOException {
+    protected TransformConfig doParseInstance(XContentParser parser) throws IOException {
         if (randomBoolean()) {
-            return DataFrameTransformConfig.fromXContent(parser, transformId, runWithHeaders);
+            return TransformConfig.fromXContent(parser, transformId, runWithHeaders);
         } else {
-            return DataFrameTransformConfig.fromXContent(parser, null, runWithHeaders);
+            return TransformConfig.fromXContent(parser, null, runWithHeaders);
         }
     }
 
     @Override
-    protected DataFrameTransformConfig createTestInstance() {
+    protected TransformConfig createTestInstance() {
         return runWithHeaders ? randomDataFrameTransformConfig(transformId) : randomDataFrameTransformConfigWithoutHeaders(transformId);
     }
 
     @Override
-    protected Reader<DataFrameTransformConfig> instanceReader() {
-        return DataFrameTransformConfig::new;
+    protected Reader<TransformConfig> instanceReader() {
+        return TransformConfig::new;
     }
 
     @Override
@@ -137,7 +137,7 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
                 + "       \"field\": \"points\""
                 + "} } } } }";
 
-        DataFrameTransformConfig dataFrameTransformConfig = createDataFrameTransformConfigFromString(pivotTransform, "test_match_all");
+        TransformConfig dataFrameTransformConfig = createDataFrameTransformConfigFromString(pivotTransform, "test_match_all");
         assertNotNull(dataFrameTransformConfig.getSource().getQueryConfig());
         assertTrue(dataFrameTransformConfig.getSource().getQueryConfig().isValid());
 
@@ -213,7 +213,7 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
     }
 
     public void testXContentForInternalStorage() throws IOException {
-        DataFrameTransformConfig dataFrameTransformConfig = randomDataFrameTransformConfig();
+        TransformConfig dataFrameTransformConfig = randomDataFrameTransformConfig();
 
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
             XContentBuilder content = dataFrameTransformConfig.toXContent(xContentBuilder, getToXContentParams());
@@ -231,11 +231,11 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
     }
 
     public void testMaxLengthDescription() {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new DataFrameTransformConfig("id",
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new TransformConfig("id",
             randomSourceConfig(), randomDestConfig(), null, null, null, PivotConfigTests.randomPivotConfig(), randomAlphaOfLength(1001)));
         assertThat(exception.getMessage(), equalTo("[description] must be less than 1000 characters in length."));
         String description = randomAlphaOfLength(1000);
-        DataFrameTransformConfig config = new DataFrameTransformConfig("id",
+        TransformConfig config = new TransformConfig("id",
             randomSourceConfig(), randomDestConfig(), null, null, null, PivotConfigTests.randomPivotConfig(), description);
         assertThat(description, equalTo(config.getDescription()));
     }
@@ -257,7 +257,7 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
                 + "       \"field\": \"points\""
                 + "} } } } }";
 
-        DataFrameTransformConfig dataFrameTransformConfig = createDataFrameTransformConfigFromString(pivotTransform, "body_id");
+        TransformConfig dataFrameTransformConfig = createDataFrameTransformConfigFromString(pivotTransform, "body_id");
         assertEquals("body_id", dataFrameTransformConfig.getId());
 
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
@@ -268,9 +268,9 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
     }
 
 
-    private DataFrameTransformConfig createDataFrameTransformConfigFromString(String json, String id) throws IOException {
+    private TransformConfig createDataFrameTransformConfigFromString(String json, String id) throws IOException {
         final XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry(),
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
-        return DataFrameTransformConfig.fromXContent(parser, id, false);
+        return TransformConfig.fromXContent(parser, id, false);
     }
 }

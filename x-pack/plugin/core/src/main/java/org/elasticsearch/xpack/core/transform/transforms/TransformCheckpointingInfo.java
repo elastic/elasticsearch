@@ -29,11 +29,11 @@ import java.util.Objects;
  *  - the in progress checkpoint
  *  - the current state of the source
  */
-public class DataFrameTransformCheckpointingInfo implements Writeable, ToXContentObject {
+public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
 
-    public static final DataFrameTransformCheckpointingInfo EMPTY = new DataFrameTransformCheckpointingInfo(
-        DataFrameTransformCheckpointStats.EMPTY,
-        DataFrameTransformCheckpointStats.EMPTY,
+    public static final TransformCheckpointingInfo EMPTY = new TransformCheckpointingInfo(
+        TransformCheckpointStats.EMPTY,
+        TransformCheckpointStats.EMPTY,
         0L,
         null);
 
@@ -41,30 +41,30 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
     public static final ParseField NEXT_CHECKPOINT = new ParseField("next");
     public static final ParseField OPERATIONS_BEHIND = new ParseField("operations_behind");
     public static final ParseField CHANGES_LAST_DETECTED_AT = new ParseField("changes_last_detected_at");
-    private final DataFrameTransformCheckpointStats last;
-    private final DataFrameTransformCheckpointStats next;
+    private final TransformCheckpointStats last;
+    private final TransformCheckpointStats next;
     private final long operationsBehind;
     private Instant changesLastDetectedAt;
 
-    private static final ConstructingObjectParser<DataFrameTransformCheckpointingInfo, Void> LENIENT_PARSER =
+    private static final ConstructingObjectParser<TransformCheckpointingInfo, Void> LENIENT_PARSER =
             new ConstructingObjectParser<>(
                 "data_frame_transform_checkpointing_info",
                 true,
                 a -> {
                         long behind = a[2] == null ? 0L : (Long) a[2];
                         Instant changesLastDetectedAt = (Instant)a[3];
-                        return new DataFrameTransformCheckpointingInfo(
-                            a[0] == null ? DataFrameTransformCheckpointStats.EMPTY : (DataFrameTransformCheckpointStats) a[0],
-                            a[1] == null ? DataFrameTransformCheckpointStats.EMPTY : (DataFrameTransformCheckpointStats) a[1],
+                        return new TransformCheckpointingInfo(
+                            a[0] == null ? TransformCheckpointStats.EMPTY : (TransformCheckpointStats) a[0],
+                            a[1] == null ? TransformCheckpointStats.EMPTY : (TransformCheckpointStats) a[1],
                             behind,
                             changesLastDetectedAt);
                 });
 
     static {
         LENIENT_PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-            DataFrameTransformCheckpointStats.LENIENT_PARSER::apply, LAST_CHECKPOINT);
+            TransformCheckpointStats.LENIENT_PARSER::apply, LAST_CHECKPOINT);
         LENIENT_PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-            DataFrameTransformCheckpointStats.LENIENT_PARSER::apply, NEXT_CHECKPOINT);
+            TransformCheckpointStats.LENIENT_PARSER::apply, NEXT_CHECKPOINT);
         LENIENT_PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), OPERATIONS_BEHIND);
         LENIENT_PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
             p -> TimeUtils.parseTimeFieldToInstant(p, CHANGES_LAST_DETECTED_AT.getPreferredName()),
@@ -81,8 +81,8 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
      * @param operationsBehind counter of operations the current checkpoint is behind source
      * @param changesLastDetectedAt the last time the source indices were checked for changes
      */
-    public DataFrameTransformCheckpointingInfo(DataFrameTransformCheckpointStats last,
-                                               DataFrameTransformCheckpointStats next,
+    public TransformCheckpointingInfo(TransformCheckpointStats last,
+                                               TransformCheckpointStats next,
                                                long operationsBehind,
                                                Instant changesLastDetectedAt) {
         this.last = Objects.requireNonNull(last);
@@ -91,26 +91,26 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
         this.changesLastDetectedAt = changesLastDetectedAt == null ? null : Instant.ofEpochMilli(changesLastDetectedAt.toEpochMilli());
     }
 
-    public DataFrameTransformCheckpointingInfo(DataFrameTransformCheckpointStats last,
-                                               DataFrameTransformCheckpointStats next,
+    public TransformCheckpointingInfo(TransformCheckpointStats last,
+                                               TransformCheckpointStats next,
                                                long operationsBehind) {
         this(last, next, operationsBehind, null);
     }
 
-    public DataFrameTransformCheckpointingInfo(StreamInput in) throws IOException {
-        last = new DataFrameTransformCheckpointStats(in);
-        next = new DataFrameTransformCheckpointStats(in);
+    public TransformCheckpointingInfo(StreamInput in) throws IOException {
+        last = new TransformCheckpointStats(in);
+        next = new TransformCheckpointStats(in);
         operationsBehind = in.readLong();
         if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
             changesLastDetectedAt = in.readOptionalInstant();
         }
     }
 
-    public DataFrameTransformCheckpointStats getLast() {
+    public TransformCheckpointStats getLast() {
         return last;
     }
 
-    public DataFrameTransformCheckpointStats getNext() {
+    public TransformCheckpointStats getNext() {
         return next;
     }
 
@@ -122,7 +122,7 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
         return changesLastDetectedAt;
     }
 
-    public DataFrameTransformCheckpointingInfo setChangesLastDetectedAt(Instant changesLastDetectedAt) {
+    public TransformCheckpointingInfo setChangesLastDetectedAt(Instant changesLastDetectedAt) {
         this.changesLastDetectedAt = Instant.ofEpochMilli(Objects.requireNonNull(changesLastDetectedAt).toEpochMilli());
         return this;
     }
@@ -154,7 +154,7 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
         }
     }
 
-    public static DataFrameTransformCheckpointingInfo fromXContent(XContentParser p) {
+    public static TransformCheckpointingInfo fromXContent(XContentParser p) {
         return LENIENT_PARSER.apply(p, null);
     }
 
@@ -173,7 +173,7 @@ public class DataFrameTransformCheckpointingInfo implements Writeable, ToXConten
             return false;
         }
 
-        DataFrameTransformCheckpointingInfo that = (DataFrameTransformCheckpointingInfo) other;
+        TransformCheckpointingInfo that = (TransformCheckpointingInfo) other;
 
         return Objects.equals(this.last, that.last) &&
             Objects.equals(this.next, that.next) &&

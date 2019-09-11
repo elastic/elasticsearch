@@ -11,8 +11,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.core.transform.action.StopDataFrameTransformAction.Request;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.action.StopTransformAction.Request;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -53,7 +53,7 @@ public class StopDataFrameTransformActionRequestTests extends AbstractWireSerial
         String dataFrameId = "dataframe-id";
 
         Task dataFrameTask = new Task(1L, "persistent", "action",
-                DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX + dataFrameId,
+                TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + dataFrameId,
                 TaskId.EMPTY_TASK_ID, Collections.emptyMap());
 
         Request request = new Request("unrelated", false, false, null, false);

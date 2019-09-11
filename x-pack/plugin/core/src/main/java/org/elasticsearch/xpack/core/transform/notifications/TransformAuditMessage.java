@@ -9,17 +9,17 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 import org.elasticsearch.xpack.core.common.notifications.Level;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
+import org.elasticsearch.xpack.core.transform.TransformField;
 
 import java.util.Date;
 
-public class DataFrameAuditMessage extends AbstractAuditMessage {
+public class TransformAuditMessage extends AbstractAuditMessage {
 
-    private static final ParseField TRANSFORM_ID = new ParseField(DataFrameField.TRANSFORM_ID);
-    public static final ConstructingObjectParser<DataFrameAuditMessage, Void> PARSER =
-        createParser("data_frame_audit_message", DataFrameAuditMessage::new, TRANSFORM_ID);
+    private static final ParseField TRANSFORM_ID = new ParseField(TransformField.TRANSFORM_ID);
+    public static final ConstructingObjectParser<TransformAuditMessage, Void> PARSER =
+        createParser("data_frame_audit_message", TransformAuditMessage::new, TRANSFORM_ID);
 
-    public DataFrameAuditMessage(String resourceId, String message, Level level, Date timestamp, String nodeName) {
+    public TransformAuditMessage(String resourceId, String message, Level level, Date timestamp, String nodeName) {
         super(resourceId, message, level, timestamp, nodeName);
     }
 

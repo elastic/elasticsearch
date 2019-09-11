@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.dataframe.integration;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformStoredDoc;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndex;
 import org.junit.Before;
 
@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.transform.DataFrameField.INDEX_DOC_TYPE;
+import static org.elasticsearch.xpack.core.transform.TransformField.INDEX_DOC_TYPE;
 import static org.elasticsearch.xpack.transform.DataFrameInfoTransportAction.PROVIDED_STATS;
 
 public class DataFrameUsageIT extends DataFrameRestTestCase {
@@ -55,7 +55,7 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
         Request statsExistsRequest = new Request("GET",
             DataFrameInternalIndex.LATEST_INDEX_NAME+"/_search?q=" +
                 INDEX_DOC_TYPE.getPreferredName() + ":" +
-                DataFrameTransformStoredDoc.NAME);
+                TransformStoredDoc.NAME);
         // Verify that we have one stat document
         assertBusy(() -> {
             Map<String, Object> hasStatsMap = entityAsMap(client().performRequest(statsExistsRequest));
@@ -86,8 +86,8 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
             assertEquals(2, XContentMapValues.extractValue("data_frame.transforms.stopped", statsMap));
             assertEquals(1, XContentMapValues.extractValue("data_frame.transforms.started", statsMap));
             for(String statName : PROVIDED_STATS) {
-                if (statName.equals(DataFrameIndexerTransformStats.INDEX_TIME_IN_MS.getPreferredName())
-                    ||statName.equals(DataFrameIndexerTransformStats.SEARCH_TIME_IN_MS.getPreferredName())) {
+                if (statName.equals(TransformIndexerStats.INDEX_TIME_IN_MS.getPreferredName())
+                    ||statName.equals(TransformIndexerStats.SEARCH_TIME_IN_MS.getPreferredName())) {
                     continue;
                 }
                 assertEquals("Incorrect stat " +  statName,

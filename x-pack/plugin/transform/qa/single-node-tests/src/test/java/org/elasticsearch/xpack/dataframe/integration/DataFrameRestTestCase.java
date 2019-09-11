@@ -19,7 +19,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndex;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -44,7 +44,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
 
     protected static final String REVIEWS_INDEX_NAME = "reviews";
 
-    protected static final String DATAFRAME_ENDPOINT = DataFrameField.REST_BASE_PATH + "transforms/";
+    protected static final String DATAFRAME_ENDPOINT = TransformField.REST_BASE_PATH + "transforms/";
 
     @Override
     protected Settings restClientSettings() {
@@ -231,7 +231,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
     protected void startDataframeTransform(String transformId, boolean force, String authHeader, String... warnings) throws IOException {
         // start the transform
         final Request startTransformRequest = createRequestWithAuth("POST", DATAFRAME_ENDPOINT + transformId + "/_start", authHeader);
-        startTransformRequest.addParameter(DataFrameField.FORCE.getPreferredName(), Boolean.toString(force));
+        startTransformRequest.addParameter(TransformField.FORCE.getPreferredName(), Boolean.toString(force));
         if (warnings.length > 0) {
             startTransformRequest.setOptions(expectWarnings(warnings));
         }
@@ -242,8 +242,8 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
     protected void stopDataFrameTransform(String transformId, boolean force) throws Exception {
         // start the transform
         final Request stopTransformRequest = createRequestWithAuth("POST", DATAFRAME_ENDPOINT + transformId + "/_stop", null);
-        stopTransformRequest.addParameter(DataFrameField.FORCE.getPreferredName(), Boolean.toString(force));
-        stopTransformRequest.addParameter(DataFrameField.WAIT_FOR_COMPLETION.getPreferredName(), Boolean.toString(true));
+        stopTransformRequest.addParameter(TransformField.FORCE.getPreferredName(), Boolean.toString(force));
+        stopTransformRequest.addParameter(TransformField.WAIT_FOR_COMPLETION.getPreferredName(), Boolean.toString(true));
         Map<String, Object> stopTransformResponse = entityAsMap(client().performRequest(stopTransformRequest));
         assertThat(stopTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
     }
@@ -400,7 +400,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
     }
 
     protected static void waitForPendingDataFrameTasks() throws Exception {
-        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(DataFrameField.TASK_NAME) == false);
+        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(TransformField.TASK_NAME) == false);
     }
 
     static int getDataFrameCheckpoint(String transformId) throws IOException {

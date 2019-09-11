@@ -15,10 +15,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.time.Instant;
 
-public class DataFrameTransformCheckpointingInfoTests extends AbstractSerializingDataFrameTestCase<DataFrameTransformCheckpointingInfo> {
+public class DataFrameTransformCheckpointingInfoTests extends AbstractSerializingDataFrameTestCase<TransformCheckpointingInfo> {
 
-    public static DataFrameTransformCheckpointingInfo randomDataFrameTransformCheckpointingInfo() {
-        return new DataFrameTransformCheckpointingInfo(
+    public static TransformCheckpointingInfo randomDataFrameTransformCheckpointingInfo() {
+        return new TransformCheckpointingInfo(
             DataFrameTransformCheckpointStatsTests.randomDataFrameTransformCheckpointStats(),
             DataFrameTransformCheckpointStatsTests.randomDataFrameTransformCheckpointStats(),
             randomNonNegativeLong(),
@@ -26,24 +26,24 @@ public class DataFrameTransformCheckpointingInfoTests extends AbstractSerializin
     }
 
     @Override
-    protected DataFrameTransformCheckpointingInfo doParseInstance(XContentParser parser) throws IOException {
-        return DataFrameTransformCheckpointingInfo.fromXContent(parser);
+    protected TransformCheckpointingInfo doParseInstance(XContentParser parser) throws IOException {
+        return TransformCheckpointingInfo.fromXContent(parser);
     }
 
     @Override
-    protected DataFrameTransformCheckpointingInfo createTestInstance() {
+    protected TransformCheckpointingInfo createTestInstance() {
         return randomDataFrameTransformCheckpointingInfo();
     }
 
     @Override
-    protected Reader<DataFrameTransformCheckpointingInfo> instanceReader() {
-        return DataFrameTransformCheckpointingInfo::new;
+    protected Reader<TransformCheckpointingInfo> instanceReader() {
+        return TransformCheckpointingInfo::new;
     }
 
     public void testBackwardsSerialization() throws IOException {
-        DataFrameTransformCheckpointingInfo checkpointingInfo = new DataFrameTransformCheckpointingInfo(
-            DataFrameTransformCheckpointStats.EMPTY,
-            DataFrameTransformCheckpointStats.EMPTY,
+        TransformCheckpointingInfo checkpointingInfo = new TransformCheckpointingInfo(
+            TransformCheckpointStats.EMPTY,
+            TransformCheckpointStats.EMPTY,
             randomNonNegativeLong(),
             // changesLastDetectedAt is not serialized to past values, so when it is pulled back in, it will be null
             null);
@@ -52,7 +52,7 @@ public class DataFrameTransformCheckpointingInfoTests extends AbstractSerializin
             checkpointingInfo.writeTo(output);
             try (StreamInput in = output.bytes().streamInput()) {
                 in.setVersion(Version.V_7_4_0);
-                DataFrameTransformCheckpointingInfo streamedCheckpointingInfo = new DataFrameTransformCheckpointingInfo(in);
+                TransformCheckpointingInfo streamedCheckpointingInfo = new TransformCheckpointingInfo(in);
                 assertEquals(checkpointingInfo, streamedCheckpointingInfo);
             }
         }

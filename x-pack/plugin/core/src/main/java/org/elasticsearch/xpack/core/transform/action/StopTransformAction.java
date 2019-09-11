@@ -20,7 +20,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -32,15 +32,15 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-public class StopDataFrameTransformAction extends ActionType<StopDataFrameTransformAction.Response> {
+public class StopTransformAction extends ActionType<StopTransformAction.Response> {
 
-    public static final StopDataFrameTransformAction INSTANCE = new StopDataFrameTransformAction();
+    public static final StopTransformAction INSTANCE = new StopTransformAction();
     public static final String NAME = "cluster:admin/data_frame/stop";
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
-    private StopDataFrameTransformAction() {
-        super(NAME, StopDataFrameTransformAction.Response::new);
+    private StopTransformAction() {
+        super(NAME, StopTransformAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> {
@@ -51,7 +51,7 @@ public class StopDataFrameTransformAction extends ActionType<StopDataFrameTransf
         private Set<String> expandedIds;
 
         public Request(String id, boolean waitForCompletion, boolean force, @Nullable TimeValue timeout, boolean allowNoMatch) {
-            this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
+            this.id = ExceptionsHelper.requireNonNull(id, TransformField.ID.getPreferredName());
             this.waitForCompletion = waitForCompletion;
             this.force = force;
 
@@ -151,8 +151,8 @@ public class StopDataFrameTransformAction extends ActionType<StopDataFrameTransf
 
         @Override
         public boolean match(Task task) {
-            if (task.getDescription().startsWith(DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX)) {
-                String id = task.getDescription().substring(DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX.length());
+            if (task.getDescription().startsWith(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX)) {
+                String id = task.getDescription().substring(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX.length());
                 if (expandedIds != null) {
                     return expandedIds.contains(id);
                 }

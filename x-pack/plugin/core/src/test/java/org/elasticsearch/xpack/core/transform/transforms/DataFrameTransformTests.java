@@ -17,34 +17,34 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DataFrameTransformTests extends AbstractSerializingDataFrameTestCase<DataFrameTransform> {
+public class DataFrameTransformTests extends AbstractSerializingDataFrameTestCase<Transform> {
 
     @Override
-    protected DataFrameTransform doParseInstance(XContentParser parser) throws IOException {
-        return DataFrameTransform.PARSER.apply(parser, null);
+    protected Transform doParseInstance(XContentParser parser) throws IOException {
+        return Transform.PARSER.apply(parser, null);
     }
 
     @Override
-    protected DataFrameTransform createTestInstance() {
-        return new DataFrameTransform(randomAlphaOfLength(10), randomBoolean() ? null : Version.CURRENT,
+    protected Transform createTestInstance() {
+        return new Transform(randomAlphaOfLength(10), randomBoolean() ? null : Version.CURRENT,
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)));
     }
 
     @Override
-    protected Reader<DataFrameTransform> instanceReader() {
-        return DataFrameTransform::new;
+    protected Reader<Transform> instanceReader() {
+        return Transform::new;
     }
 
     public void testBackwardsSerialization() throws IOException {
         for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
-            DataFrameTransform transformTask = createTestInstance();
+            Transform transformTask = createTestInstance();
             try (BytesStreamOutput output = new BytesStreamOutput()) {
                 output.setVersion(Version.V_7_2_0);
                 transformTask.writeTo(output);
                 try (StreamInput in = output.bytes().streamInput()) {
                     in.setVersion(Version.V_7_2_0);
                     // Since the old version does not have the version serialized, the version NOW is 7.2.0
-                    DataFrameTransform streamedTask = new DataFrameTransform(in);
+                    Transform streamedTask = new Transform(in);
                     assertThat(streamedTask.getVersion(), equalTo(Version.V_7_2_0));
                     assertThat(streamedTask.getId(), equalTo(transformTask.getId()));
                 }

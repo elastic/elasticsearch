@@ -17,28 +17,28 @@ import static org.hamcrest.Matchers.equalTo;
 public class DataFrameTransformTaskStateTests extends ESTestCase {
 
     public void testValidOrdinals() {
-        assertThat(DataFrameTransformTaskState.STOPPED.ordinal(), equalTo(0));
-        assertThat(DataFrameTransformTaskState.STARTED.ordinal(), equalTo(1));
-        assertThat(DataFrameTransformTaskState.FAILED.ordinal(), equalTo(2));
+        assertThat(TransformTaskState.STOPPED.ordinal(), equalTo(0));
+        assertThat(TransformTaskState.STARTED.ordinal(), equalTo(1));
+        assertThat(TransformTaskState.FAILED.ordinal(), equalTo(2));
     }
 
     public void testwriteTo() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            DataFrameTransformTaskState.STOPPED.writeTo(out);
+            TransformTaskState.STOPPED.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(0));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            DataFrameTransformTaskState.STARTED.writeTo(out);
+            TransformTaskState.STARTED.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(1));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            DataFrameTransformTaskState.FAILED.writeTo(out);
+            TransformTaskState.FAILED.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(2));
             }
@@ -49,19 +49,19 @@ public class DataFrameTransformTaskStateTests extends ESTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(0);
             try (StreamInput in = out.bytes().streamInput()) {
-                assertThat(DataFrameTransformTaskState.fromStream(in), equalTo(DataFrameTransformTaskState.STOPPED));
+                assertThat(TransformTaskState.fromStream(in), equalTo(TransformTaskState.STOPPED));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(1);
             try (StreamInput in = out.bytes().streamInput()) {
-                assertThat(DataFrameTransformTaskState.fromStream(in), equalTo(DataFrameTransformTaskState.STARTED));
+                assertThat(TransformTaskState.fromStream(in), equalTo(TransformTaskState.STARTED));
             }
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(2);
             try (StreamInput in = out.bytes().streamInput()) {
-                assertThat(DataFrameTransformTaskState.fromStream(in), equalTo(DataFrameTransformTaskState.FAILED));
+                assertThat(TransformTaskState.fromStream(in), equalTo(TransformTaskState.FAILED));
             }
         }
     }
@@ -70,7 +70,7 @@ public class DataFrameTransformTaskStateTests extends ESTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(randomIntBetween(3, Integer.MAX_VALUE));
             try (StreamInput in = out.bytes().streamInput()) {
-                DataFrameTransformTaskState.fromStream(in);
+                TransformTaskState.fromStream(in);
                 fail("Expected IOException");
             } catch(IOException e) {
                 assertThat(e.getMessage(), containsString("Unknown DataFrameTransformTaskState ordinal ["));

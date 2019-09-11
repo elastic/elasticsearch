@@ -9,29 +9,29 @@ package org.elasticsearch.xpack.core.transform.transforms;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
+import org.elasticsearch.xpack.core.transform.TransformField;
 
 import java.io.IOException;
 import java.util.Collections;
 
-public class DataFrameTransformStoredDocTests extends AbstractSerializingDataFrameTestCase<DataFrameTransformStoredDoc> {
+public class DataFrameTransformStoredDocTests extends AbstractSerializingDataFrameTestCase<TransformStoredDoc> {
 
     protected static ToXContent.Params TO_XCONTENT_PARAMS = new ToXContent.MapParams(
-        Collections.singletonMap(DataFrameField.FOR_INTERNAL_STORAGE, "true"));
+        Collections.singletonMap(TransformField.FOR_INTERNAL_STORAGE, "true"));
 
-    public static DataFrameTransformStoredDoc randomDataFrameTransformStoredDoc(String id) {
-        return new DataFrameTransformStoredDoc(id,
+    public static TransformStoredDoc randomDataFrameTransformStoredDoc(String id) {
+        return new TransformStoredDoc(id,
                 DataFrameTransformStateTests.randomDataFrameTransformState(),
                 DataFrameIndexerTransformStatsTests.randomStats());
     }
 
-    public static DataFrameTransformStoredDoc randomDataFrameTransformStoredDoc() {
+    public static TransformStoredDoc randomDataFrameTransformStoredDoc() {
         return randomDataFrameTransformStoredDoc(randomAlphaOfLengthBetween(1, 10));
     }
 
     @Override
-    protected DataFrameTransformStoredDoc doParseInstance(XContentParser parser) throws IOException {
-        return DataFrameTransformStoredDoc.PARSER.apply(parser, null);
+    protected TransformStoredDoc doParseInstance(XContentParser parser) throws IOException {
+        return TransformStoredDoc.PARSER.apply(parser, null);
     }
 
     @Override
@@ -42,12 +42,12 @@ public class DataFrameTransformStoredDocTests extends AbstractSerializingDataFra
     }
 
     @Override
-    protected DataFrameTransformStoredDoc createTestInstance() {
+    protected TransformStoredDoc createTestInstance() {
         return randomDataFrameTransformStoredDoc();
     }
 
     @Override
-    protected Reader<DataFrameTransformStoredDoc> instanceReader() {
-        return DataFrameTransformStoredDoc::new;
+    protected Reader<TransformStoredDoc> instanceReader() {
+        return TransformStoredDoc::new;
     }
 }

@@ -22,8 +22,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformStats;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -33,12 +33,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class GetDataFrameTransformsStatsAction extends ActionType<GetDataFrameTransformsStatsAction.Response> {
+public class GetTransformsStatsAction extends ActionType<GetTransformsStatsAction.Response> {
 
-    public static final GetDataFrameTransformsStatsAction INSTANCE = new GetDataFrameTransformsStatsAction();
+    public static final GetTransformsStatsAction INSTANCE = new GetTransformsStatsAction();
     public static final String NAME = "cluster:monitor/data_frame/stats/get";
-    public GetDataFrameTransformsStatsAction() {
-        super(NAME, GetDataFrameTransformsStatsAction.Response::new);
+    public GetTransformsStatsAction() {
+        super(NAME, GetTransformsStatsAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> {
@@ -73,7 +73,7 @@ public class GetDataFrameTransformsStatsAction extends ActionType<GetDataFrameTr
         public boolean match(Task task) {
             // Only get tasks that we have expanded to
             return expandedIds.stream()
-                .anyMatch(transformId -> task.getDescription().equals(DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX + transformId));
+                .anyMatch(transformId -> task.getDescription().equals(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + transformId));
         }
 
         public String getId() {
@@ -146,24 +146,24 @@ public class GetDataFrameTransformsStatsAction extends ActionType<GetDataFrameTr
     }
 
     public static class Response extends BaseTasksResponse implements ToXContentObject {
-        private final QueryPage<DataFrameTransformStats> transformsStats;
+        private final QueryPage<TransformStats> transformsStats;
 
-        public Response(List<DataFrameTransformStats> transformStateAndStats, long count) {
-            this(new QueryPage<>(transformStateAndStats, count, DataFrameField.TRANSFORMS));
+        public Response(List<TransformStats> transformStateAndStats, long count) {
+            this(new QueryPage<>(transformStateAndStats, count, TransformField.TRANSFORMS));
         }
 
-        public Response(List<DataFrameTransformStats> transformStateAndStats,
+        public Response(List<TransformStats> transformStateAndStats,
                         long count,
                         List<TaskOperationFailure> taskFailures,
                         List<? extends ElasticsearchException> nodeFailures) {
-            this(new QueryPage<>(transformStateAndStats, count, DataFrameField.TRANSFORMS), taskFailures, nodeFailures);
+            this(new QueryPage<>(transformStateAndStats, count, TransformField.TRANSFORMS), taskFailures, nodeFailures);
         }
 
-        private Response(QueryPage<DataFrameTransformStats> transformsStats) {
+        private Response(QueryPage<TransformStats> transformsStats) {
             this(transformsStats, Collections.emptyList(), Collections.emptyList());
         }
 
-        private Response(QueryPage<DataFrameTransformStats> transformsStats,
+        private Response(QueryPage<TransformStats> transformsStats,
                          List<TaskOperationFailure> taskFailures,
                          List<? extends ElasticsearchException> nodeFailures) {
             super(taskFailures, nodeFailures);
@@ -173,14 +173,14 @@ public class GetDataFrameTransformsStatsAction extends ActionType<GetDataFrameTr
         public Response(StreamInput in) throws IOException {
             super(in);
             if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-                transformsStats = new QueryPage<>(in, DataFrameTransformStats::new);
+                transformsStats = new QueryPage<>(in, TransformStats::new);
             } else {
-                List<DataFrameTransformStats> stats = in.readList(DataFrameTransformStats::new);
-                transformsStats = new QueryPage<>(stats, stats.size(), DataFrameField.TRANSFORMS);
+                List<TransformStats> stats = in.readList(TransformStats::new);
+                transformsStats = new QueryPage<>(stats, stats.size(), TransformField.TRANSFORMS);
             }
         }
 
-        public List<DataFrameTransformStats> getTransformsStats() {
+        public List<TransformStats> getTransformsStats() {
             return transformsStats.results();
         }
 

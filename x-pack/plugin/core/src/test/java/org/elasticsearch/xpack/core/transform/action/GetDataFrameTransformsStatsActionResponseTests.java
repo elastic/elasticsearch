@@ -10,8 +10,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.xpack.core.transform.action.GetDataFrameTransformsStatsAction.Response;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformStats;
+import org.elasticsearch.xpack.core.transform.action.GetTransformsStatsAction.Response;
+import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
 import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformStatsTests;
 
 import java.util.ArrayList;
@@ -20,7 +20,7 @@ import java.util.List;
 public class GetDataFrameTransformsStatsActionResponseTests extends AbstractWireSerializingDataFrameTestCase<Response> {
     @Override
     protected Response createTestInstance() {
-        List<DataFrameTransformStats> stats = new ArrayList<>();
+        List<TransformStats> stats = new ArrayList<>();
         int totalStats = randomInt(10);
         for (int i = 0; i < totalStats; ++i) {
             stats.add(DataFrameTransformStatsTests.randomDataFrameTransformStats());

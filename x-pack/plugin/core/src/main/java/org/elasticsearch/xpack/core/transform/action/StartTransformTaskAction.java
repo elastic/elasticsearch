@@ -16,20 +16,20 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 
-public class StartDataFrameTransformTaskAction extends ActionType<StartDataFrameTransformTaskAction.Response> {
+public class StartTransformTaskAction extends ActionType<StartTransformTaskAction.Response> {
 
-    public static final StartDataFrameTransformTaskAction INSTANCE = new StartDataFrameTransformTaskAction();
+    public static final StartTransformTaskAction INSTANCE = new StartTransformTaskAction();
     public static final String NAME = "cluster:admin/data_frame/start_task";
 
-    private StartDataFrameTransformTaskAction() {
-        super(NAME, StartDataFrameTransformTaskAction.Response::new);
+    private StartTransformTaskAction() {
+        super(NAME, StartTransformTaskAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> {
@@ -38,7 +38,7 @@ public class StartDataFrameTransformTaskAction extends ActionType<StartDataFrame
         private final boolean force;
 
         public Request(String id, boolean force) {
-            this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
+            this.id = ExceptionsHelper.requireNonNull(id, TransformField.ID.getPreferredName());
             this.force = force;
         }
 
@@ -73,7 +73,7 @@ public class StartDataFrameTransformTaskAction extends ActionType<StartDataFrame
 
         @Override
         public boolean match(Task task) {
-            return task.getDescription().equals(DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX + id);
+            return task.getDescription().equals(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + id);
         }
 
         @Override

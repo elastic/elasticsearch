@@ -12,18 +12,18 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteDataFrameTransformAction extends ActionType<AcknowledgedResponse> {
+public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
 
-    public static final DeleteDataFrameTransformAction INSTANCE = new DeleteDataFrameTransformAction();
+    public static final DeleteTransformAction INSTANCE = new DeleteTransformAction();
     public static final String NAME = "cluster:admin/data_frame/delete";
 
-    private DeleteDataFrameTransformAction() {
+    private DeleteTransformAction() {
         super(NAME, AcknowledgedResponse::new);
     }
 
@@ -32,7 +32,7 @@ public class DeleteDataFrameTransformAction extends ActionType<AcknowledgedRespo
         private final boolean force;
 
         public Request(String id, boolean force) {
-            this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
+            this.id = ExceptionsHelper.requireNonNull(id, TransformField.ID.getPreferredName());
             this.force = force;
         }
 

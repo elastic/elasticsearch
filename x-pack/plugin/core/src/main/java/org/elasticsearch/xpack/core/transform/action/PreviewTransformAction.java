@@ -22,8 +22,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 
 import java.io.IOException;
@@ -35,26 +35,26 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class PreviewDataFrameTransformAction extends ActionType<PreviewDataFrameTransformAction.Response> {
+public class PreviewTransformAction extends ActionType<PreviewTransformAction.Response> {
 
-    public static final PreviewDataFrameTransformAction INSTANCE = new PreviewDataFrameTransformAction();
+    public static final PreviewTransformAction INSTANCE = new PreviewTransformAction();
     public static final String NAME = "cluster:admin/data_frame/preview";
 
-    private PreviewDataFrameTransformAction() {
-        super(NAME, PreviewDataFrameTransformAction.Response::new);
+    private PreviewTransformAction() {
+        super(NAME, PreviewTransformAction.Response::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
-        private final DataFrameTransformConfig config;
+        private final TransformConfig config;
 
-        public Request(DataFrameTransformConfig config) {
+        public Request(TransformConfig config) {
             this.config = config;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.config = new DataFrameTransformConfig(in);
+            this.config = new TransformConfig(in);
         }
 
         public static Request fromXContent(final XContentParser parser) throws IOException {
@@ -63,7 +63,7 @@ public class PreviewDataFrameTransformAction extends ActionType<PreviewDataFrame
             Map<String, String> tempDestination = new HashMap<>();
             tempDestination.put(DestConfig.INDEX.getPreferredName(), "unused-transform-preview-index");
             // Users can still provide just dest.pipeline to preview what their data would look like given the pipeline ID
-            Object providedDestination = content.get(DataFrameField.DESTINATION.getPreferredName());
+            Object providedDestination = content.get(TransformField.DESTINATION.getPreferredName());
             if (providedDestination instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, String> destMap = (Map<String, String>)providedDestination;
@@ -72,15 +72,15 @@ public class PreviewDataFrameTransformAction extends ActionType<PreviewDataFrame
                     tempDestination.put(DestConfig.PIPELINE.getPreferredName(), pipeline);
                 }
             }
-            content.put(DataFrameField.DESTINATION.getPreferredName(), tempDestination);
-            content.put(DataFrameField.ID.getPreferredName(), "transform-preview");
+            content.put(TransformField.DESTINATION.getPreferredName(), tempDestination);
+            content.put(TransformField.ID.getPreferredName(), "transform-preview");
             try(XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(content);
                 XContentParser newParser = XContentType.JSON
                     .xContent()
                     .createParser(parser.getXContentRegistry(),
                         LoggingDeprecationHandler.INSTANCE,
                         BytesReference.bytes(xContentBuilder).streamInput())) {
-                return new Request(DataFrameTransformConfig.fromXContent(newParser, "transform-preview", false));
+                return new Request(TransformConfig.fromXContent(newParser, "transform-preview", false));
             }
         }
 
@@ -101,7 +101,7 @@ public class PreviewDataFrameTransformAction extends ActionType<PreviewDataFrame
             return this.config.toXContent(builder, params);
         }
 
-        public DataFrameTransformConfig getConfig() {
+        public TransformConfig getConfig() {
             return config;
         }
 

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.transform.action;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.transform.action.GetDataFrameTransformsAction.Request;
+import org.elasticsearch.xpack.core.transform.action.GetTransformsAction.Request;
 
 public class GetDataFrameTransformsActionRequestTests extends AbstractWireSerializingTestCase<Request> {
 

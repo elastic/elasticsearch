@@ -14,8 +14,8 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndex;
 
 import java.io.IOException;
@@ -37,12 +37,12 @@ public class DataFrameConfigurationIndexIT extends DataFrameRestTestCase {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
             {
-                builder.field(DataFrameField.ID.getPreferredName(), fakeTransformName);
+                builder.field(TransformField.ID.getPreferredName(), fakeTransformName);
             }
             builder.endObject();
             final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
             Request req = new Request("PUT",
-                    DataFrameInternalIndex.LATEST_INDEX_NAME + "/_doc/" + DataFrameTransformConfig.documentId(fakeTransformName));
+                    DataFrameInternalIndex.LATEST_INDEX_NAME + "/_doc/" + TransformConfig.documentId(fakeTransformName));
             req.setEntity(entity);
             client().performRequest(req);
         }

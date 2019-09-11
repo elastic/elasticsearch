@@ -16,41 +16,41 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.persistent.PersistentTaskParams;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
+import org.elasticsearch.xpack.core.transform.TransformField;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class DataFrameTransform extends AbstractDiffable<DataFrameTransform> implements PersistentTaskParams {
+public class Transform extends AbstractDiffable<Transform> implements PersistentTaskParams {
 
-    public static final String NAME = DataFrameField.TASK_NAME;
-    public static final ParseField FREQUENCY = DataFrameField.FREQUENCY;
+    public static final String NAME = TransformField.TASK_NAME;
+    public static final ParseField FREQUENCY = TransformField.FREQUENCY;
 
     private final String transformId;
     private final Version version;
     private final TimeValue frequency;
 
-    public static final ConstructingObjectParser<DataFrameTransform, Void> PARSER = new ConstructingObjectParser<>(NAME, true,
-            a -> new DataFrameTransform((String) a[0], (String) a[1], (String) a[2]));
+    public static final ConstructingObjectParser<Transform, Void> PARSER = new ConstructingObjectParser<>(NAME, true,
+            a -> new Transform((String) a[0], (String) a[1], (String) a[2]));
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), DataFrameField.ID);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), DataFrameField.VERSION);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), TransformField.ID);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TransformField.VERSION);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FREQUENCY);
     }
 
-    private DataFrameTransform(String transformId, String version, String frequency) {
+    private Transform(String transformId, String version, String frequency) {
         this(transformId, version == null ? null : Version.fromString(version),
             frequency == null ? null : TimeValue.parseTimeValue(frequency, FREQUENCY.getPreferredName()));
     }
 
-    public DataFrameTransform(String transformId, Version version, TimeValue frequency) {
+    public Transform(String transformId, Version version, TimeValue frequency) {
         this.transformId = transformId;
         this.version = version == null ? Version.V_7_2_0 : version;
         this.frequency = frequency;
     }
 
-    public DataFrameTransform(StreamInput in) throws IOException {
+    public Transform(StreamInput in) throws IOException {
         this.transformId  = in.readString();
         if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
             this.version = Version.readVersion(in);
@@ -88,8 +88,8 @@ public class DataFrameTransform extends AbstractDiffable<DataFrameTransform> imp
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(DataFrameField.ID.getPreferredName(), transformId);
-        builder.field(DataFrameField.VERSION.getPreferredName(), version);
+        builder.field(TransformField.ID.getPreferredName(), transformId);
+        builder.field(TransformField.VERSION.getPreferredName(), version);
         if (frequency != null) {
             builder.field(FREQUENCY.getPreferredName(), frequency.getStringRep());
         }
@@ -109,7 +109,7 @@ public class DataFrameTransform extends AbstractDiffable<DataFrameTransform> imp
         return frequency;
     }
 
-    public static DataFrameTransform fromXContent(XContentParser parser) throws IOException {
+    public static Transform fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
@@ -123,7 +123,7 @@ public class DataFrameTransform extends AbstractDiffable<DataFrameTransform> imp
             return false;
         }
 
-        DataFrameTransform that = (DataFrameTransform) other;
+        Transform that = (Transform) other;
 
         return Objects.equals(this.transformId, that.transformId)
             && Objects.equals(this.version, that.version)

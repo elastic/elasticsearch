@@ -21,7 +21,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class DataFrameTransformProgress implements Writeable, ToXContentObject {
+public class TransformProgress implements Writeable, ToXContentObject {
 
     public static final ParseField TOTAL_DOCS = new ParseField("total_docs");
     public static final ParseField DOCS_REMAINING = new ParseField("docs_remaining");
@@ -29,10 +29,10 @@ public class DataFrameTransformProgress implements Writeable, ToXContentObject {
     public static final ParseField DOCS_INDEXED = new ParseField("docs_indexed");
     public static final String PERCENT_COMPLETE = "percent_complete";
 
-    public static final ConstructingObjectParser<DataFrameTransformProgress, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<TransformProgress, Void> PARSER = new ConstructingObjectParser<>(
         "data_frame_transform_progress",
         true,
-        a -> new DataFrameTransformProgress((Long) a[0], (Long)a[1], (Long)a[2], (Long)a[3]));
+        a -> new TransformProgress((Long) a[0], (Long)a[1], (Long)a[2], (Long)a[3]));
 
     static {
         PARSER.declareLong(optionalConstructorArg(), TOTAL_DOCS);
@@ -45,12 +45,12 @@ public class DataFrameTransformProgress implements Writeable, ToXContentObject {
     private long documentsProcessed;
     private long documentsIndexed;
 
-    public DataFrameTransformProgress() {
+    public TransformProgress() {
         this(null, 0L, 0L);
     }
 
     // If we are reading from an old document we need to convert docsRemaining to docsProcessed
-    public DataFrameTransformProgress(Long totalDocs, Long docsRemaining, Long documentsProcessed, Long documentsIndexed) {
+    public TransformProgress(Long totalDocs, Long docsRemaining, Long documentsProcessed, Long documentsIndexed) {
         this(totalDocs,
             documentsProcessed != null ?
                 documentsProcessed :
@@ -58,7 +58,7 @@ public class DataFrameTransformProgress implements Writeable, ToXContentObject {
             documentsIndexed);
     }
 
-    public DataFrameTransformProgress(Long totalDocs, Long documentsProcessed, Long documentsIndexed) {
+    public TransformProgress(Long totalDocs, Long documentsProcessed, Long documentsIndexed) {
         if (totalDocs != null && totalDocs < 0) {
             throw new IllegalArgumentException("[total_docs] must be >0.");
         }
@@ -73,13 +73,13 @@ public class DataFrameTransformProgress implements Writeable, ToXContentObject {
         this.documentsIndexed = documentsIndexed == null ? 0 : documentsIndexed;
     }
 
-    public DataFrameTransformProgress(DataFrameTransformProgress otherProgress) {
+    public TransformProgress(TransformProgress otherProgress) {
         this.totalDocs = otherProgress.totalDocs;
         this.documentsProcessed = otherProgress.documentsProcessed;
         this.documentsIndexed = otherProgress.documentsIndexed;
     }
 
-    public DataFrameTransformProgress(StreamInput in) throws IOException {
+    public TransformProgress(StreamInput in) throws IOException {
         if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
             this.totalDocs = in.readOptionalLong();
             this.documentsProcessed = in.readVLong();
@@ -135,7 +135,7 @@ public class DataFrameTransformProgress implements Writeable, ToXContentObject {
             return false;
         }
 
-        DataFrameTransformProgress that = (DataFrameTransformProgress) other;
+        TransformProgress that = (TransformProgress) other;
         return Objects.equals(this.documentsIndexed, that.documentsIndexed)
             && Objects.equals(this.totalDocs, that.totalDocs)
             && Objects.equals(this.documentsProcessed, that.documentsProcessed);

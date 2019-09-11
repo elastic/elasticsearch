@@ -24,7 +24,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class DataFrameIndexerPosition implements Writeable, ToXContentObject {
+public class TransformIndexerPosition implements Writeable, ToXContentObject {
     public static final String NAME = "data_frame/indexer_position";
 
     public static final ParseField INDEXER_POSITION = new ParseField("indexer_position");
@@ -34,21 +34,21 @@ public class DataFrameIndexerPosition implements Writeable, ToXContentObject {
     private final Map<String, Object> bucketPosition;
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<DataFrameIndexerPosition, Void> PARSER = new ConstructingObjectParser<>(NAME,
+    public static final ConstructingObjectParser<TransformIndexerPosition, Void> PARSER = new ConstructingObjectParser<>(NAME,
             true,
-            args -> new DataFrameIndexerPosition((Map<String, Object>) args[0],(Map<String, Object>) args[1]));
+            args -> new TransformIndexerPosition((Map<String, Object>) args[0],(Map<String, Object>) args[1]));
 
     static {
         PARSER.declareField(optionalConstructorArg(), XContentParser::mapOrdered, INDEXER_POSITION, ValueType.OBJECT);
         PARSER.declareField(optionalConstructorArg(), XContentParser::mapOrdered, BUCKET_POSITION, ValueType.OBJECT);
     }
 
-    public DataFrameIndexerPosition(Map<String, Object> indexerPosition, Map<String, Object> bucketPosition) {
+    public TransformIndexerPosition(Map<String, Object> indexerPosition, Map<String, Object> bucketPosition) {
         this.indexerPosition = indexerPosition == null ? null : Collections.unmodifiableMap(indexerPosition);
         this.bucketPosition = bucketPosition == null ? null : Collections.unmodifiableMap(bucketPosition);
     }
 
-    public DataFrameIndexerPosition(StreamInput in) throws IOException {
+    public TransformIndexerPosition(StreamInput in) throws IOException {
         Map<String, Object> position = in.readMap();
         indexerPosition = position == null ? null : Collections.unmodifiableMap(position);
         position = in.readMap();
@@ -92,7 +92,7 @@ public class DataFrameIndexerPosition implements Writeable, ToXContentObject {
             return false;
         }
 
-        DataFrameIndexerPosition that = (DataFrameIndexerPosition) other;
+        TransformIndexerPosition that = (TransformIndexerPosition) other;
 
         return Objects.equals(this.indexerPosition, that.indexerPosition) &&
             Objects.equals(this.bucketPosition, that.bucketPosition);
@@ -108,7 +108,7 @@ public class DataFrameIndexerPosition implements Writeable, ToXContentObject {
         return Strings.toString(this);
     }
 
-    public static DataFrameIndexerPosition fromXContent(XContentParser parser) {
+    public static TransformIndexerPosition fromXContent(XContentParser parser) {
         try {
             return PARSER.parse(parser, null);
         } catch (IOException e) {

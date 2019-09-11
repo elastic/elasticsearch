@@ -14,20 +14,20 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 
-public class StartDataFrameTransformAction extends ActionType<StartDataFrameTransformAction.Response> {
+public class StartTransformAction extends ActionType<StartTransformAction.Response> {
 
-    public static final StartDataFrameTransformAction INSTANCE = new StartDataFrameTransformAction();
+    public static final StartTransformAction INSTANCE = new StartTransformAction();
     public static final String NAME = "cluster:admin/data_frame/start";
 
-    private StartDataFrameTransformAction() {
-        super(NAME, StartDataFrameTransformAction.Response::new);
+    private StartTransformAction() {
+        super(NAME, StartTransformAction.Response::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -36,7 +36,7 @@ public class StartDataFrameTransformAction extends ActionType<StartDataFrameTran
         private final boolean force;
 
         public Request(String id, boolean force) {
-            this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
+            this.id = ExceptionsHelper.requireNonNull(id, TransformField.ID.getPreferredName());
             this.force = force;
         }
 

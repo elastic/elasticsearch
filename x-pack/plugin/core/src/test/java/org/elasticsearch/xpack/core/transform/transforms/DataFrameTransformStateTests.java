@@ -17,10 +17,10 @@ import java.util.function.Predicate;
 import static org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformProgressTests.randomDataFrameTransformProgress;
 import static org.elasticsearch.xpack.core.transform.transforms.NodeAttributeTests.randomNodeAttributes;
 
-public class DataFrameTransformStateTests extends AbstractSerializingTestCase<DataFrameTransformState> {
+public class DataFrameTransformStateTests extends AbstractSerializingTestCase<TransformState> {
 
-    public static DataFrameTransformState randomDataFrameTransformState() {
-        return new DataFrameTransformState(randomFrom(DataFrameTransformTaskState.values()),
+    public static TransformState randomDataFrameTransformState() {
+        return new TransformState(randomFrom(TransformTaskState.values()),
             randomFrom(IndexerState.values()),
             DataFrameIndexerPositionTests.randomDataFrameIndexerPosition(),
             randomLongBetween(0,10),
@@ -30,18 +30,18 @@ public class DataFrameTransformStateTests extends AbstractSerializingTestCase<Da
     }
 
     @Override
-    protected DataFrameTransformState doParseInstance(XContentParser parser) throws IOException {
-        return DataFrameTransformState.fromXContent(parser);
+    protected TransformState doParseInstance(XContentParser parser) throws IOException {
+        return TransformState.fromXContent(parser);
     }
 
     @Override
-    protected DataFrameTransformState createTestInstance() {
+    protected TransformState createTestInstance() {
         return randomDataFrameTransformState();
     }
 
     @Override
-    protected Reader<DataFrameTransformState> instanceReader() {
-        return DataFrameTransformState::new;
+    protected Reader<TransformState> instanceReader() {
+        return TransformState::new;
     }
 
     @Override

@@ -13,20 +13,20 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.Locale;
 
-public enum DataFrameTransformTaskState implements Writeable {
+public enum TransformTaskState implements Writeable {
     STOPPED, STARTED, FAILED;
 
-    public static DataFrameTransformTaskState fromString(String name) {
+    public static TransformTaskState fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
     }
 
-    public static DataFrameTransformTaskState fromStream(StreamInput in) throws IOException {
-        return in.readEnum(DataFrameTransformTaskState.class);
+    public static TransformTaskState fromStream(StreamInput in) throws IOException {
+        return in.readEnum(TransformTaskState.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        DataFrameTransformTaskState state = this;
+        TransformTaskState state = this;
         out.writeEnum(state);
     }
 

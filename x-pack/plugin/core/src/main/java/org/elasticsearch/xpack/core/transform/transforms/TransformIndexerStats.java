@@ -21,7 +21,7 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class DataFrameIndexerTransformStats extends IndexerJobStats {
+public class TransformIndexerStats extends IndexerJobStats {
 
     private static final String DEFAULT_TRANSFORM_ID = "_all";  // TODO remove when no longer needed for wire BWC
 
@@ -48,9 +48,9 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
     private static final int EXP_AVG_WINDOW = 10;
     private static final double ALPHA = 2.0/(EXP_AVG_WINDOW + 1);
 
-    private static final ConstructingObjectParser<DataFrameIndexerTransformStats, Void> LENIENT_PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<TransformIndexerStats, Void> LENIENT_PARSER = new ConstructingObjectParser<>(
             NAME, true,
-            args -> new DataFrameIndexerTransformStats(
+            args -> new TransformIndexerStats(
                (long) args[0], (long) args[1], (long) args[2], (long) args[3], (long) args[4], (long) args[5], (long) args[6],
                (long) args[7], (long) args[8], (long) args[9], (Double) args[10], (Double) args[11], (Double) args[12]));
 
@@ -76,11 +76,11 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
     /**
      * Create with all stats set to zero
      */
-    public DataFrameIndexerTransformStats() {
+    public TransformIndexerStats() {
         super();
     }
 
-    public DataFrameIndexerTransformStats(long numPages, long numInputDocuments, long numOutputDocuments,
+    public TransformIndexerStats(long numPages, long numInputDocuments, long numOutputDocuments,
                                           long numInvocations, long indexTime, long searchTime, long indexTotal, long searchTotal,
                                           long indexFailures, long searchFailures, Double expAvgCheckpointDurationMs,
                                           Double expAvgDocumentsIndexed, Double expAvgDocumentsProcessed ) {
@@ -91,14 +91,14 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
         this.expAvgDocumentsProcessed = expAvgDocumentsProcessed == null ? 0.0 : expAvgDocumentsProcessed;
     }
 
-    public DataFrameIndexerTransformStats(long numPages, long numInputDocuments, long numOutputDocuments,
+    public TransformIndexerStats(long numPages, long numInputDocuments, long numOutputDocuments,
                                           long numInvocations, long indexTime, long searchTime, long indexTotal, long searchTotal,
                                           long indexFailures, long searchFailures) {
         this(numPages, numInputDocuments, numOutputDocuments, numInvocations, indexTime, searchTime, indexTotal, searchTotal,
             indexFailures, searchFailures, 0.0, 0.0, 0.0);
     }
 
-    public DataFrameIndexerTransformStats(DataFrameIndexerTransformStats other) {
+    public TransformIndexerStats(TransformIndexerStats other) {
         this(other.numPages, other.numInputDocuments, other.numOuputDocuments, other.numInvocations,
             other.indexTime, other.searchTime, other.indexTotal, other.searchTotal, other.indexFailures, other.searchFailures);
         this.expAvgCheckpointDurationMs = other.expAvgCheckpointDurationMs;
@@ -106,7 +106,7 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
         this.expAvgDocumentsProcessed = other.expAvgDocumentsProcessed;
     }
 
-    public DataFrameIndexerTransformStats(StreamInput in) throws IOException {
+    public TransformIndexerStats(StreamInput in) throws IOException {
         super(in);
         if (in.getVersion().before(Version.V_7_4_0)) {
             in.readString(); // was transformId
@@ -193,7 +193,7 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
             return false;
         }
 
-        DataFrameIndexerTransformStats that = (DataFrameIndexerTransformStats) other;
+        TransformIndexerStats that = (TransformIndexerStats) other;
 
         return Objects.equals(this.numPages, that.numPages)
             && Objects.equals(this.numInputDocuments, that.numInputDocuments)
@@ -217,7 +217,7 @@ public class DataFrameIndexerTransformStats extends IndexerJobStats {
             expAvgCheckpointDurationMs, expAvgDocumentsIndexed, expAvgDocumentsProcessed);
     }
 
-    public static DataFrameIndexerTransformStats fromXContent(XContentParser parser) {
+    public static TransformIndexerStats fromXContent(XContentParser parser) {
         try {
             return LENIENT_PARSER.parse(parser, null);
         } catch (IOException e) {

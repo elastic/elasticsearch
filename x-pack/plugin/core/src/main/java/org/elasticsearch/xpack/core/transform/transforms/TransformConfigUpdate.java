@@ -20,42 +20,42 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.core.transform.DataFrameMessages;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.TransformMessages;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig.MAX_DESCRIPTION_LENGTH;
+import static org.elasticsearch.xpack.core.transform.transforms.TransformConfig.MAX_DESCRIPTION_LENGTH;
 
 /**
  * This class holds the mutable configuration items for a data frame transform
  */
-public class DataFrameTransformConfigUpdate implements Writeable, ToXContentObject {
+public class TransformConfigUpdate implements Writeable, ToXContentObject {
 
     public static final String NAME = "data_frame_transform_config_update";
 
-    private static final ConstructingObjectParser<DataFrameTransformConfigUpdate, String> PARSER = new ConstructingObjectParser<>(NAME,
+    private static final ConstructingObjectParser<TransformConfigUpdate, String> PARSER = new ConstructingObjectParser<>(NAME,
         false,
         (args) -> {
             SourceConfig source = (SourceConfig) args[0];
             DestConfig dest = (DestConfig) args[1];
             TimeValue frequency = args[2] == null ?
                 null :
-                TimeValue.parseTimeValue((String) args[2], DataFrameField.FREQUENCY.getPreferredName());
+                TimeValue.parseTimeValue((String) args[2], TransformField.FREQUENCY.getPreferredName());
             SyncConfig syncConfig = (SyncConfig) args[3];
             String description = (String) args[4];
-            return new DataFrameTransformConfigUpdate(source, dest, frequency, syncConfig, description);
+            return new TransformConfigUpdate(source, dest, frequency, syncConfig, description);
         });
 
     static {
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> SourceConfig.fromXContent(p, false), DataFrameField.SOURCE);
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> DestConfig.fromXContent(p, false), DataFrameField.DESTINATION);
-        PARSER.declareString(optionalConstructorArg(), DataFrameField.FREQUENCY);
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseSyncConfig(p), DataFrameField.SYNC);
-        PARSER.declareString(optionalConstructorArg(), DataFrameField.DESCRIPTION);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> SourceConfig.fromXContent(p, false), TransformField.SOURCE);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> DestConfig.fromXContent(p, false), TransformField.DESTINATION);
+        PARSER.declareString(optionalConstructorArg(), TransformField.FREQUENCY);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> parseSyncConfig(p), TransformField.SYNC);
+        PARSER.declareString(optionalConstructorArg(), TransformField.DESCRIPTION);
     }
 
     private static SyncConfig parseSyncConfig(XContentParser parser) throws IOException {
@@ -73,7 +73,7 @@ public class DataFrameTransformConfigUpdate implements Writeable, ToXContentObje
     private final String description;
     private Map<String, String> headers;
 
-    public DataFrameTransformConfigUpdate(final SourceConfig source,
+    public TransformConfigUpdate(final SourceConfig source,
                                           final DestConfig dest,
                                           final TimeValue frequency,
                                           final SyncConfig syncConfig,
@@ -88,7 +88,7 @@ public class DataFrameTransformConfigUpdate implements Writeable, ToXContentObje
         }
     }
 
-    public DataFrameTransformConfigUpdate(final StreamInput in) throws IOException {
+    public TransformConfigUpdate(final StreamInput in) throws IOException {
         source = in.readOptionalWriteable(SourceConfig::new);
         dest = in.readOptionalWriteable(DestConfig::new);
         frequency = in.readOptionalTimeValue();
@@ -147,24 +147,24 @@ public class DataFrameTransformConfigUpdate implements Writeable, ToXContentObje
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
         if (source != null) {
-            builder.field(DataFrameField.SOURCE.getPreferredName(), source);
+            builder.field(TransformField.SOURCE.getPreferredName(), source);
         }
         if (dest != null) {
-            builder.field(DataFrameField.DESTINATION.getPreferredName(), dest);
+            builder.field(TransformField.DESTINATION.getPreferredName(), dest);
         }
         if (frequency != null) {
-            builder.field(DataFrameField.FREQUENCY.getPreferredName(), frequency.getStringRep());
+            builder.field(TransformField.FREQUENCY.getPreferredName(), frequency.getStringRep());
         }
         if (syncConfig != null) {
-            builder.startObject(DataFrameField.SYNC.getPreferredName());
+            builder.startObject(TransformField.SYNC.getPreferredName());
             builder.field(syncConfig.getWriteableName(), syncConfig);
             builder.endObject();
         }
         if (description != null) {
-            builder.field(DataFrameField.DESCRIPTION.getPreferredName(), description);
+            builder.field(TransformField.DESCRIPTION.getPreferredName(), description);
         }
         if (headers != null) {
-            builder.field(DataFrameTransformConfig.HEADERS.getPreferredName(), headers);
+            builder.field(TransformConfig.HEADERS.getPreferredName(), headers);
         }
         builder.endObject();
         return builder;
@@ -180,7 +180,7 @@ public class DataFrameTransformConfigUpdate implements Writeable, ToXContentObje
             return false;
         }
 
-        final DataFrameTransformConfigUpdate that = (DataFrameTransformConfigUpdate) other;
+        final TransformConfigUpdate that = (TransformConfigUpdate) other;
 
         return Objects.equals(this.source, that.source)
                 && Objects.equals(this.dest, that.dest)
@@ -200,11 +200,11 @@ public class DataFrameTransformConfigUpdate implements Writeable, ToXContentObje
         return Strings.toString(this, true, true);
     }
 
-    public static DataFrameTransformConfigUpdate fromXContent(final XContentParser parser) {
+    public static TransformConfigUpdate fromXContent(final XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public boolean isNoop(DataFrameTransformConfig config) {
+    public boolean isNoop(TransformConfig config) {
         return isNullOrEqual(source, config.getSource())
             && isNullOrEqual(dest, config.getDestination())
             && isNullOrEqual(frequency, config.getFrequency())
@@ -217,11 +217,11 @@ public class DataFrameTransformConfigUpdate implements Writeable, ToXContentObje
         return lft == null || lft.equals(rgt);
     }
 
-    public DataFrameTransformConfig apply(DataFrameTransformConfig config) {
+    public TransformConfig apply(TransformConfig config) {
         if (isNoop(config)) {
             return config;
         }
-        DataFrameTransformConfig.Builder builder = new DataFrameTransformConfig.Builder(config);
+        TransformConfig.Builder builder = new TransformConfig.Builder(config);
         if (source != null) {
             builder.setSource(source);
         }
@@ -235,7 +235,7 @@ public class DataFrameTransformConfigUpdate implements Writeable, ToXContentObje
             String currentConfigName = config.getSyncConfig() == null ? "null" : config.getSyncConfig().getWriteableName();
             if (syncConfig.getWriteableName().equals(currentConfigName) == false) {
                 throw new ElasticsearchStatusException(
-                    DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_UPDATE_CANNOT_CHANGE_SYNC_METHOD,
+                    TransformMessages.getMessage(TransformMessages.DATA_FRAME_UPDATE_CANNOT_CHANGE_SYNC_METHOD,
                         config.getId(),
                         currentConfigName,
                         syncConfig.getWriteableName()),

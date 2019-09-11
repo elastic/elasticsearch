@@ -17,9 +17,9 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.indices.InvalidIndexNameException;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfigUpdate;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -28,25 +28,25 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.validateIndexOrAliasName;
 
-public class UpdateDataFrameTransformAction extends ActionType<UpdateDataFrameTransformAction.Response> {
+public class UpdateTransformAction extends ActionType<UpdateTransformAction.Response> {
 
-    public static final UpdateDataFrameTransformAction INSTANCE = new UpdateDataFrameTransformAction();
+    public static final UpdateTransformAction INSTANCE = new UpdateTransformAction();
     public static final String NAME = "cluster:admin/data_frame/update";
 
     private static final TimeValue MIN_FREQUENCY = TimeValue.timeValueSeconds(1);
     private static final TimeValue MAX_FREQUENCY = TimeValue.timeValueHours(1);
 
-    private UpdateDataFrameTransformAction() {
+    private UpdateTransformAction() {
         super(NAME, Response::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
 
-        private final DataFrameTransformConfigUpdate update;
+        private final TransformConfigUpdate update;
         private final String id;
         private final boolean deferValidation;
 
-        public Request(DataFrameTransformConfigUpdate update, String id, boolean deferValidation)  {
+        public Request(TransformConfigUpdate update, String id, boolean deferValidation)  {
             this.update = update;
             this.id = id;
             this.deferValidation = deferValidation;
@@ -54,18 +54,18 @@ public class UpdateDataFrameTransformAction extends ActionType<UpdateDataFrameTr
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.update = new DataFrameTransformConfigUpdate(in);
+            this.update = new TransformConfigUpdate(in);
             this.id = in.readString();
             this.deferValidation = in.readBoolean();
         }
 
         public static Request fromXContent(final XContentParser parser, final String id, final boolean deferValidation) {
-            return new Request(DataFrameTransformConfigUpdate.fromXContent(parser), id, deferValidation);
+            return new Request(TransformConfigUpdate.fromXContent(parser), id, deferValidation);
         }
 
         /**
-         * More complex validations with how {@link DataFrameTransformConfig#getDestination()} and
-         * {@link DataFrameTransformConfig#getSource()} relate are done in the update transport handler.
+         * More complex validations with how {@link TransformConfig#getDestination()} and
+         * {@link TransformConfig#getSource()} relate are done in the update transport handler.
          */
         @Override
         public ActionRequestValidationException validate() {
@@ -85,11 +85,11 @@ public class UpdateDataFrameTransformAction extends ActionType<UpdateDataFrameTr
             if (frequency != null) {
                 if (frequency.compareTo(MIN_FREQUENCY) < 0) {
                     validationException = addValidationError(
-                        "minimum permitted [" + DataFrameField.FREQUENCY + "] is [" + MIN_FREQUENCY.getStringRep() + "]",
+                        "minimum permitted [" + TransformField.FREQUENCY + "] is [" + MIN_FREQUENCY.getStringRep() + "]",
                         validationException);
                 } else if (frequency.compareTo(MAX_FREQUENCY) > 0) {
                     validationException = addValidationError(
-                        "highest permitted [" + DataFrameField.FREQUENCY + "] is [" + MAX_FREQUENCY.getStringRep() + "]",
+                        "highest permitted [" + TransformField.FREQUENCY + "] is [" + MAX_FREQUENCY.getStringRep() + "]",
                         validationException);
                 }
             }
@@ -105,7 +105,7 @@ public class UpdateDataFrameTransformAction extends ActionType<UpdateDataFrameTr
             return deferValidation;
         }
 
-        public DataFrameTransformConfigUpdate getUpdate() {
+        public TransformConfigUpdate getUpdate() {
             return update;
         }
 
@@ -139,14 +139,14 @@ public class UpdateDataFrameTransformAction extends ActionType<UpdateDataFrameTr
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private final DataFrameTransformConfig config;
+        private final TransformConfig config;
 
-        public Response(DataFrameTransformConfig config) {
+        public Response(TransformConfig config) {
             this.config = config;
         }
 
         public Response(StreamInput in) throws IOException {
-            this.config = new DataFrameTransformConfig(in);
+            this.config = new TransformConfig(in);
         }
 
         @Override

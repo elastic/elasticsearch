@@ -12,7 +12,7 @@ import java.util.regex.Pattern;
 /**
  * Yet Another String utilities class.
  */
-public final class DataFrameStrings {
+public final class TransformStrings {
 
     /**
      * Valid user id pattern.
@@ -24,7 +24,7 @@ public final class DataFrameStrings {
 
     public static final int ID_LENGTH_LIMIT = 64;
 
-    private DataFrameStrings() {
+    private TransformStrings() {
     }
 
     public static boolean isValidId(String id) {

@@ -19,8 +19,8 @@ import org.elasticsearch.xpack.core.action.AbstractGetResourcesRequest;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,16 +28,16 @@ import java.util.List;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class GetDataFrameTransformsAction extends ActionType<GetDataFrameTransformsAction.Response> {
+public class GetTransformsAction extends ActionType<GetTransformsAction.Response> {
 
-    public static final GetDataFrameTransformsAction INSTANCE = new GetDataFrameTransformsAction();
+    public static final GetTransformsAction INSTANCE = new GetTransformsAction();
     public static final String NAME = "cluster:monitor/data_frame/get";
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-            LogManager.getLogger(GetDataFrameTransformsAction.class));
+            LogManager.getLogger(GetTransformsAction.class));
 
-    private GetDataFrameTransformsAction() {
-        super(NAME, GetDataFrameTransformsAction.Response::new);
+    private GetTransformsAction() {
+        super(NAME, GetTransformsAction.Response::new);
     }
 
     public static class Request extends AbstractGetResourcesRequest {
@@ -72,17 +72,17 @@ public class GetDataFrameTransformsAction extends ActionType<GetDataFrameTransfo
 
         @Override
         public String getResourceIdField() {
-            return DataFrameField.ID.getPreferredName();
+            return TransformField.ID.getPreferredName();
         }
     }
 
-    public static class Response extends AbstractGetResourcesResponse<DataFrameTransformConfig> implements Writeable, ToXContentObject {
+    public static class Response extends AbstractGetResourcesResponse<TransformConfig> implements Writeable, ToXContentObject {
 
         public static final String INVALID_TRANSFORMS_DEPRECATION_WARNING = "Found [{}] invalid transforms";
         private static final ParseField INVALID_TRANSFORMS = new ParseField("invalid_transforms");
 
-        public Response(List<DataFrameTransformConfig> transformConfigs, long count) {
-            super(new QueryPage<>(transformConfigs, count, DataFrameField.TRANSFORMS));
+        public Response(List<TransformConfig> transformConfigs, long count) {
+            super(new QueryPage<>(transformConfigs, count, TransformField.TRANSFORMS));
         }
 
         public Response() {
@@ -93,7 +93,7 @@ public class GetDataFrameTransformsAction extends ActionType<GetDataFrameTransfo
             super(in);
         }
 
-        public List<DataFrameTransformConfig> getTransformConfigurations() {
+        public List<TransformConfig> getTransformConfigurations() {
             return getResources().results();
         }
 
@@ -101,11 +101,11 @@ public class GetDataFrameTransformsAction extends ActionType<GetDataFrameTransfo
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             List<String> invalidTransforms = new ArrayList<>();
             builder.startObject();
-            builder.field(DataFrameField.COUNT.getPreferredName(), getResources().count());
+            builder.field(TransformField.COUNT.getPreferredName(), getResources().count());
             // XContentBuilder does not support passing the params object for Iterables
-            builder.field(DataFrameField.TRANSFORMS.getPreferredName());
+            builder.field(TransformField.TRANSFORMS.getPreferredName());
             builder.startArray();
-            for (DataFrameTransformConfig configResponse : getResources().results()) {
+            for (TransformConfig configResponse : getResources().results()) {
                 configResponse.toXContent(builder, params);
                 if (configResponse.isValid() == false) {
                     invalidTransforms.add(configResponse.getId());
@@ -114,8 +114,8 @@ public class GetDataFrameTransformsAction extends ActionType<GetDataFrameTransfo
             builder.endArray();
             if (invalidTransforms.isEmpty() == false) {
                 builder.startObject(INVALID_TRANSFORMS.getPreferredName());
-                builder.field(DataFrameField.COUNT.getPreferredName(), invalidTransforms.size());
-                builder.field(DataFrameField.TRANSFORMS.getPreferredName(), invalidTransforms);
+                builder.field(TransformField.COUNT.getPreferredName(), invalidTransforms.size());
+                builder.field(TransformField.TRANSFORMS.getPreferredName(), invalidTransforms);
                 builder.endObject();
                 deprecationLogger.deprecated(INVALID_TRANSFORMS_DEPRECATION_WARNING, invalidTransforms.size());
             }
@@ -125,8 +125,8 @@ public class GetDataFrameTransformsAction extends ActionType<GetDataFrameTransfo
         }
 
         @Override
-        protected Reader<DataFrameTransformConfig> getReader() {
-            return DataFrameTransformConfig::new;
+        protected Reader<TransformConfig> getReader() {
+            return TransformConfig::new;
         }
     }
 }

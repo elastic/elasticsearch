@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xpack.core.transform.action.UpdateDataFrameTransformAction.Request;
+import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Request;
 
 import static org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfigUpdateTests.randomDataFrameTransformConfigUpdate;
 

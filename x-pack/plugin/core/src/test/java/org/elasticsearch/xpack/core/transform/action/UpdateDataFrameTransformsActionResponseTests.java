@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.transform.action.UpdateDataFrameTransformAction.Response;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Response;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfigTests;
 
 import java.io.IOException;
@@ -28,6 +28,6 @@ public class UpdateDataFrameTransformsActionResponseTests extends AbstractSerial
 
     @Override
     protected Response doParseInstance(XContentParser parser) throws IOException {
-        return new Response(DataFrameTransformConfig.fromXContent(parser, null, false));
+        return new Response(TransformConfig.fromXContent(parser, null, false));
     }
 }

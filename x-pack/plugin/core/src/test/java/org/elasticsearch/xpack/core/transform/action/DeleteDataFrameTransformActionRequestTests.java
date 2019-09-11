@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.transform.action.DeleteDataFrameTransformAction.Request;
+import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction.Request;
 
 public class DeleteDataFrameTransformActionRequestTests extends AbstractWireSerializingTestCase<Request> {
     @Override

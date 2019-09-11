@@ -11,7 +11,7 @@ import org.elasticsearch.common.ParseField;
 /*
  * Utility class to hold common fields and strings for data frame.
  */
-public final class DataFrameField {
+public final class TransformField {
 
     // common parse fields
     public static final ParseField AGGREGATIONS = new ParseField("aggregations");
@@ -81,6 +81,6 @@ public final class DataFrameField {
     // internal document id
     public static String DOCUMENT_ID_FIELD = "_id";
 
-    private DataFrameField() {
+    private TransformField() {
     }
 }

@@ -20,30 +20,30 @@ import java.util.TreeMap;
 
 import static org.elasticsearch.test.TestMatchers.matchesPattern;
 
-public class DataFrameTransformCheckpointTests extends AbstractSerializingDataFrameTestCase<DataFrameTransformCheckpoint> {
+public class DataFrameTransformCheckpointTests extends AbstractSerializingDataFrameTestCase<TransformCheckpoint> {
 
-    public static DataFrameTransformCheckpoint randomDataFrameTransformCheckpoints() {
-        return new DataFrameTransformCheckpoint(randomAlphaOfLengthBetween(1, 10), randomNonNegativeLong(), randomNonNegativeLong(),
+    public static TransformCheckpoint randomDataFrameTransformCheckpoints() {
+        return new TransformCheckpoint(randomAlphaOfLengthBetween(1, 10), randomNonNegativeLong(), randomNonNegativeLong(),
                 randomCheckpointsByIndex(), randomNonNegativeLong());
     }
 
     @Override
-    protected DataFrameTransformCheckpoint doParseInstance(XContentParser parser) throws IOException {
-        return DataFrameTransformCheckpoint.fromXContent(parser, false);
+    protected TransformCheckpoint doParseInstance(XContentParser parser) throws IOException {
+        return TransformCheckpoint.fromXContent(parser, false);
     }
 
     @Override
-    protected DataFrameTransformCheckpoint createTestInstance() {
+    protected TransformCheckpoint createTestInstance() {
         return randomDataFrameTransformCheckpoints();
     }
 
     @Override
-    protected Reader<DataFrameTransformCheckpoint> instanceReader() {
-        return DataFrameTransformCheckpoint::new;
+    protected Reader<TransformCheckpoint> instanceReader() {
+        return TransformCheckpoint::new;
     }
 
     public void testXContentForInternalStorage() throws IOException {
-        DataFrameTransformCheckpoint dataFrameTransformCheckpoints = randomDataFrameTransformCheckpoints();
+        TransformCheckpoint dataFrameTransformCheckpoints = randomDataFrameTransformCheckpoints();
 
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
             XContentBuilder content = dataFrameTransformCheckpoints.toXContent(xContentBuilder, getToXContentParams());
@@ -62,12 +62,12 @@ public class DataFrameTransformCheckpointTests extends AbstractSerializingDataFr
         otherCheckpointsByIndex.put(randomAlphaOfLengthBetween(1, 10), new long[] { 1, 2, 3 });
         long timeUpperBound = randomNonNegativeLong();
 
-        DataFrameTransformCheckpoint dataFrameTransformCheckpoints = new DataFrameTransformCheckpoint(id, timestamp, checkpoint,
+        TransformCheckpoint dataFrameTransformCheckpoints = new TransformCheckpoint(id, timestamp, checkpoint,
                 checkpointsByIndex, timeUpperBound);
 
         // same
         assertTrue(dataFrameTransformCheckpoints.matches(dataFrameTransformCheckpoints));
-        DataFrameTransformCheckpoint dataFrameTransformCheckpointsCopy = copyInstance(dataFrameTransformCheckpoints);
+        TransformCheckpoint dataFrameTransformCheckpointsCopy = copyInstance(dataFrameTransformCheckpoints);
 
         // with copy
         assertTrue(dataFrameTransformCheckpoints.matches(dataFrameTransformCheckpointsCopy));
@@ -75,19 +75,19 @@ public class DataFrameTransformCheckpointTests extends AbstractSerializingDataFr
 
         // other id
         assertFalse(dataFrameTransformCheckpoints
-                .matches(new DataFrameTransformCheckpoint(id + "-1", timestamp, checkpoint, checkpointsByIndex, timeUpperBound)));
+                .matches(new TransformCheckpoint(id + "-1", timestamp, checkpoint, checkpointsByIndex, timeUpperBound)));
         // other timestamp
         assertTrue(dataFrameTransformCheckpoints
-                .matches(new DataFrameTransformCheckpoint(id, (timestamp / 2) + 1, checkpoint, checkpointsByIndex, timeUpperBound)));
+                .matches(new TransformCheckpoint(id, (timestamp / 2) + 1, checkpoint, checkpointsByIndex, timeUpperBound)));
         // other checkpoint
         assertTrue(dataFrameTransformCheckpoints
-                .matches(new DataFrameTransformCheckpoint(id, timestamp, (checkpoint / 2) + 1, checkpointsByIndex, timeUpperBound)));
+                .matches(new TransformCheckpoint(id, timestamp, (checkpoint / 2) + 1, checkpointsByIndex, timeUpperBound)));
         // other index checkpoints
         assertFalse(dataFrameTransformCheckpoints
-                .matches(new DataFrameTransformCheckpoint(id, timestamp, checkpoint, otherCheckpointsByIndex, timeUpperBound)));
+                .matches(new TransformCheckpoint(id, timestamp, checkpoint, otherCheckpointsByIndex, timeUpperBound)));
         // other time upper bound
         assertTrue(dataFrameTransformCheckpoints
-                .matches(new DataFrameTransformCheckpoint(id, timestamp, checkpoint, checkpointsByIndex, (timeUpperBound / 2) + 1)));
+                .matches(new TransformCheckpoint(id, timestamp, checkpoint, checkpointsByIndex, (timeUpperBound / 2) + 1)));
     }
 
     public void testGetBehind() {
@@ -119,53 +119,53 @@ public class DataFrameTransformCheckpointTests extends AbstractSerializingDataFr
 
         long checkpoint = randomLongBetween(10, 100);
 
-        DataFrameTransformCheckpoint checkpointOld = new DataFrameTransformCheckpoint(
+        TransformCheckpoint checkpointOld = new TransformCheckpoint(
                 id, timestamp, checkpoint, checkpointsByIndexOld, 0L);
-        DataFrameTransformCheckpoint checkpointTransientNew = new DataFrameTransformCheckpoint(
+        TransformCheckpoint checkpointTransientNew = new TransformCheckpoint(
                 id, timestamp, -1L, checkpointsByIndexNew, 0L);
-        DataFrameTransformCheckpoint checkpointNew = new DataFrameTransformCheckpoint(
+        TransformCheckpoint checkpointNew = new TransformCheckpoint(
                 id, timestamp, checkpoint + 1, checkpointsByIndexNew, 0L);
-        DataFrameTransformCheckpoint checkpointOlderButNewerShardsCheckpoint = new DataFrameTransformCheckpoint(
+        TransformCheckpoint checkpointOlderButNewerShardsCheckpoint = new TransformCheckpoint(
                 id, timestamp, checkpoint - 1, checkpointsByIndexNew, 0L);
 
-        assertEquals(indices * shards * 10L, DataFrameTransformCheckpoint.getBehind(checkpointOld, checkpointTransientNew));
-        assertEquals(indices * shards * 10L, DataFrameTransformCheckpoint.getBehind(checkpointOld, checkpointNew));
+        assertEquals(indices * shards * 10L, TransformCheckpoint.getBehind(checkpointOld, checkpointTransientNew));
+        assertEquals(indices * shards * 10L, TransformCheckpoint.getBehind(checkpointOld, checkpointNew));
 
         // no difference for same checkpoints, transient or not
-        assertEquals(0L, DataFrameTransformCheckpoint.getBehind(checkpointOld, checkpointOld));
-        assertEquals(0L, DataFrameTransformCheckpoint.getBehind(checkpointTransientNew, checkpointTransientNew));
-        assertEquals(0L, DataFrameTransformCheckpoint.getBehind(checkpointNew, checkpointNew));
+        assertEquals(0L, TransformCheckpoint.getBehind(checkpointOld, checkpointOld));
+        assertEquals(0L, TransformCheckpoint.getBehind(checkpointTransientNew, checkpointTransientNew));
+        assertEquals(0L, TransformCheckpoint.getBehind(checkpointNew, checkpointNew));
 
         // new vs transient new: ok
-        assertEquals(0L, DataFrameTransformCheckpoint.getBehind(checkpointNew, checkpointTransientNew));
+        assertEquals(0L, TransformCheckpoint.getBehind(checkpointNew, checkpointTransientNew));
 
         // transient new vs new: illegal
         Exception e = expectThrows(IllegalArgumentException.class,
-                () -> DataFrameTransformCheckpoint.getBehind(checkpointTransientNew, checkpointNew));
+                () -> TransformCheckpoint.getBehind(checkpointTransientNew, checkpointNew));
         assertEquals("can not compare transient against a non transient checkpoint", e.getMessage());
 
         // new vs old: illegal
-        e = expectThrows(IllegalArgumentException.class, () -> DataFrameTransformCheckpoint.getBehind(checkpointNew, checkpointOld));
+        e = expectThrows(IllegalArgumentException.class, () -> TransformCheckpoint.getBehind(checkpointNew, checkpointOld));
         assertEquals("old checkpoint is newer than new checkpoint", e.getMessage());
 
         // corner case: the checkpoint appears older but the inner shard checkpoints are newer
-        assertEquals(-1L, DataFrameTransformCheckpoint.getBehind(checkpointOlderButNewerShardsCheckpoint, checkpointOld));
+        assertEquals(-1L, TransformCheckpoint.getBehind(checkpointOlderButNewerShardsCheckpoint, checkpointOld));
 
         // test cases where indices sets do not match
         // remove something from old, so newer has 1 index more than old: should be equivalent to old index existing but empty
         checkpointsByIndexOld.remove(checkpointsByIndexOld.firstKey());
-        long behind = DataFrameTransformCheckpoint.getBehind(checkpointOld, checkpointTransientNew);
+        long behind = TransformCheckpoint.getBehind(checkpointOld, checkpointTransientNew);
         assertTrue("Expected behind (" + behind + ") => sum of shard checkpoint differences (" + indices * shards * 10L + ")",
                 behind >= indices * shards * 10L);
 
         // remove same key: old and new should have equal indices again
         checkpointsByIndexNew.remove(checkpointsByIndexNew.firstKey());
-        assertEquals((indices - 1) * shards * 10L, DataFrameTransformCheckpoint.getBehind(checkpointOld, checkpointTransientNew));
+        assertEquals((indices - 1) * shards * 10L, TransformCheckpoint.getBehind(checkpointOld, checkpointTransientNew));
 
         // remove 1st index from new, now old has 1 index more, which should be ignored
         checkpointsByIndexNew.remove(checkpointsByIndexNew.firstKey());
 
-        assertEquals((indices - 2) * shards * 10L, DataFrameTransformCheckpoint.getBehind(checkpointOld, checkpointTransientNew));
+        assertEquals((indices - 2) * shards * 10L, TransformCheckpoint.getBehind(checkpointOld, checkpointTransientNew));
     }
 
     private static Map<String, long[]> randomCheckpointsByIndex() {

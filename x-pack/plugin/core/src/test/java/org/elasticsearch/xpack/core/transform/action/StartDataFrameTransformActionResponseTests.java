@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.xpack.core.transform.action.StartDataFrameTransformAction.Response;
+import org.elasticsearch.xpack.core.transform.action.StartTransformAction.Response;
 
 public class StartDataFrameTransformActionResponseTests extends AbstractWireSerializingDataFrameTestCase<Response> {
 

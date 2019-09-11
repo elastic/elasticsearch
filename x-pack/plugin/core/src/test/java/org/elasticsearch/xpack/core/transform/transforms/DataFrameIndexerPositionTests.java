@@ -15,20 +15,20 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class DataFrameIndexerPositionTests extends AbstractSerializingTestCase<DataFrameIndexerPosition> {
+public class DataFrameIndexerPositionTests extends AbstractSerializingTestCase<TransformIndexerPosition> {
 
-    public static DataFrameIndexerPosition randomDataFrameIndexerPosition() {
-        return new DataFrameIndexerPosition(randomPosition(), randomPosition());
+    public static TransformIndexerPosition randomDataFrameIndexerPosition() {
+        return new TransformIndexerPosition(randomPosition(), randomPosition());
     }
 
     @Override
-    protected DataFrameIndexerPosition createTestInstance() {
+    protected TransformIndexerPosition createTestInstance() {
         return randomDataFrameIndexerPosition();
     }
 
     @Override
-    protected Reader<DataFrameIndexerPosition> instanceReader() {
-        return DataFrameIndexerPosition::new;
+    protected Reader<TransformIndexerPosition> instanceReader() {
+        return TransformIndexerPosition::new;
     }
 
     @Override
@@ -42,8 +42,8 @@ public class DataFrameIndexerPositionTests extends AbstractSerializingTestCase<D
     }
 
     @Override
-    protected DataFrameIndexerPosition doParseInstance(XContentParser parser) throws IOException {
-        return DataFrameIndexerPosition.fromXContent(parser);
+    protected TransformIndexerPosition doParseInstance(XContentParser parser) throws IOException {
+        return TransformIndexerPosition.fromXContent(parser);
     }
 
     private static Map<String, Object> randomPosition() {

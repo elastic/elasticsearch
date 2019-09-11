@@ -16,10 +16,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.indices.InvalidIndexNameException;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.core.transform.DataFrameMessages;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.transform.utils.DataFrameStrings;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.utils.TransformStrings;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -28,31 +28,31 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.cluster.metadata.MetaDataCreateIndexService.validateIndexOrAliasName;
 
-public class PutDataFrameTransformAction extends ActionType<AcknowledgedResponse> {
+public class PutTransformAction extends ActionType<AcknowledgedResponse> {
 
-    public static final PutDataFrameTransformAction INSTANCE = new PutDataFrameTransformAction();
+    public static final PutTransformAction INSTANCE = new PutTransformAction();
     public static final String NAME = "cluster:admin/data_frame/put";
 
     private static final TimeValue MIN_FREQUENCY = TimeValue.timeValueSeconds(1);
     private static final TimeValue MAX_FREQUENCY = TimeValue.timeValueHours(1);
 
-    private PutDataFrameTransformAction() {
+    private PutTransformAction() {
         super(NAME, AcknowledgedResponse::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
 
-        private final DataFrameTransformConfig config;
+        private final TransformConfig config;
         private final boolean deferValidation;
 
-        public Request(DataFrameTransformConfig config, boolean deferValidation) {
+        public Request(TransformConfig config, boolean deferValidation) {
             this.config = config;
             this.deferValidation = deferValidation;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.config = new DataFrameTransformConfig(in);
+            this.config = new TransformConfig(in);
             if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
                 this.deferValidation = in.readBoolean();
             } else {
@@ -61,12 +61,12 @@ public class PutDataFrameTransformAction extends ActionType<AcknowledgedResponse
         }
 
         public static Request fromXContent(final XContentParser parser, final String id, final boolean deferValidation) {
-            return new Request(DataFrameTransformConfig.fromXContent(parser, id, false), deferValidation);
+            return new Request(TransformConfig.fromXContent(parser, id, false), deferValidation);
         }
 
         /**
-         * More complex validations with how {@link DataFrameTransformConfig#getDestination()} and
-         * {@link DataFrameTransformConfig#getSource()} relate are done in the transport handler.
+         * More complex validations with how {@link TransformConfig#getDestination()} and
+         * {@link TransformConfig#getSource()} relate are done in the transport handler.
          */
         @Override
         public ActionRequestValidationException validate() {
@@ -91,25 +91,25 @@ public class PutDataFrameTransformAction extends ActionType<AcknowledgedResponse
             } catch (InvalidIndexNameException ex) {
                 validationException = addValidationError(ex.getMessage(), validationException);
             }
-            if (DataFrameStrings.isValidId(config.getId()) == false) {
+            if (TransformStrings.isValidId(config.getId()) == false) {
                 validationException = addValidationError(
-                    DataFrameMessages.getMessage(DataFrameMessages.INVALID_ID, DataFrameField.ID.getPreferredName(), config.getId()),
+                    TransformMessages.getMessage(TransformMessages.INVALID_ID, TransformField.ID.getPreferredName(), config.getId()),
                     validationException);
             }
-            if (DataFrameStrings.hasValidLengthForId(config.getId()) == false) {
+            if (TransformStrings.hasValidLengthForId(config.getId()) == false) {
                 validationException = addValidationError(
-                    DataFrameMessages.getMessage(DataFrameMessages.ID_TOO_LONG, DataFrameStrings.ID_LENGTH_LIMIT),
+                    TransformMessages.getMessage(TransformMessages.ID_TOO_LONG, TransformStrings.ID_LENGTH_LIMIT),
                     validationException);
             }
             TimeValue frequency = config.getFrequency();
             if (frequency != null) {
                 if (frequency.compareTo(MIN_FREQUENCY) < 0) {
                     validationException = addValidationError(
-                        "minimum permitted [" + DataFrameField.FREQUENCY + "] is [" + MIN_FREQUENCY.getStringRep() + "]",
+                        "minimum permitted [" + TransformField.FREQUENCY + "] is [" + MIN_FREQUENCY.getStringRep() + "]",
                         validationException);
                 } else if (frequency.compareTo(MAX_FREQUENCY) > 0) {
                     validationException = addValidationError(
-                        "highest permitted [" + DataFrameField.FREQUENCY + "] is [" + MAX_FREQUENCY.getStringRep() + "]",
+                        "highest permitted [" + TransformField.FREQUENCY + "] is [" + MAX_FREQUENCY.getStringRep() + "]",
                         validationException);
                 }
             }
@@ -117,7 +117,7 @@ public class PutDataFrameTransformAction extends ActionType<AcknowledgedResponse
             return validationException;
         }
 
-        public DataFrameTransformConfig getConfig() {
+        public TransformConfig getConfig() {
             return config;
         }
 

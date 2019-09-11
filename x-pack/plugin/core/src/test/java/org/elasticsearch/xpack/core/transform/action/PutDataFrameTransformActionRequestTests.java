@@ -11,9 +11,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.core.transform.action.PutDataFrameTransformAction.Request;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.action.PutTransformAction.Request;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
@@ -38,7 +38,7 @@ public class PutDataFrameTransformActionRequestTests extends AbstractWireSeriali
 
     @Override
     protected Request createTestInstance() {
-        DataFrameTransformConfig config = DataFrameTransformConfigTests.randomDataFrameTransformConfigWithoutHeaders(transformId);
+        TransformConfig config = DataFrameTransformConfigTests.randomDataFrameTransformConfigWithoutHeaders(transformId);
         return new Request(config, randomBoolean());
     }
 
@@ -47,7 +47,7 @@ public class PutDataFrameTransformActionRequestTests extends AbstractWireSeriali
         SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
 
         List<NamedWriteableRegistry.Entry> namedWriteables = searchModule.getNamedWriteables();
-        namedWriteables.add(new NamedWriteableRegistry.Entry(SyncConfig.class, DataFrameField.TIME_BASED_SYNC.getPreferredName(),
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SyncConfig.class, TransformField.TIME_BASED_SYNC.getPreferredName(),
             TimeSyncConfig::new));
         return new NamedWriteableRegistry(namedWriteables);
     }

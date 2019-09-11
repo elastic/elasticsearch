@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.xpack.core.transform.action.PreviewDataFrameTransformAction.Response;
+import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Response;
 
 import java.util.ArrayList;
 import java.util.HashMap;

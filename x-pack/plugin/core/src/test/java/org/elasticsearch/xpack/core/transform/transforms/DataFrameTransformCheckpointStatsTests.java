@@ -11,27 +11,27 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class DataFrameTransformCheckpointStatsTests extends AbstractSerializingDataFrameTestCase<DataFrameTransformCheckpointStats>
+public class DataFrameTransformCheckpointStatsTests extends AbstractSerializingDataFrameTestCase<TransformCheckpointStats>
 {
-    public static DataFrameTransformCheckpointStats randomDataFrameTransformCheckpointStats() {
-        return new DataFrameTransformCheckpointStats(randomLongBetween(1, 1_000_000),
+    public static TransformCheckpointStats randomDataFrameTransformCheckpointStats() {
+        return new TransformCheckpointStats(randomLongBetween(1, 1_000_000),
             DataFrameIndexerPositionTests.randomDataFrameIndexerPosition(),
             randomBoolean() ? null : DataFrameTransformProgressTests.randomDataFrameTransformProgress(),
             randomLongBetween(1, 1_000_000), randomLongBetween(0, 1_000_000));
     }
 
     @Override
-    protected DataFrameTransformCheckpointStats doParseInstance(XContentParser parser) throws IOException {
-        return DataFrameTransformCheckpointStats.fromXContent(parser);
+    protected TransformCheckpointStats doParseInstance(XContentParser parser) throws IOException {
+        return TransformCheckpointStats.fromXContent(parser);
     }
 
     @Override
-    protected DataFrameTransformCheckpointStats createTestInstance() {
+    protected TransformCheckpointStats createTestInstance() {
         return randomDataFrameTransformCheckpointStats();
     }
 
     @Override
-    protected Reader<DataFrameTransformCheckpointStats> instanceReader() {
-        return DataFrameTransformCheckpointStats::new;
+    protected Reader<TransformCheckpointStats> instanceReader() {
+        return TransformCheckpointStats::new;
     }
 }

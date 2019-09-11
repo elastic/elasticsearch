@@ -132,13 +132,13 @@ import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
-import org.elasticsearch.xpack.core.transform.action.DeleteDataFrameTransformAction;
-import org.elasticsearch.xpack.core.transform.action.GetDataFrameTransformsAction;
-import org.elasticsearch.xpack.core.transform.action.GetDataFrameTransformsStatsAction;
-import org.elasticsearch.xpack.core.transform.action.PreviewDataFrameTransformAction;
-import org.elasticsearch.xpack.core.transform.action.PutDataFrameTransformAction;
-import org.elasticsearch.xpack.core.transform.action.StartDataFrameTransformAction;
-import org.elasticsearch.xpack.core.transform.action.StopDataFrameTransformAction;
+import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
+import org.elasticsearch.xpack.core.transform.action.GetTransformsAction;
+import org.elasticsearch.xpack.core.transform.action.GetTransformsStatsAction;
+import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
+import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
+import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
+import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchAction;
@@ -1124,13 +1124,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         Role role = Role.builder(roleDescriptor, null).build();
-        assertThat(role.cluster().check(DeleteDataFrameTransformAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetDataFrameTransformsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetDataFrameTransformsStatsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(PreviewDataFrameTransformAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(PutDataFrameTransformAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(StartDataFrameTransformAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(StopDataFrameTransformAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(DeleteTransformAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetTransformsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetTransformsStatsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PreviewTransformAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PutTransformAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(StartTransformAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(StopTransformAction.NAME, request, authentication), is(true));
         assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
 
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
@@ -1163,13 +1163,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
         Role role = Role.builder(roleDescriptor, null).build();
-        assertThat(role.cluster().check(DeleteDataFrameTransformAction.NAME, request, authentication), is(false));
-        assertThat(role.cluster().check(GetDataFrameTransformsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetDataFrameTransformsStatsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(PreviewDataFrameTransformAction.NAME, request, authentication), is(false));
-        assertThat(role.cluster().check(PutDataFrameTransformAction.NAME, request, authentication), is(false));
-        assertThat(role.cluster().check(StartDataFrameTransformAction.NAME, request, authentication), is(false));
-        assertThat(role.cluster().check(StopDataFrameTransformAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(DeleteTransformAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(GetTransformsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetTransformsStatsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(PreviewTransformAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(PutTransformAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(StartTransformAction.NAME, request, authentication), is(false));
+        assertThat(role.cluster().check(StopTransformAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
 
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));

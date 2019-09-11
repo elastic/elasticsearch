@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.fielddata.MultiGeoValues;
-import org.locationtech.spatial4j.io.GeohashUtils;
 
 /**
  * The tiler to use to convert a geo value into long-encoded bucket keys for aggregating.
@@ -72,22 +71,20 @@ public interface GeoGridTiler {
             // find minimum (x,y) of geo-hash-cell that contains (bounds.minX, bounds.minY)
             String hash = Geohash.stringEncode(bounds.minX(), bounds.minY(), precision);
             Rectangle geoHashCell = Geohash.toBoundingBox(hash);
-            double[] degStep = GeohashUtils.lookupDegreesSizeForHashLen(precision);
-            int numLonCells = (int) Math.ceil((bounds.maxX() - geoHashCell.getMinX()) / degStep[1]);
-            int numLatCells = (int) Math.ceil((bounds.maxY() - geoHashCell.getMinY()) / degStep[0]);
+            int numLonCells = (int) Math.ceil((bounds.maxX() - geoHashCell.getMinX()) / Geohash.lonWidthInDegrees(precision));
+            int numLatCells = (int) Math.ceil((bounds.maxY() - geoHashCell.getMinY()) / Geohash.latHeightInDegrees(precision));
             return numLonCells * numLatCells;
         }
 
         @Override
         public int setValues(long[] values, MultiGeoValues.GeoValue geoValue, int precision) {
             MultiGeoValues.BoundingBox bounds = geoValue.boundingBox();
-            double[] degStep = GeohashUtils.lookupDegreesSizeForHashLen(precision);
             int idx = 0;
             // find minimum (x,y) of geo-hash-cell that contains (bounds.minX, bounds.minY)
             String hash = Geohash.stringEncode(bounds.minX(), bounds.minY(), precision);
             Rectangle geoHashCell = Geohash.toBoundingBox(hash);
-            for (double i = geoHashCell.getMinX(); i < bounds.maxX(); i+= degStep[1]) {
-                for (double j = geoHashCell.getMinY(); j < bounds.maxY(); j += degStep[0]) {
+            for (double i = geoHashCell.getMinX(); i < bounds.maxX(); i+= Geohash.lonWidthInDegrees(precision)) {
+                for (double j = geoHashCell.getMinY(); j < bounds.maxY(); j += Geohash.latHeightInDegrees(precision)) {
                     Rectangle rectangle = Geohash.toBoundingBox(Geohash.stringEncode(i, j, precision));
                     if (geoValue.intersects(rectangle)) {
                         values[idx++] = encode(i, j, precision);

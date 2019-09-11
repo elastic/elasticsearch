@@ -462,6 +462,7 @@ include::security/create-api-key.asciidoc[]
 include::security/get-api-key.asciidoc[]
 include::security/invalidate-api-key.asciidoc[]
 
+[role="xpack"]
 == Watcher APIs
 
 :upid: {mainid}-watcher

@@ -8,7 +8,7 @@
     "url":{
       "paths":[
         {
-          "path":"/{index}/_doc/{id}",
+          "path":"/{index}/{id}",
           "methods":[
             "GET"
           ],
@@ -21,31 +21,6 @@
               "type":"string",
               "description":"The name of the index"
             }
-          }
-        },
-        {
-          "path":"/{index}/{type}/{id}",
-          "methods":[
-            "GET"
-          ],
-          "parts":{
-            "id":{
-              "type":"string",
-              "description":"The document ID"
-            },
-            "index":{
-              "type":"string",
-              "description":"The name of the index"
-            },
-            "type":{
-              "type":"string",
-              "description":"The type of the document (use `_all` to fetch the first document matching the ID across all types)",
-              "deprecated":true
-            }
-          },
-          "deprecated":{
-            "version":"7.0.0",
-            "description":"Specifying types in urls has been deprecated"
           }
         }
       ]

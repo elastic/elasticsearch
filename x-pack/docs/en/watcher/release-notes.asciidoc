@@ -1,3 +1,4 @@
+[role="xpack"]
 [[watcher-release-notes]]
 == Watcher Release Notes (Pre-5.0)
 

@@ -490,7 +490,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
         cause = (ElasticsearchException) cause.getCause();
         assertEquals(cause.getMessage(),
-                "Elasticsearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_type]/[_id]]");
+                "Elasticsearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_id]]");
         assertThat(cause.getHeaderKeys(), hasSize(0));
         assertThat(cause.getMetadataKeys(), hasSize(2));
         assertThat(cause.getMetadata("es.index"), hasItem("_test"));
@@ -550,7 +550,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
         cause = (ElasticsearchException) cause.getCause();
         assertEquals(cause.getMessage(),
-                "Elasticsearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_type]/[_id]]");
+                "Elasticsearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_id]]");
         assertThat(cause.getHeaderKeys(), hasSize(0));
         assertThat(cause.getMetadataKeys(), hasSize(2));
         assertThat(cause.getMetadata("es.index"), hasItem("_test"));

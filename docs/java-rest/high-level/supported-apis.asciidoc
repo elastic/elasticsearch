@@ -396,6 +396,7 @@ include::rollup/search.asciidoc[]
 include::rollup/get_rollup_caps.asciidoc[]
 include::rollup/get_rollup_index_caps.asciidoc[]
 
+[role="xpack"]
 == Security APIs
 
 :upid: {mainid}-security

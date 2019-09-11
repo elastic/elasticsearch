@@ -66,14 +66,13 @@ The API returns the following information:
 [[ml-get-snapshot-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ml/anomaly_detectors/farequote/model_snapshots
 {
   "start": "1491852977000"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:todo]
 
 In this example, the API provides a single result:

@@ -125,7 +125,7 @@ GET nori_sample/_analyze
 
 The above `analyze` request returns the following:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "tokens" : [ {
@@ -150,7 +150,6 @@ The above `analyze` request returns the following:
    }]
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 <1> This is a compound token that spans two positions (`mixed` mode).
 --
@@ -210,7 +209,7 @@ GET _analyze
 
 Which responds with:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "detail": {
@@ -297,7 +296,7 @@ Which responds with:
     }
 }
 --------------------------------------------------
-// TESTRESPONSE
+
 
 [[analysis-nori-speech]]
 ==== `nori_part_of_speech` token filter
@@ -371,7 +370,7 @@ GET nori_sample/_analyze
 
 Which responds with:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "tokens" : [ {
@@ -389,7 +388,7 @@ Which responds with:
   } ]
 }
 --------------------------------------------------
-// TESTRESPONSE
+
 
 [[analysis-nori-readingform]]
 ==== `nori_readingform` token filter
@@ -426,7 +425,7 @@ GET nori_sample/_analyze
 
 Which responds with:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "tokens" : [ {
@@ -438,6 +437,5 @@ Which responds with:
   }]
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 <1> The Hanja form is replaced by the Hangul translation.

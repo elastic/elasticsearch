@@ -20,21 +20,6 @@ what the pipeline does.
 The `processors` parameter defines a list of processors to be executed in
 order.
 
-[[ingest-apis]]
-== Ingest APIs
-
-The following ingest APIs are available for managing pipelines:
-
-* <<put-pipeline-api>> to add or update a pipeline
-* <<get-pipeline-api>> to return a specific pipeline
-* <<delete-pipeline-api>> to delete a pipeline
-* <<simulate-pipeline-api>> to simulate a call to a pipeline
-
-include::apis/put-pipeline.asciidoc[]
-include::apis/get-pipeline.asciidoc[]
-include::apis/delete-pipeline.asciidoc[]
-include::apis/simulate-pipeline.asciidoc[]
-
 [[accessing-data-in-pipelines]]
 == Accessing Data in Pipelines
 
@@ -182,7 +167,7 @@ For example the following processor will <<drop-processor,drop>> the document
 (i.e. not index it) if the input document has a field named `network_name`
 and it is equal to `Guest`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/drop_guests_network
 {
@@ -195,23 +180,21 @@ PUT _ingest/pipeline/drop_guests_network
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 Using that pipeline for an index request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST test/_doc/1?pipeline=drop_guests_network
 {
   "network_name" : "Guest"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Results in nothing indexed since the conditional evaluated to `true`.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index": "test",
@@ -226,7 +209,6 @@ Results in nothing indexed since the conditional evaluated to `true`.
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 
 [[ingest-conditional-nullcheck]]
@@ -242,7 +224,7 @@ To help protect against NullPointerExceptions, null safe operations should be us
 Fortunately, Painless makes {painless}/painless-operators-reference.html#null-safe-operator[null safe]
 operations easy with the `?.` operator.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/drop_guests_network
 {
@@ -255,11 +237,10 @@ PUT _ingest/pipeline/drop_guests_network
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 The following document will get <<drop-processor,dropped>> correctly:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST test/_doc/1?pipeline=drop_guests_network
 {
@@ -268,33 +249,30 @@ POST test/_doc/1?pipeline=drop_guests_network
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Thanks to the `?.` operator the following document will not throw an error.
 If the pipeline used a `.` the following document would throw a NullPointerException
 since the `network` object is not part of the source document.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST test/_doc/2?pipeline=drop_guests_network
 {
   "foo" : "bar"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 ////
 Hidden example assertion:
-[source,js]
+[source,console]
 --------------------------------------------------
 GET test/_doc/2
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index": "test",
@@ -338,7 +316,7 @@ The source document may have the nested fields flattened as such:
 If this is the case, use the <<dot-expand-processor, Dot Expand Processor>>
 so that the nested fields may be used in a conditional.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/drop_guests_network
 {
@@ -356,18 +334,16 @@ PUT _ingest/pipeline/drop_guests_network
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 Now the following input document can be used with a conditional in the pipeline.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST test/_doc/3?pipeline=drop_guests_network
 {
   "network.name": "Guest"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The `?.` operators works well for use in the `if` conditional
@@ -408,7 +384,7 @@ A more complex `if` condition that drops the document (i.e. not index it)
 unless it has a multi-valued tag field with at least one value that contains the characters
 `prod` (case insensitive).
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/not_prod_dropper
 {
@@ -421,7 +397,6 @@ PUT _ingest/pipeline/not_prod_dropper
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 The conditional needs to be all on one line since JSON does not
 support new line characters. However, Kibana's console supports
@@ -454,14 +429,13 @@ PUT _ingest/pipeline/not_prod_dropper
 // NOTCONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST test/_doc/1?pipeline=not_prod_dropper
 {
   "tags": ["application:myapp", "env:Stage"]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The document is <<drop-processor,dropped>> since `prod` (case insensitive)
@@ -470,26 +444,24 @@ is not found in the tags.
 The following document is indexed (i.e. not dropped) since
 `prod` (case insensitive) is found in the tags.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST test/_doc/2?pipeline=not_prod_dropper
 {
   "tags": ["application:myapp", "env:Production"]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 ////
 Hidden example assertion:
-[source,js]
+[source,console]
 --------------------------------------------------
 GET test/_doc/2
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index": "test",
@@ -525,7 +497,7 @@ The combination of the `if` conditional and the <<pipeline-processor>> can resul
 yet powerful means to process heterogeneous input. For example, you can define a single pipeline
 that delegates to other pipelines based on some criteria.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/logs_pipeline
 {
@@ -553,7 +525,6 @@ PUT _ingest/pipeline/logs_pipeline
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 The above example allows consumers to point to a single pipeline for all log based index requests.
 Based on the conditional, the correct pipeline will be called to process that type of data.
@@ -572,7 +543,8 @@ expressions in the `if` condition.
 If regular expressions are enabled, operators such as `=~` can be used against a `/pattern/` for conditions.
 
 For example:
-[source,js]
+
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/check_url
 {
@@ -587,9 +559,8 @@ PUT _ingest/pipeline/check_url
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST test/_doc/1?pipeline=check_url
 {
@@ -598,22 +569,20 @@ POST test/_doc/1?pipeline=check_url
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Results in:
 
 ////
 Hidden example assertion:
-[source,js]
+[source,console]
 --------------------------------------------------
 GET test/_doc/1
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 ////
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index": "test",
@@ -640,7 +609,7 @@ alternatives exist.
 For example in this case `startsWith` can be used to get the same result
 without using a regular expression:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/check_url
 {
@@ -655,7 +624,6 @@ PUT _ingest/pipeline/check_url
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 [[handling-failure-in-pipelines]]
 == Handling Failures in Pipelines
@@ -785,389 +753,9 @@ metadata field to provide the error message.
 --------------------------------------------------
 // NOTCONSOLE
 
-[role="xpack"]
-[testenv="basic"]
-[[ingest-enriching-data]]
-== Enriching data with ingest node
 
-The <<enrich-processor,enrich processor>> allows documents to be enriched with data from
-an enrich index that is managed by an enrich policy prior to indexing.
+include::enrich.asciidoc[]
 
-The data that is used by the enrich index is managed by the user in regular indices.
-An enrich policy is configuration that indicates how an enrich index is created from
-the data in the user's maintained indices. When an enrich policy is executed
-a new enrich index is created for that policy, which the enrich process can then use.
-
-An enrich policy also controls what kind of enrichment the `enrich` processor is able to do.
-
-[[enrich-policy-definition]]
-=== Enrich Policy Definition
-
-The <<enrich-processor,enrich processor>> requires more than just the configuration in a pipeline.
-The main piece to configure is the enrich policy:
-
-[[enrich-policy-options]]
-.Enrich policy options
-[options="header"]
-|======
-| Name               | Required  | Default              | Description
-| `type`             | yes       | -                    | The policy type.
-| `indices`          | yes       | -                    | The indices to fetch the data from.
-| `query`            | no        | `match_all` query    | The query to be used to select which documents are included.
-| `match_field`      | yes       | -                    | The field that will be used to match against an input document.
-| `enrich_fields`    | yes       | -                    | The fields that will be available to enrich the input document.
-|======
-
-[[enrich-policy-types]]
-==== Policy types
-
-An enrich processor is associated with a policy via the `policy_name` option.
-The policy type of the policy determines what kind of enrichment an `enrich` processor is able to do.
-
-The following policy types are currently supported:
-
-* `exact_match` - Can lookup exactly one document and use its content to enrich the document being ingested.
-
-[[enrich-processor-getting-started]]
-=== Getting started
-
-Create a regular index that contains data you like to enrich your incoming documents with:
-
-[source,js]
---------------------------------------------------
-PUT /users/_doc/1?refresh
-{
-    "email": "mardy.brown@email.me",
-    "first_name": "Mardy",
-    "last_name": "Brown",
-    "address": "6649 N Blue Gum St",
-    "city": "New Orleans",
-    "county": "Orleans",
-    "state": "LA",
-    "zip": 70116,
-    "phone1":"504-621-8927",
-    "phone2": "504-845-1427",
-    "web": "mardy-brown.me"
-}
---------------------------------------------------
-// CONSOLE
-
-Create an enrich policy:
-
-[source,js]
---------------------------------------------------
-PUT /_enrich/policy/users-policy
-{
-    "exact_match": {
-        "indices": "users",
-        "match_field": "email",
-        "enrich_fields": ["first_name", "last_name", "address", "city", "zip", "state"]
-    }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-Which returns:
-
-[source,js]
---------------------------------------------------
-{
-    "acknowledged": true
-}
---------------------------------------------------
-// TESTRESPONSE
-
-Execute that enrich policy:
-
-[source,js]
---------------------------------------------------
-POST /_enrich/policy/users-policy/_execute
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-Which returns:
-
-[source,js]
---------------------------------------------------
-{
-    "acknowledged": true
-}
---------------------------------------------------
-// TESTRESPONSE
-
-Create the pipeline and enrich a document:
-
-[source,js]
---------------------------------------------------
-PUT _ingest/pipeline/user_lookup
-{
-  "description" : "Enriching user details to messages",
-  "processors" : [
-    {
-      "enrich" : {
-        "policy_name": "users-policy",
-        "field" : "email",
-        "target_field": "user"
-      }
-    }
-  ]
-}
-
-PUT my_index/_doc/my_id?pipeline=user_lookup
-{
-  "email": "mardy.brown@email.me"
-}
-
-GET my_index/_doc/my_id
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-Which returns:
-
-[source,js]
---------------------------------------------------
-{
-  "found": true,
-  "_index": "my_index",
-  "_type": "_doc",
-  "_id": "my_id",
-  "_version": 1,
-  "_seq_no": 55,
-  "_primary_term": 1,
-  "_source": {
-    "user": {
-      "email": "mardy.brown@email.me",
-      "first_name": "Mardy",
-      "last_name": "Brown",
-      "zip": 70116,
-      "address": "6649 N Blue Gum St",
-      "city": "New Orleans",
-      "state": "LA"
-    },
-    "email": "mardy.brown@email.me"
-  }
-}
---------------------------------------------------
-// TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term":1/"_primary_term" : $body._primary_term/]
-
-//////////////////////////
-
-[source,js]
---------------------------------------------------
-DELETE /_ingest/pipeline/user_lookup
-DELETE /_enrich/policy/users-policy
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-//////////////////////////
-
-[[enrich-policy-apis]]
-=== Enrich Policy APIs
-
-Also there are several APIs in order to manage and execute enrich policies:
-
-* <<put-policy-api,Put policy api>>.
-* <<get-policy-api,Get policy api>>.
-* <<delete-policy-api,Delete policy api>>.
-* <<execute-policy-api,Execute policy api>>.
-
-If security is enabled then the user managing enrich policies will need to have
-the `enrich_user` builtin role. Also the user will need to have read privileges
-for the indices the enrich policy is referring to.
-
-[[put-policy-api]]
-==== Put Policy API
-
-The put policy api allows a policy to be stored by an user specified id in the url and
-the enrich policy definition as body.
-
-Request:
-
-[source,js]
---------------------------------------------------
-PUT /_enrich/policy/my-policy
-{
-    "exact_match": {
-        "indices": "users",
-        "match_field": "email",
-        "enrich_fields": ["first_name", "last_name", "address", "city", "zip", "state"]
-    }
-}
---------------------------------------------------
-// CONSOLE
-
-Response:
-
-[source,js]
---------------------------------------------------
-{
-    "acknowledged": true
-}
---------------------------------------------------
-// TESTRESPONSE
-
-[[get-policy-api]]
-==== Get Policy API
-
-The get policy api allows a policy to be retrieved by id.
-
-Request:
-
-[source,js]
---------------------------------------------------
-GET /_enrich/policy/my-policy
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-Response:
-
-[source,js]
---------------------------------------------------
-{
-    "policies": [
-        {
-            "exact_match": {
-                "name" : "my-policy",
-                "indices" : ["users"],
-                "match_field" : "email",
-                "enrich_fields" : [
-                    "first_name",
-                    "last_name",
-                    "address",
-                    "city",
-                    "zip",
-                    "state"
-                ]
-            }
-        }
-    ]
-}
---------------------------------------------------
-// TESTRESPONSE
-
-The get policy api allows all policies to be returned.
-
-Request:
-
-[source,js]
---------------------------------------------------
-GET /_enrich/policy
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-Response:
-
-[source,js]
---------------------------------------------------
-{
-    "policies": [
-        {
-            "exact_match": {
-                "name" : "my-policy",
-                "indices" : ["users"],
-                "match_field" : "email",
-                "enrich_fields" : [
-                    "first_name",
-                    "last_name",
-                    "address",
-                    "city",
-                    "zip",
-                    "state"
-                ]
-            }
-        }
-    ]
-}
---------------------------------------------------
-// TESTRESPONSE
-
-[[execute-policy-api]]
-==== Execute Policy API
-
-The execute policy api executes a policy based on the provided id.
-It may take some time before this API returns a response.
-Executing a policy involves creating a new enrich index, indexing the documents from
-the indices specified in policy into the enrich index and some other operations.
-
-Note that this api needs to be re-executed in order to incorporate new changes
-in the index the policy is pointing to after the policy has been executed.
-
-This API creates an index with the `.enrich-*` prefix in the name. This index purpose
-is the be used by the enrich processor only and should not be used by anything else.
-Internally old `.enrich-*` are removed by an internal cleanup mechanism.
-
-//////////////////////////
-
-[source,js]
---------------------------------------------------
-PUT /users/_doc/1?refresh
-{
-    "email": "mardy.brown@email.me",
-    "first_name": "Mardy",
-    "last_name": "Brown",
-    "address": "6649 N Blue Gum St",
-    "city": "New Orleans",
-    "county": "Orleans",
-    "state": "LA",
-    "zip": 70116,
-    "phone1":"504-621-8927",
-    "phone2": "504-845-1427",
-    "web": "mardy-brown.me"
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-//////////////////////////
-
-Request:
-
-[source,js]
---------------------------------------------------
-POST /_enrich/policy/my-policy/_execute
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-Response:
-
-[source,js]
---------------------------------------------------
-{
-    "acknowledged": true
-}
---------------------------------------------------
-// TESTRESPONSE
-
-[[delete-policy-api]]
-===== Delete Policy API
-
-The delete policy api allows a policy to be removed by id.
-
-Request:
-
-[source,js]
---------------------------------------------------
-DELETE /_enrich/policy/my-policy
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-Response:
-
-[source,js]
---------------------------------------------------
-{
-    "acknowledged": true
-}
---------------------------------------------------
-// TESTRESPONSE
 
 [[ingest-processors]]
 == Processors
@@ -1238,6 +826,7 @@ See {plugins}/ingest.html[Ingest plugins] for information about the available in
 
 include::processors/append.asciidoc[]
 include::processors/bytes.asciidoc[]
+include::processors/circle.asciidoc[]
 include::processors/convert.asciidoc[]
 include::processors/date.asciidoc[]
 include::processors/date-index-name.asciidoc[]

@@ -192,7 +192,7 @@ of a watch during its execution:
 
 image::images/action-throttling.jpg[align="center"]
 
-
+[role="xpack"]
 [[action-conditions]]
 === Adding conditions to actions
 

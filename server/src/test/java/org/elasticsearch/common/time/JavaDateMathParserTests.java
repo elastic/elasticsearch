@@ -258,12 +258,18 @@ public class JavaDateMathParserTests extends ESTestCase {
         long datetime = parser.parse("1418248078", () -> 0).toEpochMilli();
         assertDateEquals(datetime, "1418248078", "2014-12-10T21:47:58.000");
 
-        // dateOptionalTime  allows 1-9digits to be used as year
+        // dateOptionalTime  allows 1-5digits to be used as year
         assertDateMathEquals("1", "1-01-01T00:00:00.000Z");
         assertDateMathEquals("1234567890", "1970-01-15T06:56:07.890Z");
-        assertDateMathEquals("123456789", "123456789-01-01T00:00:00.000Z");
+        assertDateMathEquals("12345", "12345-01-01T00:00:00.000Z");
         // but 10000 with T is still a date format
         assertDateMathEquals("1000-01-01T", "1000-01-01T00:00:00.000");
+        // a timestamp before 10000 is a year
+        assertDateMathEquals("9999", "9999-01-01T00:00:00.000");
+        // 10000 is also a year, breaking bwc, used to be a timestamp
+        assertDateMathEquals("10000", "10000-01-01T00:00:00.000");
+        // but 10000 with T is still a date format
+        assertDateMathEquals("10000T", "10000-01-01T00:00:00.000");
     }
 
     public void testStrictTimestamps() {

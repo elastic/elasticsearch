@@ -12,7 +12,7 @@ counts, replicas, etc.
 The most basic form of `_reindex` just copies documents from one index to another.
 This will copy documents from the `twitter` index into the `new_twitter` index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -24,7 +24,6 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:big_twitter]
 
 That will return something like this:
@@ -61,7 +60,7 @@ index API to control optimistic concurrency control. Just leaving out
 to blindly dump documents into the target, overwriting any that happen to have
 the same type and id:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -74,7 +73,6 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 Setting `version_type` to `external` will cause Elasticsearch to preserve the
@@ -82,7 +80,7 @@ Setting `version_type` to `external` will cause Elasticsearch to preserve the
 any documents that have an older version in the destination index than they do
 in the source index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -95,14 +93,13 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 Settings `op_type` to `create` will cause `_reindex` to only create missing
 documents in the target index. All existing documents will cause a version
 conflict:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -115,7 +112,6 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 By default, version conflicts abort the `_reindex` process. The `"conflicts"` request body
@@ -124,7 +120,7 @@ It is important to note that the handling of other error types is unaffected by 
 When `"conflicts": "proceed"` is set in the request body, the `_reindex` process will continue on version conflicts
 and return a count of version conflicts encountered:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -138,13 +134,12 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 You can limit the documents by adding a query to the `source`.
 This will only copy tweets made by `kimchy` into `new_twitter`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -161,14 +156,13 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 `index` in `source` can be a list, allowing you to copy from lots 
 of sources in one request. This will copy documents from the
 `twitter` and `blog` indices:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -180,7 +174,6 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 // TEST[s/^/PUT blog\/post\/post1?refresh\n{"test": "foo"}\n/]
 
@@ -193,7 +186,7 @@ It's also possible to limit the number of processed documents by setting
 `max_docs`. This will only copy a single document from `twitter` to
 `new_twitter`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -206,7 +199,6 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 If you want a particular set of documents from the `twitter` index you'll
@@ -214,7 +206,7 @@ need to use `sort`. Sorting makes the scroll less efficient but in some contexts
 it's worth it. If possible, prefer a more selective query to `max_docs` and `sort`.
 This will copy 10000 documents from `twitter` into `new_twitter`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -228,7 +220,6 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 The `source` section supports all the elements that are supported in a
@@ -236,7 +227,7 @@ The `source` section supports all the elements that are supported in a
 fields from the original documents can be reindexed using `source` filtering
 as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -249,7 +240,6 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 [[reindex-scripts]]
@@ -257,7 +247,7 @@ Like `_update_by_query`, `_reindex` supports a script that modifies the
 document. Unlike `_update_by_query`, the script is allowed to modify the
 document's metadata. This example bumps the version of the source document:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -274,7 +264,6 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 Just as in `_update_by_query`, you can set `ctx.op` to change the
@@ -330,7 +319,7 @@ For example, you can use the following request to copy all documents from
 the `source` index with the company name `cat` into the `dest` index with
 routing set to `cat`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -348,13 +337,12 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT source\n/]
 
 By default `_reindex` uses scroll batches of 1000. You can change the
 batch size with the `size` field in the `source` element:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -368,13 +356,12 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT source\n/]
 
 Reindex can also use the <<ingest>> feature by specifying a
 `pipeline` like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -387,7 +374,6 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT source\n/]
 
 [float]
@@ -396,7 +382,7 @@ POST _reindex
 
 Reindex supports reindexing from a remote Elasticsearch cluster:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -418,7 +404,6 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:host]
 // TEST[s/^/PUT source\n/]
 // TEST[s/otherhost:9200",/\${host}"/]
@@ -464,7 +449,7 @@ maximum size of 100mb. If the remote index includes very large documents you'll
 need to use a smaller batch size. The example below sets the batch size to `10`
 which is very, very small.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -485,7 +470,6 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:host]
 // TEST[s/^/PUT source\n/]
 // TEST[s/otherhost:9200/\${host}/]
@@ -496,7 +480,7 @@ with the `socket_timeout` field and the connection timeout with the
 sets the socket read timeout to one minute and the connection timeout to 10
 seconds:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -518,7 +502,6 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:host]
 // TEST[s/^/PUT source\n/]
 // TEST[s/otherhost:9200/\${host}/]
@@ -670,7 +653,7 @@ starting the next set. This is "bursty" instead of "smooth". The default value i
 ==== Response body
 
 //////////////////////////
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_reindex?wait_for_completion
 {
@@ -682,7 +665,6 @@ POST /_reindex?wait_for_completion
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 //////////////////////////
@@ -786,11 +768,10 @@ the `conflicts` option to prevent reindex from aborting on version conflicts.
 You can fetch the status of all running reindex requests with the
 <<tasks,Task API>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _tasks?detailed=true&actions=*reindex
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:No tasks to retrieve]
 
 The response looks like:
@@ -851,11 +832,10 @@ will finish when their sum is equal to the `total` field.
 With the task id you can look up the task directly. The following example 
 retrieves information about the task `r1A2WoRbTwKZ516z6NEs5A:36619`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_tasks/r1A2WoRbTwKZ516z6NEs5A:36619
 --------------------------------------------------
-// CONSOLE
 // TEST[catch:missing]
 
 The advantage of this API is that it integrates with `wait_for_completion=false`
@@ -873,11 +853,10 @@ you to delete that document.
 Any reindex can be canceled using the <<task-cancellation,Task Cancel API>>. For 
 example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _tasks/r1A2WoRbTwKZ516z6NEs5A:36619/_cancel
 --------------------------------------------------
-// CONSOLE
 
 The task ID can be found using the <<tasks,Tasks API>>.
 
@@ -892,11 +871,10 @@ API will continue to list the task until it wakes to cancel itself.
 The value of `requests_per_second` can be changed on a running reindex using
 the `_rethrottle` API:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex/r1A2WoRbTwKZ516z6NEs5A:36619/_rethrottle?requests_per_second=-1
 --------------------------------------------------
-// CONSOLE
 
 The task ID can be found using the <<tasks,tasks API>>.
 
@@ -914,7 +892,7 @@ timeouts.
 `_reindex` can be used to build a copy of an index with renamed fields. Say you
 create an index containing documents that look like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST test/_doc/1?refresh
 {
@@ -922,12 +900,11 @@ POST test/_doc/1?refresh
   "flag": "foo"
 }
 --------------------------------------------------
-// CONSOLE
 
 but you don't like the name `flag` and want to replace it with `tag`.
 `_reindex` can create the other index for you:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -942,16 +919,14 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Now you can get the new document:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET test2/_doc/1
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 which will return:
@@ -992,7 +967,7 @@ NOTE: Reindexing from remote clusters does not support
 Slice a reindex request manually by providing a slice id and total number of
 slices to each request:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 POST _reindex
 {
@@ -1021,17 +996,15 @@ POST _reindex
   }
 }
 ----------------------------------------------------------------
-// CONSOLE
 // TEST[setup:big_twitter]
 
 You can verify this works by:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 GET _refresh
 POST new_twitter/_search?size=0&filter_path=hits.total
 ----------------------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 which results in a sensible `total` like this one:
@@ -1055,7 +1028,7 @@ which results in a sensible `total` like this one:
 You can also let `_reindex` automatically parallelize using <<sliced-scroll>> to
 slice on `_uid`. Use `slices` to specify the number of slices to use:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 POST _reindex?slices=5&refresh
 {
@@ -1067,16 +1040,14 @@ POST _reindex?slices=5&refresh
   }
 }
 ----------------------------------------------------------------
-// CONSOLE
 // TEST[setup:big_twitter]
 
 You can also this verify works by:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 POST new_twitter/_search?size=0&filter_path=hits.total
 ----------------------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 which results in a sensible `total` like this one:
@@ -1176,14 +1147,13 @@ a new template to the existing documents.
 
 Assuming you have indices consisting of documents as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 PUT metricbeat-2016.05.30/_doc/1?refresh
 {"system.cpu.idle.pct": 0.908}
 PUT metricbeat-2016.05.31/_doc/1?refresh
 {"system.cpu.idle.pct": 0.105}
 ----------------------------------------------------------------
-// CONSOLE
 
 The new template for the `metricbeat-*` indices is already loaded into Elasticsearch,
 but it applies only to the newly created indices. Painless can be used to reindex
@@ -1193,7 +1163,7 @@ The script below extracts the date from the index name and creates a new index
 with `-1` appended. All data from `metricbeat-2016.05.31` will be reindexed
 into `metricbeat-2016.05.31-1`.
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 POST _reindex
 {
@@ -1209,17 +1179,15 @@ POST _reindex
   }
 }
 ----------------------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 All documents from the previous metricbeat indices can now be found in the `*-1` indices.
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 GET metricbeat-2016.05.30-1/_doc/1
 GET metricbeat-2016.05.31-1/_doc/1
 ----------------------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The previous method can also be used in conjunction with <<docs-reindex-change-name, changing a field name>>
@@ -1230,7 +1198,7 @@ to load only the existing data into the new index and rename any fields if neede
 
 `_reindex` can be used to extract a random subset of an index for testing:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 POST _reindex
 {
@@ -1250,7 +1218,6 @@ POST _reindex
   }
 }
 ----------------------------------------------------------------
-// CONSOLE
 // TEST[setup:big_twitter]
 
 <1> `_reindex` defaults to sorting by `_doc` so `random_score` will not have any

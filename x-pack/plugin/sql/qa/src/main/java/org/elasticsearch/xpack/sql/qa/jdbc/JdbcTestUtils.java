@@ -194,7 +194,7 @@ final class JdbcTestUtils {
                 }
             }
             // normal file access
-            else {
+            else if (Files.isDirectory(path)) {
                 Files.walkFileTree(path, EnumSet.allOf(FileVisitOption.class), 1, new SimpleFileVisitor<Path>() {
                     @Override
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {

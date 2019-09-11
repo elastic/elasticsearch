@@ -179,7 +179,7 @@ ctx.datetime = dt.getLong(ChronoField.INSTANT_SECONDS)*1000L;        <15>
 
 Submit the following request:
 
-[source,js]
+[source,console]
 ----
 PUT /_ingest/pipeline/seats
 {
@@ -193,4 +193,3 @@ PUT /_ingest/pipeline/seats
     ]
 }
 ----
-// CONSOLE

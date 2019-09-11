@@ -22,13 +22,12 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -164,18 +163,18 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
     }
 
     @Override
-    protected final MultiValuesSourceAggregatorFactory<VS> doBuild(SearchContext context, AggregatorFactory parent,
-            AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+    protected final MultiValuesSourceAggregatorFactory<VS> doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
+                                                                   Builder subFactoriesBuilder) throws IOException {
         ValueType finalValueType = this.valueType != null ? this.valueType : targetValueType;
 
         Map<String, ValuesSourceConfig<VS>> configs = new HashMap<>(fields.size());
         fields.forEach((key, value) -> {
-            ValuesSourceConfig<VS> config = ValuesSourceConfig.resolve(context.getQueryShardContext(), finalValueType,
+            ValuesSourceConfig<VS> config = ValuesSourceConfig.resolve(queryShardContext, finalValueType,
                 value.getFieldName(), value.getScript(), value.getMissing(), value.getTimeZone(), format);
             configs.put(key, config);
         });
         DocValueFormat docValueFormat = resolveFormat(format, finalValueType);
-        return innerBuild(context, configs, docValueFormat, parent, subFactoriesBuilder);
+        return innerBuild(queryShardContext, configs, docValueFormat, parent, subFactoriesBuilder);
     }
 
 
@@ -190,9 +189,10 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
         return valueFormat;
     }
 
-    protected abstract MultiValuesSourceAggregatorFactory<VS> innerBuild(SearchContext context,
-        Map<String, ValuesSourceConfig<VS>> configs, DocValueFormat format, AggregatorFactory parent,
-        AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
+    protected abstract MultiValuesSourceAggregatorFactory<VS> innerBuild(QueryShardContext queryShardContext,
+                                                                         Map<String, ValuesSourceConfig<VS>> configs,
+                                                                         DocValueFormat format, AggregatorFactory parent,
+                                                                         Builder subFactoriesBuilder) throws IOException;
 
 
     /**

@@ -3,6 +3,7 @@
 :request: UpdateDataFrameTransformRequest
 :response: UpdateDataFrameTransformResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Update {dataframe-transform} API
 

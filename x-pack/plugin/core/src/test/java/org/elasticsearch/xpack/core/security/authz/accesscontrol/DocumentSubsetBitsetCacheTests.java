@@ -15,12 +15,14 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -236,8 +238,9 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
                 final LeafReaderContext leaf = directoryReader.leaves().get(0);
 
-                final QueryShardContext context = new QueryShardContext(shardId.id(), indexSettings, null, null, null, mapperService,
-                    null, null, xContentRegistry(), writableRegistry(), client, leaf.reader(), () -> nowInMillis, null);
+                final QueryShardContext context = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
+                    null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
+                        client, new IndexSearcher(directoryReader), () -> nowInMillis, null);
 
                 body.accept(context, leaf);
             }

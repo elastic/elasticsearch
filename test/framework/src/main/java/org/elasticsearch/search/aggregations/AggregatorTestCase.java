@@ -39,6 +39,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.Index;
@@ -281,7 +282,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     protected QueryShardContext queryShardContextMock(MapperService mapperService, IndexSettings indexSettings,
                                                       CircuitBreakerService circuitBreakerService) {
 
-        return new QueryShardContext(0, indexSettings, null, null,
+        return new QueryShardContext(0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
             getIndexFieldDataLookup(mapperService, circuitBreakerService),
             mapperService, null, getMockScriptService(), xContentRegistry(),
             writableRegistry(), null, null, System::currentTimeMillis, null);

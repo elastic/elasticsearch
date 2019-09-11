@@ -2218,11 +2218,10 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
-        internalCluster().ensureAtLeastNumDataNodes(2);
         // Create index on two nodes and make sure each node has a primary by setting no replicas
         assertAcked(prepareCreate("test-idx", 2, Settings.builder()
             .put(SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(SETTING_NUMBER_OF_SHARDS, 2)));
+            .put(SETTING_NUMBER_OF_SHARDS, between(2, 10))));
 
         ensureGreen("test-idx");
 
@@ -2238,7 +2237,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> wait for relocations to start");
 
-        assertTrue(waitForRelocationsToStart("test-idx", TimeValue.timeValueMinutes(1)));
+        assertBusy(() -> assertThat(
+            client().admin().cluster().prepareHealth("test-idx").execute().actionGet().getRelocatingShards(), greaterThan(0)),
+            1L, TimeUnit.MINUTES);
 
         logger.info("--> snapshot");
         client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
@@ -2809,11 +2810,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
     private boolean waitForIndex(final String index, TimeValue timeout) throws InterruptedException {
         return awaitBusy(() -> indexExists(index), timeout.millis(), TimeUnit.MILLISECONDS);
-    }
-
-    private boolean waitForRelocationsToStart(final String index, TimeValue timeout) throws InterruptedException {
-        return awaitBusy(() -> client().admin().cluster().prepareHealth(index).execute().actionGet().getRelocatingShards() > 0,
-            timeout.millis(), TimeUnit.MILLISECONDS);
     }
 
     public void testSnapshotName() throws Exception {

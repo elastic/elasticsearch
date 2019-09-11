@@ -356,6 +356,7 @@ include::migration/get-assistance.asciidoc[]
 include::migration/upgrade.asciidoc[]
 include::migration/get-deprecation-info.asciidoc[]
 
+[role="xpack"]
 == Rollup APIs
 :upid: {mainid}-rollup
 :doc-tests-file: {doc-tests}/RollupDocumentationIT.java

@@ -38,15 +38,9 @@ more about the supported aggregations and group-by fields, see
 As an optional step, you can also add a query to further limit the scope of the
 aggregation.
 
-The {dataframe-transform} performs a composite aggregation that 
-paginates through all the data defined by the source index query. The output of
-the aggregation is stored in a destination index. Each time the 
-{dataframe-transform} queries the source index, it creates a _checkpoint_. You 
-can decide whether you want the {dataframe-transform} to run once (batch 
-{dataframe-transform}) or continuously ({cdataframe-transform}). A batch 
-{dataframe-transform} is a single operation that has a single checkpoint. 
-{cdataframe-transforms-cap} continually increment and process checkpoints as new 
-source data is ingested.
+IMPORTANT: In 7.2, you can build {dataframes} on the top of a static indices. 
+When new data comes into the index, you have to perform the transformation again 
+on the altered data.
 
 .Example
 
@@ -64,7 +58,7 @@ ordered quantity. The result is a {dataframe} that shows the number of sold
 items in every product category in the last year.
 
 [role="screenshot"]
-image::images/ml-dataframepivot.jpg["Example of a data frame pivot in {kib}"]
+image::data-frames/images/ml-dataframepivot.jpg["Example of a data frame pivot in {kib}"]
 
 IMPORTANT: The {dataframe-transform} leaves your source index intact. It
 creates a new index that is dedicated to the {dataframe}.

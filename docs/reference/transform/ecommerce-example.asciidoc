@@ -51,10 +51,10 @@ at least one aggregation. You can preview what the transformed data will look
 like, so go ahead and play with it!
 
 For example, go to *Machine Learning* > *Data Frames* in {kib} and use the
-wizard to create a {dataframe-transform}:
+wizard to create a {dataframe}:
 
 [role="screenshot"]
-image::images/ecommerce-pivot1.jpg["Creating a simple {dataframe-transform} in {kib}"]
+image::images/ecommerce-pivot1.jpg["Creating a simple {dataframe} in {kib}"]
 
 In this case, we grouped the data by customer ID and calculated the sum of
 products each customer purchased.
@@ -71,13 +71,13 @@ We'll accomplish this by using the
 on the `order_id` field:
 
 [role="screenshot"]
-image::images/ecommerce-pivot2.jpg["Adding multiple aggregations to a {dataframe-transform} in {kib}"]
+image::images/ecommerce-pivot2.jpg["Adding multiple aggregations to a {dataframe} in {kib}"]
 
 TIP: If you're interested in a subset of the data, you can optionally include a
-{ref}/search-request-body.html#request-body-search-query[query] element. In this
-example, we've filtered the data so that we're only looking at orders with a
-`currency` of `EUR`. Alternatively, we could group the data by that field too.
-If you want to use more complex queries, you can create your {dataframe} from a
+{ref}/search-request-query.html[query] element. In this example, we've filtered
+the data so that we're only looking at orders with a `currency` of `EUR`.
+Alternatively, we could group the data by that field too. If you want to use
+more complex queries, you can create your {dataframe} from a
 {kibana-ref}/save-open-search.html[saved search].
 
 If you prefer, you can use the
@@ -138,22 +138,9 @@ POST _data_frame/transforms/_preview
 {dataframe-transform}. 
 +
 --
-.. Supply a job ID and the name of the target (or _destination_) index.
-
-.. Decide whether you want the {dataframe-transform} to run once or continuously.
---
-+
---
-Since this sample data index is unchanging, let's use the default behavior and
-just run the {dataframe-transform} once.
-
-[role="screenshot"]
-image::images/ecommerce-batch.jpg["Specifying the {dataframe-transform} options in {kib}"]
-
-If you want to try it out, however, go ahead and click on *Continuous mode*. 
-You must choose a field that the {dataframe-transform} can use to check which
-entities have changed. In general, it's a good idea to use the ingest timestamp
-field. In this example, however, you can use the `order_date` field.
+Supply a job ID and the name of the target (or _destination_) index. In {kib},
+you can choose to create and start the job, create it, or copy it to the
+clipboard.
 
 If you prefer, you can use the
 {ref}/put-data-frame-transform.html[create {dataframe-transforms} API]. For
@@ -176,6 +163,9 @@ PUT _data_frame/transforms/ecommerce-customer-transform
         }
       }
     }
+  },
+  "dest": {
+    "index": "ecommerce-customers"
   },
   "pivot": {
     "group_by": {
@@ -207,9 +197,6 @@ PUT _data_frame/transforms/ecommerce-customer-transform
         }
       }
     }
-  },
-  "dest": {
-    "index": "ecommerce-customers"
   }
 }
 --------------------------------------------------
@@ -223,13 +210,14 @@ PUT _data_frame/transforms/ecommerce-customer-transform
 
 TIP: Even though resource utilization is automatically adjusted based on the
 cluster load, a {dataframe-transform} increases search and indexing load on your
-cluster while it runs. If you're experiencing an excessive load, however, you
-can stop it.
+cluster while it runs. When it reaches the end of the data in your index, it
+stops automatically. If you're experiencing an excessive load, however, you can
+stop it sooner.
 
-You can start, stop, and manage {dataframe-transforms} in {kib}:
+You can start, stop, and manage {dataframe} jobs in {kib}:
 
 [role="screenshot"]
-image::images/dataframe-transforms.jpg["Managing {dataframe-transforms} in {kib}"]
+image::images/dataframe-jobs.jpg["Managing {dataframe} jobs in {kib}"]
 
 Alternatively, you can use the
 {ref}/start-data-frame-transform.html[start {dataframe-transforms}] and
@@ -258,5 +246,4 @@ image::images/ecommerce-results.jpg["Exploring the new index in {kib}"]
 TIP: If you do not want to keep the {dataframe-transform}, you can delete it in
 {kib} or use the
 {ref}/delete-data-frame-transform.html[delete {dataframe-transform} API]. When
-you delete a {dataframe-transform}, its destination index and {kib} index
-patterns remain.
+you delete a {dataframe-transform}, its destination index remains.

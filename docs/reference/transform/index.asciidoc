@@ -75,8 +75,6 @@ to one specific method: _{dataframe-transforms}_.
 --
 
 include::overview.asciidoc[]
-include::checkpoints.asciidoc[]
 include::api-quickref.asciidoc[]
 include::dataframe-examples.asciidoc[]
 include::troubleshooting.asciidoc[]
-include::limitations.asciidoc[]

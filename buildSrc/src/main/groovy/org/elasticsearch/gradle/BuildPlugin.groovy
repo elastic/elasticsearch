@@ -134,9 +134,9 @@ class BuildPlugin implements Plugin<Project> {
                 }
             }
 
-            String javaVendor = System.getProperty('java.vendor')
+            String javaVendorVersion = System.getProperty('java.vendor.version', System.getProperty('java.vendor'))
             String gradleJavaVersion = System.getProperty('java.version')
-            String gradleJavaVersionDetails = "${javaVendor} ${gradleJavaVersion}" +
+            String gradleJavaVersionDetails = "${javaVendorVersion} ${gradleJavaVersion}" +
                 " [${System.getProperty('java.vm.name')} ${System.getProperty('java.vm.version')}]"
 
             String compilerJavaVersionDetails = gradleJavaVersionDetails
@@ -445,8 +445,10 @@ class BuildPlugin implements Plugin<Project> {
     /** Finds printable java version of the given JAVA_HOME */
     private static String findJavaVersionDetails(Project project, String javaHome) {
         String versionInfoScript = 'print(' +
-            'java.lang.System.getProperty("java.vendor") + " " + java.lang.System.getProperty("java.version") + ' +
-            '" [" + java.lang.System.getProperty("java.vm.name") + " " + java.lang.System.getProperty("java.vm.version") + "]");'
+            'java.lang.System.getProperty("java.vendor.version", java.lang.System.getProperty("java.vendor")) + " " + ' +
+            'java.lang.System.getProperty("java.version") + " [" +' +
+            'java.lang.System.getProperty("java.vm.name") + " " + ' +
+            'java.lang.System.getProperty("java.vm.version") + "]");'
         return runJavaAsScript(project, javaHome, versionInfoScript).trim()
     }
 
@@ -457,7 +459,7 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     private static String findJavaVendor(Project project, String javaHome) {
-        String vendorScript = 'print(java.lang.System.getProperty("java.vendor"));'
+        String vendorScript = 'print(java.lang.System.getProperty("java.vendor.version", System.getProperty("java.vendor"));'
         return runJavaAsScript(project, javaHome, vendorScript)
     }
 

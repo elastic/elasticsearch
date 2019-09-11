@@ -25,6 +25,7 @@ import com.amazonaws.services.s3.model.S3Object;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -81,7 +82,7 @@ class S3RetryingInputStream extends InputStream {
                 }
                 logger.debug(new ParameterizedMessage("failed reading [{}/{}] at offset [{}], attempt [{}] of [{}], retrying",
                     blobStore.bucket(), blobKey, currentOffset, attempt, maxAttempts), e);
-                currentStream.close();
+                IOUtils.closeWhileHandlingException(currentStream);
                 currentStream = openStream();
             }
         }
@@ -105,7 +106,7 @@ class S3RetryingInputStream extends InputStream {
                 }
                 logger.debug(new ParameterizedMessage("failed reading [{}/{}] at offset [{}], attempt [{}] of [{}], retrying",
                     blobStore.bucket(), blobKey, currentOffset, attempt, maxAttempts), e);
-                currentStream.close();
+                IOUtils.closeWhileHandlingException(currentStream);
                 currentStream = openStream();
             }
         }

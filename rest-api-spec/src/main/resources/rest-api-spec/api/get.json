@@ -8,7 +8,7 @@
     "url":{
       "paths":[
         {
-          "path":"/{index}/{id}",
+          "path":"/{index}/_doc/{id}",
           "methods":[
             "GET"
           ],

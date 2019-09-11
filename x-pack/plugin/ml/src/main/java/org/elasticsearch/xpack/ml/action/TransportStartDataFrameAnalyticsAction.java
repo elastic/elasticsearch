@@ -152,7 +152,6 @@ public class TransportStartDataFrameAnalyticsAction
                 @Override
                 public void onFailure(Exception e) {
                     if (e instanceof ResourceAlreadyExistsException) {
-                        auditor.error(request.getId(), Messages.DATA_FRAME_ANALYTICS_AUDIT_ALREADY_STARTED);
                         e = new ElasticsearchStatusException("Cannot start data frame analytics [" + request.getId() +
                             "] because it has already been started", RestStatus.CONFLICT, e);
                     }
@@ -326,8 +325,6 @@ public class TransportStartDataFrameAnalyticsAction
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    auditor.error(
-                        task.getParams().getId(), Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_START_TIMEOUT, timeout));
                     listener.onFailure(new ElasticsearchException(
                         "Starting data frame analytics [" + task.getParams().getId() + "] timed out after [" + timeout + "]"));
                 }
@@ -389,7 +386,6 @@ public class TransportStartDataFrameAnalyticsAction
             new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> task) {
-                    auditor.warning(persistentTask.getParams().getId(), Messages.DATA_FRAME_ANALYTICS_AUDIT_CANCELED);
                     // We succeeded in cancelling the persistent task, but the
                     // problem that caused us to cancel it is the overall result
                     listener.onFailure(exception);

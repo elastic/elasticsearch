@@ -153,7 +153,6 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.junit.After;
 
 import java.io.IOException;
@@ -1246,9 +1245,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(createdConfig.getAnalyzedFields(), equalTo(config.getAnalyzedFields()));
         assertThat(createdConfig.getModelMemoryLimit(), equalTo(ByteSizeValue.parseBytesSizeValue("1gb", "")));  // default value
         assertThat(createdConfig.getDescription(), equalTo("some description"));
-
-        assertThatAuditMessagesAreEqualTo(configId,
-            "Created analytics with analysis type [outlier detection]");
     }
 
     public void testPutDataFrameAnalyticsConfig_GivenRegression() throws Exception {
@@ -1284,9 +1280,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(createdConfig.getAnalyzedFields(), equalTo(config.getAnalyzedFields()));
         assertThat(createdConfig.getModelMemoryLimit(), equalTo(ByteSizeValue.parseBytesSizeValue("1gb", "")));  // default value
         assertThat(createdConfig.getDescription(), equalTo("this is a regression"));
-
-        assertThatAuditMessagesAreEqualTo(configId,
-            "Created analytics with analysis type [regression]");
     }
 
     public void testGetDataFrameAnalyticsConfig_SingleConfig() throws Exception {
@@ -1471,14 +1464,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         // Verify that the destination index got created.
         assertTrue(highLevelClient().indices().exists(new GetIndexRequest(destIndex), RequestOptions.DEFAULT));
-
-        assertThatAuditMessagesAreEqualTo(configId,
-            "Created analytics with analysis type [outlier detection]",
-            "Estimated memory usage for this analytics to be [3kb]",
-            "Started analytics",
-            "Creating destination index [start-test-dest-index]",
-            "Finished reindexing to destination index [start-test-dest-index]",
-            "Finished analysis");
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43924")
@@ -1522,11 +1507,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             machineLearningClient::stopDataFrameAnalytics, machineLearningClient::stopDataFrameAnalyticsAsync);
         assertTrue(stopDataFrameAnalyticsResponse.isStopped());
         assertThat(getAnalyticsState(configId), equalTo(DataFrameAnalyticsState.STOPPED));
-
-        assertThatAuditMessagesAreEqualTo(configId,
-            "Created analytics with analysis type [outlier detection]",
-            "Started analytics",
-            "Stopped analytics");
     }
 
     private DataFrameAnalyticsState getAnalyticsState(String configId) throws IOException {
@@ -1577,10 +1557,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             new GetDataFrameAnalyticsRequest(configId + "*"),
             machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
         assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(0));
-
-        assertThatAuditMessagesAreEqualTo(configId,
-            "Created analytics with analysis type [outlier detection]",
-            "Deleted analytics");
     }
 
     public void testDeleteDataFrameAnalyticsConfig_ConfigNotFound() {
@@ -1806,27 +1782,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     private void createIndex(String indexName, XContentBuilder mapping) throws IOException {
         highLevelClient().indices().create(new CreateIndexRequest(indexName).mapping(mapping), RequestOptions.DEFAULT);
-    }
-
-    private static void assertThatAuditMessagesAreEqualTo(String configId, String... expectedAuditMessages) throws Exception {
-        // Make sure we wrote to the audit
-        // Since calls to write the AbstractAuditor are sent and forgot (async) we could have returned from the start,
-        // finished the job (as this is a very short analytics job), all without the audit being fully written.
-        assertBusy(() -> assertTrue(indexExists(AuditorField.NOTIFICATIONS_INDEX)));
-        assertBusy(() -> assertThat(fetchAllAuditMessages(configId), equalTo(List.of(expectedAuditMessages))));
-    }
-
-    @SuppressWarnings("unchecked")
-    private static List<String> fetchAllAuditMessages(String dataFrameAnalyticsId) throws Exception {
-        assertOK(client().performRequest(new Request("POST", AuditorField.NOTIFICATIONS_INDEX + "/_refresh")));
-        Request request = new Request("GET", AuditorField.NOTIFICATIONS_INDEX + "/_search?sort=timestamp");
-        request.setJsonEntity("{\"query\":{\"term\":{\"job_id\":\"" + dataFrameAnalyticsId + "\"}}}");
-        Map<String, Object> response = entityAsMap(client().performRequest(request));
-        List<Map<String, Object>> hitList = ((List<Map<String, Object>>) ((Map<String, Object>) response.get("hits")).get("hits"));
-        return hitList
-            .stream()
-            .map(hit -> (String) ((Map<String, Object>) hit.get("_source")).get("message"))
-            .collect(Collectors.toList());
     }
 
     public void testEstimateMemoryUsage() throws IOException {

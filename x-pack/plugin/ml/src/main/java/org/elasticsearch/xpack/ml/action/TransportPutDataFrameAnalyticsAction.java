@@ -186,7 +186,7 @@ public class TransportPutDataFrameAnalyticsAction
                     indexResponse -> {
                         auditor.info(
                             config.getId(),
-                            Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_CREATED, config.getAnalysis().getUserFriendlyName()));
+                            Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_CREATED, config.getAnalysis().getWriteableName()));
                         listener.onResponse(indexResponse);
                     },
                     listener::onFailure)),

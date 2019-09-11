@@ -60,9 +60,6 @@ public final class Messages {
     public static final String DATA_FRAME_ANALYTICS_AUDIT_STARTED = "Started analytics";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_STOPPED = "Stopped analytics";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_DELETED = "Deleted analytics";
-    public static final String DATA_FRAME_ANALYTICS_AUDIT_ALREADY_STARTED = "Cannot start analytics because it has already been started";
-    public static final String DATA_FRAME_ANALYTICS_AUDIT_START_TIMEOUT = "Starting analytics timed out after [{0}]";
-    public static final String DATA_FRAME_ANALYTICS_AUDIT_CANCELED = "Canceled analytics";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_UPDATED_STATE = "Successfully updated analytics task state to [{0}]";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_ESTIMATED_MEMORY_USAGE = "Estimated memory usage for this analytics to be [{0}]";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_CREATING_DEST_INDEX = "Creating destination index [{0}]";

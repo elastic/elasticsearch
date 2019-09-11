@@ -46,7 +46,7 @@ the process to complete, you can use the `wait_for_active_shards` parameter.
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /follower_index/_ccr/follow?wait_for_active_shards=1
 {
@@ -54,15 +54,13 @@ PUT /follower_index/_ccr/follow?wait_for_active_shards=1
   "leader_index" : "leader_index"
 }
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
 // TEST[setup:remote_cluster_and_leader_index]
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /follower_index/_ccr/pause_follow
 --------------------------------------------------
-// CONSOLE
 // TEARDOWN
 
 //////////////////////////
@@ -191,7 +189,7 @@ operations this can be detected in {kib} or by using the
 In order to restart the follower, you must pause the following process, close the
 index, and the create follower index again. For example:
 
-["source","js"]
+[source,console]
 ----------------------------------------------------------------------
 POST /follower_index/_ccr/pause_follow
 
@@ -203,7 +201,6 @@ PUT /follower_index/_ccr/follow?wait_for_active_shards=1
   "leader_index" : "leader_index"
 }
 ----------------------------------------------------------------------
-// CONSOLE
 
 Re-creating the follower index is a destructive action. All of the existing Lucene
 segment files are deleted on the follower cluster. The

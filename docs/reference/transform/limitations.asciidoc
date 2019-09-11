@@ -64,6 +64,7 @@ the {dataframe-transform}. For example:
           }
         }
 ------------------------------------------------------------
+// NOTCONSOLE
 
 [float]
 [[df-aggresponse-limitations]]

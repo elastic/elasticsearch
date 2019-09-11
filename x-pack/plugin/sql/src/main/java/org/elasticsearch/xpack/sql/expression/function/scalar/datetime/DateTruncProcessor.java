@@ -18,7 +18,7 @@ import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTrunc.DatePart;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTrunc.Part;
 
 public class DateTruncProcessor extends BinaryProcessor {
 
@@ -68,12 +68,12 @@ public class DateTruncProcessor extends BinaryProcessor {
         if (!(source1 instanceof String)) {
             throw new SqlIllegalArgumentException("A string is required; received [{}]", source1);
         }
-        DatePart truncateDateField = DatePart.resolveTruncate((String) source1);
+        Part truncateDateField = Part.resolveTruncate((String) source1);
         if (truncateDateField == null) {
-            List<String> similar = DatePart.findSimilar((String) source1);
+            List<String> similar = Part.findSimilar((String) source1);
             if (similar.isEmpty()) {
                 throw new SqlIllegalArgumentException("A value of {} or their aliases is required; received [{}]",
-                    DatePart.values(), source1);
+                    Part.values(), source1);
             } else {
                 throw new SqlIllegalArgumentException("Received value [{}] is not valid date part for truncation; " + "" +
                     "did you mean {}?", source1, similar);
@@ -84,7 +84,7 @@ public class DateTruncProcessor extends BinaryProcessor {
             throw new SqlIllegalArgumentException("A datetime/date is required; received [{}]", source2);
         }
 
-        return DatePart.truncate(((ZonedDateTime) source2).withZoneSameInstant(zoneId), truncateDateField);
+        return truncateDateField.truncate(((ZonedDateTime) source2).withZoneSameInstant(zoneId));
     }
 
     @Override

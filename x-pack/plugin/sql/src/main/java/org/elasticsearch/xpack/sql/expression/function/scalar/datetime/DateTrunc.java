@@ -21,11 +21,11 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isDate;
@@ -35,148 +35,115 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
 
 public class DateTrunc extends BinaryScalarFunction {
 
-    public enum DatePart {
+    public enum Part {
 
-        MILLENNIUM("millennia"),
-        CENTURY("centuries"),
-        DECADE("decades"),
-        YEAR("years", "yy", "yyyy"),
-        QUARTER("quarters", "qq", "q"),
-        MONTH("months", "mm", "m"),
-        WEEK("weeks", "wk", "ww"),
-        DAY("days", "dd", "d"),
-        HOUR("hours", "hh"),
-        MINUTE("minutes", "mi", "n"),
-        SECOND("seconds", "ss", "s"),
-        MILLISECOND("milliseconds", "ms"),
-        MICROSECOND("microseconds", "mcs"),
-        NANOSECOND("nanoseconds", "ns");
+        MILLENNIUM(dt -> {
+            int year = dt.getYear();
+            int firstYearOfMillenium = year - (year % 1000);
+            return dt
+                .with(ChronoField.YEAR, firstYearOfMillenium)
+                .with(ChronoField.MONTH_OF_YEAR, 1)
+                .with(ChronoField.DAY_OF_MONTH, 1)
+                .toLocalDate().atStartOfDay(dt.getZone());
+            },"millennia"),
+        CENTURY(dt -> {
+            int year = dt.getYear();
+            int firstYearOfCentury = year - (year % 100);
+            return dt
+                .with(ChronoField.YEAR, firstYearOfCentury)
+                .with(ChronoField.MONTH_OF_YEAR, 1)
+                .with(ChronoField.DAY_OF_MONTH, 1)
+                .toLocalDate().atStartOfDay(dt.getZone());
+            }, "centuries"),
+        DECADE(dt -> {
+            int year = dt.getYear();
+            int firstYearOfDecade = year - (year % 10);
+            return dt
+                .with(ChronoField.YEAR, firstYearOfDecade)
+                .with(ChronoField.MONTH_OF_YEAR, 1)
+                .with(ChronoField.DAY_OF_MONTH, 1)
+                .toLocalDate().atStartOfDay(dt.getZone());
+            }, "decades"),
+        YEAR(dt -> dt
+            .with(ChronoField.MONTH_OF_YEAR, 1)
+            .with(ChronoField.DAY_OF_MONTH, 1)
+            .toLocalDate().atStartOfDay(dt.getZone()),
+            "years", "yy", "yyyy"),
+        QUARTER(dt -> {
+            int month = dt.getMonthValue();
+            int firstMonthOfQuarter = (((month - 1) / 3) * 3) + 1;
+            return dt
+                .with(ChronoField.MONTH_OF_YEAR, firstMonthOfQuarter)
+                .with(ChronoField.DAY_OF_MONTH, 1)
+                .toLocalDate().atStartOfDay(dt.getZone());
+            }, "quarters", "qq", "q"),
+        MONTH(dt -> dt
+                .with(ChronoField.DAY_OF_MONTH, 1)
+                .toLocalDate().atStartOfDay(dt.getZone()),
+            "months", "mm", "m"),
+        WEEK(dt -> dt
+                .with(ChronoField.DAY_OF_WEEK, 1)
+                .toLocalDate().atStartOfDay(dt.getZone()),
+            "weeks", "wk", "ww"),
+        DAY(dt -> dt.toLocalDate().atStartOfDay(dt.getZone()), "days", "dd", "d"),
+        HOUR(dt -> {
+            int hour = dt.getHour();
+            return dt.toLocalDate().atStartOfDay(dt.getZone())
+                .with(ChronoField.HOUR_OF_DAY, hour);
+        }, "hours", "hh"),
+        MINUTE(dt -> {
+            int hour = dt.getHour();
+            int minute = dt.getMinute();
+            return dt.toLocalDate().atStartOfDay(dt.getZone())
+                .with(ChronoField.HOUR_OF_DAY, hour)
+                .with(ChronoField.MINUTE_OF_HOUR, minute);
+            }, "minutes", "mi", "n"),
+        SECOND(dt -> dt.with(ChronoField.NANO_OF_SECOND, 0), "seconds", "ss", "s"),
+        MILLISECOND(dt -> {
+            int micros = dt.get(ChronoField.MICRO_OF_SECOND);
+            return dt.with(ChronoField.MILLI_OF_SECOND, (micros / 1000));
+            }, "milliseconds", "ms"),
+        MICROSECOND(dt -> {
+            int nanos = dt.getNano();
+            return dt.with(ChronoField.MICRO_OF_SECOND, (nanos / 1000));
+            }, "microseconds", "mcs"),
+        NANOSECOND(dt -> dt, "nanoseconds", "ns");
 
-        private static final Set<String> ALL_DATE_PARTS;
-        private static final Map<String, DatePart> RESOLVE_MAP;
+        private static final Map<String, Part> NAME_TO_PART;
 
         static {
-            ALL_DATE_PARTS = new HashSet<>();
-            RESOLVE_MAP = new HashMap<>();
+            NAME_TO_PART = new HashMap<>();
 
-            for (DatePart datePart : DatePart.values()) {
+            for (Part datePart : Part.values()) {
                 String lowerCaseName = datePart.name().toLowerCase(IsoLocale.ROOT);
-                ALL_DATE_PARTS.add(lowerCaseName);
-                ALL_DATE_PARTS.addAll(datePart.aliases);
 
-                RESOLVE_MAP.put(lowerCaseName, datePart);
+                NAME_TO_PART.put(lowerCaseName, datePart);
                 for (String alias : datePart.aliases) {
-                    RESOLVE_MAP.put(alias, datePart);
+                    NAME_TO_PART.put(alias, datePart);
                 }
             }
         }
 
         private Set<String> aliases;
+        private Function<ZonedDateTime, ZonedDateTime> truncateFunction;
 
-        DatePart(String... aliases) {
+        Part(Function<ZonedDateTime, ZonedDateTime> truncateFunction, String... aliases) {
+            this.truncateFunction = truncateFunction;
             this.aliases = Set.of(aliases);
         }
 
-        public static DatePart resolveTruncate(String truncateTo) {
-            return RESOLVE_MAP.get(truncateTo.toLowerCase(IsoLocale.ROOT));
+        public static Part resolveTruncate(String truncateTo) {
+            return NAME_TO_PART.get(truncateTo.toLowerCase(IsoLocale.ROOT));
         }
 
         public static List<String> findSimilar(String match) {
-            return StringUtils.findSimilar(match, ALL_DATE_PARTS);
+            return StringUtils.findSimilar(match, NAME_TO_PART.keySet());
         }
 
-        public static ZonedDateTime truncate(ZonedDateTime dateTime, DateTrunc.DatePart datePart) {
-            ZonedDateTime truncated = null;
-            switch (datePart) {
-                case MILLENNIUM:
-                    int year = dateTime.getYear();
-                    int firstYearOfMillenium = year - (year % 1000);
-                    truncated = dateTime
-                        .with(ChronoField.YEAR, firstYearOfMillenium)
-                        .with(ChronoField.MONTH_OF_YEAR, 1)
-                        .with(ChronoField.DAY_OF_MONTH, 1)
-                        .toLocalDate().atStartOfDay(dateTime.getZone());
-                    break;
-                case CENTURY:
-                    year = dateTime.getYear();
-                    int firstYearOfCentury = year - (year % 100);
-                    truncated = dateTime
-                        .with(ChronoField.YEAR, firstYearOfCentury)
-                        .with(ChronoField.MONTH_OF_YEAR, 1)
-                        .with(ChronoField.DAY_OF_MONTH, 1)
-                        .toLocalDate().atStartOfDay(dateTime.getZone());
-                    break;
-                case DECADE:
-                    year = dateTime.getYear();
-                    int firstYearOfDecade = year - (year % 10);
-                    truncated = dateTime
-                        .with(ChronoField.YEAR, firstYearOfDecade)
-                        .with(ChronoField.MONTH_OF_YEAR, 1)
-                        .with(ChronoField.DAY_OF_MONTH, 1)
-                        .toLocalDate().atStartOfDay(dateTime.getZone());
-                    break;
-                case YEAR:
-                    truncated = dateTime
-                        .with(ChronoField.MONTH_OF_YEAR, 1)
-                        .with(ChronoField.DAY_OF_MONTH, 1)
-                        .toLocalDate().atStartOfDay(dateTime.getZone());
-                    break;
-                case QUARTER:
-                    int month = dateTime.getMonthValue();
-                    int firstMonthOfQuarter = (((month - 1) / 3) * 3) + 1;
-                    truncated = dateTime
-                        .with(ChronoField.MONTH_OF_YEAR, firstMonthOfQuarter)
-                        .with(ChronoField.DAY_OF_MONTH, 1)
-                        .toLocalDate().atStartOfDay(dateTime.getZone());
-                    break;
-                case MONTH:
-                    truncated = dateTime
-                        .with(ChronoField.DAY_OF_MONTH, 1)
-                        .toLocalDate().atStartOfDay(dateTime.getZone());
-                    break;
-                case WEEK:
-                    truncated = dateTime
-                        .with(ChronoField.DAY_OF_WEEK, 1)
-                        .toLocalDate().atStartOfDay(dateTime.getZone());
-                    break;
-                case DAY:
-                    truncated = dateTime
-                        .toLocalDate().atStartOfDay(dateTime.getZone());
-                    break;
-                case HOUR:
-                    int hour = dateTime.getHour();
-                    truncated = dateTime.toLocalDate().atStartOfDay(dateTime.getZone())
-                        .with(ChronoField.HOUR_OF_DAY, hour);
-                    break;
-                case MINUTE:
-                    hour = dateTime.getHour();
-                    int minute = dateTime.getMinute();
-                    truncated = dateTime.toLocalDate().atStartOfDay(dateTime.getZone())
-                        .with(ChronoField.HOUR_OF_DAY, hour)
-                        .with(ChronoField.MINUTE_OF_HOUR, minute);
-                    break;
-                case SECOND:
-                    truncated = dateTime
-                        .with(ChronoField.NANO_OF_SECOND, 0);
-                    break;
-                case MILLISECOND:
-                    int micros = dateTime.get(ChronoField.MICRO_OF_SECOND);
-                    truncated = dateTime
-                        .with(ChronoField.MILLI_OF_SECOND, (micros / 1000));
-                    break;
-                case MICROSECOND:
-                    int nanos = dateTime.getNano();
-                    truncated = dateTime
-                        .with(ChronoField.MICRO_OF_SECOND, (nanos / 1000));
-                    break;
-                case NANOSECOND:
-                    truncated = dateTime;
-                    break;
-            }
-            return truncated;
+        public ZonedDateTime truncate(ZonedDateTime dateTime) {
+            return truncateFunction.apply(dateTime);
         }
     }
-
 
     private final ZoneId zoneId;
 
@@ -199,12 +166,12 @@ public class DateTrunc extends BinaryScalarFunction {
 
         if (left().foldable()) {
             String truncateToValue = (String) left().fold();
-            if (truncateToValue != null && DatePart.resolveTruncate(truncateToValue) == null) {
-                List<String> similar = DatePart.findSimilar(truncateToValue);
+            if (truncateToValue != null && Part.resolveTruncate(truncateToValue) == null) {
+                List<String> similar = Part.findSimilar(truncateToValue);
                 if (similar.isEmpty()) {
                     return new TypeResolution(format(null, "first argument of [{}] must be one of {} or their aliases, found value [{}]",
                         sourceText(),
-                        DatePart.values(),
+                        Part.values(),
                         Expressions.name(left())));
                 } else {
                     return new TypeResolution(format(null, "Unknown value [{}] for first argument of [{}]; did you mean {}?",

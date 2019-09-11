@@ -20,19 +20,25 @@ package org.elasticsearch.client.enrich;
 
 import org.elasticsearch.client.Validatable;
 
+import java.util.List;
+
 public final class GetPolicyRequest implements Validatable {
 
-    private final String name;
+    private final List<String> names;
 
     public GetPolicyRequest() {
-        this(null);
+        this(List.of());
     }
 
-    public GetPolicyRequest(String name) {
-        this.name = name;
+    public GetPolicyRequest(String... names) {
+        this(List.of(names));
     }
 
-    public String getName() {
-        return name;
+    public GetPolicyRequest(List<String> names) {
+        this.names = names;
+    }
+
+    public List<String> getNames() {
+        return names;
     }
 }

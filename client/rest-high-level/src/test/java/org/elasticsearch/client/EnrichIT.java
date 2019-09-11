@@ -38,7 +38,7 @@ public class EnrichIT extends ESRestHighLevelClientTestCase {
         AcknowledgedResponse putPolicyResponse = execute(putPolicyRequest, enrichClient::putPolicy, enrichClient::putPolicyAsync);
         assertThat(putPolicyResponse.isAcknowledged(), is(true));
 
-        GetPolicyRequest getPolicyRequest = new GetPolicyRequest("my-policy");
+        GetPolicyRequest getPolicyRequest = randomBoolean() ? new GetPolicyRequest("my-policy") : new GetPolicyRequest();
         GetPolicyResponse getPolicyResponse = execute(getPolicyRequest, enrichClient::getPolicy, enrichClient::getPolicyAsync);
         assertThat(getPolicyResponse.getPolicies().size(), equalTo(1));
         assertThat(getPolicyResponse.getPolicies().get(0).getType(), equalTo(putPolicyRequest.getType()));

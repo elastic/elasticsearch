@@ -57,7 +57,7 @@ public class EnrichRequestConvertersTests extends ESTestCase {
         Request result = EnrichRequestConverters.getPolicy(request);
 
         assertThat(result.getMethod(), equalTo(HttpGet.METHOD_NAME));
-        assertThat(result.getEndpoint(), equalTo("/_enrich/policy/" + request.getName()));
+        assertThat(result.getEndpoint(), equalTo("/_enrich/policy/" + request.getNames()));
         assertThat(result.getParameters().size(), equalTo(0));
         assertThat(result.getEntity(), nullValue());
     }

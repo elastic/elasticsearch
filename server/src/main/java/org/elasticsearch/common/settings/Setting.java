@@ -404,7 +404,7 @@ public class Setting<T> implements ToXContentObject {
      * @return true if the setting is present in the given settings instance, otherwise false
      */
     public boolean exists(final Settings settings) {
-        return settings.keySet().contains(getKey());
+        return settings.keySet(false).contains(getKey());
     }
 
     /**

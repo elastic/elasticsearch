@@ -57,6 +57,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
@@ -66,6 +67,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
@@ -95,7 +97,7 @@ public final class Settings implements ToXContentFragment {
      * Setting names found in this Settings for both string and secure settings.
      * This is constructed lazily in {@link #keySet()}.
      */
-    private final SetOnce<Set<String>> keys = new SetOnce<>();
+    private final AtomicReference<Set<String>> keys = new AtomicReference<>();
 
     private Settings(Map<String, Object> settings, SecureSettings secureSettings) {
         // we use a sorted map for consistent serialization when using getAsMap()
@@ -689,19 +691,21 @@ public final class Settings implements ToXContentFragment {
     }
 
     /** Returns the fully qualified setting names contained in this settings object. */
-    public Set<String> keySet() {
-        synchronized (keys) {
-            if (keys.get() == null) {
-                if (secureSettings == null) {
-                    keys.set(settings.keySet());
-                } else {
-                    Stream<String> stream = Stream.concat(settings.keySet().stream(), secureSettings.getSettingNames().stream());
-                    // uniquify, since for legacy reasons the same setting name may exist in both
-                    keys.set(Collections.unmodifiableSet(stream.collect(Collectors.toSet())));
-                }
-            }
+    public Set<String> keySet(boolean includeSecureSettings) {
+        if (!includeSecureSettings || secureSettings == null) {
+            return settings.keySet();
+        }
+        if (keys.get() == null) {
+            Set<String> set = new HashSet<>(settings.keySet());
+            set.addAll(secureSettings.getSettingNames());
+            keys.compareAndSet(null, Collections.unmodifiableSet(set));
         }
         return keys.get();
+    }
+
+    /** Returns the fully qualified setting names contained in this settings object. */
+    public Set<String> keySet() {
+        return keySet(true);
     }
 
     /**

@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.transform.DataFrameField.INDEX_DOC_TYPE;
-import static org.elasticsearch.xpack.transform.DataFrameInfoTransportAction.PROVIDED_STATS;
+import static org.elasticsearch.xpack.transform.DataFrameFeatureSet.PROVIDED_STATS;
 
 public class DataFrameUsageIT extends DataFrameRestTestCase {
 

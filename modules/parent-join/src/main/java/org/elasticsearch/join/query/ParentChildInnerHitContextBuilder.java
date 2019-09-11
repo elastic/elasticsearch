@@ -72,24 +72,21 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                 && innerHitBuilder.isIgnoreUnmapped() == false) {
             throw new IllegalStateException("no join field has been configured");
         }
-
     }
 
     @Override
     public void build(SearchContext context, InnerHitsContext innerHitsContext) throws IOException {
         QueryShardContext queryShardContext = context.getQueryShardContext();
         ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context.mapperService());
-        if (joinFieldMapper != null) {
-            String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : typeName;
-            JoinFieldInnerHitSubContext joinFieldInnerHits =
-                new JoinFieldInnerHitSubContext(name, context, typeName, fetchChildInnerHits, joinFieldMapper);
-            setupInnerHitsContext(queryShardContext, joinFieldInnerHits);
-            innerHitsContext.addInnerHitDefinition(joinFieldInnerHits);
-        } else {
-            if (innerHitBuilder.isIgnoreUnmapped() == false) {
-                throw new IllegalStateException("no join field has been configured");
-            }
+        if (joinFieldMapper == null) {
+            assert innerHitBuilder.isIgnoreUnmapped() : "should be validated first";
+            return;
         }
+        String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : typeName;
+        JoinFieldInnerHitSubContext joinFieldInnerHits =
+            new JoinFieldInnerHitSubContext(name, context, typeName, fetchChildInnerHits, joinFieldMapper);
+        setupInnerHitsContext(queryShardContext, joinFieldInnerHits);
+        innerHitsContext.addInnerHitDefinition(joinFieldInnerHits);
     }
 
     static final class JoinFieldInnerHitSubContext extends InnerHitsContext.InnerHitSubContext {

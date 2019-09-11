@@ -352,13 +352,9 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         public void build(SearchContext searchContext, InnerHitsContext innerHitsContext) throws IOException {
             QueryShardContext queryShardContext = searchContext.getQueryShardContext();
             ObjectMapper nestedObjectMapper = queryShardContext.getObjectMapper(path);
-            assert nestedObjectMapper != null;
             if (nestedObjectMapper == null) {
-                if (innerHitBuilder.isIgnoreUnmapped() == false) {
-                    throw new IllegalStateException("[" + query.getName() + "] no mapping found for type [" + path + "]");
-                } else {
-                    return;
-                }
+                assert innerHitBuilder.isIgnoreUnmapped() : "should be validated first";
+                return;
             }
             String name =  innerHitBuilder.getName() != null ? innerHitBuilder.getName() : nestedObjectMapper.fullPath();
             ObjectMapper parentObjectMapper = queryShardContext.nestedScope().nextLevel(nestedObjectMapper);

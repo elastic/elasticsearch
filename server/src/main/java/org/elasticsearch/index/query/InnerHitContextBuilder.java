@@ -57,6 +57,7 @@ public abstract class InnerHitContextBuilder {
                     "] index level setting."
             );
         }
+        doValidate(queryShardContext);
     }
 
     protected abstract void doValidate(QueryShardContext queryShardContext);

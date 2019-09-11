@@ -491,6 +491,7 @@ include::watcher/activate-watch.asciidoc[]
 include::watcher/execute-watch.asciidoc[]
 include::watcher/watcher-stats.asciidoc[]
 
+[role="xpack"]
 == Graph APIs
 
 The Java High Level REST Client supports the following Graph APIs:

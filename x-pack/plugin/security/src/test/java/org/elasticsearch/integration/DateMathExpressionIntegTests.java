@@ -95,7 +95,7 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
         if (refeshOnOperation == false) {
             client.admin().indices().prepareRefresh(expression).get();
         }
-        GetResponse getResponse = client.prepareGet(expression, "type", response.getId()).setFetchSource(true).get();
+        GetResponse getResponse = client.prepareGet(expression, response.getId()).setFetchSource(true).get();
         assertThat(getResponse.isExists(), is(true));
         assertEquals(expectedIndexName, getResponse.getIndex());
         assertThat(getResponse.getSourceAsMap().get("foo").toString(), is("bar"));

@@ -161,7 +161,7 @@ public class UpdateIT extends ESIntegTestCase {
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("1"));
         }
 
@@ -173,7 +173,7 @@ public class UpdateIT extends ESIntegTestCase {
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("2"));
         }
     }
@@ -202,7 +202,7 @@ public class UpdateIT extends ESIntegTestCase {
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("balance").toString(), equalTo("9"));
         }
 
@@ -216,7 +216,7 @@ public class UpdateIT extends ESIntegTestCase {
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("balance").toString(), equalTo("7"));
         }
     }
@@ -310,7 +310,7 @@ public class UpdateIT extends ESIntegTestCase {
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("2"));
         }
 
@@ -324,7 +324,7 @@ public class UpdateIT extends ESIntegTestCase {
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("5"));
         }
 
@@ -337,7 +337,7 @@ public class UpdateIT extends ESIntegTestCase {
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("5"));
         }
 
@@ -350,7 +350,7 @@ public class UpdateIT extends ESIntegTestCase {
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "1").execute().actionGet();
             assertThat(getResponse.isExists(), equalTo(false));
         }
 
@@ -374,7 +374,7 @@ public class UpdateIT extends ESIntegTestCase {
         client().prepareUpdate(indexOrAlias(), "type1", "1")
             .setDoc(XContentFactory.jsonBuilder().startObject().field("field2", 2).endObject()).execute().actionGet();
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("1"));
             assertThat(getResponse.getSourceAsMap().get("field2").toString(), equalTo("2"));
         }
@@ -383,7 +383,7 @@ public class UpdateIT extends ESIntegTestCase {
         client().prepareUpdate(indexOrAlias(), "type1", "1")
             .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 3).endObject()).execute().actionGet();
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("3"));
             assertThat(getResponse.getSourceAsMap().get("field2").toString(), equalTo("2"));
         }
@@ -402,7 +402,7 @@ public class UpdateIT extends ESIntegTestCase {
         client().prepareUpdate(indexOrAlias(), "type1", "1")
             .setDoc(XContentFactory.jsonBuilder().startObject().field("map", testMap3).endObject()).execute().actionGet();
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "1").execute().actionGet();
             Map map1 = (Map) getResponse.getSourceAsMap().get("map");
             assertThat(map1.size(), equalTo(3));
             assertThat(map1.containsKey("map1"), equalTo(true));
@@ -521,7 +521,7 @@ public class UpdateIT extends ESIntegTestCase {
 
         assertEquals(2, updateResponse.getVersion());
 
-        GetResponse getResponse = client().prepareGet("test", "type1", "id1").setRouting("routing1").execute().actionGet();
+        GetResponse getResponse = client().prepareGet("test", "id1").setRouting("routing1").execute().actionGet();
         Map<String, Object> updateContext = (Map<String, Object>) getResponse.getSourceAsMap().get("update_context");
         assertEquals("test", updateContext.get("_index"));
         assertEquals("type1", updateContext.get("_type"));
@@ -536,7 +536,7 @@ public class UpdateIT extends ESIntegTestCase {
 
         assertEquals(2, updateResponse.getVersion());
 
-        getResponse = client().prepareGet("test", "type1", "id2").execute().actionGet();
+        getResponse = client().prepareGet("test", "id2").execute().actionGet();
         updateContext = (Map<String, Object>) getResponse.getSourceAsMap().get("update_context");
         assertEquals("test", updateContext.get("_index"));
         assertEquals("type1", updateContext.get("_type"));
@@ -610,7 +610,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
         assertThat(failures.size(), equalTo(0));
         for (int i = 0; i < numberOfUpdatesPerThread; i++) {
-            GetResponse response = client().prepareGet("test", "type1", Integer.toString(i)).execute().actionGet();
+            GetResponse response = client().prepareGet("test", Integer.toString(i)).execute().actionGet();
             assertThat(response.getId(), equalTo(Integer.toString(i)));
             assertThat(response.isExists(), equalTo(true));
             assertThat(response.getVersion(), equalTo((long) numberOfThreads));
@@ -821,7 +821,7 @@ public class UpdateIT extends ESIntegTestCase {
 
         for (int i = 0; i < numberOfIdsPerThread; ++i) {
             int totalFailures = 0;
-            GetResponse response = client().prepareGet("test", "type1", Integer.toString(i)).execute().actionGet();
+            GetResponse response = client().prepareGet("test", Integer.toString(i)).execute().actionGet();
             if (response.isExists()) {
                 assertThat(response.getId(), equalTo(Integer.toString(i)));
                 int expectedVersion = (numberOfThreads * numberOfUpdatesPerId * 2) + 1;

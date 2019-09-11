@@ -331,13 +331,12 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         String absolutePath = randomRepoPath().toAbsolutePath().toString();
         logger.info("Path [{}]", absolutePath);
         String restoredIndexName = indexName + "-restored";
-        String typeName = "actions";
         String expectedValue = "expected";
 
         Client client = client();
         // Write a document
         String docId = Integer.toString(randomInt());
-        index(indexName, typeName, docId, "value", expectedValue);
+        index(indexName, "_doc", docId, "value", expectedValue);
 
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository(repoName)
@@ -362,7 +361,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
-        assertThat(client.prepareGet(restoredIndexName, typeName, docId).get().isExists(), equalTo(true));
+        assertThat(client.prepareGet(restoredIndexName, docId).get().isExists(), equalTo(true));
     }
 
     public void testFreshIndexUUID() throws InterruptedException {
@@ -3700,16 +3699,15 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("Path [{}]", absolutePath);
         String restoredIndexName1 = indexName1 + "-restored";
         String restoredIndexName2 = indexName2 + "-restored";
-        String typeName = "actions";
         String expectedValue = "expected";
 
         Client client = client();
         // Write a document
         String docId = Integer.toString(randomInt());
-        index(indexName1, typeName, docId, "value", expectedValue);
+        index(indexName1, "_doc", docId, "value", expectedValue);
 
         String docId2 = Integer.toString(randomInt());
-        index(indexName2, typeName, docId2, "value", expectedValue);
+        index(indexName2, "_doc", docId2, "value", expectedValue);
 
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository(repoName)
@@ -3749,8 +3747,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(restoreSnapshotResponse1.status(), equalTo(RestStatus.ACCEPTED));
         assertThat(restoreSnapshotResponse2.status(), equalTo(RestStatus.ACCEPTED));
         ensureGreen(restoredIndexName1, restoredIndexName2);
-        assertThat(client.prepareGet(restoredIndexName1, typeName, docId).get().isExists(), equalTo(true));
-        assertThat(client.prepareGet(restoredIndexName2, typeName, docId2).get().isExists(), equalTo(true));
+        assertThat(client.prepareGet(restoredIndexName1, docId).get().isExists(), equalTo(true));
+        assertThat(client.prepareGet(restoredIndexName2, docId2).get().isExists(), equalTo(true));
     }
 
     public void testParallelRestoreOperationsFromSingleSnapshot() throws Exception {
@@ -3762,16 +3760,15 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("Path [{}]", absolutePath);
         String restoredIndexName1 = indexName1 + "-restored";
         String restoredIndexName2 = indexName2 + "-restored";
-        String typeName = "actions";
         String expectedValue = "expected";
 
         Client client = client();
         // Write a document
         String docId = Integer.toString(randomInt());
-        index(indexName1, typeName, docId, "value", expectedValue);
+        index(indexName1, "_doc", docId, "value", expectedValue);
 
         String docId2 = Integer.toString(randomInt());
-        index(indexName2, typeName, docId2, "value", expectedValue);
+        index(indexName2, "_doc", docId2, "value", expectedValue);
 
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository(repoName)
@@ -3807,8 +3804,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(restoreSnapshotResponse1.get().status(), equalTo(RestStatus.ACCEPTED));
         assertThat(restoreSnapshotResponse2.get().status(), equalTo(RestStatus.ACCEPTED));
         ensureGreen(restoredIndexName1, restoredIndexName2);
-        assertThat(client.prepareGet(restoredIndexName1, typeName, docId).get().isExists(), equalTo(true));
-        assertThat(client.prepareGet(restoredIndexName2, typeName, sameSourceIndex ? docId : docId2).get().isExists(), equalTo(true));
+        assertThat(client.prepareGet(restoredIndexName1, docId).get().isExists(), equalTo(true));
+        assertThat(client.prepareGet(restoredIndexName2, sameSourceIndex ? docId : docId2).get().isExists(), equalTo(true));
     }
 
     public void testRestoreIncreasesPrimaryTerms() {

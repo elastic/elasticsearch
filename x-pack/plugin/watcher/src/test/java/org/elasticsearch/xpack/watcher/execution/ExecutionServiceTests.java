@@ -1216,7 +1216,7 @@ public class ExecutionServiceTests extends ESTestCase {
                 listener.onResponse(response);
             } else {
                 GetResult notFoundResult =
-                    new GetResult(request.index(), request.type(), request.id(), UNASSIGNED_SEQ_NO, 0,
+                    new GetResult(request.index(), request.id(), UNASSIGNED_SEQ_NO, 0,
                         -1, false, null, null, null);
                 listener.onResponse(new GetResponse(notFoundResult));
             }
@@ -1232,7 +1232,7 @@ public class ExecutionServiceTests extends ESTestCase {
                 listener.onFailure(e);
             } else {
                 GetResult notFoundResult =
-                    new GetResult(request.index(), request.type(), request.id(), UNASSIGNED_SEQ_NO, 0, -1,
+                    new GetResult(request.index(), request.id(), UNASSIGNED_SEQ_NO, 0, -1,
                         false, null, null, null);
                 listener.onResponse(new GetResponse(notFoundResult));
             }

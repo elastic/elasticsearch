@@ -101,15 +101,15 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 3);
         assertSearchHits(searchResponse, "1", "2", "3");
 
-        GetResponse getResponse = dateSensitiveGet(client().prepareGet(dateMathExp1, "type", "1"));
+        GetResponse getResponse = dateSensitiveGet(client().prepareGet(dateMathExp1, "1"));
         assertThat(getResponse.isExists(), is(true));
         assertThat(getResponse.getId(), equalTo("1"));
 
-        getResponse = dateSensitiveGet(client().prepareGet(dateMathExp2, "type", "2"));
+        getResponse = dateSensitiveGet(client().prepareGet(dateMathExp2, "2"));
         assertThat(getResponse.isExists(), is(true));
         assertThat(getResponse.getId(), equalTo("2"));
 
-        getResponse = dateSensitiveGet(client().prepareGet(dateMathExp3, "type", "3"));
+        getResponse = dateSensitiveGet(client().prepareGet(dateMathExp3, "3"));
         assertThat(getResponse.isExists(), is(true));
         assertThat(getResponse.getId(), equalTo("3"));
 

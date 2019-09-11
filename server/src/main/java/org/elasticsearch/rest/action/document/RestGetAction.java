@@ -66,7 +66,7 @@ public class RestGetAction extends BaseRestHandler {
         GetRequest getRequest;
         if (request.hasParam("type")) {
             deprecationLogger.deprecatedAndMaybeLog("get_with_types", TYPES_DEPRECATION_MESSAGE);
-            getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
+            getRequest = new GetRequest(request.param("index"), request.param("id"));
         } else {
             getRequest = new GetRequest(request.param("index"), request.param("id"));
         }

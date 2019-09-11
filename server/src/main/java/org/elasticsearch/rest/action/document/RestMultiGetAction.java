@@ -85,15 +85,8 @@ public class RestMultiGetAction extends BaseRestHandler {
 
         FetchSourceContext defaultFetchSource = FetchSourceContext.parseFromRestRequest(request);
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            multiGetRequest.add(request.param("index"), request.param("type"), sFields, defaultFetchSource,
+            multiGetRequest.add(request.param("index"), sFields, defaultFetchSource,
                 request.param("routing"), parser, allowExplicitIndex);
-        }
-
-        for (MultiGetRequest.Item item : multiGetRequest.getItems()) {
-            if (item.type() != null) {
-                deprecationLogger.deprecated(TYPES_DEPRECATION_MESSAGE);
-                break;
-            }
         }
 
         return channel -> client.multiGet(multiGetRequest, new RestToXContentListener<>(channel));

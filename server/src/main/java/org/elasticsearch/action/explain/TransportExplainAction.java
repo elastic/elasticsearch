@@ -115,7 +115,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         try {
             // No need to check the type, IndexShard#get does it for us
             Term uidTerm = new Term(IdFieldMapper.NAME, Uid.encodeId(request.id()));
-            result = context.indexShard().get(new Engine.Get(false, false, request.type(), request.id(), uidTerm));
+            result = context.indexShard().get(new Engine.Get(false, false, request.id(), uidTerm));
             if (!result.exists()) {
                 return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), false);
             }
@@ -131,7 +131,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
                 // Advantage is that we're not opening a second searcher to retrieve the _source. Also
                 // because we are working in the same searcher in engineGetResult we can be sure that a
                 // doc isn't deleted between the initial get and this call.
-                GetResult getResult = context.indexShard().getService().get(result, request.id(), request.type(), request.storedFields(),
+                GetResult getResult = context.indexShard().getService().get(result, request.id(), request.storedFields(),
                     request.fetchSourceContext());
                 return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), true, explanation, getResult);
             } else {

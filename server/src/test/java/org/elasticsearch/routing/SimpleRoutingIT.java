@@ -85,11 +85,11 @@ public class SimpleRoutingIT extends ESIntegTestCase {
                 .get();
         logger.info("--> verifying get with no routing, should not find anything");
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
+            assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(false));
         }
         logger.info("--> verifying get with routing, should find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "type1", "1")
+            assertThat(client().prepareGet("test", "1")
                                .setRouting(routingValue)
                                .execute()
                                .actionGet()
@@ -99,8 +99,8 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         logger.info("--> deleting with no routing, should not delete anything");
         client().prepareDelete("test", "type1", "1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
-            assertThat(client().prepareGet("test", "type1", "1")
+            assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(false));
+            assertThat(client().prepareGet("test", "1")
                                .setRouting(routingValue)
                                .execute()
                                .actionGet()
@@ -110,8 +110,8 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         logger.info("--> deleting with routing, should delete");
         client().prepareDelete("test", "type1", "1").setRouting(routingValue).setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
-            assertThat(client().prepareGet("test", "type1", "1")
+            assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(false));
+            assertThat(client().prepareGet("test", "1")
                                .setRouting(routingValue)
                                .execute()
                                .actionGet()
@@ -126,11 +126,11 @@ public class SimpleRoutingIT extends ESIntegTestCase {
                 .get();
         logger.info("--> verifying get with no routing, should not find anything");
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
+            assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(false));
         }
         logger.info("--> verifying get with routing, should find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "type1", "1")
+            assertThat(client().prepareGet("test", "1")
                                .setRouting(routingValue)
                                .execute()
                                .actionGet()
@@ -151,11 +151,11 @@ public class SimpleRoutingIT extends ESIntegTestCase {
                 .get();
         logger.info("--> verifying get with no routing, should not find anything");
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
+            assertThat(client().prepareGet("test", "1").execute().actionGet().isExists(), equalTo(false));
         }
         logger.info("--> verifying get with routing, should find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "type1", "1")
+            assertThat(client().prepareGet("test", "1")
                                .setRouting(routingValue)
                                .execute()
                                .actionGet()
@@ -361,7 +361,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         logger.info("--> verifying get with routing, should find");
         for (int i = 0; i < 5; i++) {
             assertThat(client()
-                .prepareGet(indexOrAlias(), "type1", "1")
+                .prepareGet(indexOrAlias(), "1")
                 .setRouting(routingValue)
                 .execute()
                 .actionGet()
@@ -378,14 +378,14 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
         for (int i = 0; i < 5; i++) {
             try {
-                client().prepareGet(indexOrAlias(), "type1", "1").execute().actionGet().isExists();
+                client().prepareGet(indexOrAlias(), "1").execute().actionGet().isExists();
                 fail("get with missing routing when routing is required should fail");
             } catch (RoutingMissingException e) {
                 assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
                 assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
             }
             assertThat(client()
-                .prepareGet(indexOrAlias(), "type1", "1")
+                .prepareGet(indexOrAlias(), "1")
                 .setRouting(routingValue)
                 .execute()
                 .actionGet()
@@ -410,13 +410,13 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
         for (int i = 0; i < 5; i++) {
             try {
-                client().prepareGet(indexOrAlias(), "type1", "1").execute().actionGet().isExists();
+                client().prepareGet(indexOrAlias(), "1").execute().actionGet().isExists();
                 fail();
             } catch (RoutingMissingException e) {
                 assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
                 assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
             }
-            GetResponse getResponse = client().prepareGet(indexOrAlias(), "type1", "1").setRouting(routingValue).execute().actionGet();
+            GetResponse getResponse = client().prepareGet(indexOrAlias(), "1").setRouting(routingValue).execute().actionGet();
             assertThat(getResponse.isExists(), equalTo(true));
             assertThat(getResponse.getSourceAsMap().get("field"), equalTo("value2"));
         }
@@ -425,14 +425,14 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
         for (int i = 0; i < 5; i++) {
             try {
-                client().prepareGet(indexOrAlias(), "type1", "1").execute().actionGet().isExists();
+                client().prepareGet(indexOrAlias(), "1").execute().actionGet().isExists();
                 fail();
             } catch (RoutingMissingException e) {
                 assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
                 assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
             }
             assertThat(client()
-                .prepareGet(indexOrAlias(), "type1", "1")
+                .prepareGet(indexOrAlias(), "1")
                 .setRouting(routingValue)
                 .execute()
                 .actionGet()
@@ -553,7 +553,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
                 .setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
 
         logger.info("--> verifying get with id [1] with routing [0], should succeed");
-        assertThat(client().prepareGet(indexOrAlias(), "type1", "1")
+        assertThat(client().prepareGet(indexOrAlias(), "1")
                            .setRouting(routingValue)
                            .execute()
                            .actionGet()
@@ -561,7 +561,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
         logger.info("--> verifying get with id [1], with no routing, should fail");
         try {
-            client().prepareGet(indexOrAlias(), "type1", "1").get();
+            client().prepareGet(indexOrAlias(), "1").get();
             fail();
         } catch (RoutingMissingException e) {
             assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
@@ -611,8 +611,8 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
         logger.info("--> verifying mget with ids [1,2], with routing [0], should succeed");
         MultiGetResponse multiGetResponse = client().prepareMultiGet()
-                                                    .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "1").routing("0"))
-                                                    .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "2").routing("0")).get();
+                                                    .add(new MultiGetRequest.Item(indexOrAlias(), "1").routing("0"))
+                                                    .add(new MultiGetRequest.Item(indexOrAlias(), "2").routing("0")).get();
         assertThat(multiGetResponse.getResponses().length, equalTo(2));
         assertThat(multiGetResponse.getResponses()[0].isFailed(), equalTo(false));
         assertThat(multiGetResponse.getResponses()[0].getResponse().getId(), equalTo("1"));
@@ -621,8 +621,8 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
         logger.info("--> verifying mget with ids [1,2], with no routing, should fail");
         multiGetResponse = client().prepareMultiGet()
-                                   .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "1"))
-                                   .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "2")).get();
+                                   .add(new MultiGetRequest.Item(indexOrAlias(), "1"))
+                                   .add(new MultiGetRequest.Item(indexOrAlias(), "2")).get();
         assertThat(multiGetResponse.getResponses().length, equalTo(2));
         assertThat(multiGetResponse.getResponses()[0].isFailed(), equalTo(true));
         assertThat(multiGetResponse.getResponses()[0].getFailure().getId(), equalTo("1"));

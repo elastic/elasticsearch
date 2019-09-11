@@ -222,7 +222,7 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
             .setRefreshPolicy(IMMEDIATE).get();
         client().prepareIndex(IGNORE_MALFORMED_INDEX, FIELD_TYPE, "aNullshape").setSource("{\"" + FIELD + "\": null}",
             XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
-        GetResponse result = client().prepareGet(INDEX, FIELD_TYPE, "aNullshape").get();
+        GetResponse result = client().prepareGet(INDEX, "aNullshape").get();
         assertThat(result.getField(FIELD), nullValue());
     }
 

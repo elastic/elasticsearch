@@ -320,13 +320,13 @@ public class ReadActionsTests extends SecurityIntegTestCase {
     public void testGet() {
         createIndicesWithRandomAliases("test1", "index1");
 
-        client().prepareGet("test1", "type", "id").get();
+        client().prepareGet("test1", "id").get();
 
-        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareGet("index1", "type", "id")::get, GetAction.NAME);
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareGet("index1", "id")::get, GetAction.NAME);
 
-        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareGet("missing", "type", "id")::get, GetAction.NAME);
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareGet("missing", "id")::get, GetAction.NAME);
 
-        expectThrows(IndexNotFoundException.class, () -> client().prepareGet("test5", "type", "id").get());
+        expectThrows(IndexNotFoundException.class, () -> client().prepareGet("test5", "id").get());
     }
 
     public void testMultiGet() {

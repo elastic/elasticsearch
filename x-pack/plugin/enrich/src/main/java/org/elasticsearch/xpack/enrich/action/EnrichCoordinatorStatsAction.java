@@ -29,6 +29,10 @@ import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.Coo
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * This is an internal action that gather coordinator stats from each node with an ingest role in the cluster.
+ * This action is only used via the {@link EnrichStatsAction}.
+ */
 public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorStatsAction.Response> {
 
     public static final EnrichCoordinatorStatsAction INSTANCE = new EnrichCoordinatorStatsAction();
@@ -38,6 +42,7 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
         super(NAME, Response::new);
     }
 
+    // This always executes on all ingest nodes, hence no node ids need to be provided.
     public static class Request extends BaseNodesRequest<Request> {
 
         public Request() {
@@ -91,7 +96,7 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
 
         NodeResponse(StreamInput in) throws IOException {
             super(in);
-            this.coordinatorStats = new EnrichStatsAction.Response.CoordinatorStats(in);
+            this.coordinatorStats = new CoordinatorStats(in);
         }
 
         public CoordinatorStats getCoordinatorStats() {

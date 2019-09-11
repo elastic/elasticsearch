@@ -76,7 +76,7 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
         final BlockingQueue<Slot> queue;
         final AtomicInteger remoteRequestsCurrent = new AtomicInteger(0);
         volatile long remoteRequestsTotal = 0;
-        volatile AtomicLong executedSearchesTotal = new AtomicLong(0);
+        final AtomicLong executedSearchesTotal = new AtomicLong(0);
 
         public Coordinator(Client client, Settings settings) {
             this(

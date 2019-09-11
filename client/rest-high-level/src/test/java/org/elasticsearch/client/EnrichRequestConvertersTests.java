@@ -19,8 +19,10 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.enrich.DeletePolicyRequest;
+import org.elasticsearch.client.enrich.GetPolicyRequest;
 import org.elasticsearch.client.enrich.PutPolicyRequest;
 import org.elasticsearch.client.enrich.PutPolicyRequestTests;
 import org.elasticsearch.test.ESTestCase;
@@ -46,6 +48,32 @@ public class EnrichRequestConvertersTests extends ESTestCase {
 
         assertThat(result.getMethod(), equalTo(HttpDelete.METHOD_NAME));
         assertThat(result.getEndpoint(), equalTo("/_enrich/policy/" + request.getName()));
+        assertThat(result.getParameters().size(), equalTo(0));
+        assertThat(result.getEntity(), nullValue());
+    }
+
+    public void testGetPolicy() throws Exception {
+        GetPolicyRequest request = new GetPolicyRequest(randomAlphaOfLength(4));
+        Request result = EnrichRequestConverters.getPolicy(request);
+
+        assertThat(result.getMethod(), equalTo(HttpGet.METHOD_NAME));
+        assertThat(result.getEndpoint(), equalTo("/_enrich/policy/" + request.getNames().get(0)));
+        assertThat(result.getParameters().size(), equalTo(0));
+        assertThat(result.getEntity(), nullValue());
+
+        request = new GetPolicyRequest(randomAlphaOfLength(4), randomAlphaOfLength(4));
+        result = EnrichRequestConverters.getPolicy(request);
+
+        assertThat(result.getMethod(), equalTo(HttpGet.METHOD_NAME));
+        assertThat(result.getEndpoint(), equalTo("/_enrich/policy/" + request.getNames().get(0) + "," + request.getNames().get(1)));
+        assertThat(result.getParameters().size(), equalTo(0));
+        assertThat(result.getEntity(), nullValue());
+
+        request = new GetPolicyRequest();
+        result = EnrichRequestConverters.getPolicy(request);
+
+        assertThat(result.getMethod(), equalTo(HttpGet.METHOD_NAME));
+        assertThat(result.getEndpoint(), equalTo("/_enrich/policy"));
         assertThat(result.getParameters().size(), equalTo(0));
         assertThat(result.getEntity(), nullValue());
     }

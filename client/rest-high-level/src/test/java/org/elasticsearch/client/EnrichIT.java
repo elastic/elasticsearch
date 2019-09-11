@@ -18,18 +18,13 @@
  */
 package org.elasticsearch.client;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.enrich.DeletePolicyRequest;
+import org.elasticsearch.client.enrich.GetPolicyRequest;
+import org.elasticsearch.client.enrich.GetPolicyResponse;
 import org.elasticsearch.client.enrich.PutPolicyRequest;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
-import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -43,35 +38,22 @@ public class EnrichIT extends ESRestHighLevelClientTestCase {
         AcknowledgedResponse putPolicyResponse = execute(putPolicyRequest, enrichClient::putPolicy, enrichClient::putPolicyAsync);
         assertThat(putPolicyResponse.isAcknowledged(), is(true));
 
-        // TODO: Replace with get policy hlrc code:
-        Request getPolicyRequest = new Request("get", "/_enrich/policy/my-policy");
-        Response getPolicyResponse = highLevelClient().getLowLevelClient().performRequest(getPolicyRequest);
-        assertThat(getPolicyResponse.getHttpResponse().getStatusLine().getStatusCode(), equalTo(200));
-        Map<String, Object> responseBody = toMap(getPolicyResponse);
-        List<?> responsePolicies = (List<?>) responseBody.get("policies");
-        assertThat(responsePolicies.size(), equalTo(1));
-        Map<?, ?> responsePolicy = (Map<?, ?>) responsePolicies.get(0);
-        assertThat(XContentMapValues.extractValue("match.indices", responsePolicy), equalTo(putPolicyRequest.getIndices()));
-        assertThat(XContentMapValues.extractValue("match.match_field", responsePolicy), equalTo(putPolicyRequest.getMatchField()));
-        assertThat(XContentMapValues.extractValue("match.enrich_fields", responsePolicy),
-            equalTo(putPolicyRequest.getEnrichFields()));
+        GetPolicyRequest getPolicyRequest = randomBoolean() ? new GetPolicyRequest("my-policy") : new GetPolicyRequest();
+        GetPolicyResponse getPolicyResponse = execute(getPolicyRequest, enrichClient::getPolicy, enrichClient::getPolicyAsync);
+        assertThat(getPolicyResponse.getPolicies().size(), equalTo(1));
+        assertThat(getPolicyResponse.getPolicies().get(0).getType(), equalTo(putPolicyRequest.getType()));
+        assertThat(getPolicyResponse.getPolicies().get(0).getIndices(), equalTo(putPolicyRequest.getIndices()));
+        assertThat(getPolicyResponse.getPolicies().get(0).getMatchField(), equalTo(putPolicyRequest.getMatchField()));
+        assertThat(getPolicyResponse.getPolicies().get(0).getEnrichFields(), equalTo(putPolicyRequest.getEnrichFields()));
 
         DeletePolicyRequest deletePolicyRequest = new DeletePolicyRequest("my-policy");
         AcknowledgedResponse deletePolicyResponse =
             execute(deletePolicyRequest, enrichClient::deletePolicy, enrichClient::deletePolicyAsync);
         assertThat(deletePolicyResponse.isAcknowledged(), is(true));
 
-        // TODO: Replace with get policy hlrc code:
-        getPolicyRequest = new Request("get", "/_enrich/policy");
-        getPolicyResponse = highLevelClient().getLowLevelClient().performRequest(getPolicyRequest);
-        assertThat(getPolicyResponse.getHttpResponse().getStatusLine().getStatusCode(), equalTo(200));
-        responseBody = toMap(getPolicyResponse);
-        responsePolicies = (List<?>) responseBody.get("policies");
-        assertThat(responsePolicies.size(), equalTo(0));
-    }
-
-    private static Map<String, Object> toMap(Response response) throws IOException {
-        return XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false);
+        getPolicyRequest = new GetPolicyRequest();
+        getPolicyResponse = execute(getPolicyRequest, enrichClient::getPolicy, enrichClient::getPolicyAsync);
+        assertThat(getPolicyResponse.getPolicies().size(), equalTo(0));
     }
 
 }

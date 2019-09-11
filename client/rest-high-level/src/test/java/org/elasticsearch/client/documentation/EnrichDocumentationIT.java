@@ -25,10 +25,15 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.enrich.DeletePolicyRequest;
+import org.elasticsearch.client.enrich.NamedPolicy;
+import org.elasticsearch.client.enrich.GetPolicyRequest;
+import org.elasticsearch.client.enrich.GetPolicyResponse;
 import org.elasticsearch.client.enrich.PutPolicyRequest;
 import org.junit.After;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -139,6 +144,56 @@ public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
         client.enrich().deletePolicyAsync(deletePolicyRequest,
             RequestOptions.DEFAULT, listener); // <1>
         // end::enrich-delete-policy-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testGetPolicy() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        PutPolicyRequest putPolicyRequest = new PutPolicyRequest(
+            "users-policy", "exact_match", Collections.singletonList("users"),
+            "email", Arrays.asList("address", "zip", "city", "state"));
+        client.enrich().putPolicy(putPolicyRequest, RequestOptions.DEFAULT);
+
+        // tag::enrich-get-policy-request
+        GetPolicyRequest getPolicyRequest = new GetPolicyRequest("users-policy");
+        // end::enrich-get-policy-request
+
+        // tag::enrich-get-policy-execute
+        GetPolicyResponse getPolicyResponse =
+            client.enrich().getPolicy(getPolicyRequest, RequestOptions.DEFAULT);
+        // end::enrich-get-policy-execute
+
+        // tag::enrich-get-policy-response
+        List<NamedPolicy> policies = getPolicyResponse.getPolicies(); // <1>
+        NamedPolicy policy = policies.get(0);
+        // end::enrich-get-policy-response
+
+        // tag::enrich-get-policy-execute-listener
+        ActionListener<GetPolicyResponse> listener =
+            new ActionListener<GetPolicyResponse>() {
+            @Override
+            public void onResponse(GetPolicyResponse response) { // <1>
+                List<NamedPolicy> policies = response.getPolicies();
+                NamedPolicy policy = policies.get(0);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::enrich-get-policy-execute-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::enrich-get-policy-execute-async
+        client.enrich().getPolicyAsync(getPolicyRequest,
+            RequestOptions.DEFAULT, listener); // <1>
+        // end::enrich-get-policy-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }

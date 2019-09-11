@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -99,8 +100,9 @@ public class ExtendedBoundsTests extends ESTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build();
         SearchContext context = mock(SearchContext.class);
         QueryShardContext qsc = new QueryShardContext(0,
-                new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings), null, null, null, null,
-                null, null, xContentRegistry(), writableRegistry(), null, null, () -> now, null);
+                new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings),
+                BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
+                null, null, () -> now, null);
         when(context.getQueryShardContext()).thenReturn(qsc);
         DateFormatter formatter = DateFormatter.forPattern("dateOptionalTime");
         DocValueFormat format = new DocValueFormat.DateTime(formatter, ZoneOffset.UTC, DateFieldMapper.Resolution.MILLISECONDS);

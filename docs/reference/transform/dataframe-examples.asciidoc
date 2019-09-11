@@ -30,7 +30,7 @@ that the destination index contains the number of orders, the total price of
 the orders, the amount of unique products and the average price per order, 
 and the total amount of ordered products for each customer.
 
-[source,js]
+[source,console]
 ----------------------------------
 POST _data_frame/transforms/_preview
 {
@@ -55,8 +55,7 @@ POST _data_frame/transforms/_preview
   }
 }
 ----------------------------------
-// CONSOLE
-// TEST[skip:SETUP]
+// TEST[skip:setup kibana sample data]
 
 <1> This is the destination index for the {dataframe}. It is ignored by 
 `_preview`.
@@ -71,7 +70,7 @@ readability of the pivot object.
 The preview {dataframe-transforms} API enables you to see the layout of the 
 {dataframe} in advance, populated with some sample values. For example:
 
-[source,js]
+[source,console]
 ----------------------------------
 {
   "preview" : [
@@ -88,8 +87,7 @@ The preview {dataframe-transforms} API enables you to see the layout of the
     ]
   }
 ----------------------------------
-// CONSOLE
-// TEST[skip:SETUP]
+// TEST[skip:setup kibana sample data]
 
 This {dataframe} makes it easier to answer questions such as:
 
@@ -118,7 +116,7 @@ of the flight minutes by air carrier. Finally, we use a
 {ref}/search-aggregations-pipeline-bucket-script-aggregation.html[`bucket_script`] 
 to determine what percentage of the flight time was actually delay.
 
-[source,js]
+[source,console]
 ----------------------------------
 POST _data_frame/transforms/_preview
 {
@@ -156,8 +154,7 @@ POST _data_frame/transforms/_preview
   }
 }
 ----------------------------------
-// CONSOLE
-// TEST[skip:SETUP]
+// TEST[skip:setup kibana sample data]
 
 <1> Filter the source data to select only flights that were not cancelled.
 <2> This is the destination index for the {dataframe}. It is ignored by 
@@ -185,8 +182,7 @@ carrier:
   ]
 }
 ----------------------------------
-// CONSOLE
-// TEST[skip:SETUP]
+// NOTCONSOLE
 
 This {dataframe} makes it easier to answer questions such as:
 
@@ -212,7 +208,7 @@ specific types of HTTP responses that each client IP receives. Ultimately, the
 example below transforms web log data into an entity centric index where the 
 entity is `clientip`.
 
-[source,js]
+[source,console]
 ----------------------------------
 POST _data_frame/transforms/_preview
 {
@@ -280,8 +276,7 @@ POST _data_frame/transforms/_preview
   }
 }
 ----------------------------------
-// CONSOLE
-// TEST[skip:SETUP]
+// TEST[skip:setup kibana sample data]
 
 <1> This range query limits the transform to documents that are within the last 
 30 days at the point in time the {dataframe-transform} checkpoint is processed. 
@@ -327,8 +322,7 @@ client IP:
     ...
   }
 ----------------------------------  
-// CONSOLE
-// TEST[skip:SETUP]
+// NOTCONSOLE
 
 This {dataframe} makes it easier to answer questions such as:
 

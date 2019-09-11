@@ -20,11 +20,13 @@ package org.elasticsearch.indices.flush;
 
 import org.apache.lucene.index.Term;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -38,7 +40,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -48,12 +54,17 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.EnginePlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -368,5 +379,121 @@ public class FlushIT extends ESIntegTestCase {
         final ShardsSyncedFlushResult forthSeal = SyncedFlushUtil.attemptSyncedFlush(logger, internalCluster(), shardId);
         assertThat(forthSeal.successfulShards(), equalTo(numberOfReplicas + 1));
         assertThat(forthSeal.syncId(), not(equalTo(thirdSeal.syncId())));
+    }
+
+    public void testFalsePositiveOutOfSync() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        assertAcked(
+            prepareCreate("test").setSettings(Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)).get()
+        );
+        ensureGreen("test");
+        final ShardId shardId = new ShardId(clusterService().state().metaData().index("test").getIndex(), 0);
+        final List<IndexShard> indexShards = internalCluster().nodesInclude("test").stream()
+            .map(node -> internalCluster().getInstance(IndicesService.class, node).getShardOrNull(shardId))
+            .collect(Collectors.toList());
+        CountDownLatch primaryIndexed = new CountDownLatch(1);
+        for (IndexShard shard : indexShards) {
+            TestEnginePlugin.TestInternalEngine engine = (TestEnginePlugin.TestInternalEngine) IndexShardTestCase.getEngine(shard);
+            if (shard.routingEntry().primary()) {
+                engine.eventListeners.add(new TestEnginePlugin.EventListener() {
+                    @Override
+                    public void afterIndexing(Engine.Index index) {
+                        primaryIndexed.countDown();
+                    }
+                });
+            } else {
+                engine.eventListeners.add(new TestEnginePlugin.EventListener() {
+                    final CountDownLatch flushLatch = new CountDownLatch(1);
+                    final CountDownLatch indexingLatch = new CountDownLatch(1);
+                    @Override
+                    public void beforeIndexing(Engine.Index index) {
+                        try {
+                            flushLatch.await();
+                        } catch (InterruptedException e) {
+                            throw new AssertionError(e);
+                        }
+                    }
+
+                    @Override
+                    public void afterIndexing(Engine.Index index) {
+                        indexingLatch.countDown();
+                    }
+
+                    @Override
+                    public void afterFlush() {
+                        flushLatch.countDown();
+                        try {
+                            indexingLatch.await();
+                        } catch (InterruptedException e) {
+                            throw new AssertionError(e);
+                        }
+                    }
+                });
+            }
+        }
+
+        Thread indexer = new Thread(() -> {
+            final IndexResponse indexResponse = client().prepareIndex("test", "1").setSource("{}", XContentType.JSON).get();
+            assertThat(indexResponse.getResult(), equalTo(DocWriteResponse.Result.CREATED));
+        });
+        indexer.start();
+        primaryIndexed.await();
+        final ShardsSyncedFlushResult syncedFlushResult = SyncedFlushUtil.attemptSyncedFlush(logger, internalCluster(), shardId);
+        assertThat(syncedFlushResult.successfulShards(), equalTo(1));
+        indexer.join();
+    }
+
+    public static class TestEnginePlugin extends Plugin implements EnginePlugin {
+        @Override
+        public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
+            return Optional.of(TestInternalEngine::new);
+        }
+
+        interface EventListener {
+            default void beforeIndexing(Engine.Index index) {
+            }
+            default void afterIndexing(Engine.Index index) {
+            }
+            default void afterFlush() {
+            }
+        }
+
+        final static class TestInternalEngine extends InternalEngine {
+            final List<TestEnginePlugin.EventListener> eventListeners = new CopyOnWriteArrayList<>();
+
+            TestInternalEngine(EngineConfig engineConfig) {
+                super(engineConfig);
+            }
+
+            @Override
+            public IndexResult index(Index index) throws IOException {
+                final List<TestEnginePlugin.EventListener> listeners = this.eventListeners;
+                try {
+                    listeners.forEach(l -> l.beforeIndexing(index));
+                    return super.index(index);
+                } finally {
+                    listeners.forEach(l -> l.afterIndexing(index));
+                }
+            }
+
+            @Override
+            public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
+                try {
+                    return super.flush(force, waitIfOngoing);
+                } finally {
+                    eventListeners.forEach(TestEnginePlugin.EventListener::afterFlush);
+                }
+            }
+        }
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getMockPlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.getMockPlugins());
+        plugins.remove(MockEngineFactoryPlugin.class);
+        plugins.add(TestEnginePlugin.class);
+        return plugins;
     }
 }

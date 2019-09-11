@@ -81,7 +81,8 @@ public class TransportDeleteSnapshotLifecycleAction extends
                     return ClusterState.builder(currentState)
                         .metaData(MetaData.builder(metaData)
                             .putCustom(SnapshotLifecycleMetadata.TYPE,
-                                new SnapshotLifecycleMetadata(newConfigs, snapMeta.getOperationMode())))
+                                new SnapshotLifecycleMetadata(newConfigs,
+                                    snapMeta.getOperationMode(), snapMeta.getStats().removePolicy(request.getLifecycleId()))))
                         .build();
                 }
             });

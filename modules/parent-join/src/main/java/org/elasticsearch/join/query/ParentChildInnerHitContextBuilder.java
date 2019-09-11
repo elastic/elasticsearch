@@ -81,7 +81,8 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
         ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context.mapperService());
         if (joinFieldMapper != null) {
             String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : typeName;
-            JoinFieldInnerHitSubContext joinFieldInnerHits = new JoinFieldInnerHitSubContext(name, context, typeName, fetchChildInnerHits, joinFieldMapper);
+            JoinFieldInnerHitSubContext joinFieldInnerHits =
+                new JoinFieldInnerHitSubContext(name, context, typeName, fetchChildInnerHits, joinFieldMapper);
             setupInnerHitsContext(queryShardContext, joinFieldInnerHits);
             innerHitsContext.addInnerHitDefinition(joinFieldInnerHits);
         } else {

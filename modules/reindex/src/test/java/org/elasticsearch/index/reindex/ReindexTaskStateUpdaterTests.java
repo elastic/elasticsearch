@@ -26,25 +26,26 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.LockSupport;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class ReindexTaskUpdaterTests extends ReindexTestCase {
+public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
 
     public void testEnsureLowerAssignmentFails() throws Exception {
         String taskId = randomAlphaOfLength(10);
         ReindexIndexClient reindexClient = getReindexClient();
         createDoc(reindexClient, taskId);
 
-        ReindexTaskUpdater updater = new ReindexTaskUpdater(reindexClient, taskId, 1, (s) -> {});
+        ReindexTaskStateUpdater updater = new ReindexTaskStateUpdater(reindexClient, taskId, 1, (s) -> {});
         CountDownLatch successLatch = new CountDownLatch(1);
 
-        updater.assign(new ReindexTaskUpdater.AssignmentListener() {
+        updater.assign(new ReindexTaskStateUpdater.AssignmentListener() {
             @Override
             public void onAssignment(ReindexTaskStateDoc stateDoc) {
                 successLatch.countDown();
@@ -58,12 +59,12 @@ public class ReindexTaskUpdaterTests extends ReindexTestCase {
         });
         successLatch.await();
 
-        ReindexTaskUpdater oldAllocationUpdater = new ReindexTaskUpdater(reindexClient, taskId, 1, (s) -> {});
+        ReindexTaskStateUpdater oldAllocationUpdater = new ReindexTaskStateUpdater(reindexClient, taskId, 0, (s) -> {});
         CountDownLatch failureLatch = new CountDownLatch(1);
         AtomicReference<ReindexJobState.Status> failedState = new AtomicReference<>();
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
 
-        oldAllocationUpdater.assign(new ReindexTaskUpdater.AssignmentListener() {
+        oldAllocationUpdater.assign(new ReindexTaskStateUpdater.AssignmentListener() {
             @Override
             public void onAssignment(ReindexTaskStateDoc stateDoc) {
                 failureLatch.countDown();
@@ -88,11 +89,14 @@ public class ReindexTaskUpdaterTests extends ReindexTestCase {
         ReindexIndexClient reindexClient = getReindexClient();
         createDoc(reindexClient, taskId);
         CountDownLatch latch = new CountDownLatch(10);
-        for (int i = 0; i < 10; ++i) {
-            ReindexTaskUpdater updater = new ReindexTaskUpdater(reindexClient, taskId, i, (s) -> {});
+
+        List<Integer> assignments = IntStream.range(0, 10).boxed().collect(Collectors.toList());
+        Collections.shuffle(assignments, random());
+
+        for (Integer i : assignments) {
+            ReindexTaskStateUpdater updater = new ReindexTaskStateUpdater(reindexClient, taskId, i, (s) -> {});
             new Thread(() -> {
-                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(randomIntBetween(1, 25)));
-                updater.assign(new ReindexTaskUpdater.AssignmentListener() {
+                updater.assign(new ReindexTaskStateUpdater.AssignmentListener() {
                     @Override
                     public void onAssignment(ReindexTaskStateDoc stateDoc) {
                         latch.countDown();
@@ -100,6 +104,7 @@ public class ReindexTaskUpdaterTests extends ReindexTestCase {
 
                     @Override
                     public void onFailure(ReindexJobState.Status status, Exception exception) {
+                        assertEquals(ReindexJobState.Status.ASSIGNMENT_FAILED, status);
                         latch.countDown();
                     }
                 });
@@ -120,10 +125,10 @@ public class ReindexTaskUpdaterTests extends ReindexTestCase {
 
         AtomicInteger committed = new AtomicInteger(0);
 
-        ReindexTaskUpdater updater = new ReindexTaskUpdater(reindexClient, taskId, 0, (s) -> committed.incrementAndGet());
+        ReindexTaskStateUpdater updater = new ReindexTaskStateUpdater(reindexClient, taskId, 0, (s) -> committed.incrementAndGet());
         CountDownLatch firstAssignmentLatch = new CountDownLatch(1);
 
-        updater.assign(new ReindexTaskUpdater.AssignmentListener() {
+        updater.assign(new ReindexTaskStateUpdater.AssignmentListener() {
             @Override
             public void onAssignment(ReindexTaskStateDoc stateDoc) {
                 firstAssignmentLatch.countDown();
@@ -141,10 +146,10 @@ public class ReindexTaskUpdaterTests extends ReindexTestCase {
         updater.onCheckpoint(new ScrollableHitSource.Checkpoint(10), status);
         assertBusy(() -> assertEquals(1, committed.get()));
 
-        ReindexTaskUpdater newAllocationUpdater = new ReindexTaskUpdater(reindexClient, taskId, 1, (s) -> {});
+        ReindexTaskStateUpdater newAllocationUpdater = new ReindexTaskStateUpdater(reindexClient, taskId, 1, (s) -> {});
         CountDownLatch secondAssignmentLatch = new CountDownLatch(1);
 
-        newAllocationUpdater.assign(new ReindexTaskUpdater.AssignmentListener() {
+        newAllocationUpdater.assign(new ReindexTaskStateUpdater.AssignmentListener() {
             @Override
             public void onAssignment(ReindexTaskStateDoc stateDoc) {
                 secondAssignmentLatch.countDown();
@@ -175,10 +180,10 @@ public class ReindexTaskUpdaterTests extends ReindexTestCase {
 
         AtomicInteger committed = new AtomicInteger(0);
 
-        ReindexTaskUpdater updater = new ReindexTaskUpdater(reindexClient, taskId, 0, (s) -> committed.incrementAndGet());
+        ReindexTaskStateUpdater updater = new ReindexTaskStateUpdater(reindexClient, taskId, 0, (s) -> committed.incrementAndGet());
         CountDownLatch firstAssignmentLatch = new CountDownLatch(1);
 
-        updater.assign(new ReindexTaskUpdater.AssignmentListener() {
+        updater.assign(new ReindexTaskStateUpdater.AssignmentListener() {
             @Override
             public void onAssignment(ReindexTaskStateDoc stateDoc) {
                 firstAssignmentLatch.countDown();
@@ -214,10 +219,10 @@ public class ReindexTaskUpdaterTests extends ReindexTestCase {
 
         AtomicInteger committed = new AtomicInteger(0);
 
-        ReindexTaskUpdater updater = new ReindexTaskUpdater(reindexClient, taskId, 0, (s) -> committed.incrementAndGet());
+        ReindexTaskStateUpdater updater = new ReindexTaskStateUpdater(reindexClient, taskId, 0, (s) -> committed.incrementAndGet());
         CountDownLatch firstAssignmentLatch = new CountDownLatch(1);
 
-        updater.assign(new ReindexTaskUpdater.AssignmentListener() {
+        updater.assign(new ReindexTaskStateUpdater.AssignmentListener() {
             @Override
             public void onAssignment(ReindexTaskStateDoc stateDoc) {
                 firstAssignmentLatch.countDown();

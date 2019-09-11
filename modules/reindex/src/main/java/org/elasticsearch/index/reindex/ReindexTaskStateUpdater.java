@@ -29,7 +29,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import java.util.concurrent.Semaphore;
 import java.util.function.Consumer;
 
-public class ReindexTaskUpdater implements Reindexer.CheckpointListener {
+public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
 
     private static final int MAX_ASSIGNMENT_ATTEMPTS = 10;
 
@@ -45,8 +45,8 @@ public class ReindexTaskUpdater implements Reindexer.CheckpointListener {
     private ReindexTaskState lastState;
     private boolean isDone = false;
 
-    public ReindexTaskUpdater(ReindexIndexClient reindexIndexClient, String persistentTaskId, long allocationId,
-                              Consumer<BulkByScrollTask.Status> committedCallback) {
+    public ReindexTaskStateUpdater(ReindexIndexClient reindexIndexClient, String persistentTaskId, long allocationId,
+                                   Consumer<BulkByScrollTask.Status> committedCallback) {
         this.reindexIndexClient = reindexIndexClient;
         this.persistentTaskId = persistentTaskId;
         this.allocationId = allocationId;

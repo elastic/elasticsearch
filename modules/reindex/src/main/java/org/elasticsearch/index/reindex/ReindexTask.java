@@ -41,6 +41,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public class ReindexTask extends AllocatedPersistentTask {
@@ -116,8 +117,9 @@ public class ReindexTask extends AllocatedPersistentTask {
     private void execute(ReindexJob reindexJob) {
         String taskId = getPersistentTaskId();
         long allocationId = getAllocationId();
-        ReindexTaskUpdater taskUpdater = new ReindexTaskUpdater(reindexIndexClient, taskId, allocationId, childTask::setCommittedStatus);
-        taskUpdater.assign(new ReindexTaskUpdater.AssignmentListener() {
+        Consumer<BulkByScrollTask.Status> committedCallback = childTask::setCommittedStatus;
+        ReindexTaskStateUpdater taskUpdater = new ReindexTaskStateUpdater(reindexIndexClient, taskId, allocationId, committedCallback);
+        taskUpdater.assign(new ReindexTaskStateUpdater.AssignmentListener() {
             @Override
             public void onAssignment(ReindexTaskStateDoc stateDoc) {
                 ReindexRequest reindexRequest = stateDoc.getReindexRequest();
@@ -157,7 +159,7 @@ public class ReindexTask extends AllocatedPersistentTask {
         });
     }
 
-    private void performReindex(ReindexJob reindexJob, ReindexTaskStateDoc stateDoc, ReindexTaskUpdater taskUpdater) {
+    private void performReindex(ReindexJob reindexJob, ReindexTaskStateDoc stateDoc, ReindexTaskStateUpdater taskUpdater) {
         ReindexRequest reindexRequest = stateDoc.getReindexRequest();
         ScrollableHitSource.Checkpoint checkpoint = stateDoc.getCheckpoint();
         ThreadContext threadContext = client.threadPool().getThreadContext();
@@ -185,7 +187,7 @@ public class ReindexTask extends AllocatedPersistentTask {
         }
     }
 
-    private void handleDone(boolean shouldStoreResult, ReindexRequest reindexRequest, ReindexTaskUpdater taskUpdater,
+    private void handleDone(boolean shouldStoreResult, ReindexRequest reindexRequest, ReindexTaskStateUpdater taskUpdater,
                             BulkByScrollResponse response) {
         TaskManager taskManager = getTaskManager();
         assert taskManager != null : "TaskManager should have been set before reindex started";
@@ -230,7 +232,7 @@ public class ReindexTask extends AllocatedPersistentTask {
         });
     }
 
-    private void handleError(boolean shouldStoreResult, ReindexTaskUpdater taskUpdater, Exception ex) {
+    private void handleError(boolean shouldStoreResult, ReindexTaskStateUpdater taskUpdater, Exception ex) {
         TaskManager taskManager = getTaskManager();
         assert taskManager != null : "TaskManager should have been set before reindex started";
 

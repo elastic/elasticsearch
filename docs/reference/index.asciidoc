@@ -28,6 +28,8 @@ include::aggregations.asciidoc[]
 
 include::query-dsl.asciidoc[]
 
+include::modules/cross-cluster-search.asciidoc[]
+
 include::scripting.asciidoc[]
 
 include::mapping.asciidoc[]

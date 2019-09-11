@@ -51,4 +51,18 @@ public class ForceMergeRequestTests extends ESTestCase {
             assertThat(validation, nullValue());
         }
     }
+
+    public void testDescription() {
+        ForceMergeRequest request = new ForceMergeRequest();
+        assertEquals("Force-merge indices [], maxSegments[-1], onlyExpungeDeletes[false], flush[true]", request.getDescription());
+
+        request = new ForceMergeRequest("shop", "blog");
+        assertEquals("Force-merge indices [shop, blog], maxSegments[-1], onlyExpungeDeletes[false], flush[true]", request.getDescription());
+
+        request = new ForceMergeRequest();
+        request.maxNumSegments(12);
+        request.onlyExpungeDeletes(true);
+        request.flush(false);
+        assertEquals("Force-merge indices [], maxSegments[12], onlyExpungeDeletes[true], flush[false]", request.getDescription());
+    }
 }

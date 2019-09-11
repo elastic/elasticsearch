@@ -620,6 +620,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
+     * If the _type name is _doc and there is no _doc top-level key then this means that we
+     * are handling a typeless call. In such a case, we override _doc with the actual type
+     * name in the mappings. This allows to use typeless APIs on typed indices.
+     */
+    public String getTypeForUpdate(String type, CompressedXContent mappingSource) {
+        return isMappingSourceTyped(type, mappingSource) == false ? resolveDocumentType(type) : type;
+    }
+
+    /**
      * Resolves a type from a mapping-related request into the type that should be used when
      * merging and updating mappings.
      *
@@ -685,10 +694,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Given a type (eg. long, string, ...), return an anonymous field mapper that can be used for search operations.
      */
     public MappedFieldType unmappedFieldType(String type) {
-        if (type.equals("string")) {
-            deprecationLogger.deprecated("[unmapped_type:string] should be replaced with [unmapped_type:keyword]");
-            type = "keyword";
-        }
         MappedFieldType fieldType = unmappedFieldTypes.get(type);
         if (fieldType == null) {
             final Mapper.TypeParser.ParserContext parserContext = documentMapperParser().parserContext();

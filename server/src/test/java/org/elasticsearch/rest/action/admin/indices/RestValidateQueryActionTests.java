@@ -61,7 +61,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     private static UsageService usageService = new UsageService();
     private static RestController controller = new RestController(emptySet(), null, client,
         new NoneCircuitBreakerService(), usageService);
-    private static RestValidateQueryAction action = new RestValidateQueryAction(Settings.EMPTY, controller);
+    private static RestValidateQueryAction action = new RestValidateQueryAction(controller);
 
     /**
      * Configures {@link NodeClient} to stub {@link ValidateQueryAction} transport action.
@@ -82,7 +82,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
         final Map<ActionType, TransportAction> actions = new HashMap<>();
         actions.put(ValidateQueryAction.INSTANCE, transportAction);
 
-        client.initialize(actions, () -> "local", null);
+        client.initialize(actions, taskManager, () -> "local", null);
     }
 
     @AfterClass

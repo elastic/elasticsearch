@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -57,7 +58,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.core.ml.job.results.ReservedFieldNames;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
-import org.elasticsearch.xpack.core.ml.notifications.AuditMessage;
+import org.elasticsearch.xpack.core.ml.notifications.AnomalyDetectionAuditMessage;
 import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 
 import java.io.IOException;
@@ -439,6 +440,34 @@ public class ElasticsearchMappings {
                             .field(TYPE, KEYWORD)
                         .endObject()
                         .startObject(OutlierDetection.FEATURE_INFLUENCE_THRESHOLD.getPreferredName())
+                            .field(TYPE, DOUBLE)
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .startObject(Regression.NAME.getPreferredName())
+                    .startObject(PROPERTIES)
+                        .startObject(Regression.DEPENDENT_VARIABLE.getPreferredName())
+                            .field(TYPE, KEYWORD)
+                        .endObject()
+                        .startObject(Regression.LAMBDA.getPreferredName())
+                            .field(TYPE, DOUBLE)
+                        .endObject()
+                        .startObject(Regression.GAMMA.getPreferredName())
+                            .field(TYPE, DOUBLE)
+                        .endObject()
+                        .startObject(Regression.ETA.getPreferredName())
+                            .field(TYPE, DOUBLE)
+                        .endObject()
+                        .startObject(Regression.MAXIMUM_NUMBER_TREES.getPreferredName())
+                            .field(TYPE, INTEGER)
+                        .endObject()
+                        .startObject(Regression.FEATURE_BAG_FRACTION.getPreferredName())
+                            .field(TYPE, DOUBLE)
+                        .endObject()
+                        .startObject(Regression.PREDICTION_FIELD_NAME.getPreferredName())
+                            .field(TYPE, KEYWORD)
+                        .endObject()
+                        .startObject(Regression.TRAINING_PERCENT.getPreferredName())
                             .field(TYPE, DOUBLE)
                         .endObject()
                     .endObject()
@@ -1092,14 +1121,15 @@ public class ElasticsearchMappings {
         XContentBuilder builder = jsonBuilder().startObject();
         builder.startObject(SINGLE_MAPPING_NAME);
         addMetaInformation(builder);
+        builder.field(DYNAMIC, "false");
         builder.startObject(PROPERTIES)
                 .startObject(Job.ID.getPreferredName())
                     .field(TYPE, KEYWORD)
                 .endObject()
-                .startObject(AuditMessage.LEVEL.getPreferredName())
-                   .field(TYPE, KEYWORD)
+                .startObject(AnomalyDetectionAuditMessage.LEVEL.getPreferredName())
+                    .field(TYPE, KEYWORD)
                 .endObject()
-                .startObject(AuditMessage.MESSAGE.getPreferredName())
+                .startObject(AnomalyDetectionAuditMessage.MESSAGE.getPreferredName())
                     .field(TYPE, TEXT)
                     .startObject(FIELDS)
                         .startObject(RAW)
@@ -1107,10 +1137,13 @@ public class ElasticsearchMappings {
                         .endObject()
                     .endObject()
                 .endObject()
-                .startObject(AuditMessage.TIMESTAMP.getPreferredName())
+                .startObject(AnomalyDetectionAuditMessage.TIMESTAMP.getPreferredName())
                     .field(TYPE, DATE)
                 .endObject()
-                .startObject(AuditMessage.NODE_NAME.getPreferredName())
+                .startObject(AnomalyDetectionAuditMessage.NODE_NAME.getPreferredName())
+                    .field(TYPE, KEYWORD)
+                .endObject()
+                .startObject(AnomalyDetectionAuditMessage.JOB_TYPE.getPreferredName())
                     .field(TYPE, KEYWORD)
                 .endObject()
         .endObject()

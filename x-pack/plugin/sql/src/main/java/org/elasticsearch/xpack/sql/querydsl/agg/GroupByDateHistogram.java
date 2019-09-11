@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.querydsl.agg;
 
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
 
@@ -45,7 +46,7 @@ public class GroupByDateHistogram extends GroupByKey {
     @Override
     protected CompositeValuesSourceBuilder<?> createSourceBuilder() {
         return new DateHistogramValuesSourceBuilder(id())
-                .interval(interval)
+                .fixedInterval(new DateHistogramInterval(interval + "ms"))
                 .timeZone(zoneId);
     }
 

@@ -54,8 +54,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.startsWith;
 
 public class MapperServiceTests extends ESSingleNodeTestCase {
 
@@ -158,9 +158,6 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         MapperService mapperService = createIndex("index").mapperService();
         assertThat(mapperService.unmappedFieldType("keyword"), instanceOf(KeywordFieldType.class));
         assertThat(mapperService.unmappedFieldType("long"), instanceOf(NumberFieldType.class));
-        // back compat
-        assertThat(mapperService.unmappedFieldType("string"), instanceOf(KeywordFieldType.class));
-        assertWarnings("[unmapped_type:string] should be replaced with [unmapped_type:keyword]");
     }
 
     public void testPartitionedConstraints() {

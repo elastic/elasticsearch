@@ -5,6 +5,7 @@ rootProject.name = dirName
 
 List projects = [
   'build-tools',
+  'build-tools:reaper',
   'rest-api-spec',
   'docs',
   'client:rest',
@@ -119,6 +120,7 @@ if (isEclipse) {
 include projects.toArray(new String[0])
 
 project(':build-tools').projectDir = new File(rootProject.projectDir, 'buildSrc')
+project(':build-tools:reaper').projectDir = new File(rootProject.projectDir, 'buildSrc/reaper')
 
 project(":libs").children.each { libsProject ->
     libsProject.name = "elasticsearch-${libsProject.name}"

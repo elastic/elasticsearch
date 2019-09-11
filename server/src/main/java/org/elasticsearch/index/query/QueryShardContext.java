@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -36,6 +35,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
@@ -64,7 +64,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 /**
@@ -78,13 +77,13 @@ public class QueryShardContext extends QueryRewriteContext {
 
     private final ScriptService scriptService;
     private final IndexSettings indexSettings;
+    private final BigArrays bigArrays;
     private final MapperService mapperService;
     private final SimilarityService similarityService;
     private final BitsetFilterCache bitsetFilterCache;
-    private final Function<IndexReaderContext, IndexSearcher> searcherFactory;
     private final BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataService;
     private final int shardId;
-    private final IndexReader reader;
+    private final IndexSearcher searcher;
     private boolean cacheable = true;
     private final SetOnce<Boolean> frozen = new SetOnce<>();
     private final Index fullyQualifiedIndex;
@@ -94,42 +93,58 @@ public class QueryShardContext extends QueryRewriteContext {
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
 
-    public QueryShardContext(int shardId, IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache,
-                             Function<IndexReaderContext, IndexSearcher> searcherFactory,
-                             BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataLookup, MapperService mapperService,
-                             SimilarityService similarityService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
-                             NamedWriteableRegistry namedWriteableRegistry, Client client, IndexReader reader, LongSupplier nowInMillis,
-                             String clusterAlias) {
-        this(shardId, indexSettings, bitsetFilterCache, searcherFactory, indexFieldDataLookup, mapperService, similarityService,
-            scriptService, xContentRegistry, namedWriteableRegistry, client, reader, nowInMillis,
+    public QueryShardContext(int shardId,
+                                IndexSettings indexSettings,
+                                BigArrays bigArrays,
+                                BitsetFilterCache bitsetFilterCache,
+                                BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataLookup,
+                                MapperService mapperService,
+                                SimilarityService similarityService,
+                                ScriptService scriptService,
+                                NamedXContentRegistry xContentRegistry,
+                                NamedWriteableRegistry namedWriteableRegistry,
+                                Client client,
+                                IndexSearcher searcher,
+                                LongSupplier nowInMillis,
+                                String clusterAlias) {
+        this(shardId, indexSettings, bigArrays, bitsetFilterCache, indexFieldDataLookup, mapperService, similarityService,
+            scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis,
             new Index(RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
                 indexSettings.getIndex().getUUID()));
     }
 
     public QueryShardContext(QueryShardContext source) {
-        this(source.shardId, source.indexSettings, source.bitsetFilterCache, source.searcherFactory, source.indexFieldDataService,
-                source.mapperService, source.similarityService, source.scriptService, source.getXContentRegistry(),
-                source.getWriteableRegistry(), source.client, source.reader, source.nowInMillis, source.fullyQualifiedIndex);
+        this(source.shardId, source.indexSettings, source.bigArrays, source.bitsetFilterCache, source.indexFieldDataService,
+            source.mapperService, source.similarityService, source.scriptService, source.getXContentRegistry(),
+            source.getWriteableRegistry(), source.client, source.searcher, source.nowInMillis, source.fullyQualifiedIndex);
     }
 
-    private QueryShardContext(int shardId, IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache,
-                             Function<IndexReaderContext, IndexSearcher> searcherFactory,
-                             BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataLookup, MapperService mapperService,
-                             SimilarityService similarityService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
-                             NamedWriteableRegistry namedWriteableRegistry, Client client, IndexReader reader, LongSupplier nowInMillis,
-                             Index fullyQualifiedIndex) {
+    private QueryShardContext(int shardId,
+                                IndexSettings indexSettings,
+                                BigArrays bigArrays,
+                                BitsetFilterCache bitsetFilterCache,
+                                BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataLookup,
+                                MapperService mapperService,
+                                SimilarityService similarityService,
+                                ScriptService scriptService,
+                                NamedXContentRegistry xContentRegistry,
+                                NamedWriteableRegistry namedWriteableRegistry,
+                                Client client,
+                                IndexSearcher searcher,
+                                LongSupplier nowInMillis,
+                                Index fullyQualifiedIndex) {
         super(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
         this.shardId = shardId;
         this.similarityService = similarityService;
         this.mapperService = mapperService;
         this.bitsetFilterCache = bitsetFilterCache;
-        this.searcherFactory = searcherFactory;
         this.indexFieldDataService = indexFieldDataLookup;
         this.allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
         this.nestedScope = new NestedScope();
         this.scriptService = scriptService;
         this.indexSettings = indexSettings;
-        this.reader = reader;
+        this.bigArrays = bigArrays;
+        this.searcher = searcher;
         this.fullyQualifiedIndex = fullyQualifiedIndex;
     }
 
@@ -166,10 +181,6 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public BitSetProducer bitsetFilter(Query filter) {
         return bitsetFilterCache.getBitSetProducer(filter);
-    }
-
-    public IndexSearcher newCachedSearcher(IndexReaderContext context) {
-        return searcherFactory.apply(context);
     }
 
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
@@ -397,7 +408,13 @@ public class QueryShardContext extends QueryRewriteContext {
     /** Return the current {@link IndexReader}, or {@code null} if no index reader is available,
      *  for instance if this rewrite context is used to index queries (percolation). */
     public IndexReader getIndexReader() {
-        return reader;
+        return searcher != null ? searcher.getIndexReader() : null;
+    }
+
+    /** Return the current {@link IndexSearcher}, or {@code null} if no index reader is available,
+     *  for instance if this rewrite context is used to index queries (percolation). */
+    public IndexSearcher searcher() {
+        return searcher;
     }
 
     /**
@@ -405,5 +422,12 @@ public class QueryShardContext extends QueryRewriteContext {
      */
     public Index getFullyQualifiedIndex() {
         return fullyQualifiedIndex;
+    }
+
+    /**
+     * Return the {@link BigArrays} instance for this node.
+     */
+    public BigArrays bigArrays() {
+        return bigArrays;
     }
 }

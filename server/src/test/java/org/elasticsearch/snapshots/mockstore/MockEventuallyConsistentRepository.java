@@ -26,6 +26,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.Maps;
@@ -33,7 +34,6 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -48,6 +48,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -67,9 +68,12 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
 
     private final NamedXContentRegistry namedXContentRegistry;
 
-    public MockEventuallyConsistentRepository(RepositoryMetaData metadata, Environment environment,
-        NamedXContentRegistry namedXContentRegistry, ThreadPool threadPool, Context context) {
-        super(metadata, environment.settings(), namedXContentRegistry, threadPool, BlobPath.cleanPath());
+    public MockEventuallyConsistentRepository(
+        final RepositoryMetaData metadata,
+        final NamedXContentRegistry namedXContentRegistry,
+        final ThreadPool threadPool,
+        final Context context) {
+        super(metadata, namedXContentRegistry, threadPool, BlobPath.cleanPath());
         this.context = context;
         this.namedXContentRegistry = namedXContentRegistry;
     }
@@ -215,13 +219,20 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             }
 
             @Override
-            public void delete() {
+            public DeleteResult delete() {
                 ensureNotClosed();
                 final String thisPath = path.buildAsString();
+                final AtomicLong bytesDeleted = new AtomicLong(0L);
+                final AtomicLong blobsDeleted = new AtomicLong(0L);
                 synchronized (context.actions) {
                     consistentView(context.actions).stream().filter(action -> action.path.startsWith(thisPath))
-                        .forEach(a -> context.actions.add(new BlobStoreAction(Operation.DELETE, a.path)));
+                        .forEach(a -> {
+                            context.actions.add(new BlobStoreAction(Operation.DELETE, a.path));
+                            bytesDeleted.addAndGet(a.data.length);
+                            blobsDeleted.incrementAndGet();
+                        });
                 }
+                return new DeleteResult(blobsDeleted.get(), bytesDeleted.get());
             }
 
             @Override
@@ -276,9 +287,11 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
                     // We do some checks in case there is a consistent state for a blob to prevent turning it inconsistent.
                     final boolean hasConsistentContent =
                         relevantActions.size() == 1 && relevantActions.get(0).operation == Operation.PUT;
-                    if (BlobStoreRepository.INDEX_LATEST_BLOB.equals(blobName)) {
+                    if (BlobStoreRepository.INDEX_LATEST_BLOB.equals(blobName)
+                        || blobName.startsWith(BlobStoreRepository.METADATA_PREFIX)) {
                         // TODO: Ensure that it is impossible to ever decrement the generation id stored in index.latest then assert that
-                        //       it never decrements here
+                        //       it never decrements here. Same goes for the metadata, ensure that we never overwrite newer with older
+                        //       metadata.
                     } else if (blobName.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX)) {
                         if (hasConsistentContent) {
                                 if (basePath().buildAsString().equals(path().buildAsString())) {

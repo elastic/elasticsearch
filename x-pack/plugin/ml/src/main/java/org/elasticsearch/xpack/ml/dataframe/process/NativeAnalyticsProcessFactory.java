@@ -14,6 +14,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
@@ -27,7 +28,7 @@ import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
-public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory {
+public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory<AnalyticsResult> {
 
     private static final Logger LOGGER = LogManager.getLogger(NativeAnalyticsProcessFactory.class);
 
@@ -50,7 +51,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory {
     }
 
     @Override
-    public AnalyticsProcess createAnalyticsProcess(String jobId, AnalyticsProcessConfig analyticsProcessConfig,
+    public NativeAnalyticsProcess createAnalyticsProcess(String jobId, AnalyticsProcessConfig analyticsProcessConfig,
                                                    ExecutorService executorService, Consumer<String> onProcessCrash) {
         List<Path> filesToDelete = new ArrayList<>();
         ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, AnalyticsBuilder.ANALYTICS, jobId,
@@ -63,7 +64,7 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory {
 
         NativeAnalyticsProcess analyticsProcess = new NativeAnalyticsProcess(jobId, nativeController, processPipes.getLogStream().get(),
                 processPipes.getProcessInStream().get(), processPipes.getProcessOutStream().get(), null, numberOfFields,
-                filesToDelete, onProcessCrash);
+                filesToDelete, onProcessCrash, analyticsProcessConfig);
 
         try {
             analyticsProcess.start(executorService);
@@ -80,8 +81,8 @@ public class NativeAnalyticsProcessFactory implements AnalyticsProcessFactory {
 
     private void createNativeProcess(String jobId, AnalyticsProcessConfig analyticsProcessConfig, List<Path> filesToDelete,
                                      ProcessPipes processPipes) {
-        AnalyticsBuilder analyticsBuilder = new AnalyticsBuilder(env, nativeController, processPipes, analyticsProcessConfig,
-                filesToDelete);
+        AnalyticsBuilder analyticsBuilder =
+            new AnalyticsBuilder(env::tmpFile, nativeController, processPipes, analyticsProcessConfig, filesToDelete);
         try {
             analyticsBuilder.build();
             processPipes.connectStreams(processConnectTimeout);

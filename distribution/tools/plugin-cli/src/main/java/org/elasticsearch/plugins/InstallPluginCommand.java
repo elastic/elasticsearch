@@ -706,7 +706,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 Locale.ROOT,
                 "plugin directory [%s] already exists; if you need to update the plugin, " +
                     "uninstall it first using command 'remove %s'",
-                destination.toAbsolutePath(),
+                destination,
                 pluginName);
             throw new UserException(PLUGIN_EXISTS, message);
         }

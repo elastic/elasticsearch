@@ -22,6 +22,9 @@ import org.elasticsearch.gradle.test.GradleUnitTestCase;
 import org.gradle.api.GradleException;
 import org.junit.Test;
 
+import java.net.URI;
+import java.net.URISyntaxException;
+
 
 public class BuildPluginTests extends GradleUnitTestCase {
 
@@ -34,6 +37,27 @@ public class BuildPluginTests extends GradleUnitTestCase {
     @Test(expected = GradleException.class)
     public void testFailingDockerVersions() {
         BuildPlugin.checkDockerVersionRecent("Docker version 17.04.0, build e68fc7a");
+    }
+
+    @Test(expected = GradleException.class)
+    public void testRepositoryURIThatUsesHttpScheme() throws URISyntaxException {
+        final URI uri = new URI("http://s3.amazonaws.com/artifacts.elastic.co/maven");
+        BuildPlugin.assertRepositoryURIIsSecure("test", "test", uri);
+    }
+
+    public void testRepositoryThatUsesFileScheme() throws URISyntaxException {
+        final URI uri = new URI("file:/tmp/maven");
+        BuildPlugin.assertRepositoryURIIsSecure("test", "test", uri);
+    }
+
+    public void testRepositoryURIThatUsesHttpsScheme() throws URISyntaxException {
+        final URI uri = new URI("https://s3.amazonaws.com/artifacts.elastic.co/maven");
+        BuildPlugin.assertRepositoryURIIsSecure("test", "test", uri);
+    }
+
+    public void testRepositoryURIThatUsesS3Scheme() throws URISyntaxException {
+        final URI uri = new URI("s3://artifacts.elastic.co/maven");
+        BuildPlugin.assertRepositoryURIIsSecure("test", "test", uri);
     }
 
 }

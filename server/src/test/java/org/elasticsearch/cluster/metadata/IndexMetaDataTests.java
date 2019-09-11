@@ -55,8 +55,6 @@ import static org.hamcrest.Matchers.is;
 
 public class IndexMetaDataTests extends ESTestCase {
 
-    private IndicesModule INDICES_MODULE = new IndicesModule(Collections.emptyList());
-
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -64,12 +62,12 @@ public class IndexMetaDataTests extends ESTestCase {
 
     @Override
     protected NamedWriteableRegistry writableRegistry() {
-        return new NamedWriteableRegistry(INDICES_MODULE.getNamedWriteables());
+        return new NamedWriteableRegistry(IndicesModule.getNamedWriteables());
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(INDICES_MODULE.getNamedXContents());
+        return new NamedXContentRegistry(IndicesModule.getNamedXContents());
     }
 
     public void testIndexMetaDataSerialization() throws IOException {

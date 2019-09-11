@@ -32,12 +32,13 @@ to the inverted index:
 ------
 
 [float]
+[[specify-index-time-analyzer]]
 === Specifying an index time analyzer
 
 Each <<text,`text`>> field in a mapping can specify its own
 <<analyzer,`analyzer`>>:
 
-[source,js]
+[source,console]
 -------------------------
 PUT my_index
 {
@@ -51,7 +52,6 @@ PUT my_index
   }
 }
 -------------------------
-// CONSOLE
 
 At index time, if no `analyzer` has been specified, it looks for an analyzer
 in the index settings called `default`.  Failing that, it defaults to using

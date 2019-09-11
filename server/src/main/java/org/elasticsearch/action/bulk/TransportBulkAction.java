@@ -26,6 +26,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.RoutingMissingException;
@@ -56,7 +57,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -327,10 +327,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
      * retries on retryable cluster blocks, resolves item requests,
      * constructs shard bulk requests and delegates execution to shard bulk action
      * */
-    private final class BulkOperation extends AbstractRunnable {
+    private final class BulkOperation extends ActionRunnable<BulkResponse> {
         private final Task task;
         private final BulkRequest bulkRequest;
-        private final ActionListener<BulkResponse> listener;
         private final AtomicArray<BulkItemResponse> responses;
         private final long startTimeNanos;
         private final ClusterStateObserver observer;
@@ -338,9 +337,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         BulkOperation(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener, AtomicArray<BulkItemResponse> responses,
                 long startTimeNanos, Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
+            super(listener);
             this.task = task;
             this.bulkRequest = bulkRequest;
-            this.listener = listener;
             this.responses = responses;
             this.startTimeNanos = startTimeNanos;
             this.indicesThatCannotBeCreated = indicesThatCannotBeCreated;
@@ -348,12 +347,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         @Override
-        public void onFailure(Exception e) {
-            listener.onFailure(e);
-        }
-
-        @Override
-        protected void doRun() throws Exception {
+        protected void doRun() {
             final ClusterState clusterState = observer.setAndGetObservedState();
             if (handleBlockExceptions(clusterState)) {
                 return;

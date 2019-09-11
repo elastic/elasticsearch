@@ -24,7 +24,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -46,13 +45,12 @@ public class RestIndexAction extends BaseRestHandler {
         "index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, " +
         "or /{index}/_create/{id}).";
 
-    public RestIndexAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestIndexAction(RestController controller) {
         controller.registerHandler(POST, "/{index}/_doc", this); // auto id creation
         controller.registerHandler(PUT, "/{index}/_doc/{id}", this);
         controller.registerHandler(POST, "/{index}/_doc/{id}", this);
 
-        CreateHandler createHandler = new CreateHandler(settings);
+        CreateHandler createHandler = new CreateHandler();
         controller.registerHandler(PUT, "/{index}/_create/{id}", createHandler);
         controller.registerHandler(POST, "/{index}/_create/{id}/", createHandler);
 
@@ -70,8 +68,7 @@ public class RestIndexAction extends BaseRestHandler {
     }
 
     final class CreateHandler extends BaseRestHandler {
-        protected CreateHandler(Settings settings) {
-            super(settings);
+        protected CreateHandler() {
         }
 
         @Override

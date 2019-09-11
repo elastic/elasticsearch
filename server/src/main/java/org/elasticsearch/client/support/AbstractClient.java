@@ -64,6 +64,10 @@ import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageAction;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequest;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageResponse;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryAction;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequestBuilder;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequestBuilder;
@@ -1002,6 +1006,21 @@ public abstract class AbstractClient implements Client {
         @Override
         public GetRepositoriesRequestBuilder prepareGetRepositories(String... name) {
             return new GetRepositoriesRequestBuilder(this, GetRepositoriesAction.INSTANCE, name);
+        }
+
+        @Override
+        public CleanupRepositoryRequestBuilder prepareCleanupRepository(String repository) {
+            return new CleanupRepositoryRequestBuilder(this, CleanupRepositoryAction.INSTANCE, repository);
+        }
+
+        @Override
+        public ActionFuture<CleanupRepositoryResponse> cleanupRepository(CleanupRepositoryRequest request) {
+            return execute(CleanupRepositoryAction.INSTANCE, request);
+        }
+
+        @Override
+        public void cleanupRepository(CleanupRepositoryRequest request, ActionListener<CleanupRepositoryResponse> listener) {
+            execute(CleanupRepositoryAction.INSTANCE, request, listener);
         }
 
         @Override

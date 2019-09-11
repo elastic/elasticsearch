@@ -44,13 +44,12 @@ For more information, see
 
 The following example provides information about a trial license:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_license
 --------------------------------------------------
-// CONSOLE
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "license" : {

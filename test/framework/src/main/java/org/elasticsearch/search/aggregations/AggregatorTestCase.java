@@ -39,6 +39,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.Index;
@@ -281,7 +282,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     protected QueryShardContext queryShardContextMock(MapperService mapperService, IndexSettings indexSettings,
                                                       CircuitBreakerService circuitBreakerService) {
 
-        return new QueryShardContext(0, indexSettings, null, null,
+        return new QueryShardContext(0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
             getIndexFieldDataLookup(mapperService, circuitBreakerService),
             mapperService, null, getMockScriptService(), xContentRegistry(),
             writableRegistry(), null, null, System::currentTimeMillis, null);
@@ -332,7 +333,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                                                       Query query,
                                                                                       AggregationBuilder builder,
                                                                                       MappedFieldType... fieldTypes) throws IOException {
-        return searchAndReduce(searcher, query, builder, DEFAULT_MAX_BUCKETS, null, fieldTypes);
+        return searchAndReduce(searcher, query, builder, DEFAULT_MAX_BUCKETS, fieldTypes);
     }
 
     /**
@@ -344,7 +345,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                                                       Query query,
                                                                                       AggregationBuilder builder,
                                                                                       int maxBucket,
-                                                                                      ScriptService scriptService,
                                                                                       MappedFieldType... fieldTypes) throws IOException {
         final IndexReaderContext ctx = searcher.getTopReaderContext();
 
@@ -389,7 +389,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 List<InternalAggregation> toReduce = aggs.subList(0, r);
                 MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(maxBucket);
                 InternalAggregation.ReduceContext context =
-                    new InternalAggregation.ReduceContext(root.context().bigArrays(), null,
+                    new InternalAggregation.ReduceContext(root.context().bigArrays(), getMockScriptService(),
                         reduceBucketConsumer, false);
                 A reduced = (A) aggs.get(0).doReduce(toReduce, context);
                 doAssertReducedMultiBucketConsumer(reduced, reduceBucketConsumer);
@@ -399,7 +399,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             // now do the final reduce
             MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumer(maxBucket);
             InternalAggregation.ReduceContext context =
-                new InternalAggregation.ReduceContext(root.context().bigArrays(), scriptService, reduceBucketConsumer, true);
+                new InternalAggregation.ReduceContext(root.context().bigArrays(), getMockScriptService(), reduceBucketConsumer, true);
 
             @SuppressWarnings("unchecked")
             A internalAgg = (A) aggs.get(0).doReduce(aggs, context);

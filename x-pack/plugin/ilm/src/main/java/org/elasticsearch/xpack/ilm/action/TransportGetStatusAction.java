@@ -19,11 +19,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
-import org.elasticsearch.xpack.core.indexlifecycle.action.GetStatusAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.GetStatusAction.Request;
-import org.elasticsearch.xpack.core.indexlifecycle.action.GetStatusAction.Response;
+import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
+import org.elasticsearch.xpack.core.ilm.action.GetStatusAction.Request;
+import org.elasticsearch.xpack.core.ilm.action.GetStatusAction.Response;
 
 import java.io.IOException;
 

@@ -43,6 +43,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.ScriptQueryBuilder;
@@ -81,6 +82,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
+import org.elasticsearch.xpack.core.index.query.PinnedQueryBuilder;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -92,7 +94,10 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -1373,7 +1378,19 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertCountHeader(countResponse);
         assertEquals(3, countResponse.getCount());
     }
-
+    
+    public void testSearchWithBasicLicensedQuery() throws IOException {
+        SearchRequest searchRequest = new SearchRequest("index");
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        PinnedQueryBuilder pinnedQuery = new PinnedQueryBuilder(new MatchAllQueryBuilder(), "2", "1");
+        searchSourceBuilder.query(pinnedQuery);
+        searchRequest.source(searchSourceBuilder);
+        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+        assertSearchHeader(searchResponse);
+        assertFirstHit(searchResponse, hasId("2"));
+        assertSecondHit(searchResponse, hasId("1"));
+    }
+    
     private static void assertCountHeader(CountResponse countResponse) {
         assertEquals(0, countResponse.getSkippedShards());
         assertEquals(0, countResponse.getFailedShards());

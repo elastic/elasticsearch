@@ -155,9 +155,9 @@ Complete control on the index level is allowed. As an example, in the above case
 <pre>
 curl -XPUT http://localhost:9200/another_user?pretty -H 'Content-Type: application/json' -d '
 {
-    "index" : {
-        "number_of_shards" : 2,
-        "number_of_replicas" : 1
+    "settings" : {
+        "index.number_of_shards" : 2,
+        "index.number_of_replicas" : 1
     }
 }'
 </pre>

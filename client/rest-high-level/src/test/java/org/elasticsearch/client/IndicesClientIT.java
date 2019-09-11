@@ -1045,6 +1045,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertThat(forceMergeResponse.getSuccessfulShards(), equalTo(1));
             assertThat(forceMergeResponse.getFailedShards(), equalTo(0));
             assertThat(forceMergeResponse.getShardFailures(), equalTo(BroadcastResponse.EMPTY));
+
+            assertThat(forceMergeRequest.getDescription(), containsString(index));
         }
         {
             String nonExistentIndex = "non_existent_index";
@@ -1053,6 +1055,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             ElasticsearchException exception = expectThrows(ElasticsearchException.class,
                 () -> execute(forceMergeRequest, highLevelClient().indices()::forcemerge, highLevelClient().indices()::forcemergeAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
+
+            assertThat(forceMergeRequest.getDescription(), containsString(nonExistentIndex));
         }
     }
 

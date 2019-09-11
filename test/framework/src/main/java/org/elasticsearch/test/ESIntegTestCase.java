@@ -113,6 +113,7 @@ import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.search.HttpChannelTaskHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
@@ -508,7 +509,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return testCluster;
     }
 
-    private static void clearClusters() throws IOException {
+    private static void clearClusters() throws Exception {
         if (!clusters.isEmpty()) {
             IOUtils.close(clusters.values());
             clusters.clear();
@@ -517,6 +518,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
             restClient.close();
             restClient = null;
         }
+        assertBusy(() -> assertEquals(HttpChannelTaskHandler.INSTANCE.getNumChannels() + " channels still being tracked in " +
+                    HttpChannelTaskHandler.class.getSimpleName() + " while there should be none", 0,
+                HttpChannelTaskHandler.INSTANCE.getNumChannels()));
     }
 
     private void afterInternal(boolean afterClass) throws Exception {
@@ -900,7 +904,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * using the cluster health API.
      */
     public ClusterHealthStatus waitForRelocation(ClusterHealthStatus status) {
-        ClusterHealthRequest request = Requests.clusterHealthRequest().waitForNoRelocatingShards(true);
+        ClusterHealthRequest request = Requests.clusterHealthRequest().waitForNoRelocatingShards(true).waitForEvents(Priority.LANGUID);
         if (status != null) {
             request.waitForStatus(status);
         }

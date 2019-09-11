@@ -143,14 +143,14 @@ public class IndexCreationTaskTests extends ESTestCase {
 
     public void testApplyDataFromRequest() throws Exception {
         setupRequestAlias(new Alias("alias1"));
-        setupRequestMapping("mapping1", createMapping());
+        setupRequestMapping("type", createMapping());
         reqSettings.put("key1", "value1");
 
         final ClusterState result = executeTask();
 
         assertThat(result.metaData().index("test").getAliases(), hasKey("alias1"));
         assertThat(result.metaData().index("test").getSettings().get("key1"), equalTo("value1"));
-        assertThat(getMappingsFromResponse(), Matchers.hasKey("mapping1"));
+        assertThat(getMappingsFromResponse(), Matchers.hasKey("type"));
     }
 
     public void testInvalidAliasName() throws Exception {
@@ -165,19 +165,19 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         addMatchingTemplate(builder -> builder
                     .putAlias(AliasMetaData.builder("alias1").searchRouting("fromTpl").build())
-                    .putMapping("mapping1", tplMapping)
+                    .putMapping("type", tplMapping)
                     .settings(Settings.builder().put("key1", "tplValue"))
         );
 
         setupRequestAlias(new Alias("alias1").searchRouting("fromReq"));
-        setupRequestMapping("mapping1", reqMapping);
+        setupRequestMapping("type", reqMapping);
         reqSettings.put("key1", "reqValue");
 
         final ClusterState result = executeTask();
 
         assertThat(result.metaData().index("test").getAliases().get("alias1").getSearchRouting(), equalTo("fromReq"));
         assertThat(result.metaData().index("test").getSettings().get("key1"), equalTo("reqValue"));
-        assertThat(getMappingsFromResponse().get("mapping1").toString(), equalTo("{type={properties={field={type=keyword}}}}"));
+        assertThat(getMappingsFromResponse().get("type").toString(), equalTo("{type={properties={field={type=keyword}}}}"));
     }
 
     public void testDefaultSettings() throws Exception {
@@ -289,7 +289,7 @@ public class IndexCreationTaskTests extends ESTestCase {
     public void testWriteIndex() throws Exception {
         Boolean writeIndex = randomBoolean() ? null : randomBoolean();
         setupRequestAlias(new Alias("alias1").writeIndex(writeIndex));
-        setupRequestMapping("mapping1", createMapping());
+        setupRequestMapping("type", createMapping());
         reqSettings.put("key1", "value1");
 
         final ClusterState result = executeTask();
@@ -302,7 +302,7 @@ public class IndexCreationTaskTests extends ESTestCase {
             .settings(settings(Version.CURRENT)).putAlias(AliasMetaData.builder("alias1").writeIndex(true).build())
             .numberOfShards(1).numberOfReplicas(0).build();
         idxBuilder.put("test2", existingWriteIndex);
-        setupRequestMapping("mapping1", createMapping());
+        setupRequestMapping("type", createMapping());
         reqSettings.put("key1", "value1");
         setupRequestAlias(new Alias("alias1").writeIndex(true));
 

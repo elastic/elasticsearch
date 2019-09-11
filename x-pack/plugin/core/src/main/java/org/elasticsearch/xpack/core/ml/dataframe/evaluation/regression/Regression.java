@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -106,10 +107,11 @@ public class Regression implements Evaluation {
     }
 
     @Override
-    public SearchSourceBuilder buildSearch() {
+    public SearchSourceBuilder buildSearch(QueryBuilder queryBuilder) {
         BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
             .filter(QueryBuilders.existsQuery(actualField))
-            .filter(QueryBuilders.existsQuery(predictedField));
+            .filter(QueryBuilders.existsQuery(predictedField))
+            .filter(queryBuilder);
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).query(boolQuery);
         for (RegressionMetric metric : metrics) {
             List<AggregationBuilder> aggs = metric.aggs(actualField, predictedField);
@@ -121,6 +123,12 @@ public class Regression implements Evaluation {
     @Override
     public void evaluate(SearchResponse searchResponse, ActionListener<List<EvaluationMetricResult>> listener) {
         List<EvaluationMetricResult> results = new ArrayList<>(metrics.size());
+        if (searchResponse.getHits().getTotalHits().value == 0) {
+            listener.onFailure(ExceptionsHelper.badRequestException("No documents found containing both [{}, {}] fields",
+                actualField,
+                predictedField));
+            return;
+        }
         for (RegressionMetric metric : metrics) {
             results.add(metric.evaluate(searchResponse.getAggregations()));
         }

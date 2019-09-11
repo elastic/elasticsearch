@@ -27,8 +27,8 @@ testClusters."leader-cluster" {
 
 task "middle-cluster"(type: RestIntegTestTask) {
     dependsOn "leader-cluster"
-    useCluster testClusters."leader-cluster"
     runner {
+        useCluster testClusters."leader-cluster"
         systemProperty 'tests.target_cluster', 'middle'
         nonInputProperties.systemProperty 'tests.leader_host',
                 "${-> testClusters."leader-cluster".getAllHttpSocketURI().get(0)}"
@@ -43,9 +43,9 @@ testClusters."middle-cluster" {
 
 task 'follow-cluster'(type: RestIntegTestTask) {
     dependsOn "leader-cluster", "middle-cluster"
-    useCluster testClusters."leader-cluster"
-    useCluster testClusters."middle-cluster"
     runner {
+        useCluster testClusters."leader-cluster"
+        useCluster testClusters."middle-cluster"
         systemProperty 'tests.target_cluster', 'follow'
         nonInputProperties.systemProperty 'tests.leader_host',
                 "${-> testClusters."leader-cluster".getAllHttpSocketURI().get(0)}"

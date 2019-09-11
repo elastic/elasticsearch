@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -55,12 +56,20 @@ public class TimeBasedExtractedFields extends ExtractedFields {
         if (scriptFields.contains(timeField) == false && extractionMethodDetector.isAggregatable(timeField) == false) {
             throw new IllegalArgumentException("cannot retrieve time field [" + timeField + "] because it is not aggregatable");
         }
-        ExtractedField timeExtractedField = ExtractedField.newTimeField(timeField, scriptFields.contains(timeField) ?
-                ExtractedField.ExtractionMethod.SCRIPT_FIELD : ExtractedField.ExtractionMethod.DOC_VALUE);
+        ExtractedField timeExtractedField = extractedTimeField(timeField, scriptFields, fieldsCapabilities);
         List<String> remainingFields = job.allInputFields().stream().filter(f -> !f.equals(timeField)).collect(Collectors.toList());
         List<ExtractedField> allExtractedFields = new ArrayList<>(remainingFields.size() + 1);
         allExtractedFields.add(timeExtractedField);
         remainingFields.stream().forEach(field -> allExtractedFields.add(extractionMethodDetector.detect(field)));
         return new TimeBasedExtractedFields(timeExtractedField, allExtractedFields);
+    }
+
+    private static ExtractedField extractedTimeField(String timeField, Set<String> scriptFields,
+                                                     FieldCapabilitiesResponse fieldCapabilities) {
+        if (scriptFields.contains(timeField)) {
+            return ExtractedField.newTimeField(timeField, Collections.emptySet(), ExtractedField.ExtractionMethod.SCRIPT_FIELD);
+        }
+        return ExtractedField.newTimeField(timeField, fieldCapabilities.getField(timeField).keySet(),
+            ExtractedField.ExtractionMethod.DOC_VALUE);
     }
 }

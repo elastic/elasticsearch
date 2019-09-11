@@ -1,0 +1,79 @@
+[role="xpack"]
+[[dataframe-limitations]]
+== {dataframe-transform-cap} limitations
+[subs="attributes"]
+
+beta[]
+
+The following limitations and known problems apply to the 7.2 release of 
+the Elastic {dataframe} feature:
+
+[float]
+[[df-datatype-limitations]]
+=== {dataframe-cap} data type limitation
+
+{dataframes-cap} do not (yet) support fields containing arrays – in the UI or 
+the API. If you try to create one, the UI will fail to show the source index table.
+
+[float]
+[[df-ccs-limitations]]
+=== {ccs-cap} limitation
+
+{ccs-cap} is not supported in 7.2 for {dataframe-transforms}.
+
+[float]
+[[df-kibana-limitations]]
+=== {kib} only displays up to 100 {dataframe-transforms}
+
+The {kib} *Machine Learning* > *Data Frames* page lists up to 100 
+{dataframe-transforms}. You can work-around this limitation by calling the 
+{ref}/get-data-frame-transform.html[GET {dataframe-transforms} API] 
+with the `size` parameter.
+
+[float]
+[[df-dateformat-limitations]]
+=== Date histogram limitation
+
+If you use a {ref}/search-aggregations-bucket-datehistogram-aggregation.html[date 
+histogram] in the `group_by` object in the create or preview {dataframe-transform} 
+APIs, the defined interval and time format must have the same time fidelity. 
+Otherwise, it might cause issues in the {dataframe}.
+
+For example, if you set the `calendar_interval` of the date histogram to one minute 
+(`1m`), then make sure that the `format` is `yyyy-MM-dd HH:mm` instead of 
+`yyyy-MM-dd HH:00`.
+
+[float]
+=== Date format limitation in {dataframe-transform} destination index
+
+When you create a {dataframe-transform} that uses a `date_histogram` as a `group-by` 
+and set the `interval` to `1y`, the date could be interpreted incorrectly 
+in the generated date field of the destination index. The reason is that the `yyyy`
+value can be identified incorrectly as `epoch_millis`. As a workaround, using the 
+API, you may define a custom destination index data format mapping prior to starting 
+the {dataframe-transform}. For example:
+
+[source,js]
+------------------------------------------------------------
+"mappings" : {
+        "properties" : {
+            "custom_date" : { 
+            "type" : "date", 
+            "format": "yyyy"
+            }
+          }
+        }
+------------------------------------------------------------
+// NOTCONSOLE
+
+[float]
+[[df-aggresponse-limitations]]
+=== Aggregation responses may be incompatible with destination index mappings
+
+{dataframes-cap} use composite aggregations to transform data. In some cases, 
+composite aggregations may return responses which are not compatible with the 
+mappings set for the destination index. For example "NaN", "Infinity" or possibly 
+a numeric overflow. Where possible, a null response has been substituted. Please, 
+check {es} logs if you think this may have occurred. As a workaround, 
+using the API, you may define custom destination index mappings prior to starting 
+the {dataframe-transform}.

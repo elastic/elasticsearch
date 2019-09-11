@@ -8,7 +8,7 @@
 
 beta[]
 
-The following limitations and known problems apply to the 7.4 release of 
+The following limitations and known problems apply to the 7.3 release of 
 the Elastic {dataframe} feature:
 
 [float]
@@ -26,12 +26,12 @@ status.
 
 [float]
 [[df-ui-limitation]]
-=== {dataframe-cap} UI will not work during a rolling upgrade from 7.2
+=== {dataframe-cap} UI will not work during a rolling upgrade from 7.2 to 7.3
 
 If your cluster contains mixed version nodes, for example during a rolling 
-upgrade from 7.2 to a newer version, and {dataframe-transforms} have been 
-created in 7.2, the {dataframe} UI will not work. Please wait until all nodes 
-have been upgraded to the newer version before using the {dataframe} UI.
+upgrade from 7.2 to 7.3, and {dataframe-transforms} have been created in 7.2, 
+the {dataframe} UI will not work. Please wait until all nodes have been upgraded 
+to 7.3 before using the {dataframe} UI.
 
 
 [float]
@@ -46,7 +46,7 @@ table.
 [[df-ccs-limitations]]
 === {ccs-cap} is not supported
 
-{ccs-cap} is not supported for {dataframe-transforms}.
+{ccs-cap} is not supported in 7.3 for {dataframe-transforms}.
 
 [float]
 [[df-kibana-limitations]]
@@ -174,6 +174,13 @@ transform will fail.
 
 Using smaller values for `max_page_search_size` may result in a longer duration 
 for the transform checkpoint to complete.
+
+[float]
+[[df-update-limitations]]
+=== Cannot update a {dataframe-transform}
+
+{dataframe-transform-cap} configurations cannot be updated. Please delete and 
+then create a new transform instead.
 
 [float]
 [[df-scheduling-limitations]]

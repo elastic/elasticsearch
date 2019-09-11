@@ -512,6 +512,7 @@ don't leak into the rest of the documentation.
 :upid!:
 --
 
+[role="xpack"]
 == CCR APIs
 
 :upid: {mainid}-ccr

@@ -372,6 +372,7 @@ The Java High Level REST Client supports the following Migration APIs:
 
 include::migration/get-deprecation-info.asciidoc[]
 
+[role="xpack"]
 == Rollup APIs
 
 :upid: {mainid}-rollup

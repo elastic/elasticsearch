@@ -58,11 +58,11 @@ final class DfsQueryPhase extends SearchPhase {
         this.nextPhaseFactory = nextPhaseFactory;
         this.context = context;
         this.searchTransportService = context.getSearchTransport();
-        this.context.getTask().getStatus().phaseStarted(getName(), dfsSearchResults.length());
     }
 
     @Override
     public void run() throws IOException {
+        this.context.getTask().getStatus().phaseStarted(getName(), dfsSearchResults.length());
         // TODO we can potentially also consume the actual per shard results from the initial phase here in the aggregateDfs
         // to free up memory early
         final List<DfsSearchResult> resultList = dfsSearchResults.asList();

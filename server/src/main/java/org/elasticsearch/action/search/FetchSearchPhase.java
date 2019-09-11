@@ -73,7 +73,6 @@ final class FetchSearchPhase extends SearchPhase {
         this.context = context;
         this.logger = context.getLogger();
         this.resultConsumer = resultConsumer;
-        this.context.getTask().getStatus().phaseStarted(getName(), context.getNumShards());
     }
 
     @Override
@@ -107,6 +106,7 @@ final class FetchSearchPhase extends SearchPhase {
         if (queryAndFetchOptimization) {
             assert phaseResults.isEmpty() || phaseResults.get(0).fetchResult() != null : "phaseResults empty [" + phaseResults.isEmpty()
                 + "], single result: " +  phaseResults.get(0).fetchResult();
+            this.context.getTask().getStatus().phaseStarted(getName(), 0);
             // query AND fetch optimization
             finishPhase.run();
         } else {
@@ -116,8 +116,16 @@ final class FetchSearchPhase extends SearchPhase {
                 phaseResults.stream()
                     .map(SearchPhaseResult::queryResult)
                     .forEach(this::releaseIrrelevantSearchContext); // we have to release contexts here to free up resources
+                this.context.getTask().getStatus().phaseStarted(getName(), 0);
                 finishPhase.run();
             } else {
+                int numFetchShards = 0;
+                for (IntArrayList ids : docIdsToLoad) {
+                    if (ids != null) {
+                        numFetchShards++;
+                    }
+                }
+                this.context.getTask().getStatus().phaseStarted(getName(), numFetchShards);
                 final ScoreDoc[] lastEmittedDocPerShard = isScrollSearch ?
                     searchPhaseController.getLastEmittedDocPerShard(reducedQueryPhase, numShards)
                     : null;

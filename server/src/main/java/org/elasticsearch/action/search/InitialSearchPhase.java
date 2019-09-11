@@ -86,7 +86,6 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         this.throttleConcurrentRequests = maxConcurrentRequestsPerNode < shardsIts.size();
         this.executor = executor;
         this.searchTaskStatus = searchTask.getStatus();
-        searchTaskStatus.phaseStarted(name, iterators.size());
     }
 
     private void onShardFailure(final int shardIndex, @Nullable ShardRouting shard, @Nullable String nodeId,
@@ -130,6 +129,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
 
     @Override
     public final void run() {
+        searchTaskStatus.phaseStarted(getName(), shardsIts.size());
         for (final SearchShardIterator iterator : toSkipShardsIts) {
             assert iterator.skip();
             skipShard(iterator);

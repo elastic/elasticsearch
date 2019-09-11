@@ -53,7 +53,7 @@ value can be identified incorrectly as `epoch_millis`. As a workaround, using th
 API, you may define a custom destination index data format mapping prior to starting 
 the {dataframe-transform}. For example:
 
-[source, json]
+[source,js]
 ------------------------------------------------------------
 "mappings" : {
         "properties" : {

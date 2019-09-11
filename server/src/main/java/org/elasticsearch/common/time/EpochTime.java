@@ -148,11 +148,11 @@ class EpochTime {
         .toFormatter(IsoLocale.ROOT);
 
     static final DateFormatter SECONDS_FORMATTER = new JavaDateFormatter("epoch_second", SECONDS_FORMATTER1,
-        builder -> builder.parseDefaulting(ChronoField.NANO_OF_SECOND, 999_999_999L),
+        builder -> builder.parseDefaulting(ChronoField.NANO_OF_SECOND, 999_999_999L),null,
         SECONDS_FORMATTER1, SECONDS_FORMATTER2);
 
     static final DateFormatter MILLIS_FORMATTER = new JavaDateFormatter("epoch_millis", MILLISECONDS_FORMATTER1,
-        builder -> builder.parseDefaulting(EpochTime.NANOS_OF_MILLI, 999_999L),
+        builder -> builder.parseDefaulting(EpochTime.NANOS_OF_MILLI, 999_999L),null,
         MILLISECONDS_FORMATTER1, MILLISECONDS_FORMATTER2);
 
     private abstract static class EpochField implements TemporalField {

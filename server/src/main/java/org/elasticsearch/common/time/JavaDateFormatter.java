@@ -29,6 +29,7 @@ import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalField;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -57,19 +58,67 @@ class JavaDateFormatter implements DateFormatter {
     private final String format;
     private final DateTimeFormatter printer;
     private final List<DateTimeFormatter> parsers;
-    private final DateTimeFormatter roundupParser;
+    private final JavaDateFormatter roundupParser;
 
-    private JavaDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter roundupParser, List<DateTimeFormatter> parsers) {
+    static class RoundUpFormatter extends JavaDateFormatter{
+        private final List<DateTimeFormatter> roundUpParsers;
+
+        RoundUpFormatter(String format, List<DateTimeFormatter> roundUpParsers) {
+            super(format,  null,null, roundUpParsers);
+            this.roundUpParsers = roundUpParsers;
+        }
+
+        @Override
+        public ZoneId zone() {
+            return roundUpParsers.get(0).getZone();
+        }
+
+        @Override
+        public Locale locale() {
+            return roundUpParsers.get(0).getLocale();
+        }
+    }
+
+    // named formatters
+    JavaDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter... parsers) {
+        this(format, printer, builder -> ROUND_UP_BASE_FIELDS.forEach(builder::parseDefaulting), null, parsers);
+    }
+    //merging
+    JavaDateFormatter(String pattern, List<DateFormatter> formatters) {
+        assert formatters.size() > 0;
+
+        List<DateTimeFormatter> dateTimeFormatters = new ArrayList<>(formatters.size());
+        List<DateTimeFormatter> roundUpFormatters = new ArrayList<>(formatters.size());
+
+        DateTimeFormatter printer = null;
+        for (DateFormatter formatter : formatters) {
+            assert formatter instanceof JavaDateFormatter;
+            JavaDateFormatter javaDateFormatter = (JavaDateFormatter) formatter;
+            if (printer == null) {
+                printer = javaDateFormatter.getPrinter();
+            }
+            dateTimeFormatters.addAll(javaDateFormatter.getParsers());
+            roundUpFormatters.addAll(javaDateFormatter.getRoundupParser().getParsers());
+        }
+
+         this.format = pattern;
+         this.printer = printer;
+         this.roundupParser = roundUpFormatters!=null ? new RoundUpFormatter(format,  roundUpFormatters ) : null;
+         this.parsers = dateTimeFormatters;
+    }
+
+    // zone & locale and roundup
+     JavaDateFormatter(String format, DateTimeFormatter printer, List<DateTimeFormatter> roundUpParsers, List<DateTimeFormatter> parsers) {
         this.format = format;
         this.printer = printer;
-        this.roundupParser = roundupParser;
+        this.roundupParser = roundUpParsers!=null ? new RoundUpFormatter(format,  roundUpParsers ) : null;
         this.parsers = parsers;
     }
-    JavaDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter... parsers) {
-        this(format, printer, builder -> ROUND_UP_BASE_FIELDS.forEach(builder::parseDefaulting), parsers);
-    }
-
-    JavaDateFormatter(String format, DateTimeFormatter printer, Consumer<DateTimeFormatterBuilder> roundupParserConsumer,
+    // subclasses
+    JavaDateFormatter(String format,
+                      DateTimeFormatter printer,
+                      Consumer<DateTimeFormatterBuilder> roundupParserConsumer,
+                      List<DateTimeFormatter> roundUpParsers,
                       DateTimeFormatter... parsers) {
         if (printer == null) {
             throw new IllegalArgumentException("printer may not be null");
@@ -91,19 +140,23 @@ class JavaDateFormatter implements DateFormatter {
             this.parsers = Arrays.asList(parsers);
         }
 
-        DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();
-        if (format.contains("||") == false) {
-            builder.append(this.parsers.get(0));
-        }
-        roundupParserConsumer.accept(builder);
-        DateTimeFormatter roundupFormatter = builder.toFormatter(locale());
-        if (printer.getZone() != null) {
-            roundupFormatter = roundupFormatter.withZone(zone());
-        }
-        this.roundupParser = roundupFormatter;
+        List<DateTimeFormatter> roundUp = createRoundUpParsers(format,roundupParserConsumer, roundUpParsers);
+        this.roundupParser = new RoundUpFormatter(format, roundUp) ;
     }
 
-    DateTimeFormatter getRoundupParser() {
+    private List<DateTimeFormatter> createRoundUpParsers(String format,
+                                                         Consumer<DateTimeFormatterBuilder> roundupParserConsumer,
+                                                         List<DateTimeFormatter> roundUpParsers) {
+        if (format.contains("||") == false) {
+            DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();
+            builder.append(this.parsers.get(0));
+            roundupParserConsumer.accept(builder);
+            return Arrays.asList(builder.toFormatter(locale()));
+        }
+        return roundUpParsers;
+    }
+
+    JavaDateFormatter getRoundupParser() {
         return roundupParser;
     }
 
@@ -162,8 +215,12 @@ class JavaDateFormatter implements DateFormatter {
         if (zoneId.equals(zone())) {
             return this;
         }
-        return new JavaDateFormatter(format, printer.withZone(zoneId), getRoundupParser().withZone(zoneId),
-            parsers.stream().map(p -> p.withZone(zoneId)).collect(Collectors.toList()));
+        List<DateTimeFormatter> parsers = this.parsers.stream().map(p -> p.withZone(zoneId)).collect(Collectors.toList());
+        List<DateTimeFormatter> roundUpParsers = this.roundupParser.getParsers()
+                                                                   .stream()
+                                                                   .map(p -> p.withZone(zoneId))
+                                                                   .collect(Collectors.toList());
+        return new JavaDateFormatter(format, printer.withZone(zoneId), roundUpParsers, parsers);
     }
 
     @Override
@@ -172,8 +229,12 @@ class JavaDateFormatter implements DateFormatter {
         if (locale.equals(locale())) {
             return this;
         }
-        return new JavaDateFormatter(format, printer.withLocale(locale), getRoundupParser().withLocale(locale),
-            parsers.stream().map(p -> p.withLocale(locale)).collect(Collectors.toList()));
+        List<DateTimeFormatter> parsers = this.parsers.stream().map(p -> p.withLocale(locale)).collect(Collectors.toList());
+        List<DateTimeFormatter> roundUpParsers = this.roundupParser.getParsers()
+                                                                   .stream()
+                                                                   .map(p -> p.withLocale(locale))
+                                                                   .collect(Collectors.toList());
+        return new JavaDateFormatter(format, printer.withLocale(locale), roundUpParsers, parsers);
     }
 
     @Override
@@ -198,7 +259,7 @@ class JavaDateFormatter implements DateFormatter {
 
     @Override
     public DateMathParser toDateMathParser() {
-        return new JavaDateMathParser(format, this, getRoundupParser());
+        return new JavaDateMathParser(format, this, roundupParser);
     }
 
     @Override

@@ -251,3 +251,26 @@ setup:
   - do:
       data_frame.delete_data_frame_transform:
         transform_id: "mixed-simple-continuous-transform"
+
+---
+"Test index mappings for latest internal index":
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "upgraded-simple-transform"
+        defer_validation: true
+        body: >
+          {
+            "source": { "index": "dataframe-transform-airline-data" },
+            "dest": { "index": "upgraded-simple-transform-idx" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_mapping:
+        index: .data-frame-internal-2
+  - match: { \.data-frame-internal-2.mappings.dynamic: "false" }
+  - match: { \.data-frame-internal-2.mappings.properties.id.type: "keyword" }

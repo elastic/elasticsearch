@@ -57,8 +57,9 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             .endObject().endObject());
         indexService.mapperService().merge("type",
                 new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
-        QueryRewriteContext context = new QueryShardContext(0, indexService.getIndexSettings(), null, null, null,
-                indexService.mapperService(), null, null, xContentRegistry(), writableRegistry(), null, null, null, null);
+        QueryRewriteContext context = new QueryShardContext(0, indexService.getIndexSettings(), BigArrays.NON_RECYCLING_INSTANCE,
+            null, null, indexService.mapperService(), null, null,
+                xContentRegistry(), writableRegistry(), null, null, null, null);
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         // can't make assumptions on a missing reader, so it must return INTERSECT
         assertEquals(Relation.INTERSECTS, range.getRelation(context));

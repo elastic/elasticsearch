@@ -43,7 +43,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         return set;
     }
 
-    private static <T> SortedSet<T> set(T... values) {
+    private static SortedSet<String> set(String... values) {
         return new TreeSet<>(Arrays.asList(values));
     }
 
@@ -114,6 +114,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
             XContentType.JSON));
 
         assertFieldNames(set("field"), doc);
+        assertWarnings(FieldNamesFieldMapper.TypeParser.ENABLED_DEPRECATION_MESSAGE.replace("{}", "test"));
     }
 
     public void testDisabled() throws Exception {
@@ -133,6 +134,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
             XContentType.JSON));
 
         assertNull(doc.rootDoc().get("_field_names"));
+        assertWarnings(FieldNamesFieldMapper.TypeParser.ENABLED_DEPRECATION_MESSAGE.replace("{}", "test"));
     }
 
     public void testMergingMappings() throws Exception {
@@ -152,5 +154,6 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
 
         mapperEnabled = mapperService.merge("type", new CompressedXContent(enabledMapping), MapperService.MergeReason.MAPPING_UPDATE);
         assertTrue(mapperEnabled.metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
+        assertWarnings(FieldNamesFieldMapper.TypeParser.ENABLED_DEPRECATION_MESSAGE.replace("{}", "test"));
     }
 }

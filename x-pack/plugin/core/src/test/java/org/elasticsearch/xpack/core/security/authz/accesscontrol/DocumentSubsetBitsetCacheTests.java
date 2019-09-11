@@ -241,7 +241,6 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 final QueryShardContext context = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
                     null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
                         client, new IndexSearcher(directoryReader), () -> nowInMillis, null);
-
                 body.accept(context, leaf);
             }
         }

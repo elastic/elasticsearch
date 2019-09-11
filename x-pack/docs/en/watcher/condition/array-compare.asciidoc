@@ -1,3 +1,4 @@
+[role="xpack"]
 [[condition-array-compare]]
 === Array Compare Condition
 

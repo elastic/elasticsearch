@@ -1,3 +1,4 @@
+[role="xpack"]
 [[actions-index]]
 === Index Action
 

@@ -82,7 +82,7 @@ POST my_index/_analyze
 // the test framework doesn't like the $1 so we just throw it away rather than
 // try to get it to work properly. At least we are still testing the charfilter.
 
-The above example produces the following term:
+The above example produces the following terms:
 
 [source,text]
 ---------------------------

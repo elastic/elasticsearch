@@ -86,6 +86,10 @@ if (buildCacheUrl) {
             .getData();
     gradle.settingsEvaluated { settings ->
         settings.buildCache {
+            local {
+                // Disable the local build cache in CI since we use ephemeral workers and it incurs an IO penalty
+                enabled = false
+            }
             remote(HttpBuildCache) {
                 url = buildCacheUrl
                 push = buildCachePush

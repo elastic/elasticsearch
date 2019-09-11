@@ -23,6 +23,7 @@ import static org.elasticsearch.xpack.sql.type.DataType.DATE;
 import static org.elasticsearch.xpack.sql.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.sql.type.DataType.LONG;
 import static org.elasticsearch.xpack.sql.type.DataType.NULL;
+import static org.elasticsearch.xpack.sql.type.DataType.TEXT;
 import static org.elasticsearch.xpack.sql.type.DataType.TIME;
 
 /**
@@ -49,6 +50,12 @@ public abstract class DataTypeConversion {
         }
         if (DataTypes.isNull(right)) {
             return left;
+        }
+        if (left.isString() && right.isString()) {
+            if (left == TEXT) {
+                return TEXT;
+            }
+            return right;
         }
         if (left.isNumeric() && right.isNumeric()) {
             // if one is int

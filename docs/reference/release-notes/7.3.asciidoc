@@ -10,7 +10,7 @@ Also see <<breaking-changes-7.3,Breaking changes in 7.3>>.
 === Bug fixes
 
 Data Frame::
-* [ML-DataFrame] Fix off-by-one error in checkpoint operations_behind {pull}46235[#46235]
+* Fix off-by-one error in checkpoint operations_behind {pull}46235[#46235]
 
 Distributed::
 * Update translog checkpoint after marking operations as persisted {pull}45634[#45634] (issue: {issue}29161[#29161])
@@ -21,6 +21,9 @@ Engine::
 
 Infra/Scripting::
 * Fix bugs in Painless SCatch node {pull}45880[#45880]
+
+Machine learning::
+* Throw an error when a datafeed needs {ccs} but it is not enabled for the node {pull}46044[#46044]
 
 SQL::
 * SQL: Fix issue with IIF function when condition folds {pull}46290[#46290] (issue: {issue}46268[#46268])

@@ -216,6 +216,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.NativeNormalizerProcess
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
+import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.NativeControllerHolder;
@@ -470,6 +471,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         }
 
         AnomalyDetectionAuditor anomalyDetectionAuditor = new AnomalyDetectionAuditor(client, clusterService.getNodeName());
+        DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor = new DataFrameAnalyticsAuditor(client, clusterService.getNodeName());
         JobResultsProvider jobResultsProvider = new JobResultsProvider(client, settings);
         JobResultsPersister jobResultsPersister = new JobResultsPersister(client);
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client);
@@ -592,6 +594,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 jobDataCountsPersister,
                 datafeedManager,
                 anomalyDetectionAuditor,
+                dataFrameAnalyticsAuditor,
                 new MlAssignmentNotifier(settings, anomalyDetectionAuditor, threadPool, client, clusterService),
                 memoryTracker,
                 analyticsProcessManager,
@@ -906,8 +909,12 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
     public static boolean allTemplatesInstalled(ClusterState clusterState) {
         boolean allPresent = true;
-        List<String> templateNames = Arrays.asList(AuditorField.NOTIFICATIONS_INDEX, MlMetaIndex.INDEX_NAME,
-                AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX, AnomalyDetectorsIndex.jobResultsIndexPrefix());
+        List<String> templateNames =
+            Arrays.asList(
+                AuditorField.NOTIFICATIONS_INDEX,
+                MlMetaIndex.INDEX_NAME,
+                AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
+                AnomalyDetectorsIndex.jobResultsIndexPrefix());
         for (String templateName : templateNames) {
             allPresent = allPresent && TemplateUtils.checkTemplateExistsAndVersionIsGTECurrentVersion(templateName, clusterState);
         }

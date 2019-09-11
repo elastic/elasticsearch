@@ -3,6 +3,7 @@
 :request: GetDataFrameAnalyticsStatsRequest
 :response: GetDataFrameAnalyticsStatsResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Get Data Frame Analytics Stats API
 

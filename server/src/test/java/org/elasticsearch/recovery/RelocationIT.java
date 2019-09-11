@@ -78,7 +78,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
@@ -446,7 +445,7 @@ public class RelocationIT extends ESIntegTestCase {
         }
     }
 
-    public void testIndexAndRelocateConcurrently() throws ExecutionException, InterruptedException {
+    public void testIndexAndRelocateConcurrently() throws Exception {
         int halfNodes = randomIntBetween(1, 3);
         Settings[] nodeSettings = Stream.concat(
             Stream.generate(() -> Settings.builder().put("node.attr.color", "blue").build()).limit(halfNodes),
@@ -494,7 +493,7 @@ public class RelocationIT extends ESIntegTestCase {
         numDocs *= 2;
 
         logger.info(" --> waiting for relocation to complete");
-        ensureGreen("test"); // move all shards to the new nodes (it waits on relocation)
+        ensureGreen(TimeValue.timeValueSeconds(60), "test"); // move all shards to the new nodes (it waits on relocation)
 
         final int numIters = randomIntBetween(10, 20);
         for (int i = 0; i < numIters; i++) {

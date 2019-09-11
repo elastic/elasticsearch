@@ -74,10 +74,10 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
         boolean storeTaskResult = request.getWaitForCompletion() == false;
         ReindexJob job = new ReindexJob(storeTaskResult, threadPool.getThreadContext().getHeaders());
 
-        ReindexTaskIndexState reindexState = new ReindexTaskIndexState(request.getReindexRequest());
+        ReindexTaskStateDoc reindexState = new ReindexTaskStateDoc(request.getReindexRequest());
         reindexIndexClient.createReindexTaskDoc(generatedId, reindexState, new ActionListener<>() {
             @Override
-            public void onResponse(Void v) {
+            public void onResponse(ReindexTaskState taskState) {
                 // TODO: Task name
                 persistentTasksService.sendStartRequest(generatedId, ReindexTask.NAME, job, new ActionListener<>() {
                     @Override
@@ -120,7 +120,8 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
                     } else {
                         reindexIndexClient.getReindexTaskDoc(taskId, new ActionListener<>() {
                             @Override
-                            public void onResponse(ReindexTaskIndexState reindexState) {
+                            public void onResponse(ReindexTaskState taskState) {
+                                ReindexTaskStateDoc reindexState = taskState.getStateDoc();
                                 if (reindexState.getException() == null) {
                                     listener.onResponse(new StartReindexJobAction.Response(taskId, reindexState.getReindexResponse()));
                                 } else {

@@ -604,6 +604,10 @@ public abstract class ScrollableHitSource {
             return builder.endObject();
         }
 
+        long getRestartFromValue() {
+            return restartFromValue;
+        }
+
         public static Checkpoint fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
         }

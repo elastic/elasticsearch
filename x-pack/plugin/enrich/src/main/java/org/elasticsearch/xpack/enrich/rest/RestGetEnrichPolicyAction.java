@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.enrich.rest;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -28,7 +29,8 @@ public class RestGetEnrichPolicyAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) throws IOException {
-        final GetEnrichPolicyAction.Request request = new GetEnrichPolicyAction.Request(restRequest.param("name"));
+        String[] names = Strings.splitStringByCommaToArray(restRequest.param("name"));
+        final GetEnrichPolicyAction.Request request = new GetEnrichPolicyAction.Request(names);
         return channel -> client.execute(GetEnrichPolicyAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

@@ -131,7 +131,7 @@ POST _ml/anomaly_detectors/total-requests/_update
 When the {anomaly-job} is updated, you receive a summary of the job
 configuration information, including the updated property values. For example:
 
-[source,js]
+[source,console-result]
 ----
 {
   "job_id": "total-requests",

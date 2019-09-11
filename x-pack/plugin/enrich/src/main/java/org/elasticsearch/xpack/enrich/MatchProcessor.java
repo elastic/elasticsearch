@@ -18,12 +18,12 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorProxyAction;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-public final class ExactMatchProcessor extends AbstractEnrichProcessor {
-
-    static final String ENRICH_KEY_FIELD_NAME = "enrich_key_field";
+public final class MatchProcessor extends AbstractEnrichProcessor {
 
     private final BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner;
     private final String field;
@@ -31,34 +31,39 @@ public final class ExactMatchProcessor extends AbstractEnrichProcessor {
     private final String matchField;
     private final boolean ignoreMissing;
     private final boolean overrideEnabled;
+    private final int maxMatches;
 
-    ExactMatchProcessor(String tag,
-                        Client client,
-                        String policyName,
-                        String field,
-                        String targetField,
-                        String matchField,
-                        boolean ignoreMissing,
-                        boolean overrideEnabled) {
+    MatchProcessor(String tag,
+                   Client client,
+                   String policyName,
+                   String field,
+                   String targetField,
+                   String matchField,
+                   boolean ignoreMissing,
+                   boolean overrideEnabled,
+                   int maxMatches) {
         this(
             tag,
             createSearchRunner(client),
             policyName,
             field,
             targetField,
-            matchField, ignoreMissing,
-            overrideEnabled
+            matchField,
+            ignoreMissing,
+            overrideEnabled,
+            maxMatches
         );
     }
 
-    ExactMatchProcessor(String tag,
-                        BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner,
-                        String policyName,
-                        String field,
-                        String targetField,
-                        String matchField,
-                        boolean ignoreMissing,
-                        boolean overrideEnabled) {
+    MatchProcessor(String tag,
+                   BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner,
+                   String policyName,
+                   String field,
+                   String targetField,
+                   String matchField,
+                   boolean ignoreMissing,
+                   boolean overrideEnabled,
+                   int maxMatches) {
         super(tag, policyName);
         this.searchRunner = searchRunner;
         this.field = field;
@@ -66,6 +71,7 @@ public final class ExactMatchProcessor extends AbstractEnrichProcessor {
         this.matchField = matchField;
         this.ignoreMissing = ignoreMissing;
         this.overrideEnabled = overrideEnabled;
+        this.maxMatches = maxMatches;
     }
 
     @Override
@@ -82,7 +88,7 @@ public final class ExactMatchProcessor extends AbstractEnrichProcessor {
             ConstantScoreQueryBuilder constantScore = new ConstantScoreQueryBuilder(termQuery);
             SearchSourceBuilder searchBuilder = new SearchSourceBuilder();
             searchBuilder.from(0);
-            searchBuilder.size(1);
+            searchBuilder.size(maxMatches);
             searchBuilder.trackScores(false);
             searchBuilder.fetchSource(true);
             searchBuilder.query(constantScore);
@@ -105,16 +111,15 @@ public final class ExactMatchProcessor extends AbstractEnrichProcessor {
                 if (searchHits.length < 1) {
                     handler.accept(ingestDocument, null);
                     return;
-                } else if (searchHits.length > 1) {
-                    handler.accept(null, new IllegalStateException("more than one doc id matching for [" + matchField + "]"));
-                    return;
                 }
 
-                // If a document is returned, add its fields to the document
-                Map<String, Object> enrichDocument = searchHits[0].getSourceAsMap();
-                assert enrichDocument != null : "enrich document for id [" + field + "] was empty despite non-zero search hits length";
                 if (overrideEnabled || ingestDocument.hasField(targetField) == false) {
-                    ingestDocument.setFieldValue(targetField, enrichDocument);
+                    List<Map<String, Object>> enrichDocuments = new ArrayList<>(searchHits.length);
+                    for (SearchHit searchHit : searchHits) {
+                        Map<String, Object> enrichDocument = searchHit.getSourceAsMap();
+                        enrichDocuments.add(enrichDocument);
+                    }
+                    ingestDocument.setFieldValue(targetField, enrichDocuments);
                 }
                 handler.accept(ingestDocument, null);
             });
@@ -151,6 +156,10 @@ public final class ExactMatchProcessor extends AbstractEnrichProcessor {
 
     boolean isOverrideEnabled() {
         return overrideEnabled;
+    }
+
+    int getMaxMatches() {
+        return maxMatches;
     }
 
     private static BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> createSearchRunner(Client client) {

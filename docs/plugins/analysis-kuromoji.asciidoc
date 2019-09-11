@@ -191,7 +191,7 @@ GET kuromoji_sample/_analyze
 
 The above `analyze` request returns the following:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "tokens" : [ {
@@ -209,7 +209,7 @@ The above `analyze` request returns the following:
   } ]
 }
 --------------------------------------------------
-// TESTRESPONSE
+
 
 [[analysis-kuromoji-baseform]]
 ==== `kuromoji_baseform` token filter
@@ -247,7 +247,7 @@ GET kuromoji_sample/_analyze
 
 which responds with:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "tokens" : [ {
@@ -259,7 +259,7 @@ which responds with:
   } ]
 }
 --------------------------------------------------
-// TESTRESPONSE
+
 
 [[analysis-kuromoji-speech]]
 ==== `kuromoji_part_of_speech` token filter
@@ -313,7 +313,7 @@ GET kuromoji_sample/_analyze
 
 Which responds with:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "tokens" : [ {
@@ -331,7 +331,7 @@ Which responds with:
   } ]
 }
 --------------------------------------------------
-// TESTRESPONSE
+
 
 [[analysis-kuromoji-readingform]]
 ==== `kuromoji_readingform` token filter
@@ -504,7 +504,7 @@ GET kuromoji_sample/_analyze
 
 The above request returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "tokens" : [ {
@@ -516,7 +516,7 @@ The above request returns:
   } ]
 }
 --------------------------------------------------
-// TESTRESPONSE
+
 
 [[analysis-kuromoji-number]]
 ==== `kuromoji_number` token filter
@@ -554,7 +554,7 @@ GET kuromoji_sample/_analyze
 
 Which results in:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "tokens" : [ {
@@ -566,4 +566,3 @@ Which results in:
   } ]
 }
 --------------------------------------------------
-// TESTRESPONSE

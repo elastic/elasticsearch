@@ -70,7 +70,7 @@ GET index/_search
 // CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 2,
@@ -131,7 +131,7 @@ GET index/_search
 // CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 1,
@@ -191,7 +191,7 @@ GET index/_search
 // CONSOLE
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 2,

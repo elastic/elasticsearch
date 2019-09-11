@@ -18,7 +18,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -56,7 +55,7 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters, Coordinator coordinator) {
-            super(NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
+            super(NAME, transportService, actionFilters, SearchRequest::new);
             this.coordinator = coordinator;
         }
 

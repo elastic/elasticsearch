@@ -121,7 +121,7 @@ GET /_slm/policy/daily-snapshots?human
 
 The output looks similar to the following:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "daily-snapshots" : {
@@ -183,7 +183,7 @@ PUT /_slm/policy/daily-snapshots/_execute
 
 This API will immediately return with the generated snapshot name
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "snapshot_name": "daily-snap-2019.04.24-gwrqoo2xtea3q57vvg0uea"
@@ -206,7 +206,7 @@ GET /_slm/policy/daily-snapshots?human
 
 Which, in this case shows an error because the index did not exist:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "daily-snapshots" : {
@@ -235,6 +235,7 @@ Which, in this case shows an error because the index did not exist:
 }
 --------------------------------------------------
 // TESTRESPONSE[skip:the presence of last_failure is asynchronous and will be present for users, but is untestable]
+
 <1> The last unsuccessfully initiated snapshot by this policy, along with the details of its failure
 
 In this case, it failed due to the "important" index not existing and
@@ -269,7 +270,7 @@ PUT /_slm/policy/daily-snapshots/_execute
 // CONSOLE
 // TEST[skip:we can't handle snapshots in docs tests]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "snapshot_name": "daily-snap-2019.04.24-tmtnyjtrsxkhbrrdcgg18a"
@@ -289,7 +290,7 @@ GET /_slm/policy/daily-snapshots?human
 
 Which now includes the successful snapshot information:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "daily-snapshots" : {
@@ -323,6 +324,7 @@ Which now includes the successful snapshot information:
 }
 --------------------------------------------------
 // TESTRESPONSE[skip:the presence of last_failure and last_success is asynchronous and will be present for users, but is untestable]
+
 <1> The policy's version has been incremented because it was updated
 <2> The last successfully initiated snapshot information
 

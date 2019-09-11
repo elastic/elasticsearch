@@ -114,7 +114,7 @@ GET /_snapshot/my_backup
 
 which returns:
 
-[source,js]
+[source,console-result]
 -----------------------------------
 {
   "my_backup": {
@@ -125,7 +125,6 @@ which returns:
   }
 }
 -----------------------------------
-// TESTRESPONSE
 
 To retrieve information about multiple repositories, specify a comma-delimited
 list of repositories. You can also use the * wildcard when
@@ -349,7 +348,7 @@ POST /_snapshot/my_repository/_cleanup
 
 The response to a cleanup request looks as follows:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "results": {
@@ -358,7 +357,6 @@ The response to a cleanup request looks as follows:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 Depending on the concrete repository implementation the numbers shown for bytes free as well as the number of blobs removed will either
 be an approximation or an exact result. Any non-zero value for the number of blobs removed implies that unreferenced blobs were found and
@@ -704,7 +702,7 @@ GET /_snapshot/my_backup/snapshot_1/_status
 
 The output looks similar to the following:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "snapshots": [
@@ -742,7 +740,6 @@ The output looks similar to the following:
   ]
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 The output is composed of different sections. The `stats` sub-object provides details on the number and size of files that were
 snapshotted. As snapshots are incremental, copying only the Lucene segments that are not already in the repository,

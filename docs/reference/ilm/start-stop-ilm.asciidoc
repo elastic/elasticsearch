@@ -61,14 +61,12 @@ GET _ilm/status
 
 If the request does not encounter errors, you receive the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "operation_mode": "RUNNING"
 }
 --------------------------------------------------
-// CONSOLE
-// TESTRESPONSE
 
 The operating modes of ILM:
 
@@ -107,14 +105,12 @@ GET _ilm/status
 // TEST[continued]
 ////
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "operation_mode": "STOPPING"
 }
 --------------------------------------------------
-// CONSOLE
-// TESTRESPONSE
 
 The ILM service will then, asynchronously, run all policies to a point
 where it is safe to stop. After ILM verifies that it is safe, it will
@@ -131,14 +127,12 @@ GET _ilm/status
 // TEST[continued]
 ////
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "operation_mode": "STOPPED"
 }
 --------------------------------------------------
-// CONSOLE
-// TESTRESPONSE
 
 [float]
 === Starting ILM
@@ -165,11 +159,9 @@ GET _ilm/status
 The Start API will send a request to the ILM service to immediately begin
 normal operations.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "operation_mode": "RUNNING"
 }
 --------------------------------------------------
-// CONSOLE
-// TESTRESPONSE

@@ -110,7 +110,7 @@ GET _ilm/status
 }
 --------------------------------------------------
 // CONSOLE
-// TESTRESPONSE
+// TESTRESPONSE[s/"STOPPING"/$body.operation_mode/]
 
 The ILM service will then, asynchronously, run all policies to a point
 where it is safe to stop. After ILM verifies that it is safe, it will
@@ -134,7 +134,7 @@ GET _ilm/status
 }
 --------------------------------------------------
 // CONSOLE
-// TESTRESPONSE
+// TESTRESPONSE[s/"STOPPED"/$body.operation_mode/]
 
 [float]
 === Starting ILM

@@ -1,0 +1,52 @@
+[role="xpack"]
+[testenv="basic"]
+[[enrich-stats-api]]
+=== Enrich stats API
+++++
+<titleabbrev>Enrich stats API</titleabbrev>
+++++
+
+Returns enrich coordinator stats and information about currently executing enrich policies.
+
+[source,js]
+--------------------------------------------------
+GET /_enrich/_stats
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+The API returns the following response:
+
+[source,js]
+--------------------------------------------------
+{
+    "executing_policies": [],
+    "coordinator_stats": [
+        {
+            "node_id": "1sFM8cmSROZYhPxVsiWew",
+            "queue_size": 0,
+            "remote_requests_current": 0,
+            "remote_requests_total": 0,
+            "executed_searches_total": 0
+        }
+    ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"node_id": "1sFM8cmSROZYhPxVsiWew"/"node_id" : $body.coordinator_stats.0.node_id/]
+// TESTRESPONSE[s/"remote_requests_total": 0/"remote_requests_total" : $body.coordinator_stats.0.remote_requests_total/]
+// TESTRESPONSE[s/"executed_searches_total": 0/"executed_searches_total" : $body.coordinator_stats.0.executed_searches_total/]
+
+The top level `executing_policies` field includes an object for each policy that is currently executing.
+Each object contains the following fields:
+* `name` - The name of policy that is executing
+* `task` - A full blow task info object that is executing the policy.
+
+The top level `coordinator_stats` field includes an object for each ingest node with information about the coordinator.
+Each object contains the following fields:
+* `node_id`                     - The id of the ingest node that is coordinating search requests for configured `enrich` processors.
+* `queue_size`                  - The current number of search requests in the queue.
+* `remote_requests_current`     - The number of current outstanding remote requests.
+* `remote_requests_total`       - The total number of outstanding remote requests that have been executed since node startup.
+                                  Each remote request is likely to include multiple search requests. This depends on how much
+                                  search requests are in the queue at the time when the remote request is performed.
+* `executed_searches_total`     - The total number of search requests that `enrich` processors have executed since node startup.

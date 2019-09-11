@@ -36,16 +36,20 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
+import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorProxyAction;
+import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorStatsAction;
 import org.elasticsearch.xpack.enrich.action.EnrichShardMultiSearchAction;
 import org.elasticsearch.xpack.enrich.action.TransportDeleteEnrichPolicyAction;
+import org.elasticsearch.xpack.enrich.action.TransportEnrichStatsAction;
 import org.elasticsearch.xpack.enrich.action.TransportExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.action.TransportGetEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.action.TransportPutEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.rest.RestDeleteEnrichPolicyAction;
+import org.elasticsearch.xpack.enrich.rest.RestEnrichStatsAction;
 import org.elasticsearch.xpack.enrich.rest.RestExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.rest.RestGetEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.rest.RestPutEnrichPolicyAction;
@@ -117,8 +121,10 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
             new ActionHandler<>(DeleteEnrichPolicyAction.INSTANCE, TransportDeleteEnrichPolicyAction.class),
             new ActionHandler<>(PutEnrichPolicyAction.INSTANCE, TransportPutEnrichPolicyAction.class),
             new ActionHandler<>(ExecuteEnrichPolicyAction.INSTANCE, TransportExecuteEnrichPolicyAction.class),
+            new ActionHandler<>(EnrichStatsAction.INSTANCE, TransportEnrichStatsAction.class),
             new ActionHandler<>(EnrichCoordinatorProxyAction.INSTANCE, EnrichCoordinatorProxyAction.TransportAction.class),
-            new ActionHandler<>(EnrichShardMultiSearchAction.INSTANCE, EnrichShardMultiSearchAction.TransportAction.class)
+            new ActionHandler<>(EnrichShardMultiSearchAction.INSTANCE, EnrichShardMultiSearchAction.TransportAction.class),
+            new ActionHandler<>(EnrichCoordinatorStatsAction.INSTANCE, EnrichCoordinatorStatsAction.TransportAction.class)
         );
     }
 
@@ -134,7 +140,8 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
             new RestGetEnrichPolicyAction(restController),
             new RestDeleteEnrichPolicyAction(restController),
             new RestPutEnrichPolicyAction(restController),
-            new RestExecuteEnrichPolicyAction(restController)
+            new RestExecuteEnrichPolicyAction(restController),
+            new RestEnrichStatsAction(restController)
         );
     }
 

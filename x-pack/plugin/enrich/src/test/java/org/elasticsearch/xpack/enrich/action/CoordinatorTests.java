@@ -68,14 +68,14 @@ public class CoordinatorTests extends ESTestCase {
         // First batch of search requests have been sent off:
         // (However still 5 should remain in the queue)
         assertThat(coordinator.queue.size(), equalTo(5));
-        assertThat(coordinator.numberOfOutstandingRequests.get(), equalTo(1));
+        assertThat(coordinator.remoteRequestsCurrent.get(), equalTo(1));
         assertThat(lookupFunction.capturedRequests.size(), equalTo(1));
         assertThat(lookupFunction.capturedRequests.get(0).requests().size(), equalTo(5));
 
         // Nothing should happen now, because there is an outstanding request and max number of requests has been set to 1:
         coordinator.coordinateLookups();
         assertThat(coordinator.queue.size(), equalTo(5));
-        assertThat(coordinator.numberOfOutstandingRequests.get(), equalTo(1));
+        assertThat(coordinator.remoteRequestsCurrent.get(), equalTo(1));
         assertThat(lookupFunction.capturedRequests.size(), equalTo(1));
 
         SearchResponse emptyResponse = emptySearchResponse();
@@ -86,7 +86,7 @@ public class CoordinatorTests extends ESTestCase {
         }
         lookupFunction.capturedConsumers.get(0).accept(new MultiSearchResponse(responseItems, 1L), null);
         assertThat(coordinator.queue.size(), equalTo(0));
-        assertThat(coordinator.numberOfOutstandingRequests.get(), equalTo(1));
+        assertThat(coordinator.remoteRequestsCurrent.get(), equalTo(1));
         assertThat(lookupFunction.capturedRequests.size(), equalTo(2));
 
         // Replying last response, resulting in an empty queue and no outstanding requests.
@@ -96,7 +96,7 @@ public class CoordinatorTests extends ESTestCase {
         }
         lookupFunction.capturedConsumers.get(1).accept(new MultiSearchResponse(responseItems, 1L), null);
         assertThat(coordinator.queue.size(), equalTo(0));
-        assertThat(coordinator.numberOfOutstandingRequests.get(), equalTo(0));
+        assertThat(coordinator.remoteRequestsCurrent.get(), equalTo(0));
         assertThat(lookupFunction.capturedRequests.size(), equalTo(2));
 
         // All individual action listeners for the search requests should have been invoked:
@@ -129,14 +129,14 @@ public class CoordinatorTests extends ESTestCase {
         // First batch of search requests have been sent off:
         // (However still 5 should remain in the queue)
         assertThat(coordinator.queue.size(), equalTo(0));
-        assertThat(coordinator.numberOfOutstandingRequests.get(), equalTo(1));
+        assertThat(coordinator.remoteRequestsCurrent.get(), equalTo(1));
         assertThat(lookupFunction.capturedRequests.size(), equalTo(1));
         assertThat(lookupFunction.capturedRequests.get(0).requests().size(), equalTo(5));
 
         RuntimeException e = new RuntimeException();
         lookupFunction.capturedConsumers.get(0).accept(null, e);
         assertThat(coordinator.queue.size(), equalTo(0));
-        assertThat(coordinator.numberOfOutstandingRequests.get(), equalTo(0));
+        assertThat(coordinator.remoteRequestsCurrent.get(), equalTo(0));
         assertThat(lookupFunction.capturedRequests.size(), equalTo(1));
 
         // All individual action listeners for the search requests should have been invoked:
@@ -169,7 +169,7 @@ public class CoordinatorTests extends ESTestCase {
         // First batch of search requests have been sent off:
         // (However still 5 should remain in the queue)
         assertThat(coordinator.queue.size(), equalTo(0));
-        assertThat(coordinator.numberOfOutstandingRequests.get(), equalTo(1));
+        assertThat(coordinator.remoteRequestsCurrent.get(), equalTo(1));
         assertThat(lookupFunction.capturedRequests.size(), equalTo(1));
         assertThat(lookupFunction.capturedRequests.get(0).requests().size(), equalTo(5));
 
@@ -181,7 +181,7 @@ public class CoordinatorTests extends ESTestCase {
         }
         lookupFunction.capturedConsumers.get(0).accept(new MultiSearchResponse(responseItems, 1L), null);
         assertThat(coordinator.queue.size(), equalTo(0));
-        assertThat(coordinator.numberOfOutstandingRequests.get(), equalTo(0));
+        assertThat(coordinator.remoteRequestsCurrent.get(), equalTo(0));
         assertThat(lookupFunction.capturedRequests.size(), equalTo(1));
 
         // All individual action listeners for the search requests should have been invoked:

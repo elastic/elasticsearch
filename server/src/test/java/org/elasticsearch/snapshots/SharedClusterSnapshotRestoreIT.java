@@ -2218,8 +2218,13 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
-        // Create index on 1 nodes and make sure each node has a primary by setting no replicas
-        assertAcked(prepareCreate("test-idx", 1, Settings.builder().put("number_of_replicas", 0)));
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        // Create index on two nodes and make sure each node has a primary by setting no replicas
+        assertAcked(prepareCreate("test-idx", 2, Settings.builder()
+            .put(SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(SETTING_NUMBER_OF_SHARDS, 2)));
+
+        ensureGreen("test-idx");
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
@@ -2229,11 +2234,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
 
         logger.info("--> start relocations");
-        allowNodes("test-idx", internalCluster().numDataNodes());
+        allowNodes("test-idx", 1);
 
         logger.info("--> wait for relocations to start");
 
-        waitForRelocationsToStart("test-idx", TimeValue.timeValueMillis(300));
+        assertTrue(waitForRelocationsToStart("test-idx", TimeValue.timeValueMinutes(1)));
 
         logger.info("--> snapshot");
         client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();

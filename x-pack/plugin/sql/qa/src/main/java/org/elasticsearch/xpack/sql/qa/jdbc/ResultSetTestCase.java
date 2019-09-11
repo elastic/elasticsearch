@@ -34,6 +34,7 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
@@ -1166,19 +1167,12 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         Long timeInMillis = 452357952000L;
         index("test", "1", builder -> builder.field("test_date", timeInMillis));
 
-        String timeZoneId1 = "UTC";
-        Calendar c = Calendar.getInstance(TimeZone.getTimeZone(timeZoneId1), Locale.ROOT);
-
-        doWithQueryAndTimezone("SELECT CONVERT(test_date, DATE) AS converted FROM test GROUP BY converted",
-                timeZoneId1, results -> {
+        doWithQueryAndTimezone("SELECT CONVERT(test_date, DATE) AS converted FROM test GROUP BY converted", "UTC", results -> {
             results.next();
-            c.setTimeInMillis(timeInMillis);
-            c.set(HOUR_OF_DAY, 0);
-            c.set(MINUTE, 0);
-            c.set(SECOND, 0);
-            c.set(MILLISECOND, 0);
+            ZonedDateTime zdt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(timeInMillis), ZoneId.of("Z"))
+                    .toLocalDate().atStartOfDay(ZoneId.of("Z"));
 
-            java.sql.Date expectedDate = new java.sql.Date(c.getTimeInMillis());
+            java.sql.Date expectedDate = new java.sql.Date(zdt.toInstant().toEpochMilli());
             assertEquals(expectedDate, results.getDate("converted"));
             assertEquals(expectedDate, results.getObject("converted", java.sql.Date.class));
 
@@ -1186,7 +1180,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertEquals(expectedTime, results.getTime("converted"));
             assertEquals(expectedTime, results.getObject("converted", java.sql.Time.class));
 
-            java.sql.Timestamp expectedTimestamp = new java.sql.Timestamp(c.getTimeInMillis());
+            java.sql.Timestamp expectedTimestamp = new java.sql.Timestamp(zdt.toInstant().toEpochMilli());
             assertEquals(expectedTimestamp, results.getTimestamp("converted"));
             assertEquals(expectedTimestamp, results.getObject("converted", java.sql.Timestamp.class));
         });

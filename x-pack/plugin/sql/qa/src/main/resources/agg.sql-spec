@@ -369,6 +369,12 @@ aggSumWithCastAndCountWithFilterAndLimit
 SELECT gender g, CAST(SUM(emp_no) AS BIGINT) s, COUNT(1) c FROM "test_emp" WHERE emp_no > 10000 GROUP BY g ORDER BY g LIMIT 1;
 aggSumWithAlias
 SELECT gender g, CAST(SUM(emp_no) AS BIGINT) s FROM "test_emp" GROUP BY g ORDER BY gender;
+aggSumWithColumnRepeated
+SELECT gender AS g, gender, SUM(salary) AS s3, SUM(salary), SUM(salary) AS s5 FROM test_emp GROUP BY gender;
+aggSumWithAliasWithColumnRepeated
+SELECT gender AS g, gender, SUM(salary) AS s3, SUM(salary), SUM(salary) AS s5 FROM test_emp GROUP BY g;
+aggSumWithNumericRefWithColumnRepeated
+SELECT gender AS g, gender, SUM(salary) AS s3, SUM(salary), SUM(salary) AS s5 FROM test_emp GROUP BY 2;
 
 // Conditional SUM
 aggSumWithHaving

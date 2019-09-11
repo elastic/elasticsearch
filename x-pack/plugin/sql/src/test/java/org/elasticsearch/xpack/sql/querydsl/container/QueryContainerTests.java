@@ -78,12 +78,11 @@ public class QueryContainerTests extends ESTestCase {
         Attribute first = new FieldAttribute(Source.EMPTY, "first", esField);
         Attribute second = new FieldAttribute(Source.EMPTY, "second", esField);
         Attribute third = new FieldAttribute(Source.EMPTY, "third", esField);
-        Attribute fourth = new FieldAttribute(Source.EMPTY, "third", esField);
+        Attribute fourth = new FieldAttribute(Source.EMPTY, "fourth", esField);
         Alias firstAliased = new Alias(Source.EMPTY, "firstAliased", first);
 
-        Map<Attribute,Attribute> aliasesMap = new LinkedHashMap<>(){{
-                this.put(firstAliased.toAttribute(), first);
-        }};
+        Map<Attribute,Attribute> aliasesMap = new LinkedHashMap<>();
+        aliasesMap.put(firstAliased.toAttribute(), first);
 
         QueryContainer queryContainer = new QueryContainer()
             .withAliases(new AttributeMap<>(aliasesMap))

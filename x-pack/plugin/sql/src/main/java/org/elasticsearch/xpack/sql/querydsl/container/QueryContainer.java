@@ -190,7 +190,7 @@ public class QueryContainer {
                 Tuple<FieldExtraction, ExpressionId> tuple = fields.get(i);
                 // if the index is already set there is a collision,
                 // so continue searching for the other tuple with the same id
-                if ((tuple.v2().equals(id) || (aliasId != null && tuple.v2().equals(aliasId))) && !mask.get(i)) {
+                if (mask.get(i)==false && (tuple.v2().equals(id) || (aliasId != null && tuple.v2().equals(aliasId)))) {
                     index = i;
                     break;
                 }

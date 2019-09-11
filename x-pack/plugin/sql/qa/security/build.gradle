@@ -43,7 +43,7 @@ subprojects {
     user username: "test_admin", password: "x-pack-test-password"
   }
 
-  File testArtifactsDir = project.file('build/testArtifacts')
+  File testArtifactsDir = project.file("$buildDir/testArtifacts")
   TaskProvider copyTestClasses = tasks.register("copyTestClasses", Copy) {
     dependsOn configurations.testArtifacts
     from { zipTree(configurations.testArtifacts.singleFile) }

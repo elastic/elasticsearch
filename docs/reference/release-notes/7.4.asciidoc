@@ -202,7 +202,6 @@ Geo::
 Infra/Core::
 * Add OCI annotations and adjust existing annotations {pull}45167[#45167] (issues: {issue}45162[#45162], {issue}45166[#45166])
 * Use the full hash in build info {pull}45163[#45163] (issue: {issue}45162[#45162])
-* Set start of the week to Monday for root locale {pull}43652[#43652] (issues: {issue}41670[#41670], {issue}42588[#42588], {issue}43275[#43275])
 
 Infra/Packaging::
 * Remove redundant Java check from Sys V init {pull}45793[#45793] (issue: {issue}45593[#45593])
@@ -442,9 +441,6 @@ Network::
 Recovery::
 * Never release store using CancellableThreads {pull}45409[#45409] (issues: {issue}45136[#45136], {issue}45237[#45237])
 * Remove leniency in reset engine from translog {pull}44711[#44711]
-
-Reindex::
-* Fix issues with serializing BulkByScrollResponse {pull}45357[#45357]
 
 Rollup::
 * Fix Rollup job creation to work with templates {pull}43943[#43943]

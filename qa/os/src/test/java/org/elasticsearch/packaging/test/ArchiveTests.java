@@ -185,7 +185,7 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test53JavaHomeWithSpecialCharacters() throws Exception {
         Platforms.onWindows(() -> {
-            final Shell sh = new Shell();
+            final Shell sh = newShell();
             try {
                 // once windows 2012 is no longer supported and powershell 5.0 is always available we can change this command
                 sh.run("cmd /c mklink /D 'C:\\Program Files (x86)\\java' $Env:SYSTEM_JAVA_HOME");
@@ -201,6 +201,9 @@ public class ArchiveTests extends PackagingTestCase {
                 Result result = sh.run(pluginListCommand);
                 assertThat(result.exitCode, equalTo(0));
 
+            } catch (RuntimeException e) {
+                logger.error(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"));
+                throw e;
             } finally {
                 //clean up sym link
                 sh.run("cmd /c rmdir 'C:\\Program Files (x86)\\java' ");
@@ -208,7 +211,7 @@ public class ArchiveTests extends PackagingTestCase {
         });
 
         Platforms.onLinux(() -> {
-            final Shell sh = new Shell();
+            final Shell sh = newShell();
             // Create temporary directory with a space and link to java binary.
             // Use it as java_home
             String testJavaHome = FileUtils.mkdir(Paths.get("/home", ARCHIVE_OWNER, "java home")).toAbsolutePath().toString();

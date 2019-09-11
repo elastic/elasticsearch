@@ -63,6 +63,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
     private final DataFrameTransformsCheckpointService dataFrameTransformsCheckpointService;
     private final SchedulerEngine schedulerEngine;
     private final ThreadPool threadPool;
+    private final ClusterService clusterService;
     private final DataFrameAuditor auditor;
     private volatile int numFailureRetries;
 
@@ -81,6 +82,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         this.schedulerEngine = schedulerEngine;
         this.auditor = auditor;
         this.threadPool = threadPool;
+        this.clusterService = clusterService;
         this.numFailureRetries = DataFrameTransformTask.NUM_FAILURE_RETRIES_SETTING.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(DataFrameTransformTask.NUM_FAILURE_RETRIES_SETTING, this::setNumFailureRetries);
@@ -144,7 +146,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
             failure -> logger.error("Failed to start task ["+ transformId +"] in node operation", failure)
         );
 
-        // <5> load next checkpoint
+        // <7> load next checkpoint
         ActionListener<DataFrameTransformCheckpoint> getTransformNextCheckpointListener = ActionListener.wrap(
                 nextCheckpoint -> {
 
@@ -171,7 +173,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
                 }
         );
 
-        // <4> load last checkpoint
+        // <6> load last checkpoint
         ActionListener<DataFrameTransformCheckpoint> getTransformLastCheckpointListener = ActionListener.wrap(
                 lastCheckpoint -> {
                     indexerBuilder.setLastCheckpoint(lastCheckpoint);
@@ -188,7 +190,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
                 }
         );
 
-        // <3> Set the previous stats (if they exist), initialize the indexer, start the task (If it is STOPPED)
+        // <5> Set the previous stats (if they exist), initialize the indexer, start the task (If it is STOPPED)
         // Since we don't create the task until `_start` is called, if we see that the task state is stopped, attempt to start
         // Schedule execution regardless
         ActionListener<Tuple<DataFrameTransformStoredDoc, SeqNoPrimaryTermAndIndex>> transformStatsActionListener = ActionListener.wrap(
@@ -230,7 +232,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
             }
         );
 
-        // <2> set fieldmappings for the indexer, get the previous stats (if they exist)
+        // <4> set fieldmappings for the indexer, get the previous stats (if they exist)
         ActionListener<Map<String, String>> getFieldMappingsListener = ActionListener.wrap(
             fieldMappings -> {
                 indexerBuilder.setFieldMappings(fieldMappings);
@@ -244,7 +246,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
             }
         );
 
-        // <1> Validate the transform, assigning it to the indexer, and get the field mappings
+        // <3> Validate the transform, assigning it to the indexer, and get the field mappings
         ActionListener<DataFrameTransformConfig> getTransformConfigListener = ActionListener.wrap(
             config -> {
                 if (config.isValid()) {
@@ -261,8 +263,19 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
                 markAsFailed(buildTask, msg);
             }
         );
-        // <0> Get the transform config
-        transformsConfigManager.getTransformConfiguration(transformId, getTransformConfigListener);
+
+        // <2> Get the transform config
+        ActionListener<Void> templateCheckListener = ActionListener.wrap(
+            aVoid -> transformsConfigManager.getTransformConfiguration(transformId, getTransformConfigListener),
+            error -> {
+                String msg = "Failed to create internal index mappings";
+                logger.error(msg, error);
+                markAsFailed(buildTask, msg);
+            }
+        );
+
+        // <1> Check the internal index template is installed
+        DataFrameInternalIndex.installLatestVersionedIndexTemplateIfRequired(clusterService, client, templateCheckListener);
     }
 
     private static IndexerState currentIndexerState(DataFrameTransformState previousState) {

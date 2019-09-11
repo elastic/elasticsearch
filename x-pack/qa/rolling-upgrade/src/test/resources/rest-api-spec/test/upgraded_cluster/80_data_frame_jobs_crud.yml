@@ -271,6 +271,5 @@ setup:
   - do:
       indices.get_mapping:
         index: .data-frame-internal-2
-  - is_true: \.data-frame-internal-2.mappings._doc
-  - match: { \.data-frame-internal-2.mappings._doc.dynamic: false }
-  - match: { \.data-frame-internal-2.mappings._doc.properties.id.type: "keyword" }
+  - match: { \.data-frame-internal-2.mappings.dynamic: false }
+  - match: { \.data-frame-internal-2.mappings.properties.id.type: "keyword" }

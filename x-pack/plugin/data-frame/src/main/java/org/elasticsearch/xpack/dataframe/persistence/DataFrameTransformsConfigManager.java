@@ -23,7 +23,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -94,12 +93,10 @@ public class DataFrameTransformsConfigManager {
 
     public static final Map<String, String> TO_XCONTENT_PARAMS = Collections.singletonMap(DataFrameField.FOR_INTERNAL_STORAGE, "true");
 
-    private final ClusterService clusterService;
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
 
-    public DataFrameTransformsConfigManager(ClusterService clusterService, Client client, NamedXContentRegistry xContentRegistry) {
-        this.clusterService = clusterService;
+    public DataFrameTransformsConfigManager(Client client, NamedXContentRegistry xContentRegistry) {
         this.client = client;
         this.xContentRegistry = xContentRegistry;
     }
@@ -111,29 +108,22 @@ public class DataFrameTransformsConfigManager {
      * @param listener listener to call after request has been made
      */
     public void putTransformCheckpoint(DataFrameTransformCheckpoint checkpoint, ActionListener<Boolean> listener) {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            XContentBuilder source = checkpoint.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
 
-        ActionListener<Void> templateCheckListener = ActionListener.wrap(
-            aVoid -> {
-                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                    XContentBuilder source = checkpoint.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
+            IndexRequest indexRequest = new IndexRequest(DataFrameInternalIndex.LATEST_INDEX_NAME)
+                    .opType(DocWriteRequest.OpType.INDEX)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .id(DataFrameTransformCheckpoint.documentId(checkpoint.getTransformId(), checkpoint.getCheckpoint()))
+                    .source(source);
 
-                    IndexRequest indexRequest = new IndexRequest(DataFrameInternalIndex.LATEST_INDEX_NAME)
-                        .opType(DocWriteRequest.OpType.INDEX)
-                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                        .id(DataFrameTransformCheckpoint.documentId(checkpoint.getTransformId(), checkpoint.getCheckpoint()))
-                        .source(source);
-
-                    executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(r -> {
-                        listener.onResponse(true);
-                    }, listener::onFailure));
-                } catch (IOException e) {
-                    // not expected to happen but for the sake of completeness
-                    listener.onFailure(e);
-                }
-            },
-            listener::onFailure);
-
-        DataFrameInternalIndex.installLatestVersionedIndexTemplateIfRequired(clusterService, client, templateCheckListener);
+            executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(r -> {
+                listener.onResponse(true);
+            }, listener::onFailure));
+        } catch (IOException e) {
+            // not expected to happen but for the sake of completeness
+            listener.onFailure(e);
+        }
     }
 
     /**
@@ -166,10 +156,7 @@ public class DataFrameTransformsConfigManager {
         } else {
             // create the config in the current version of the index assuming there is no existing one
             // this leaves a dup behind in the old index, see dup handling on the top
-            ActionListener<Void> templateCheckListener = ActionListener.wrap(
-                aVoid -> putTransformConfiguration(transformConfig, DocWriteRequest.OpType.CREATE, null, listener),
-                listener::onFailure);
-            DataFrameInternalIndex.installLatestVersionedIndexTemplateIfRequired(clusterService, client, templateCheckListener);
+            putTransformConfiguration(transformConfig, DocWriteRequest.OpType.CREATE, null, listener);
         }
     }
 
@@ -231,45 +218,37 @@ public class DataFrameTransformsConfigManager {
                                            DocWriteRequest.OpType optType,
                                            SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
                                            ActionListener<Boolean> listener) {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            XContentBuilder source = transformConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
 
-        ActionListener<Void> templateCheckListener = ActionListener.wrap(
-            aVoid -> {
-                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                    XContentBuilder source = transformConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
-
-                    IndexRequest indexRequest = new IndexRequest(DataFrameInternalIndex.LATEST_INDEX_NAME)
-                        .opType(optType)
-                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                        .id(DataFrameTransformConfig.documentId(transformConfig.getId()))
-                        .source(source);
-                    if (seqNoPrimaryTermAndIndex != null) {
-                        indexRequest.setIfSeqNo(seqNoPrimaryTermAndIndex.getSeqNo())
-                            .setIfPrimaryTerm(seqNoPrimaryTermAndIndex.getPrimaryTerm());
-                    }
-                    executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(r -> {
-                        listener.onResponse(true);
-                    }, e -> {
-                        if (e instanceof VersionConflictEngineException) {
-                            // the transform already exists
-                            listener.onFailure(new ResourceAlreadyExistsException(
-                                DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_TRANSFORM_EXISTS,
-                                    transformConfig.getId())));
-                        } else {
-                            listener.onFailure(
-                                new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_PERSIST_TRANSFORM_CONFIGURATION, e));
-                        }
-                    }));
-                } catch (IOException e) {
-                    // not expected to happen but for the sake of completeness
-                    listener.onFailure(new ElasticsearchParseException(
-                        DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_FAILED_TO_SERIALIZE_TRANSFORM,
-                            transformConfig.getId()),
-                        e));
+            IndexRequest indexRequest = new IndexRequest(DataFrameInternalIndex.LATEST_INDEX_NAME)
+                .opType(optType)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .id(DataFrameTransformConfig.documentId(transformConfig.getId()))
+                .source(source);
+            if (seqNoPrimaryTermAndIndex != null) {
+                indexRequest.setIfSeqNo(seqNoPrimaryTermAndIndex.getSeqNo())
+                    .setIfPrimaryTerm(seqNoPrimaryTermAndIndex.getPrimaryTerm());
+            }
+            executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(r -> {
+                listener.onResponse(true);
+            }, e -> {
+                if (e instanceof VersionConflictEngineException) {
+                    // the transform already exists
+                    listener.onFailure(new ResourceAlreadyExistsException(
+                        DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_TRANSFORM_EXISTS,
+                            transformConfig.getId())));
+                } else {
+                    listener.onFailure(
+                        new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_PERSIST_TRANSFORM_CONFIGURATION, e));
                 }
-            },
-            listener::onFailure);
-
-        DataFrameInternalIndex.installLatestVersionedIndexTemplateIfRequired(clusterService, client, templateCheckListener);
+            }));
+        } catch (IOException e) {
+            // not expected to happen but for the sake of completeness
+            listener.onFailure(new ElasticsearchParseException(
+                DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_FAILED_TO_SERIALIZE_TRANSFORM, transformConfig.getId()),
+                e));
+        }
     }
 
     /**
@@ -458,41 +437,35 @@ public class DataFrameTransformsConfigManager {
     public void putOrUpdateTransformStoredDoc(DataFrameTransformStoredDoc stats,
                                               SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
                                               ActionListener<SeqNoPrimaryTermAndIndex> listener) {
-        ActionListener<Void> templateCheckListener = ActionListener.wrap(
-            aVoid -> {
-                try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                    XContentBuilder source = stats.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            XContentBuilder source = stats.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
 
-                    IndexRequest indexRequest = new IndexRequest(DataFrameInternalIndex.LATEST_INDEX_NAME)
-                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                        .id(DataFrameTransformStoredDoc.documentId(stats.getId()))
-                        .source(source);
-                    if (seqNoPrimaryTermAndIndex != null &&
-                        seqNoPrimaryTermAndIndex.getIndex().equals(DataFrameInternalIndex.LATEST_INDEX_NAME)) {
-                        indexRequest.opType(DocWriteRequest.OpType.INDEX)
-                            .setIfSeqNo(seqNoPrimaryTermAndIndex.getSeqNo())
-                            .setIfPrimaryTerm(seqNoPrimaryTermAndIndex.getPrimaryTerm());
-                    } else {
-                        // If the index is NOT the latest or we are null, that means we have not created this doc before
-                        // so, it should be a create option without the seqNo and primaryTerm set
-                        indexRequest.opType(DocWriteRequest.OpType.CREATE);
-                    }
-                    executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
-                        r -> listener.onResponse(SeqNoPrimaryTermAndIndex.fromIndexResponse(r)),
-                        e -> listener.onFailure(new RuntimeException(
-                            DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_FAILED_TO_PERSIST_STATS, stats.getId()),
-                            e))
-                    ));
-                } catch (IOException e) {
-                    // not expected to happen but for the sake of completeness
-                    listener.onFailure(new ElasticsearchParseException(
+            IndexRequest indexRequest = new IndexRequest(DataFrameInternalIndex.LATEST_INDEX_NAME)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .id(DataFrameTransformStoredDoc.documentId(stats.getId()))
+                .source(source);
+            if (seqNoPrimaryTermAndIndex != null &&
+                seqNoPrimaryTermAndIndex.getIndex().equals(DataFrameInternalIndex.LATEST_INDEX_NAME)) {
+                indexRequest.opType(DocWriteRequest.OpType.INDEX)
+                    .setIfSeqNo(seqNoPrimaryTermAndIndex.getSeqNo())
+                    .setIfPrimaryTerm(seqNoPrimaryTermAndIndex.getPrimaryTerm());
+            } else {
+                // If the index is NOT the latest or we are null, that means we have not created this doc before
+                // so, it should be a create option without the seqNo and primaryTerm set
+                indexRequest.opType(DocWriteRequest.OpType.CREATE);
+            }
+            executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
+                r -> listener.onResponse(SeqNoPrimaryTermAndIndex.fromIndexResponse(r)),
+                e -> listener.onFailure(new RuntimeException(
                         DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_FAILED_TO_PERSIST_STATS, stats.getId()),
-                        e));
-                }
-            },
-            listener::onFailure);
-
-        DataFrameInternalIndex.installLatestVersionedIndexTemplateIfRequired(clusterService, client, templateCheckListener);
+                        e))
+            ));
+        } catch (IOException e) {
+            // not expected to happen but for the sake of completeness
+            listener.onFailure(new ElasticsearchParseException(
+                DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_FAILED_TO_PERSIST_STATS, stats.getId()),
+                e));
+        }
     }
 
     public void getTransformStoredDoc(String transformId,

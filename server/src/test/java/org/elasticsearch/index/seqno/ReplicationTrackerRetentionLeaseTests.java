@@ -742,7 +742,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         final String source = randomAlphaOfLength(8);
         replicationTracker.addRetentionLease(id, retainingSequenceNumber, source, ActionListener.wrap(() -> {}));
         final long lowerRetainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, retainingSequenceNumber - 1);
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+        final RetentionLeaseInvalidRetainingSeqNoException e = expectThrows(RetentionLeaseInvalidRetainingSeqNoException.class,
             () -> replicationTracker.renewRetentionLease(id, lowerRetainingSequenceNumber, source));
         assertThat(e, hasToString(containsString("the current retention lease with [" + id + "]" +
             " is retaining a higher sequence number [" + retainingSequenceNumber + "]" +

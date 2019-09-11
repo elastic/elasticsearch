@@ -383,9 +383,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * @param retainingSequenceNumber the retaining sequence number
      * @param source                  the source of the retention lease
      * @return the renewed retention lease
-     * @throws RetentionLeaseNotFoundException if the specified retention lease does not exist
-     * @throws IllegalArgumentException        if the new retaining sequence number is lower than
-     *                                         the retaining sequence number of the current retention lease.
+     * @throws RetentionLeaseNotFoundException              if the specified retention lease does not exist
+     * @throws RetentionLeaseInvalidRetainingSeqNoException if the new retaining sequence number is lower than
+     *                                                      the retaining sequence number of the current retention lease.
      */
     public synchronized RetentionLease renewRetentionLease(final String id, final long retainingSequenceNumber, final String source) {
         assert primaryMode;
@@ -395,13 +395,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         }
         if (retainingSequenceNumber < existingRetentionLease.retainingSequenceNumber()) {
             assert PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(source) == false :
-                "renewing peer recovery retention lease [" + id + "] with a lower retaining sequence number "
-                    + retainingSequenceNumber + " < " + existingRetentionLease.retainingSequenceNumber();
-            throw new IllegalArgumentException(
-                "the current retention lease with [" + id + "]" +
-                    " is retaining a higher sequence number [" + existingRetentionLease.retainingSequenceNumber() + "]" +
-                    " than the new retaining sequence number [" + retainingSequenceNumber + "] from [" + source + "]"
-            );
+                "renewing peer recovery retention lease [" + existingRetentionLease + "]" +
+                    " with a lower retaining sequence number [" + retainingSequenceNumber + "]";
+            throw new RetentionLeaseInvalidRetainingSeqNoException(id, source, retainingSequenceNumber, existingRetentionLease);
         }
         final RetentionLease retentionLease =
             new RetentionLease(id, retainingSequenceNumber, currentTimeMillisSupplier.getAsLong(), source);

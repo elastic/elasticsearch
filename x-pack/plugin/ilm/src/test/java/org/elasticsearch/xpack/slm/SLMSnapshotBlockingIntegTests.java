@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.slm;
 
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -172,6 +173,13 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
                 logger.error("expected a snapshot but it was missing", e);
                 fail("expected a snapshot with name " + completedSnapshotName + " but it does not exist");
             }
+        });
+
+        // Wait for all running snapshots to be cleared from cluster state
+        assertBusy(() -> {
+            logger.info("--> waiting for cluster state to be clear of snapshots");
+            ClusterState state = client().admin().cluster().prepareState().setCustoms(true).get().getState();
+            assertTrue("cluster state was not ready for deletion " + state, SnapshotRetentionTask.okayToDeleteSnapshots(state));
         });
 
         // Take another snapshot, but before doing that, block it from completing

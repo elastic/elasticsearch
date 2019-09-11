@@ -382,7 +382,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
                 fail("get with missing routing when routing is required should fail");
             } catch (RoutingMissingException e) {
                 assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-                assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
+                assertThat(e.getMessage(), equalTo("routing is required for [test]/[1]"));
             }
             assertThat(client()
                 .prepareGet(indexOrAlias(), "1")

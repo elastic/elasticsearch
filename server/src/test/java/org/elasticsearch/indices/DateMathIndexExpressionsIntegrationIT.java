@@ -114,9 +114,9 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         assertThat(getResponse.getId(), equalTo("3"));
 
         MultiGetResponse mgetResponse = dateSensitiveGet(client().prepareMultiGet()
-            .add(dateMathExp1, "type", "1")
-            .add(dateMathExp2, "type", "2")
-            .add(dateMathExp3, "type", "3"));
+            .add(dateMathExp1, "1")
+            .add(dateMathExp2, "2")
+            .add(dateMathExp3, "3"));
         assertThat(mgetResponse.getResponses()[0].getResponse().isExists(), is(true));
         assertThat(mgetResponse.getResponses()[0].getResponse().getId(), equalTo("1"));
         assertThat(mgetResponse.getResponses()[1].getResponse().isExists(), is(true));

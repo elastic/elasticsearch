@@ -223,7 +223,7 @@ public class GetActionIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen();
 
-        MultiGetResponse response = client().prepareMultiGet().add(indexOrAlias(), "type1", "1").get();
+        MultiGetResponse response = client().prepareMultiGet().add(indexOrAlias(), "1").get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(false));
 
@@ -232,11 +232,11 @@ public class GetActionIT extends ESIntegTestCase {
         }
 
         response = client().prepareMultiGet()
-                .add(indexOrAlias(), "type1", "1")
-                .add(indexOrAlias(), "type1", "15")
-                .add(indexOrAlias(), "type1", "3")
-                .add(indexOrAlias(), "type1", "9")
-                .add(indexOrAlias(), "type1", "11").get();
+                .add(indexOrAlias(), "1")
+                .add(indexOrAlias(), "15")
+                .add(indexOrAlias(), "3")
+                .add(indexOrAlias(), "9")
+                .add(indexOrAlias(), "11").get();
         assertThat(response.getResponses().length, equalTo(5));
         assertThat(response.getResponses()[0].getId(), equalTo("1"));
         assertThat(response.getResponses()[0].getIndex(), equalTo("test"));
@@ -412,7 +412,7 @@ public class GetActionIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen();
 
-        MultiGetResponse response = client().prepareMultiGet().add(indexOrAlias(), "type1", "1").get();
+        MultiGetResponse response = client().prepareMultiGet().add(indexOrAlias(), "1").get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(false));
 

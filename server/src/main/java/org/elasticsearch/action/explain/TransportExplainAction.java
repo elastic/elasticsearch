@@ -88,7 +88,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         request.request().filteringAlias(aliasFilter);
         // Fail fast on the node that received the request.
         if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex())) {
-            throw new RoutingMissingException(request.concreteIndex(), request.request().type(), request.request().id());
+            throw new RoutingMissingException(request.concreteIndex(), request.request().id());
         }
     }
 

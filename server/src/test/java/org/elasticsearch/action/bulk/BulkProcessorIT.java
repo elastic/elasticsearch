@@ -268,7 +268,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
                         .startObject().field("field", randomRealisticUnicodeOfLengthBetween(1, 30)).endObject()) + "\n";
                 processor.add(new BytesArray(source), null, null, XContentType.JSON);
             }
-            multiGetRequestBuilder.add("test", "test", Integer.toString(i));
+            multiGetRequestBuilder.add("test", Integer.toString(i));
         }
         return multiGetRequestBuilder;
     }

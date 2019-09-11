@@ -249,7 +249,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Override
     public String type() {
         if (type == null) {
-            return MapperService.SINGLE_MAPPING_NAME;                    
+            return MapperService.SINGLE_MAPPING_NAME;
         }
         return type;
     }
@@ -278,7 +278,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             type = defaultType;
         }
         return this;
-    }      
+    }
     /**
      * The id of the indexed document. If not set, will be automatically generated.
      */
@@ -589,7 +589,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (mappingMd != null) {
             // might as well check for routing here
             if (mappingMd.routing().required() && routing == null) {
-                throw new RoutingMissingException(concreteIndex, type(), id);
+                throw new RoutingMissingException(concreteIndex, id);
             }
         }
 
@@ -616,8 +616,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        // A 7.x request allows null types but if deserialized in a 6.x node will cause nullpointer exceptions. 
-        // So we use the type accessor method here to make the type non-null (will default it to "_doc"). 
+        // A 7.x request allows null types but if deserialized in a 6.x node will cause nullpointer exceptions.
+        // So we use the type accessor method here to make the type non-null (will default it to "_doc").
         out.writeOptionalString(type());
         out.writeOptionalString(id);
         out.writeOptionalString(routing);

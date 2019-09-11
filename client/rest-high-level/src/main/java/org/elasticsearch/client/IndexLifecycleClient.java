@@ -39,6 +39,8 @@ import org.elasticsearch.client.slm.ExecuteSnapshotLifecyclePolicyRequest;
 import org.elasticsearch.client.slm.ExecuteSnapshotLifecyclePolicyResponse;
 import org.elasticsearch.client.slm.GetSnapshotLifecyclePolicyRequest;
 import org.elasticsearch.client.slm.GetSnapshotLifecyclePolicyResponse;
+import org.elasticsearch.client.slm.GetSnapshotLifecycleStatsRequest;
+import org.elasticsearch.client.slm.GetSnapshotLifecycleStatsResponse;
 import org.elasticsearch.client.slm.PutSnapshotLifecyclePolicyRequest;
 
 import java.io.IOException;
@@ -445,5 +447,40 @@ public class IndexLifecycleClient {
                                                     ActionListener<ExecuteSnapshotLifecyclePolicyResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::executeSnapshotLifecyclePolicy,
             options, ExecuteSnapshotLifecyclePolicyResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Retrieve snapshot lifecycle statistics.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-get-snapshot-lifecycle-stats.html
+     * </pre>
+     * for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetSnapshotLifecycleStatsResponse getSnapshotLifecycleStats(GetSnapshotLifecycleStatsRequest request,
+                                                                       RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::getSnapshotLifecycleStats,
+            options, GetSnapshotLifecycleStatsResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously retrieve snapshot lifecycle statistics.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-get-snapshot-lifecycle-stats.html
+     * </pre>
+     * for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getSnapshotLifecycleStatsAsync(GetSnapshotLifecycleStatsRequest request, RequestOptions options,
+                                               ActionListener<GetSnapshotLifecycleStatsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::getSnapshotLifecycleStats,
+            options, GetSnapshotLifecycleStatsResponse::fromXContent, listener, emptySet());
     }
 }

@@ -731,7 +731,7 @@ final class RequestConverters {
     }
 
     static String endpoint(String index, String id) {
-        return new EndpointBuilder().addPathPart(index, id).build();
+        return new EndpointBuilder().addPathPart(index, "_doc", id).build();
     }
 
     @Deprecated

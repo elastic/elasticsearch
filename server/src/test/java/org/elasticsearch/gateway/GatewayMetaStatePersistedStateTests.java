@@ -63,9 +63,9 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         super.tearDown();
     }
 
-    private MockGatewayMetaState newGateway() throws IOException {
-        MockGatewayMetaState gateway = new MockGatewayMetaState(settings, nodeEnvironment, xContentRegistry(), localNode);
-        gateway.applyClusterStateUpdaters();
+    private MockGatewayMetaState newGateway() {
+        final MockGatewayMetaState gateway = new MockGatewayMetaState(settings, nodeEnvironment, xContentRegistry(), localNode);
+        gateway.start();
         return gateway;
     }
 

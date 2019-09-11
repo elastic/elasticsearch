@@ -1255,24 +1255,3 @@ POST _reindex
 
 <1> `_reindex` defaults to sorting by `_doc` so `random_score` will not have any
 effect unless you override the sort to `_score`.
-
-[float]
-==== Reindexing RED shards
-
-`_reindex` by default fails if a shard is unavailable (red). It is possible to
-reindex only the available shards using:
-
-[source,js]
-----------------------------------------------------------------
-POST _reindex?allow_partial_search_results=true
-{
-  "source": {
-    "index": "twitter"
-  },
-  "dest": {
-    "index": "red_twitter"
-  }
-}
-----------------------------------------------------------------
-// CONSOLE
-// TEST[setup:big_twitter]

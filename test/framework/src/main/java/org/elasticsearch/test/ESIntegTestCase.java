@@ -884,7 +884,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (actionGet.isTimedOut()) {
             final String hotThreads = client().admin().cluster().prepareNodesHotThreads().setIgnoreIdleThreads(false).get().getNodes()
                 .stream().map(NodeHotThreads::getHotThreads).collect(Collectors.joining("\n"));
-            logger.info("{} timed out, cluster state:\n{}\n{}\n{}",
+            logger.info("{} timed out, cluster state:\n{}\npending tasks:\n{}\nhot threads:\n{}\n",
                 method,
                 client().admin().cluster().prepareState().get().getState(),
                 client().admin().cluster().preparePendingClusterTasks().get(),

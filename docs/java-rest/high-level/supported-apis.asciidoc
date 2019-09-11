@@ -544,6 +544,7 @@ include::ccr/get_stats.asciidoc[]
 include::ccr/get_follow_stats.asciidoc[]
 include::ccr/get_follow_info.asciidoc[]
 
+[role="xpack"]
 == Index Lifecycle Management APIs
 
 :upid: {mainid}-ilm

@@ -196,11 +196,12 @@ public class EnrichPolicyRunner implements Runnable {
         String keyType;
         if (EnrichPolicy.MATCH_TYPE.equals(policy.getType())) {
             keyType = "keyword";
+            // No need to also configure index_options, because keyword type defaults to 'docs'.
         } else {
             throw new ElasticsearchException("Unrecognized enrich policy type [{}]", policy.getType());
         }
 
-        // Disable _source on enrich index. Explicitly mark key mapping type.
+        // Enable _source on enrich index. Explicitly mark key mapping type.
         try {
             XContentBuilder builder = JsonXContent.contentBuilder();
             builder.startObject()
@@ -234,6 +235,10 @@ public class EnrichPolicyRunner implements Runnable {
         String enrichIndexName = EnrichPolicy.getBaseName(policyName) + "-" + nowTimestamp;
         Settings enrichIndexSettings = Settings.builder()
             .put("index.number_of_replicas", 0)
+            // No changes will be made to an enrich index after policy execution, so need to enable automatic refresh interval:
+            .put("index.refresh_interval", -1)
+            // This disables eager global ordinals loading for all fields:
+            .put("index.warmer.enabled", false)
             .build();
         CreateIndexRequest createEnrichIndexRequest = new CreateIndexRequest(enrichIndexName, enrichIndexSettings);
         createEnrichIndexRequest.mapping(MapperService.SINGLE_MAPPING_NAME, resolveEnrichMapping(policy));

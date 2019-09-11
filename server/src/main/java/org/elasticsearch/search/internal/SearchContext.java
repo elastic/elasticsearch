@@ -37,6 +37,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -63,6 +64,7 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -87,7 +89,6 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     private Map<Lifetime, List<Releasable>> clearables = null;
     private final AtomicBoolean closed = new AtomicBoolean(false);
-    private InnerHitsContext innerHitsContext;
 
     protected SearchContext() {
         super("search_context");
@@ -164,12 +165,9 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract void highlight(SearchContextHighlight highlight);
 
-    public InnerHitsContext innerHits() {
-        if (innerHitsContext == null) {
-            innerHitsContext = new InnerHitsContext();
-        }
-        return innerHitsContext;
-    }
+    public abstract void innerHits(Map<String, InnerHitContextBuilder> innerHits);
+
+    public abstract Map<String, InnerHitContextBuilder> innerHits();
 
     public abstract SuggestionSearchContext suggest();
 

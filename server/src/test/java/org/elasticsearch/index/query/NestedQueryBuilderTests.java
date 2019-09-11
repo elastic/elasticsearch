@@ -106,13 +106,13 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
             assertNotNull(searchContext);
             Map<String, InnerHitContextBuilder> innerHitInternals = new HashMap<>();
             InnerHitContextBuilder.extractInnerHits(queryBuilder, innerHitInternals);
+            InnerHitsContext innerHitsContext = new InnerHitsContext();
             for (InnerHitContextBuilder builder : innerHitInternals.values()) {
-                builder.build(searchContext, searchContext.innerHits());
+                builder.build(searchContext, innerHitsContext);
             }
-            assertNotNull(searchContext.innerHits());
-            assertEquals(1, searchContext.innerHits().getInnerHits().size());
-            assertTrue(searchContext.innerHits().getInnerHits().containsKey(queryBuilder.innerHit().getName()));
-            InnerHitsContext.InnerHitSubContext innerHits = searchContext.innerHits().getInnerHits().get(queryBuilder.innerHit().getName());
+            assertEquals(1, innerHitsContext.getInnerHits().size());
+            assertTrue(innerHitsContext.getInnerHits().containsKey(queryBuilder.innerHit().getName()));
+            InnerHitsContext.InnerHitSubContext innerHits = innerHitsContext.getInnerHits().get(queryBuilder.innerHit().getName());
             assertEquals(innerHits.size(), queryBuilder.innerHit().getSize());
             assertEquals(innerHits.sort().sort.getSort().length, 1);
             assertEquals(innerHits.sort().sort.getSort()[0].getField(), INT_FIELD_NAME);

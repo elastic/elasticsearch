@@ -20,6 +20,7 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.collapse.CollapseContext;
@@ -34,7 +35,9 @@ import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 public class SubSearchContext extends FilteredSearchContext {
 
@@ -60,6 +63,7 @@ public class SubSearchContext extends FilteredSearchContext {
     private FetchSourceContext fetchSourceContext;
     private DocValueFieldsContext docValueFieldsContext;
     private SearchContextHighlight highlight;
+    private Map<String, InnerHitContextBuilder> innerHits = Collections.emptyMap();
 
     private boolean explain;
     private boolean trackScores;
@@ -357,4 +361,13 @@ public class SubSearchContext extends FilteredSearchContext {
         throw new UnsupportedOperationException("Not supported");
     }
 
+    @Override
+    public Map<String, InnerHitContextBuilder> innerHits() {
+        return innerHits;
+    }
+
+    @Override
+    public void innerHits(Map<String, InnerHitContextBuilder> innerHits) {
+        this.innerHits = innerHits;
+    }
 }

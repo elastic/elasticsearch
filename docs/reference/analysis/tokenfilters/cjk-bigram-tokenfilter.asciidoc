@@ -14,7 +14,7 @@ Bigrams are generated for characters in `han`, `hiragana`, `katakana` and
 `hangul`, but bigrams can be disabled for particular scripts with the
 `ignored_scripts` parameter.  All non-CJK input is passed through unmodified.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /cjk_bigram_example
 {
@@ -41,4 +41,3 @@ PUT /cjk_bigram_example
     }
 }
 --------------------------------------------------
-// CONSOLE

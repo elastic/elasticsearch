@@ -25,6 +25,7 @@ import org.elasticsearch.client.slm.ExecuteSnapshotLifecyclePolicyResponse;
 import org.elasticsearch.client.slm.GetSnapshotLifecyclePolicyRequest;
 import org.elasticsearch.client.slm.PutSnapshotLifecyclePolicyRequest;
 import org.elasticsearch.client.slm.SnapshotLifecyclePolicy;
+import org.elasticsearch.client.slm.SnapshotRetentionConfiguration;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -190,7 +191,7 @@ public class PermissionsIT extends ESRestTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("indices", Collections.singletonList("index"));
         SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
-            "policy_id", "name", "1 2 3 * * ?", "my_repository", config);
+            "policy_id", "name", "1 2 3 * * ?", "my_repository", config, SnapshotRetentionConfiguration.EMPTY);
         PutSnapshotLifecyclePolicyRequest request = new PutSnapshotLifecyclePolicyRequest(policy);
 
         expectThrows(ElasticsearchStatusException.class,

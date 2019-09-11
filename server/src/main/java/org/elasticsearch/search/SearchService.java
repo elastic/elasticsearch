@@ -762,7 +762,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             } catch (IOException e) {
                 throw new SearchContextException(context, "failed to create sort elements", e);
             }
-        }NestedQueryBuilderTestsNestedQueryBuilderTests
+        }
         context.trackScores(source.trackScores());
         if (source.trackTotalHitsUpTo() != null
                 && source.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE

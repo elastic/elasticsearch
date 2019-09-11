@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.core.scheduler.CronSchedule;
 
 /**
  * Class encapsulating settings related to Index Lifecycle Management X-Pack Plugin
@@ -17,6 +19,9 @@ public class LifecycleSettings {
     public static final String LIFECYCLE_INDEXING_COMPLETE = "index.lifecycle.indexing_complete";
 
     public static final String SLM_HISTORY_INDEX_ENABLED = "slm.history_index_enabled";
+    public static final String SLM_RETENTION_SCHEDULE = "slm.retention_schedule";
+    public static final String SLM_RETENTION_DURATION = "slm.retention_duration";
+
 
     public static final Setting<TimeValue> LIFECYCLE_POLL_INTERVAL_SETTING = Setting.timeSetting(LIFECYCLE_POLL_INTERVAL,
         TimeValue.timeValueMinutes(10), TimeValue.timeValueSeconds(1), Setting.Property.Dynamic, Setting.Property.NodeScope);
@@ -27,4 +32,17 @@ public class LifecycleSettings {
 
     public static final Setting<Boolean> SLM_HISTORY_INDEX_ENABLED_SETTING = Setting.boolSetting(SLM_HISTORY_INDEX_ENABLED, true,
         Setting.Property.NodeScope);
+    public static final Setting<String> SLM_RETENTION_SCHEDULE_SETTING = Setting.simpleString(SLM_RETENTION_SCHEDULE, str -> {
+        try {
+            if (Strings.hasText(str)) {
+                // Test that the setting is a valid cron syntax
+                new CronSchedule(str);
+            }
+        } catch (Exception e) {
+            throw new IllegalArgumentException("invalid cron expression [" + str + "] for SLM retention schedule [" +
+                SLM_RETENTION_SCHEDULE + "]", e);
+        }
+    }, Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<TimeValue> SLM_RETENTION_DURATION_SETTING = Setting.timeSetting(SLM_RETENTION_DURATION,
+        TimeValue.timeValueHours(1), TimeValue.timeValueMillis(500), Setting.Property.Dynamic, Setting.Property.NodeScope);
 }

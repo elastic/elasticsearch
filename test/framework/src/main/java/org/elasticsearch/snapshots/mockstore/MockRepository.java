@@ -369,6 +369,9 @@ public class MockRepository extends FsRepository {
             public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize,
                                         final boolean failIfAlreadyExists) throws IOException {
                 final Random random = RandomizedContext.current().getRandom();
+                if (blobName.startsWith("index-") && blockOnWriteIndexFile) {
+                    blockExecutionAndFail(blobName);
+                }
                 if ((delegate() instanceof FsBlobContainer) && (random.nextBoolean())) {
                     // Simulate a failure between the write and move operation in FsBlobContainer
                     final String tempBlobName = FsBlobContainer.tempBlobName(blobName);

@@ -75,7 +75,7 @@ any key prefixed with `cluster.metadata.`.  For example, to store the email
 address of the administrator of a cluster under the key `cluster.metadata.administrator`,
 issue this request:
 
-[source,js]
+[source,console]
 -------------------------------
 PUT /_cluster/settings
 {
@@ -84,7 +84,6 @@ PUT /_cluster/settings
   }
 }
 -------------------------------
-// CONSOLE
 
 IMPORTANT: User-defined cluster metadata is not intended to store sensitive or
 confidential information. Any information stored in user-defined cluster
@@ -116,7 +115,7 @@ The settings which control logging can be updated dynamically with the
 `logger.` prefix.  For instance, to increase the logging level of the
 `indices.recovery` module to `DEBUG`, issue this request:
 
-[source,js]
+[source,console]
 -------------------------------
 PUT /_cluster/settings
 {
@@ -125,7 +124,6 @@ PUT /_cluster/settings
   }
 }
 -------------------------------
-// CONSOLE
 
 
 [[persistent-tasks-allocation]]

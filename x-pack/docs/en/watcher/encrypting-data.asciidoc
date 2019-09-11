@@ -1,3 +1,4 @@
+[role="xpack"]
 [[encrypting-data]]
 == Encrypting Sensitive Data in {watcher}
 

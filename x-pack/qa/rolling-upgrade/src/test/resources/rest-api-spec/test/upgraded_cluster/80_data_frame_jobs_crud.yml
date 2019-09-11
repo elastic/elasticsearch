@@ -257,6 +257,7 @@ setup:
   - do:
       data_frame.put_data_frame_transform:
         transform_id: "upgraded-simple-transform"
+        defer_validation: true
         body: >
           {
             "source": { "index": "dataframe-transform-airline-data" },

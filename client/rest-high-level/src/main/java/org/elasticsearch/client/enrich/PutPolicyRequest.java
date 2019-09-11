@@ -19,7 +19,6 @@
 package org.elasticsearch.client.enrich;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -35,11 +34,6 @@ import java.util.Map;
 import java.util.Objects;
 
 public class PutPolicyRequest implements Validatable, ToXContentObject {
-
-    static final ParseField QUERY_FIELD = new ParseField("query");
-    static final ParseField INDICES_FIELD = new ParseField("indices");
-    static final ParseField MATCH_FIELD_FIELD = new ParseField("match_field");
-    static final ParseField ENRICH_FIELDS_FIELD = new ParseField("enrich_fields");
 
     private final String name;
     private final String type;
@@ -110,12 +104,12 @@ public class PutPolicyRequest implements Validatable, ToXContentObject {
         {
             builder.startObject(type);
             {
-                builder.field(INDICES_FIELD.getPreferredName(), indices);
+                builder.field(NamedPolicy.INDICES_FIELD.getPreferredName(), indices);
                 if (query != null) {
-                    builder.field(QUERY_FIELD.getPreferredName(), asMap(query, builder.contentType()));
+                    builder.field(NamedPolicy.QUERY_FIELD.getPreferredName(), asMap(query, builder.contentType()));
                 }
-                builder.field(MATCH_FIELD_FIELD.getPreferredName(), matchField);
-                builder.field(ENRICH_FIELDS_FIELD.getPreferredName(), enrichFields);
+                builder.field(NamedPolicy.MATCH_FIELD_FIELD.getPreferredName(), matchField);
+                builder.field(NamedPolicy.ENRICH_FIELDS_FIELD.getPreferredName(), enrichFields);
             }
             builder.endObject();
         }

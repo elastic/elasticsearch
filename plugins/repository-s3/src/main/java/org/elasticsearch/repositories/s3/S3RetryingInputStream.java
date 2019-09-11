@@ -114,7 +114,6 @@ class S3RetryingInputStream extends InputStream {
     @Override
     public void close() throws IOException {
         currentStream.close();
-        super.close();
     }
 
     @Override

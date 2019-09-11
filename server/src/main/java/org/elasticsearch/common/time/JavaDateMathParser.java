@@ -28,7 +28,6 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
@@ -48,14 +47,14 @@ import java.util.function.LongSupplier;
 public class JavaDateMathParser implements DateMathParser {
 
     private final JavaDateFormatter formatter;
-    private final DateTimeFormatter roundUpFormatter;
     private final String format;
+    private JavaDateFormatter roundupParser2;
 
-    JavaDateMathParser(String format, JavaDateFormatter formatter, DateTimeFormatter roundUpFormatter) {
+    JavaDateMathParser(String format, JavaDateFormatter formatter, JavaDateFormatter roundupParser2) {
         this.format = format;
+        this.roundupParser2 = roundupParser2;
         Objects.requireNonNull(formatter);
         this.formatter = formatter;
-        this.roundUpFormatter = roundUpFormatter;
     }
 
     @Override
@@ -217,7 +216,7 @@ public class JavaDateMathParser implements DateMathParser {
             throw new ElasticsearchParseException("cannot parse empty date");
         }
 
-        Function<String,TemporalAccessor> formatter = roundUpIfNoTime ? this.roundUpFormatter::parse : this.formatter::parse;
+        Function<String,TemporalAccessor> formatter = roundUpIfNoTime ? this.roundupParser2::parse : this.formatter::parse;
         try {
             if (timeZone == null) {
                 return DateFormatters.from(formatter.apply(value)).toInstant();

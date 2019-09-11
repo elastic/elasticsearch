@@ -170,6 +170,32 @@ void addBuildDockerImage(final boolean oss) {
   BuildPlugin.requireDocker(buildDockerImageTask)
 }
 
+/**
+ * Exports the generated Docker image to disk, so that it can be easily
+ * reloaded, for example into a VM. Although this involves writing out
+ * the entire image, it's still quicker than rebuilding the main archive
+ * in the VM.
+ */
+void addExportDockerImage(final boolean oss) {
+  def exportTaskName = taskName("export", oss, "DockerImage")
+  def tarFile = "${buildDir}/elasticsearch${oss ? '-oss' : ''}_test.docker.tar"
+
+  task(exportTaskName, type: LoggedExec) {
+    executable 'docker'
+    args "save",
+      "-o",
+      tarFile,
+      "elasticsearch${oss ? '-oss' : ''}:test"
+  }
+
+  artifacts.add(oss ? 'archives' : 'default', file(tarFile)) {
+      type 'tar'
+      name "elasticsearch${oss ? '-oss' : ''}"
+      builtBy exportTaskName
+  }
+}
+
+
 for (final boolean oss : [false, true]) {
   addCopyDockerContextTask(oss)
   addBuildDockerImage(oss)
@@ -183,4 +209,34 @@ assemble.dependsOn "buildDockerImage"
 // Everything will still be pulled since we will build the local images on a pull
 if (tasks.findByName("composePull")) {
     tasks.composePull.enabled = false 
+}
+
+subprojects { Project subProject ->
+  if (subProject.name.contains('docker-export')) {
+    apply plugin: 'distribution'
+
+    def oss = subProject.name.startsWith('oss')
+
+    def exportTaskName = taskName("export", oss, "DockerImage")
+    def buildTaskName = taskName("build", oss, "DockerImage")
+    def tarFile = "${parent.buildDir}/elasticsearch${oss ? '-oss' : ''}_test.${VersionProperties.elasticsearch}.docker.tar"
+
+    final Task exportDockerImageTask = task(exportTaskName, type: LoggedExec) {
+      executable 'docker'
+      args "save",
+        "-o",
+        tarFile,
+        "elasticsearch${oss ? '-oss' : ''}:test"
+    }
+
+    exportDockerImageTask.dependsOn(parent.tasks.getByName(buildTaskName))
+
+    artifacts.add('default', file(tarFile)) {
+        type 'tar'
+        name "elasticsearch${oss ? '-oss' : ''}"
+        builtBy exportTaskName
+    }
+
+    assemble.dependsOn exportTaskName
+  }
 }

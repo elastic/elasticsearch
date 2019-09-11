@@ -1,5 +1,5 @@
 # -*- mode: ruby -*-
-# vi: set ft=ruby :
+# vi:ft=ruby ts=2 sw=2 sts=2 et:
 
 # This Vagrantfile exists to test packaging. Read more about its use in the
 # vagrant section in TESTING.asciidoc.
@@ -183,6 +183,35 @@ def deb_common(config, name, extra: '')
     install_command: 'apt-get install -y',
     extra: extra_with_lintian
   )
+  deb_docker(config)
+end
+
+def deb_docker(config)
+  config.vm.provision 'install Docker', run: 'always', type: 'shell', inline: <<-SHELL
+    # Install packages to allow apt to use a repository over HTTPS
+    apt-get install -y \
+      apt-transport-https \
+      ca-certificates \
+      curl \
+      gnupg2 \
+      software-properties-common
+
+    # Add Docker’s official GPG key
+    curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add -
+
+    # Set up the stable Docker repository
+    add-apt-repository \
+      "deb [arch=amd64] https://download.docker.com/linux/debian \
+      $(lsb_release -cs) \
+      stable"
+
+    # Install Docker. Unlike Fedora and CentOS, this also start the daemon.
+    apt-get update
+    apt-get install -y docker-ce docker-ce-cli containerd.io
+
+    # Add vagrant to the Docker group, so that it can run commands
+    usermod -aG docker vagrant
+  SHELL
 end
 
 def rpm_common(config, name)
@@ -193,6 +222,26 @@ def rpm_common(config, name)
     update_tracking_file: '/var/cache/yum/last_update',
     install_command: 'yum install -y'
   )
+  rpm_docker(config)
+end
+
+def rpm_docker(config)
+  config.vm.provision 'install Docker', run: 'always', type: 'shell', inline: <<-SHELL
+    # Install prerequisites
+    yum install -y yum-utils device-mapper-persistent-data lvm2
+
+    # Add repository
+    yum-config-manager -y --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+    # Install Docker
+    yum install -y docker-ce docker-ce-cli containerd.io
+
+    # Start Docker
+    systemctl start docker
+
+    # Add vagrant to the Docker group, so that it can run commands
+    usermod -aG docker vagrant
+  SHELL
 end
 
 def dnf_common(config, name)
@@ -209,6 +258,26 @@ def dnf_common(config, name)
     install_command: 'dnf install -y',
     install_command_retries: 5
   )
+  dnf_docker(config)
+end
+
+def dnf_docker(config)
+  config.vm.provision 'install Docker', run: 'always', type: 'shell', inline: <<-SHELL
+    # Install prerequisites
+    dnf -y install dnf-plugins-core
+
+    # Add repository
+    dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
+
+    # Install Docker
+    dnf install -y docker-ce docker-ce-cli containerd.io
+
+    # Start Docker
+    systemctl start docker
+
+    # Add vagrant to the Docker group, so that it can run commands
+    usermod -aG docker vagrant
+  SHELL
 end
 
 def suse_common(config, name, extra: '')

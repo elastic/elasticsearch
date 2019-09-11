@@ -67,11 +67,10 @@ public abstract class PackagingTestCase extends Assert {
     protected static final String systemJavaHome;
     static {
         Shell sh = new Shell();
-        if (Platforms.LINUX) {
-            systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
-        } else {
-            assert Platforms.WINDOWS;
+        if (Platforms.WINDOWS) {
             systemJavaHome = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
+        } else {
+            systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
         }
     }
 

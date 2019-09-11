@@ -172,7 +172,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         String box = project.getName();
 
         // setup jdks used by the distro tests, and by gradle executing
-        
+
         NamedDomainObjectContainer<Jdk> jdksContainer = JdkDownloadPlugin.getContainer(project);
         String platform = box.contains("windows") ? "windows" : "linux";
         Jdk systemJdk = createJdk(jdksContainer, "system", SYSTEM_JDK_VERSION, platform);
@@ -309,13 +309,13 @@ public class DistroTestPlugin implements Plugin<Project> {
                 }
             });
     }
-    
+
     private List<ElasticsearchDistribution> configureDistributions(Project project, Version upgradeVersion) {
         NamedDomainObjectContainer<ElasticsearchDistribution> distributions = DistributionDownloadPlugin.getContainer(project);
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
         List<ElasticsearchDistribution> upgradeDistros = new ArrayList<>();
 
-        for (Type type : Arrays.asList(Type.DEB, Type.RPM)) {
+        for (Type type : Arrays.asList(Type.DEB, Type.RPM, Type.DOCKER)) {
             for (Flavor flavor : Flavor.values()) {
                 for (boolean bundledJdk : Arrays.asList(true, false)) {
                     addDistro(distributions, type, null, flavor, bundledJdk, VersionProperties.getElasticsearch(), currentDistros);
@@ -366,7 +366,8 @@ public class DistroTestPlugin implements Plugin<Project> {
             if (type == Type.ARCHIVE) {
                 d.setPlatform(platform);
             }
-            d.setBundledJdk(bundledJdk);
+            // We don't test Docker images with a non-bundled JDK
+            d.setBundledJdk(type == Type.DOCKER || bundledJdk);
             d.setVersion(version);
         });
         container.add(distro);
@@ -378,10 +379,17 @@ public class DistroTestPlugin implements Plugin<Project> {
     }
 
     private static String distroId(Type type, Platform platform, Flavor flavor, boolean bundledJdk) {
-        return flavor + "-" + (type == Type.ARCHIVE ? platform + "-" : "") + type + (bundledJdk ? "" : "-no-jdk");
+        // We don't test Docker images with a non-bundled JDK
+        return flavor + "-" + (type == Type.ARCHIVE ? platform + "-" : "") + type + (bundledJdk || type == Type.DOCKER ? "" : "-no-jdk");
     }
 
     private static String destructiveDistroTestTaskName(ElasticsearchDistribution distro) {
-        return "destructiveDistroTest." + distroId(distro.getType(), distro.getPlatform(), distro.getFlavor(), distro.getBundledJdk());
+        Type type = distro.getType();
+        return "destructiveDistroTest." + distroId(
+            type,
+            distro.getPlatform(),
+            distro.getFlavor(),
+            // We don't test Docker images with a non-bundled JDK
+            type == Type.DOCKER || distro.getBundledJdk());
     }
 }

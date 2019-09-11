@@ -46,7 +46,8 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         INTEG_TEST_ZIP,
         ARCHIVE,
         RPM,
-        DEB;
+        DEB,
+        DOCKER;
 
         @Override
         public String toString() {
@@ -171,11 +172,16 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     }
 
     public Extracted getExtracted() {
-        if (getType() == Type.RPM || getType() == Type.DEB) {
-            throw new UnsupportedOperationException("distribution type [" + getType() + "] for " +
-                "elasticsearch distribution [" + name + "] cannot be extracted");
+        switch (getType()) {
+            case DEB:
+            case DOCKER:
+            case RPM:
+                throw new UnsupportedOperationException("distribution type [" + getType() + "] for " +
+                    "elasticsearch distribution [" + name + "] cannot be extracted");
+
+            default:
+                return extracted;
         }
-        return extracted;
     }
 
     @Override
@@ -217,7 +223,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
             if (platform.isPresent() == false) {
                 platform.set(CURRENT_PLATFORM);
             }
-        } else { // rpm or deb
+        } else { // rpm, deb or docker
             if (platform.isPresent()) {
                 throw new IllegalArgumentException("platform not allowed for elasticsearch distribution ["
                     + name + "] of type [" + getType() + "]");

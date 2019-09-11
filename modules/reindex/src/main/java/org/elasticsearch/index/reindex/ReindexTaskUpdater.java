@@ -64,6 +64,7 @@ public class ReindexTaskUpdater implements Reindexer.CheckpointListener {
                 long seqNo = taskState.getSeqNo();
                 ReindexTaskStateDoc oldDoc = taskState.getStateDoc();
 
+                assert oldDoc.getAllocationId() == null || allocationId != oldDoc.getAllocationId();
                 if (oldDoc.getAllocationId() == null || allocationId > oldDoc.getAllocationId()) {
                     ReindexTaskStateDoc newDoc = oldDoc.withNewAllocation(allocationId);
                     reindexIndexClient.updateReindexTaskDoc(persistentTaskId, newDoc, term, seqNo, new ActionListener<>() {
@@ -78,7 +79,10 @@ public class ReindexTaskUpdater implements Reindexer.CheckpointListener {
                             if (ex instanceof VersionConflictEngineException) {
                                 // There has been an indexing operation since the GET operation. Try
                                 // again if there are assignment attempts left.
+                                // TODO: Perhaps add external cancel functionality that will halts the updating process.
                                 if (assignmentAttempts < MAX_ASSIGNMENT_ATTEMPTS) {
+                                    int nextAttempt = assignmentAttempts + 1;
+                                    logger.debug("Attempting to retry reindex task assignment write. Attempt number " + nextAttempt);
                                     assign(listener);
                                 } else {
                                     logger.info("Failed to write allocation id to reindex task doc after maximum retry attempts", ex);

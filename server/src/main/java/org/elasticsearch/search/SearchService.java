@@ -901,7 +901,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
 
         if (source.collapse() != null) {
-            final CollapseContext collapseContext = source.collapse().build(context);
+            if (context.scrollContext() != null) {
+                throw new SearchContextException(context, "cannot use `collapse` in a scroll context");
+            }
+            if (context.searchAfter() != null) {
+                throw new SearchContextException(context, "cannot use `collapse` in conjunction with `search_after`");
+            }
+            if (context.rescore() != null && context.rescore().isEmpty() == false) {
+                throw new SearchContextException(context, "cannot use `collapse` in conjunction with `rescore`");
+            }
+            final CollapseContext collapseContext = source.collapse().build(queryShardContext);
             context.collapse(collapseContext);
         }
     }

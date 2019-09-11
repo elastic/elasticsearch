@@ -42,9 +42,9 @@ public class MockSearchServiceTests extends ESTestCase {
     public void testAssertNoInFlightContext() {
         final long nowInMillis = randomNonNegativeLong();
         SearchContext s = new TestSearchContext(new QueryShardContext(0,
-            new IndexSettings(EMPTY_INDEX_METADATA, Settings.EMPTY), BigArrays.NON_RECYCLING_INSTANCE,
-                null, null, null, null, null,
-                xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null)) {
+            new IndexSettings(EMPTY_INDEX_METADATA, Settings.EMPTY), BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null,
+            xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null)) {
+
             @Override
             public SearchShardTarget shardTarget() {
                 return new SearchShardTarget("node", new ShardId("idx", "ignored", 0), null, OriginalIndices.NONE);

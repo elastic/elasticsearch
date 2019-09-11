@@ -554,6 +554,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                         final IndexSearcher searcher = new IndexSearcher(indexReader);
                         searcher.setQueryCache(null);
                         final long absoluteStartMillis = System.currentTimeMillis();
+                        final IndexSearcher searcher = new IndexSearcher(indexReader);
+                        searcher.setQueryCache(null);
                         QueryShardContext context =
                             indexService.newQueryShardContext(0, searcher, () -> absoluteStartMillis, null);
                         return handler.apply(context, indexReader.leaves().get(0));

@@ -96,8 +96,8 @@ public class ExtendedBoundsTests extends ESTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build();
         QueryShardContext qsc = new QueryShardContext(0,
                 new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings),
-                BigArrays.NON_RECYCLING_INSTANCE, null, null, null,
-                null, null, xContentRegistry(), writableRegistry(), null, null, () -> now, null);
+                BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
+                null, null, () -> now, null);
         DateFormatter formatter = DateFormatter.forPattern("dateOptionalTime");
         DocValueFormat format = new DocValueFormat.DateTime(formatter, ZoneOffset.UTC, DateFieldMapper.Resolution.MILLISECONDS);
 

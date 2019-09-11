@@ -58,7 +58,7 @@ public class FilterAggregatorFactory extends AggregatorFactory {
      */
     public Weight getWeight() {
         if (weight == null) {
-            IndexSearcher contextSearcher = queryShardContext.getIndexSearcher();
+            IndexSearcher contextSearcher = queryShardContext.searcher();
             try {
                 weight = contextSearcher.createWeight(contextSearcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f);
             } catch (IOException e) {

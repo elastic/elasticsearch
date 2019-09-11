@@ -77,9 +77,9 @@ public class QueryShardContext extends QueryRewriteContext {
 
     private final ScriptService scriptService;
     private final IndexSettings indexSettings;
+    private final BigArrays bigArrays;
     private final MapperService mapperService;
     private final SimilarityService similarityService;
-    private final BigArrays bigArrays;
     private final BitsetFilterCache bitsetFilterCache;
     private final BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataService;
     private final int shardId;
@@ -177,10 +177,6 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public boolean queryStringAllowLeadingWildcard() {
         return indexSettings.isQueryStringAllowLeadingWildcard();
-    }
-
-    public BigArrays bigArrays() {
-        return bigArrays;
     }
 
     public BitSetProducer bitsetFilter(Query filter) {
@@ -415,9 +411,9 @@ public class QueryShardContext extends QueryRewriteContext {
         return searcher == null ? null : searcher.getIndexReader();
     }
 
-    /** Return the current {@link IndexSearcher}, or {@code null} if no index searcher is available,
+    /** Return the current {@link IndexSearcher}, or {@code null} if no index reader is available,
      *  for instance if this rewrite context is used to index queries (percolation). */
-    public IndexSearcher getIndexSearcher() {
+    public IndexSearcher searcher() {
         return searcher;
     }
 
@@ -426,5 +422,12 @@ public class QueryShardContext extends QueryRewriteContext {
      */
     public Index getFullyQualifiedIndex() {
         return fullyQualifiedIndex;
+    }
+
+    /**
+     * Return the {@link BigArrays} instance for this node.
+     */
+    public BigArrays bigArrays() {
+        return bigArrays;
     }
 }

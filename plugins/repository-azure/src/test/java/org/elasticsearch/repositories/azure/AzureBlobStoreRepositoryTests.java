@@ -23,29 +23,18 @@ import com.microsoft.azure.storage.RetryExponentialRetry;
 import com.microsoft.azure.storage.RetryPolicyFactory;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import com.sun.net.httpserver.HttpServer;
-import org.apache.http.HttpStatus;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
+import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collection;
@@ -53,38 +42,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
-public class AzureBlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCase {
-
-    private static HttpServer httpServer;
-
-    @BeforeClass
-    public static void startHttpServer() throws Exception {
-        httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-        httpServer.start();
-    }
-
-    @Before
-    public void setUpHttpServer() {
-        HttpHandler handler = new InternalHttpHandler();
-        if (randomBoolean()) {
-            handler = new ErroneousHttpHandler(handler, randomIntBetween(2, 3));
-        }
-        httpServer.createContext("/container", handler);
-    }
-
-    @AfterClass
-    public static void stopHttpServer() {
-        httpServer.stop(0);
-        httpServer = null;
-    }
-
-    @After
-    public void tearDownHttpServer() {
-        httpServer.removeContext("/container");
-    }
+public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
     @Override
     protected String repositoryType() {
@@ -105,16 +65,23 @@ public class AzureBlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTes
     }
 
     @Override
+    protected Map<String, HttpHandler> createHttpHandlers() {
+        return Collections.singletonMap("/container", new InternalHttpHandler());
+    }
+
+    @Override
+    protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
+        return new AzureErroneousHttpHandler(delegate, randomIntBetween(2, 3));
+    }
+
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         final String key = Base64.getEncoder().encodeToString(randomAlphaOfLength(10).getBytes(StandardCharsets.UTF_8));
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(AzureStorageSettings.ACCOUNT_SETTING.getConcreteSettingForNamespace("test").getKey(), "account");
         secureSettings.setString(AzureStorageSettings.KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), key);
 
-        final InetSocketAddress address = httpServer.getAddress();
-        final String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://"
-            + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
-
+        final String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + httpServerUrl();
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(AzureStorageSettings.ENDPOINT_SUFFIX_SETTING.getConcreteSettingForNamespace("test").getKey(), endpoint)
@@ -218,7 +185,6 @@ public class AzureBlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTes
         }
     }
 
-
     /**
      * HTTP handler that injects random Azure service errors
      *
@@ -226,40 +192,16 @@ public class AzureBlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTes
      * slow down the test suite.
      */
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
-    private static class ErroneousHttpHandler implements HttpHandler {
+    private static class AzureErroneousHttpHandler extends ErroneousHttpHandler {
 
-        // first key is the remote address, second key is the HTTP request unique id provided by the SDK client,
-        // value is the number of times the request has been seen
-        private final Map<String, AtomicInteger> requests;
-        private final HttpHandler delegate;
-        private final int maxErrorsPerRequest;
-
-        private ErroneousHttpHandler(final HttpHandler delegate, final int maxErrorsPerRequest) {
-            this.requests = new ConcurrentHashMap<>();
-            this.delegate = delegate;
-            this.maxErrorsPerRequest = maxErrorsPerRequest;
-            assert maxErrorsPerRequest > 1;
+        AzureErroneousHttpHandler(final HttpHandler delegate, final int maxErrorsPerRequest) {
+            super(delegate, maxErrorsPerRequest);
         }
 
         @Override
-        public void handle(final HttpExchange exchange) throws IOException {
-            final String requestId = exchange.getRequestHeaders().getFirst(Constants.HeaderConstants.CLIENT_REQUEST_ID_HEADER);
-            assert Strings.hasText(requestId);
-
-            final int count = requests.computeIfAbsent(requestId, req -> new AtomicInteger(0)).incrementAndGet();
-            if (count >= maxErrorsPerRequest || randomBoolean()) {
-                requests.remove(requestId);
-                delegate.handle(exchange);
-            } else {
-                handleAsError(exchange, requestId);
-            }
-        }
-
-        private void handleAsError(final HttpExchange exchange, final String requestId) throws IOException {
-            Streams.readFully(exchange.getRequestBody());
-            exchange.getResponseHeaders().add(Constants.HeaderConstants.CLIENT_REQUEST_ID_HEADER, requestId);
-            exchange.sendResponseHeaders(HttpStatus.SC_INTERNAL_SERVER_ERROR, -1);
-            exchange.close();
+        protected String requestUniqueId(final HttpExchange exchange) {
+            // Azure SDK client provides a unique ID per request
+            return exchange.getRequestHeaders().getFirst(Constants.HeaderConstants.CLIENT_REQUEST_ID_HEADER);
         }
     }
 }

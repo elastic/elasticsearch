@@ -98,7 +98,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         this.filter = filterBuilder == null
                 ? null
                 : filterBuilder.toQuery(queryShardContext);
-        IndexSearcher searcher = queryShardContext.getIndexSearcher();
+        IndexSearcher searcher = queryShardContext.searcher();
         this.supersetNumDocs = filter == null
                 // Important - need to use the doc count that includes deleted docs
                 // or we have this issue: https://github.com/elastic/elasticsearch/issues/7951
@@ -119,7 +119,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         if (termsEnum != null) {
             return termsEnum;
         }
-        IndexReader reader = queryShardContext.getIndexSearcher().getIndexReader();
+        IndexReader reader = queryShardContext.getIndexReader();
         if (numberOfAggregatorsCreated > 1) {
             termsEnum = new FreqTermsEnum(reader, field, true, false, filter, queryShardContext.bigArrays());
         } else {
@@ -148,7 +148,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     .add(filter, Occur.FILTER)
                     .build();
         }
-        return queryShardContext.getIndexSearcher().count(query);
+        return queryShardContext.searcher().count(query);
     }
 
     public long getBackgroundFrequency(BytesRef termBytes) throws IOException {

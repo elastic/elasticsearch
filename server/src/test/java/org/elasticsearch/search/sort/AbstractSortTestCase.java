@@ -191,10 +191,9 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName);
             return builder.build(idxSettings, fieldType, new IndexFieldDataCache.None(), null, null);
         };
-        return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE,
-                bitsetFilterCache, indexFieldDataLookup, null, null,
-                scriptService, xContentRegistry(), namedWriteableRegistry, null, null,
-                () -> randomNonNegativeLong(), null) {
+        return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,
+            null, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, null, () -> randomNonNegativeLong(), null) {
+
             @Override
             public MappedFieldType fieldMapper(String name) {
                 return provideMappedFieldType(name);

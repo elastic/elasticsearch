@@ -45,7 +45,7 @@ public class AdjacencyMatrixAggregatorFactory extends AggregatorFactory {
                                             QueryShardContext queryShardContext, AggregatorFactory parent,
                                             AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
         super(name, queryShardContext, parent, subFactories, metaData);
-        IndexSearcher contextSearcher = queryShardContext.getIndexSearcher();
+        IndexSearcher contextSearcher = queryShardContext.searcher();
         this.separator = separator;
         weights = new Weight[filters.size()];
         keys = new String[filters.size()];

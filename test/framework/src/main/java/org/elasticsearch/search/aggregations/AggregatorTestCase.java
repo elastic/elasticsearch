@@ -278,8 +278,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                         IndexSettings indexSettings,
                                                         CircuitBreakerService circuitBreakerService) {
 
-        return new QueryShardContext(0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
-            new BitsetFilterCache(indexSettings, mock(Listener.class)), getIndexFieldDataLookup(mapperService, circuitBreakerService),
+        return new QueryShardContext(0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
+            getIndexFieldDataLookup(mapperService, circuitBreakerService),
             mapperService, null, getMockScriptService(), xContentRegistry(),
             writableRegistry(), null, searcher, System::currentTimeMillis, null);
     }

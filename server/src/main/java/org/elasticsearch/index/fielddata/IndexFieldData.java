@@ -21,7 +21,6 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparatorSource;
@@ -126,10 +125,6 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
                 return innerQuery;
             }
 
-            public BitSetProducer getRootFilter() {
-                return rootFilter;
-            }
-
             public NestedSortBuilder getNestedSort() { return nestedSort; }
 
             /**
@@ -143,7 +138,6 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
              * Get a {@link DocIdSet} that matches the inner documents.
              */
             public DocIdSetIterator innerDocs(LeafReaderContext ctx) throws IOException {
-                assert ReaderUtil.getTopLevelContext(ctx) == searcher.getIndexReader().getContext();
                 Weight weight = searcher.createWeight(searcher.rewrite(innerQuery), ScoreMode.COMPLETE_NO_SCORES, 1f);
                 Scorer s = weight.scorer(ctx);
                 return s == null ? null : s.iterator();

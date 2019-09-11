@@ -82,7 +82,7 @@ Whether to include only the longest matching subword or not.  Defaults to `false
 
 Here is an example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /compound_word_example
 {
@@ -113,4 +113,3 @@ PUT /compound_word_example
     }
 }
 --------------------------------------------------
-// CONSOLE

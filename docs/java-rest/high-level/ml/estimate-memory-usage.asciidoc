@@ -3,6 +3,7 @@
 :request: PutDataFrameAnalyticsRequest
 :response: EstimateMemoryUsageResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Estimate memory usage API
 

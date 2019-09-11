@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.Strings;
@@ -37,10 +38,10 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
 
     public void testRewriteMissingField() throws Exception {
         IndexService indexService = createIndex("test");
-        IndexSearcher searcher = new IndexSearcher(new MultiReader());
+        IndexReader reader = new MultiReader();
         QueryRewriteContext context = new QueryShardContext(0, indexService.getIndexSettings(), BigArrays.NON_RECYCLING_INSTANCE,
-            null, null, indexService.mapperService(), null, null,
-                xContentRegistry(), writableRegistry(), null, searcher, null, null);
+            null, null, indexService.mapperService(), null, null, xContentRegistry(), writableRegistry(),
+            null, new IndexSearcher(reader), null, null);
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         assertEquals(Relation.DISJOINT, range.getRelation(context));
     }
@@ -75,10 +76,10 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             .endObject().endObject());
         indexService.mapperService().merge("type",
                 new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
-        IndexSearcher searcher = new IndexSearcher(new MultiReader());
+        IndexReader reader = new MultiReader();
         QueryRewriteContext context = new QueryShardContext(0, indexService.getIndexSettings(), BigArrays.NON_RECYCLING_INSTANCE,
-                null, null, indexService.mapperService(), null, null,
-                xContentRegistry(), writableRegistry(), null, searcher, null, null);
+            null, null, indexService.mapperService(), null, null, xContentRegistry(), writableRegistry(),
+                null, new IndexSearcher(reader), null, null);
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         // no values -> DISJOINT
         assertEquals(Relation.DISJOINT, range.getRelation(context));

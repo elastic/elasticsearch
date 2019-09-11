@@ -63,15 +63,14 @@ it finds by sending an empty body for the request.
 
 
 //////
-[source,js]	
+[source,console]
 --------------------------------------------------	
 PUT /myindex	
 --------------------------------------------------	
-// CONSOLE	
 // TESTSETUP
 //////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cluster/allocation/explain
 {
@@ -80,12 +79,11 @@ GET /_cluster/allocation/explain
   "primary": true
 }
 --------------------------------------------------
-// CONSOLE
 
 
 ===== Example of the current_node parameter
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cluster/allocation/explain
 {
@@ -95,14 +93,14 @@ GET /_cluster/allocation/explain
   "current_node": "nodeA"                         <1>
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:no way of knowing the current_node]
+
 <1> The node where shard 0 currently has a replica on
 
 
 ===== Examples of unassigned primary shard explanations
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /idx?master_timeout=1s&timeout=1s
 {"settings": {"index.routing.allocation.include._name": "non_existent_node"} }
@@ -114,7 +112,6 @@ GET /_cluster/allocation/explain
   "primary": true
 }
 --------------------------------------------------
-// CONSOLE
 
 
 The API returns the following response for an unassigned primary shard:

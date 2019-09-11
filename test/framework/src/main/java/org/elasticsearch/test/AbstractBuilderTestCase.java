@@ -21,8 +21,6 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
@@ -271,10 +269,10 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     }
 
     /**
-     * @return a new {@link QueryShardContext} with the provided reader
+     * @return a new {@link QueryShardContext} with the provided searcher
      */
-    protected static QueryShardContext createShardContext(IndexReader reader) {
-        return serviceHolder.createShardContext(reader);
+    protected static QueryShardContext createShardContext(IndexSearcher searcher) {
+        return serviceHolder.createShardContext(searcher);
     }
 
     /**
@@ -423,14 +421,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         public void close() throws IOException {
         }
 
-        QueryShardContext createShardContext(IndexReader reader) {
-            final IndexSearcher searcher;
-            if (reader != null) {
-                searcher = new AssertingIndexSearcher(random(), reader);
-                searcher.setQueryCache(null);
-            } else {
-                searcher = null;
-            }
+        QueryShardContext createShardContext(IndexSearcher searcher) {
             return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache,
                 indexFieldDataService::getForField, mapperService, similarityService, scriptService, xContentRegistry,
                 namedWriteableRegistry, this.client, searcher, () -> nowInMillis, null);

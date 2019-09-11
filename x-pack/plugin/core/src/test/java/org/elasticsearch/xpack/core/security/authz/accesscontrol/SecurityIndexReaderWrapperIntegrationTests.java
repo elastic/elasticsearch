@@ -84,8 +84,8 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();
         QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
-                null, null, mapperService, null, null, xContentRegistry(),
-                writableRegistry(), client, null, () -> nowInMillis, null);
+                null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
+                client, null, () -> nowInMillis, null);
         QueryShardContext queryShardContext = spy(realQueryShardContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
@@ -199,8 +199,8 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();
         QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
-                null, null, mapperService, null, null, xContentRegistry(),
-                writableRegistry(), client, null, () -> nowInMillis, null);
+                null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
+                client, null, () -> nowInMillis, null);
         QueryShardContext queryShardContext = spy(realQueryShardContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
 

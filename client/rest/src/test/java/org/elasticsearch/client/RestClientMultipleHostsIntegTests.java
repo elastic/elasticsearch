@@ -74,6 +74,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
         int numHttpServers = randomIntBetween(2, 4);
         httpServers = new HttpServer[numHttpServers];
         httpHosts = new HttpHost[numHttpServers];
+        waitForCancelHandler = new WaitForCancelHandler();
         for (int i = 0; i < numHttpServers; i++) {
             HttpServer httpServer = createHttpServer();
             httpServers[i] = httpServer;
@@ -98,24 +99,30 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
         for (int statusCode : getAllStatusCodes()) {
             httpServer.createContext(pathPrefix + "/" + statusCode, new ResponseHandler(statusCode));
         }
-        waitForCancelHandler = new WaitForCancelHandler();
         httpServer.createContext(pathPrefix + "/wait", waitForCancelHandler);
         return httpServer;
     }
 
     private static class WaitForCancelHandler implements HttpHandler {
-        private CountDownLatch cancelHandlerLatch;
+        private volatile CountDownLatch requestCameInLatch;
+        private volatile CountDownLatch cancelHandlerLatch;
 
         void reset() {
             cancelHandlerLatch = new CountDownLatch(1);
+            requestCameInLatch = new CountDownLatch(1);
         }
 
         void cancelDone() {
             cancelHandlerLatch.countDown();
         }
 
+        void awaitRequest() throws InterruptedException {
+            requestCameInLatch.await();
+        }
+
         @Override
         public void handle(HttpExchange exchange) throws IOException {
+            requestCameInLatch.countDown();
             try {
                 cancelHandlerLatch.await();
             } catch (InterruptedException ignore) {
@@ -226,15 +233,12 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
 
     public void testCancelAsyncRequests() throws Exception {
         int numRequests = randomIntBetween(5, 20);
-        final CountDownLatch latch = new CountDownLatch(numRequests);
         final List<Response> responses = new CopyOnWriteArrayList<>();
         final List<Exception> exceptions = new CopyOnWriteArrayList<>();
         for (int i = 0; i < numRequests; i++) {
+            CountDownLatch latch = new CountDownLatch(1);
             waitForCancelHandler.reset();
-            final String method = RestClientTestUtil.randomHttpMethod(getRandom());
-            //we don't test status codes that are subject to retries as they interfere with hosts being stopped
-            final int statusCode = randomBoolean() ? randomOkStatusCode(getRandom()) : randomErrorNoRetryStatusCode(getRandom());
-            Cancellable cancellable = restClient.performRequestAsync(new Request(method, "/" + statusCode), new ResponseListener() {
+            Cancellable cancellable = restClient.performRequestAsync(new Request("GET", "/wait"), new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
                     responses.add(response);
@@ -247,10 +251,15 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
                     latch.countDown();
                 }
             });
+            if (randomBoolean()) {
+                //we wait for the request to get to the server-side otherwise we almost always cancel
+                // the request artificially on the client-side before even sending it
+                waitForCancelHandler.awaitRequest();
+            }
             cancellable.cancel();
             waitForCancelHandler.cancelDone();
+            assertTrue(latch.await(5, TimeUnit.SECONDS));
         }
-        assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertEquals(0, responses.size());
         assertEquals(numRequests, exceptions.size());
         for (Exception exception : exceptions) {

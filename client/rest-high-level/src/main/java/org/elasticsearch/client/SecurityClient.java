@@ -1013,7 +1013,7 @@ public final class SecurityClient {
      * authenticated TLS session, and it is validated by the PKI realms with {@code delegation.enabled} toggled to {@code true}.<br>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delegate-pki-authentication.html"> the
      * docs</a> for more details.
-     * 
+     *
      * @param request the request containing the certificate chain
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response from the delegate-pki-authentication API key call
@@ -1031,14 +1031,14 @@ public final class SecurityClient {
      * {@code true}.<br>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delegate-pki-authentication.html"> the
      * docs</a> for more details.
-     * 
+     *
      * @param request the request containing the certificate chain
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public void delegatePkiAuthenticationAsync(DelegatePkiAuthenticationRequest request, RequestOptions options,
+    public Cancellable delegatePkiAuthenticationAsync(DelegatePkiAuthenticationRequest request, RequestOptions options,
             ActionListener<DelegatePkiAuthenticationResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::delegatePkiAuthentication, options,
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::delegatePkiAuthentication, options,
                 DelegatePkiAuthenticationResponse::fromXContent, listener, emptySet());
     }
 }

@@ -259,7 +259,6 @@ public class MetaDataMappingService {
                 // we used for the validation, it makes this mechanism little less scary (a little)
                 updateList.add(indexMetaData);
                 // try and parse it (no need to add it here) so we can bail early in case of parsing exception
-                DocumentMapper newMapper;
                 DocumentMapper existingMapper = mapperService.documentMapper();
                 String typeForUpdate = mapperService.getTypeForUpdate(mappingType, mappingUpdateSource);
                 if (existingMapper != null && existingMapper.type().equals(typeForUpdate) == false) {
@@ -267,7 +266,7 @@ public class MetaDataMappingService {
                         "] as the final mapping would have more than 1 type: " + Arrays.asList(existingMapper.type(), typeForUpdate));
                 }
 
-                newMapper = mapperService.parse(request.type(), mappingUpdateSource);
+                DocumentMapper newMapper = mapperService.parse(request.type(), mappingUpdateSource);
                 if (existingMapper != null) {
                     // first, simulate: just call merge and ignore the result
                     existingMapper.merge(newMapper.mapping());

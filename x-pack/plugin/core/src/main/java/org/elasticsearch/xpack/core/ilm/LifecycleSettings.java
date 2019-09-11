@@ -10,8 +10,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.scheduler.CronSchedule;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_LIFECYCLE_ORIGINATION_DATE;
-
 /**
  * Class encapsulating settings related to Index Lifecycle Management X-Pack Plugin
  */
@@ -19,6 +17,7 @@ public class LifecycleSettings {
     public static final String LIFECYCLE_POLL_INTERVAL = "indices.lifecycle.poll_interval";
     public static final String LIFECYCLE_NAME = "index.lifecycle.name";
     public static final String LIFECYCLE_INDEXING_COMPLETE = "index.lifecycle.indexing_complete";
+    public static final String SETTING_LIFECYCLE_ORIGINATION_DATE = "index.lifecycle.origination_date";
 
     public static final String SLM_HISTORY_INDEX_ENABLED = "slm.history_index_enabled";
     public static final String SLM_RETENTION_SCHEDULE = "slm.retention_schedule";

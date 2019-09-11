@@ -186,7 +186,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
     public void testExplainExecution() throws Exception {
         // start node
         logger.info("Starting server1");
-        final String server_1 = internalCluster().startNode();
+        internalCluster().startNode();
         logger.info("Creating lifecycle [test_lifecycle]");
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
         PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
@@ -201,7 +201,14 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         long actualModifiedDate = Instant.parse(responseItem.getModifiedDate()).toEpochMilli();
 
         logger.info("Creating index [test]");
-        CreateIndexResponse createIndexResponse = client().admin().indices().create(createIndexRequest("test").settings(settings))
+        CreateIndexResponse createIndexResponse = client().admin().indices()
+            .create(
+                createIndexRequest("test").settings(
+                    Settings.builder()
+                        .put(settings)
+                        .put(LifecycleSettings.SETTING_LIFECYCLE_ORIGINATION_DATE, 1000L)
+                )
+            )
             .actionGet();
         assertAcked(createIndexResponse);
 
@@ -214,6 +221,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
                 IndexLifecycleExplainResponse indexResponse = explainResponse.getIndexResponses().get("test");
                 assertThat(indexResponse.getStep(), equalTo("observable_cluster_state_action"));
                 assertThat(indexResponse.getPhaseExecutionInfo(), equalTo(expectedExecutionInfo));
+                assertThat(indexResponse.getLifecycleDate(), equalTo(1000L));
             });
         }
 

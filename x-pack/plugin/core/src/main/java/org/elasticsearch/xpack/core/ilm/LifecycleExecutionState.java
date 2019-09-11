@@ -26,7 +26,6 @@ public class LifecycleExecutionState {
     private static final String ACTION = "action";
     private static final String STEP = "step";
     private static final String INDEX_CREATION_DATE = "creation_date";
-    private static final String INDEX_ORIGINATION_DATE = "origination_date";
     private static final String PHASE_TIME = "phase_time";
     private static final String ACTION_TIME = "action_time";
     private static final String STEP_TIME = "step_time";
@@ -119,15 +118,6 @@ public class LifecycleExecutionState {
                     e, INDEX_CREATION_DATE, customData.get(INDEX_CREATION_DATE));
             }
         }
-        if (customData.containsKey(INDEX_ORIGINATION_DATE)) {
-            try {
-                builder.setIndexOriginationDate(Long.parseLong(customData.get(INDEX_ORIGINATION_DATE)));
-            } catch (NumberFormatException e) {
-                throw new ElasticsearchException("Custom metadata field [{}] does not contain a valid long. Actual value: [{}]",
-                    e, INDEX_ORIGINATION_DATE, customData.get(INDEX_ORIGINATION_DATE));
-            }
-        }
-
         if (customData.containsKey(PHASE_TIME)) {
             try {
                 builder.setPhaseTime(Long.parseLong(customData.get(PHASE_TIME)));
@@ -269,7 +259,6 @@ public class LifecycleExecutionState {
         private Long phaseTime;
         private Long actionTime;
         private Long stepTime;
-        private Long indexOriginationDate;
 
         public Builder setPhase(String phase) {
             this.phase = phase;
@@ -321,15 +310,9 @@ public class LifecycleExecutionState {
             return this;
         }
 
-        public Builder setIndexOriginationDate(Long originationDate) {
-            this.indexOriginationDate = originationDate;
-            return this;
-        }
-
         public LifecycleExecutionState build() {
             return new LifecycleExecutionState(phase, action, step, failedStep, stepInfo, phaseDefinition,
-                indexOriginationDate != null && indexOriginationDate != -1L ? indexOriginationDate : indexCreationDate,
-                phaseTime, actionTime, stepTime);
+                indexCreationDate, phaseTime, actionTime, stepTime);
         }
     }
 

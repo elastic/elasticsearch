@@ -44,7 +44,6 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
 
         LifecycleExecutionState.Builder newCustomData = LifecycleExecutionState.builder(lifecycleState);
         newCustomData.setIndexCreationDate(indexMetaData.getCreationDate());
-        newCustomData.setIndexOriginationDate(indexMetaData.getOriginationDate());
         newClusterStateBuilder.metaData(MetaData.builder(clusterState.getMetaData()).put(IndexMetaData
             .builder(indexMetaData)
             .putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap())));

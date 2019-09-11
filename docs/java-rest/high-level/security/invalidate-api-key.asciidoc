@@ -3,7 +3,7 @@
 :request: InvalidateApiKeyRequest
 :response: InvalidateApiKeyResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Invalidate API Key API
 

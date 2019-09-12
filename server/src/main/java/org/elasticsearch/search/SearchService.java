@@ -626,11 +626,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 indexShard.shardId(), request.getClusterAlias(), OriginalIndices.NONE);
         Engine.Searcher searcher = indexShard.acquireSearcher(source);
 
-        final DefaultSearchContext searchContext = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget,
-            searcher, clusterService, indexService, indexShard, bigArrays, threadPool::relativeTimeInMillis, timeout,
-            fetchPhase, clusterService.state().nodes().getMinNodeVersion());
         boolean success = false;
+        DefaultSearchContext searchContext = null;
         try {
+            searchContext = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget,
+                searcher, clusterService, indexService, indexShard, bigArrays, threadPool::relativeTimeInMillis, timeout,
+                fetchPhase, clusterService.state().nodes().getMinNodeVersion());
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services
             // during rewrite and normalized / evaluate templates etc.
@@ -641,6 +642,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         } finally {
             if (success == false) {
                 IOUtils.closeWhileHandlingException(searchContext);
+                if (searchContext == null) {
+                    // we handle the case where the DefaultSearchContext constructor throws an exception since we would otherwise
+                    // leak a searcher and this can have severe implications (unable to obtain shard lock exceptions).
+                    IOUtils.closeWhileHandlingException(searcher);
+                }
             }
         }
         return searchContext;
@@ -781,7 +787,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         context.terminateAfter(source.terminateAfter());
         if (source.aggregations() != null) {
             try {
-                AggregatorFactories factories = source.aggregations().build(context, null);
+                AggregatorFactories factories = source.aggregations().build(queryShardContext, null);
                 context.aggregations(new SearchContextAggregations(factories, multiBucketConsumerService.create()));
             } catch (IOException e) {
                 throw new AggregationInitializationException("Failed to create aggregators", e);
@@ -895,7 +901,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
 
         if (source.collapse() != null) {
-            final CollapseContext collapseContext = source.collapse().build(context);
+            if (context.scrollContext() != null) {
+                throw new SearchContextException(context, "cannot use `collapse` in a scroll context");
+            }
+            if (context.searchAfter() != null) {
+                throw new SearchContextException(context, "cannot use `collapse` in conjunction with `search_after`");
+            }
+            if (context.rescore() != null && context.rescore().isEmpty() == false) {
+                throw new SearchContextException(context, "cannot use `collapse` in conjunction with `rescore`");
+            }
+            final CollapseContext collapseContext = source.collapse().build(queryShardContext);
             context.collapse(collapseContext);
         }
     }

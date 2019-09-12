@@ -101,7 +101,7 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
             repositoryStateId = in.readLong();
         }
 
-        private Entry(String repository, long repositoryStateId) {
+        public Entry(String repository, long repositoryStateId) {
             this.repository = repository;
             this.repositoryStateId = repositoryStateId;
         }

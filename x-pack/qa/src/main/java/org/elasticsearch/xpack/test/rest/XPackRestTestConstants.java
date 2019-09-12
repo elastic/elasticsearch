@@ -21,14 +21,21 @@ public final class XPackRestTestConstants {
 
     // ML constants:
     public static final String ML_META_INDEX_NAME = ".ml-meta";
-    public static final String AUDITOR_NOTIFICATIONS_INDEX = ".ml-notifications";
+    public static final String AUDITOR_NOTIFICATIONS_INDEX_LEGACY = ".ml-notifications";
+    public static final String AUDITOR_NOTIFICATIONS_INDEX = ".ml-notifications-000001";
     public static final String CONFIG_INDEX = ".ml-config";
     public static final String RESULTS_INDEX_PREFIX = ".ml-anomalies-";
     public static final String STATE_INDEX_PREFIX = ".ml-state";
     public static final String RESULTS_INDEX_DEFAULT = "shared";
 
     public static final List<String> ML_POST_V660_TEMPLATES =
-        List.of(AUDITOR_NOTIFICATIONS_INDEX, ML_META_INDEX_NAME, STATE_INDEX_PREFIX, RESULTS_INDEX_PREFIX, CONFIG_INDEX);
+        List.of(
+            AUDITOR_NOTIFICATIONS_INDEX_LEGACY,
+            AUDITOR_NOTIFICATIONS_INDEX,
+            ML_META_INDEX_NAME,
+            STATE_INDEX_PREFIX,
+            RESULTS_INDEX_PREFIX,
+            CONFIG_INDEX);
 
     // Data Frame constants:
     public static final String DATA_FRAME_INTERNAL_INDEX = ".data-frame-internal-1";

@@ -29,8 +29,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
-
 /**
  * {@link GatewayMetaState} constructor accepts a lot of arguments.
  * It's not always easy / convenient to construct these dependencies.

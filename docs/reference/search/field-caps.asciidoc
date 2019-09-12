@@ -5,19 +5,17 @@ The field capabilities API allows to retrieve the capabilities of fields among m
 
 The field capabilities API by default executes on all indices:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _field_caps?fields=rating
 --------------------------------------------------
-// CONSOLE
 
 The request can also be restricted to specific indices:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_field_caps?fields=rating
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 Supported request options:
@@ -61,11 +59,10 @@ or null if all indices have the same definition for the field.
 
 Request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _field_caps?fields=rating,title
 --------------------------------------------------
-// CONSOLE
 
 [source,js]
 --------------------------------------------------
@@ -110,11 +107,10 @@ and as a `keyword` in `index3` and `index4`.
 By default unmapped fields are ignored. You can include them in the response by
 adding a parameter called `include_unmapped` in the request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _field_caps?fields=rating,title&include_unmapped
 --------------------------------------------------
-// CONSOLE
 
 In which case the response will contain an entry for each field that is present in
 some indices but not all:

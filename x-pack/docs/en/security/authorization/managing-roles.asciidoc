@@ -144,7 +144,8 @@ no effect, and will not grant any actions in the
 ==== Example
 
 The following snippet shows an example definition of a `clicks_admin` role:
-[source,js]
+
+[source,console]
 -----------
 POST /_security/role/clicks_admin
 {
@@ -162,7 +163,6 @@ POST /_security/role/clicks_admin
   ]
 }
 -----------
-// CONSOLE
 
 Based on the above definition, users owning the `clicks_admin` role can:
 

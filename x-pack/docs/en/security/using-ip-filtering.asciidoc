@@ -114,7 +114,7 @@ based hosting, it is very hard to know the IP addresses upfront when provisionin
 a machine. Instead of changing the configuration file and restarting the node,
 you can use the _Cluster Update Settings API_. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_cluster/settings
 {
@@ -123,11 +123,10 @@ PUT /_cluster/settings
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 You can also dynamically disable filtering completely:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_cluster/settings
 {
@@ -136,7 +135,6 @@ PUT /_cluster/settings
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 NOTE: In order to avoid locking yourself out of the cluster, the default bound

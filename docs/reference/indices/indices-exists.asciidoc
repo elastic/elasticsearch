@@ -8,11 +8,10 @@ Checks if an index exists.
 The returned HTTP status code indicates if the index exists or not.
 A `404` means it does not exist, and `200` means it does.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 HEAD /twitter
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 

@@ -18,10 +18,12 @@
  */
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -147,16 +149,7 @@ public class SearchTaskStatus implements Task.Status {
                 builder.field("processed_shards", processed.size());
                 builder.startArray("processed");
                 for (ShardInfo shardInfo : processed) {
-                    builder.startObject();
-                    {
-                        builder.field("index_name", shardInfo.shardId.getIndex().getName());
-                        builder.field("index_uuid", shardInfo.shardId.getIndex().getUUID());
-                        builder.field("shard_id", shardInfo.shardId.getId());
-                        builder.startObject("task_info");
-                        shardInfo.taskInfo.toXContent(builder, params);
-                        builder.endObject();
-                    }
-                    builder.endObject();
+                    shardInfo.toXContent(builder, params);
                 }
                 builder.endArray();
             }
@@ -165,8 +158,9 @@ public class SearchTaskStatus implements Task.Status {
         }
     }
 
-    private static class ShardInfo implements Writeable {
+    private static class ShardInfo implements Writeable, ToXContentObject {
         private final ShardId shardId;
+        @Nullable
         private final TaskInfo taskInfo;
 
         ShardInfo(ShardId shardId, TaskInfo taskInfo) {
@@ -176,13 +170,31 @@ public class SearchTaskStatus implements Task.Status {
 
         ShardInfo(StreamInput in) throws IOException {
             this.shardId = new ShardId(in);
-            this.taskInfo = new TaskInfo(in);
+            this.taskInfo = in.readOptionalWriteable(TaskInfo::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             this.shardId.writeTo(out);
+            out.writeOptionalWriteable(this.taskInfo);
             this.taskInfo.writeTo(out);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            {
+                builder.field("index_name", shardId.getIndex().getName());
+                builder.field("index_uuid", shardId.getIndex().getUUID());
+                builder.field("shard_id", shardId.getId());
+                if (taskInfo != null) {
+                    builder.startObject("task_info");
+                    taskInfo.toXContent(builder, params);
+                    builder.endObject();
+                }
+            }
+            builder.endObject();
+            return builder;
         }
     }
 }

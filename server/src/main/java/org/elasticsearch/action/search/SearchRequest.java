@@ -568,7 +568,6 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
             sb.append("], ");
             sb.append("search_type[").append(searchType).append("], ");
             if (source != null) {
-
                 sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
             } else {
                 sb.append("source[]");

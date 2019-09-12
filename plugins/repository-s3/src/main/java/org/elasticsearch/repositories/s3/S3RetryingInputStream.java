@@ -26,11 +26,17 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.Version;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 
+/**
+ * Wrapper around an S3 object that will retry the {@link GetObjectRequest} if the download fails part-way through, resuming from where
+ * the failure occurred. This should be handled by the SDK but it isn't today. This should be revisited in the future (e.g. before removing
+ * the {@link Version#V_7_0_0} version constant) and removed when the SDK handles retries itself.
+ */
 class S3RetryingInputStream extends InputStream {
 
     private static final Logger logger = LogManager.getLogger(S3RetryingInputStream.class);

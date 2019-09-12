@@ -54,7 +54,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
-import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -640,7 +639,7 @@ public class SearchQueryIT extends ESIntegTestCase {
             shardFailures = searchResponse.getShardFailures();
             assertThat("Expected shard failures, got none", shardFailures, not(emptyArray()));
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.status(), CoreMatchers.equalTo(RestStatus.BAD_REQUEST));
+            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
             shardFailures = e.shardFailures();
         }
 

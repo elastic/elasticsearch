@@ -43,7 +43,7 @@ public class InternalSimpleValueTests extends InternalAggregationTestCase<Intern
     @Override
     public void testReduceRandom() {
         expectThrows(UnsupportedOperationException.class,
-                () -> createTestInstance("name", Collections.emptyList(), null).doReduce(null, null));
+                () -> createTestInstance("name", Collections.emptyList(), null).reduce(null, null));
     }
 
     @Override

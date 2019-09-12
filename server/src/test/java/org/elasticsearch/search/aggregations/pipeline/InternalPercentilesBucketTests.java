@@ -69,7 +69,7 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
     @Override
     public void testReduceRandom() {
         expectThrows(UnsupportedOperationException.class,
-                () -> createTestInstance("name", Collections.emptyList(), null).doReduce(null, null));
+                () -> createTestInstance("name", Collections.emptyList(), null).reduce(null, null));
     }
 
     @Override

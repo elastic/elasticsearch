@@ -81,7 +81,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
     }
 
     @Override
-    public InternalGeoGrid doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalGeoGrid reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         LongObjectPagedHashMap<List<InternalGeoGridBucket>> buckets = null;
         for (InternalAggregation aggregation : aggregations) {
             InternalGeoGrid grid = (InternalGeoGrid) aggregation;

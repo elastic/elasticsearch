@@ -273,7 +273,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             InternalAggregation.ReduceContext context =
                 new InternalAggregation.ReduceContext(bigArrays, mockScriptService, bucketConsumer,false);
             @SuppressWarnings("unchecked")
-            T reduced = (T) inputs.get(0).doReduce(internalAggregations, context);
+            T reduced = (T) inputs.get(0).reduce(internalAggregations, context);
             int initialBucketCount = 0;
             for (InternalAggregation internalAggregation : internalAggregations) {
                 initialBucketCount += countInnerBucket(internalAggregation);
@@ -289,7 +289,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         InternalAggregation.ReduceContext context =
             new InternalAggregation.ReduceContext(bigArrays, mockScriptService, bucketConsumer, true);
         @SuppressWarnings("unchecked")
-        T reduced = (T) inputs.get(0).doReduce(toReduce, context);
+        T reduced = (T) inputs.get(0).reduce(toReduce, context);
         assertMultiBucketConsumer(reduced, bucketConsumer);
         assertReduced(reduced, inputs);
     }

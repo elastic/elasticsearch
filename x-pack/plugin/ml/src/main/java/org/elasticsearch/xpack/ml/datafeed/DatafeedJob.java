@@ -97,6 +97,7 @@ class DatafeedJob {
 
     void isolate() {
         isIsolated = true;
+        timingStatsReporter.disallowPersisting();
     }
 
     boolean isIsolated() {

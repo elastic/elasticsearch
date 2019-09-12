@@ -7,7 +7,7 @@ The query can either be provided using a simple query string as a
 parameter, or using the <<query-dsl,Query DSL>> defined within the request
 body. Here is an example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /twitter/_doc/1?refresh
 {
@@ -23,7 +23,6 @@ GET /twitter/_count
     }
 }
 --------------------------------------------------
-//CONSOLE
 
 NOTE: The query being sent in the body must be nested in a `query` key, same as
 the <<search-search,search api>> works

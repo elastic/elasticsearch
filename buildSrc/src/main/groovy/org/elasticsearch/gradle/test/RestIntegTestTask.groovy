@@ -22,10 +22,12 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.elasticsearch.gradle.tool.Boilerplate
 import org.elasticsearch.gradle.tool.ClasspathUtils
 import org.gradle.api.DefaultTask
 import org.gradle.api.Task
 import org.gradle.api.execution.TaskExecutionAdapter
+import org.gradle.api.file.FileCopyDetails
 import org.gradle.api.logging.Logger
 import org.gradle.api.logging.Logging
 import org.gradle.api.tasks.Copy
@@ -38,6 +40,7 @@ import org.gradle.plugins.ide.idea.IdeaPlugin
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.util.stream.Stream
+
 /**
  * A wrapper task around setting up a cluster and running rest tests.
  */
@@ -81,9 +84,9 @@ class RestIntegTestTask extends DefaultTask {
             }
             if (usesTestclusters == true) {
                 ElasticsearchCluster cluster = project.testClusters."${name}"
-                runner.nonInputProperties.systemProperty('tests.rest.cluster', "${-> cluster.allHttpSocketURI.join(",") }")
-                runner.nonInputProperties.systemProperty('tests.cluster', "${-> cluster.transportPortURI }")
-                runner.nonInputProperties.systemProperty('tests.clustername', "${-> cluster.getName() }")
+                runner.nonInputProperties.systemProperty('tests.rest.cluster', "${-> cluster.allHttpSocketURI.join(",")}")
+                runner.nonInputProperties.systemProperty('tests.cluster', "${-> cluster.transportPortURI}")
+                runner.nonInputProperties.systemProperty('tests.clustername', "${-> cluster.getName()}")
             } else {
                 // we pass all nodes to the rest cluster to allow the clients to round-robin between them
                 // this is more realistic than just talking to a single node
@@ -123,10 +126,10 @@ class RestIntegTestTask extends DefaultTask {
             runner.systemProperty('test.clustername', System.getProperty("tests.clustername"))
         }
 
-        // copy the rest spec/tests into the test resources
-        Task copyRestSpec = createCopyRestSpecTask()
-        runner.dependsOn(copyRestSpec)
-        
+        // copy the rest spec/tests onto the test classpath
+        Copy copyRestSpec = createCopyRestSpecTask()
+        project.sourceSets.test.output.builtBy(copyRestSpec)
+
         // this must run after all projects have been configured, so we know any project
         // references can be accessed as a fully configured
         project.gradle.projectsEvaluated {
@@ -150,8 +153,8 @@ class RestIntegTestTask extends DefaultTask {
     }
 
     @Option(
-        option = "debug-jvm",
-        description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch."
+            option = "debug-jvm",
+            description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch."
     )
     public void setDebug(boolean enabled) {
         clusterConfig.debug = enabled;
@@ -166,7 +169,7 @@ class RestIntegTestTask extends DefaultTask {
         runner.dependsOn(dependencies)
         for (Object dependency : dependencies) {
             if (dependency instanceof Fixture) {
-                runner.finalizedBy(((Fixture)dependency).getStopTask())
+                runner.finalizedBy(((Fixture) dependency).getStopTask())
             }
         }
         return this
@@ -177,7 +180,7 @@ class RestIntegTestTask extends DefaultTask {
         runner.setDependsOn(dependencies)
         for (Object dependency : dependencies) {
             if (dependency instanceof Fixture) {
-                runner.finalizedBy(((Fixture)dependency).getStopTask())
+                runner.finalizedBy(((Fixture) dependency).getStopTask())
             }
         }
     }
@@ -224,50 +227,37 @@ class RestIntegTestTask extends DefaultTask {
 
     }
 
-    /**
-     * Creates a task (if necessary) to copy the rest spec files.
-     *
-     * @param project The project to add the copy task to
-     * @param includePackagedTests true if the packaged tests should be copied, false otherwise
-     */
-    Task createCopyRestSpecTask() {
-        project.configurations {
-            restSpec
+    Copy createCopyRestSpecTask() {
+        Boilerplate.maybeCreate(project.configurations, 'restSpec') {
+            project.dependencies.add(
+                    'restSpec',
+                    ClasspathUtils.isElasticsearchProject() ? project.project(':rest-api-spec') :
+                            "org.elasticsearch:rest-api-spec:${VersionProperties.elasticsearch}"
+            )
         }
-        project.dependencies {
-            restSpec ClasspathUtils.isElasticsearchProject() ? project.project(':rest-api-spec') :
-                    "org.elasticsearch:rest-api-spec:${VersionProperties.elasticsearch}"
-        }
-        Task copyRestSpec = project.tasks.findByName('copyRestSpec')
-        if (copyRestSpec != null) {
-            return copyRestSpec
-        }
-        Map copyRestSpecProps = [
-                name     : 'copyRestSpec',
-                type     : Copy,
-                dependsOn: [project.configurations.restSpec, 'processTestResources']
-        ]
-        copyRestSpec = project.tasks.create(copyRestSpecProps) {
-            into project.sourceSets.test.output.resourcesDir
-        }
-        project.afterEvaluate {
-            copyRestSpec.from({ project.zipTree(project.configurations.restSpec.singleFile) }) {
-                include 'rest-api-spec/api/**'
-                if (includePackaged) {
-                    include 'rest-api-spec/test/**'
+
+        return Boilerplate.maybeCreate(project.tasks, 'copyRestSpec', Copy) { Copy copy ->
+            copy.dependsOn project.configurations.restSpec
+            copy.into(project.sourceSets.test.output.resourcesDir)
+            copy.from({ project.zipTree(project.configurations.restSpec.singleFile) }) {
+                includeEmptyDirs = false
+                include 'rest-api-spec/**'
+                filesMatching('rest-api-spec/test/**') { FileCopyDetails details ->
+                    if (includePackaged == false) {
+                        details.exclude()
+                    }
                 }
             }
-        }
-        if (project.plugins.hasPlugin(IdeaPlugin)) {
-            project.idea {
-                module {
-                    if (scopes.TEST != null) {
-                        scopes.TEST.plus.add(project.configurations.restSpec)
+
+            if (project.plugins.hasPlugin(IdeaPlugin)) {
+                project.idea {
+                    module {
+                        if (scopes.TEST != null) {
+                            scopes.TEST.plus.add(project.configurations.restSpec)
+                        }
                     }
                 }
             }
         }
-        return copyRestSpec
     }
-
 }

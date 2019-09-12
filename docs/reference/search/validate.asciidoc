@@ -118,7 +118,7 @@ GET twitter/_validate/query?explain=true
 
 responds with:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "valid" : false,

@@ -118,7 +118,7 @@ GET twitter/_search?q=user:kimchy
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "timed_out": false,

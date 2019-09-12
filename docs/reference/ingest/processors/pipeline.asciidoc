@@ -79,7 +79,7 @@ PUT /myindex/_doc/1?pipeline=pipelineB
 
 Response from the index request:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index": "myindex",

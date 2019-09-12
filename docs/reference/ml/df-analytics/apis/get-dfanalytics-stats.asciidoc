@@ -106,11 +106,10 @@ The API returns the following information:
 [[ml-get-dfanalytics-stats-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ml/data_frame/analytics/loganalytics/_stats
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:TBD]
 
 

@@ -29,7 +29,6 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -47,9 +46,9 @@ public abstract class InnerHitContextBuilder {
         this.query = query;
     }
 
-    public final void build(SearchContext parentSearchContext, InnerHitsContext innerHitsContext) throws IOException {
+    public final void validate(QueryShardContext queryShardContext) {
         long innerResultWindow = innerHitBuilder.getFrom() + innerHitBuilder.getSize();
-        int maxInnerResultWindow = parentSearchContext.mapperService().getIndexSettings().getMaxInnerResultWindow();
+        int maxInnerResultWindow = queryShardContext.getIndexSettings().getMaxInnerResultWindow();
         if (innerResultWindow > maxInnerResultWindow) {
             throw new IllegalArgumentException(
                 "Inner result window is too large, the inner hit definition's [" + innerHitBuilder.getName() +
@@ -58,10 +57,12 @@ public abstract class InnerHitContextBuilder {
                     "] index level setting."
             );
         }
-        doBuild(parentSearchContext, innerHitsContext);
+        doValidate(queryShardContext);
     }
 
-    protected abstract void doBuild(SearchContext parentSearchContext, InnerHitsContext innerHitsContext) throws IOException;
+    protected abstract void doValidate(QueryShardContext queryShardContext);
+
+    public abstract void build(SearchContext parentSearchContext, InnerHitsContext innerHitsContext) throws IOException;
 
     public static void extractInnerHits(QueryBuilder query, Map<String, InnerHitContextBuilder> innerHitBuilders) {
         if (query instanceof AbstractQueryBuilder) {
@@ -109,23 +110,6 @@ public abstract class InnerHitContextBuilder {
         }
         ParsedQuery parsedQuery = new ParsedQuery(query.toQuery(queryShardContext), queryShardContext.copyNamedQueries());
         innerHitsContext.parsedQuery(parsedQuery);
-        Map<String, InnerHitsContext.InnerHitSubContext> baseChildren =
-            buildChildInnerHits(innerHitsContext.parentSearchContext(), children);
-        innerHitsContext.setChildInnerHits(baseChildren);
-    }
-
-    private static Map<String, InnerHitsContext.InnerHitSubContext> buildChildInnerHits(SearchContext parentSearchContext,
-                                Map<String, InnerHitContextBuilder> children) throws IOException {
-
-        Map<String, InnerHitsContext.InnerHitSubContext> childrenInnerHits = new HashMap<>();
-        for (Map.Entry<String, InnerHitContextBuilder> entry : children.entrySet()) {
-            InnerHitsContext childInnerHitsContext = new InnerHitsContext();
-            entry.getValue().build(
-                parentSearchContext, childInnerHitsContext);
-            if (childInnerHitsContext.getInnerHits() != null) {
-                childrenInnerHits.putAll(childInnerHitsContext.getInnerHits());
-            }
-        }
-        return childrenInnerHits;
+        innerHitsContext.innerHits(children);
     }
 }

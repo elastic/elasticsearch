@@ -62,7 +62,7 @@ GET /twitter/_search
 
 Then that piece of metadata will be returned in place for our `titles` terms aggregation
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "aggregations": {
@@ -118,7 +118,7 @@ GET /twitter/_search?typed_keys
 In the response, the aggregations names will be changed to respectively `date_histogram#tweets_over_time` and
 `top_hits#top_users`, reflecting the internal types of each aggregation:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "aggregations": {

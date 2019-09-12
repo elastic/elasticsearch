@@ -92,7 +92,8 @@ GET _ml/datafeeds/datafeed-total-requests
 // TEST[skip:setup:server_metrics_datafeed]
 
 The API returns the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "count": 1,

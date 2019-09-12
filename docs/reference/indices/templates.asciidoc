@@ -240,7 +240,7 @@ GET /_template/template_1?filter_path=*.version
 
 The API returns the following response:
 
-[source,js]	
+[source,console-result]
 --------------------------------------------------	
 {	
   "template_1" : {	

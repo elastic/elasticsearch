@@ -307,7 +307,7 @@ POST /sales/_search?size=0
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -377,7 +377,7 @@ If you don't specify a timezone, UTC is used. This would result in both of these
 documents being placed into the same day bucket, which starts at midnight UTC
 on 1 October 2015:
 
-[source,js]
+[source,console-result]
 ---------------------------------
 {
   ...
@@ -419,7 +419,7 @@ GET my_index/_search?size=0
 Now the first document falls into the bucket for 30 September 2015, while the
 second document falls into the bucket for 1 October 2015:
 
-[source,js]
+[source,console-result]
 ---------------------------------
 {
   ...
@@ -496,7 +496,7 @@ GET my_index/_search?size=0
 Instead of a single bucket starting at midnight, the above request groups the
 documents into buckets starting at 6am:
 
-[source,js]
+[source,console-result]
 -----------------------------
 {
   ...
@@ -548,7 +548,7 @@ POST /sales/_search?size=0
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -650,7 +650,7 @@ POST /sales/_search?size=0
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   ...

@@ -3,6 +3,7 @@
 :request: EvaluateDataFrameRequest
 :response: EvaluateDataFrameResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Evaluate Data Frame API
 

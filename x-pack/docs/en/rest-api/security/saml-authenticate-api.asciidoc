@@ -2,7 +2,7 @@
 [[security-api-saml-authenticate]]
 === SAML authenticate API
 
-Submits a SAML response message to {es} for consumption.
+Submits a SAML `Response` message to {es} for consumption.
 
 NOTE: This API is intended for use by custom web applications other than {kib}.
 If you are using {kib}, see the {stack-ov}/saml-guide.html[SAML guide].
@@ -15,11 +15,14 @@ If you are using {kib}, see the {stack-ov}/saml-guide.html[SAML guide].
 [[security-api-saml-authenticate-desc]]
 ==== {api-description-title}
 
-The SAML response message that is submitted can be:
+The SAML message that is submitted can be:
 
 * a response to a SAML authentication request that was previously created using the
 <<security-api-saml-prepare-authentication, SAML prepare authentication API>>.
-* an unsolicited SAML response message in the case of an IdP-initiated single sign-on (SSO) flow.
+* an unsolicited SAML message in the case of an IdP-initiated single sign-on (SSO) flow.
+
+In either cases, the SAML message needs to be a base64 encoded XML document with a root
+element of `<Response>`
 
 After successful validation, {es} responds with an
 {es} internal access token and refresh token that can be subsequently used for authentication.

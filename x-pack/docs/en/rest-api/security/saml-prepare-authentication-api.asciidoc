@@ -2,7 +2,7 @@
 [[security-api-saml-prepare-authentication]]
 === SAML prepare authentication API
 
-Creates a SAML authentication request as a URL string, based on the configuration of the respective SAML realm in {es}.
+Creates a SAML authentication request (`<AuthnRequest>`) as a URL string, based on the configuration of the respective SAML realm in {es}.
 
 NOTE: This API is intended for use by custom web applications other than {kib}.
 If you are using {kib}, see the {stack-ov}/saml-guide.html[SAML guide].

@@ -16,6 +16,7 @@ If you are using {kib}, see the {stack-ov}/saml-guide.html[SAML guide].
 ==== {api-description-title}
 
 The logout request comes from the SAML IdP during an IdP initiated Single Logout.
+The custom web application can use this API to have {es} process the `LogoutRequest`.
 After successful validation of the request, {es} invalidates the access token
 and refresh token that corresponds to that specific SAML principal and provides
 a URL that contains a SAML LogoutResponse message, so that the user can be

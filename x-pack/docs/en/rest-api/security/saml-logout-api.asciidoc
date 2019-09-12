@@ -19,7 +19,7 @@ This API invalidates the tokens that were generated for a user by the
 <<security-api-saml-authenticate,SAML authenticate API>>.
 
 If the SAML realm in {es} is configured accordingly and the SAML IdP supports
-this, the response to the request contains a URL to redirect the user to the IdP
+this, the {es} response contains a URL to redirect the user to the IdP
 that contains a SAML logout request (starting an SP-initiated SAML Single Logout).
 
 {es} exposes all the necessary SAML related functionality via the SAML APIs.

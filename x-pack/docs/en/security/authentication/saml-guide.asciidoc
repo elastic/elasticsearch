@@ -865,6 +865,9 @@ such, most of the parts of the guide above make the assumption that {kib} is use
 This section describes how a custom web application could use the relevant SAML
 REST APIs in order to authenticate the users to {es} with SAML.
 
+NOTE: This section assumes that the reader is familiar with the SAML 2.0 standard
+and more specifically with the SAML 2.0 Web Browser Single Sign On profile.
+
 Single sign-on realms such as OpenID Connect and SAML make use of the Token Service in
 {es} and in principle exchange a SAML or OpenID Connect Authentication response for
 an {es} access token and a refresh token. The access token is used as credentials

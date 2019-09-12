@@ -19,59 +19,16 @@
 
 package org.elasticsearch.upgrades;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.seqno.RetentionLeaseUtils;
-import org.elasticsearch.test.NotEqualMessageBuilder;
-import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
-import org.junit.Before;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
+import org.elasticsearch.test.rest.ESRestTestCase;
+
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
-import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
-import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class VersionCheckIT extends ESRestTestCase {
 

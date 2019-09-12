@@ -77,7 +77,6 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         assertEquals(snStatus.getStats().getTime(), snapshotInfo.endTime() - snapshotInfo.startTime());
     }
 
-    @AwaitsFix(bugUrl = "https://gradle-enterprise.elastic.co/s/savzjd7eyqdf6/tests/kyv2y2z3r4v7m-fol5ler4lgsjg")
     public void testStatusAPICallInProgressSnapshot() throws Exception {
         Client client = client();
 
@@ -101,9 +100,9 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> wait for data nodes to get blocked");
         waitForBlockOnAnyDataNode("test-repo", TimeValue.timeValueMinutes(1));
 
-        final List<SnapshotStatus> snapshotStatus = client.admin().cluster().snapshotsStatus(
-            new SnapshotsStatusRequest("test-repo", new String[]{"test-snap"})).actionGet().getSnapshots();
-        assertBusy(() -> assertEquals(SnapshotsInProgress.State.STARTED, snapshotStatus.get(0).getState()), 1L, TimeUnit.MINUTES);
+        assertBusy(() -> assertEquals(SnapshotsInProgress.State.STARTED, client.admin().cluster().snapshotsStatus(
+            new SnapshotsStatusRequest("test-repo", new String[]{"test-snap"})).actionGet().getSnapshots().get(0).getState()), 1L,
+            TimeUnit.MINUTES);
 
         logger.info("--> unblock all data nodes");
         unblockAllDataNodes("test-repo");

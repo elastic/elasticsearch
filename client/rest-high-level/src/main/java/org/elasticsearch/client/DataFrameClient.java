@@ -21,20 +21,20 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
-import org.elasticsearch.client.dataframe.GetDataFrameTransformRequest;
-import org.elasticsearch.client.dataframe.GetDataFrameTransformResponse;
-import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsRequest;
-import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsResponse;
-import org.elasticsearch.client.dataframe.PreviewDataFrameTransformRequest;
-import org.elasticsearch.client.dataframe.PreviewDataFrameTransformResponse;
-import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
-import org.elasticsearch.client.dataframe.StartDataFrameTransformRequest;
-import org.elasticsearch.client.dataframe.StartDataFrameTransformResponse;
-import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
-import org.elasticsearch.client.dataframe.StopDataFrameTransformResponse;
-import org.elasticsearch.client.dataframe.UpdateDataFrameTransformRequest;
-import org.elasticsearch.client.dataframe.UpdateDataFrameTransformResponse;
+import org.elasticsearch.client.transform.DeleteDataFrameTransformRequest;
+import org.elasticsearch.client.transform.GetDataFrameTransformRequest;
+import org.elasticsearch.client.transform.GetDataFrameTransformResponse;
+import org.elasticsearch.client.transform.GetDataFrameTransformStatsRequest;
+import org.elasticsearch.client.transform.GetDataFrameTransformStatsResponse;
+import org.elasticsearch.client.transform.PreviewDataFrameTransformRequest;
+import org.elasticsearch.client.transform.PreviewDataFrameTransformResponse;
+import org.elasticsearch.client.transform.PutDataFrameTransformRequest;
+import org.elasticsearch.client.transform.StartDataFrameTransformRequest;
+import org.elasticsearch.client.transform.StartDataFrameTransformResponse;
+import org.elasticsearch.client.transform.StopDataFrameTransformRequest;
+import org.elasticsearch.client.transform.StopDataFrameTransformResponse;
+import org.elasticsearch.client.transform.UpdateDataFrameTransformRequest;
+import org.elasticsearch.client.transform.UpdateDataFrameTransformResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -55,7 +55,7 @@ public final class DataFrameClient {
      *     Create data frame transform documentation</a>
      *
      * @param request The PutDataFrameTransformRequest containing the
-     * {@link org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig}.
+     * {@link org.elasticsearch.client.transform.transforms.DataFrameTransformConfig}.
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return An AcknowledgedResponse object indicating request success
      * @throws IOException when there is a serialization issue sending the request or receiving the response
@@ -75,7 +75,7 @@ public final class DataFrameClient {
      * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-data-frame-transform.html">
      *     Create data frame transform documentation</a>
      * @param request The PutDataFrameTransformRequest containing the
-     * {@link org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig}.
+     * {@link org.elasticsearch.client.transform.transforms.DataFrameTransformConfig}.
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
@@ -98,7 +98,7 @@ public final class DataFrameClient {
      *     Create data frame transform documentation</a>
      *
      * @param request The UpdateDataFrameTransformRequest containing the
-     * {@link org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigUpdate}.
+     * {@link org.elasticsearch.client.transform.transforms.DataFrameTransformConfigUpdate}.
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return An UpdateDataFrameTransformResponse object containing the updated configuration
      * @throws IOException when there is a serialization issue sending the request or receiving the response
@@ -119,7 +119,7 @@ public final class DataFrameClient {
      * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/update-data-frame-transform.html">
      *     Create data frame transform documentation</a>
      * @param request The UpdateDataFrameTransformRequest containing the
-     * {@link org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigUpdate}.
+     * {@link org.elasticsearch.client.transform.transforms.DataFrameTransformConfigUpdate}.
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request

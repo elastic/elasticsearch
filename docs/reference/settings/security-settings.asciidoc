@@ -212,7 +212,7 @@ information, see {stack-ov}/setting-up-authentication.html[Setting up authentica
 ===== Settings valid for all realms
 
 `type`::
-The type of the realm: `native, `ldap`, `active_directory`, `pki`, or `file`. Required.
+The type of the realm: `native`, `ldap`, `active_directory`, `pki`, or `file`. Required.
 
 `order`::
 The priority of the realm within the realm chain. Realms with a lower order are

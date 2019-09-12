@@ -1,3 +1,4 @@
+[role="xpack"]
 [[managing-watches]]
 == Managing Watches
 

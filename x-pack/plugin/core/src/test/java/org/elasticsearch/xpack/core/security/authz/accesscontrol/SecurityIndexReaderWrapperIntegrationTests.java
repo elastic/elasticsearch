@@ -26,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
@@ -75,8 +76,9 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();
-        QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, null, null, null, mapperService,
-                null, null, xContentRegistry(), writableRegistry(), client, null, () -> nowInMillis, null);
+        QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
+                null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
+                client, null, () -> nowInMillis, null);
         QueryShardContext queryShardContext = spy(realQueryShardContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
@@ -196,8 +198,9 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();
-        QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, null, null, null, mapperService,
-                null, null, xContentRegistry(), writableRegistry(), client, null, () -> nowInMillis, null);
+        QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
+                null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
+                client, null, () -> nowInMillis, null);
         QueryShardContext queryShardContext = spy(realQueryShardContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
 

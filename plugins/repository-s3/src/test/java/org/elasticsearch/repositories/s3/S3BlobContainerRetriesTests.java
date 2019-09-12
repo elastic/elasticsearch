@@ -483,7 +483,7 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         }
 
         @Override
-        public void close() throws IOException {
+        public void close() {
             closed.set(true);
         }
 

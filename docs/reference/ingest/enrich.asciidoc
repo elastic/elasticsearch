@@ -67,7 +67,7 @@ The following <<docs-index_,index API>> request creates the `users` source index
 containing user data.
 This request also indexes a new document to the `users` source index.
 
-[source,js]
+[source,console]
 ----
 PUT /users/_doc/1?refresh
 {
@@ -81,7 +81,6 @@ PUT /users/_doc/1?refresh
     "web": "mardy.asciidocsmith.com"
 }
 ----
-// CONSOLE
 
 You also can set up {beats-ref}/getting-started.html[{beats}],
 such as a {filebeat-ref}/filebeat-getting-started.html[{filebeat}],
@@ -99,7 +98,7 @@ to create an enrich policy.
 
 include::{docdir}/ingest/apis/enrich/put-enrich-policy.asciidoc[tag=enrich-policy-def]
 
-[source,js]
+[source,console]
 ----
 PUT /_enrich/policy/users-policy
 {
@@ -110,7 +109,6 @@ PUT /_enrich/policy/users-policy
     }
 }
 ----
-// CONSOLE
 // TEST[continued]
 
 
@@ -127,11 +125,10 @@ The following request executes the `users-policy` enrich policy.
 Because this API request performs several operations,
 it may take a while to return a response.
 
-[source,js]
+[source,console]
 ----
 POST /_enrich/policy/users-policy/_execute
 ----
-// CONSOLE
 // TEST[continued]
 
 
@@ -161,7 +158,7 @@ The following request adds a new pipeline, `user_lookup`.
 This pipeline includes an enrich processor
 that uses the `users-policy` enrich policy.
 
-[source,js]
+[source,console]
 ----
 PUT /_ingest/pipeline/user_lookup
 {
@@ -177,7 +174,6 @@ PUT /_ingest/pipeline/user_lookup
   ]
 }
 ----
-// CONSOLE
 // TEST[continued]
 
 You also can add other <<ingest-processors,processors>>
@@ -213,30 +209,28 @@ to index a document
 containing the `email` field,
 the `match_field` specified in the `users-policy` enrich policy.
 
-[source,js]
+[source,console]
 ----
 PUT /my_index/_doc/my_id?pipeline=user_lookup
 {
   "email": "mardy.brown@asciidocsmith.com"
 }
 ----
-// CONSOLE
 // TEST[continued]
 
 To verify the enrich processor matched 
 and appended the appropriate field data,
 use the <<docs-get,get>> API to view the indexed document.
 
-[source,js]
+[source,console]
 ----
 GET /my_index/_doc/my_id
 ----
-// CONSOLE
 // TEST[continued]
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 ----
 {
   "found": true,
@@ -282,12 +276,11 @@ using your ingest pipeline.
 include::apis/enrich/put-enrich-policy.asciidoc[tag=update-enrich-policy]
 
 ////
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_ingest/pipeline/user_lookup
 
 DELETE /_enrich/policy/users-policy
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 ////

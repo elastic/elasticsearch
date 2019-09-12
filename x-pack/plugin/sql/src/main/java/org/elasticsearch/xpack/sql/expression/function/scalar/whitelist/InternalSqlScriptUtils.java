@@ -400,7 +400,7 @@ public final class InternalSqlScriptUtils {
         if (text == null || typeName == null) {
             return null;
         }
-        return new IntervalDayTime(Duration.parse(text), DataType.fromTypeName(typeName));
+        return new IntervalDayTime(Duration.parse(text), DataType.fromSqlOrEsType(typeName));
     }
 
     public static IntervalYearMonth intervalYearMonth(String text, String typeName) {
@@ -408,7 +408,7 @@ public final class InternalSqlScriptUtils {
             return null;
         }
 
-        return new IntervalYearMonth(Period.parse(text), DataType.fromTypeName(typeName));
+        return new IntervalYearMonth(Period.parse(text), DataType.fromSqlOrEsType(typeName));
     }
 
     public static OffsetTime asTime(String time) {

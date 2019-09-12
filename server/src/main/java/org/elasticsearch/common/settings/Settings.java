@@ -673,7 +673,7 @@ public final class Settings implements ToXContentFragment {
 
 
     public static final Set<String> FORMAT_PARAMS =
-        Set.of("settings_filter", "flat_settings");
+            Set.of("settings_filter", "flat_settings");
 
     /**
      * Returns {@code true} if this settings object contains no settings
@@ -1027,7 +1027,7 @@ public final class Settings implements ToXContentFragment {
          */
         public Builder loadFromSource(String source, XContentType xContentType) {
             try (XContentParser parser =  XContentFactory.xContent(xContentType)
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
                 this.put(fromXContent(parser, true, true));
             } catch (Exception e) {
                 throw new SettingsException("Failed to load settings from [" + source + "]", e);
@@ -1058,7 +1058,7 @@ public final class Settings implements ToXContentFragment {
             }
             // fromXContent doesn't use named xcontent or deprecation.
             try (XContentParser parser =  XContentFactory.xContent(xContentType)
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, is)) {
+                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, is)) {
                 if (parser.currentToken() == null) {
                     if (parser.nextToken() == null) {
                         return this; // empty file

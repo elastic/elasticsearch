@@ -21,4 +21,4 @@ criteria. Defaults to `10m`.
 `index.lifecycle.origination_date`::
 The timestamp that will be used to calculate the index age for its phase
 transitions. This allows the users to create an index containing old data and
-use the "old creation date" to calculate the index age.
+use the original creation date of the old data to calculate the index age.

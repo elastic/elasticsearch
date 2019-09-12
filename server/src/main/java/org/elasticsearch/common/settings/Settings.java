@@ -57,7 +57,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
@@ -67,7 +66,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
@@ -97,7 +95,7 @@ public final class Settings implements ToXContentFragment {
      * Setting names found in this Settings for both string and secure settings.
      * This is constructed lazily in {@link #keySet()}.
      */
-    private final AtomicReference<Set<String>> keys = new AtomicReference<>();
+    private final SetOnce<Set<String>> keys = new SetOnce<>();
 
     private Settings(Map<String, Object> settings, SecureSettings secureSettings) {
         // we use a sorted map for consistent serialization when using getAsMap()
@@ -675,7 +673,7 @@ public final class Settings implements ToXContentFragment {
 
 
     public static final Set<String> FORMAT_PARAMS =
-            Set.of("settings_filter", "flat_settings");
+        Set.of("settings_filter", "flat_settings");
 
     /**
      * Returns {@code true} if this settings object contains no settings
@@ -690,26 +688,20 @@ public final class Settings implements ToXContentFragment {
         return keySet().size();
     }
 
-    /**
-     * Returns the fully qualified setting names contained in this settings object.
-     *
-     * @param includeSecureSettings if {@code true} then it returns all settings names, only unsecure settings names otherwise
-     */
-    public Set<String> keySet(boolean includeSecureSettings) {
-        if (!includeSecureSettings || secureSettings == null) {
-            return settings.keySet();
-        }
-        if (keys.get() == null) {
-            Set<String> set = new HashSet<>(settings.keySet());
-            set.addAll(secureSettings.getSettingNames());
-            keys.compareAndSet(null, Collections.unmodifiableSet(set));
-        }
-        return keys.get();
-    }
-
     /** Returns the fully qualified setting names contained in this settings object. */
     public Set<String> keySet() {
-        return keySet(true);
+        synchronized (keys) {
+            if (keys.get() == null) {
+                if (secureSettings == null) {
+                    keys.set(settings.keySet());
+                } else {
+                    Stream<String> stream = Stream.concat(settings.keySet().stream(), secureSettings.getSettingNames().stream());
+                    // uniquify, since for legacy reasons the same setting name may exist in both
+                    keys.set(Collections.unmodifiableSet(stream.collect(Collectors.toSet())));
+                }
+            }
+        }
+        return keys.get();
     }
 
     /**
@@ -1035,7 +1027,7 @@ public final class Settings implements ToXContentFragment {
          */
         public Builder loadFromSource(String source, XContentType xContentType) {
             try (XContentParser parser =  XContentFactory.xContent(xContentType)
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
                 this.put(fromXContent(parser, true, true));
             } catch (Exception e) {
                 throw new SettingsException("Failed to load settings from [" + source + "]", e);
@@ -1066,7 +1058,7 @@ public final class Settings implements ToXContentFragment {
             }
             // fromXContent doesn't use named xcontent or deprecation.
             try (XContentParser parser =  XContentFactory.xContent(xContentType)
-                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, is)) {
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, is)) {
                 if (parser.currentToken() == null) {
                     if (parser.nextToken() == null) {
                         return this; // empty file

@@ -23,7 +23,6 @@ public final class XPackRestTestConstants {
 
     // ML constants:
     public static final String ML_META_INDEX_NAME = ".ml-meta";
-    public static final String AUDITOR_NOTIFICATIONS_INDEX_LEGACY = ".ml-notifications";
     public static final String AUDITOR_NOTIFICATIONS_INDEX = ".ml-notifications-000001";
     public static final String CONFIG_INDEX = ".ml-config";
     public static final String RESULTS_INDEX_PREFIX = ".ml-anomalies-";
@@ -35,7 +34,6 @@ public final class XPackRestTestConstants {
 
     public static final List<String> ML_POST_V660_TEMPLATES =
         Collections.unmodifiableList(Arrays.asList(
-            AUDITOR_NOTIFICATIONS_INDEX_LEGACY,
             AUDITOR_NOTIFICATIONS_INDEX,
             ML_META_INDEX_NAME,
             STATE_INDEX_PREFIX,

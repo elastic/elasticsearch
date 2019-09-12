@@ -39,9 +39,9 @@ public interface GeoGridTiler {
     /**
      * computes the number of tiles for a specific precision that the geo value's
      * bounding-box is contained within.
+     *
      *  @param geoValue  the input shape
      * @param precision the tile zoom-level
-     * @return
      */
     long getBoundingTileCount(MultiGeoValues.GeoValue geoValue, int precision);
 

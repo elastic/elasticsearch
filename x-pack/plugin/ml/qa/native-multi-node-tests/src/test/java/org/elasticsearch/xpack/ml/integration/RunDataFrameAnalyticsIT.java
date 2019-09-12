@@ -236,7 +236,6 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43960")
     public void testStopOutlierDetectionWithEnoughDocumentsToScroll() {
         String sourceIndex = "test-stop-outlier-detection-with-enough-docs-to-scroll";
 
@@ -266,7 +265,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         assertState(id, DataFrameAnalyticsState.STOPPED);
         startAnalytics(id);
-        assertState(id, DataFrameAnalyticsState.STARTED);
+        // State here could be any of STARTED, REINDEXING or ANALYZING
 
         assertThat(stopAnalytics(id).isStopped(), is(true));
         assertState(id, DataFrameAnalyticsState.STOPPED);

@@ -6,7 +6,7 @@
 
 Changes an <<index-modules-settings,index setting>> in real time.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /twitter/_settings
 {
@@ -15,7 +15,6 @@ PUT /twitter/_settings
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 
@@ -68,7 +67,7 @@ options for the index. See <<index-modules-settings>>.
 ===== Reset an index setting
 To revert a setting to the default value, use `null`. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /twitter/_settings
 {
@@ -77,7 +76,6 @@ PUT /twitter/_settings
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 The list of per-index settings which can be updated dynamically on live
@@ -93,7 +91,7 @@ the index from being more performant for bulk indexing, and then move it
 to more real time indexing state. Before the bulk indexing is started,
 use:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /twitter/_settings
 {
@@ -102,7 +100,6 @@ PUT /twitter/_settings
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 (Another optimization option is to start the index without any replicas,
@@ -111,7 +108,7 @@ and only later adding them, but that really depends on the use case).
 Then, once bulk indexing is done, the settings can be updated (back to
 the defaults for example):
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /twitter/_settings
 {
@@ -120,16 +117,14 @@ PUT /twitter/_settings
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 And, a force merge should be called:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /twitter/_forcemerge?max_num_segments=5
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [[update-settings-analysis]]
@@ -144,7 +139,7 @@ and reopen the index.
 For example,
 the following commands add the `content` analyzer to `myindex`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /twitter/_close
 
@@ -162,5 +157,4 @@ PUT /twitter/_settings
 
 POST /twitter/_open
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]

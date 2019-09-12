@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -32,6 +33,7 @@ import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -57,6 +59,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -617,6 +620,32 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[0].getOpType(), is(OpType.INDEX));
         assertThat(bulkResponse.getItems()[1].getOpType(), is(OpType.UPDATE));
         assertThat(bulkResponse.getItems()[2].getOpType(), is(OpType.DELETE));
+    }
+
+    public void testNoopUpdate() {
+        String indexName = "test";
+        createIndex(indexName, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build());
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        ensureGreen(indexName);
+        IndexResponse doc = index(indexName, "_doc", "1", Map.of("user", "xyz"));
+        assertThat(doc.getShardInfo().getSuccessful(), equalTo(2));
+        final BulkResponse bulkResponse = client().prepareBulk()
+            .add(new UpdateRequest().index(indexName).id("1").detectNoop(true).doc("user", "xyz")) // noop update
+            .add(new UpdateRequest().index(indexName).id("2").docAsUpsert(false).doc("f", "v")) // not_found update
+            .add(new DeleteRequest().index(indexName).id("2")) // not_found delete
+            .get();
+        assertThat(bulkResponse.getItems(), arrayWithSize(3));
+
+        final BulkItemResponse noopUpdate = bulkResponse.getItems()[0];
+        assertThat(noopUpdate.getResponse().getResult(), equalTo(DocWriteResponse.Result.NOOP));
+        assertThat(Strings.toString(noopUpdate), noopUpdate.getResponse().getShardInfo().getSuccessful(), equalTo(2));
+
+        final BulkItemResponse notFoundUpdate = bulkResponse.getItems()[1];
+        assertNotNull(notFoundUpdate.getFailure());
+
+        final BulkItemResponse notFoundDelete = bulkResponse.getItems()[2];
+        assertThat(notFoundDelete.getResponse().getResult(), equalTo(DocWriteResponse.Result.NOT_FOUND));
+        assertThat(Strings.toString(notFoundDelete), notFoundDelete.getResponse().getShardInfo().getSuccessful(), equalTo(2));
     }
 }
 

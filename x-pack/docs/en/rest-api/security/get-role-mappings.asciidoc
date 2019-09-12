@@ -55,15 +55,14 @@ response will have status code `404`.
 
 The following example retrieves information about the `mapping1` role mapping:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_security/role_mapping/mapping1
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:role_mapping]
 
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "mapping1": {
@@ -80,4 +79,3 @@ GET /_security/role_mapping/mapping1
   }
 }
 --------------------------------------------------
-// TESTRESPONSE

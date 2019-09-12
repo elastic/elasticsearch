@@ -202,11 +202,12 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                 previousTest = snippet
                 return
             }
-            if (snippet.testResponse) {
+            if (snippet.testResponse || snippet.language == 'console-result') {
                 response(snippet)
                 return
             }
-            if (snippet.test || snippet.console) {
+            if (snippet.test || snippet.console ||
+                    snippet.language == 'console') {
                 test(snippet)
                 previousTest = snippet
                 return

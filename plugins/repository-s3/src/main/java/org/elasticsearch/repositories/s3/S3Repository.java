@@ -114,7 +114,7 @@ class S3Repository extends BlobStoreRepository {
 
     /**
      * Sets the S3 storage class type for the backup files. Values may be standard, reduced_redundancy,
-     * standard_ia and intelligent_tiering. Defaults to standard.
+     * standard_ia, onezone_ia and intelligent_tiering. Defaults to standard.
      */
     static final Setting<String> STORAGE_CLASS_SETTING = Setting.simpleString("storage_class");
 

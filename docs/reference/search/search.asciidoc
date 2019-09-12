@@ -3,11 +3,10 @@
 
 Returns search hits that match the query defined in the request.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_search?q=user:kimchy
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 
@@ -225,28 +224,25 @@ All search APIs can be applied across multiple indices with support for
 the <<multi-index,multi index syntax>>. For
 example, we can search on all documents within the twitter index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_search?q=user:kimchy
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 We can also search all documents with a certain tag across several indices
 (for example, when there is one index per user):
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /kimchy,elasticsearch/_search?q=tag:wow
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
 
 Or we can search across all available indices using `_all`:
 
-[source,js]
+[source,console]
 ---------------------------------------------------
 GET /_all/_search?q=tag:wow
 ---------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]

@@ -359,11 +359,9 @@ public class DateFormatters {
      */
     private static final DateFormatter BASIC_ORDINAL_DATE_TIME = new JavaDateFormatter("basic_ordinal_date_time",
         new DateTimeFormatterBuilder().appendPattern("yyyyDDD").append(BASIC_T_TIME_PRINTER)
-                                      .appendOffset("+HH:MM", "Z")
-                                      .toFormatter(IsoLocale.ROOT),
+            .appendOffset("+HH:MM", "Z").toFormatter(IsoLocale.ROOT),
         new DateTimeFormatterBuilder().appendPattern("yyyyDDD").append(BASIC_T_TIME_FORMATTER)
-                                      .appendZoneOrOffsetId()
-                                      .toFormatter(IsoLocale.ROOT),
+            .appendZoneOrOffsetId().toFormatter(IsoLocale.ROOT),
         new DateTimeFormatterBuilder().appendPattern("yyyyDDD").append(BASIC_T_TIME_FORMATTER)
             .append(TIME_ZONE_FORMATTER_NO_COLON).toFormatter(IsoLocale.ROOT)
 
@@ -375,11 +373,9 @@ public class DateFormatters {
      */
     private static final DateFormatter BASIC_ORDINAL_DATE_TIME_NO_MILLIS = new JavaDateFormatter("basic_ordinal_date_time_no_millis",
         new DateTimeFormatterBuilder().appendPattern("yyyyDDD").appendLiteral("T").append(BASIC_TIME_NO_MILLIS_BASE)
-                                      .appendOffset("+HH:MM", "Z")
-                                      .toFormatter(IsoLocale.ROOT),
+            .appendOffset("+HH:MM", "Z").toFormatter(IsoLocale.ROOT),
         new DateTimeFormatterBuilder().appendPattern("yyyyDDD").appendLiteral("T").append(BASIC_TIME_NO_MILLIS_BASE)
-                                      .appendZoneOrOffsetId()
-                                      .toFormatter(IsoLocale.ROOT),
+            .appendZoneOrOffsetId().toFormatter(IsoLocale.ROOT),
         new DateTimeFormatterBuilder().appendPattern("yyyyDDD").appendLiteral("T").append(BASIC_TIME_NO_MILLIS_BASE)
             .append(TIME_ZONE_FORMATTER_NO_COLON).toFormatter(IsoLocale.ROOT)
     );
@@ -1047,7 +1043,7 @@ public class DateFormatters {
         new DateTimeFormatterBuilder().appendValue(WeekFields.ISO.weekBasedYear()).toFormatter(IsoLocale.ROOT));
 
     /*
-     * Returns a formatter for a four digit weekyear. (yyyy)
+     * Returns a formatter for a four digit year. (uuuu)
      */
     private static final DateFormatter YEAR = new JavaDateFormatter("year",
         new DateTimeFormatterBuilder().appendValue(ChronoField.YEAR).toFormatter(IsoLocale.ROOT));

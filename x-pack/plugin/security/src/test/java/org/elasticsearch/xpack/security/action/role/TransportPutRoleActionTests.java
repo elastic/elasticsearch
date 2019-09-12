@@ -247,6 +247,6 @@ public class TransportPutRoleActionTests extends ESTestCase {
         assertThat(responseRef.get(), is(nullValue()));
         assertThat(throwableRef.get(), is(notNullValue()));
         Throwable t = throwableRef.get();
-        assertThat(t, instanceOf(IllegalArgumentException.class));
+        assertThat(t, instanceOf(ElasticsearchParseException.class));
     }
 }

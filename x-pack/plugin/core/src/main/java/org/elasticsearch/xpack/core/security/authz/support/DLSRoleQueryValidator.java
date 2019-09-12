@@ -50,42 +50,45 @@ public final class DLSRoleQueryValidator {
     public static void validateQueryField(RoleDescriptor.IndicesPrivileges[] indicesPrivileges,
                                           NamedXContentRegistry xContentRegistry) {
         if (indicesPrivileges != null) {
-            for (RoleDescriptor.IndicesPrivileges idp : indicesPrivileges) {
-                BytesReference query = idp.getQuery();
-                if (query != null) {
-                    if (isTemplateQuery(query, xContentRegistry)) {
-                        // skip template query, this requires runtime information like 'User' information.
-                        continue;
+            for (int i = 0; i < indicesPrivileges.length; i++) {
+                BytesReference query = indicesPrivileges[i].getQuery();
+                try {
+                    if (query != null) {
+                        if (isTemplateQuery(query, xContentRegistry)) {
+                            // skip template query, this requires runtime information like 'User' information.
+                            continue;
+                        }
+
+                        validateAndVerifyRoleQuery(query.utf8ToString(), xContentRegistry);
                     }
-
-                    validateAndVerifyRoleQuery(query.utf8ToString(), xContentRegistry);
+                } catch (ParsingException | IllegalArgumentException |  IOException e) {
+                    throw new ElasticsearchParseException("failed to parse field 'query' for [" + i + "]th index privilege " +
+                        "from role descriptor", e);
                 }
             }
         }
     }
 
-    private static boolean isTemplateQuery(BytesReference query, NamedXContentRegistry xContentRegistry) {
-        try {
-            try (XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry,
-                LoggingDeprecationHandler.INSTANCE, query.utf8ToString())) {
-                expectedToken(parser.nextToken(), parser, XContentParser.Token.START_OBJECT);
-                expectedToken(parser.nextToken(), parser, XContentParser.Token.FIELD_NAME);
-                String fieldName = parser.currentName();
-                if ("template".equals(fieldName)) {
-                    return true;
-                }
+    private static boolean isTemplateQuery(BytesReference query, NamedXContentRegistry xContentRegistry) throws IOException {
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry,
+            LoggingDeprecationHandler.INSTANCE, query.utf8ToString())) {
+            XContentParser.Token token = parser.nextToken();
+            if (token != XContentParser.Token.START_OBJECT) {
+                throw new XContentParseException(parser.getTokenLocation(), "expected [" + XContentParser.Token.START_OBJECT + "] but " +
+                    "found [" + token + "] instead");
             }
-        } catch (XContentParseException | IOException e) {
-            throw new ElasticsearchParseException("failed to determine if the query is a template query", e);
+            token = parser.nextToken();
+            if (token != XContentParser.Token.FIELD_NAME) {
+                throw new XContentParseException(parser.getTokenLocation(), "expected [" + XContentParser.Token.FIELD_NAME + "] with " +
+                    "value a query name or 'template' but found [" + token + "] instead");
+            }
+            String fieldName = parser.currentName();
+            if ("template".equals(fieldName)) {
+                return true;
+            }
         }
+
         return false;
-    }
-
-    private static void expectedToken(XContentParser.Token read, XContentParser parser, XContentParser.Token expected) {
-        if (read != expected) {
-            throw new XContentParseException(parser.getTokenLocation(),
-                "expected [" + expected + "] but found [" + read + "] instead");
-        }
     }
 
     /**
@@ -107,22 +110,22 @@ public final class DLSRoleQueryValidator {
         if (query != null) {
             String templateResult = SecurityQueryTemplateEvaluator.evaluateTemplate(query.utf8ToString(), scriptService,
                 user);
-            queryBuilder = validateAndVerifyRoleQuery(templateResult, xContentRegistry);
+            try {
+                queryBuilder = validateAndVerifyRoleQuery(templateResult, xContentRegistry);
+            } catch (ElasticsearchParseException | ParsingException | XContentParseException | IOException e) {
+                throw new ElasticsearchParseException("failed to parse field 'query' from the role descriptor", e);
+            }
         }
         return queryBuilder;
     }
 
-    private static QueryBuilder validateAndVerifyRoleQuery(String query, NamedXContentRegistry xContentRegistry) {
+    private static QueryBuilder validateAndVerifyRoleQuery(String query, NamedXContentRegistry xContentRegistry) throws IOException {
         QueryBuilder queryBuilder = null;
         if (query != null) {
-            try {
-                try (XContentParser parser = XContentFactory.xContent(query).createParser(xContentRegistry,
-                    LoggingDeprecationHandler.INSTANCE, query)) {
-                    queryBuilder = AbstractQueryBuilder.parseInnerQueryBuilder(parser);
-                    verifyRoleQuery(queryBuilder);
-                }
-            } catch (ElasticsearchParseException | ParsingException | XContentParseException | IOException e) {
-                throw new ElasticsearchParseException("failed to parse field 'query' from the role descriptor", e);
+            try (XContentParser parser = XContentFactory.xContent(query).createParser(xContentRegistry,
+                LoggingDeprecationHandler.INSTANCE, query)) {
+                queryBuilder = AbstractQueryBuilder.parseInnerQueryBuilder(parser);
+                verifyRoleQuery(queryBuilder);
             }
         }
         return queryBuilder;
@@ -142,18 +145,18 @@ public final class DLSRoleQueryValidator {
         } else if (queryBuilder instanceof GeoShapeQueryBuilder) {
             GeoShapeQueryBuilder geoShapeQueryBuilder = (GeoShapeQueryBuilder) queryBuilder;
             if (geoShapeQueryBuilder.shape() == null) {
-                throw new IllegalArgumentException("geoshape query referring to indexed shapes isn't support as part of a role query");
+                throw new IllegalArgumentException("geoshape query referring to indexed shapes isn't supported as part of a role query");
             }
         } else if (queryBuilder.getName().equals("percolate")) {
             // actually only if percolate query is referring to an existing document then this is problematic,
             // a normal percolate query does work. However we can't check that here as this query builder is inside
             // another module. So we don't allow the entire percolate query. I don't think users would ever use
             // a percolate query as role query, so this restriction shouldn't prohibit anyone from using dls.
-            throw new IllegalArgumentException("percolate query isn't support as part of a role query");
+            throw new IllegalArgumentException("percolate query isn't supported as part of a role query");
         } else if (queryBuilder.getName().equals("has_child")) {
-            throw new IllegalArgumentException("has_child query isn't support as part of a role query");
+            throw new IllegalArgumentException("has_child query isn't supported as part of a role query");
         } else if (queryBuilder.getName().equals("has_parent")) {
-            throw new IllegalArgumentException("has_parent query isn't support as part of a role query");
+            throw new IllegalArgumentException("has_parent query isn't supported as part of a role query");
         } else if (queryBuilder instanceof BoolQueryBuilder) {
             BoolQueryBuilder boolQueryBuilder = (BoolQueryBuilder) queryBuilder;
             List<QueryBuilder> clauses = new ArrayList<>();

@@ -1,8 +1,6 @@
 [[release-notes-7.3.2]]
 == {es} version 7.3.2
 
-coming[7.3.2]
-
 Also see <<breaking-changes-7.3,Breaking changes in 7.3>>.
 
 [[bug-7.3.2]]

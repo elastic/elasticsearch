@@ -1883,7 +1883,8 @@ public class DateFormatters {
     }
 
     /**
-     * extending the java.time.temporal.TemporalQueries.LOCAL_DATE implementation to also create local dates when YearOfEra was used instead of Year.
+     * extending the java.time.temporal.TemporalQueries.LOCAL_DATE implementation to also create local dates
+     * when YearOfEra was used instead of Year.
      * This is to make it compatible with Joda behaviour
      */
     static final TemporalQuery<LocalDate> LOCAL_DATE_QUERY = new TemporalQuery<>() {

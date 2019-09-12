@@ -439,16 +439,23 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     private void cleanupStaleBlobs(Map<String, BlobContainer> foundIndices, Map<String, BlobMetaData> rootBlobs,
                                    RepositoryData newRepoData, ActionListener<DeleteResult> listener) {
-        final StepListener<DeleteResult> deleteIndicesListener = new StepListener<>();
-        final StepListener<List<String>> deleteRootBlobsListener = new StepListener<>();
+        final GroupedActionListener<DeleteResult> groupedListener = new GroupedActionListener<>(ActionListener.wrap(deleteResults -> {
+            DeleteResult deleteResult = DeleteResult.ZERO;
+            for (DeleteResult result : deleteResults) {
+                deleteResult = deleteResult.add(result);
+            }
+            listener.onResponse(deleteResult);
+        }, listener::onFailure), 2);
+
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
-        executor.execute(ActionRunnable.wrap(deleteIndicesListener, l -> l.onResponse(cleanupStaleIndices(
-            foundIndices, newRepoData.getIndices().values().stream().map(IndexId::getId).collect(Collectors.toSet())))));
-        executor.execute(ActionRunnable.wrap(deleteRootBlobsListener,
-            l -> l.onResponse(cleanupStaleRootFiles(staleRootBlobs(newRepoData, rootBlobs.keySet())))));
-        deleteIndicesListener.whenComplete(deleteResult -> deleteRootBlobsListener.whenComplete(
-            deletedBlobs -> listener.onResponse(deleteResult.add(deletedBlobs.size(),
-                deletedBlobs.stream().mapToLong(name -> rootBlobs.get(name).length()).sum())), listener::onFailure), listener::onFailure);
+        executor.execute(ActionRunnable.wrap(groupedListener, l -> {
+            List<String> deletedBlobs = cleanupStaleRootFiles(staleRootBlobs(newRepoData, rootBlobs.keySet()));
+            l.onResponse(
+                new DeleteResult(deletedBlobs.size(), deletedBlobs.stream().mapToLong(name -> rootBlobs.get(name).length()).sum()));
+        }));
+
+        final Set<String> survivingIndexIds = newRepoData.getIndices().values().stream().map(IndexId::getId).collect(Collectors.toSet());
+        executor.execute(ActionRunnable.wrap(groupedListener, l -> l.onResponse(cleanupStaleIndices(foundIndices, survivingIndexIds))));
     }
 
     /**

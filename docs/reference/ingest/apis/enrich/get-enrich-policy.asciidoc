@@ -9,7 +9,7 @@
 Returns information about an enrich policy.
 
 ////
-[source,js]
+[source,console]
 ----
 PUT /users
 
@@ -22,14 +22,12 @@ PUT /_enrich/policy/my-policy
     }
 }
 ----
-// CONSOLE
 ////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_enrich/policy/my-policy
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 
@@ -62,16 +60,15 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=enrich-policy]
 [[get-enrich-policy-api-single-ex]]
 ===== Get a single policy
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_enrich/policy/my-policy
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "policies": [
@@ -92,22 +89,20 @@ The API returns the following response:
     ]
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 
 [[get-enrich-policy-api-all-ex]]
 ===== Get all policies
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_enrich/policy
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "policies": [
@@ -128,13 +123,11 @@ The API returns the following response:
     ]
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 ////
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_enrich/policy/my-policy
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 ////

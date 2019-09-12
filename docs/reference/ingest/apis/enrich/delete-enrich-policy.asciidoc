@@ -9,7 +9,7 @@
 Deletes an existing enrich policy and its enrich index.
 
 ////
-[source,js]
+[source,console]
 ----
 PUT /users
 
@@ -22,15 +22,13 @@ PUT /_enrich/policy/my-policy
     }
 }
 ----
-// CONSOLE
 // TESTSETUP
 ////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_enrich/policy/my-policy
 --------------------------------------------------
-// CONSOLE
 
 
 [[delete-enrich-policy-api-request]]

@@ -10,7 +10,7 @@ Executes an existing enrich policy.
 
 ////
 
-[source,js]
+[source,console]
 ----
 PUT /users/_doc/1?refresh
 {
@@ -33,22 +33,19 @@ PUT /_enrich/policy/my-policy
     }
 }
 ----
-// CONSOLE
 // TESTSETUP
 ////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_enrich/policy/my-policy/_execute
 --------------------------------------------------
-// CONSOLE
 
 ////
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_enrich/policy/my-policy
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 ////
 

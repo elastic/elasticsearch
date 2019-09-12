@@ -1,5 +1,5 @@
 # -*- mode: ruby -*-
-# vi:ft=ruby ts=2 sw=2 sts=2 et:
+# vim: ft=ruby ts=2 sw=2 sts=2 et:
 
 # This Vagrantfile exists to test packaging. Read more about its use in the
 # vagrant section in TESTING.asciidoc.
@@ -63,6 +63,7 @@ Vagrant.configure(2) do |config|
         # Install Jayatana so we can work around it being present.
         [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
       SHELL
+      deb_docker config
     end
   end
   'ubuntu-1804'.tap do |box|
@@ -72,6 +73,7 @@ Vagrant.configure(2) do |config|
        # Install Jayatana so we can work around it being present.
        [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
       SHELL
+      deb_docker config
     end
   end
   'debian-8'.tap do |box|
@@ -88,6 +90,7 @@ Vagrant.configure(2) do |config|
       config.vm.box = 'elastic/debian-9-x86_64'
       deb_common config, box
     end
+    deb_docker config
   end
   'centos-6'.tap do |box|
     config.vm.define box, define_opts do |config|
@@ -99,6 +102,7 @@ Vagrant.configure(2) do |config|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/centos-7-x86_64'
       rpm_common config, box
+      rpm_docker config
     end
   end
   'oel-6'.tap do |box|
@@ -117,12 +121,14 @@ Vagrant.configure(2) do |config|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/fedora-28-x86_64'
       dnf_common config, box
+      dnf_docker config
     end
   end
   'fedora-29'.tap do |box|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/fedora-28-x86_64'
       dnf_common config, box
+      dnf_docker config
     end
   end
   'opensuse-42'.tap do |box|
@@ -183,7 +189,6 @@ def deb_common(config, name, extra: '')
     install_command: 'apt-get install -y',
     extra: extra_with_lintian
   )
-  deb_docker(config)
 end
 
 def deb_docker(config)
@@ -222,7 +227,6 @@ def rpm_common(config, name)
     update_tracking_file: '/var/cache/yum/last_update',
     install_command: 'yum install -y'
   )
-  rpm_docker(config)
 end
 
 def rpm_docker(config)
@@ -237,7 +241,7 @@ def rpm_docker(config)
     yum install -y docker-ce docker-ce-cli containerd.io
 
     # Start Docker
-    systemctl start docker
+    systemctl enable --now docker
 
     # Add vagrant to the Docker group, so that it can run commands
     usermod -aG docker vagrant
@@ -258,7 +262,6 @@ def dnf_common(config, name)
     install_command: 'dnf install -y',
     install_command_retries: 5
   )
-  dnf_docker(config)
 end
 
 def dnf_docker(config)
@@ -273,7 +276,7 @@ def dnf_docker(config)
     dnf install -y docker-ce docker-ce-cli containerd.io
 
     # Start Docker
-    systemctl start docker
+    systemctl enable --now docker
 
     # Add vagrant to the Docker group, so that it can run commands
     usermod -aG docker vagrant

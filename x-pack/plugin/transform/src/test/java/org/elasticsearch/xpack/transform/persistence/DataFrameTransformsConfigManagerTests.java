@@ -21,11 +21,11 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpointTests;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformStoredDocTests;
+import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDocTests;
 import org.elasticsearch.xpack.transform.DataFrameSingleNodeTestCase;
 import org.junit.Before;
 
@@ -63,7 +63,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         // create one transform and test with an existing index
         assertAsync(
                 listener -> transformsConfigManager
-                        .putTransformConfiguration(DataFrameTransformConfigTests.randomDataFrameTransformConfig(), listener),
+                        .putTransformConfiguration(TransformConfigTests.randomDataFrameTransformConfig(), listener),
                 true, null, null);
 
         // same test, but different code path
@@ -85,7 +85,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         // create one transform and test with an existing index
         assertAsync(
                 listener -> transformsConfigManager
-                        .putTransformConfiguration(DataFrameTransformConfigTests.randomDataFrameTransformConfig(), listener),
+                        .putTransformConfiguration(TransformConfigTests.randomDataFrameTransformConfig(), listener),
                 true, null, null);
 
         // same test, but different code path
@@ -96,7 +96,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
     }
 
     public void testCreateReadDeleteTransform() throws InterruptedException {
-        TransformConfig transformConfig = DataFrameTransformConfigTests.randomDataFrameTransformConfig();
+        TransformConfig transformConfig = TransformConfigTests.randomDataFrameTransformConfig();
 
         // create transform
         assertAsync(listener -> transformsConfigManager.putTransformConfiguration(transformConfig, listener), true, null, null);
@@ -132,7 +132,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
     }
 
     public void testCreateReadDeleteCheckPoint() throws InterruptedException {
-        TransformCheckpoint checkpoint = DataFrameTransformCheckpointTests.randomDataFrameTransformCheckpoints();
+        TransformCheckpoint checkpoint = TransformCheckpointTests.randomDataFrameTransformCheckpoints();
 
         // create
         assertAsync(listener -> transformsConfigManager.putTransformCheckpoint(checkpoint, listener), true, null, null);
@@ -157,9 +157,9 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
     }
 
     public void testExpandIds() throws Exception {
-        TransformConfig transformConfig1 = DataFrameTransformConfigTests.randomDataFrameTransformConfig("transform1_expand");
-        TransformConfig transformConfig2 = DataFrameTransformConfigTests.randomDataFrameTransformConfig("transform2_expand");
-        TransformConfig transformConfig3 = DataFrameTransformConfigTests.randomDataFrameTransformConfig("transform3_expand");
+        TransformConfig transformConfig1 = TransformConfigTests.randomDataFrameTransformConfig("transform1_expand");
+        TransformConfig transformConfig2 = TransformConfigTests.randomDataFrameTransformConfig("transform2_expand");
+        TransformConfig transformConfig3 = TransformConfigTests.randomDataFrameTransformConfig("transform3_expand");
 
         // create transform
         assertAsync(listener -> transformsConfigManager.putTransformConfiguration(transformConfig1, listener), true, null, null);
@@ -260,7 +260,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
     public void testStoredDoc() throws InterruptedException {
         String transformId = "transform_test_stored_doc_create_read_update";
 
-        TransformStoredDoc storedDocs = DataFrameTransformStoredDocTests.randomDataFrameTransformStoredDoc(transformId);
+        TransformStoredDoc storedDocs = TransformStoredDocTests.randomDataFrameTransformStoredDoc(transformId);
         SeqNoPrimaryTermAndIndex firstIndex = new SeqNoPrimaryTermAndIndex(0, 1, DataFrameInternalIndex.LATEST_INDEX_NAME);
 
         assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStoredDoc(storedDocs, null, listener),
@@ -273,7 +273,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
             null);
 
         SeqNoPrimaryTermAndIndex secondIndex = new SeqNoPrimaryTermAndIndex(1, 1, DataFrameInternalIndex.LATEST_INDEX_NAME);
-        TransformStoredDoc updated = DataFrameTransformStoredDocTests.randomDataFrameTransformStoredDoc(transformId);
+        TransformStoredDoc updated = TransformStoredDocTests.randomDataFrameTransformStoredDoc(transformId);
         assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStoredDoc(updated, firstIndex, listener),
             secondIndex,
             null,
@@ -299,7 +299,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
             SeqNoPrimaryTermAndIndex initialSeqNo =
                 new SeqNoPrimaryTermAndIndex(i, 1, DataFrameInternalIndex.LATEST_INDEX_NAME);
             TransformStoredDoc stat =
-                    DataFrameTransformStoredDocTests.randomDataFrameTransformStoredDoc(randomAlphaOfLength(6) + i);
+                    TransformStoredDocTests.randomDataFrameTransformStoredDoc(randomAlphaOfLength(6) + i);
             expectedDocs.add(stat);
             assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStoredDoc(stat, null, listener),
                 initialSeqNo,
@@ -322,7 +322,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         String oldIndex = DataFrameInternalIndex.INDEX_PATTERN + "1";
         String transformId = "transform_test_delete_old_configurations";
         String docId = TransformConfig.documentId(transformId);
-        TransformConfig transformConfig = DataFrameTransformConfigTests
+        TransformConfig transformConfig = TransformConfigTests
             .randomDataFrameTransformConfig("transform_test_delete_old_configurations");
         client().admin().indices().create(new CreateIndexRequest(oldIndex)
             .mapping(MapperService.SINGLE_MAPPING_NAME, mappings())).actionGet();
@@ -352,7 +352,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         String oldIndex = DataFrameInternalIndex.INDEX_PATTERN + "1";
         String transformId = "transform_test_delete_old_stored_documents";
         String docId = TransformStoredDoc.documentId(transformId);
-        TransformStoredDoc dataFrameTransformStoredDoc = DataFrameTransformStoredDocTests
+        TransformStoredDoc dataFrameTransformStoredDoc = TransformStoredDocTests
             .randomDataFrameTransformStoredDoc(transformId);
         client().admin().indices().create(new CreateIndexRequest(oldIndex)
             .mapping(MapperService.SINGLE_MAPPING_NAME, mappings())).actionGet();

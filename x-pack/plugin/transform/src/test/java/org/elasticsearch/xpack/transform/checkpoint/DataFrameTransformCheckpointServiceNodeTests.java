@@ -40,13 +40,13 @@ import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerPositionTests;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPositionTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformProgressTests;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgressTests;
 import org.elasticsearch.xpack.transform.DataFrameSingleNodeTestCase;
 import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.transform.persistence.DataFrameTransformsConfigManager;
@@ -155,7 +155,7 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
         // create transform
         assertAsync(
                 listener -> transformsConfigManager
-                        .putTransformConfiguration(DataFrameTransformConfigTests.randomDataFrameTransformConfig(transformId), listener),
+                        .putTransformConfiguration(TransformConfigTests.randomDataFrameTransformConfig(transformId), listener),
                 true, null, null);
 
         // by design no exception is thrown but an empty checkpoint is returned
@@ -190,13 +190,13 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
     public void testGetCheckpointStats() throws InterruptedException {
         String transformId = randomAlphaOfLengthBetween(3, 10);
         long timestamp = 1000;
-        TransformIndexerPosition position = DataFrameIndexerPositionTests.randomDataFrameIndexerPosition();
-        TransformProgress progress = DataFrameTransformProgressTests.randomDataFrameTransformProgress();
+        TransformIndexerPosition position = TransformIndexerPositionTests.randomDataFrameIndexerPosition();
+        TransformProgress progress = TransformProgressTests.randomDataFrameTransformProgress();
 
         // create transform
         assertAsync(
                 listener -> transformsConfigManager
-                        .putTransformConfiguration(DataFrameTransformConfigTests.randomDataFrameTransformConfig(transformId), listener),
+                        .putTransformConfiguration(TransformConfigTests.randomDataFrameTransformConfig(transformId), listener),
                 true, null, null);
 
         TransformCheckpoint checkpoint = new TransformCheckpoint(transformId, timestamp, 1L,

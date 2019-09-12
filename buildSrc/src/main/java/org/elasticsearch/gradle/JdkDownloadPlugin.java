@@ -128,11 +128,11 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                 }
                 repositories.ivy(ivyRepo -> {
                     ivyRepo.setName(repoName);
-                    ivyRepo.setUrl("https://artifactory.elstc.co/");
+                    ivyRepo.setUrl("https://artifactory.elstc.co/artifactory/oss-jdk-local/");
                     ivyRepo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
                     final String pattern = String.format(
                         Locale.ROOT,
-                        "artifactory/oss-jdk-local/adoptopenjdk/OpenJDK%sU-jdk_x64_[module]_hotspot_[revision]_%s.[ext]",
+                        "adoptopenjdk/OpenJDK%sU-jdk_x64_[module]_hotspot_[revision]_%s.[ext]",
                         jdkMajor,
                         jdkBuild);
                     ivyRepo.patternLayout(layout -> layout.artifact(pattern));

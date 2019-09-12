@@ -201,7 +201,6 @@ Closure unzipExists = { it -> new File('/bin/unzip').exists() || new File('/usr/
 //    filename, so they must be placed in different directories.
 subprojects {
   apply plugin: 'distribution'
-  apply plugin: 'elasticsearch.symbolic-link-preserving-tar'
 
   String buildTask = "build${it.name.replaceAll(/-[a-z]/) { it.substring(1).toUpperCase() }.capitalize()}"
   ext.buildDist = parent.tasks.getByName(buildTask)

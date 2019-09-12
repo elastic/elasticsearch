@@ -48,6 +48,7 @@ class S3RetryingInputStream extends InputStream {
     private InputStream currentStream;
     private int attempt = 1;
     private long currentOffset;
+    private boolean closed;
 
     S3RetryingInputStream(S3BlobStore blobStore, String blobKey) throws IOException {
         this.blobStore = blobStore;
@@ -76,6 +77,7 @@ class S3RetryingInputStream extends InputStream {
 
     @Override
     public int read() throws IOException {
+        ensureOpen();
         while (true) {
             try {
                 final int result = currentStream.read();
@@ -89,6 +91,7 @@ class S3RetryingInputStream extends InputStream {
 
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
+        ensureOpen();
         while (true) {
             try {
                 final int bytesRead = currentStream.read(b, off, len);
@@ -100,6 +103,13 @@ class S3RetryingInputStream extends InputStream {
             } catch (IOException e) {
                 reopenStreamOrFail(e);
             }
+        }
+    }
+
+    private void ensureOpen() {
+        if (closed) {
+            assert false : "using S3RetryingInputStream after close";
+            throw new IllegalStateException("using S3RetryingInputStream after close");
         }
     }
 
@@ -117,6 +127,7 @@ class S3RetryingInputStream extends InputStream {
     @Override
     public void close() throws IOException {
         currentStream.close();
+        closed = true;
     }
 
     @Override

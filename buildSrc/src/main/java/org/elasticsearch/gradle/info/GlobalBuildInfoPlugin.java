@@ -15,6 +15,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -95,6 +96,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             ext.set("gradleJavaVersion", Jvm.current().getJavaVersion());
             ext.set("gitRevision", gitRevision(project.getRootProject().getRootDir()));
             ext.set("buildDate", ZonedDateTime.now(ZoneOffset.UTC));
+            ext.set("isCi", System.getenv("JENKINS_URL") != null);
         });
     }
 

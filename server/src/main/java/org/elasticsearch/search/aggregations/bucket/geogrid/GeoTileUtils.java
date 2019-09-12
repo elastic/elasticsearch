@@ -89,13 +89,47 @@ public final class GeoTileUtils {
         return precision;
     }
 
+    /**
+     * Calculates the x-coordinate in the tile grid for the specified longitude given
+     * the number of tile columns for a pre-determined zoom-level.
+     *
+     * @param longitude the longitude to use when determining the tile x-coordinate
+     * @param tiles     the number of tiles per row for a pre-determined zoom-level
+     */
     static int getXTile(double longitude, long tiles) {
-        return (int) Math.floor((normalizeLon(longitude) + 180) / 360 * tiles);
+        int xTile = (int) Math.floor((normalizeLon(longitude) + 180) / 360 * tiles);
+
+        // Edge values may generate invalid values, and need to be clipped.
+        // For example, polar regions (above/below lat 85.05112878) get normalized.
+        if (xTile < 0) {
+            return 0;
+        }
+        if (xTile >= tiles) {
+            return (int) tiles - 1;
+        }
+
+        return xTile;
     }
 
+    /**
+     * Calculates the y-coordinate in the tile grid for the specified longitude given
+     * the number of tile rows for pre-determined zoom-level.
+     *
+     * @param latitude  the latitude to use when determining the tile y-coordinate
+     * @param tiles     the number of tiles per column for a pre-determined zoom-level
+     */
     static int getYTile(double latitude, long tiles) {
         double latSin = Math.sin(Math.toRadians(normalizeLat(latitude)));
-        return (int) Math.floor((0.5 - (Math.log((1 + latSin) / (1 - latSin)) / (4 * Math.PI))) * tiles);
+        int yTile = (int) Math.floor((0.5 - (Math.log((1 + latSin) / (1 - latSin)) / (4 * Math.PI))) * tiles);
+
+        if (yTile < 0) {
+            yTile = 0;
+        }
+        if (yTile >= tiles) {
+            return (int) tiles - 1;
+        }
+
+        return yTile;
     }
 
     /**

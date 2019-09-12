@@ -56,17 +56,17 @@ public class GeoGridTilerTests extends ESTestCase {
         // test shape within tile bounds
         {
             int count = GEOTILE.setValues(values, value, 13);
-            assertThat(GEOTILE.getBoundingTileCount(value, 13), equalTo(1));
+            assertThat(GEOTILE.getBoundingTileCount(value, 13), equalTo(1L));
             assertThat(count, equalTo(1));
         }
         {
             int count = GEOTILE.setValues(values, value, 14);
-            assertThat(GEOTILE.getBoundingTileCount(value, 14), equalTo(4));
+            assertThat(GEOTILE.getBoundingTileCount(value, 14), equalTo(4L));
             assertThat(count, equalTo(4));
         }
         {
             int count = GEOTILE.setValues(values, value, 15);
-            assertThat(GEOTILE.getBoundingTileCount(value, 15), equalTo(16));
+            assertThat(GEOTILE.getBoundingTileCount(value, 15), equalTo(16L));
             assertThat(count, equalTo(16));
         }
     }
@@ -74,7 +74,7 @@ public class GeoGridTilerTests extends ESTestCase {
     public void testGeoHash() throws Exception {
         double x = randomDouble();
         double y = randomDouble();
-        int precision = randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
+        int precision = randomIntBetween(0, Geohash.PRECISION);
         assertThat(GEOHASH.encode(x, y, precision), equalTo(Geohash.longEncode(x, y, precision)));
 
         Rectangle tile = Geohash.toBoundingBox(Geohash.stringEncode(x, y, 5));
@@ -93,17 +93,17 @@ public class GeoGridTilerTests extends ESTestCase {
         // test shape within tile bounds
         {
             int count = GEOHASH.setValues(values, value, 5);
-            assertThat(GEOHASH.getBoundingTileCount(value, 5), equalTo(1));
+            assertThat(GEOHASH.getBoundingTileCount(value, 5), equalTo(1L));
             assertThat(count, equalTo(1));
         }
         {
             int count = GEOHASH.setValues(values, value, 6);
-            assertThat(GEOHASH.getBoundingTileCount(value, 6), equalTo(32));
+            assertThat(GEOHASH.getBoundingTileCount(value, 6), equalTo(32L));
             assertThat(count, equalTo(32));
         }
         {
             int count = GEOHASH.setValues(values, value, 7);
-            assertThat(GEOHASH.getBoundingTileCount(value, 7), equalTo(1024));
+            assertThat(GEOHASH.getBoundingTileCount(value, 7), equalTo(1024L));
             assertThat(count, equalTo(1024));
         }
     }

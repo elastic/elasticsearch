@@ -98,7 +98,7 @@ public class CellIdSource extends ValuesSource.Numeric {
                         // is the number of tiles that overlap the shape's bounding-box. No need
                         // to be concerned with original docValueCount since shape doc-values are
                         // single-valued.
-                        resize(tiler.getBoundingTileCount(target, precision));
+                        resize((int) tiler.getBoundingTileCount(target, precision));
                         int matched = tiler.setValues(values, target, precision);
                         // must truncate array to only contain cells that actually intersected shape
                         resize(matched);

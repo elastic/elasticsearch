@@ -39,11 +39,11 @@ public interface GeoGridTiler {
     /**
      * computes the number of tiles for a specific precision that the geo value's
      * bounding-box is contained within.
-     *
-     * @param geoValue  the input shape
+     *  @param geoValue  the input shape
      * @param precision the tile zoom-level
+     * @return
      */
-    int getBoundingTileCount(MultiGeoValues.GeoValue geoValue, int precision);
+    long getBoundingTileCount(MultiGeoValues.GeoValue geoValue, int precision);
 
     /**
      *
@@ -66,13 +66,13 @@ public interface GeoGridTiler {
         }
 
         @Override
-        public int getBoundingTileCount(MultiGeoValues.GeoValue geoValue, int precision) {
+        public long getBoundingTileCount(MultiGeoValues.GeoValue geoValue, int precision) {
             MultiGeoValues.BoundingBox bounds = geoValue.boundingBox();
             // find minimum (x,y) of geo-hash-cell that contains (bounds.minX, bounds.minY)
             String hash = Geohash.stringEncode(bounds.minX(), bounds.minY(), precision);
             Rectangle geoHashCell = Geohash.toBoundingBox(hash);
-            int numLonCells = (int) Math.ceil((bounds.maxX() - geoHashCell.getMinX()) / Geohash.lonWidthInDegrees(precision));
-            int numLatCells = (int) Math.ceil((bounds.maxY() - geoHashCell.getMinY()) / Geohash.latHeightInDegrees(precision));
+            long numLonCells = Math.max(1, (long) Math.ceil((bounds.maxX() - geoHashCell.getMinX()) / Geohash.lonWidthInDegrees(precision)));
+            long numLatCells = Math.max(1, (long) Math.ceil((bounds.maxY() - geoHashCell.getMinY()) / Geohash.latHeightInDegrees(precision)));
             return numLonCells * numLatCells;
         }
 
@@ -107,7 +107,7 @@ public interface GeoGridTiler {
         }
 
         @Override
-        public int getBoundingTileCount(MultiGeoValues.GeoValue geoValue, int precision) {
+        public long getBoundingTileCount(MultiGeoValues.GeoValue geoValue, int precision) {
             MultiGeoValues.BoundingBox bounds = geoValue.boundingBox();
             final double tiles = 1 << precision;
             int minXTile = GeoTileUtils.getXTile(bounds.minX(), (long) tiles);

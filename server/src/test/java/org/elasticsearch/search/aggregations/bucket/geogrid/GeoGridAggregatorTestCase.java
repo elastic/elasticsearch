@@ -147,7 +147,8 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             Document document = new Document();
             Set<String> distinctHashesPerDoc = new HashSet<>();
             for (int shapeId = 0; shapeId < numShapes; shapeId++) {
-                double lat = (180d * randomDouble()) - 90d;
+                // undefined close to pole
+                double lat = (170.10225756d * randomDouble()) - 85.05112878d;
                 double lng = (360d * randomDouble()) - 180d;
 
                 // Precision-adjust longitude/latitude to avoid wrong bucket placement

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.joda;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
@@ -46,25 +47,32 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         return false;
     }
 
-    public void testCompositeParsingDateMath(){
+    public void testCompositeDateMathParsing(){
         //in all these examples the second pattern will be used
-
-        DateFormatter javaFormatter = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS").withLocale(randomLocale(random()));
-        DateMathParser javaDateMath = javaFormatter.toDateMathParser();
-        long gotMillisJava = javaDateMath.parse("2014-06-06T12:01:02.123", () -> 0, true, (ZoneId) null).toEpochMilli();
-
-        DateFormatter jodaFormatter = Joda.forPattern("yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS").withLocale(randomLocale(random()));
-        DateMathParser jodaDateMath = jodaFormatter.toDateMathParser();
-        long gotMillisJoda = jodaDateMath.parse("2014-06-06T12:01:02.123", () -> 0, true, (ZoneId) null).toEpochMilli();
-
-        assertEquals(gotMillisJoda, gotMillisJava);
-
-//        assertSameDate("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS");
-//        assertSameDate("2014-06-06T12:01:02.123", "strictDateTimeNoMillis||yyyy-MM-dd'T'HH:mm:ss.SSS");
-//        assertSameDate("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss+HH:MM||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertDateMathEquals("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertDateMathEquals("2014-06-06T12:01:02.123", "strictDateTimeNoMillis||yyyy-MM-dd'T'HH:mm:ss.SSS");
+        assertDateMathEquals("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss+HH:MM||yyyy-MM-dd'T'HH:mm:ss.SSS");
     }
 
-//    publi
+    public void testExceptionWhenCompositeParsingFailsDateMath(){
+        //both parsing failures should contain pattern and input text in exception
+        // both patterns fail parsing the input text due to only 2 digits of millis. Hence full text was not parsed.
+        String pattern = "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SS";
+        String text = "2014-06-06T12:01:02.123";
+        ElasticsearchParseException e1 = expectThrows(ElasticsearchParseException.class, () -> dateMathToMillis(text, DateFormatter.forPattern(pattern)));
+        assertThat(e1.getMessage(), containsString(pattern));
+        assertThat(e1.getMessage(), containsString(text));
+
+        ElasticsearchParseException e2 = expectThrows(ElasticsearchParseException.class, () -> dateMathToMillis(text, Joda.forPattern(pattern)));
+        assertThat(e2.getMessage(), containsString(pattern));
+        assertThat(e2.getMessage(), containsString(text));
+    }
+
+    private long dateMathToMillis(String text, DateFormatter dateFormatter) {
+        DateFormatter javaFormatter = dateFormatter.withLocale(randomLocale(random()));
+        DateMathParser javaDateMath = javaFormatter.toDateMathParser();
+        return javaDateMath.parse(text, () -> 0, true, (ZoneId) null).toEpochMilli();
+    }
 
     public void testDayOfWeek() {
         //7 (ok joda) vs 1 (java by default) but 7 with customized org.elasticsearch.common.time.IsoLocale.ISO8601
@@ -872,5 +880,12 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> javaTimeFormatter.parse(input));
         assertThat(e.getMessage(), containsString(input));
         assertThat(e.getMessage(), containsString(format));
+    }
+
+    private void assertDateMathEquals(String text, String pattern) {
+        long gotMillisJava = dateMathToMillis(text, DateFormatter.forPattern(pattern));
+        long gotMillisJoda = dateMathToMillis(text, Joda.forPattern(pattern));
+
+        assertEquals(gotMillisJoda, gotMillisJava);
     }
 }

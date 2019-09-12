@@ -37,12 +37,10 @@ parameter for the snapshot API. Alternatively, you can extract these
 configuration values in text format by using the
 <<cluster-get-settings, get settings API>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _cluster/settings?pretty&flat_settings&filter_path=persistent
 --------------------------------------------------
-//CONSOLE
-//TEST
 
 You can store the output of this as a file together with the rest of
 configuration files.

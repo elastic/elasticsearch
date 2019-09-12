@@ -34,18 +34,15 @@ import org.gradle.api.internal.file.copy.CopyAction;
 import org.gradle.api.internal.file.copy.CopyActionProcessingStream;
 import org.gradle.api.internal.file.copy.FileCopyDetailsInternal;
 import org.gradle.api.provider.Provider;
-import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.WorkResult;
 import org.gradle.api.tasks.WorkResults;
-import org.gradle.api.tasks.bundling.AbstractArchiveTask;
-import org.gradle.api.tasks.bundling.Compression;
+import org.gradle.api.tasks.bundling.Tar;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.util.HashSet;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -53,34 +50,12 @@ import java.util.Set;
  *
  * This task is necessary because the built-in task {@link org.gradle.api.tasks.bundling.Tar} does not preserve symbolic links.
  */
-public class SymbolicLinkPreservingTar extends AbstractArchiveTask {
-
-    private Compression compression  = Compression.NONE;
-
-    /**
-     * Returns the compression that is used for this archive.
-     *
-     * @return The compression. Never returns null.
-     */
-    @Input
-    public Compression getCompression() {
-        return compression;
-    }
-
-    /**
-     * Configures the compressor based on passed in compression.
-     *
-     * @param compression the compression
-     */
-    public void setCompression(final Compression compression) {
-        Objects.requireNonNull(compression);
-        this.compression = compression;
-    }
+public class SymbolicLinkPreservingTar extends Tar {
 
     @Override
     protected CopyAction createCopyAction() {
         final ArchiveOutputStreamFactory compressor;
-        switch (compression) {
+        switch (getCompression()) {
             case BZIP2:
                 compressor = Bzip2Archiver.getCompressor();
                 break;

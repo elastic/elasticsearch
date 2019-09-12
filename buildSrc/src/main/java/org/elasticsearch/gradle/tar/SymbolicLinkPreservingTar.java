@@ -24,6 +24,7 @@ import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 import org.apache.commons.compress.archivers.tar.TarConstants;
 import org.apache.commons.compress.archivers.zip.UnixStat;
 import org.gradle.api.GradleException;
+import org.gradle.api.file.FileCopyDetails;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.internal.file.CopyActionProcessingStreamAction;
 import org.gradle.api.internal.file.archive.compression.ArchiveOutputStreamFactory;
@@ -66,17 +67,22 @@ public class SymbolicLinkPreservingTar extends Tar {
                 compressor = new SimpleCompressor();
                 break;
         }
-        return new SymbolicLinkPreservingTarCopyAction(getArchiveFile(), compressor);
+        return new SymbolicLinkPreservingTarCopyAction(getArchiveFile(), compressor, isPreserveFileTimestamps());
     }
 
     private static class SymbolicLinkPreservingTarCopyAction implements CopyAction {
 
         private final Provider<RegularFile> tarFile;
         private final ArchiveOutputStreamFactory compressor;
+        private final boolean isPreserveFileTimestamps;
 
-        SymbolicLinkPreservingTarCopyAction(final Provider<RegularFile> tarFile, final ArchiveOutputStreamFactory compressor) {
+        SymbolicLinkPreservingTarCopyAction(
+            final Provider<RegularFile> tarFile,
+            final ArchiveOutputStreamFactory compressor,
+            final boolean isPreserveFileTimestamps) {
             this.tarFile = tarFile;
             this.compressor = compressor;
+            this.isPreserveFileTimestamps = isPreserveFileTimestamps;
         }
 
         @Override
@@ -158,7 +164,7 @@ public class SymbolicLinkPreservingTar extends Tar {
             private void visitSymbolicLink(final FileCopyDetailsInternal details) {
                 visitedSymbolicLinks.add(details.getFile());
                 final TarArchiveEntry entry = new TarArchiveEntry(details.getRelativePath().getPathString(), TarConstants.LF_SYMLINK);
-                entry.setModTime(details.getLastModified());
+                entry.setModTime(getModTime(details));
                 entry.setMode(UnixStat.LINK_FLAG | details.getMode());
                 try {
                     entry.setLinkName(Files.readSymbolicLink(details.getFile().toPath()).toString());
@@ -171,7 +177,7 @@ public class SymbolicLinkPreservingTar extends Tar {
 
             private void visitDirectory(final FileCopyDetailsInternal details) {
                 final TarArchiveEntry entry = new TarArchiveEntry(details.getRelativePath().getPathString() + "/");
-                entry.setModTime(details.getLastModified());
+                entry.setModTime(getModTime(details));
                 entry.setMode(UnixStat.DIR_FLAG | details.getMode());
                 try {
                     tar.putArchiveEntry(entry);
@@ -183,7 +189,7 @@ public class SymbolicLinkPreservingTar extends Tar {
 
             private void visitFile(final FileCopyDetailsInternal details) {
                 final TarArchiveEntry entry = new TarArchiveEntry(details.getRelativePath().getPathString());
-                entry.setModTime(details.getLastModified());
+                entry.setModTime(getModTime(details));
                 entry.setMode(UnixStat.FILE_FLAG | details.getMode());
                 entry.setSize(details.getSize());
                 try {
@@ -199,6 +205,10 @@ public class SymbolicLinkPreservingTar extends Tar {
                 throw new GradleException("could not add [" + details + "] to tar file [" + tarFile + "]", e);
             }
 
+        }
+
+        private long getModTime(final FileCopyDetails details) {
+            return isPreserveFileTimestamps ? details.getLastModified() : 0;
         }
 
     }

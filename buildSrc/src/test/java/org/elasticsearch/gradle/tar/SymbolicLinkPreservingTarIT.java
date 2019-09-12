@@ -37,25 +37,41 @@ public class SymbolicLinkPreservingTarIT extends GradleIntegrationTestCase {
     }
 
     public void testBZip2Tar() throws IOException {
-        runBuild("buildBZip2Tar");
-        assertTar(".bz2", BZip2CompressorInputStream::new);
+        runBuild("buildBZip2Tar", true);
+        assertTar(".bz2", BZip2CompressorInputStream::new, true);
+    }
+
+    public void testBZip2TarDoNotPreserveFileTimestamps() throws IOException {
+        runBuild("buildBZip2Tar", false);
+        assertTar(".bz2", BZip2CompressorInputStream::new, false);
     }
 
     public void testGZipTar() throws IOException {
-        runBuild("buildGZipTar");
-        assertTar(".gz", GzipCompressorInputStream::new);
+        runBuild("buildGZipTar", true);
+        assertTar(".gz", GzipCompressorInputStream::new, true);
+    }
+
+    public void testGZipTarDoNotPreserveFileTimestamps() throws IOException {
+        runBuild("buildGZipTar", false);
+        assertTar(".gz", GzipCompressorInputStream::new, false);
     }
 
     public void testTar() throws IOException {
-        runBuild("buildTar");
-        assertTar("", fis -> fis);
+        runBuild("buildTar", true);
+        assertTar("", fis -> fis, true);
+    }
+
+    public void testTarDoNotPreserveFileTimestamps() throws IOException {
+        runBuild("buildTar", false);
+        assertTar("", fis -> fis, false);
     }
 
     interface FileInputStreamWrapper {
         InputStream apply(FileInputStream fis) throws IOException;
     }
 
-    private void assertTar(final String extension, final FileInputStreamWrapper wrapper) throws IOException {
+    private void assertTar(
+        final String extension, final FileInputStreamWrapper wrapper, boolean preserveFileTimestamps) throws IOException {
         try (TarArchiveInputStream tar = new TarArchiveInputStream(wrapper.apply(new FileInputStream(getOutputFile(extension))))) {
             TarArchiveEntry entry = tar.getNextTarEntry();
             boolean realFolderEntry = false;
@@ -79,6 +95,11 @@ public class SymbolicLinkPreservingTarIT extends GradleIntegrationTestCase {
                 } else {
                     throw new GradleException("unexpected entry [" + entry.getName() + "]");
                 }
+                if (preserveFileTimestamps) {
+                    assertTrue(entry.getModTime().getTime() > 0);
+                } else {
+                    assertThat(entry.getModTime().getTime(), equalTo(0L));
+                }
                 entry = tar.getNextTarEntry();
             }
             assertTrue(realFolderEntry);
@@ -88,11 +109,12 @@ public class SymbolicLinkPreservingTarIT extends GradleIntegrationTestCase {
         }
     }
 
-    private void runBuild(final String task) {
+    private void runBuild(final String task, final boolean preserveFileTimestamps) {
         final GradleRunner runner = GradleRunner.create().withProjectDir(getProjectDir())
             .withArguments(
                 task,
                 "-Dtests.symbolic_link_preserving_tar_source=" + temporaryFolder.getRoot().toString(),
+                "-Dtests.symbolic_link_preserving_tar_preserve_file_timestamps=" + preserveFileTimestamps,
                 "-i")
             .withPluginClasspath();
 

@@ -87,7 +87,10 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
     private void waitForTemplates() throws Exception {
         if (installTemplates()) {
             List<String> templates = new ArrayList<>();
-            templates.addAll(Arrays.asList(AuditorField.NOTIFICATIONS_INDEX, MlMetaIndex.INDEX_NAME,
+            templates.addAll(
+                Arrays.asList(
+                    AuditorField.NOTIFICATIONS_INDEX,
+                    MlMetaIndex.INDEX_NAME,
                     AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
                     AnomalyDetectorsIndex.jobResultsIndexPrefix(),
                     AnomalyDetectorsIndex.configIndexName()));

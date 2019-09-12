@@ -3,6 +3,7 @@
 :request: PreviewDataFrameTransformRequest
 :response: PreviewDataFrameTransformResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Preview {dataframe-transform} API
 

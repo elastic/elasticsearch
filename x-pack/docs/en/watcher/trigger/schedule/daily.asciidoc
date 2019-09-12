@@ -1,3 +1,4 @@
+[role="xpack"]
 [[schedule-daily]]
 ==== Daily Schedule
 

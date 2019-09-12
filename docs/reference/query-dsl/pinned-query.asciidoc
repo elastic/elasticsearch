@@ -10,7 +10,7 @@ the <<mapping-id-field,`_id`>> field.
 
 ==== Example request
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -26,7 +26,6 @@ GET /_search
     }
 }    
 --------------------------------------------------
-// CONSOLE
 
 [[pinned-query-top-level-parameters]]
 ==== Top-level parameters for `pinned`

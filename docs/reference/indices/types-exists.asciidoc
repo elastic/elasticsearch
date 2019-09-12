@@ -5,11 +5,10 @@ deprecated[7.0.0, Types are deprecated and are in the process of being removed. 
 
 Used to check if a type/types exists in an index/indices.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 HEAD twitter/_mapping/tweet
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 // TEST[warning:Type exists requests are deprecated, as types have been deprecated.]
 

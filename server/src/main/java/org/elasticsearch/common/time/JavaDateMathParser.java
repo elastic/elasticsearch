@@ -48,11 +48,11 @@ public class JavaDateMathParser implements DateMathParser {
 
     private final JavaDateFormatter formatter;
     private final String format;
-    private JavaDateFormatter roundupParser2;
+    private final JavaDateFormatter roundupParser;
 
-    JavaDateMathParser(String format, JavaDateFormatter formatter, JavaDateFormatter roundupParser2) {
+    JavaDateMathParser(String format, JavaDateFormatter formatter, JavaDateFormatter roundupParser) {
         this.format = format;
-        this.roundupParser2 = roundupParser2;
+        this.roundupParser = roundupParser;
         Objects.requireNonNull(formatter);
         this.formatter = formatter;
     }
@@ -216,12 +216,12 @@ public class JavaDateMathParser implements DateMathParser {
             throw new ElasticsearchParseException("cannot parse empty date");
         }
 
-        Function<String,TemporalAccessor> formatter = roundUpIfNoTime ? this.roundupParser2::parse : this.formatter::parse;
+        DateFormatter formatter = roundUpIfNoTime ? this.roundupParser : this.formatter;
         try {
             if (timeZone == null) {
-                return DateFormatters.from(formatter.apply(value)).toInstant();
+                return DateFormatters.from(formatter.parse(value)).toInstant();
             } else {
-                TemporalAccessor accessor = formatter.apply(value);
+                TemporalAccessor accessor = formatter.parse(value);
                 ZoneId zoneId = TemporalQueries.zone().queryFrom(accessor);
                 if (zoneId != null) {
                     timeZone = zoneId;

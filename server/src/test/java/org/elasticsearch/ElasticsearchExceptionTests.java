@@ -775,7 +775,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 failure = new RuntimeException("E", failureCause);
 
                 expectedCause = new ElasticsearchException("Elasticsearch exception [type=routing_missing_exception, " +
-                        "reason=routing is required for [idx]/[type]/[id]]");
+                        "reason=routing is required for [idx]/[id]]");
                 expectedCause.addMetadata("es.index", "idx");
                 expectedCause.addMetadata("es.index_uuid", "_na_");
                 expected = new ElasticsearchException("Elasticsearch exception [type=runtime_exception, reason=E]", expectedCause);

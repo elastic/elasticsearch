@@ -27,6 +27,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import org.apache.http.HttpStatus;
 import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
@@ -45,14 +46,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.BackgroundIndexer;
-import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.threeten.bp.Duration;
 
@@ -86,6 +85,7 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BU
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.CLIENT_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.equalTo;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a Google Cloud Storage endpoint")
 public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
@@ -108,7 +108,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestGoogleCloudStoragePlugin.class, InternalSettingsPlugin.class);
+        return Collections.singletonList(TestGoogleCloudStoragePlugin.class);
     }
 
     @Override
@@ -188,8 +188,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
      */
     public void testSnapshotWithLargeSegmentFiles() throws Exception {
         final String repository = createRepository("repository", Settings.builder()
-            .put("compress", "false")
-            .put(GoogleCloudStorageRepository.CHUNK_SIZE.getKey(), GoogleCloudStorageRepository.CHUNK_SIZE.getDefault(Settings.EMPTY))
+            .put(BUCKET.getKey(), "bucket")
+            .put(CLIENT_NAME.getKey(), "test")
             .build());
 
         final String index = "index-no-merges";
@@ -197,14 +197,16 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
-            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
             .build());
 
         final int nbDocs = 10_000;
         try (BackgroundIndexer indexer = new BackgroundIndexer(index, "_doc", client(), nbDocs)) {
             awaitBusy(() -> indexer.totalIndexedDocs() >= nbDocs);
         }
+
         flushAndRefresh(index);
+        ForceMergeResponse forceMerge = client().admin().indices().prepareForceMerge(index).setFlush(true).setMaxNumSegments(1).get();
+        assertThat(forceMerge.getSuccessfulShards(), equalTo(1));
         assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
 
         assertSuccessfulSnapshot(client().admin().cluster().prepareCreateSnapshot(repository, "snapshot")
@@ -255,12 +257,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                     protected GoogleCloudStorageBlobStore createBlobStore() {
                         return new GoogleCloudStorageBlobStore("bucket", "test", storageService) {
                             @Override
-                            boolean isLargeBlob(final long blobSize) {
-                                return randomBoolean();
-                            }
-
-                            @Override
-                            void assertLargeBlobUseMultipartUpload(long blobSize) {
+                            long getLargeBlobThresholdInBytes() {
+                                return ByteSizeUnit.MB.toBytes(1);
                             }
                         };
                     }
@@ -388,136 +386,122 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                     exchange.getResponseBody().write(response);
 
-                } else if (Regex.simpleMatch("POST /upload/storage/v1/b/bucket/*uploadType=*", request)) {
-                    final Map<String, String> params = new HashMap<>();
-                    RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
-                    final String uploadType = params.get("uploadType");
-
-                    if (uploadType.equals("resumable")) {
-                        final String blobName = params.get("name");
-                        blobs.put(blobName, BytesArray.EMPTY);
-
-                        byte[] response = Streams.readFully(exchange.getRequestBody()).utf8ToString().getBytes(UTF_8);
-                        exchange.getResponseHeaders().add("Content-Type", "application/json");
-                        exchange.getResponseHeaders().add("Location", httpServerUrl() + "/upload/storage/v1/b/bucket/o?"
-                            + "uploadType=" + uploadType
-                            + "&upload_id=" + UUIDs.randomBase64UUID()
-                            + "&test_blob_name=" + blobName); // not a Google Storage parameter, but it allows to pass the blob name
-                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
-                        exchange.getResponseBody().write(response);
-
-                    } else if (uploadType.equals("multipart")) {
-                        try (BufferedInputStream in = new BufferedInputStream(new GZIPInputStream(exchange.getRequestBody()))) {
-                            byte[] response = new byte[0];
-                            String blob = null;
-                            int read;
-                            while ((read = in.read()) != -1) {
-                                boolean markAndContinue = false;
-                                try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-                                    do { // search next consecutive {carriage return, new line} chars and stop
-                                        if ((char) read == '\r') {
-                                            int next = in.read();
-                                            if (next != -1) {
-                                                if (next == '\n') {
-                                                    break;
-                                                }
-                                                out.write(read);
-                                                out.write(next);
-                                                continue;
+                } else if (Regex.simpleMatch("POST /upload/storage/v1/b/bucket/*uploadType=multipart*", request)) {
+                    try (BufferedInputStream in = new BufferedInputStream(new GZIPInputStream(exchange.getRequestBody()))) {
+                        byte[] response = new byte[0];
+                        String blob = null;
+                        int read;
+                        while ((read = in.read()) != -1) {
+                            boolean markAndContinue = false;
+                            try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+                                do { // search next consecutive {carriage return, new line} chars and stop
+                                    if ((char) read == '\r') {
+                                        int next = in.read();
+                                        if (next != -1) {
+                                            if (next == '\n') {
+                                                break;
                                             }
-                                        }
-                                        out.write(read);
-                                    } while ((read = in.read()) != -1);
-
-                                    final String line = new String(out.toByteArray(), UTF_8);
-                                    if (line.length() == 0 || line.equals("\r\n") || line.startsWith("--")
-                                        || line.toLowerCase(Locale.ROOT).startsWith("content")) {
-                                        markAndContinue = true;
-                                    } else if (line.startsWith("{\"bucket\":\"bucket\"")) {
-                                        markAndContinue = true;
-                                        Matcher matcher = Pattern.compile("\"name\":\"([^\"]*)\"").matcher(line);
-                                        if (matcher.find()) {
-                                            blob = matcher.group(1);
-                                            response = line.getBytes(UTF_8);
+                                            out.write(read);
+                                            out.write(next);
+                                            continue;
                                         }
                                     }
-                                    if (markAndContinue) {
-                                        in.mark(Integer.MAX_VALUE);
-                                        continue;
+                                    out.write(read);
+                                } while ((read = in.read()) != -1);
+
+                                final String line = new String(out.toByteArray(), UTF_8);
+                                if (line.length() == 0 || line.equals("\r\n") || line.startsWith("--")
+                                    || line.toLowerCase(Locale.ROOT).startsWith("content")) {
+                                    markAndContinue = true;
+                                } else if (line.startsWith("{\"bucket\":\"bucket\"")) {
+                                    markAndContinue = true;
+                                    Matcher matcher = Pattern.compile("\"name\":\"([^\"]*)\"").matcher(line);
+                                    if (matcher.find()) {
+                                        blob = matcher.group(1);
+                                        response = line.getBytes(UTF_8);
                                     }
                                 }
-                                if (blob != null) {
-                                    in.reset();
-                                    try (ByteArrayOutputStream binary = new ByteArrayOutputStream()) {
-                                        while ((read = in.read()) != -1) {
-                                            binary.write(read);
-                                        }
-                                        binary.flush();
-                                        byte[] tmp = binary.toByteArray();
-                                        // removes the trailing end "\r\n--__END_OF_PART__--\r\n" which is 23 bytes long
-                                        blobs.put(blob, new BytesArray(Arrays.copyOf(tmp, tmp.length - 23)));
-
-                                        exchange.getResponseHeaders().add("Content-Type", "application/json");
-                                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
-                                        exchange.getResponseBody().write(response);
-
-                                    } finally {
-                                        blob = null;
+                                if (markAndContinue) {
+                                    in.mark(Integer.MAX_VALUE);
+                                    continue;
+                                }
+                            }
+                            if (blob != null) {
+                                in.reset();
+                                try (ByteArrayOutputStream binary = new ByteArrayOutputStream()) {
+                                    while ((read = in.read()) != -1) {
+                                        binary.write(read);
                                     }
+                                    binary.flush();
+                                    byte[] tmp = binary.toByteArray();
+                                    // removes the trailing end "\r\n--__END_OF_PART__--\r\n" which is 23 bytes long
+                                    blobs.put(blob, new BytesArray(Arrays.copyOf(tmp, tmp.length - 23)));
+
+                                    exchange.getResponseHeaders().add("Content-Type", "application/json");
+                                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+                                    exchange.getResponseBody().write(response);
+
+                                } finally {
+                                    blob = null;
                                 }
                             }
                         }
                     }
 
-                } else if (Regex.simpleMatch("PUT /upload/storage/v1/b/bucket/o?uploadType=resumable*", request)) {
+                } else if (Regex.simpleMatch("POST /upload/storage/v1/b/bucket/*uploadType=resumable*", request)) {
+                    final Map<String, String> params = new HashMap<>();
+                    RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
+                    final String blobName = params.get("name");
+                    blobs.put(blobName, BytesArray.EMPTY);
+
+                    byte[] response = Streams.readFully(exchange.getRequestBody()).utf8ToString().getBytes(UTF_8);
+                    exchange.getResponseHeaders().add("Content-Type", "application/json");
+                    exchange.getResponseHeaders().add("Location", httpServerUrl() + "/upload/storage/v1/b/bucket/o?"
+                        + "uploadType=resumable"
+                        + "&upload_id=" + UUIDs.randomBase64UUID()
+                        + "&test_blob_name=" + blobName); // not a Google Storage parameter, but it allows to pass the blob name
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+                    exchange.getResponseBody().write(response);
+
+                } else if (Regex.simpleMatch("PUT /upload/storage/v1/b/bucket/o?*uploadType=resumable*", request)) {
                     final Map<String, String> params = new HashMap<>();
                     RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
 
                     final String blobName = params.get("test_blob_name");
                     final String range = exchange.getRequestHeaders().getFirst("Content-Range");
-                    if (Strings.hasLength(range)) {
-                        // resumable in multiple chunks
-                        Matcher matcher = Pattern.compile("bytes ([^/]*)/([0-9\\*]*)").matcher(range);
-                        if (matcher.find()) {
-                            String bytes = matcher.group(1);
-                            String limit = matcher.group(2);
-                            byte[] blob = blobs.get(blobName).array();
-                            assert blob != null;
-                            // client is uploading a chunk
-                            matcher = Pattern.compile("([0-9]*)-([0-9]*)").matcher(bytes);
-                            assert matcher.find();
+                    assert Strings.hasLength(range);
 
-                            int end = Integer.parseInt(matcher.group(2));
-                            int start = Integer.parseInt(matcher.group(1));
+                    Matcher matcher = Pattern.compile("bytes ([^/]*)/([0-9\\*]*)").matcher(range);
+                    if (matcher.find()) {
+                        String bytes = matcher.group(1);
+                        String limit = matcher.group(2);
+                        byte[] blob = blobs.get(blobName).array();
+                        assert blob != null;
+                        // client is uploading a chunk
+                        matcher = Pattern.compile("([0-9]*)-([0-9]*)").matcher(bytes);
+                        assert matcher.find();
 
-                            final ByteArrayOutputStream out = new ByteArrayOutputStream();
-                            long count = Streams.copy(exchange.getRequestBody(), out);
-                            int length = Math.max(end + 1, "*".equals(limit) ? 0 : Integer.parseInt(limit));
-                            assert count <= length;
-                            if (length > blob.length) {
-                                blob = ArrayUtil.growExact(blob, length);
-                            }
-                            assert blob.length >= end;
-                            System.arraycopy(out.toByteArray(), 0, blob, start, Math.toIntExact(count));
-                            blobs.put(blobName, new BytesArray(blob));
+                        int end = Integer.parseInt(matcher.group(2));
+                        int start = Integer.parseInt(matcher.group(1));
 
-                            if ("*".equals(limit)) {
-                                exchange.getResponseHeaders().add("Range", String.format(Locale.ROOT, "bytes=%d/%d", start, end));
-                                exchange.getResponseHeaders().add("Content-Length", "0");
-                                exchange.sendResponseHeaders(308 /* Resume Incomplete */, -1);
-                            } else {
-                                assert blob.length == Integer.parseInt(limit);
-                                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
-                            }
-                        } else {
-                            exchange.sendResponseHeaders(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), -1);
+                        final ByteArrayOutputStream out = new ByteArrayOutputStream();
+                        long count = Streams.copy(exchange.getRequestBody(), out);
+                        int length = Math.max(end + 1, "*".equals(limit) ? 0 : Integer.parseInt(limit));
+                        assert count <= length;
+                        if (length > blob.length) {
+                            blob = ArrayUtil.growExact(blob, length);
                         }
-                    } else {
-                        // resumable in a single request
-                        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-                            Streams.copy(exchange.getRequestBody(), out);
-                            blobs.put(blobName, new BytesArray(out.toByteArray()));
-                            exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1L);
+                        assert blob.length >= end;
+                        System.arraycopy(out.toByteArray(), 0, blob, start, Math.toIntExact(count));
+                        blobs.put(blobName, new BytesArray(blob));
+
+                        if ("*".equals(limit)) {
+                            exchange.getResponseHeaders().add("Range", String.format(Locale.ROOT, "bytes=%d/%d", start, end));
+                            exchange.getResponseHeaders().add("Content-Length", "0");
+                            exchange.sendResponseHeaders(308 /* Resume Incomplete */, -1);
+                        } else {
+                            assert blob.length == Integer.parseInt(limit);
+                            exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                         }
                     }
                 } else {

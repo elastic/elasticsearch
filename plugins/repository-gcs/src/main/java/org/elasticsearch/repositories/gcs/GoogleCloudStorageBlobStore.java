@@ -208,7 +208,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      */
     void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         final BlobInfo blobInfo = BlobInfo.newBuilder(bucketName, blobName).build();
-        if (isLargeBlob(blobSize)) {
+        if (blobSize > getLargeBlobThresholdInBytes()) {
             writeBlobResumable(blobInfo, inputStream, failIfAlreadyExists);
         } else {
             writeBlobMultipart(blobInfo, inputStream, blobSize, failIfAlreadyExists);
@@ -216,8 +216,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     }
 
     // non-static, package private for testing
-    boolean isLargeBlob(final long blobSize) {
-        return blobSize > LARGE_BLOB_THRESHOLD_BYTE_SIZE;
+    long getLargeBlobThresholdInBytes() {
+        return LARGE_BLOB_THRESHOLD_BYTE_SIZE;
     }
 
     /**
@@ -272,7 +272,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      */
     private void writeBlobMultipart(BlobInfo blobInfo, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
         throws IOException {
-        assertLargeBlobUseMultipartUpload(blobSize);
+        assert blobSize <= getLargeBlobThresholdInBytes() : "large blob uploads should use the resumable upload method";
         final ByteArrayOutputStream baos = new ByteArrayOutputStream(Math.toIntExact(blobSize));
         Streams.copy(inputStream, baos);
         try {
@@ -287,11 +287,6 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             }
             throw se;
         }
-    }
-
-    // overridable for testing
-    void assertLargeBlobUseMultipartUpload(final long blobSize) {
-        assert blobSize <= LARGE_BLOB_THRESHOLD_BYTE_SIZE : "large blob uploads should use the resumable upload method";
     }
 
     /**

@@ -73,20 +73,17 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
     }
 
     protected final String createRepository(final String name) {
-        return createRepository(name, Settings.EMPTY);
+        return createRepository(name, repositorySettings());
     }
 
-    protected final String createRepository(final String name, final Settings additionalSettings) {
+    protected final String createRepository(final String name, final Settings settings) {
         final boolean verify = randomBoolean();
 
-        logger.debug("-->  creating repository [name: {}, verify: {}]", name, verify);
+        logger.debug("-->  creating repository [name: {}, verify: {}, settings: {}]", name, verify, settings);
         assertAcked(client().admin().cluster().preparePutRepository(name)
             .setType(repositoryType())
             .setVerify(verify)
-            .setSettings(Settings.builder()
-                .put(repositorySettings())
-                .put(additionalSettings)
-                .build()));
+            .setSettings(settings));
 
         internalCluster().getDataOrMasterNodeInstances(RepositoriesService.class).forEach(repositories -> {
             assertThat(repositories.repository(name), notNullValue());

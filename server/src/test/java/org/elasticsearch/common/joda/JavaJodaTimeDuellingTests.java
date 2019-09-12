@@ -56,7 +56,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
     public void testExceptionWhenCompositeParsingFailsDateMath(){
         //both parsing failures should contain pattern and input text in exception
-        // both patterns fail parsing the input text due to only 2 digits of millis. Hence full text was not parsed.
+        //both patterns fail parsing the input text due to only 2 digits of millis. Hence full text was not parsed.
         String pattern = "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SS";
         String text = "2014-06-06T12:01:02.123";
         ElasticsearchParseException e1 = expectThrows(ElasticsearchParseException.class, () -> dateMathToMillis(text, DateFormatter.forPattern(pattern)));

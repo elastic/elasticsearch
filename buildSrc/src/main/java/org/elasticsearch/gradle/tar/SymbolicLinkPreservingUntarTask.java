@@ -65,6 +65,12 @@ public class SymbolicLinkPreservingUntarTask extends DefaultTask {
 
     private Function<String, Path> transform;
 
+    /**
+     * A transform to apply to the tar entry, to derive the relative path from the entry name. If the return value is null, the entry is
+     * dropped from the exploded tar archive.
+     *
+     * @param transform the transform
+     */
     @Input
     public void setTransform(Function<String, Path> transform) {
         this.transform = transform;

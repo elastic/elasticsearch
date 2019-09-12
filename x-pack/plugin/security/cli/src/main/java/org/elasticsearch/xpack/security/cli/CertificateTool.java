@@ -149,7 +149,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         "signing requests for use with SSL/TLS in the Elastic stack.";
 
     static final String INSTANCE_EXPLANATION =
-        "    * An instance is any piece of the Elastic Stack that requires a SSL certificate.\n" +
+        "    * An instance is any piece of the Elastic Stack that requires an SSL certificate.\n" +
             "      Depending on your configuration, Elasticsearch, Logstash, Kibana, and Beats\n" +
             "      may all require a certificate and private key.\n" +
             "    * The minimum required value for each instance is a name. This can simply be the\n" +

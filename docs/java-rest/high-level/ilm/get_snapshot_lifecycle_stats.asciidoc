@@ -3,7 +3,7 @@
 :request: GetSnapshotLifecycleStatsRequest
 :response: GetSnapshotLifecycleStatsResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Get Snapshot Lifecycle Stats API
 

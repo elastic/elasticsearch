@@ -116,7 +116,7 @@ public final class DocumentPermissions {
                                        BooleanQuery.Builder filter) throws IOException {
         for (BytesReference bytesReference : queries) {
             QueryShardContext queryShardContext = queryShardContextProvider.apply(shardId);
-            QueryBuilder queryBuilder = DLSRoleQueryValidator.validateAndVerifyRoleQuery(bytesReference, scriptService,
+            QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(bytesReference, scriptService,
                 queryShardContext.getXContentRegistry(), user);
             if (queryBuilder != null) {
                 failIfQueryUsesClient(queryBuilder, queryShardContext);

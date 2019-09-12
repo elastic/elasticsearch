@@ -246,6 +246,8 @@ public class FileRolesStoreTests extends ESTestCase {
         assertTrue(group.getFieldPermissions().grantsAccessTo("boo"));
         assertTrue(group.getFieldPermissions().hasFieldLevelSecurity());
         assertThat(group.getQuery(), notNullValue());
+
+        assertThat(roles.get("role_query_invalid"), nullValue());
     }
 
     public void testParseFileWithFLSAndDLSDisabled() throws Exception {
@@ -261,8 +263,9 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(roles.get("role_fields"), nullValue());
         assertThat(roles.get("role_query"), nullValue());
         assertThat(roles.get("role_query_fields"), nullValue());
+        assertThat(roles.get("role_query_invalid"), nullValue());
 
-        assertThat(events, hasSize(3));
+        assertThat(events, hasSize(4));
         assertThat(
                 events.get(0),
                 startsWith("invalid role definition [role_fields] in roles file [" + path.toAbsolutePath() +
@@ -273,6 +276,9 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(events.get(2),
                 startsWith("invalid role definition [role_query_fields] in roles file [" + path.toAbsolutePath() +
                         "]. document and field level security is not enabled."));
+        assertThat(events.get(3),
+            startsWith("invalid role definition [role_query_invalid] in roles file [" + path.toAbsolutePath() +
+                "]. document and field level security is not enabled."));
     }
 
     public void testParseFileWithFLSAndDLSUnlicensed() throws Exception {

@@ -6,25 +6,15 @@
 
 package org.elasticsearch.xpack.core.security.authz.permission;
 
-import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.BoostingQueryBuilder;
-import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
-import org.elasticsearch.index.query.GeoShapeQueryBuilder;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
-import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
-import org.elasticsearch.join.query.HasChildQueryBuilder;
-import org.elasticsearch.join.query.HasParentQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -67,44 +57,6 @@ public class DocumentPermissionsTests extends ESTestCase {
         AssertionError ae = expectThrows(AssertionError.class,
                 () -> DocumentPermissions.allowAll().limitDocumentPermissions(documentPermissions3));
         assertThat(ae.getMessage(), containsString("nested scoping for document permissions is not permitted"));
-    }
-
-    public void testVerifyRoleQuery() throws Exception {
-        QueryBuilder queryBuilder1 = new TermsQueryBuilder("field", "val1", "val2");
-        DLSRoleQueryValidator.verifyRoleQuery(queryBuilder1);
-
-        QueryBuilder queryBuilder2 = new TermsQueryBuilder("field", new TermsLookup("_index", "_type", "_id", "_path"));
-        Exception e = expectThrows(IllegalArgumentException.class, () -> DLSRoleQueryValidator.verifyRoleQuery(queryBuilder2));
-        assertThat(e.getMessage(), equalTo("terms query with terms lookup isn't supported as part of a role query"));
-
-        QueryBuilder queryBuilder3 = new GeoShapeQueryBuilder("field", "_id", "_type");
-        e = expectThrows(IllegalArgumentException.class, () -> DLSRoleQueryValidator.verifyRoleQuery(queryBuilder3));
-        assertThat(e.getMessage(), equalTo("geoshape query referring to indexed shapes isn't support as part of a role query"));
-
-        QueryBuilder queryBuilder4 = new HasChildQueryBuilder("_type", new MatchAllQueryBuilder(), ScoreMode.None);
-        e = expectThrows(IllegalArgumentException.class, () -> DLSRoleQueryValidator.verifyRoleQuery(queryBuilder4));
-        assertThat(e.getMessage(), equalTo("has_child query isn't support as part of a role query"));
-
-        QueryBuilder queryBuilder5 = new HasParentQueryBuilder("_type", new MatchAllQueryBuilder(), false);
-        e = expectThrows(IllegalArgumentException.class, () -> DLSRoleQueryValidator.verifyRoleQuery(queryBuilder5));
-        assertThat(e.getMessage(), equalTo("has_parent query isn't support as part of a role query"));
-
-        QueryBuilder queryBuilder6 = new BoolQueryBuilder().must(new GeoShapeQueryBuilder("field", "_id", "_type"));
-        e = expectThrows(IllegalArgumentException.class, () -> DLSRoleQueryValidator.verifyRoleQuery(queryBuilder6));
-        assertThat(e.getMessage(), equalTo("geoshape query referring to indexed shapes isn't support as part of a role query"));
-
-        QueryBuilder queryBuilder7 = new ConstantScoreQueryBuilder(new GeoShapeQueryBuilder("field", "_id", "_type"));
-        e = expectThrows(IllegalArgumentException.class, () -> DLSRoleQueryValidator.verifyRoleQuery(queryBuilder7));
-        assertThat(e.getMessage(), equalTo("geoshape query referring to indexed shapes isn't support as part of a role query"));
-
-        QueryBuilder queryBuilder8 = new FunctionScoreQueryBuilder(new GeoShapeQueryBuilder("field", "_id", "_type"));
-        e = expectThrows(IllegalArgumentException.class, () -> DLSRoleQueryValidator.verifyRoleQuery(queryBuilder8));
-        assertThat(e.getMessage(), equalTo("geoshape query referring to indexed shapes isn't support as part of a role query"));
-
-        QueryBuilder queryBuilder9 = new BoostingQueryBuilder(new GeoShapeQueryBuilder("field", "_id", "_type"),
-                new MatchAllQueryBuilder());
-        e = expectThrows(IllegalArgumentException.class, () -> DLSRoleQueryValidator.verifyRoleQuery(queryBuilder9));
-        assertThat(e.getMessage(), equalTo("geoshape query referring to indexed shapes isn't support as part of a role query"));
     }
 
     public void testFailIfQueryUsesClient() throws Exception {

@@ -70,3 +70,11 @@ role_query_fields:
         grant:
           - foo
           - boo
+
+role_query_invalid:
+  indices:
+    - names:
+        - 'query_idx'
+      privileges:
+        - READ
+      query: '{ "unknown": {} }'

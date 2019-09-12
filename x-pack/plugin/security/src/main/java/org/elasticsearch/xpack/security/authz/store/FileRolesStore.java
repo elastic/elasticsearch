@@ -320,6 +320,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                     logger.error((Supplier<?>) () -> new ParameterizedMessage(
                         "invalid role definition [{}] in roles file [{}]. failed to validate query field. skipping role...", roleName,
                         path.toAbsolutePath()), e);
+                    return null;
                 }
             }
         }

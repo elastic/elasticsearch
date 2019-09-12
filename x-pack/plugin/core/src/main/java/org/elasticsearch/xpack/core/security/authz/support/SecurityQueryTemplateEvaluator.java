@@ -75,7 +75,7 @@ public final class SecurityQueryTemplateEvaluator {
                 return querySource;
             }
         } catch (IOException ioe) {
-            throw new ElasticsearchParseException("failed to parse query");
+            throw new ElasticsearchParseException("failed to parse query", ioe);
         }
     }
 

@@ -59,7 +59,7 @@ public final class DLSRoleQueryValidator {
                             continue;
                         }
 
-                        validateAndVerifyRoleQuery(query.utf8ToString(), xContentRegistry);
+                        evaluateAndVerifyRoleQuery(query.utf8ToString(), xContentRegistry);
                     }
                 } catch (ParsingException | IllegalArgumentException |  IOException e) {
                     throw new ElasticsearchParseException("failed to parse field 'query' for [" + i + "]th index privilege " +
@@ -104,31 +104,31 @@ public final class DLSRoleQueryValidator {
      * * does not have a query field then it returns {@code null}.
      */
     @Nullable
-    public static QueryBuilder validateAndVerifyRoleQuery(BytesReference query, ScriptService scriptService,
+    public static QueryBuilder evaluateAndVerifyRoleQuery(BytesReference query, ScriptService scriptService,
                                                           NamedXContentRegistry xContentRegistry, User user) {
-        QueryBuilder queryBuilder = null;
         if (query != null) {
             String templateResult = SecurityQueryTemplateEvaluator.evaluateTemplate(query.utf8ToString(), scriptService,
                 user);
             try {
-                queryBuilder = validateAndVerifyRoleQuery(templateResult, xContentRegistry);
+                return evaluateAndVerifyRoleQuery(templateResult, xContentRegistry);
             } catch (ElasticsearchParseException | ParsingException | XContentParseException | IOException e) {
                 throw new ElasticsearchParseException("failed to parse field 'query' from the role descriptor", e);
             }
         }
-        return queryBuilder;
+        return null;
     }
 
-    private static QueryBuilder validateAndVerifyRoleQuery(String query, NamedXContentRegistry xContentRegistry) throws IOException {
-        QueryBuilder queryBuilder = null;
+    @Nullable
+    private static QueryBuilder evaluateAndVerifyRoleQuery(String query, NamedXContentRegistry xContentRegistry) throws IOException {
         if (query != null) {
             try (XContentParser parser = XContentFactory.xContent(query).createParser(xContentRegistry,
                 LoggingDeprecationHandler.INSTANCE, query)) {
-                queryBuilder = AbstractQueryBuilder.parseInnerQueryBuilder(parser);
+                QueryBuilder queryBuilder = AbstractQueryBuilder.parseInnerQueryBuilder(parser);
                 verifyRoleQuery(queryBuilder);
+                return queryBuilder;
             }
         }
-        return queryBuilder;
+        return null;
     }
 
     /**
@@ -136,7 +136,8 @@ public final class DLSRoleQueryValidator {
      *
      * @param queryBuilder {@link QueryBuilder} for given query
      */
-    public static void verifyRoleQuery(QueryBuilder queryBuilder) {
+    // pkg protected for testing
+    static void verifyRoleQuery(QueryBuilder queryBuilder) {
         if (queryBuilder instanceof TermsQueryBuilder) {
             TermsQueryBuilder termsQueryBuilder = (TermsQueryBuilder) queryBuilder;
             if (termsQueryBuilder.termsLookup() != null) {

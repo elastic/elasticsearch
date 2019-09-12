@@ -690,7 +690,11 @@ public final class Settings implements ToXContentFragment {
         return keySet().size();
     }
 
-    /** Returns the fully qualified setting names contained in this settings object. */
+    /**
+     * Returns the fully qualified setting names contained in this settings object.
+     *
+     * @param includeSecureSettings if {@code true} then it returns all settings names, only unsecure settings names otherwise
+     */
     public Set<String> keySet(boolean includeSecureSettings) {
         if (!includeSecureSettings || secureSettings == null) {
             return settings.keySet();

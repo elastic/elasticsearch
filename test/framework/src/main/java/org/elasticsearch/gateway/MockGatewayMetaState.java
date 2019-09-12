@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gateway;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -49,9 +50,9 @@ public class MockGatewayMetaState extends GatewayMetaState {
     }
 
     @Override
-    public void applyClusterStateUpdaters(TransportService transportService, ClusterService clusterService) {
+    ClusterState prepareInitialClusterState(TransportService transportService, ClusterService clusterService, ClusterState clusterState) {
         // Just set localNode here, not to mess with ClusterService and IndicesService mocking
-        previousClusterState = ClusterStateUpdaters.setLocalNode(previousClusterState, localNode);
+        return ClusterStateUpdaters.setLocalNode(clusterState, localNode);
     }
 
     public void start() {

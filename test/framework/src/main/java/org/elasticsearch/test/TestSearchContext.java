@@ -31,6 +31,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -197,6 +198,14 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public void highlight(SearchContextHighlight highlight) {
+    }
+
+    @Override
+    public void innerHits(Map<String, InnerHitContextBuilder> innerHits) {}
+
+    @Override
+    public Map<String, InnerHitContextBuilder> innerHits() {
+        return null;
     }
 
     @Override

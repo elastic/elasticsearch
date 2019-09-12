@@ -142,12 +142,7 @@ public class SymbolicLinkPreservingTar extends Tar {
             }
 
             private boolean isChildOf(final File directory, final File file) {
-                File parent = file.getParentFile();
-                while (parent != null) {
-                    if (directory.toPath().equals(file.toPath())) return true;
-                    parent = parent.getParentFile();
-                }
-                return false;
+                return file.toPath().startsWith(directory.toPath());
             }
 
             private boolean isSymbolicLink(final FileCopyDetailsInternal details) {

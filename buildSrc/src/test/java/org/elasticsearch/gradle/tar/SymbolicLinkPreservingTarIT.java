@@ -31,9 +31,12 @@ public class SymbolicLinkPreservingTarIT extends GradleIntegrationTestCase {
         final Path realFolder = temporaryFolder.getRoot().toPath().resolve("real-folder");
         Files.createDirectory(realFolder);
         Files.createFile(realFolder.resolve("file"));
-        final Path linkFolder = temporaryFolder.getRoot().toPath().resolve("link-folder");
-        Files.createDirectory(linkFolder);
-        Files.createSymbolicLink(linkFolder.resolve("link"), Paths.get("../real-folder/file"));
+        Files.createSymbolicLink(realFolder.resolve("link-to-file"), Paths.get("./file"));
+        final Path linkInFolder = temporaryFolder.getRoot().toPath().resolve("link-in-folder");
+        Files.createDirectory(linkInFolder);
+        Files.createSymbolicLink(linkInFolder.resolve("link-to-file"), Paths.get("../real-folder/file"));
+        final Path linkToRealFolder = temporaryFolder.getRoot().toPath().resolve("link-to-real-folder");
+        Files.createSymbolicLink(linkToRealFolder, Paths.get("./real-folder"));
     }
 
     public void testBZip2Tar() throws IOException {
@@ -76,8 +79,10 @@ public class SymbolicLinkPreservingTarIT extends GradleIntegrationTestCase {
             TarArchiveEntry entry = tar.getNextTarEntry();
             boolean realFolderEntry = false;
             boolean fileEntry = false;
-            boolean linkFolderEntry = false;
-            boolean linkEntry = false;
+            boolean linkToFileEntry = false;
+            boolean linkInFolderEntry = false;
+            boolean linkInFolderLinkToFileEntry = false;
+            boolean linkToRealFolderEntry = false;
             while (entry != null) {
                 if (entry.getName().equals("real-folder/")) {
                     assertTrue(entry.isDirectory());
@@ -85,13 +90,21 @@ public class SymbolicLinkPreservingTarIT extends GradleIntegrationTestCase {
                 } else if (entry.getName().equals("real-folder/file")) {
                     assertTrue(entry.isFile());
                     fileEntry = true;
-                } else if (entry.getName().equals("link-folder/")) {
+                } else if (entry.getName().equals("real-folder/link-to-file")) {
+                    assertTrue(entry.isSymbolicLink());
+                    assertThat(entry.getLinkName(), equalTo("./file"));
+                    linkToFileEntry = true;
+                } else if (entry.getName().equals("link-in-folder/")) {
                     assertTrue(entry.isDirectory());
-                    linkFolderEntry = true;
-                } else if (entry.getName().equals("link-folder/link")) {
+                    linkInFolderEntry = true;
+                } else if (entry.getName().equals("link-in-folder/link-to-file")) {
                     assertTrue(entry.isSymbolicLink());
                     assertThat(entry.getLinkName(), equalTo("../real-folder/file"));
-                    linkEntry = true;
+                    linkInFolderLinkToFileEntry = true;
+                } else if (entry.getName().equals("link-to-real-folder")) {
+                    assertTrue(entry.isSymbolicLink());
+                    assertThat(entry.getLinkName(), equalTo("./real-folder"));
+                    linkToRealFolderEntry = true;
                 } else {
                     throw new GradleException("unexpected entry [" + entry.getName() + "]");
                 }
@@ -104,8 +117,10 @@ public class SymbolicLinkPreservingTarIT extends GradleIntegrationTestCase {
             }
             assertTrue(realFolderEntry);
             assertTrue(fileEntry);
-            assertTrue(linkFolderEntry);
-            assertTrue(linkEntry);
+            assertTrue(linkToFileEntry);
+            assertTrue(linkInFolderEntry);
+            assertTrue(linkInFolderLinkToFileEntry);
+            assertTrue(linkToRealFolderEntry);
         }
     }
 

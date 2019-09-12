@@ -1,0 +1,29 @@
+[[dataframe-troubleshooting]]
+== Troubleshooting {dataframe-transforms}
+[subs="attributes"]
+++++
+<titleabbrev>Troubleshooting</titleabbrev>
+++++
+
+Use the information in this section to troubleshoot common problems.
+
+include::{stack-repo-dir}/help.asciidoc[tag=get-help]
+
+If you encounter problems with your {dataframe-transforms}, you can gather more
+information from the following files and APIs:
+
+* Lightweight audit messages are stored in `.data-frame-notifications-*`. Search
+by your `transform_id`.
+* The
+{ref}/get-data-frame-transform-stats.html[get {dataframe-transform} statistics API] 
+provides information about the transform status and failures.
+* If the {dataframe-transform} exists as a task, you can use the
+{ref}/tasks.html[task management API] to gather task information. For example:
+`GET _tasks?actions=data_frame/transforms*&detailed`. Typically, the task exists
+when the transform is in a started or failed state.
+* The {es} logs from the node that was running the {dataframe-transform} might
+also contain useful information. You can identify the node from the notification
+messages. Alternatively, if the task still exists, you can get that information
+from the get {dataframe-transform} statistics API. For more information, see
+{ref}/logging.html[Logging configuration].
+

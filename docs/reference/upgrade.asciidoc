@@ -5,10 +5,10 @@
 --
 {es} can usually be upgraded using a <<rolling-upgrades,Rolling upgrade>>
 process so upgrading does not interrupt service. Rolling upgrades are supported:
-
+  
 * Between minor versions
-* From 5.6 to 6.7
-* From 6.7 to {version}
+* From 5.6 to 6.8
+* From 6.8 to {version}
 
 The following table shows the recommended upgrade paths to {version}.
 

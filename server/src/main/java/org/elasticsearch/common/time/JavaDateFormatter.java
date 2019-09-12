@@ -60,8 +60,6 @@ class JavaDateFormatter implements DateFormatter {
     private final List<DateTimeFormatter> parsers;
     private final JavaDateFormatter roundupParser;
 
-
-
     static class RoundUpFormatter extends JavaDateFormatter{
 
         RoundUpFormatter(String format, List<DateTimeFormatter> roundUpParsers) {
@@ -146,7 +144,8 @@ class JavaDateFormatter implements DateFormatter {
         return new JavaDateFormatter(input, printer, roundUpParsers, parsers);
     }
 
-     private JavaDateFormatter(String format, DateTimeFormatter printer, List<DateTimeFormatter> roundUpParsers, List<DateTimeFormatter> parsers) {
+     private JavaDateFormatter(String format, DateTimeFormatter printer, List<DateTimeFormatter> roundUpParsers,
+                               List<DateTimeFormatter> parsers) {
         this.format = format;
         this.printer = printer;
         this.roundupParser = roundUpParsers != null ? new RoundUpFormatter(format,  roundUpParsers ) : null;

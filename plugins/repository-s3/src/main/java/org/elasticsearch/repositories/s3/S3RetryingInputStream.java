@@ -46,6 +46,7 @@ class S3RetryingInputStream extends InputStream {
     private final int maxAttempts;
 
     private InputStream currentStream;
+    private int attempt = 1;
     private long currentOffset;
 
     S3RetryingInputStream(S3BlobStore blobStore, String blobKey) throws IOException {
@@ -75,24 +76,20 @@ class S3RetryingInputStream extends InputStream {
 
     @Override
     public int read() throws IOException {
-        int attempt = 0;
         while (true) {
-            attempt += 1;
             try {
                 final int result = currentStream.read();
                 currentOffset += 1;
                 return result;
             } catch (IOException e) {
-                reopenStreamOrFail(attempt, e);
+                reopenStreamOrFail(e);
             }
         }
     }
 
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
-        int attempt = 0;
         while (true) {
-            attempt += 1;
             try {
                 final int bytesRead = currentStream.read(b, off, len);
                 if (bytesRead == -1) {
@@ -101,17 +98,18 @@ class S3RetryingInputStream extends InputStream {
                 currentOffset += bytesRead;
                 return bytesRead;
             } catch (IOException e) {
-                reopenStreamOrFail(attempt, e);
+                reopenStreamOrFail(e);
             }
         }
     }
 
-    private void reopenStreamOrFail(int attempt, IOException e) throws IOException {
+    private void reopenStreamOrFail(IOException e) throws IOException {
         if (attempt >= maxAttempts) {
             throw e;
         }
         logger.debug(new ParameterizedMessage("failed reading [{}/{}] at offset [{}], attempt [{}] of [{}], retrying",
             blobStore.bucket(), blobKey, currentOffset, attempt, maxAttempts), e);
+        attempt += 1;
         IOUtils.closeWhileHandlingException(currentStream);
         currentStream = openStream();
     }

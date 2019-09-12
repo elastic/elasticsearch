@@ -559,26 +559,28 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
 
         private void cleanupAfterError(Exception exception) {
-            if(snapshotCreated) {
-                try {
-                    repositoriesService.repository(snapshot.snapshot().getRepository())
-                                       .finalizeSnapshot(snapshot.snapshot().getSnapshotId(),
-                                                         snapshot.indices(),
-                                                         snapshot.startTime(),
-                                                         ExceptionsHelper.detailedMessage(exception),
-                                                         0,
-                                                         Collections.emptyList(),
-                                                         snapshot.getRepositoryStateId(),
-                                                         snapshot.includeGlobalState(),
-                                                         metaDataForSnapshot(snapshot, clusterService.state().metaData()),
-                                                         snapshot.userMetadata());
-                } catch (Exception inner) {
-                    inner.addSuppressed(exception);
-                    logger.warn(() -> new ParameterizedMessage("[{}] failed to close snapshot in repository",
-                        snapshot.snapshot()), inner);
+            threadPool.generic().execute(() -> {
+                if (snapshotCreated) {
+                    try {
+                        repositoriesService.repository(snapshot.snapshot().getRepository())
+                            .finalizeSnapshot(snapshot.snapshot().getSnapshotId(),
+                                snapshot.indices(),
+                                snapshot.startTime(),
+                                ExceptionsHelper.detailedMessage(exception),
+                                0,
+                                Collections.emptyList(),
+                                snapshot.getRepositoryStateId(),
+                                snapshot.includeGlobalState(),
+                                metaDataForSnapshot(snapshot, clusterService.state().metaData()),
+                                snapshot.userMetadata());
+                    } catch (Exception inner) {
+                        inner.addSuppressed(exception);
+                        logger.warn(() -> new ParameterizedMessage("[{}] failed to close snapshot in repository",
+                            snapshot.snapshot()), inner);
+                    }
                 }
-            }
-            userCreateSnapshotListener.onFailure(e);
+                userCreateSnapshotListener.onFailure(e);
+            });
         }
     }
 

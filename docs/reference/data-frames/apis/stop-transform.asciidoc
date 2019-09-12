@@ -91,11 +91,10 @@ are no matches or only partial matches.
 [[stop-data-frame-transform-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _data_frame/transforms/ecommerce_transform/_stop
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:set up kibana samples]
 
 When the {dataframe-transform} stops, you receive the following results:

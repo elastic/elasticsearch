@@ -101,7 +101,7 @@ No other detector property can be updated.
 
 The following example updates the `total-requests` job:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/anomaly_detectors/total-requests/_update
 {
@@ -125,7 +125,6 @@ POST _ml/anomaly_detectors/total-requests/_update
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:server_metrics_job]
 
 When the {anomaly-job} is updated, you receive a summary of the job

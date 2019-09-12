@@ -104,7 +104,7 @@ public class SnapshotLifecycleService implements LocalNodeMasterListener, Closea
     /**
      * Returns true if ILM is in the stopped or stopped state
      */
-    private static boolean ilmStoppedOrStopping(ClusterState state) {
+    static boolean ilmStoppedOrStopping(ClusterState state) {
         return Optional.ofNullable((SnapshotLifecycleMetadata) state.metaData().custom(SnapshotLifecycleMetadata.TYPE))
             .map(SnapshotLifecycleMetadata::getOperationMode)
             .map(mode -> OperationMode.STOPPING == mode || OperationMode.STOPPED == mode)

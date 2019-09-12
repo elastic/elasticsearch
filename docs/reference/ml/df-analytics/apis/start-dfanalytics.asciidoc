@@ -46,11 +46,10 @@ and {stack-ov}/built-in-roles.html[Built-in roles].
 
 The following example starts the `loganalytics` {dfanalytics-job}:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/data_frame/analytics/loganalytics/_start
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:logdata_job]
 
 When the {dfanalytics-job} starts, you receive the following results:

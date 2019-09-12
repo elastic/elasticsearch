@@ -1219,7 +1219,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         indexMetaData = IndexMetaData.builder(indexMetaData)
             .settings(Settings.builder()
                 .put(indexMetaData.getSettings())
-                .put(LifecycleSettings.SETTING_LIFECYCLE_ORIGINATION_DATE, 3L)
+                .put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, 3L)
                 .build())
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .build();

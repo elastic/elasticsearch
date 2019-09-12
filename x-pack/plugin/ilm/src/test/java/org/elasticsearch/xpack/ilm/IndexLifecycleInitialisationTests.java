@@ -206,7 +206,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
                 createIndexRequest("test").settings(
                     Settings.builder()
                         .put(settings)
-                        .put(LifecycleSettings.SETTING_LIFECYCLE_ORIGINATION_DATE, 1000L)
+                        .put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, 1000L)
                 )
             )
             .actionGet();

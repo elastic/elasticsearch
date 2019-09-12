@@ -56,7 +56,8 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
     public void testGetSnapMetadata() {
         final String id = randomAlphaOfLength(4);
         final SnapshotLifecyclePolicyMetadata slpm = makePolicyMeta(id);
-        final SnapshotLifecycleMetadata meta = new SnapshotLifecycleMetadata(Collections.singletonMap(id, slpm), OperationMode.RUNNING);
+        final SnapshotLifecycleMetadata meta =
+            new SnapshotLifecycleMetadata(Collections.singletonMap(id, slpm), OperationMode.RUNNING, new SnapshotLifecycleStats());
 
         final ClusterState state = ClusterState.builder(new ClusterName("test"))
             .metaData(MetaData.builder()
@@ -76,7 +77,8 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
     public void testSkipCreatingSnapshotWhenJobDoesNotMatch() {
         final String id = randomAlphaOfLength(4);
         final SnapshotLifecyclePolicyMetadata slpm = makePolicyMeta(id);
-        final SnapshotLifecycleMetadata meta = new SnapshotLifecycleMetadata(Collections.singletonMap(id, slpm), OperationMode.RUNNING);
+        final SnapshotLifecycleMetadata meta =
+            new SnapshotLifecycleMetadata(Collections.singletonMap(id, slpm), OperationMode.RUNNING, new SnapshotLifecycleStats());
 
         final ClusterState state = ClusterState.builder(new ClusterName("test"))
             .metaData(MetaData.builder()
@@ -106,7 +108,8 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
     public void testCreateSnapshotOnTrigger() {
         final String id = randomAlphaOfLength(4);
         final SnapshotLifecyclePolicyMetadata slpm = makePolicyMeta(id);
-        final SnapshotLifecycleMetadata meta = new SnapshotLifecycleMetadata(Collections.singletonMap(id, slpm), OperationMode.RUNNING);
+        final SnapshotLifecycleMetadata meta =
+            new SnapshotLifecycleMetadata(Collections.singletonMap(id, slpm), OperationMode.RUNNING, new SnapshotLifecycleStats());
 
         final ClusterState state = ClusterState.builder(new ClusterName("test"))
             .metaData(MetaData.builder()

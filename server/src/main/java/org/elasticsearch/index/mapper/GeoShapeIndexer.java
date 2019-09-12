@@ -229,7 +229,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
                 double[] lons = new double[partMinus.length()];
                 for (int i = 0; i < partMinus.length(); i++) {
                     lats[i] = normalizeLat(partMinus.getY(i));
-                    lons[i] = normalizeLon(partMinus.getX(i));
+                    lons[i] = normalizeLonMinus180Inclusive(partMinus.getX(i));
                 }
                 lines.add(new Line(lons, lats));
             }
@@ -274,7 +274,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
                     lons[offset + i - 1] = intersection.getX();
                     lats[offset + i - 1] = intersection.getY();
 
-                    shift(shift, lons);
+                    shift(shift, partLons);
                     offset = i - 1;
                     shift = lons[i] > DATELINE ? DATELINE : (lons[i] < -DATELINE ? -DATELINE : 0);
                 } else {
@@ -926,7 +926,7 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
         for (int i = 0; i < shell.length; ++i) {
             //Lucene Tessellator treats different +180 and -180 and we should keep the sign.
             //normalizeLon method excludes -180.
-            x[i] = Math.abs(shell[i].getX()) > 180 ? normalizeLon(shell[i].getX()) : shell[i].getX();
+            x[i] = normalizeLonMinus180Inclusive(shell[i].getX());
             y[i] = normalizeLat(shell[i].getY());
         }
 
@@ -1042,5 +1042,12 @@ public final class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexe
             holes[i] = new org.apache.lucene.geo.Polygon(polygon.getHole(i).getY(), polygon.getHole(i).getX());
         }
         return new org.apache.lucene.geo.Polygon(polygon.getPolygon().getY(), polygon.getPolygon().getX(), holes);
+    }
+
+    /**
+     * Normalizes longitude while accepting -180 degrees as a valid value
+     */
+    private static double normalizeLonMinus180Inclusive(double lon) {
+        return  Math.abs(lon) > 180 ? normalizeLon(lon) : lon;
     }
 }

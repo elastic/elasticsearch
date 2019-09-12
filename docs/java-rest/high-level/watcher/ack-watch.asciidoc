@@ -4,6 +4,7 @@
 :response: AckWatchResponse
 --
 
+[role="xpack"]
 [id="{upid}-{api}"]
 === Ack watch API
 

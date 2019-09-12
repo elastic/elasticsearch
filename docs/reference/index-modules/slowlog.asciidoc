@@ -29,7 +29,7 @@ index.search.slowlog.level: info
 All of the above settings are _dynamic_ and can be set for each index using the
 <<indices-update-settings, update indices settings>> API. For example: 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /twitter/_settings
 {
@@ -44,7 +44,6 @@ PUT /twitter/_settings
     "index.search.slowlog.level": "info"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 By default, none are enabled (set to `-1`). Levels (`warn`, `info`,
@@ -140,7 +139,7 @@ index.indexing.slowlog.source: 1000
 All of the above settings are _dynamic_ and can be set for each index using the
 <<indices-update-settings, update indices settings>> API. For example: 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /twitter/_settings
 {
@@ -152,7 +151,6 @@ PUT /twitter/_settings
     "index.indexing.slowlog.source": "1000"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 By default Elasticsearch will log the first 1000 characters of the _source in

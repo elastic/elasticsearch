@@ -50,7 +50,7 @@ The above aggregation demonstrates how one would compute the centroid of the loc
 
 The response for the above aggregation:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -95,7 +95,7 @@ for finding the central location for museums in each city.
 
 The response for the above aggregation:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...

@@ -3,7 +3,7 @@
 :request: GetRollupCapsRequest
 :response: GetRollupCapsResponse
 --
-
+[role="xpack"]
 [id="{upid}-x-pack-{api}"]
 === Get Rollup Capabilities API
 

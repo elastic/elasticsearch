@@ -44,7 +44,7 @@ GET latency/_search
 By default, the `percentile` metric will generate a range of
 percentiles: `[ 1, 5, 25, 50, 75, 95, 99 ]`.  The response will look like this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -116,7 +116,7 @@ GET latency/_search
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...

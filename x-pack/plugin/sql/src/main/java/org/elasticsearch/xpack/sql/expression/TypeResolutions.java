@@ -57,7 +57,6 @@ public final class TypeResolutions {
             "date", "time", "datetime", "numeric");
     }
 
-
     public static TypeResolution isGeo(Expression e, String operationName, ParamOrdinal paramOrd) {
         return isType(e, DataType::isGeo, operationName, paramOrd, "geo_point", "geo_shape");
     }

@@ -201,9 +201,6 @@ public class ArchiveTests extends PackagingTestCase {
                 Result result = sh.run(pluginListCommand);
                 assertThat(result.exitCode, equalTo(0));
 
-            } catch (RuntimeException e) {
-                logger.error(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"));
-                throw e;
             } finally {
                 //clean up sym link
                 sh.run("cmd /c rmdir 'C:\\Program Files (x86)\\java' ");

@@ -45,8 +45,8 @@ if defined JAVA_HOME (
   set JAVA_TYPE=bundled jdk
 )
 
-if not exist %JAVA% (
-  echo "could not find java in %JAVA_TYPE% at %JAVA%" >&2
+if not exist !JAVA! (
+  echo "could not find java in !JAVA_TYPE! at !JAVA!" >&2
   exit /b 1
 )
 

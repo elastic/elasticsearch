@@ -47,7 +47,16 @@ forbiddenApisMain {
 thirdPartyAudit.enabled = false
 
 subprojects {
-  apply plugin: 'elasticsearch.standalone-rest-test'
+  if (subprojects.isEmpty()) {
+    // leaf project
+    apply plugin: 'elasticsearch.standalone-rest-test'
+  } else {
+    apply plugin: 'elasticsearch.build'
+  }
+
+  configurations.testRuntimeClasspath {
+    resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
+  }
   dependencies {
     
     /* Since we're a standalone rest test we actually get transitive
@@ -65,7 +74,8 @@ subprojects {
 
     // H2GIS testing dependencies
     testRuntime ("org.orbisgis:h2gis:${h2gisVersion}") {
-        exclude group: "org.locationtech.jts"
+      exclude group: "org.locationtech.jts"
+      exclude group: "com.fasterxml.jackson.core"
     }
   
     testRuntime project(path: xpackModule('sql:jdbc'), configuration: 'nodeps')

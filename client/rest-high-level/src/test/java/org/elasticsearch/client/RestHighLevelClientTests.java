@@ -900,7 +900,7 @@ public class RestHighLevelClientTests extends ESTestCase {
     private static void assertAsyncMethod(Map<String, Set<Method>> methods, Method method, String apiName) {
         assertTrue("async method [" + method.getName() + "] doesn't have corresponding sync method",
                 methods.containsKey(apiName.substring(0, apiName.length() - 6)));
-        assertThat("async method [" + method + "] should return void", method.getReturnType(), equalTo(Void.TYPE));
+        assertThat("async method [" + method + "] should return Cancellable", method.getReturnType(), equalTo(Cancellable.class));
         assertEquals("async method [" + method + "] should not throw any exceptions", 0, method.getExceptionTypes().length);
         if (APIS_WITHOUT_REQUEST_OBJECT.contains(apiName.replaceAll("_async$", ""))) {
             assertEquals(2, method.getParameterTypes().length);

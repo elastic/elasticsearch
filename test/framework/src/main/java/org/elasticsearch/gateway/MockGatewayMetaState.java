@@ -28,10 +28,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
-
-import static org.mockito.Mockito.mock;
-
 /**
  * {@link GatewayMetaState} constructor accepts a lot of arguments.
  * It's not always easy / convenient to construct these dependencies.
@@ -42,10 +38,8 @@ public class MockGatewayMetaState extends GatewayMetaState {
     private final DiscoveryNode localNode;
 
     public MockGatewayMetaState(Settings settings, NodeEnvironment nodeEnvironment,
-                                NamedXContentRegistry xContentRegistry, DiscoveryNode localNode) throws IOException {
-        super(settings, new MetaStateService(nodeEnvironment, xContentRegistry),
-                mock(MetaDataIndexUpgradeService.class), mock(MetaDataUpgrader.class),
-                mock(TransportService.class), mock(ClusterService.class));
+                                NamedXContentRegistry xContentRegistry, DiscoveryNode localNode) {
+        super(settings, new MetaStateService(nodeEnvironment, xContentRegistry));
         this.localNode = localNode;
     }
 
@@ -55,8 +49,12 @@ public class MockGatewayMetaState extends GatewayMetaState {
     }
 
     @Override
-    public void applyClusterStateUpdaters() {
+    public void applyClusterStateUpdaters(TransportService transportService, ClusterService clusterService) {
         // Just set localNode here, not to mess with ClusterService and IndicesService mocking
         previousClusterState = ClusterStateUpdaters.setLocalNode(previousClusterState, localNode);
+    }
+
+    public void start() {
+        start(null, null, null, null);
     }
 }

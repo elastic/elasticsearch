@@ -25,12 +25,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -93,9 +93,9 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
     }
 
     @Override
-    protected AggregatorFactory doBuild(SearchContext context, AggregatorFactory parent,
-            AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new FilterAggregatorFactory(name, filter, context, parent, subFactoriesBuilder, metaData);
+    protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
+                                        AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        return new FilterAggregatorFactory(name, filter, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 
     @Override

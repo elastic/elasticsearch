@@ -7,11 +7,21 @@
 package org.elasticsearch.xpack.transform.persistence;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 import org.elasticsearch.xpack.core.transform.DataFrameField;
@@ -27,6 +37,8 @@ import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.xpack.core.ClientHelper.DATA_FRAME_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.transform.DataFrameField.TRANSFORM_ID;
 
 public final class DataFrameInternalIndex {
@@ -130,6 +142,10 @@ public final class DataFrameInternalIndex {
 
     public static XContentBuilder mappings() throws IOException {
         XContentBuilder builder = jsonBuilder();
+        return mappings(builder);
+    }
+
+    public static XContentBuilder mappings(XContentBuilder builder) throws IOException {
         builder.startObject();
 
         builder.startObject(MapperService.SINGLE_MAPPING_NAME);
@@ -299,6 +315,46 @@ public final class DataFrameInternalIndex {
         return builder.startObject("_meta")
                     .field("version", Version.CURRENT)
                 .endObject();
+    }
+
+    public static boolean haveLatestVersionedIndexTemplate(ClusterState state) {
+        return state.getMetaData().getTemplates().containsKey(LATEST_INDEX_VERSIONED_NAME);
+    }
+
+    /**
+     * This method should be called before any document is indexed that relies on the
+     * existence of the latest index template to create the internal index.  The
+     * reason is that the standard template upgrader only runs when the master node
+     * is upgraded to the newer version.  If data nodes are upgraded before master
+     * nodes and transforms get assigned to those data nodes then without this check
+     * the data nodes will index documents into the internal index before the necessary
+     * index template is present and this will result in an index with completely
+     * dynamic mappings being created (which is very bad).
+     */
+    public static void installLatestVersionedIndexTemplateIfRequired(ClusterService clusterService, Client client,
+                                                                     ActionListener<Void> listener) {
+
+        // The check for existence of the template is against local cluster state, so very cheap
+        if (haveLatestVersionedIndexTemplate(clusterService.state())) {
+            listener.onResponse(null);
+            return;
+        }
+
+        // Installing the template involves communication with the master node, so it's more expensive but much rarer
+        try {
+            IndexTemplateMetaData indexTemplateMetaData = getIndexTemplateMetaData();
+            BytesReference jsonMappings = new BytesArray(indexTemplateMetaData.mappings().get(SINGLE_MAPPING_NAME).uncompressed());
+            PutIndexTemplateRequest request = new PutIndexTemplateRequest(LATEST_INDEX_VERSIONED_NAME)
+                .patterns(indexTemplateMetaData.patterns())
+                .version(indexTemplateMetaData.version())
+                .settings(indexTemplateMetaData.settings())
+                .mapping(SINGLE_MAPPING_NAME, XContentHelper.convertToMap(jsonMappings, true, XContentType.JSON).v2());
+            ActionListener<AcknowledgedResponse> innerListener = ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure);
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), DATA_FRAME_ORIGIN, request,
+                innerListener, client.admin().indices()::putTemplate);
+        } catch (IOException e) {
+            listener.onFailure(e);
+        }
     }
 
     private DataFrameInternalIndex() {

@@ -10,14 +10,15 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTruncProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.TimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDistanceProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StWkttosqlProcessor;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.TimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryOptionalMathProcessor.BinaryOptionalMathOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
@@ -367,6 +368,10 @@ public final class InternalSqlScriptUtils {
             return null;
         }
         return NonIsoDateTimeExtractor.WEEK_OF_YEAR.extract(asDateTime(dateTime), tzId);
+    }
+
+    public static ZonedDateTime dateTrunc(String truncateTo, Object dateTime, String tzId) {
+        return (ZonedDateTime) DateTruncProcessor.process(truncateTo, asDateTime(dateTime) ,tzId);
     }
 
     public static ZonedDateTime asDateTime(Object dateTime) {

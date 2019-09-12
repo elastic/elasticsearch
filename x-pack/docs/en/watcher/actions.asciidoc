@@ -190,7 +190,7 @@ of a watch during its execution:
 
 image::images/action-throttling.jpg[align="center"]
 
-
+[role="xpack"]
 [[action-foreach]]
 === Running an action for each element in an array
 
@@ -236,6 +236,7 @@ PUT _watcher/watch/log_event_watch
 
 <1> The logging statement will be executed for each of the returned search hits.
 
+[role="xpack"]
 [[action-conditions]]
 === Adding conditions to actions
 

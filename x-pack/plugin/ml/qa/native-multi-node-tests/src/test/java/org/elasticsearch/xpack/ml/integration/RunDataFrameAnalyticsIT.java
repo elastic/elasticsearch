@@ -265,7 +265,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         assertState(id, DataFrameAnalyticsState.STOPPED);
         startAnalytics(id);
-        assertState(id, DataFrameAnalyticsState.STARTED);
+        // State here could be any of STARTED, REINDEXING or ANALYZING
 
         assertThat(stopAnalytics(id).isStopped(), is(true));
         assertState(id, DataFrameAnalyticsState.STOPPED);

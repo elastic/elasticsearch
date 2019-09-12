@@ -53,6 +53,18 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         public String toString() {
             return super.toString().toLowerCase(Locale.ROOT);
         }
+
+        public boolean shouldExtract() {
+            switch (this) {
+                case DEB:
+                case DOCKER:
+                case RPM:
+                    return false;
+
+                default:
+                    return true;
+            }
+        }
     }
 
     public enum Flavor {

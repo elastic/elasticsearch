@@ -70,6 +70,7 @@ public abstract class PackagingTestCase extends Assert {
         if (Platforms.WINDOWS) {
             systemJavaHome = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
         } else {
+            assert Platforms.LINUX || Platforms.DARWIN;
             systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
         }
     }

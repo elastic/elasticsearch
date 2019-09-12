@@ -94,8 +94,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             dependencies.add(distribution.configuration.getName(), dependencyNotation(project, distribution));
 
             // no extraction allowed for rpm, deb or docker
-            Type distroType = distribution.getType();
-            if (distroType != Type.RPM && distroType != Type.DEB && distroType != Type.DOCKER) {
+            if (distribution.getType().shouldExtract()) {
                 // for the distribution extracted, add a root level task that does the extraction, and depend on that
                 // extracted configuration as an artifact consisting of the extracted distribution directory
                 dependencies.add(distribution.getExtracted().configuration.getName(),

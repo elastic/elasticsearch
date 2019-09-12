@@ -214,7 +214,7 @@ public class Docker {
             assert containerId != null;
 
             return super.getScriptCommand("docker exec " +
-                "--user elasticsearch " +
+                "--user elasticsearch:root " +
                 "--tty " +
                 containerId + " " +
                 script);
@@ -222,7 +222,7 @@ public class Docker {
     }
 
     /**
-     * Checks whether a path exist in the Docker container.
+     * Checks whether a path exists in the Docker container.
      */
     public static boolean existsInContainer(Path path) {
         logger.debug("Checking whether file " + path + " exists in container");
@@ -236,17 +236,20 @@ public class Docker {
      */
     public static void assertPermissionsAndOwnership(Path path, Set<PosixFilePermission> expectedPermissions) {
         logger.debug("Checking permissions and ownership of [" + path + "]");
-        final Shell.Result result = dockerShell.run("ls -ld " + path);
 
-        final String[] components = result.stdout.split("\\s+");
+        final String[] components = dockerShell.run("stat --format=\"%U %G %A\" " + path).stdout.split("\\s+");
+
+        final String username = components[0];
+        final String group = components[1];
+        final String permissions = components[2];
 
         // The final substring() is because we don't check the directory bit, and we
         // also don't want any SELinux security context indicator.
-        Set<PosixFilePermission> actualPermissions = fromString(components[0].substring(1, 10));
+        Set<PosixFilePermission> actualPermissions = fromString(permissions.substring(1, 10));
 
         assertEquals("Permissions of " + path + " are wrong", actualPermissions, expectedPermissions);
-        assertThat("File owner of " + path + " is wrong", components[2], equalTo("elasticsearch"));
-        assertThat("File group of " + path + " is wrong", components[3], equalTo("root"));
+        assertThat("File owner of " + path + " is wrong", username, equalTo("elasticsearch"));
+        assertThat("File group of " + path + " is wrong", group, equalTo("root"));
     }
 
     /**

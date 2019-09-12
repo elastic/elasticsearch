@@ -797,7 +797,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         Map<String, Processor.Factory> processors = new HashMap<>();
         processors.put(SetSecurityUserProcessor.TYPE, new SetSecurityUserProcessor.Factory(parameters.threadContext));
-        processors.put(HashProcessor.TYPE, new HashProcessor.Factory(parameters.env.settings()));
+        processors.put(HashProcessor.TYPE, new HashProcessor.Factory(parameters.env.settings(),
+            parameters.ingestService.getClusterService()));
         return processors;
     }
 

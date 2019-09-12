@@ -6,9 +6,12 @@
 package org.elasticsearch.xpack.security.ingest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.ConsistentSettingsService;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -29,19 +32,22 @@ import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 
 /**
- * A processor that hashes the contents of a field (or fields) using various hashing algorithms
+ * A processor that hashes the contents of a field or fields using various hashing algorithms
  */
-public final class HashProcessor extends AbstractProcessor {
+public final class HashProcessor extends AbstractProcessor implements Consumer<ClusterState> {
     public static final String TYPE = "hash";
     public static final Setting.AffixSetting<SecureString> HMAC_KEY_SETTING = SecureSetting
         .affixKeySetting(SecurityField.setting("ingest." + TYPE) + ".", "key",
@@ -53,6 +59,7 @@ public final class HashProcessor extends AbstractProcessor {
     private final Mac mac;
     private final byte[] salt;
     private final boolean ignoreMissing;
+    private final AtomicBoolean consistentHashes = new AtomicBoolean(true);
 
     HashProcessor(String tag, List<String> fields, String targetField, byte[] salt, Method method, @Nullable Mac mac,
                   boolean ignoreMissing) {
@@ -79,23 +86,27 @@ public final class HashProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument document) {
-        Map<String, String> hashedFieldValues = fields.stream().map(f -> {
-            String value = document.getFieldValue(f, String.class, ignoreMissing);
-            if (value == null && ignoreMissing) {
-                return new Tuple<String, String>(null, null);
+        if (consistentHashes.get()) {
+            Map<String, String> hashedFieldValues = fields.stream().map(f -> {
+                String value = document.getFieldValue(f, String.class, ignoreMissing);
+                if (value == null && ignoreMissing) {
+                    return new Tuple<String, String>(null, null);
+                }
+                try {
+                    return new Tuple<>(f, method.hash(mac, salt, value));
+                } catch (Exception e) {
+                    throw new IllegalArgumentException("field[" + f + "] could not be hashed", e);
+                }
+            }).filter(tuple -> Objects.nonNull(tuple.v1())).collect(Collectors.toMap(Tuple::v1, Tuple::v2));
+            if (fields.size() == 1) {
+                document.setFieldValue(targetField, hashedFieldValues.values().iterator().next());
+            } else {
+                document.setFieldValue(targetField, hashedFieldValues);
             }
-            try {
-                return new Tuple<>(f, method.hash(mac, salt, value));
-            } catch (Exception e) {
-                throw new IllegalArgumentException("field[" + f + "] could not be hashed", e);
-            }
-        }).filter(tuple -> Objects.nonNull(tuple.v1())).collect(Collectors.toMap(Tuple::v1, Tuple::v2));
-        if (fields.size() == 1) {
-            document.setFieldValue(targetField, hashedFieldValues.values().iterator().next());
+            return document;
         } else {
-            document.setFieldValue(targetField, hashedFieldValues);
+            throw new IllegalArgumentException("inconsistent hash key");
         }
-        return document;
     }
 
     @Override
@@ -103,13 +114,20 @@ public final class HashProcessor extends AbstractProcessor {
         return TYPE;
     }
 
+    @Override
+    public void accept(ClusterState clusterState) {
+        // check hash keys for consistency and unset consistentHashes flag if inconsistent
+    }
+
     public static final class Factory implements Processor.Factory {
 
         private final Settings settings;
+        private final ClusterService clusterService;
         private final Map<String, SecureString> secureKeys;
 
-        public Factory(Settings settings) {
+        public Factory(Settings settings, ClusterService clusterService) {
             this.settings = settings;
+            this.clusterService = clusterService;
             this.secureKeys = new HashMap<>();
             HMAC_KEY_SETTING.getAllConcreteSettings(settings).forEach(k -> {
                 secureKeys.put(k.getKey(), k.get(settings));
@@ -146,6 +164,13 @@ public final class HashProcessor extends AbstractProcessor {
                 throw ConfigurationUtils.newConfigurationException(TYPE, processorTag, "key_setting",
                     "key [" + keySettingName + "] must match [xpack.security.ingest.hash.*.key]. It is not set");
             }
+
+            Collection<Setting<?>> consistentSettings = HMAC_KEY_SETTING.getAllConcreteSettings(settings).collect(Collectors.toList());
+            ConsistentSettingsService consistentSettingsService = new ConsistentSettingsService(settings, clusterService, consistentSettings);
+            if (consistentSettingsService.areAllConsistent() == false) {
+                throw ConfigurationUtils.newConfigurationException(TYPE, processorTag, "key_setting", "inconsistent hash key [" + keySettingName + "]");
+            }
+
             String saltString = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "salt");
             byte[] salt = saltString.getBytes(StandardCharsets.UTF_8);
             String methodProperty = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "method", "SHA256");
@@ -154,6 +179,7 @@ public final class HashProcessor extends AbstractProcessor {
             Mac mac = createMac(method, key, salt, iterations);
             return new HashProcessor(processorTag, fields, targetField, salt, method, mac, ignoreMissing);
         }
+
     }
 
     enum Method {

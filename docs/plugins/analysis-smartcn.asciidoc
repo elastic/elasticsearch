@@ -27,7 +27,7 @@ NOTE: The `smartcn_word` token filter and `smartcn_sentence` have been deprecate
 The `smartcn` analyzer could be reimplemented as a `custom` analyzer that can
 then be extended and configured as follows:
 
-[source,js]
+[source,console]
 ----------------------------------------------------
 PUT smartcn_example
 {
@@ -46,7 +46,6 @@ PUT smartcn_example
   }
 }
 ----------------------------------------------------
-// CONSOLE
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: smartcn_example, first: smartcn, second: rebuilt_smartcn}\nendyaml\n/]
 
 [[analysis-smartcn_stop]]
@@ -58,7 +57,7 @@ This filter only supports the predefined `_smartcn_` stopwords list.
 If you want to use a different predefined list, then use the
 {ref}/analysis-stop-tokenfilter.html[`stop` token filter] instead.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT smartcn_example
 {
@@ -95,7 +94,6 @@ GET smartcn_example/_analyze
   "text": "哈喽，我们是 Elastic   我们是 Elastic Stack（Elasticsearch、Kibana、Beats 和 Logstash）的开发公司。从股票行情到 Twitter 消息流，从 Apache 日志到 WordPress 博文，我们可以帮助人们体验搜索的强大力量，帮助他们以截然不同的方式探索和分析数据"
 }
 --------------------------------------------------
-// CONSOLE
 
 The above request returns:
 

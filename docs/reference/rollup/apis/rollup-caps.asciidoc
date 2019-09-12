@@ -51,7 +51,7 @@ Imagine we have an index named `sensor-1` full of raw data.  We know that the da
 will be a `sensor-2`, `sensor-3`, etc.  Let's create a Rollup job that targets the index pattern `sensor-*` to accommodate
 this future scaling:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _rollup/job/sensor
 {
@@ -81,16 +81,14 @@ PUT _rollup/job/sensor
     ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_index]
 
 We can then retrieve the rollup capabilities of that index pattern (`sensor-*`) via the following command:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _rollup/data/sensor-*
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Which will yield the following response:
@@ -155,20 +153,18 @@ configurations available.
 
 We could also retrieve the same information with a request to `_all`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _rollup/data/_all
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 But note that if we use the concrete index name (`sensor-1`), we'll retrieve no rollup capabilities:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _rollup/data/sensor-1
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [source,console-result]

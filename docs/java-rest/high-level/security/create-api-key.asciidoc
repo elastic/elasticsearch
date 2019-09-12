@@ -3,7 +3,7 @@
 :request: CreateApiKeyRequest
 :response: CreateApiKeyResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Create API Key API
 

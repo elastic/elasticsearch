@@ -311,8 +311,8 @@ public class LifecycleExecutionState {
         }
 
         public LifecycleExecutionState build() {
-            return new LifecycleExecutionState(phase, action, step, failedStep, stepInfo, phaseDefinition,
-                indexCreationDate, phaseTime, actionTime, stepTime);
+            return new LifecycleExecutionState(phase, action, step, failedStep, stepInfo, phaseDefinition, indexCreationDate,
+                phaseTime, actionTime, stepTime);
         }
     }
 

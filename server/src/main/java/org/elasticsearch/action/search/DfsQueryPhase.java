@@ -84,8 +84,8 @@ final class DfsQueryPhase extends SearchPhase {
 
                     @Override
                     protected void innerOnResponse(QuerySearchResult response) {
-                        context.getTask().getStatus().shardProcessed(getName(), response);
                         try {
+                            context.getTask().getStatus().shardProcessed(getName(), response);
                             counter.onResult(response);
                         } catch (Exception e) {
                             context.onPhaseFailure(DfsQueryPhase.this, "", e);
@@ -95,6 +95,7 @@ final class DfsQueryPhase extends SearchPhase {
                     @Override
                     public void onFailure(Exception exception) {
                         try {
+                            context.getTask().getStatus().shardFailed(getName(), searchShardTarget.getShardId(), exception);
                             context.getLogger().debug(() -> new ParameterizedMessage("[{}] Failed to execute query phase",
                                 querySearchRequest.id()), exception);
                             counter.onFailure(shardIndex, searchShardTarget, exception);

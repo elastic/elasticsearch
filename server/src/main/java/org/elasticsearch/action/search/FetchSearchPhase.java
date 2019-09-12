@@ -172,8 +172,8 @@ final class FetchSearchPhase extends SearchPhase {
             new SearchActionListener<FetchSearchResult>(shardTarget, shardIndex) {
                 @Override
                 public void innerOnResponse(FetchSearchResult result) {
-                    context.getTask().getStatus().shardProcessed(getName(), result);
                     try {
+                        context.getTask().getStatus().shardProcessed(getName(), result);
                         counter.onResult(result);
                     } catch (Exception e) {
                         context.onPhaseFailure(FetchSearchPhase.this, "", e);
@@ -183,6 +183,7 @@ final class FetchSearchPhase extends SearchPhase {
                 @Override
                 public void onFailure(Exception e) {
                     try {
+                        context.getTask().getStatus().shardFailed(getName(), shardTarget.getShardId(), e);
                         logger.debug(() -> new ParameterizedMessage("[{}] Failed to execute fetch phase", fetchSearchRequest.id()), e);
                         counter.onFailure(shardIndex, shardTarget, e);
                     } finally {

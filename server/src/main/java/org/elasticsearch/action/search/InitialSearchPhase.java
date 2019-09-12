@@ -104,6 +104,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
                     logger.trace(new ParameterizedMessage("{}: Failed to execute [{}]", shard, request), e);
                 }
             }
+            searchTaskStatus.shardFailed(getName(), shardIt.shardId(), e);
             phaseCompleted();
         } else {
             final ShardRouting nextShard = shardIt.nextOrNull();
@@ -123,6 +124,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
                             shard != null ? shard.shortSummary() : shardIt.shardId(), request, lastShard), e);
                     }
                 }
+                searchTaskStatus.shardFailed(getName(), shardIt.shardId(), e);
             }
         }
     }

@@ -140,8 +140,7 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
     public void testReadNonexistentBlobThrowsNoSuchFileException() {
         final BlobContainer blobContainer = createBlobContainer(between(1, 5), null, null, null);
         final Exception exception = expectThrows(NoSuchFileException.class, () -> blobContainer.readBlob("read_nonexistent_blob"));
-        assertThat(exception.getMessage().toLowerCase(Locale.ROOT),
-            containsString("blob object [read_nonexistent_blob] not found"));
+        assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("blob object [read_nonexistent_blob] not found"));
     }
 
     public void testReadBlobWithRetries() throws Exception {
@@ -228,31 +227,6 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
             containsString("premature end of content-length delimited message body"));
     }
 
-    private static int getRangeStart(HttpExchange exchange) {
-        final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
-        if (rangeHeader == null) {
-            return 0;
-        }
-
-        final Matcher matcher = Pattern.compile("^bytes=([0-9]+)-9223372036854775806$").matcher(rangeHeader);
-        assertTrue(rangeHeader + " matches expected pattern", matcher.matches());
-        return Math.toIntExact(Long.parseLong(matcher.group(1)));
-    }
-
-    private void sendIncompleteContent(HttpExchange exchange, byte[] bytes) throws IOException {
-        final int rangeStart = getRangeStart(exchange);
-        assertThat(rangeStart, lessThan(bytes.length));
-        exchange.getResponseHeaders().add("Content-Type", "text/plain; charset=utf-8");
-        exchange.sendResponseHeaders(HttpStatus.SC_OK, bytes.length - rangeStart);
-        final int bytesToSend = randomIntBetween(0, bytes.length - rangeStart - 1);
-        if (bytesToSend > 0) {
-            exchange.getResponseBody().write(bytes, rangeStart, bytesToSend);
-        }
-        if (randomBoolean()) {
-            exchange.getResponseBody().flush();
-        }
-    }
-
     public void testWriteBlobWithRetries() throws Exception {
         final int maxRetries = randomInt(5);
         final CountDown countDown = new CountDown(maxRetries + 1);
@@ -289,10 +263,6 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
             blobContainer.writeBlob("write_blob_max_retries", stream, bytes.length, false);
         }
         assertThat(countDown.isCountedDown(), is(true));
-    }
-
-    private byte[] randomBlobContent() {
-        return randomByteArrayOfLength(randomIntBetween(1, frequently() ? 512 : 1 << 20)); // rarely up to 1mb
     }
 
     public void testWriteBlobWithReadTimeouts() {
@@ -412,6 +382,35 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         assertThat(countDownInitiate.isCountedDown(), is(true));
         assertThat(countDownUploads.get(), equalTo(0));
         assertThat(countDownComplete.isCountedDown(), is(true));
+    }
+
+    private static byte[] randomBlobContent() {
+        return randomByteArrayOfLength(randomIntBetween(1, frequently() ? 512 : 1 << 20)); // rarely up to 1mb
+    }
+
+    private static int getRangeStart(HttpExchange exchange) {
+        final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
+        if (rangeHeader == null) {
+            return 0;
+        }
+
+        final Matcher matcher = Pattern.compile("^bytes=([0-9]+)-9223372036854775806$").matcher(rangeHeader);
+        assertTrue(rangeHeader + " matches expected pattern", matcher.matches());
+        return Math.toIntExact(Long.parseLong(matcher.group(1)));
+    }
+
+    private static void sendIncompleteContent(HttpExchange exchange, byte[] bytes) throws IOException {
+        final int rangeStart = getRangeStart(exchange);
+        assertThat(rangeStart, lessThan(bytes.length));
+        exchange.getResponseHeaders().add("Content-Type", "text/plain; charset=utf-8");
+        exchange.sendResponseHeaders(HttpStatus.SC_OK, bytes.length - rangeStart);
+        final int bytesToSend = randomIntBetween(0, bytes.length - rangeStart - 1);
+        if (bytesToSend > 0) {
+            exchange.getResponseBody().write(bytes, rangeStart, bytesToSend);
+        }
+        if (randomBoolean()) {
+            exchange.getResponseBody().flush();
+        }
     }
 
     /**

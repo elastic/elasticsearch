@@ -31,6 +31,8 @@ import org.elasticsearch.Version;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Wrapper around an S3 object that will retry the {@link GetObjectRequest} if the download fails part-way through, resuming from where
@@ -41,12 +43,15 @@ class S3RetryingInputStream extends InputStream {
 
     private static final Logger logger = LogManager.getLogger(S3RetryingInputStream.class);
 
+    static final int MAX_SUPPRESSED_EXCEPTIONS = 10;
+
     private final S3BlobStore blobStore;
     private final String blobKey;
     private final int maxAttempts;
 
     private InputStream currentStream;
     private int attempt = 1;
+    private List<IOException> failures = new ArrayList<>(MAX_SUPPRESSED_EXCEPTIONS);
     private long currentOffset;
     private boolean closed;
 
@@ -68,10 +73,10 @@ class S3RetryingInputStream extends InputStream {
         } catch (final AmazonClientException e) {
             if (e instanceof AmazonS3Exception) {
                 if (404 == ((AmazonS3Exception) e).getStatusCode()) {
-                    throw new NoSuchFileException("Blob object [" + blobKey + "] not found: " + e.getMessage());
+                    throw addSuppressedExceptions(new NoSuchFileException("Blob object [" + blobKey + "] not found: " + e.getMessage()));
                 }
             }
-            throw e;
+            throw addSuppressedExceptions(e);
         }
     }
 
@@ -115,11 +120,14 @@ class S3RetryingInputStream extends InputStream {
 
     private void reopenStreamOrFail(IOException e) throws IOException {
         if (attempt >= maxAttempts) {
-            throw e;
+            throw addSuppressedExceptions(e);
         }
         logger.debug(new ParameterizedMessage("failed reading [{}/{}] at offset [{}], attempt [{}] of [{}], retrying",
             blobStore.bucket(), blobKey, currentOffset, attempt, maxAttempts), e);
         attempt += 1;
+        if (failures.size() < MAX_SUPPRESSED_EXCEPTIONS) {
+            failures.add(e);
+        }
         IOUtils.closeWhileHandlingException(currentStream);
         currentStream = openStream();
     }
@@ -138,5 +146,12 @@ class S3RetryingInputStream extends InputStream {
     @Override
     public synchronized void reset() {
         throw new UnsupportedOperationException("S3RetryingInputStream does not support seeking");
+    }
+
+    private <T extends Exception> T addSuppressedExceptions(T e) {
+        for (IOException failure : failures) {
+            e.addSuppressed(failure);
+        }
+        return e;
     }
 }

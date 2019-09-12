@@ -179,8 +179,9 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
     }
 
     public void testReadBlobWithReadTimeouts() {
+        final int maxRetries = randomInt(5);
         final TimeValue readTimeout = TimeValue.timeValueMillis(between(100, 200));
-        final BlobContainer blobContainer = createBlobContainer(between(1, 5), readTimeout, null, null);
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, readTimeout, null, null);
 
         // HTTP server does not send a response
         httpServer.createContext("/bucket/read_blob_unresponsive", exchange -> {});
@@ -199,10 +200,11 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
             }
         });
         assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("read timed out"));
+        assertThat(exception.getSuppressed().length, equalTo(maxRetries));
     }
 
-    public void testReadBlobWithPrematureConnectionClose() {
-        final BlobContainer blobContainer = createBlobContainer(between(1, 5), null, null, null);
+    public void testReadBlobWithNoHttpResponse() {
+        final BlobContainer blobContainer = createBlobContainer(randomInt(5), null, null, null);
 
         // HTTP server closes connection immediately
         httpServer.createContext("/bucket/read_blob_no_response", HttpExchange::close);
@@ -210,6 +212,12 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         Exception exception = expectThrows(SdkClientException.class, () -> blobContainer.readBlob("read_blob_no_response"));
         assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("the target server failed to respond"));
         assertThat(exception.getCause(), instanceOf(NoHttpResponseException.class));
+        assertThat(exception.getSuppressed().length, equalTo(0));
+    }
+
+    public void testReadBlobWithPrematureConnectionClose() {
+        final int maxRetries = randomInt(20);
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null);
 
         // HTTP server sends a partial response
         final byte[] bytes = randomBlobContent();
@@ -218,13 +226,14 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
             exchange.close();
         });
 
-        exception = expectThrows(ConnectionClosedException.class, () -> {
+        final Exception exception = expectThrows(ConnectionClosedException.class, () -> {
             try (InputStream stream = blobContainer.readBlob("read_blob_incomplete")) {
                 Streams.readFully(stream);
             }
         });
         assertThat(exception.getMessage().toLowerCase(Locale.ROOT),
             containsString("premature end of content-length delimited message body"));
+        assertThat(exception.getSuppressed().length, equalTo(Math.min(S3RetryingInputStream.MAX_SUPPRESSED_EXCEPTIONS, maxRetries)));
     }
 
     public void testWriteBlobWithRetries() throws Exception {

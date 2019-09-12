@@ -59,11 +59,13 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         //both patterns fail parsing the input text due to only 2 digits of millis. Hence full text was not parsed.
         String pattern = "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SS";
         String text = "2014-06-06T12:01:02.123";
-        ElasticsearchParseException e1 = expectThrows(ElasticsearchParseException.class, () -> dateMathToMillis(text, DateFormatter.forPattern(pattern)));
+        ElasticsearchParseException e1 = expectThrows(ElasticsearchParseException.class,
+            () -> dateMathToMillis(text, DateFormatter.forPattern(pattern)));
         assertThat(e1.getMessage(), containsString(pattern));
         assertThat(e1.getMessage(), containsString(text));
 
-        ElasticsearchParseException e2 = expectThrows(ElasticsearchParseException.class, () -> dateMathToMillis(text, Joda.forPattern(pattern)));
+        ElasticsearchParseException e2 = expectThrows(ElasticsearchParseException.class,
+            () -> dateMathToMillis(text, Joda.forPattern(pattern)));
         assertThat(e2.getMessage(), containsString(pattern));
         assertThat(e2.getMessage(), containsString(text));
     }

@@ -119,9 +119,9 @@ public class ReindexTask extends AllocatedPersistentTask {
         long allocationId = getAllocationId();
         Consumer<BulkByScrollTask.Status> committedCallback = childTask::setCommittedStatus;
         ReindexTaskStateUpdater taskUpdater = new ReindexTaskStateUpdater(reindexIndexClient, taskId, allocationId, committedCallback);
-        taskUpdater.assign(new ReindexTaskStateUpdater.AssignmentListener() {
+        taskUpdater.assign(new ActionListener<>() {
             @Override
-            public void onAssignment(ReindexTaskStateDoc stateDoc) {
+            public void onResponse(ReindexTaskStateDoc stateDoc) {
                 ReindexRequest reindexRequest = stateDoc.getReindexRequest();
                 Runnable performReindex = () -> performReindex(reindexJob, stateDoc, taskUpdater);
                 reindexer.initTask(childTask, reindexRequest, new ActionListener<>() {
@@ -138,8 +138,8 @@ public class ReindexTask extends AllocatedPersistentTask {
             }
 
             @Override
-            public void onFailure(ReindexJobState.Status status, Exception ex) {
-                updateClusterStateToFailed(reindexJob.shouldStoreResult(), status, ex);
+            public void onFailure(Exception ex) {
+                updateClusterStateToFailed(reindexJob.shouldStoreResult(), ReindexJobState.Status.ASSIGNMENT_FAILED, ex);
             }
         });
     }
@@ -176,7 +176,7 @@ public class ReindexTask extends AllocatedPersistentTask {
             reindexer.execute(childTask, reindexRequest, new ContextPreservingActionListener<>(context, new ActionListener<>() {
                 @Override
                 public void onResponse(BulkByScrollResponse response) {
-                    handleDone(shouldStoreResult, reindexRequest, taskUpdater, response);
+                    handleDone(shouldStoreResult, taskUpdater, response);
                 }
 
                 @Override
@@ -187,8 +187,7 @@ public class ReindexTask extends AllocatedPersistentTask {
         }
     }
 
-    private void handleDone(boolean shouldStoreResult, ReindexRequest reindexRequest, ReindexTaskStateUpdater taskUpdater,
-                            BulkByScrollResponse response) {
+    private void handleDone(boolean shouldStoreResult, ReindexTaskStateUpdater taskUpdater, BulkByScrollResponse response) {
         TaskManager taskManager = getTaskManager();
         assert taskManager != null : "TaskManager should have been set before reindex started";
 
@@ -227,7 +226,7 @@ public class ReindexTask extends AllocatedPersistentTask {
             @Override
             public void onFailure(Exception ex) {
                 logger.info("Failed to write result to reindex index", ex);
-                updateClusterStateToFailed(shouldStoreResult, ReindexJobState.Status.FAILED_TO_WRITE_TO_REINDEX_INDEX, ex);
+                updateClusterStateToFailed(shouldStoreResult, ReindexJobState.Status.SET_DONE_FAILED, ex);
             }
         });
     }
@@ -246,7 +245,7 @@ public class ReindexTask extends AllocatedPersistentTask {
             public void onFailure(Exception e) {
                 logger.info("Failed to write exception reindex index", e);
                 ex.addSuppressed(e);
-                updateClusterStateToFailed(shouldStoreResult, ReindexJobState.Status.FAILED_TO_WRITE_TO_REINDEX_INDEX, ex);
+                updateClusterStateToFailed(shouldStoreResult, ReindexJobState.Status.SET_DONE_FAILED, ex);
             }
         });
     }

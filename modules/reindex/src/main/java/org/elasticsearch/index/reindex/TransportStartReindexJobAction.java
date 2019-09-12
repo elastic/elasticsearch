@@ -111,13 +111,13 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
                 @Override
                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ReindexJob> task) {
                     ReindexJobState state = (ReindexJobState) task.getState();
-                    if (state.getStatus() == ReindexJobState.Status.FAILED_TO_READ_FROM_REINDEX_INDEX) {
-                        listener.onFailure(new ElasticsearchException("Reindexing failed. Task node could not read from "
-                            + ReindexIndexClient.REINDEX_INDEX + " index"));
-                    } else if (state.getStatus() == ReindexJobState.Status.FAILED_TO_WRITE_TO_REINDEX_INDEX) {
+                    if (state.getStatus() == ReindexJobState.Status.ASSIGNMENT_FAILED) {
+                        listener.onFailure(new ElasticsearchException("Reindexing failed. Task node could not assign itself as the "
+                            + "coordinating node in the " + ReindexIndexClient.REINDEX_INDEX + " index"));
+                    } else if (state.getStatus() == ReindexJobState.Status.SET_DONE_FAILED) {
                         listener.onFailure(new ElasticsearchException("Reindexing failed. Task node could not write result to "
                             + ReindexIndexClient.REINDEX_INDEX + " index"));
-                    } else {
+                    } else if (state.getStatus() == ReindexJobState.Status.DONE) {
                         reindexIndexClient.getReindexTaskDoc(taskId, new ActionListener<>() {
                             @Override
                             public void onResponse(ReindexTaskState taskState) {
@@ -136,8 +136,9 @@ public class TransportStartReindexJobAction extends HandledTransportAction<Start
                                 listener.onFailure(e);
                             }
                         });
+                    } else {
+                        throw new AssertionError("Unexpected reindex job status: " + state.getStatus());
                     }
-
                 }
 
                 @Override

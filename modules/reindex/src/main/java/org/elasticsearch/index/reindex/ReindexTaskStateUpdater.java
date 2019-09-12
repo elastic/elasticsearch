@@ -55,7 +55,7 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
         this.committedCallback = committedCallback;
     }
 
-    public void assign(AssignmentListener listener) {
+    public void assign(ActionListener<ReindexTaskStateDoc> listener) {
         ++assignmentAttempts;
         reindexIndexClient.getReindexTaskDoc(persistentTaskId, new ActionListener<>() {
             @Override
@@ -71,7 +71,7 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
                         @Override
                         public void onResponse(ReindexTaskState newTaskState) {
                             lastState = newTaskState;
-                            listener.onAssignment(newTaskState.getStateDoc());
+                            listener.onResponse(newTaskState.getStateDoc());
                         }
 
                         @Override
@@ -85,25 +85,29 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
                                     logger.debug("Attempting to retry reindex task assignment write. Attempt number " + nextAttempt);
                                     assign(listener);
                                 } else {
-                                    logger.info("Failed to write allocation id to reindex task doc after maximum retry attempts", ex);
-                                    listener.onFailure(ReindexJobState.Status.ASSIGNMENT_FAILED, ex);
+                                    String message = "Failed to write allocation id to reindex task doc after " + MAX_ASSIGNMENT_ATTEMPTS
+                                        + "retry attempts";
+                                    logger.info(message, ex);
+                                    listener.onFailure(new ElasticsearchException(message, ex));
                                 }
                             } else {
-                                logger.info("Failed to write allocation id to reindex task doc", ex);
-                                listener.onFailure(ReindexJobState.Status.FAILED_TO_WRITE_TO_REINDEX_INDEX, ex);
+                                String message = "Failed to write allocation id to reindex task doc";
+                                logger.info(message, ex);
+                                listener.onFailure(new ElasticsearchException(message, ex));
                             }
                         }
                     });
                 } else {
                     ElasticsearchException ex = new ElasticsearchException("A newer task has already been allocated");
-                    listener.onFailure(ReindexJobState.Status.ASSIGNMENT_FAILED, ex);
+                    listener.onFailure(ex);
                 }
             }
 
             @Override
             public void onFailure(Exception ex) {
-                logger.info("Failed to fetch reindex task doc", ex);
-                listener.onFailure(ReindexJobState.Status.FAILED_TO_READ_FROM_REINDEX_INDEX, ex);
+                String message = "Failed to fetch reindex task doc";
+                logger.info(message, ex);
+                listener.onFailure(new ElasticsearchException(message, ex));
             }
         });
     }
@@ -166,12 +170,5 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
                 }
             });
         }
-    }
-
-    interface AssignmentListener {
-
-        void onAssignment(ReindexTaskStateDoc stateDoc);
-
-        void onFailure(ReindexJobState.Status status, Exception exception);
     }
 }

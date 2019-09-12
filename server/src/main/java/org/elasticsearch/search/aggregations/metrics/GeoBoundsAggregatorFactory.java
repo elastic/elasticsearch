@@ -32,12 +32,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint, GeoBoundsAggregatorFactory> {
+class GeoBoundsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
 
     private final boolean wrapLongitude;
 
     GeoBoundsAggregatorFactory(String name, ValuesSourceConfig<ValuesSource.GeoPoint> config, boolean wrapLongitude,
-            SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+            SearchContext context, AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
             Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.wrapLongitude = wrapLongitude;

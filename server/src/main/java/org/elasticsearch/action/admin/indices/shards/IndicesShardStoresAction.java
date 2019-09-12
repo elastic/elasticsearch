@@ -19,26 +19,21 @@
 
 package org.elasticsearch.action.admin.indices.shards;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
 /**
- * Action for {@link TransportIndicesShardStoresAction}
+ * ActionType for {@link TransportIndicesShardStoresAction}
  *
  * Exposes shard store information for requested indices.
  * Shard store information reports which nodes hold shard copies, how recent they are
  * and any exceptions on opening the shard index or from previous engine failures
  */
-public class IndicesShardStoresAction extends Action<IndicesShardStoresResponse> {
+public class IndicesShardStoresAction extends ActionType<IndicesShardStoresResponse> {
 
     public static final IndicesShardStoresAction INSTANCE = new IndicesShardStoresAction();
     public static final String NAME = "indices:monitor/shard_stores";
 
     private IndicesShardStoresAction() {
-        super(NAME);
-    }
-
-    @Override
-    public IndicesShardStoresResponse newResponse() {
-        return new IndicesShardStoresResponse();
+        super(NAME, IndicesShardStoresResponse::new);
     }
 }

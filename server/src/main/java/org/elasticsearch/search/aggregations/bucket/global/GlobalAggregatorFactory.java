@@ -30,9 +30,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class GlobalAggregatorFactory extends AggregatorFactory<GlobalAggregatorFactory> {
+public class GlobalAggregatorFactory extends AggregatorFactory {
 
-    public GlobalAggregatorFactory(String name, SearchContext context, AggregatorFactory<?> parent,
+    public GlobalAggregatorFactory(String name, SearchContext context, AggregatorFactory parent,
             AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, subFactories, metaData);
     }

@@ -38,7 +38,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
@@ -71,6 +70,13 @@ public class PublicationTransportHandler {
 
     private AtomicReference<ClusterState> lastSeenClusterState = new AtomicReference<>();
 
+    // the master needs the original non-serialized state as the cluster state contains some volatile information that we
+    // don't want to be replicated because it's not usable on another node (e.g. UnassignedInfo.unassignedTimeNanos) or
+    // because it's mostly just debugging info that would unnecessarily blow up CS updates (I think there was one in
+    // snapshot code).
+    // TODO: look into these and check how to get rid of them
+    private AtomicReference<PublishRequest> currentPublishRequestToSelf = new AtomicReference<>();
+
     private final AtomicLong fullClusterStateReceivedCount = new AtomicLong();
     private final AtomicLong incompatibleClusterStateDiffReceivedCount = new AtomicLong();
     private final AtomicLong compatibleClusterStateDiffReceivedCount = new AtomicLong();
@@ -86,8 +92,8 @@ public class PublicationTransportHandler {
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.handlePublishRequest = handlePublishRequest;
 
-        transportService.registerRequestHandler(PUBLISH_STATE_ACTION_NAME, BytesTransportRequest::new, ThreadPool.Names.GENERIC,
-            false, false, (request, channel, task) -> channel.sendResponse(handleIncomingPublishRequest(request)));
+        transportService.registerRequestHandler(PUBLISH_STATE_ACTION_NAME, ThreadPool.Names.GENERIC, false, false,
+            BytesTransportRequest::new, (request, channel, task) -> channel.sendResponse(handleIncomingPublishRequest(request)));
 
         transportService.registerRequestHandler(COMMIT_STATE_ACTION_NAME, ThreadPool.Names.GENERIC, false, false,
             ApplyCommitRequest::new,
@@ -153,32 +159,32 @@ public class PublicationTransportHandler {
         return new PublicationContext() {
             @Override
             public void sendPublishRequest(DiscoveryNode destination, PublishRequest publishRequest,
-                                           ActionListener<PublishWithJoinResponse> responseActionListener) {
+                                           ActionListener<PublishWithJoinResponse> originalListener) {
                 assert publishRequest.getAcceptedState() == clusterChangedEvent.state() : "state got switched on us";
+                final ActionListener<PublishWithJoinResponse> responseActionListener;
                 if (destination.equals(nodes.getLocalNode())) {
-                    // the master needs the original non-serialized state as the cluster state contains some volatile information that we
-                    // don't want to be replicated because it's not usable on another node (e.g. UnassignedInfo.unassignedTimeNanos) or
-                    // because it's mostly just debugging info that would unnecessarily blow up CS updates (I think there was one in
-                    // snapshot code).
-                    // TODO: look into these and check how to get rid of them
-                    transportService.getThreadPool().generic().execute(new AbstractRunnable() {
+                    // if publishing to self, use original request instead (see currentPublishRequestToSelf for explanation)
+                    final PublishRequest previousRequest = currentPublishRequestToSelf.getAndSet(publishRequest);
+                    // we might override an in-flight publication to self in case where we failed as master and became master again,
+                    // and the new publication started before the previous one completed (which fails anyhow because of higher current term)
+                    assert previousRequest == null || previousRequest.getAcceptedState().term() < publishRequest.getAcceptedState().term();
+                    responseActionListener = new ActionListener<PublishWithJoinResponse>() {
+                        @Override
+                        public void onResponse(PublishWithJoinResponse publishWithJoinResponse) {
+                            currentPublishRequestToSelf.compareAndSet(publishRequest, null); // only clean-up our mess
+                            originalListener.onResponse(publishWithJoinResponse);
+                        }
+
                         @Override
                         public void onFailure(Exception e) {
-                            // wrap into fake TransportException, as that's what we expect in Publication
-                            responseActionListener.onFailure(new TransportException(e));
+                            currentPublishRequestToSelf.compareAndSet(publishRequest, null); // only clean-up our mess
+                            originalListener.onFailure(e);
                         }
-
-                        @Override
-                        protected void doRun() {
-                            responseActionListener.onResponse(handlePublishRequest.apply(publishRequest));
-                        }
-
-                        @Override
-                        public String toString() {
-                            return "publish to self of " + publishRequest;
-                        }
-                    });
-                } else if (sendFullVersion || !previousState.nodes().nodeExists(destination)) {
+                    };
+                } else {
+                    responseActionListener = originalListener;
+                }
+                if (sendFullVersion || !previousState.nodes().nodeExists(destination)) {
                     logger.trace("sending full cluster state version {} to {}", newState.version(), destination);
                     PublicationTransportHandler.this.sendFullClusterState(newState, serializedStates, destination, responseActionListener);
                 } else {
@@ -267,10 +273,6 @@ public class PublicationTransportHandler {
                                                     Map<Version, BytesReference> serializedDiffs) {
         Diff<ClusterState> diff = null;
         for (DiscoveryNode node : discoveryNodes) {
-            if (node.equals(discoveryNodes.getLocalNode())) {
-                // ignore, see newPublicationContext
-                continue;
-            }
             try {
                 if (sendFullVersion || !previousState.nodes().nodeExists(node)) {
                     if (serializedStates.containsKey(node.getVersion()) == false) {
@@ -356,7 +358,7 @@ public class PublicationTransportHandler {
                 fullClusterStateReceivedCount.incrementAndGet();
                 logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(),
                     request.bytes().length());
-                final PublishWithJoinResponse response = handlePublishRequest.apply(new PublishRequest(incomingState));
+                final PublishWithJoinResponse response = acceptState(incomingState);
                 lastSeenClusterState.set(incomingState);
                 return response;
             } else {
@@ -366,7 +368,7 @@ public class PublicationTransportHandler {
                     incompatibleClusterStateDiffReceivedCount.incrementAndGet();
                     throw new IncompatibleClusterStateVersionException("have no local cluster state");
                 } else {
-                    final ClusterState incomingState;
+                    ClusterState incomingState;
                     try {
                         Diff<ClusterState> diff = ClusterState.readDiffFrom(in, lastSeen.nodes().getLocalNode());
                         incomingState = diff.apply(lastSeen); // might throw IncompatibleClusterStateVersionException
@@ -380,7 +382,7 @@ public class PublicationTransportHandler {
                     compatibleClusterStateDiffReceivedCount.incrementAndGet();
                     logger.debug("received diff cluster state version [{}] with uuid [{}], diff size [{}]",
                         incomingState.version(), incomingState.stateUUID(), request.bytes().length());
-                    final PublishWithJoinResponse response = handlePublishRequest.apply(new PublishRequest(incomingState));
+                    final PublishWithJoinResponse response = acceptState(incomingState);
                     lastSeenClusterState.compareAndSet(lastSeen, incomingState);
                     return response;
                 }
@@ -388,5 +390,18 @@ public class PublicationTransportHandler {
         } finally {
             IOUtils.close(in);
         }
+    }
+
+    private PublishWithJoinResponse acceptState(ClusterState incomingState) {
+        // if the state is coming from the current node, use original request instead (see currentPublishRequestToSelf for explanation)
+        if (transportService.getLocalNode().equals(incomingState.nodes().getMasterNode())) {
+            final PublishRequest publishRequest = currentPublishRequestToSelf.get();
+            if (publishRequest == null || publishRequest.getAcceptedState().stateUUID().equals(incomingState.stateUUID()) == false) {
+                throw new IllegalStateException("publication to self failed for " + publishRequest);
+            } else {
+                return handlePublishRequest.apply(publishRequest);
+            }
+        }
+        return handlePublishRequest.apply(new PublishRequest(incomingState));
     }
 }

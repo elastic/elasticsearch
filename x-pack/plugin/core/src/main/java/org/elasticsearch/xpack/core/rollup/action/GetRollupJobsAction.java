@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.core.rollup.action;
 
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.FailedNodeException;
@@ -34,7 +34,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
+public class GetRollupJobsAction extends ActionType<GetRollupJobsAction.Response> {
 
     public static final GetRollupJobsAction INSTANCE = new GetRollupJobsAction();
     public static final String NAME = "cluster:monitor/xpack/rollup/get";
@@ -44,17 +44,7 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
     public static final ParseField STATS = new ParseField("stats");
 
     private GetRollupJobsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, GetRollupJobsAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {

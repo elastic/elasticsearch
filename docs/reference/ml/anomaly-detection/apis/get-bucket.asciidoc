@@ -1,0 +1,137 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-get-bucket]]
+=== Get buckets API
+++++
+<titleabbrev>Get buckets</titleabbrev>
+++++
+
+Retrieves {anomaly-job} results for one or more buckets.
+
+[[ml-get-bucket-request]]
+==== {api-request-title}
+
+`GET _ml/anomaly_detectors/<job_id>/results/buckets` +
+
+`GET _ml/anomaly_detectors/<job_id>/results/buckets/<timestamp>`
+
+[[ml-get-bucket-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `monitor_ml`,
+`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. You also
+need `read` index privilege on the index that stores the results. The
+`machine_learning_admin` and `machine_learning_user` roles provide these
+privileges. For more information, see
+{stack-ov}/security-privileges.html[Security privileges] and
+{stack-ov}/built-in-roles.html[Built-in roles].
+
+[[ml-get-bucket-desc]]
+==== {api-description-title}
+
+The get buckets API presents a chronological view of the records, grouped by
+bucket.
+
+[[ml-get-bucket-path-parms]]
+==== {api-path-parms-title}
+
+`<job_id>`::
+  (Required, string) Identifier for the {anomaly-job}.
+
+`<timestamp>`::
+  (Optional, string) The timestamp of a single bucket result. If you do not
+  specify this parameter, the API returns information about all buckets.
+
+[[ml-get-bucket-request-body]]
+==== {api-request-body-title}
+
+`anomaly_score`::
+  (Optional, double) Returns buckets with anomaly scores greater or equal than
+  this value.
+
+`desc`::
+  (Optional, boolean) If true, the buckets are sorted in descending order.
+
+`end`::
+  (Optional, string) Returns buckets with timestamps earlier than this time.
+
+`exclude_interim`::
+  (Optional, boolean) If true, the output excludes interim results. By default,
+  interim results are included.
+
+`expand`::
+  (Optional, boolean) If true, the output includes anomaly records.
+
+`page`::
+`from`:::
+  (Optional, integer) Skips the specified number of buckets.
+`size`:::
+  (Optional, integer) Specifies the maximum number of buckets to obtain.
+
+`sort`::
+  (Optional, string) Specifies the sort field for the requested buckets. By
+  default, the buckets are sorted by the `timestamp` field.
+
+`start`::
+  (Optional, string) Returns buckets with timestamps after this time.
+
+[[ml-get-bucket-results]]
+==== {api-response-body-title}
+
+The API returns the following information:
+
+`buckets`::
+  (array) An array of bucket objects. For more information, see
+  <<ml-results-buckets,Buckets>>.
+
+[[ml-get-bucket-example]]
+==== {api-examples-title}
+
+The following example gets bucket information for the `it-ops-kpi` job:
+
+[source,console]
+--------------------------------------------------
+GET _ml/anomaly_detectors/it-ops-kpi/results/buckets
+{
+  "anomaly_score": 80,
+  "start": "1454530200001"
+}
+--------------------------------------------------
+// TEST[skip:todo]
+
+In this example, the API returns a single result that matches the specified
+score and time constraints:
+[source,js]
+----
+{
+  "count": 1,
+  "buckets": [
+    {
+      "job_id": "it-ops-kpi",
+      "timestamp": 1454943900000,
+      "anomaly_score": 94.1706,
+      "bucket_span": 300,
+      "initial_anomaly_score": 94.1706,
+      "event_count": 153,
+      "is_interim": false,
+      "bucket_influencers": [
+        {
+          "job_id": "it-ops-kpi",
+          "result_type": "bucket_influencer",
+          "influencer_field_name": "bucket_time",
+          "initial_anomaly_score": 94.1706,
+          "anomaly_score": 94.1706,
+          "raw_anomaly_score": 2.32119,
+          "probability": 0.00000575042,
+          "timestamp": 1454943900000,
+          "bucket_span": 300,
+          "is_interim": false
+        }
+      ],
+      "processing_time_ms": 2,
+      "partition_scores": [],
+      "result_type": "bucket"
+    }
+  ]
+}
+----

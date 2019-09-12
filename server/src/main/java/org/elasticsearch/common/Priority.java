@@ -60,10 +60,18 @@ public enum Priority {
         this.value = value;
     }
 
+    /**
+     * @return whether tasks of {@code this} priority will run after those of priority {@code p}.
+     *         For instance, {@code Priority.URGENT.after(Priority.IMMEDIATE)} returns {@code true}.
+     */
     public boolean after(Priority p) {
         return this.compareTo(p) > 0;
     }
 
+    /**
+     * @return whether tasks of {@code this} priority will run no earlier than those of priority {@code p}.
+     *         For instance, {@code Priority.URGENT.sameOrAfter(Priority.IMMEDIATE)} returns {@code true}.
+     */
     public boolean sameOrAfter(Priority p) {
         return this.compareTo(p) >= 0;
     }

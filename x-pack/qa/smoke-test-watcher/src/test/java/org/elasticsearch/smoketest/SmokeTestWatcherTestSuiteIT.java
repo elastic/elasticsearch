@@ -21,6 +21,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -93,7 +94,7 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
                 default:
                     throw new AssertionError("unknown state[" + state + "]");
             }
-        });
+        }, 60, TimeUnit.SECONDS);
     }
 
     @Override
@@ -216,8 +217,8 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
                 assertThat("watch_id for hit 0 in watcher history", foundWatchId, is(watchId));
                 objectPathReference.set(objectPath);
             } catch (ResponseException e) {
-                final String err = "Failed to perform search of watcher history - " + e;
-                logger.info(err);
+                final String err = "Failed to perform search of watcher history";
+                logger.info(err, e);
                 fail(err);
             }
         });

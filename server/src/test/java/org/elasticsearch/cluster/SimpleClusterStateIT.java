@@ -51,7 +51,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.CollectionAssertions;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.Before;
@@ -254,11 +253,11 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         }
     }
 
-    @TestLogging("org.elasticsearch.action.admin.indices.close:DEBUG,org.elasticsearch.cluster.metadata:DEBUG")
     public void testIndicesOptions() throws Exception {
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("f*")
                 .get();
         assertThat(clusterStateResponse.getState().metaData().indices().size(), is(2));
+        ensureGreen("fuu");
 
         // close one index
         assertAcked(client().admin().indices().close(Requests.closeIndexRequest("fuu")).get());

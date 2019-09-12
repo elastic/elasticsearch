@@ -484,6 +484,7 @@ final class RequestConverters {
         if (multiSearchTemplateRequest.maxConcurrentSearchRequests() != MultiSearchRequest.MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT) {
             params.putParam("max_concurrent_searches", Integer.toString(multiSearchTemplateRequest.maxConcurrentSearchRequests()));
         }
+        request.addParameters(params.asMap());
 
         XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
         byte[] source = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, xContent);
@@ -554,7 +555,8 @@ final class RequestConverters {
             .withRefresh(reindexRequest.isRefresh())
             .withTimeout(reindexRequest.getTimeout())
             .withWaitForActiveShards(reindexRequest.getWaitForActiveShards())
-            .withRequestsPerSecond(reindexRequest.getRequestsPerSecond());
+            .withRequestsPerSecond(reindexRequest.getRequestsPerSecond())
+            .withSlices(reindexRequest.getSlices());
 
         if (reindexRequest.getScrollTime() != null) {
             params.putParam("scroll", reindexRequest.getScrollTime());
@@ -897,6 +899,10 @@ final class RequestConverters {
             return putParam("routing", routing);
         }
 
+        Params withSlices(int slices) {
+            return putParam("slices", String.valueOf(slices));
+        }
+
         Params withStoredFields(String[] storedFields) {
             if (storedFields != null && storedFields.length > 0) {
                 return putParam("stored_fields", String.join(",", storedFields));
@@ -1039,13 +1045,6 @@ final class RequestConverters {
         Params withParentTaskId(TaskId parentTaskId) {
             if (parentTaskId != null && parentTaskId.isSet()) {
                 return putParam("parent_task_id", parentTaskId.toString());
-            }
-            return this;
-        }
-
-        Params withVerify(boolean verify) {
-            if (verify) {
-                return putParam("verify", Boolean.TRUE.toString());
             }
             return this;
         }

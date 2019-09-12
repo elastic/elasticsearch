@@ -19,33 +19,30 @@
 
 package org.elasticsearch.action.support.nodes;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
+// TODO: this class can be removed in master once 7.x is bumped to 7.4.0
 public abstract class BaseNodeRequest extends TransportRequest {
 
-    private String nodeId;
+    public BaseNodeRequest() {}
 
-    public BaseNodeRequest() {
-
-    }
-
-    protected BaseNodeRequest(String nodeId) {
-        this.nodeId = nodeId;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        nodeId = in.readString();
+    public BaseNodeRequest(StreamInput in) throws IOException {
+        super(in);
+        if (in.getVersion().before(Version.V_7_3_0)) {
+            in.readString(); // previously nodeId
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(nodeId);
+        if (out.getVersion().before(Version.V_7_3_0)) {
+            out.writeString(""); // previously nodeId
+        }
     }
 }

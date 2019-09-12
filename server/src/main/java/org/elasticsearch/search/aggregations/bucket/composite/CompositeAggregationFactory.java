@@ -29,12 +29,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-class CompositeAggregationFactory extends AggregatorFactory<CompositeAggregationFactory> {
+class CompositeAggregationFactory extends AggregatorFactory {
     private final int size;
     private final CompositeValuesSourceConfig[] sources;
     private final CompositeKey afterKey;
 
-    CompositeAggregationFactory(String name, SearchContext context, AggregatorFactory<?> parent,
+    CompositeAggregationFactory(String name, SearchContext context, AggregatorFactory parent,
                                 AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData,
                                 int size, CompositeValuesSourceConfig[] sources, CompositeKey afterKey) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metaData);

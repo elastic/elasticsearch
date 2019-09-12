@@ -161,16 +161,16 @@ public class AggregatorFactories {
         }
     }
 
-    public static final AggregatorFactories EMPTY = new AggregatorFactories(new AggregatorFactory<?>[0], new ArrayList<>());
+    public static final AggregatorFactories EMPTY = new AggregatorFactories(new AggregatorFactory[0], new ArrayList<>());
 
-    private AggregatorFactory<?>[] factories;
+    private AggregatorFactory[] factories;
     private List<PipelineAggregationBuilder> pipelineAggregatorFactories;
 
     public static Builder builder() {
         return new Builder();
     }
 
-    private AggregatorFactories(AggregatorFactory<?>[] factories, List<PipelineAggregationBuilder> pipelineAggregators) {
+    private AggregatorFactories(AggregatorFactory[] factories, List<PipelineAggregationBuilder> pipelineAggregators) {
         this.factories = factories;
         this.pipelineAggregatorFactories = pipelineAggregators;
     }
@@ -314,7 +314,7 @@ public class AggregatorFactories {
             return this;
         }
 
-        public AggregatorFactories build(SearchContext context, AggregatorFactory<?> parent) throws IOException {
+        public AggregatorFactories build(SearchContext context, AggregatorFactory parent) throws IOException {
             if (aggregationBuilders.isEmpty() && pipelineAggregatorBuilders.isEmpty()) {
                 return EMPTY;
             }
@@ -325,7 +325,7 @@ public class AggregatorFactories {
                 orderedpipelineAggregators = resolvePipelineAggregatorOrder(this.pipelineAggregatorBuilders, this.aggregationBuilders,
                         parent);
             }
-            AggregatorFactory<?>[] aggFactories = new AggregatorFactory<?>[aggregationBuilders.size()];
+            AggregatorFactory[] aggFactories = new AggregatorFactory[aggregationBuilders.size()];
 
             int i = 0;
             for (AggregationBuilder agg : aggregationBuilders) {
@@ -337,7 +337,7 @@ public class AggregatorFactories {
 
         private List<PipelineAggregationBuilder> resolvePipelineAggregatorOrder(
                 Collection<PipelineAggregationBuilder> pipelineAggregatorBuilders, Collection<AggregationBuilder> aggregationBuilders,
-                AggregatorFactory<?> parent) {
+                AggregatorFactory parent) {
             Map<String, PipelineAggregationBuilder> pipelineAggregatorBuildersMap = new HashMap<>();
             for (PipelineAggregationBuilder builder : pipelineAggregatorBuilders) {
                 pipelineAggregatorBuildersMap.put(builder.getName(), builder);

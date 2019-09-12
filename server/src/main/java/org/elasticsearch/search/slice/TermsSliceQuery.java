@@ -78,6 +78,9 @@ public final class TermsSliceQuery extends SliceQuery {
     private DocIdSet build(LeafReader reader) throws IOException {
         final DocIdSetBuilder builder = new DocIdSetBuilder(reader.maxDoc());
         final Terms terms = reader.terms(getField());
+        if (terms == null) {
+            return DocIdSet.EMPTY;
+        }
         final TermsEnum te = terms.iterator();
         PostingsEnum docsEnum = null;
         for (BytesRef term = te.next(); term != null; term = te.next()) {

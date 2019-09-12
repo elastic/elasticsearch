@@ -40,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.Engine;
@@ -427,8 +428,12 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             .setSettings(Settings.builder()
                 .put("number_of_shards", 1)
                 .put("number_of_replicas", 1)
+
                 // disable merges to keep segments the same
-                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, "false")
+                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+
+                // expire retention leases quickly
+                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
             ).get();
 
         logger.info("--> indexing docs");
@@ -472,10 +477,13 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                     .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
                     .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
                     .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0)
+                    .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey(), "0s")
                 ).get();
-                client(primaryNode).admin().indices().prepareFlush("test").setForce(true).get();
+                assertBusy(() -> assertThat(client().admin().indices().prepareStats("test").get().getShards()[0]
+                    .getRetentionLeaseStats().retentionLeases().leases().size(), equalTo(1)));
+                client().admin().indices().prepareFlush("test").setForce(true).get();
                 if (softDeleteEnabled) { // We need an extra flush to advance the min_retained_seqno of the SoftDeletesPolicy
-                    client(primaryNode).admin().indices().prepareFlush("test").setForce(true).get();
+                    client().admin().indices().prepareFlush("test").setForce(true).get();
                 }
                 return super.onNodeStopped(nodeName);
             }

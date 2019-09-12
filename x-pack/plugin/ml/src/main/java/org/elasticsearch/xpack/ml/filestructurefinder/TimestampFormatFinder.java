@@ -97,10 +97,10 @@ public final class TimestampFormatFinder {
             "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}", "\\b%{TIMESTAMP_ISO8601}\\b", "TIMESTAMP_ISO8601",
             "1111 11 11 11 11", 0, 19);
     static final CandidateTimestampFormat UNIX_MS_CANDIDATE_FORMAT =
-        new CandidateTimestampFormat(example -> Collections.singletonList("UNIX_MS"), "\\b\\d{13}\\b", "\\b\\d{13}\\b", "POSINT",
+        new CandidateTimestampFormat(example -> Collections.singletonList("UNIX_MS"), "\\b\\d{13}\\b", "\\b[12]\\d{12}\\b", "POSINT",
             "1111111111111", 0, 0);
     static final CandidateTimestampFormat UNIX_CANDIDATE_FORMAT =
-        new CandidateTimestampFormat(example -> Collections.singletonList("UNIX"), "\\b\\d{10}\\b", "\\b\\d{10}(?:\\.\\d{3,9})?\\b",
+        new CandidateTimestampFormat(example -> Collections.singletonList("UNIX"), "\\b\\d{10}\\b", "\\b[12]\\d{9}(?:\\.\\d{3,9})?\\b",
             "NUMBER", "1111111111", 0, 10);
     static final CandidateTimestampFormat TAI64N_CANDIDATE_FORMAT =
         new CandidateTimestampFormat(example -> Collections.singletonList("TAI64N"), "\\b[0-9A-Fa-f]{24}\\b", "\\b[0-9A-Fa-f]{24}\\b",
@@ -275,13 +275,14 @@ public final class TimestampFormatFinder {
                         "ss".equals(prevLetterGroup) == false || endPos - startPos > 9) {
                         String msg = "Letter group [" + letterGroup + "] in [" + overrideFormat + "] is not supported";
                         if (curChar == 'S') {
-                            msg += " because it is not preceeded by [ss] and a separator from [" + FRACTIONAL_SECOND_SEPARATORS + "]";
+                            msg += " because it is not preceded by [ss] and a separator from [" + FRACTIONAL_SECOND_SEPARATORS + "]";
                         }
                         throw new IllegalArgumentException(msg);
                     }
-                    // No need to append to the Grok pattern as %{SECOND} already allows for an optional
-                    // fraction, but we need to remove the separator that's included in %{SECOND}
-                    grokPatternBuilder.deleteCharAt(grokPatternBuilder.length() - 1);
+                    // No need to append to the Grok pattern as %{SECOND} already allows for an optional fraction,
+                    // but we need to remove the separator that's included in %{SECOND} (and that might be escaped)
+                    int numCharsToDelete = (PUNCTUATION_THAT_NEEDS_ESCAPING_IN_REGEX.indexOf(prevChar) >= 0) ? 2 : 1;
+                    grokPatternBuilder.delete(grokPatternBuilder.length() - numCharsToDelete, grokPatternBuilder.length());
                     regexBuilder.append("\\d{").append(endPos - startPos).append('}');
                 } else {
                     grokPatternBuilder.append(grokPatternAndRegexForGroup.v1());

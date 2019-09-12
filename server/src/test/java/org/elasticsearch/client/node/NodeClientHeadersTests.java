@@ -19,9 +19,9 @@
 
 package org.elasticsearch.client.node;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.AbstractClientHeadersTestCase;
@@ -29,7 +29,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -39,27 +38,28 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
     private static final ActionFilters EMPTY_FILTERS = new ActionFilters(Collections.emptySet());
 
     @Override
-    protected Client buildClient(Settings headersSettings, Action[] testedActions) {
+    protected Client buildClient(Settings headersSettings, ActionType[] testedActions) {
         Settings settings = HEADER_SETTINGS;
-        Actions actions = new Actions(settings, threadPool, testedActions);
+        TaskManager taskManager = new TaskManager(settings, threadPool, Collections.emptySet());
+        Actions actions = new Actions(testedActions, taskManager);
         NodeClient client = new NodeClient(settings, threadPool);
-        client.initialize(actions, () -> "test", null);
+        client.initialize(actions, taskManager, () -> "test", null);
         return client;
     }
 
-    private static class Actions extends HashMap<Action, TransportAction> {
+    private static class Actions extends HashMap<ActionType, TransportAction> {
 
-        private Actions(Settings settings, ThreadPool threadPool, Action[] actions) {
-            for (Action action : actions) {
-                put(action, new InternalTransportAction(settings, action.name(), threadPool));
+        private Actions(ActionType[] actions, TaskManager taskManager) {
+            for (ActionType action : actions) {
+                put(action, new InternalTransportAction(action.name(), taskManager));
             }
         }
     }
 
     private static class InternalTransportAction extends TransportAction {
 
-        private InternalTransportAction(Settings settings, String actionName, ThreadPool threadPool) {
-            super(actionName, EMPTY_FILTERS, new TaskManager(settings, threadPool, Collections.emptySet()));
+        private InternalTransportAction(String actionName, TaskManager taskManager) {
+            super(actionName, EMPTY_FILTERS, taskManager);
         }
 
         @Override

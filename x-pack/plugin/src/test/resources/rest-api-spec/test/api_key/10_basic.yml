@@ -12,7 +12,7 @@ setup:
         name: "admin_role"
         body:  >
             {
-              "cluster": ["all"],
+              "cluster": ["manage_api_key"],
               "indices": [
                 {
                   "names": "*",
@@ -166,6 +166,8 @@ teardown:
   - set: { name: api_key_name }
 
   - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
       security.get_api_key:
         id: "$api_key_id"
   - match: { "api_keys.0.id": "$api_key_id" }
@@ -198,6 +200,8 @@ teardown:
   - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
 
   - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
       security.invalidate_api_key:
         body:  >
             {

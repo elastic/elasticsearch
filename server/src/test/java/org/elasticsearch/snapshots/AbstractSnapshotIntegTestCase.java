@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
@@ -63,6 +64,28 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     @After
     public void assertConsistentHistoryInLuceneIndex() throws Exception {
         internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
+    }
+
+    private String skipRepoConsistencyCheckReason;
+
+    @After
+    public void assertRepoConsistency() {
+        if (skipRepoConsistencyCheckReason == null) {
+            client().admin().cluster().prepareGetRepositories().get().repositories().forEach(repositoryMetaData -> {
+                final String name = repositoryMetaData.name();
+                if (repositoryMetaData.settings().getAsBoolean("readonly", false) == false) {
+                    client().admin().cluster().prepareCleanupRepository(name).get();
+                }
+                BlobStoreTestUtil.assertRepoConsistency(internalCluster(), name);
+            });
+        } else {
+            logger.info("--> skipped repo consistency checks because [{}]", skipRepoConsistencyCheckReason);
+        }
+    }
+
+    protected void disableRepoConsistencyCheck(String reason) {
+        assertNotNull(reason);
+        skipRepoConsistencyCheckReason = reason;
     }
 
     public static long getFailureCount(String repository) {
@@ -120,7 +143,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         long start = System.currentTimeMillis();
         while (System.currentTimeMillis() - start < timeout.millis()) {
             List<SnapshotInfo> snapshotInfos = client().admin().cluster().prepareGetSnapshots(repository).setSnapshots(snapshotName)
-                .get().getSnapshots();
+                .get().getSnapshots(repository);
             assertThat(snapshotInfos.size(), equalTo(1));
             if (snapshotInfos.get(0).state().completed()) {
                 // Make sure that snapshot clean up operations are finished

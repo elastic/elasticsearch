@@ -30,11 +30,15 @@ import java.io.IOException;
 
 public class FieldCapabilitiesIndexRequest extends SingleShardRequest<FieldCapabilitiesIndexRequest> {
 
-    private String[] fields;
-    private OriginalIndices originalIndices;
+    private final String[] fields;
+    private final OriginalIndices originalIndices;
 
     // For serialization
-    FieldCapabilitiesIndexRequest() {}
+    FieldCapabilitiesIndexRequest(StreamInput in) throws IOException {
+        super(in);
+        fields = in.readStringArray();
+        originalIndices = OriginalIndices.readOriginalIndices(in);
+    }
 
     FieldCapabilitiesIndexRequest(String[] fields, String index, OriginalIndices originalIndices) {
         super(index);
@@ -59,13 +63,6 @@ public class FieldCapabilitiesIndexRequest extends SingleShardRequest<FieldCapab
     @Override
     public IndicesOptions indicesOptions() {
         return originalIndices.indicesOptions();
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        fields = in.readStringArray();
-        originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
     @Override

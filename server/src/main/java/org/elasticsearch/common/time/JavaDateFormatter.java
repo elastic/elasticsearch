@@ -38,6 +38,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 class JavaDateFormatter implements DateFormatter {
 
@@ -58,6 +59,12 @@ class JavaDateFormatter implements DateFormatter {
     private final List<DateTimeFormatter> parsers;
     private final DateTimeFormatter roundupParser;
 
+    private JavaDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter roundupParser, List<DateTimeFormatter> parsers) {
+        this.format = format;
+        this.printer = printer;
+        this.roundupParser = roundupParser;
+        this.parsers = parsers;
+    }
     JavaDateFormatter(String format, DateTimeFormatter printer, DateTimeFormatter... parsers) {
         this(format, printer, builder -> ROUND_UP_BASE_FIELDS.forEach(builder::parseDefaulting), parsers);
     }
@@ -155,9 +162,8 @@ class JavaDateFormatter implements DateFormatter {
         if (zoneId.equals(zone())) {
             return this;
         }
-
-        return new JavaDateFormatter(format, printer.withZone(zoneId),
-            parsers.stream().map(p -> p.withZone(zoneId)).toArray(size -> new DateTimeFormatter[size]));
+        return new JavaDateFormatter(format, printer.withZone(zoneId), getRoundupParser().withZone(zoneId),
+            parsers.stream().map(p -> p.withZone(zoneId)).collect(Collectors.toList()));
     }
 
     @Override
@@ -166,9 +172,8 @@ class JavaDateFormatter implements DateFormatter {
         if (locale.equals(locale())) {
             return this;
         }
-
-        return new JavaDateFormatter(format, printer.withLocale(locale),
-            parsers.stream().map(p -> p.withLocale(locale)).toArray(size -> new DateTimeFormatter[size]));
+        return new JavaDateFormatter(format, printer.withLocale(locale), getRoundupParser().withLocale(locale),
+            parsers.stream().map(p -> p.withLocale(locale)).collect(Collectors.toList()));
     }
 
     @Override

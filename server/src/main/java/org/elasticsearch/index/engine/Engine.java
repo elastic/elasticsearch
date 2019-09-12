@@ -27,7 +27,6 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
@@ -36,7 +35,10 @@ import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.QueryCache;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
@@ -58,6 +60,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
@@ -162,18 +165,6 @@ public abstract class Engine implements Closeable {
         return a.ramBytesUsed();
     }
 
-    /**
-     * Returns whether a leaf reader comes from a merge (versus flush or addIndexes).
-     */
-    protected static boolean isMergedSegment(LeafReader reader) {
-        // We expect leaves to be segment readers
-        final Map<String, String> diagnostics = Lucene.segmentReader(reader).getSegmentInfo().info.getDiagnostics();
-        final String source = diagnostics.get(IndexWriter.SOURCE);
-        assert Arrays.asList(IndexWriter.SOURCE_ADDINDEXES_READERS, IndexWriter.SOURCE_FLUSH,
-                IndexWriter.SOURCE_MERGE).contains(source) : "Unknown source " + source;
-        return IndexWriter.SOURCE_MERGE.equals(source);
-    }
-
     public final EngineConfig config() {
         return engineConfig;
     }
@@ -194,13 +185,13 @@ public abstract class Engine implements Closeable {
      * Returns the {@link CompletionStats} for this engine
      */
     public CompletionStats completionStats(String... fieldNamePatterns) throws IOException {
-        try (Engine.Searcher currentSearcher = acquireSearcher("completion_stats", SearcherScope.INTERNAL)) {
+        try (Searcher currentSearcher = acquireSearcher("completion_stats", SearcherScope.INTERNAL)) {
             long sizeInBytes = 0;
             ObjectLongHashMap<String> completionFields = null;
             if (fieldNamePatterns != null && fieldNamePatterns.length > 0) {
                 completionFields = new ObjectLongHashMap<>(fieldNamePatterns.length);
             }
-            for (LeafReaderContext atomicReaderContext : currentSearcher.reader().leaves()) {
+            for (LeafReaderContext atomicReaderContext : currentSearcher.getIndexReader().leaves()) {
                 LeafReader atomicReader = atomicReaderContext.reader();
                 for (FieldInfo info : atomicReader.getFieldInfos()) {
                     Terms terms = atomicReader.terms(info.name);
@@ -222,13 +213,13 @@ public abstract class Engine implements Closeable {
      * Returns the {@link DocsStats} for this engine
      */
     public DocsStats docStats() {
-        // we calculate the doc stats based on the internal reader that is more up-to-date and not subject
-        // to external refreshes. For instance we don't refresh an external reader if we flush and indices with
+        // we calculate the doc stats based on the internal searcher that is more up-to-date and not subject
+        // to external refreshes. For instance we don't refresh an external searcher if we flush and indices with
         // index.refresh_interval=-1 won't see any doc stats updates at all. This change will give more accurate statistics
-        // when indexing but not refreshing in general. Yet, if a refresh happens the internal reader is refresh as well so we are
+        // when indexing but not refreshing in general. Yet, if a refresh happens the internal searcher is refresh as well so we are
         // safe here.
-        try (Engine.Searcher searcher = acquireSearcher("docStats", Engine.SearcherScope.INTERNAL)) {
-           return docsStats(searcher.reader());
+        try (Searcher searcher = acquireSearcher("docStats", SearcherScope.INTERNAL)) {
+           return docsStats(searcher.getIndexReader());
         }
     }
 
@@ -527,8 +518,8 @@ public abstract class Engine implements Closeable {
         /**
          * use in case of the index operation failed before getting to internal engine
          **/
-        public IndexResult(Exception failure, long version, long term) {
-            this(failure, version, term, UNASSIGNED_SEQ_NO);
+        public IndexResult(Exception failure, long version) {
+            this(failure, version, UNASSIGNED_PRIMARY_TERM, UNASSIGNED_SEQ_NO);
         }
 
         public IndexResult(Exception failure, long version, long term, long seqNo) {
@@ -607,12 +598,12 @@ public abstract class Engine implements Closeable {
         PENDING_OPERATIONS
     }
 
-    protected final GetResult getFromSearcher(Get get, BiFunction<String, SearcherScope, Searcher> searcherFactory,
-                                              SearcherScope scope) throws EngineException {
-        final Searcher searcher = searcherFactory.apply("get", scope);
+    protected final GetResult getFromSearcher(Get get, BiFunction<String, SearcherScope, Engine.Searcher> searcherFactory,
+                                                SearcherScope scope) throws EngineException {
+        final Engine.Searcher searcher = searcherFactory.apply("get", scope);
         final DocIdAndVersion docIdAndVersion;
         try {
-            docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.reader(), get.uid(), true);
+            docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), get.uid(), true);
         } catch (Exception e) {
             Releasables.closeWhileHandlingException(searcher);
             //TODO: A better exception goes here
@@ -679,10 +670,11 @@ public abstract class Engine implements Closeable {
         }
         Releasable releasable = store::decRef;
         try {
-            ReferenceManager<IndexSearcher> referenceManager = getReferenceManager(scope);
-            IndexSearcher acquire = referenceManager.acquire();
+            ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
+            final ElasticsearchDirectoryReader acquire = referenceManager.acquire();
             AtomicBoolean released = new AtomicBoolean(false);
             Searcher engineSearcher = new Searcher(source, acquire,
+                engineConfig.getSimilarity(), engineConfig.getQueryCache(), engineConfig.getQueryCachingPolicy(),
                 () -> {
                 if (released.compareAndSet(false, true)) {
                     try {
@@ -691,13 +683,13 @@ public abstract class Engine implements Closeable {
                         store.decRef();
                     }
                 } else {
-                    /* In general, searchers should never be released twice or this would break reference counting. There is one rare case
+                    /* In general, readers should never be released twice or this would break reference counting. There is one rare case
                      * when it might happen though: when the request and the Reaper thread would both try to release it in a very short
                      * amount of time, this is why we only log a warning instead of throwing an exception. */
                     logger.warn("Searcher was released twice", new IllegalStateException("Double release"));
                 }
               });
-            releasable = null; // success - hand over the reference to the engine searcher
+            releasable = null; // success - hand over the reference to the engine reader
             return engineSearcher;
         } catch (AlreadyClosedException ex) {
             throw ex;
@@ -711,7 +703,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    protected abstract ReferenceManager<IndexSearcher> getReferenceManager(SearcherScope scope);
+    protected abstract ReferenceManager<ElasticsearchDirectoryReader> getReferenceManager(SearcherScope scope);
 
     public enum SearcherScope {
         EXTERNAL, INTERNAL
@@ -755,7 +747,7 @@ public abstract class Engine implements Closeable {
                                                                 MapperService mapperService, long startingSeqNo) throws IOException;
 
     /**
-     * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its translog
+     * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its history (either Lucene or translog)
      */
     public abstract boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException;
 
@@ -793,9 +785,9 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * @return the local checkpoint for this Engine
+     * @return the persisted local checkpoint for this Engine
      */
-    public abstract long getLocalCheckpoint();
+    public abstract long getPersistedLocalCheckpoint();
 
     /**
      * @return a {@link SeqNoStats} object, using local state and the supplied global checkpoint
@@ -815,7 +807,7 @@ public abstract class Engine implements Closeable {
         Set<String> segmentName = new HashSet<>();
         SegmentsStats stats = new SegmentsStats();
         try (Searcher searcher = acquireSearcher("segments_stats", SearcherScope.INTERNAL)) {
-            for (LeafReaderContext ctx : searcher.reader().getContext().leaves()) {
+            for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 fillSegmentStats(segmentReader, includeSegmentFileSizes, stats);
                 segmentName.add(segmentReader.getSegmentName());
@@ -823,7 +815,7 @@ public abstract class Engine implements Closeable {
         }
 
         try (Searcher searcher = acquireSearcher("segments_stats", SearcherScope.EXTERNAL)) {
-            for (LeafReaderContext ctx : searcher.reader().getContext().leaves()) {
+            for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 if (segmentName.contains(segmentReader.getSegmentName()) == false) {
                     fillSegmentStats(segmentReader, includeSegmentFileSizes, stats);
@@ -933,18 +925,18 @@ public abstract class Engine implements Closeable {
     /** How much heap is used that would be freed by a refresh.  Note that this may throw {@link AlreadyClosedException}. */
     public abstract long getIndexBufferRAMBytesUsed();
 
-    protected Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean verbose) {
+    final Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean verbose) {
         ensureOpen();
         Map<String, Segment> segments = new HashMap<>();
         // first, go over and compute the search ones...
         try (Searcher searcher = acquireSearcher("segments", SearcherScope.EXTERNAL)){
-            for (LeafReaderContext ctx : searcher.reader().getContext().leaves()) {
+            for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 fillSegmentInfo(Lucene.segmentReader(ctx.reader()), verbose, true, segments);
             }
         }
 
         try (Searcher searcher = acquireSearcher("segments", SearcherScope.INTERNAL)){
-            for (LeafReaderContext ctx : searcher.reader().getContext().leaves()) {
+            for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 if (segments.containsKey(segmentReader.getSegmentName()) == false) {
                     fillSegmentInfo(segmentReader, verbose, false, segments);
@@ -960,8 +952,8 @@ public abstract class Engine implements Closeable {
                     segment = new Segment(info.info.name);
                     segment.search = false;
                     segment.committed = true;
-                    segment.docCount = info.info.maxDoc();
-                    segment.delDocCount = info.getDelCount();
+                    segment.delDocCount = info.getDelCount() + info.getSoftDelCount();
+                    segment.docCount = info.info.maxDoc() - segment.delDocCount;
                     segment.version = info.info.getVersion();
                     segment.compound = info.info.getUseCompoundFile();
                     try {
@@ -1131,6 +1123,11 @@ public abstract class Engine implements Closeable {
     public abstract IndexCommitRef acquireSafeIndexCommit() throws EngineException;
 
     /**
+     * @return a summary of the contents of the current safe commit
+     */
+    public abstract SafeCommitInfo getSafeCommitInfo();
+
+    /**
      * If the specified throwable contains a fatal error in the throwable graph, such a fatal error will be thrown. Callers should ensure
      * that there are no catch statements that would catch an error in the stack as the fatal error here should go uncaught and be handled
      * by the uncaught exception handler that we install during bootstrap. If the specified throwable does indeed contain a fatal error,
@@ -1222,14 +1219,18 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public static final class Searcher implements Releasable {
+    public static final class Searcher extends IndexSearcher implements Releasable {
         private final String source;
-        private final IndexSearcher searcher;
         private final Closeable onClose;
 
-        public Searcher(String source, IndexSearcher searcher, Closeable onClose) {
+        public Searcher(String source, IndexReader reader,
+                        Similarity similarity, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
+                        Closeable onClose) {
+            super(reader);
+            setSimilarity(similarity);
+            setQueryCache(queryCache);
+            setQueryCachingPolicy(queryCachingPolicy);
             this.source = source;
-            this.searcher = searcher;
             this.onClose = onClose;
         }
 
@@ -1240,19 +1241,11 @@ public abstract class Engine implements Closeable {
             return source;
         }
 
-        public IndexReader reader() {
-            return searcher.getIndexReader();
-        }
-
         public DirectoryReader getDirectoryReader() {
-            if (reader() instanceof DirectoryReader) {
-                return (DirectoryReader) reader();
+            if (getIndexReader() instanceof DirectoryReader) {
+                return (DirectoryReader) getIndexReader();
             }
-            throw new IllegalStateException("Can't use " + reader().getClass() + " as a directory reader");
-        }
-
-        public IndexSearcher searcher() {
-            return searcher;
+            throw new IllegalStateException("Can't use " + getIndexReader().getClass() + " as a directory reader");
         }
 
         @Override
@@ -1266,7 +1259,6 @@ public abstract class Engine implements Closeable {
                 throw new AssertionError(e);
             }
         }
-
     }
 
     public abstract static class Operation {
@@ -1647,11 +1639,11 @@ public abstract class Engine implements Closeable {
         private final boolean exists;
         private final long version;
         private final DocIdAndVersion docIdAndVersion;
-        private final Searcher searcher;
+        private final Engine.Searcher searcher;
 
         public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null, null);
 
-        private GetResult(boolean exists, long version, DocIdAndVersion docIdAndVersion, Searcher searcher) {
+        private GetResult(boolean exists, long version, DocIdAndVersion docIdAndVersion, Engine.Searcher searcher) {
             this.exists = exists;
             this.version = version;
             this.docIdAndVersion = docIdAndVersion;
@@ -1661,7 +1653,7 @@ public abstract class Engine implements Closeable {
         /**
          * Build a non-realtime get result from the searcher.
          */
-        public GetResult(Searcher searcher, DocIdAndVersion docIdAndVersion) {
+        public GetResult(Engine.Searcher searcher, DocIdAndVersion docIdAndVersion) {
             this(true, docIdAndVersion.version, docIdAndVersion, searcher);
         }
 
@@ -1673,7 +1665,7 @@ public abstract class Engine implements Closeable {
             return this.version;
         }
 
-        public Searcher searcher() {
+        public Engine.Searcher searcher() {
             return this.searcher;
         }
 
@@ -1830,15 +1822,15 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Called for each new opened engine searcher to warm new segments
+     * Called for each new opened engine reader to warm new segments
      *
      * @see EngineConfig#getWarmer()
      */
     public interface Warmer {
         /**
-         * Called once a new Searcher is opened on the top-level searcher.
+         * Called once a new top-level reader is opened.
          */
-        void warm(Engine.Searcher searcher);
+        void warm(ElasticsearchDirectoryReader reader);
     }
 
     /**

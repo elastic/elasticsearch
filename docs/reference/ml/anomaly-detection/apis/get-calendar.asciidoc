@@ -1,0 +1,92 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-get-calendar]]
+=== Get calendars API
+++++
+<titleabbrev>Get calendars</titleabbrev>
+++++
+
+Retrieves configuration information for calendars.
+
+[[ml-get-calendar-request]]
+==== {api-request-title}
+
+`GET _ml/calendars/<calendar_id>` +
+
+`GET _ml/calendars/_all`
+
+[[ml-get-calendar-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `monitor_ml`,
+`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
+[[ml-get-calendar-desc]]
+==== {api-description-title}
+
+You can get information for a single calendar or for all calendars by using
+`_all`.
+
+For more information, see 
+{stack-ov}/ml-calendars.html[Calendars and scheduled events].
+
+[[ml-get-calendar-path-parms]]
+==== {api-path-parms-title}
+
+`<calendar_id>`::
+  (Required, string) Identifier for the calendar.
+
+[[ml-get-calendar-request-body]]
+==== {api-request-body-title}
+
+`page`::
+`from`:::
+    (Optional, integer) Skips the specified number of calendars.
+
+`size`:::
+    (Optional, integer) Specifies the maximum number of calendars to obtain.
+
+[[ml-get-calendar-results]]
+==== {api-response-body-title}
+
+The API returns the following information:
+
+`calendars`::
+  (array) An array of calendar resources. A calendar resource has the following
+  properties:
+  `calendar_id`:::
+    (string) A numerical character string that uniquely identifies the calendar.
+
+  `job_ids`:::
+    (array) An array of {anomaly-job} identifiers. For example:
+    `["total-requests"]`.
+
+[[ml-get-calendar-example]]
+==== {api-examples-title}
+
+The following example gets configuration information for the `planned-outages`
+calendar:
+
+[source,console]
+--------------------------------------------------
+GET _ml/calendars/planned-outages
+--------------------------------------------------
+// TEST[skip:setup:calendar_outages_addjob]
+
+The API returns the following results:
+
+[source,console-result]
+----
+{
+  "count": 1,
+  "calendars": [
+    {
+      "calendar_id": "planned-outages",
+      "job_ids": [
+        "total-requests"
+      ]
+    }
+  ]
+}
+----

@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.action.admin.indices.template.delete;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -30,14 +32,20 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 /**
  * Delete index action.
  */
 public class TransportDeleteIndexTemplateAction
         extends TransportMasterNodeAction<DeleteIndexTemplateRequest, AcknowledgedResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportDeleteIndexTemplateAction.class);
 
     private final MetaDataIndexTemplateService indexTemplateService;
 
@@ -46,7 +54,7 @@ public class TransportDeleteIndexTemplateAction
                                               ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService,
                                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(DeleteIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, DeleteIndexTemplateRequest::new);
+            DeleteIndexTemplateRequest::new, indexNameExpressionResolver);
         this.indexTemplateService = indexTemplateService;
     }
 
@@ -57,8 +65,8 @@ public class TransportDeleteIndexTemplateAction
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
     }
 
     @Override
@@ -67,7 +75,7 @@ public class TransportDeleteIndexTemplateAction
     }
 
     @Override
-    protected void masterOperation(final DeleteIndexTemplateRequest request, final ClusterState state,
+    protected void masterOperation(Task task, final DeleteIndexTemplateRequest request, final ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
         indexTemplateService.removeTemplates(
             new MetaDataIndexTemplateService

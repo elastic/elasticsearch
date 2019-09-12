@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -96,7 +97,7 @@ public final class CardinalityAggregationBuilder
     }
 
     @Override
-    protected boolean serializeTargetValueType() {
+    protected boolean serializeTargetValueType(Version version) {
         return true;
     }
 
@@ -124,7 +125,7 @@ public final class CardinalityAggregationBuilder
 
     @Override
     protected CardinalityAggregatorFactory innerBuild(SearchContext context, ValuesSourceConfig<ValuesSource> config,
-            AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+            AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         return new CardinalityAggregatorFactory(name, config, precisionThreshold, context, parent, subFactoriesBuilder, metaData);
     }
 
@@ -137,12 +138,15 @@ public final class CardinalityAggregationBuilder
     }
 
     @Override
-    protected int innerHashCode() {
-        return Objects.hash(precisionThreshold);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), precisionThreshold);
     }
 
     @Override
-    protected boolean innerEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         CardinalityAggregationBuilder other = (CardinalityAggregationBuilder) obj;
         return Objects.equals(precisionThreshold, other.precisionThreshold);
     }

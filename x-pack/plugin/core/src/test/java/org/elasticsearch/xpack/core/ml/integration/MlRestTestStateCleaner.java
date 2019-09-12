@@ -29,6 +29,7 @@ public class MlRestTestStateCleaner {
     public void clearMlMetadata() throws IOException {
         deleteAllDatafeeds();
         deleteAllJobs();
+        deleteAllDataFrameAnalytics();
         // indices will be deleted by the ESRestTestCase class
     }
 
@@ -89,6 +90,22 @@ public class MlRestTestStateCleaner {
         for (Map<String, Object> jobConfig : jobConfigs) {
             String jobId = (String) jobConfig.get("job_id");
             adminClient.performRequest(new Request("DELETE", "/_ml/anomaly_detectors/" + jobId));
+        }
+    }
+
+    private void deleteAllDataFrameAnalytics() throws IOException {
+        final Request analyticsRequest = new Request("GET", "/_ml/data_frame/analytics?size=10000");
+        analyticsRequest.addParameter("filter_path", "data_frame_analytics");
+        final Response analyticsResponse = adminClient.performRequest(analyticsRequest);
+        List<Map<String, Object>> analytics = (List<Map<String, Object>>) XContentMapValues.extractValue(
+            "data_frame_analytics", ESRestTestCase.entityAsMap(analyticsResponse));
+        if (analytics == null) {
+            return;
+        }
+
+        for (Map<String, Object> config : analytics) {
+            String id = (String) config.get("id");
+            adminClient.performRequest(new Request("DELETE", "/_ml/data_frame/analytics/" + id));
         }
     }
 }

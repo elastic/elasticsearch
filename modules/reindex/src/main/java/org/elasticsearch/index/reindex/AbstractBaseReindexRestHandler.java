@@ -19,11 +19,10 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -38,13 +37,12 @@ import java.util.Map;
 
 public abstract class AbstractBaseReindexRestHandler<
                 Request extends AbstractBulkByScrollRequest<Request>,
-                A extends Action<BulkByScrollResponse>
+                A extends ActionType<BulkByScrollResponse>
             > extends BaseRestHandler {
 
     private final A action;
 
-    protected AbstractBaseReindexRestHandler(Settings settings, A action) {
-        super(settings);
+    protected AbstractBaseReindexRestHandler(A action) {
         this.action = action;
     }
 
@@ -113,7 +111,7 @@ public abstract class AbstractBaseReindexRestHandler<
         return request;
     }
 
-    private RestChannelConsumer sendTask(String localNodeId, Task task) throws IOException {
+    private RestChannelConsumer sendTask(String localNodeId, Task task) {
         return channel -> {
             try (XContentBuilder builder = channel.newBuilder()) {
                 builder.startObject();

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ccr.action;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -30,6 +30,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.MissingHistoryOperationsException;
+import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.ccr.Ccr;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -52,31 +54,21 @@ import java.util.concurrent.TimeoutException;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
-public class ShardChangesAction extends Action<ShardChangesAction.Response> {
+public class ShardChangesAction extends ActionType<ShardChangesAction.Response> {
 
     public static final ShardChangesAction INSTANCE = new ShardChangesAction();
     public static final String NAME = "indices:data/read/xpack/ccr/shard_changes";
 
     private ShardChangesAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, ShardChangesAction.Response::new);
     }
 
     public static class Request extends SingleShardRequest<Request> {
 
         private long fromSeqNo;
         private int maxOperationCount;
-        private ShardId shardId;
-        private String expectedHistoryUUID;
+        private final ShardId shardId;
+        private final String expectedHistoryUUID;
         private TimeValue pollTimeout = TransportResumeFollowAction.DEFAULT_READ_POLL_TIMEOUT;
         private ByteSizeValue maxBatchSize = TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE;
 
@@ -88,7 +80,17 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             this.expectedHistoryUUID = expectedHistoryUUID;
         }
 
-        Request() {
+        Request(StreamInput in) throws IOException {
+            super(in);
+            fromSeqNo = in.readVLong();
+            maxOperationCount = in.readVInt();
+            shardId = new ShardId(in);
+            expectedHistoryUUID = in.readString();
+            pollTimeout = in.readTimeValue();
+            maxBatchSize = new ByteSizeValue(in);
+
+            // Starting the clock in order to know how much time is spent on fetching operations:
+            relativeStartNanos = System.nanoTime();
         }
 
         public ShardId getShard() {
@@ -146,20 +148,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                         addValidationError("maxBatchSize [" + maxBatchSize.getStringRep() + "] must be larger than 0", validationException);
             }
             return validationException;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            fromSeqNo = in.readVLong();
-            maxOperationCount = in.readVInt();
-            shardId = new ShardId(in);
-            expectedHistoryUUID = in.readString();
-            pollTimeout = in.readTimeValue();
-            maxBatchSize = new ByteSizeValue(in);
-
-            // Starting the clock in order to know how much time is spent on fetching operations:
-            relativeStartNanos = System.nanoTime();
         }
 
         @Override
@@ -295,13 +283,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         }
 
         @Override
-        public void readFrom(final StreamInput in) {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(final StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeVLong(mappingVersion);
             out.writeVLong(settingsVersion);
             if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
@@ -549,8 +531,10 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                 }
             }
         } catch (MissingHistoryOperationsException e) {
-            String message = "Operations are no longer available for replicating. Maybe increase the retention setting [" +
-                IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey() + "]?";
+            final Collection<RetentionLease> retentionLeases = indexShard.getRetentionLeases().leases();
+            final String message = "Operations are no longer available for replicating. " +
+                "Existing retention leases [" + retentionLeases + "]; maybe increase the retention lease period setting " +
+                "[" + IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey() + "]?";
             // Make it easy to detect this error in ShardFollowNodeTask:
             // (adding a metadata header instead of introducing a new exception that extends ElasticsearchException)
             ResourceNotFoundException wrapper = new ResourceNotFoundException(message, e);

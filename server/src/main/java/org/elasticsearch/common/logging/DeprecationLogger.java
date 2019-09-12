@@ -25,6 +25,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.tasks.Task;
 
 import java.nio.charset.Charset;
 import java.security.AccessController;
@@ -133,7 +134,9 @@ public class DeprecationLogger {
      * @param params parameters to the message
      */
     public void deprecatedAndMaybeLog(final String key, final String msg, final Object... params) {
-        deprecated(THREAD_CONTEXT, msg, keys.add(key), params);
+        String xOpaqueId = getXOpaqueId(THREAD_CONTEXT);
+        boolean log = keys.add(xOpaqueId + key);
+        deprecated(THREAD_CONTEXT, msg, log, params);
     }
 
     /*
@@ -149,7 +152,7 @@ public class DeprecationLogger {
                     "299 Elasticsearch-%s%s-%s",
                     Version.CURRENT.toString(),
                     Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "",
-                    Build.CURRENT.shortHash());
+                    Build.CURRENT.hash());
 
     /**
      * Regular expression to test if a string matches the RFC7234 specification for warning headers. This pattern assumes that the warn code
@@ -157,7 +160,9 @@ public class DeprecationLogger {
      */
     public static final Pattern WARNING_HEADER_PATTERN = Pattern.compile(
             "299 " + // warn code
-                    "Elasticsearch-\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-(?:[a-f0-9]{7}|Unknown) " + // warn agent
+                    "Elasticsearch-" + // warn agent
+                    "\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-" + // warn agent
+                    "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent
                     "\"((?:\t| |!|[\\x23-\\x5B]|[\\x5D-\\x7E]|[\\x80-\\xFF]|\\\\|\\\\\")*)\"( " + // quoted warning value, captured
                     // quoted RFC 1123 date format
                     "\"" + // opening quote
@@ -223,7 +228,6 @@ public class DeprecationLogger {
 
     void deprecated(final Set<ThreadContext> threadContexts, final String message, final boolean log, final Object... params) {
         final Iterator<ThreadContext> iterator = threadContexts.iterator();
-
         if (iterator.hasNext()) {
             final String formattedMessage = LoggerMessageFormat.format(message, params);
             final String warningHeaderValue = formatWarning(formattedMessage);
@@ -244,11 +248,25 @@ public class DeprecationLogger {
                 @SuppressLoggerChecks(reason = "safely delegates to logger")
                 @Override
                 public Void run() {
-                    logger.warn(message, params);
+                    /**
+                     * There should be only one threadContext (in prod env), @see DeprecationLogger#setThreadContext
+                     */
+                    String opaqueId = getXOpaqueId(threadContexts);
+
+                    logger.warn(new DeprecatedMessage(message, opaqueId, params));
                     return null;
                 }
             });
         }
+    }
+
+    public String getXOpaqueId(Set<ThreadContext> threadContexts) {
+        return threadContexts.stream()
+                             .filter(t -> t.isClosed() == false)
+                             .filter(t -> t.getHeader(Task.X_OPAQUE_ID) != null)
+                             .findFirst()
+                             .map(t -> t.getHeader(Task.X_OPAQUE_ID))
+                             .orElse("");
     }
 
     /**

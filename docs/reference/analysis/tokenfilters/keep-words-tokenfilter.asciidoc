@@ -18,7 +18,7 @@ keep_words_case:: a boolean indicating whether to lower case the words (defaults
 [float]
 === Settings example
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /keep_words_example
 {
@@ -48,4 +48,3 @@ PUT /keep_words_example
     }
 }
 --------------------------------------------------
-// CONSOLE

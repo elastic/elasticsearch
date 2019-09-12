@@ -1,15 +1,20 @@
 {
-  "ping": {
-    "documentation": "http://www.elastic.co/guide/",
-    "methods": ["HEAD"],
-    "url": {
-      "path": "/",
-      "paths": ["/"],
-      "parts": {
-      },
-      "params": {
-      }
+  "ping":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/",
+      "description":"Returns whether the cluster is running."
     },
-    "body": null
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/",
+          "methods":[
+            "HEAD"
+          ]
+        }
+      ]
+    },
+    "params":{}
   }
 }

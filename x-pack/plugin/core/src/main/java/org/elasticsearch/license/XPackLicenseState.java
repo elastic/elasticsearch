@@ -70,6 +70,9 @@ public class XPackLicenseState {
             "Creating and Starting rollup jobs will no longer be allowed.",
             "Stopping/Deleting existing jobs, RollupCaps API and RollupSearch continue to function."
         });
+        messages.put(XPackField.ANALYTICS, new String[] {
+            "Aggregations provided by Data Science plugin are no longer usable."
+        });
         EXPIRATION_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -609,6 +612,15 @@ public class XPackLicenseState {
     }
 
     /**
+     * Voting only node functionality is always available as long as there is a valid license
+     *
+     * @return true if the license is active
+     */
+    public synchronized boolean isVotingOnlyAllowed() {
+        return status.active;
+    }
+
+    /**
      * Logstash is allowed as long as there is an active license of type TRIAL, STANDARD, GOLD or PLATINUM
      * @return {@code true} as long as there is a valid license
      */
@@ -688,6 +700,24 @@ public class XPackLicenseState {
     }
 
     /**
+     * Determine if support for flattened object fields should be enabled.
+     * <p>
+     * Flattened fields are available for all license types except {@link OperationMode#MISSING}.
+     */
+    public synchronized boolean isFlattenedAllowed() {
+        return status.active;
+    }
+
+    /**
+     * Determine if Vectors support should be enabled.
+     * <p>
+     *  Vectors is available for all license types except {@link OperationMode#MISSING}
+     */
+    public synchronized boolean isVectorsAllowed() {
+        return status.active;
+    }
+
+    /**
      * Determine if ODBC support should be enabled.
      * <p>
      * ODBC is available only in for {@link OperationMode#PLATINUM} and {@link OperationMode#TRIAL} licences
@@ -699,6 +729,31 @@ public class XPackLicenseState {
         boolean licensed = operationMode == OperationMode.TRIAL || operationMode == OperationMode.PLATINUM;
 
         return licensed && localStatus.active;
+    }
+
+    /**
+     * Determine if Spatial features should be enabled.
+     * <p>
+     * Spatial features are available in for all license types except
+     * {@link OperationMode#MISSING}
+     *
+     * @return {@code true} as long as the license is valid. Otherwise
+     *         {@code false}.
+     */
+    public boolean isSpatialAllowed() {
+        // status is volatile
+        Status localStatus = status;
+        // Should work on all active licenses
+        return localStatus.active;
+    }
+
+    /**
+     * Datascience is always available as long as there is a valid license
+     *
+     * @return true if the license is active
+     */
+    public synchronized boolean isDataScienceAllowed() {
+        return status.active;
     }
 
     public synchronized boolean isTrialLicense() {

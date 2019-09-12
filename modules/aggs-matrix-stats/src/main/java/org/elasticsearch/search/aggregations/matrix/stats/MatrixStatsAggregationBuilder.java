@@ -81,7 +81,7 @@ public class MatrixStatsAggregationBuilder
 
     @Override
     protected MatrixStatsAggregatorFactory innerBuild(SearchContext context, Map<String, ValuesSourceConfig<Numeric>> configs,
-            AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         return new MatrixStatsAggregatorFactory(name, configs, multiValueMode, context, parent, subFactoriesBuilder, metaData);
     }
 
@@ -89,16 +89,6 @@ public class MatrixStatsAggregationBuilder
     public XContentBuilder doXContentBody(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.field(MULTIVALUE_MODE_FIELD.getPreferredName(), multiValueMode);
         return builder;
-    }
-
-    @Override
-    protected int innerHashCode() {
-        return 0;
-    }
-
-    @Override
-    protected boolean innerEquals(Object obj) {
-        return true;
     }
 
     @Override

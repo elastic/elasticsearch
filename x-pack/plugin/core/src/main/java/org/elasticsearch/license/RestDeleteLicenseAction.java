@@ -9,7 +9,6 @@ package org.elasticsearch.license;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -24,8 +23,7 @@ public class RestDeleteLicenseAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestDeleteLicenseAction.class));
 
-    RestDeleteLicenseAction(Settings settings, RestController controller) {
-        super(settings);
+    RestDeleteLicenseAction(RestController controller) {
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
                 DELETE, "/_license", this,

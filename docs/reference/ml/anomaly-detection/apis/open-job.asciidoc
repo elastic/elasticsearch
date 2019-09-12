@@ -1,0 +1,71 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-open-job]]
+=== Open {anomaly-jobs} API
+++++
+<titleabbrev>Open jobs</titleabbrev>
+++++
+
+Opens one or more {anomaly-jobs}.
+
+[[ml-open-job-request]]
+==== {api-request-title}
+
+`POST _ml/anomaly_detectors/{job_id}/_open`
+
+[[ml-open-job-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
+[[ml-open-job-desc]]
+==== {api-description-title}
+
+An {anomaly-job} must be opened in order for it to be ready to receive and
+analyze data. It can be opened and closed multiple times throughout its
+lifecycle.
+
+When you open a new job, it starts with an empty model.
+
+When you open an existing job, the most recent model state is automatically
+loaded. The job is ready to resume its analysis from where it left off, once new
+data is received.
+
+[[ml-open-job-path-parms]]
+==== {api-path-parms-title}
+
+`<job_id>`::
+  (Required, string) Identifier for the {anomaly-job}.
+
+[[ml-open-job-request-body]]
+==== {api-request-body-title}
+
+`timeout`::
+  (Optional, time) Controls the time to wait until a job has opened. The default
+  value is 30 minutes.
+
+[[ml-open-job-example]]
+==== {api-examples-title}
+
+The following example opens the `total-requests` job and sets an optional
+property:
+
+[source,console]
+--------------------------------------------------
+POST _ml/anomaly_detectors/total-requests/_open
+{
+  "timeout": "35m"
+}
+--------------------------------------------------
+// TEST[skip:setup:server_metrics_job]
+
+When the job opens, you receive the following results:
+
+[source,console-result]
+----
+{
+  "opened": true
+}
+----

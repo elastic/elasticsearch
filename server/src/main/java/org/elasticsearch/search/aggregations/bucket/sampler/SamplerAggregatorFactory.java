@@ -29,11 +29,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class SamplerAggregatorFactory extends AggregatorFactory<SamplerAggregatorFactory> {
+public class SamplerAggregatorFactory extends AggregatorFactory {
 
     private final int shardSize;
 
-    SamplerAggregatorFactory(String name, int shardSize, SearchContext context, AggregatorFactory<?> parent,
+    SamplerAggregatorFactory(String name, int shardSize, SearchContext context, AggregatorFactory parent,
             AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, subFactories, metaData);
         this.shardSize = shardSize;

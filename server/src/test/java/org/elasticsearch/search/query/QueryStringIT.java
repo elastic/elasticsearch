@@ -359,6 +359,7 @@ public class QueryStringIT extends ESIntegTestCase {
         assertHits(response.getHits(), "1");
     }
 
+
     private void assertHits(SearchHits hits, String... ids) {
         assertThat(hits.getTotalHits().value, equalTo((long) ids.length));
         Set<String> hitIds = new HashSet<>();

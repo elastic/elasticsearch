@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
@@ -47,7 +47,7 @@ public final class IngestActionForwarder implements ClusterStateApplier {
         ingestNodes = new DiscoveryNode[0];
     }
 
-    public void forwardIngestRequest(Action<?> action, ActionRequest request, ActionListener<?> listener) {
+    public void forwardIngestRequest(ActionType<?> action, ActionRequest request, ActionListener<?> listener) {
         transportService.sendRequest(randomIngestNode(), action.name(), request,
             new ActionListenerResponseHandler(listener, action.getResponseReader()));
     }

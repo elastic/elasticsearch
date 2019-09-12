@@ -21,7 +21,7 @@ package org.elasticsearch.indices.flush;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -33,7 +33,7 @@ import static java.util.Collections.emptyMap;
 /**
  * Result for all copies of a shard
  */
-public class ShardsSyncedFlushResult implements Streamable {
+public class ShardsSyncedFlushResult implements Writeable {
     private String failureReason;
     private Map<ShardRouting, SyncedFlushService.ShardSyncedFlushResponse> shardResponses;
     private String syncId;
@@ -41,7 +41,18 @@ public class ShardsSyncedFlushResult implements Streamable {
     // some shards may be unassigned, so we need this as state
     private int totalShards;
 
-    private ShardsSyncedFlushResult() {
+    public ShardsSyncedFlushResult(StreamInput in) throws IOException {
+        failureReason = in.readOptionalString();
+        int numResponses = in.readInt();
+        shardResponses = new HashMap<>();
+        for (int i = 0; i < numResponses; i++) {
+            ShardRouting shardRouting = new ShardRouting(in);
+            SyncedFlushService.ShardSyncedFlushResponse response = SyncedFlushService.ShardSyncedFlushResponse.readSyncedFlushResponse(in);
+            shardResponses.put(shardRouting, response);
+        }
+        syncId = in.readOptionalString();
+        shardId = new ShardId(in);
+        totalShards = in.readInt();
     }
 
     public ShardId getShardId() {
@@ -138,21 +149,6 @@ public class ShardsSyncedFlushResult implements Streamable {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        failureReason = in.readOptionalString();
-        int numResponses = in.readInt();
-        shardResponses = new HashMap<>();
-        for (int i = 0; i < numResponses; i++) {
-            ShardRouting shardRouting = new ShardRouting(in);
-            SyncedFlushService.ShardSyncedFlushResponse response = SyncedFlushService.ShardSyncedFlushResponse.readSyncedFlushResponse(in);
-            shardResponses.put(shardRouting, response);
-        }
-        syncId = in.readOptionalString();
-        shardId = new ShardId(in);
-        totalShards = in.readInt();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(failureReason);
         out.writeInt(shardResponses.size());
@@ -163,11 +159,5 @@ public class ShardsSyncedFlushResult implements Streamable {
         out.writeOptionalString(syncId);
         shardId.writeTo(out);
         out.writeInt(totalShards);
-    }
-
-    public static ShardsSyncedFlushResult readShardsSyncedFlushResult(StreamInput in) throws IOException {
-        ShardsSyncedFlushResult shardsSyncedFlushResult = new ShardsSyncedFlushResult();
-        shardsSyncedFlushResult.readFrom(in);
-        return shardsSyncedFlushResult;
     }
 }

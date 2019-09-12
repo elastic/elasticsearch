@@ -173,19 +173,19 @@ final class DefaultSearchContext extends SearchContext {
         this.indexShard = indexShard;
         this.indexService = indexService;
         this.clusterService = clusterService;
-        this.searcher = new ContextIndexSearcher(engineSearcher, indexService.cache().query(), indexShard.getQueryCachingPolicy());
+        this.searcher = new ContextIndexSearcher(engineSearcher.getIndexReader(), engineSearcher.getSimilarity(),
+            engineSearcher.getQueryCache(), engineSearcher.getQueryCachingPolicy());
         this.relativeTimeSupplier = relativeTimeSupplier;
         this.timeout = timeout;
         this.minNodeVersion = minNodeVersion;
-        queryShardContext = indexService.newQueryShardContext(request.shardId().id(), searcher.getIndexReader(), request::nowInMillis,
+        queryShardContext = indexService.newQueryShardContext(request.shardId().id(), searcher, request::nowInMillis,
             shardTarget.getClusterAlias());
         queryBoost = request.indexBoost();
     }
 
     @Override
     public void doClose() {
-        // clear and scope phase we have
-        Releasables.close(searcher, engineSearcher);
+        Releasables.close(engineSearcher);
     }
 
     /**

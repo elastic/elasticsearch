@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 public class ClusterName implements Writeable {
 
@@ -80,5 +81,19 @@ public class ClusterName implements Writeable {
     @Override
     public String toString() {
         return "Cluster [" + value + "]";
+    }
+
+    public Predicate<ClusterName> getEqualityPredicate() {
+        return new Predicate<ClusterName>() {
+            @Override
+            public boolean test(ClusterName o) {
+                return ClusterName.this.equals(o);
+            }
+
+            @Override
+            public String toString() {
+                return "local cluster name [" + ClusterName.this.value() + "]";
+            }
+        };
     }
 }

@@ -47,20 +47,8 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
         this.mappings = mappings;
     }
 
-    GetMappingsResponse() {
-    }
-
-    public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings() {
-        return mappings;
-    }
-
-    public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> getMappings() {
-        return mappings();
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+    GetMappingsResponse(StreamInput in) throws IOException {
+        super(in);
         int size = in.readVInt();
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> indexMapBuilder = ImmutableOpenMap.builder();
         for (int i = 0; i < size; i++) {
@@ -75,9 +63,16 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
         mappings = indexMapBuilder.build();
     }
 
+    public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings() {
+        return mappings;
+    }
+
+    public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> getMappings() {
+        return mappings();
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(mappings.size());
         for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexEntry : mappings) {
             out.writeString(indexEntry.key);

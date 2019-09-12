@@ -35,7 +35,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -46,10 +45,6 @@ public class ClusterService extends AbstractLifecycleComponent {
     private final MasterService masterService;
 
     private final ClusterApplierService clusterApplierService;
-
-    public static final Setting<TimeValue> CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING =
-            Setting.positiveTimeSetting("cluster.service.slow_task_logging_threshold", TimeValue.timeValueSeconds(30),
-                    Property.Dynamic, Property.NodeScope);
 
     public static final org.elasticsearch.common.settings.Setting.AffixSetting<String> USER_DEFINED_META_DATA =
         Setting.prefixKeySetting("cluster.metadata.", (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
@@ -68,28 +63,21 @@ public class ClusterService extends AbstractLifecycleComponent {
     private final String nodeName;
 
     public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
-        this(settings, clusterSettings, new MasterService(Node.NODE_NAME_SETTING.get(settings), settings, threadPool),
+        this(settings, clusterSettings, new MasterService(settings, clusterSettings, threadPool),
             new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool));
     }
 
     public ClusterService(Settings settings, ClusterSettings clusterSettings, MasterService masterService,
-        ClusterApplierService clusterApplierService) {
+                          ClusterApplierService clusterApplierService) {
         this.settings = settings;
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.masterService = masterService;
         this.operationRouting = new OperationRouting(settings, clusterSettings);
         this.clusterSettings = clusterSettings;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
-        this.clusterSettings.addSettingsUpdateConsumer(CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
-            this::setSlowTaskLoggingThreshold);
         // Add a no-op update consumer so changes are logged
         this.clusterSettings.addAffixUpdateConsumer(USER_DEFINED_META_DATA, (first, second) -> {}, (first, second) -> {});
         this.clusterApplierService = clusterApplierService;
-    }
-
-    private void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {
-        masterService.setSlowTaskLoggingThreshold(slowTaskLoggingThreshold);
-        clusterApplierService.setSlowTaskLoggingThreshold(slowTaskLoggingThreshold);
     }
 
     public synchronized void setNodeConnectionsService(NodeConnectionsService nodeConnectionsService) {

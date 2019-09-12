@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -45,8 +44,7 @@ public class RestGetMappingAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get"
             + " mapping requests is deprecated. The parameter will be removed in the next major version.";
 
-    public RestGetMappingAction(final Settings settings, final RestController controller) {
-        super(settings);
+    public RestGetMappingAction(final RestController controller) {
         controller.registerHandler(GET, "/_mapping", this);
         controller.registerHandler(GET, "/_mappings", this);
         controller.registerHandler(GET, "/{index}/_mappings", this);
@@ -72,7 +70,7 @@ public class RestGetMappingAction extends BaseRestHandler {
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
         getMappingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getMappingsRequest.masterNodeTimeout()));
         getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
-        return channel -> client.admin().indices().getMappings(getMappingsRequest, new RestBuilderListener<GetMappingsResponse>(channel) {
+        return channel -> client.admin().indices().getMappings(getMappingsRequest, new RestBuilderListener<>(channel) {
             @Override
             public RestResponse buildResponse(final GetMappingsResponse response, final XContentBuilder builder) throws Exception {
                 builder.startObject();

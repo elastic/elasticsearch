@@ -34,6 +34,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -43,10 +44,10 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -58,7 +59,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableConnectionManager;
 import org.elasticsearch.test.transport.StubbableTransport;
@@ -91,7 +91,9 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.iterableWithSize;
@@ -198,13 +200,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     assertTrue(connectionManager.nodeConnected(seedNode));
                     assertTrue(connectionManager.nodeConnected(discoverableNode));
                     assertTrue(connection.assertNoRunningConnections());
-                    PlainTransportFuture<ClusterSearchShardsResponse> futureHandler = new PlainTransportFuture<>(
-                        new FutureTransportResponseHandler<ClusterSearchShardsResponse>() {
-                            @Override
-                            public ClusterSearchShardsResponse read(StreamInput in) throws IOException {
-                                return new ClusterSearchShardsResponse(in);
-                            }
-                        });
+                    TransportFuture<ClusterSearchShardsResponse> futureHandler = transportFuture(ClusterSearchShardsResponse::new);
                     TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.BULK)
                         .build();
                     IllegalStateException ise = (IllegalStateException) expectThrows(SendRequestTransportException.class, () -> {
@@ -241,13 +237,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     assertTrue(connectionManager.nodeConnected(seedNode));
                     assertTrue(connectionManager.nodeConnected(discoverableNode));
                     assertTrue(connection.assertNoRunningConnections());
-                    PlainTransportFuture<ClusterSearchShardsResponse> futureHandler = new PlainTransportFuture<>(
-                        new FutureTransportResponseHandler<ClusterSearchShardsResponse>() {
-                            @Override
-                            public ClusterSearchShardsResponse read(StreamInput in) throws IOException {
-                                return new ClusterSearchShardsResponse(in);
-                            }
-                        });
+                    TransportFuture<ClusterSearchShardsResponse> futureHandler = transportFuture(ClusterSearchShardsResponse::new);
                     TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.BULK)
                         .build();
                     IllegalStateException ise = (IllegalStateException) expectThrows(SendRequestTransportException.class, () -> {
@@ -257,13 +247,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     }).getCause();
                     assertEquals(ise.getMessage(), "can't select channel size is 0 for types: [RECOVERY, BULK, STATE]");
 
-                    PlainTransportFuture<ClusterSearchShardsResponse> handler = new PlainTransportFuture<>(
-                        new FutureTransportResponseHandler<ClusterSearchShardsResponse>() {
-                            @Override
-                            public ClusterSearchShardsResponse read(StreamInput in) throws IOException {
-                                return new ClusterSearchShardsResponse(in);
-                            }
-                        });
+                    TransportFuture<ClusterSearchShardsResponse> handler = transportFuture(ClusterSearchShardsResponse::new);
                     TransportRequestOptions ops = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.REG)
                         .build();
                     service.sendRequest(connection.getConnection(), ClusterSearchShardsAction.NAME, new ClusterSearchShardsRequest(),
@@ -429,20 +413,6 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         ActionListener<Void> listener = ActionListener.wrap(
             x -> latch.countDown(),
             x -> {
-                /*
-                 * This can occur on a thread submitted to the thread pool while we are closing the
-                 * remote cluster connection at the end of the test.
-                 */
-                if (x instanceof CancellableThreads.ExecutionCancelledException) {
-                    try {
-                        // we should already be shutting down
-                        assertEquals(0L, latch.getCount());
-                    } finally {
-                        // ensure we count down the latch on failure as well to not prevent failing tests from ending
-                        latch.countDown();
-                    }
-                    return;
-                }
                 exceptionAtomicReference.set(x);
                 latch.countDown();
             }
@@ -479,9 +449,10 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
     public void testRemoteConnectionVersionMatchesTransportConnectionVersion() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        final Version previousVersion = VersionUtils.getPreviousVersion();
-        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, previousVersion);
-             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
+        final Version previousVersion = randomValueOtherThan(Version.CURRENT, () -> VersionUtils.randomVersionBetween(random(),
+            Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT));
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
+             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, previousVersion)) {
 
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
             assertThat(seedNode, notNullValue());
@@ -520,12 +491,10 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.acceptIncomingRequests();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
                         seedNodes(seedNode), service, Integer.MAX_VALUE, n -> true, null, connectionManager)) {
-                    connection.addConnectedNode(seedNode);
-                    for (DiscoveryNode node : knownNodes) {
-                        final Transport.Connection transportConnection = connection.getConnection(node);
-                        assertThat(transportConnection.getVersion(), equalTo(previousVersion));
-                    }
+                    PlainActionFuture.get(fut -> connection.ensureConnected(ActionListener.map(fut, x -> null)));
                     assertThat(knownNodes, iterableWithSize(2));
+                    assertThat(connection.getConnection(seedNode).getVersion(), equalTo(Version.CURRENT));
+                    assertThat(connection.getConnection(oldVersionNode).getVersion(), equalTo(previousVersion));
                 }
             }
         }
@@ -578,7 +547,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 closeRemote.countDown();
                 listenerCalled.await();
                 assertNotNull(exceptionReference.get());
-                expectThrows(CancellableThreads.ExecutionCancelledException.class, () -> {
+                expectThrows(AlreadyClosedException.class, () -> {
                     throw exceptionReference.get();
                 });
 
@@ -638,16 +607,6 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                                 latch.countDown();
                                             },
                                             x -> {
-                                                /*
-                                                 * This can occur on a thread submitted to the thread pool while we are closing the
-                                                 * remote cluster connection at the end of the test.
-                                                 */
-                                                if (x instanceof CancellableThreads.ExecutionCancelledException) {
-                                                    // we should already be shutting down
-                                                    assertTrue(executed.get());
-                                                    return;
-                                                }
-
                                                 assertTrue(executed.compareAndSet(false, true));
                                                 latch.countDown();
 
@@ -678,7 +637,6 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         }
     }
 
-    @TestLogging("_root:DEBUG, org.elasticsearch.transport:TRACE")
     public void testCloseWhileConcurrentlyConnecting() throws IOException, InterruptedException, BrokenBarrierException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
@@ -736,8 +694,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                                         throw assertionError;
                                                     }
                                                 }
-                                                if (x instanceof RejectedExecutionException || x instanceof AlreadyClosedException
-                                                    || x instanceof CancellableThreads.ExecutionCancelledException) {
+                                                if (x instanceof RejectedExecutionException || x instanceof AlreadyClosedException) {
                                                     // that's fine
                                                 } else {
                                                     throw new AssertionError(x);
@@ -981,7 +938,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 discoverableTransports.add(transportService);
             }
 
-            List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes = randomSubsetOf(discoverableNodes);
+            List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes = new CopyOnWriteArrayList<>(randomSubsetOf(discoverableNodes));
             Collections.shuffle(seedNodes, random());
 
             try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
@@ -1022,11 +979,14 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                 barrier.await();
                                 for (int j = 0; j < numDisconnects; j++) {
                                     if (randomBoolean()) {
+                                        String node = "discoverable_node_added" + counter.incrementAndGet();
                                         MockTransportService transportService =
-                                            startTransport("discoverable_node_added" + counter.incrementAndGet(), knownNodes,
+                                            startTransport(node, knownNodes,
                                                 Version.CURRENT);
                                         discoverableTransports.add(transportService);
-                                        connection.addConnectedNode(transportService.getLocalDiscoNode());
+                                        seedNodes.add(Tuple.tuple(node, () -> transportService.getLocalDiscoNode()));
+                                        PlainActionFuture.get(fut -> connection.updateSeedNodes(null, seedNodes,
+                                            ActionListener.map(fut, x -> null)));
                                     } else {
                                         DiscoveryNode node = randomFrom(discoverableNodes).v2().get();
                                         connection.onNodeDisconnected(node);
@@ -1097,9 +1057,11 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     assertTrue(connection.assertNoRunningConnections());
                     IllegalStateException illegalStateException = expectThrows(IllegalStateException.class, () ->
                         updateSeedNodes(connection, Arrays.asList(Tuple.tuple("other", otherClusterTransport::getLocalDiscoNode))));
-                    assertThat(illegalStateException.getMessage(),
-                        startsWith("handshake failed, mismatched cluster name [Cluster [otherCluster]]" +
-                            " - {other_cluster_discoverable_node}"));
+                    assertThat(illegalStateException.getMessage(), allOf(
+                        startsWith("handshake with [{other_cluster_discoverable_node}"),
+                        containsString(otherClusterTransport.getLocalDiscoNode().toString()),
+                        endsWith(" failed: remote cluster name [otherCluster] " +
+                            "does not match expected remote cluster name [testClusterNameIsChecked]")));
                 }
             }
         }
@@ -1135,8 +1097,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 ConnectionManager delegate = new ConnectionManager(Settings.EMPTY, service.transport);
                 StubbableConnectionManager connectionManager = new StubbableConnectionManager(delegate, Settings.EMPTY, service.transport);
 
-                connectionManager.addNodeConnectedBehavior(connectedNode.getAddress(), (cm, discoveryNode)
-                    -> discoveryNode.equals(connectedNode));
+                connectionManager.setDefaultNodeConnectedBehavior(cm -> Collections.singleton(connectedNode));
 
                 connectionManager.addConnectBehavior(connectedNode.getAddress(), (cm, discoveryNode) -> {
                     if (discoveryNode == connectedNode) {
@@ -1148,7 +1109,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.acceptIncomingRequests();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
                     seedNodes(connectedNode), service, Integer.MAX_VALUE, n -> true, null, connectionManager)) {
-                    connection.addConnectedNode(connectedNode);
+                    PlainActionFuture.get(fut -> connection.ensureConnected(ActionListener.map(fut, x -> null)));
                     for (int i = 0; i < 10; i++) {
                         //always a direct connection as the remote node is already connected
                         Transport.Connection remoteConnection = connection.getConnection(connectedNode);
@@ -1263,36 +1224,58 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     // route by seed hostname
                     proxyNode = proxyMapping.get(node.getHostName());
                 }
-            return t.openConnection(proxyNode, profile, ActionListener.delegateFailure(listener,
-                (delegatedListener, connection) -> delegatedListener.onResponse(
-                    new Transport.Connection() {
-                        @Override
-                        public DiscoveryNode getNode() {
-                            return node;
-                        }
+                t.openConnection(proxyNode, profile, ActionListener.delegateFailure(listener,
+                    (delegatedListener, connection) -> delegatedListener.onResponse(
+                        new Transport.Connection() {
+                            @Override
+                            public DiscoveryNode getNode() {
+                                return node;
+                            }
 
-                        @Override
-                        public void sendRequest(long requestId, String action, TransportRequest request,
-                                                TransportRequestOptions options) throws IOException {
-                            connection.sendRequest(requestId, action, request, options);
-                        }
+                            @Override
+                            public void sendRequest(long requestId, String action, TransportRequest request,
+                                                    TransportRequestOptions options) throws IOException {
+                                connection.sendRequest(requestId, action, request, options);
+                            }
 
-                        @Override
-                        public void addCloseListener(ActionListener<Void> listener) {
-                            connection.addCloseListener(listener);
-                        }
+                            @Override
+                            public void addCloseListener(ActionListener<Void> listener) {
+                                connection.addCloseListener(listener);
+                            }
 
-                        @Override
-                        public boolean isClosed() {
-                            return connection.isClosed();
-                        }
+                            @Override
+                            public boolean isClosed() {
+                                return connection.isClosed();
+                            }
 
-                        @Override
-                        public void close() {
-                            connection.close();
-                        }
-                    })));
+                            @Override
+                            public void close() {
+                                connection.close();
+                            }
+                        })));
         });
         return stubbableTransport;
+    }
+
+    private static <V extends TransportResponse> TransportFuture<V> transportFuture(Writeable.Reader<V> reader) {
+        return new TransportFuture<>(new TransportResponseHandler<>() {
+            @Override
+            public void handleResponse(V response) {
+            }
+
+            @Override
+            public void handleException(final TransportException exp) {
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+
+            @Override
+            public V read(StreamInput in) throws IOException {
+                return reader.read(in);
+            }
+        });
     }
 }

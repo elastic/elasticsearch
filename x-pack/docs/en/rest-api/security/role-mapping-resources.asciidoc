@@ -49,7 +49,7 @@ The value specified in the field rule can be one of the following types:
 | Simple String      | Exactly matches the provided value.                             | "esadmin"
 | Wildcard String    | Matches the provided value using a wildcard.                    | "*,dc=example,dc=com"
 | Regular Expression | Matches the provided value using a
-                       {ref}/query-dsl-regexp-query.html#regexp-syntax[Lucene regexp]. | "/.\*-admin[0-9]*/"
+                       {ref}/regexp-syntax.html[Lucene regexp]. | "/.\*-admin[0-9]*/"
 | Number             | Matches an equivalent numerical value.                          | 7
 | Null               | Matches a null or missing value.                                | null
 | Array              | Tests each element in the array in

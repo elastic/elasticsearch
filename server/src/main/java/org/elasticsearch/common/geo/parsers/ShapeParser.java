@@ -20,18 +20,16 @@ package org.elasticsearch.common.geo.parsers;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.mapper.BaseGeoShapeFieldMapper;
+import org.elasticsearch.common.xcontent.support.MapXContentParser;
+import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
 
 import java.io.IOException;
-import java.io.InputStream;
+import java.util.Collections;
 
 /**
  * first point of entry for a shape parser
@@ -52,7 +50,7 @@ public interface ShapeParser {
      *          if the parsers current token has been <code>null</code>
      * @throws IOException if the input could not be read
      */
-    static ShapeBuilder parse(XContentParser parser, BaseGeoShapeFieldMapper shapeMapper) throws IOException {
+    static ShapeBuilder parse(XContentParser parser, AbstractGeometryFieldMapper shapeMapper) throws IOException {
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             return null;
         } if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
@@ -75,14 +73,8 @@ public interface ShapeParser {
     }
 
     static ShapeBuilder parse(Object value) throws IOException {
-        XContentBuilder content = JsonXContent.contentBuilder();
-        content.startObject();
-        content.field("value", value);
-        content.endObject();
-
-        try (InputStream stream = BytesReference.bytes(content).streamInput();
-             XContentParser parser = JsonXContent.jsonXContent.createParser(
-                 NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+        try (XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
+                Collections.singletonMap("value", value), null)) {
             parser.nextToken(); // start object
             parser.nextToken(); // field name
             parser.nextToken(); // field value

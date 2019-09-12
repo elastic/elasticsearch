@@ -17,10 +17,12 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -31,6 +33,9 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
+
+import java.io.IOException;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -50,7 +55,7 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
                                          Client client, PersistentTasksService persistentTasksService,
                                          NamedXContentRegistry xContentRegistry) {
         super(DeleteDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, DeleteDatafeedAction.Request::new);
+                DeleteDatafeedAction.Request::new, indexNameExpressionResolver);
         this.client = client;
         this.datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
         this.persistentTasksService = persistentTasksService;
@@ -64,12 +69,12 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+    protected AcknowledgedResponse read(StreamInput in) throws IOException {
+        return new AcknowledgedResponse(in);
     }
 
     @Override
-    protected void masterOperation(DeleteDatafeedAction.Request request, ClusterState state,
+    protected void masterOperation(Task task, DeleteDatafeedAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
 
         if (migrationEligibilityCheck.datafeedIsEligibleForMigration(request.getDatafeedId(), state)) {
@@ -135,10 +140,26 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
             return;
         }
 
-        datafeedConfigProvider.deleteDatafeedConfig(request.getDatafeedId(), ActionListener.wrap(
-                deleteResponse -> listener.onResponse(new AcknowledgedResponse(true)),
-                listener::onFailure
-        ));
+        String datafeedId = request.getDatafeedId();
+
+        datafeedConfigProvider.getDatafeedConfig(
+            datafeedId,
+            ActionListener.wrap(
+                datafeedConfigBuilder -> {
+                    String jobId = datafeedConfigBuilder.build().getJobId();
+                    JobDataDeleter jobDataDeleter = new JobDataDeleter(client, jobId);
+                    jobDataDeleter.deleteDatafeedTimingStats(
+                        ActionListener.wrap(
+                            unused1 -> {
+                                datafeedConfigProvider.deleteDatafeedConfig(
+                                    datafeedId,
+                                    ActionListener.wrap(
+                                        unused2 -> listener.onResponse(new AcknowledgedResponse(true)),
+                                        listener::onFailure));
+                            },
+                            listener::onFailure));
+                },
+                listener::onFailure));
     }
 
     @Override

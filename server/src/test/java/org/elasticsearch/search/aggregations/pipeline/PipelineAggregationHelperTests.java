@@ -172,7 +172,8 @@ public class PipelineAggregationHelperTests extends ESTestCase {
             case 2:
             default:
                 AutoDateHistogramAggregationBuilder.RoundingInfo[] roundings = new AutoDateHistogramAggregationBuilder.RoundingInfo[1];
-                factory = new AutoDateHistogramAggregatorFactory("name", mock(ValuesSourceConfig.class), 1, roundings,
+                factory = new AutoDateHistogramAggregatorFactory("name", mock(ValuesSourceConfig.class),
+                    1, roundings,
                     mock(SearchContext.class), null, new AggregatorFactories.Builder(), Collections.emptyMap());
         }
 

@@ -1,0 +1,25 @@
+{
+  "slm.execute_lifecycle":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-api.html"
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_slm/policy/{policy_id}/_execute",
+          "methods":[
+            "PUT"
+          ],
+          "parts":{
+            "policy_id":{
+              "type":"string",
+              "description":"The id of the snapshot lifecycle policy to be executed"
+            }
+          }
+        }
+      ]
+    },
+    "params":{}
+  }
+}

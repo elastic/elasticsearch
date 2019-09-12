@@ -86,7 +86,13 @@ setup:
         from: 1
         size: 1
 
-  - match: { count:   1 }
+  - match: { count:   2 }
+
+  - match:
+      filters.0:
+        filter_id: "filter-foo2"
+        description: "This filter has a description"
+        items: ["123", "lmnop"]
 
 ---
 "Test get filters API with expression ID":
@@ -323,6 +329,21 @@ setup:
   - do:
       ml.delete_filter:
         filter_id: "filter-foo2"
+
+  - do:
+      ml.get_filters: {}
+  - match: { count: 0 }
+  - match: { filters: [] }
+
+---
+"Test get all filter given index exists but no mapping for filter_id":
+
+  - do:
+      indices.delete:
+        index: ".ml-meta"
+  - do:
+      indices.create:
+        index: ".ml-meta"
 
   - do:
       ml.get_filters: {}

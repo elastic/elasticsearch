@@ -15,6 +15,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.Percentile;
@@ -275,7 +276,7 @@ class AggregationToJsonProcessor {
     }
 
     /**
-     * Adds a leaf key-value. It returns the name of the key added or {@code null} when nothing was added.
+     * Adds a leaf key-value. It returns {@code true} if the key added or {@code false} when nothing was added.
      * Non-finite metric values are not added.
      */
     private boolean processLeaf(Aggregation agg) throws IOException {
@@ -283,6 +284,8 @@ class AggregationToJsonProcessor {
             return processSingleValue((NumericMetricsAggregation.SingleValue) agg);
         } else if (agg instanceof Percentiles) {
             return processPercentiles((Percentiles) agg);
+        } else if (agg instanceof GeoCentroid){
+            return processGeoCentroid((GeoCentroid) agg);
         } else {
             throw new IllegalArgumentException("Unsupported aggregation type [" + agg.getName() + "]");
         }
@@ -295,6 +298,14 @@ class AggregationToJsonProcessor {
     private boolean addMetricIfFinite(String key, double value) {
         if (Double.isFinite(value)) {
             keyValuePairs.put(key, value);
+            return true;
+        }
+        return false;
+    }
+
+    private boolean processGeoCentroid(GeoCentroid agg) {
+        if (agg.count() > 0) {
+            keyValuePairs.put(agg.getName(), agg.centroid().getLat() + "," + agg.centroid().getLon());
             return true;
         }
         return false;

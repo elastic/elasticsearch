@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -62,6 +63,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -123,6 +125,42 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
         }
     }
 
+    public void testCloseRoutingTableWithRestoredIndex() {
+        ClusterState state = ClusterState.builder(new ClusterName("testCloseRoutingTableWithRestoredIndex")).build();
+
+        String indexName = "restored-index";
+        ClusterBlock block = MetaDataIndexStateService.createIndexClosingBlock();
+        state = addRestoredIndex(indexName, randomIntBetween(1, 5), randomIntBetween(0, 5), state);
+        state = ClusterState.builder(state)
+            .blocks(ClusterBlocks.builder().blocks(state.blocks()).addIndexBlock(indexName, block))
+            .build();
+
+        final Index index = state.metaData().index(indexName).getIndex();
+        final ClusterState updatedState =
+            MetaDataIndexStateService.closeRoutingTable(state, singletonMap(index, block), singletonMap(index, new IndexResult(index)))
+                .v1();
+        assertIsOpened(index.getName(), updatedState);
+        assertThat(updatedState.blocks().hasIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID), is(true));
+    }
+
+    public void testCloseRoutingTableWithSnapshottedIndex() {
+        ClusterState state = ClusterState.builder(new ClusterName("testCloseRoutingTableWithSnapshottedIndex")).build();
+
+        String indexName = "snapshotted-index";
+        ClusterBlock block = MetaDataIndexStateService.createIndexClosingBlock();
+        state = addSnapshotIndex(indexName, randomIntBetween(1, 5), randomIntBetween(0, 5), state);
+        state = ClusterState.builder(state)
+            .blocks(ClusterBlocks.builder().blocks(state.blocks()).addIndexBlock(indexName, block))
+            .build();
+
+        final Index index = state.metaData().index(indexName).getIndex();
+        final ClusterState updatedState =
+            MetaDataIndexStateService.closeRoutingTable(state, singletonMap(index, block), singletonMap(index, new IndexResult(index)))
+                .v1();
+        assertIsOpened(index.getName(), updatedState);
+        assertThat(updatedState.blocks().hasIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID), is(true));
+    }
+
     public void testCloseRoutingTableRemovesRoutingTable() {
         final Set<Index> nonBlockedIndices = new HashSet<>();
         final Map<Index, ClusterBlock> blockedIndices = new HashMap<>();
@@ -151,9 +189,9 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
         state = ClusterState.builder(state)
             .nodes(DiscoveryNodes.builder(state.nodes())
                 .add(new DiscoveryNode("old_node", buildNewFakeTransportAddress(), emptyMap(),
-                    new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())), Version.V_7_0_0))
+                    new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES), Version.V_7_0_0))
                 .add(new DiscoveryNode("new_node", buildNewFakeTransportAddress(), emptyMap(),
-                    new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())), Version.V_7_2_0)))
+                    new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES), Version.V_7_2_0)))
             .build();
 
         state = MetaDataIndexStateService.closeRoutingTable(state, blockedIndices, results).v1();

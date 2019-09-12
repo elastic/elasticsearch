@@ -98,10 +98,10 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
     }
 
     @Override
-    protected MultiValuesSourceAggregatorFactory<Numeric, ?> innerBuild(SearchContext context,
+    protected MultiValuesSourceAggregatorFactory<Numeric> innerBuild(SearchContext context,
                                                                     Map<String, ValuesSourceConfig<Numeric>> configs,
                                                                     DocValueFormat format,
-                                                                    AggregatorFactory<?> parent,
+                                                                    AggregatorFactory parent,
                                                                     Builder subFactoriesBuilder) throws IOException {
         return new WeightedAvgAggregatorFactory(name, configs, format, context, parent, subFactoriesBuilder, metaData);
     }
@@ -109,16 +109,6 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, ToXContent.Params params) throws IOException {
         return builder;
-    }
-
-    @Override
-    protected int innerHashCode() {
-        return 0;
-    }
-
-    @Override
-    protected boolean innerEquals(Object obj) {
-        return true;
     }
 
     @Override

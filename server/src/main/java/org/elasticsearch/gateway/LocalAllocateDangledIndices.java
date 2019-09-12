@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -41,11 +42,9 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -73,7 +72,7 @@ public class LocalAllocateDangledIndices {
         this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.metaDataIndexUpgradeService = metaDataIndexUpgradeService;
-        transportService.registerRequestHandler(ACTION_NAME, AllocateDangledRequest::new, ThreadPool.Names.SAME,
+        transportService.registerRequestHandler(ACTION_NAME, ThreadPool.Names.SAME, AllocateDangledRequest::new,
             new AllocateDangledRequestHandler());
     }
 
@@ -86,27 +85,8 @@ public class LocalAllocateDangledIndices {
         }
         AllocateDangledRequest request = new AllocateDangledRequest(clusterService.localNode(),
             indices.toArray(new IndexMetaData[indices.size()]));
-        transportService.sendRequest(masterNode, ACTION_NAME, request, new TransportResponseHandler<AllocateDangledResponse>() {
-            @Override
-            public AllocateDangledResponse read(StreamInput in) throws IOException {
-                return new AllocateDangledResponse(in);
-            }
-
-            @Override
-            public void handleResponse(AllocateDangledResponse response) {
-                listener.onResponse(response);
-            }
-
-            @Override
-            public void handleException(TransportException exp) {
-                listener.onFailure(exp);
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.SAME;
-            }
-        });
+        transportService.sendRequest(masterNode, ACTION_NAME, request,
+            new ActionListenerResponseHandler<>(listener, AllocateDangledResponse::new, ThreadPool.Names.SAME));
     }
 
     class AllocateDangledRequestHandler implements TransportRequestHandler<AllocateDangledRequest> {
@@ -210,22 +190,18 @@ public class LocalAllocateDangledIndices {
         DiscoveryNode fromNode;
         IndexMetaData[] indices;
 
-        public AllocateDangledRequest() {
-        }
-
-        AllocateDangledRequest(DiscoveryNode fromNode, IndexMetaData[] indices) {
-            this.fromNode = fromNode;
-            this.indices = indices;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public AllocateDangledRequest(StreamInput in) throws IOException {
+            super(in);
             fromNode = new DiscoveryNode(in);
             indices = new IndexMetaData[in.readVInt()];
             for (int i = 0; i < indices.length; i++) {
                 indices[i] = IndexMetaData.readFrom(in);
             }
+        }
+
+        AllocateDangledRequest(DiscoveryNode fromNode, IndexMetaData[] indices) {
+            this.fromNode = fromNode;
+            this.indices = indices;
         }
 
         @Override
@@ -252,7 +228,6 @@ public class LocalAllocateDangledIndices {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             if (out.getVersion().before(Version.V_8_0_0)) {
                 out.writeBoolean(true);
             }

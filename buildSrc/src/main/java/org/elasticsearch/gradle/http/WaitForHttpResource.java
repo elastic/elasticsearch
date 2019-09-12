@@ -129,18 +129,14 @@ public class WaitForHttpResource {
     }
 
     protected void checkResource(SSLContext ssl) throws IOException {
-        try {
-            final HttpURLConnection connection = buildConnection(ssl);
-            connection.connect();
-            final Integer response = connection.getResponseCode();
-            if (validResponseCodes.contains(response)) {
-                logger.info("Got successful response [{}] from URL [{}]", response, url);
-                return;
-            } else {
-                throw new IOException(response + " " + connection.getResponseMessage());
-            }
-        } catch (IOException e) {
-            throw e;
+        final HttpURLConnection connection = buildConnection(ssl);
+        connection.connect();
+        final Integer response = connection.getResponseCode();
+        if (validResponseCodes.contains(response)) {
+            logger.info("Got successful response [{}] from URL [{}]", response, url);
+            return;
+        } else {
+            throw new IOException(response + " " + connection.getResponseMessage());
         }
     }
 

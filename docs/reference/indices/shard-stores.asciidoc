@@ -1,5 +1,5 @@
 [[indices-shards-stores]]
-== Indices Shard Stores
+=== Indices Shard Stores
 
 Provides store information for shard copies of indices.
 Store information reports on which nodes shard copies exist, the shard
@@ -15,7 +15,7 @@ for shards, which has unassigned primaries.
 Endpoints include shard stores information for a specific index, several
 indices, or all:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 # return information of only index test
 GET /test/_shard_stores
@@ -26,7 +26,6 @@ GET /test1,test2/_shard_stores
 # return information of all indices
 GET /_shard_stores
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT test\nPUT test1\nPUT test2\n/]
 
 The scope of shards to list store information can be changed through
@@ -35,11 +34,10 @@ shards with at least one unassigned replica and 'red' for shards with unassigned
 primary shard.
 Use 'green' to list store information for shards with all assigned copies.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_shard_stores?status=green
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:node]
 // TEST[s/^/PUT my-index\n{"settings":{"number_of_shards":1, "number_of_replicas": 0}}\nPOST my-index\/test\?refresh\n{"test": "test"}\n/]
 
@@ -47,7 +45,7 @@ Response:
 
 The shard stores information is grouped by indices and shard ids.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "indices": {

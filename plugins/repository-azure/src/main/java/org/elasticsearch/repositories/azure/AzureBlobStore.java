@@ -21,12 +21,12 @@ package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
-
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.repositories.azure.AzureRepository.Repository;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -36,6 +36,7 @@ import java.net.URISyntaxException;
 import java.nio.file.FileAlreadyExistsException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -83,16 +84,17 @@ public class AzureBlobStore implements BlobStore {
     public void close() {
     }
 
-    public boolean containerExist() throws URISyntaxException, StorageException {
-        return service.doesContainerExist(clientName, container);
-    }
-
     public boolean blobExists(String blob) throws URISyntaxException, StorageException {
         return service.blobExists(clientName, container, blob);
     }
 
     public void deleteBlob(String blob) throws URISyntaxException, StorageException {
         service.deleteBlob(clientName, container, blob);
+    }
+
+    public DeleteResult deleteBlobDirectory(String path, Executor executor)
+            throws URISyntaxException, StorageException, IOException {
+        return service.deleteBlobDirectory(clientName, container, path, executor);
     }
 
     public InputStream getInputStream(String blob) throws URISyntaxException, StorageException, IOException {

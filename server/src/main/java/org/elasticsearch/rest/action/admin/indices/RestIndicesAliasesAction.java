@@ -21,7 +21,6 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -39,8 +38,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
         return "indices_aliases_action";
     }
 
-    public RestIndicesAliasesAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestIndicesAliasesAction(RestController controller) {
         controller.registerHandler(POST, "/_aliases", this);
     }
 

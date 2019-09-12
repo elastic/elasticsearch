@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
@@ -53,17 +54,17 @@ public class TransportNodesUsageAction
     }
 
     @Override
-    protected NodeUsageRequest newNodeRequest(String nodeId, NodesUsageRequest request) {
-        return new NodeUsageRequest(nodeId, request);
+    protected NodeUsageRequest newNodeRequest(NodesUsageRequest request) {
+        return new NodeUsageRequest(request);
     }
 
     @Override
-    protected NodeUsage newNodeResponse() {
-        return new NodeUsage();
+    protected NodeUsage newNodeResponse(StreamInput in) throws IOException {
+        return new NodeUsage(in);
     }
 
     @Override
-    protected NodeUsage nodeOperation(NodeUsageRequest nodeUsageRequest) {
+    protected NodeUsage nodeOperation(NodeUsageRequest nodeUsageRequest, Task task) {
         NodesUsageRequest request = nodeUsageRequest.request;
         return usageService.getUsageStats(clusterService.localNode(), request.restActions());
     }
@@ -72,19 +73,13 @@ public class TransportNodesUsageAction
 
         NodesUsageRequest request;
 
-        public NodeUsageRequest() {
+        public NodeUsageRequest(StreamInput in) throws IOException {
+            super(in);
+            request = new NodesUsageRequest(in);
         }
 
-        NodeUsageRequest(String nodeId, NodesUsageRequest request) {
-            super(nodeId);
+        NodeUsageRequest(NodesUsageRequest request) {
             this.request = request;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            request = new NodesUsageRequest();
-            request.readFrom(in);
         }
 
         @Override

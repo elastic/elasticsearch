@@ -228,13 +228,17 @@ public class OsStats implements Writeable, ToXContentFragment {
         private final long free;
 
         public Mem(long total, long free) {
+            assert total >= 0 : "expected total memory to be positive, got: " + total;
+            assert free >= 0 : "expected free memory to be positive, got: " + total;
             this.total = total;
             this.free = free;
         }
 
         public Mem(StreamInput in) throws IOException {
             this.total = in.readLong();
+            assert total >= 0 : "expected total memory to be positive, got: " + total;
             this.free = in.readLong();
+            assert free >= 0 : "expected free memory to be positive, got: " + total;
         }
 
         @Override

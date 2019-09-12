@@ -23,6 +23,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 
 import java.io.ByteArrayInputStream;
@@ -47,6 +48,7 @@ class ScrollDataExtractor implements DataExtractor {
 
     private final Client client;
     private final ScrollDataExtractorContext context;
+    private final DatafeedTimingStatsReporter timingStatsReporter;
     private String scrollId;
     private boolean isCancelled;
     private boolean hasNext;
@@ -54,9 +56,10 @@ class ScrollDataExtractor implements DataExtractor {
     protected Long lastTimestamp;
     private boolean searchHasShardFailure;
 
-    ScrollDataExtractor(Client client, ScrollDataExtractorContext dataExtractorContext) {
+    ScrollDataExtractor(Client client, ScrollDataExtractorContext dataExtractorContext, DatafeedTimingStatsReporter timingStatsReporter) {
         this.client = Objects.requireNonNull(client);
-        context = Objects.requireNonNull(dataExtractorContext);
+        this.context = Objects.requireNonNull(dataExtractorContext);
+        this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
         hasNext = true;
         searchHasShardFailure = false;
     }
@@ -109,6 +112,7 @@ class ScrollDataExtractor implements DataExtractor {
         LOGGER.debug("[{}] Initializing scroll", context.jobId);
         SearchResponse searchResponse = executeSearchRequest(buildSearchRequest(startTimestamp));
         LOGGER.debug("[{}] Search response was obtained", context.jobId);
+        timingStatsReporter.reportSearchDuration(searchResponse.getTook());
         return processSearchResponse(searchResponse);
     }
 
@@ -188,12 +192,14 @@ class ScrollDataExtractor implements DataExtractor {
             if (searchHasShardFailure == false) {
                 LOGGER.debug("[{}] Reinitializing scroll due to SearchPhaseExecutionException", context.jobId);
                 markScrollAsErrored();
-                searchResponse = executeSearchRequest(buildSearchRequest(lastTimestamp == null ? context.start : lastTimestamp));
+                searchResponse =
+                    executeSearchRequest(buildSearchRequest(lastTimestamp == null ? context.start : lastTimestamp));
             } else {
                 throw searchExecutionException;
             }
         }
         LOGGER.debug("[{}] Search response was obtained", context.jobId);
+        timingStatsReporter.reportSearchDuration(searchResponse.getTook());
         return processSearchResponse(searchResponse);
     }
 
@@ -209,7 +215,7 @@ class ScrollDataExtractor implements DataExtractor {
 
     protected SearchResponse executeSearchScrollRequest(String scrollId) {
         return ClientHelper.executeWithHeaders(context.headers, ClientHelper.ML_ORIGIN, client,
-                () -> new SearchScrollRequestBuilder(client, SearchScrollAction.INSTANCE)
+            () -> new SearchScrollRequestBuilder(client, SearchScrollAction.INSTANCE)
                 .setScroll(SCROLL_TIMEOUT)
                 .setScrollId(scrollId)
                 .get());

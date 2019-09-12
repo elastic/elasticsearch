@@ -194,7 +194,7 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
             //end::get-license-response
 
             assertThat(currentLicense, containsString("trial"));
-            assertThat(currentLicense, containsString("client_rest-high-level_integTestCluster"));
+            assertThat(currentLicense, containsString("integTest"));
         }
         {
             GetLicenseRequest request = new GetLicenseRequest();
@@ -233,7 +233,7 @@ public class LicensingDocumentationIT extends ESRestHighLevelClientTestCase {
             String currentLicense = response.getLicenseDefinition();
             assertThat(currentLicense, startsWith("{"));
             assertThat(currentLicense, containsString("trial"));
-            assertThat(currentLicense, containsString("client_rest-high-level_integTestCluster"));
+            assertThat(currentLicense, containsString("integTest"));
             assertThat(currentLicense, endsWith("}"));
         }
     }

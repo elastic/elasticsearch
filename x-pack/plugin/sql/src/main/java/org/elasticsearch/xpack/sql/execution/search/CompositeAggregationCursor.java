@@ -27,7 +27,8 @@ import org.elasticsearch.xpack.sql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursor;
-import org.elasticsearch.xpack.sql.session.RowSet;
+import org.elasticsearch.xpack.sql.session.Rows;
+import org.elasticsearch.xpack.sql.type.Schema;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.io.IOException;
@@ -36,6 +37,8 @@ import java.util.BitSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Cursor for composite aggregation (GROUP BY).
@@ -116,7 +119,7 @@ public class CompositeAggregationCursor implements Cursor {
     }
 
     @Override
-    public void nextPage(Configuration cfg, Client client, NamedWriteableRegistry registry, ActionListener<RowSet> listener) {
+    public void nextPage(Configuration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
         SearchSourceBuilder q;
         try {
             q = deserializeQuery(registry, nextQuery);
@@ -132,24 +135,14 @@ public class CompositeAggregationCursor implements Cursor {
 
         SearchRequest search = Querier.prepareRequest(client, query, cfg.pageTimeout(), includeFrozen, indices);
 
-        client.search(search, new ActionListener<SearchResponse>() {
+        client.search(search, new ActionListener<>() {
             @Override
             public void onResponse(SearchResponse r) {
-                try {
-                    // retry
-                    if (shouldRetryDueToEmptyPage(r)) {
-                        CompositeAggregationCursor.updateCompositeAfterKey(r, search.source());
-                        client.search(search, this);
-                        return;
-                    }
-
-                    updateCompositeAfterKey(r, query);
-                    CompositeAggsRowSet rowSet = new CompositeAggsRowSet(extractors, mask, r, limit, serializeQuery(query), includeFrozen,
-                            indices);
-                    listener.onResponse(rowSet);
-                } catch (Exception ex) {
-                    listener.onFailure(ex);
-                }
+                handle(r, search.source(), ba -> new CompositeAggsRowSet(extractors, mask, r, limit, ba),
+                        () -> client.search(search, this),
+                        p -> listener.onResponse(p),
+                        e -> listener.onFailure(e),
+                        Schema.EMPTY, includeFrozen, indices);
             }
 
             @Override
@@ -159,6 +152,39 @@ public class CompositeAggregationCursor implements Cursor {
         });
     }
 
+    static void handle(SearchResponse response, SearchSourceBuilder source, Function<byte[], CompositeAggsRowSet> makeRowSet,
+            Runnable retry, Consumer<Page> onPage, Consumer<Exception> onFailure,
+            Schema schema, boolean includeFrozen, String[] indices) {
+        
+        // there are some results
+        if (response.getAggregations().asList().isEmpty() == false) {
+            // retry
+            if (CompositeAggregationCursor.shouldRetryDueToEmptyPage(response)) {
+                CompositeAggregationCursor.updateCompositeAfterKey(response, source);
+                retry.run();
+                return;
+            }
+
+            try {
+                boolean hasAfterKey = updateCompositeAfterKey(response, source);
+                byte[] queryAsBytes = hasAfterKey ? serializeQuery(source) : null;
+                CompositeAggsRowSet rowSet = makeRowSet.apply(queryAsBytes);
+
+                Cursor next = rowSet.remainingData() == 0
+                        ? Cursor.EMPTY
+                        : new CompositeAggregationCursor(queryAsBytes, rowSet.extractors(), rowSet.mask(),
+                                rowSet.remainingData(), includeFrozen, indices);
+                onPage.accept(new Page(rowSet, next));
+            } catch (Exception ex) {
+                onFailure.accept(ex);
+            }
+        }
+        // no results
+        else {
+            onPage.accept(Page.last(Rows.empty(schema)));
+        }
+    }
+    
     static boolean shouldRetryDueToEmptyPage(SearchResponse response) {
         CompositeAggregation composite = getComposite(response);
         // if there are no buckets but a next page, go fetch it instead of sending an empty response to the client
@@ -178,7 +204,7 @@ public class CompositeAggregationCursor implements Cursor {
         throw new SqlIllegalArgumentException("Unrecognized root group found; {}", agg.getClass());
     }
 
-    static void updateCompositeAfterKey(SearchResponse r, SearchSourceBuilder next) {
+    static boolean updateCompositeAfterKey(SearchResponse r, SearchSourceBuilder next) {
         CompositeAggregation composite = getComposite(r);
 
         if (composite == null) {
@@ -187,22 +213,25 @@ public class CompositeAggregationCursor implements Cursor {
 
         Map<String, Object> afterKey = composite.afterKey();
         // a null after-key means done
-        if (afterKey != null) {
-            AggregationBuilder aggBuilder = next.aggregations().getAggregatorFactories().iterator().next();
-            // update after-key with the new value
-            if (aggBuilder instanceof CompositeAggregationBuilder) {
-                CompositeAggregationBuilder comp = (CompositeAggregationBuilder) aggBuilder;
-                comp.aggregateAfter(afterKey);
-            } else {
-                throw new SqlIllegalArgumentException("Invalid client request; expected a group-by but instead got {}", aggBuilder);
-            }
+        if (afterKey == null) {
+            return false;
+        }
+
+        AggregationBuilder aggBuilder = next.aggregations().getAggregatorFactories().iterator().next();
+        // update after-key with the new value
+        if (aggBuilder instanceof CompositeAggregationBuilder) {
+            CompositeAggregationBuilder comp = (CompositeAggregationBuilder) aggBuilder;
+            comp.aggregateAfter(afterKey);
+            return true;
+        } else {
+            throw new SqlIllegalArgumentException("Invalid client request; expected a group-by but instead got {}", aggBuilder);
         }
     }
 
     /**
      * Deserializes the search source from a byte array.
      */
-    static SearchSourceBuilder deserializeQuery(NamedWriteableRegistry registry, byte[] source) throws IOException {
+    private static SearchSourceBuilder deserializeQuery(NamedWriteableRegistry registry, byte[] source) throws IOException {
         try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(source), registry)) {
             return new SearchSourceBuilder(in);
         }

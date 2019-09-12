@@ -1,0 +1,100 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-revert-snapshot]]
+=== Revert model snapshots API
+++++
+<titleabbrev>Revert model snapshots</titleabbrev>
+++++
+
+Reverts to a specific snapshot.
+
+[[ml-revert-snapshot-request]]
+==== {api-request-title}
+
+`POST _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>/_revert`
+
+[[ml-revert-snapshot-prereqs]]
+==== {api-prereq-title}
+
+* Before you revert to a saved snapshot, you must close the job.
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
+[[ml-revert-snapshot-desc]]
+==== {api-description-title}
+
+The {ml} feature in {xpack} reacts quickly to anomalous input, learning new
+behaviors in data. Highly anomalous input increases the variance in the models
+whilst the system learns whether this is a new step-change in behavior or a
+one-off event. In the case where this anomalous input is known to be a one-off,
+then it might be appropriate to reset the model state to a time before this
+event. For example, you might consider reverting to a saved snapshot after Black
+Friday or a critical system failure.
+
+[[ml-revert-snapshot-path-parms]]
+==== {api-path-parms-title}
+
+`<job_id>`::
+  (Required, string) Identifier for the job.
+
+`<snapshot_id>`::
+  (Required, string) Identifier for the model snapshot.
+
+[[ml-revert-snapshot-request-body]]
+==== {api-request-body-title}
+
+`delete_intervening_results`::
+  (Optional, boolean) If true, deletes the results in the time period between
+  the latest results and the time of the reverted snapshot. It also resets the
+  model to accept records for this time period. The default value is false.
+
+NOTE: If you choose not to delete intervening results when reverting a snapshot,
+the job will not accept input data that is older than the current time.
+If you want to resend data, then delete the intervening results.
+
+[[ml-revert-snapshot-example]]
+==== {api-examples-title}
+
+The following example reverts to the `1491856080` snapshot for the
+`it_ops_new_kpi` job:
+
+[source,console]
+--------------------------------------------------
+POST
+_ml/anomaly_detectors/it_ops_new_kpi/model_snapshots/1491856080/_revert
+{
+  "delete_intervening_results": true
+}
+--------------------------------------------------
+// TEST[skip:todo]
+
+When the operation is complete, you receive the following results:
+[source,js]
+----
+{
+  "model": {
+    "job_id": "it_ops_new_kpi",
+    "min_version": "6.3.0",
+    "timestamp": 1491856080000,
+    "description": "State persisted due to job close at 2017-04-10T13:28:00-0700",
+    "snapshot_id": "1491856080",
+    "snapshot_doc_count": 1,
+    "model_size_stats": {
+      "job_id": "it_ops_new_kpi",
+      "result_type": "model_size_stats",
+      "model_bytes": 29518,
+      "total_by_field_count": 3,
+      "total_over_field_count": 0,
+      "total_partition_field_count": 2,
+      "bucket_allocation_failures_count": 0,
+      "memory_status": "ok",
+      "log_time": 1491856080000,
+      "timestamp": 1455318000000
+    },
+    "latest_record_time_stamp": 1455318669000,
+    "latest_result_time_stamp": 1455318000000,
+    "retain": false
+  }
+}
+----

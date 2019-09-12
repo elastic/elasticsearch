@@ -64,16 +64,6 @@ public class MinBucketPipelineAggregationBuilder extends BucketMetricsPipelineAg
     };
 
     @Override
-    protected int innerHashCode() {
-        return 0;
-    }
-
-    @Override
-    protected boolean innerEquals(BucketMetricsPipelineAggregationBuilder<MinBucketPipelineAggregationBuilder> other) {
-        return true;
-    }
-
-    @Override
     public String getWriteableName() {
         return NAME;
     }

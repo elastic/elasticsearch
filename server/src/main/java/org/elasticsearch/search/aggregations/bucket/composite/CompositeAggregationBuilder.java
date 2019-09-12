@@ -162,7 +162,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
      * this aggregator or the instance of the parent's factory that is incompatible with
      * the composite aggregation.
      */
-    private AggregatorFactory<?> checkParentIsNullOrNested(AggregatorFactory<?> factory) {
+    private AggregatorFactory checkParentIsNullOrNested(AggregatorFactory factory) {
         if (factory == null) {
             return null;
         } else if (factory instanceof NestedAggregatorFactory) {
@@ -195,9 +195,9 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     }
 
     @Override
-    protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent,
+    protected AggregatorFactory doBuild(SearchContext context, AggregatorFactory parent,
                                            AggregatorFactories.Builder subfactoriesBuilder) throws IOException {
-        AggregatorFactory<?> invalid = checkParentIsNullOrNested(parent);
+        AggregatorFactory invalid = checkParentIsNullOrNested(parent);
         if (invalid != null) {
             throw new IllegalArgumentException("[composite] aggregation cannot be used with a parent aggregation of" +
                 " type: [" + invalid.getClass().getSimpleName() + "]");
@@ -256,12 +256,15 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(sources, size, after);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), sources, size, after);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         CompositeAggregationBuilder other = (CompositeAggregationBuilder) obj;
         return size == other.size &&
             Objects.equals(sources, other.sources) &&

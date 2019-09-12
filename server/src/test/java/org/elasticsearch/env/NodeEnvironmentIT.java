@@ -205,7 +205,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         internalCluster().startNode(dataPathSettings);
         dataPaths.forEach(path -> assertFalse(Files.exists(path.resolve("nodes"))));
         assertEquals(nodeId, client().admin().cluster().prepareState().get().getState().nodes().getMasterNodeId());
-        assertTrue(client().admin().indices().prepareExists("test").get().isExists());
+        assertTrue(indexExists("test"));
         ensureYellow("test");
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
     }

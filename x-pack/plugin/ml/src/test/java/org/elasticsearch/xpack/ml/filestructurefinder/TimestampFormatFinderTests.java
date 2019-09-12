@@ -136,11 +136,11 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
         e = expectThrows(IllegalArgumentException.class,
             () -> TimestampFormatFinder.overrideFormatToGrokAndRegex("MM/dd/yyyy H:mm:ss+SSSSSS"));
         assertEquals("Letter group [SSSSSS] in [MM/dd/yyyy H:mm:ss+SSSSSS] is not supported"
-            + " because it is not preceeded by [ss] and a separator from [:.,]", e.getMessage());
+            + " because it is not preceded by [ss] and a separator from [:.,]", e.getMessage());
         e = expectThrows(IllegalArgumentException.class,
             () -> TimestampFormatFinder.overrideFormatToGrokAndRegex("MM/dd/yyyy H:mm,SSSSSS"));
         assertEquals("Letter group [SSSSSS] in [MM/dd/yyyy H:mm,SSSSSS] is not supported"
-            + " because it is not preceeded by [ss] and a separator from [:.,]", e.getMessage());
+            + " because it is not preceded by [ss] and a separator from [:.,]", e.getMessage());
         e = expectThrows(IllegalArgumentException.class,
             () -> TimestampFormatFinder.overrideFormatToGrokAndRegex(" 'T' "));
         assertEquals("No time format letter groups in override format [ 'T' ]", e.getMessage());
@@ -434,7 +434,13 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
         TimestampFormatFinder timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, true, NOOP_TIMEOUT_CHECKER);
 
         // Locale fallback is the only way to decide
+
+        // The US locale should work for both FIPS and non-FIPS
         assertFalse(timestampFormatFinder.guessIsDayFirstFromLocale(Locale.US));
+
+        // Non-US locales may not work correctly in a FIPS JVM - see https://github.com/elastic/elasticsearch/issues/45140
+        assumeFalse("Locales not reliable in FIPS JVM", inFipsJvm());
+
         assertTrue(timestampFormatFinder.guessIsDayFirstFromLocale(Locale.UK));
         assertTrue(timestampFormatFinder.guessIsDayFirstFromLocale(Locale.FRANCE));
         assertFalse(timestampFormatFinder.guessIsDayFirstFromLocale(Locale.JAPAN));
@@ -562,6 +568,11 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
         validateNoTimestampMatch("no timestamps in here");
         validateNoTimestampMatch(":::");
         validateNoTimestampMatch("/+");
+        // These two don't match because they're too far in the future
+        // when interpreted as seconds/milliseconds from the epoch
+        // (they need to be 10 or 13 digits beginning with 1 or 2)
+        validateNoTimestampMatch("3213213213");
+        validateNoTimestampMatch("9789522792167");
     }
 
     public void testFindFormatGivenOnlyIso8601() {
@@ -693,10 +704,14 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
 
     public void testFindFormatGivenOnlySystemDate() {
 
+        validateTimestampMatch("1000000000000", "POSINT", "\\b\\d{13}\\b", "UNIX_MS", 1000000000000L);
         validateTimestampMatch("1526400896374", "POSINT", "\\b\\d{13}\\b", "UNIX_MS", 1526400896374L);
+        validateTimestampMatch("2999999999999", "POSINT", "\\b\\d{13}\\b", "UNIX_MS", 2999999999999L);
 
+        validateTimestampMatch("1000000000", "NUMBER", "\\b\\d{10}\\b", "UNIX", 1000000000000L);
         validateTimestampMatch("1526400896.736", "NUMBER", "\\b\\d{10}\\b", "UNIX", 1526400896736L);
         validateTimestampMatch("1526400896", "NUMBER", "\\b\\d{10}\\b", "UNIX", 1526400896000L);
+        validateTimestampMatch("2999999999.999", "NUMBER", "\\b\\d{10}\\b", "UNIX", 2999999999999L);
 
         validateTimestampMatch("400000005afb078a164ac980", "BASE16NUM", "\\b[0-9A-Fa-f]{24}\\b", "TAI64N", 1526400896374L);
     }
@@ -728,16 +743,27 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
         assertEquals(1, lenientTimestampFormatFinder.getNumMatchedFormats());
     }
 
-    public void testCustomOverrideNotMatchingBuiltInFormat() {
+    public void testCustomOverridesNotMatchingBuiltInFormat() {
 
-        String overrideFormat = "MM/dd HH.mm.ss,SSSSSS 'in' yyyy";
-        String text = "05/15 17.14.56,374946 in 2018";
-        String expectedSimpleRegex = "\\b\\d{2}/\\d{2} \\d{2}\\.\\d{2}\\.\\d{2},\\d{6} in \\d{4}\\b";
-        String expectedGrokPatternName = "CUSTOM_TIMESTAMP";
-        Map<String, String> expectedCustomGrokPatternDefinitions =
+        validateCustomOverrideNotMatchingBuiltInFormat("MM/dd HH.mm.ss,SSSSSS 'in' yyyy", "05/15 17.14.56,374946 in 2018",
+            "\\b\\d{2}/\\d{2} \\d{2}\\.\\d{2}\\.\\d{2},\\d{6} in \\d{4}\\b", "CUSTOM_TIMESTAMP",
             Collections.singletonMap(TimestampFormatFinder.CUSTOM_TIMESTAMP_GROK_NAME,
-                "%{MONTHNUM2}/%{MONTHDAY} %{HOUR}\\.%{MINUTE}\\.%{SECOND} in %{YEAR}");
+                "%{MONTHNUM2}/%{MONTHDAY} %{HOUR}\\.%{MINUTE}\\.%{SECOND} in %{YEAR}"));
 
+        validateCustomOverrideNotMatchingBuiltInFormat("'some_prefix 'dd.MM.yyyy HH:mm:ss.SSSSSS", "some_prefix 06.01.2018 16:56:14.295748",
+            "some_prefix \\d{2}\\.\\d{2}\\.\\d{4} \\d{2}:\\d{2}:\\d{2}\\.\\d{6}\\b", "CUSTOM_TIMESTAMP",
+            Collections.singletonMap(TimestampFormatFinder.CUSTOM_TIMESTAMP_GROK_NAME,
+                "some_prefix %{MONTHDAY}\\.%{MONTHNUM2}\\.%{YEAR} %{HOUR}:%{MINUTE}:%{SECOND}"));
+
+        validateCustomOverrideNotMatchingBuiltInFormat("dd.MM. yyyy HH:mm:ss.SSSSSS", "06.01. 2018 16:56:14.295748",
+            "\\b\\d{2}\\.\\d{2}\\. \\d{4} \\d{2}:\\d{2}:\\d{2}\\.\\d{6}\\b", "CUSTOM_TIMESTAMP",
+            Collections.singletonMap(TimestampFormatFinder.CUSTOM_TIMESTAMP_GROK_NAME,
+                "%{MONTHDAY}\\.%{MONTHNUM2}\\. %{YEAR} %{HOUR}:%{MINUTE}:%{SECOND}"));
+    }
+
+    private void validateCustomOverrideNotMatchingBuiltInFormat(String overrideFormat, String text, String expectedSimpleRegex,
+                                                                String expectedGrokPatternName,
+                                                                Map<String, String> expectedCustomGrokPatternDefinitions) {
         TimestampFormatFinder strictTimestampFormatFinder = new TimestampFormatFinder(explanation, overrideFormat, true, true, true,
             NOOP_TIMEOUT_CHECKER);
         strictTimestampFormatFinder.addSample(text);

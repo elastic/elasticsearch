@@ -148,8 +148,8 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(SearchContext context,
-            ValuesSourceConfig<ValuesSource> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(SearchContext context,
+            ValuesSourceConfig<ValuesSource> config, AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         return new DiversifiedAggregatorFactory(name, config, shardSize, maxDocsPerValue, executionHint, context, parent,
                 subFactoriesBuilder, metaData);
     }
@@ -165,16 +165,19 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
-    protected int innerHashCode() {
-        return Objects.hash(shardSize, maxDocsPerValue, executionHint);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), shardSize, maxDocsPerValue, executionHint);
     }
 
     @Override
-    protected boolean innerEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         DiversifiedAggregationBuilder other = (DiversifiedAggregationBuilder) obj;
         return Objects.equals(shardSize, other.shardSize)
-                && Objects.equals(maxDocsPerValue, other.maxDocsPerValue)
-                && Objects.equals(executionHint, other.executionHint);
+            && Objects.equals(maxDocsPerValue, other.maxDocsPerValue)
+            && Objects.equals(executionHint, other.executionHint);
     }
 
     @Override

@@ -23,11 +23,13 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.TimingStats;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
@@ -36,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -122,6 +125,21 @@ public class JobResultsPersister {
         }
 
         /**
+         * Persist timing stats
+         *
+         * @param timingStats timing stats to persist
+         * @return this
+         */
+        public Builder persistTimingStats(TimingStats timingStats) {
+            indexResult(
+                TimingStats.documentId(timingStats.getJobId()),
+                timingStats,
+                new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
+                TimingStats.TYPE.getPreferredName());
+            return this;
+        }
+
+        /**
          * Persist a list of anomaly records
          *
          * @param records the records to persist
@@ -172,7 +190,11 @@ public class JobResultsPersister {
         }
 
         private void indexResult(String id, ToXContent resultDoc, String resultType) {
-            try (XContentBuilder content = toXContentBuilder(resultDoc)) {
+            indexResult(id, resultDoc, ToXContent.EMPTY_PARAMS, resultType);
+        }
+
+        private void indexResult(String id, ToXContent resultDoc, ToXContent.Params params, String resultType) {
+            try (XContentBuilder content = toXContentBuilder(resultDoc, params)) {
                 bulkRequest.add(new IndexRequest(indexName).id(id).source(content));
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Error serialising {}", jobId, resultType), e);
@@ -313,9 +335,27 @@ public class JobResultsPersister {
         }
     }
 
-    private XContentBuilder toXContentBuilder(ToXContent obj) throws IOException {
+    /**
+     * Persist datafeed timing stats
+     *
+     * @param timingStats datafeed timing stats to persist
+     * @param refreshPolicy refresh policy to apply
+     */
+    public IndexResponse persistDatafeedTimingStats(DatafeedTimingStats timingStats, WriteRequest.RefreshPolicy refreshPolicy) {
+        String jobId = timingStats.getJobId();
+        logger.trace("[{}] Persisting datafeed timing stats", jobId);
+        Persistable persistable = new Persistable(
+            jobId,
+            timingStats,
+            new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
+            DatafeedTimingStats.documentId(timingStats.getJobId()));
+        persistable.setRefreshPolicy(refreshPolicy);
+        return persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(jobId)).actionGet();
+    }
+
+    private static XContentBuilder toXContentBuilder(ToXContent obj, ToXContent.Params params) throws IOException {
         XContentBuilder builder = jsonBuilder();
-        obj.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        obj.toXContent(builder, params);
         return builder;
     }
 
@@ -323,12 +363,18 @@ public class JobResultsPersister {
 
         private final String jobId;
         private final ToXContent object;
+        private final ToXContent.Params params;
         private final String id;
         private WriteRequest.RefreshPolicy refreshPolicy;
 
         Persistable(String jobId, ToXContent object, String id) {
+            this(jobId, object, ToXContent.EMPTY_PARAMS, id);
+        }
+
+        Persistable(String jobId, ToXContent object, ToXContent.Params params, String id) {
             this.jobId = jobId;
             this.object = object;
+            this.params = params;
             this.id = id;
             this.refreshPolicy = WriteRequest.RefreshPolicy.NONE;
         }
@@ -346,7 +392,7 @@ public class JobResultsPersister {
         void persist(String indexName, ActionListener<IndexResponse> listener) {
             logCall(indexName);
 
-            try (XContentBuilder content = toXContentBuilder(object)) {
+            try (XContentBuilder content = toXContentBuilder(object, params)) {
                 IndexRequest indexRequest = new IndexRequest(indexName).id(id).source(content).setRefreshPolicy(refreshPolicy);
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, indexRequest, listener, client::index);
             } catch (IOException e) {

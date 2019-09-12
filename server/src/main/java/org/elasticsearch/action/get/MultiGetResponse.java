@@ -24,7 +24,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -48,21 +48,25 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
     /**
      * Represents a failure.
      */
-    public static class Failure implements Streamable, ToXContentObject {
+    public static class Failure implements Writeable, ToXContentObject {
 
-        private String index;
-        private String type;
-        private String id;
-        private Exception exception;
-
-        Failure() {
-        }
+        private final String index;
+        private final String type;
+        private final String id;
+        private final Exception exception;
 
         public Failure(String index, String type, String id, Exception exception) {
             this.index = index;
             this.type = type;
             this.id = id;
             this.exception = exception;
+        }
+
+        Failure(StreamInput in) throws IOException {
+            index = in.readString();
+            type = in.readOptionalString();
+            id = in.readString();
+            exception = in.readException();
         }
 
         /**
@@ -93,20 +97,6 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
             return exception != null ? exception.getMessage() : null;
         }
 
-        public static Failure readFailure(StreamInput in) throws IOException {
-            Failure failure = new Failure();
-            failure.readFrom(in);
-            return failure;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            index = in.readString();
-            type = in.readOptionalString();
-            id = in.readString();
-            exception = in.readException();
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(index);
@@ -131,13 +121,18 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
         }
     }
 
-    private MultiGetItemResponse[] responses;
-
-    MultiGetResponse() {
-    }
+    private final MultiGetItemResponse[] responses;
 
     public MultiGetResponse(MultiGetItemResponse[] responses) {
         this.responses = responses;
+    }
+
+    MultiGetResponse(StreamInput in) throws IOException {
+        super(in);
+        responses = new MultiGetItemResponse[in.readVInt()];
+        for (int i = 0; i < responses.length; i++) {
+            responses[i] = new MultiGetItemResponse(in);
+        }
     }
 
     public MultiGetItemResponse[] getResponses() {
@@ -244,17 +239,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        responses = new MultiGetItemResponse[in.readVInt()];
-        for (int i = 0; i < responses.length; i++) {
-            responses[i] = MultiGetItemResponse.readItemResponse(in);
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeVInt(responses.length);
         for (MultiGetItemResponse response : responses) {
             response.writeTo(out);

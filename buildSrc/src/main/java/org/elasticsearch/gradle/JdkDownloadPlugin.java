@@ -48,13 +48,14 @@ import java.util.regex.Matcher;
 public class JdkDownloadPlugin implements Plugin<Project> {
 
     private static final String REPO_NAME_PREFIX = "jdk_repo_";
+    private static final String CONTAINER_NAME = "jdks";
 
     @Override
     public void apply(Project project) {
         NamedDomainObjectContainer<Jdk> jdksContainer = project.container(Jdk.class, name ->
             new Jdk(name, project)
         );
-        project.getExtensions().add("jdks", jdksContainer);
+        project.getExtensions().add(CONTAINER_NAME, jdksContainer);
 
         project.afterEvaluate(p -> {
             for (Jdk jdk : jdksContainer) {
@@ -80,6 +81,11 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                 repo.content(content -> content.excludeGroup("jdk"));
             }
         });
+    }
+
+    @SuppressWarnings("unchecked")
+    public static NamedDomainObjectContainer<Jdk> getContainer(Project project) {
+        return (NamedDomainObjectContainer<Jdk>) project.getExtensions().getByName(CONTAINER_NAME);
     }
 
     private static void setupRootJdkDownload(Project rootProject, String platform, String version) {

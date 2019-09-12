@@ -364,9 +364,9 @@ public final class IpRangeAggregationBuilder
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource.Bytes, ?> innerBuild(
+    protected ValuesSourceAggregatorFactory<ValuesSource.Bytes> innerBuild(
             SearchContext context, ValuesSourceConfig<ValuesSource.Bytes> config,
-            AggregatorFactory<?> parent, Builder subFactoriesBuilder)
+            AggregatorFactory parent, Builder subFactoriesBuilder)
                     throws IOException {
         List<BinaryRangeAggregator.Range> ranges = new ArrayList<>();
         if(this.ranges.size() == 0){
@@ -387,14 +387,17 @@ public final class IpRangeAggregationBuilder
     }
 
     @Override
-    protected int innerHashCode() {
-        return Objects.hash(keyed, ranges);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), keyed, ranges);
     }
 
     @Override
-    protected boolean innerEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         IpRangeAggregationBuilder that = (IpRangeAggregationBuilder) obj;
         return keyed == that.keyed
-                && ranges.equals(that.ranges);
+            && ranges.equals(that.ranges);
     }
 }

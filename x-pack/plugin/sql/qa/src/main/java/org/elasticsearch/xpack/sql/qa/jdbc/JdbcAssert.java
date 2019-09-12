@@ -8,9 +8,10 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import com.carrotsearch.hppc.IntObjectHashMap;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.geometry.Point;
-import org.elasticsearch.geo.utils.WellKnownText;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.StandardValidator;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.xpack.sql.jdbc.EsType;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.relique.jdbc.csv.CsvResultSet;
@@ -51,7 +52,7 @@ public class JdbcAssert {
 
     private static final IntObjectHashMap<EsType> SQL_TO_TYPE = new IntObjectHashMap<>();
 
-    private static final WellKnownText WKT = new WellKnownText();
+    private static final WellKnownText WKT = new WellKnownText(true, new StandardValidator(true));
 
     static {
         for (EsType type : EsType.values()) {
@@ -77,7 +78,7 @@ public class JdbcAssert {
     public static void assertResultSets(ResultSet expected, ResultSet actual, Logger logger, boolean lenientDataType) throws SQLException {
         assertResultSets(expected, actual, logger, lenientDataType, true);
     }
-    
+
     /**
      * Assert the given result sets, potentially in a lenient way.
      * When lenientDataType is specified, the type comparison of a column is widden to reach a common, compatible ground.
@@ -164,7 +165,7 @@ public class JdbcAssert {
             if ((expectedType == Types.VARCHAR && expected instanceof CsvResultSet) && nameOf(actualType).startsWith("INTERVAL_")) {
                 expectedType = actualType;
             }
-            
+
             // csv doesn't support NULL type so skip type checking
             if (actualType == Types.NULL && expected instanceof CsvResultSet) {
                 expectedType = Types.NULL;
@@ -176,7 +177,7 @@ public class JdbcAssert {
                     expectedType, actualType);
         }
     }
-    
+
     private static String nameOf(int sqlType) {
         return SQL_TO_TYPE.get(sqlType).getName();
     }
@@ -190,7 +191,7 @@ public class JdbcAssert {
             throws SQLException {
         assertResultSetData(expected, actual, logger, lenientDataType, true);
     }
-    
+
     public static void assertResultSetData(ResultSet expected, ResultSet actual, Logger logger, boolean lenientDataType,
             boolean lenientFloatingNumbers) throws SQLException {
         try (ResultSet ex = expected; ResultSet ac = actual) {
@@ -281,8 +282,8 @@ public class JdbcAssert {
                             // geo points are loaded form doc values where they are stored as long-encoded values leading
                             // to lose in precision
                             assertThat(expectedObject, instanceOf(Point.class));
-                            assertEquals(((Point) expectedObject).getLat(), ((Point) actualObject).getLat(), 0.000001d);
-                            assertEquals(((Point) expectedObject).getLon(), ((Point) actualObject).getLon(), 0.000001d);
+                            assertEquals(((Point) expectedObject).getY(), ((Point) actualObject).getY(), 0.000001d);
+                            assertEquals(((Point) expectedObject).getX(), ((Point) actualObject).getX(), 0.000001d);
                         } else {
                             assertEquals(msg, expectedObject, actualObject);
                         }

@@ -6,15 +6,16 @@
 package org.elasticsearch.xpack.rollup.action;
 
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction.Request;
 import org.junit.Before;
 
 import java.io.IOException;
 
-public class PutJobActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
+public class PutJobActionRequestTests extends AbstractSerializingTestCase<Request> {
 
     private String jobId;
 
@@ -29,13 +30,13 @@ public class PutJobActionRequestTests extends AbstractStreamableXContentTestCase
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected boolean supportsUnknownFields() {
+        return false;
     }
 
     @Override

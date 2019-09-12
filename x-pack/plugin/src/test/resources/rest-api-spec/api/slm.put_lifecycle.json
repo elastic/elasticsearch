@@ -1,0 +1,28 @@
+{
+  "slm.put_lifecycle":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/slm-api.html"
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_slm/policy/{policy_id}",
+          "methods":[
+            "PUT"
+          ],
+          "parts":{
+            "policy_id":{
+              "type":"string",
+              "description":"The id of the snapshot lifecycle policy"
+            }
+          }
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description":"The snapshot lifecycle policy definition to register"
+    }
+  }
+}

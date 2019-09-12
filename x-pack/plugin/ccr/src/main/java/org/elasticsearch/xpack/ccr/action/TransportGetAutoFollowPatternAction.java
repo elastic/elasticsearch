@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -47,17 +48,12 @@ public class TransportGetAutoFollowPatternAction
     }
 
     @Override
-    protected GetAutoFollowPatternAction.Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected GetAutoFollowPatternAction.Response read(StreamInput in) throws IOException {
         return new GetAutoFollowPatternAction.Response(in);
     }
 
     @Override
-    protected void masterOperation(GetAutoFollowPatternAction.Request request,
+    protected void masterOperation(Task task, GetAutoFollowPatternAction.Request request,
                                    ClusterState state,
                                    ActionListener<GetAutoFollowPatternAction.Response> listener) throws Exception {
         Map<String, AutoFollowPattern> autoFollowPatterns = getAutoFollowPattern(state.metaData(), request.getName());

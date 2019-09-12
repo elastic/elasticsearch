@@ -86,7 +86,7 @@ public class DocumentMapper implements ToXContentFragment {
                 if (existingMetadataMapper == null) {
                     final TypeParser parser = entry.getValue();
                     metadataMapper = parser.getDefault(mapperService.fullName(name),
-                            mapperService.documentMapperParser().parserContext(builder.name()));
+                            mapperService.documentMapperParser().parserContext());
                 } else {
                     metadataMapper = existingMetadataMapper;
                 }

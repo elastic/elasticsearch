@@ -71,7 +71,7 @@ Returns the geometry from WKT representation.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs/geo.csv-spec[aswkt]
+include-tagged::{sql-specs}/docs/geo.csv-spec[wkttosql]
 --------------------------------------------------
 
 ==== Geometry Properties
@@ -147,7 +147,7 @@ ST_Y(
 
 .Description:
 
-Returns the the latitude of the first point in the geometry.
+Returns the latitude of the first point in the geometry.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------

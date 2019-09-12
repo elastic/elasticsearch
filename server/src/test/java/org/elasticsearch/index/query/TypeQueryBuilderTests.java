@@ -83,4 +83,10 @@ public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilde
         super.testMustRewrite();
         assertWarnings(TypeQueryBuilder.TYPES_DEPRECATION_MESSAGE);
     }
+
+    @Override
+    public void testCacheability() throws IOException {
+        super.testCacheability();
+        assertWarnings(TypeQueryBuilder.TYPES_DEPRECATION_MESSAGE);
+    }
 }

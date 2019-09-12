@@ -34,14 +34,14 @@ import java.util.List;
 import java.util.Map;
 
 class TDigestPercentileRanksAggregatorFactory
-        extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, TDigestPercentileRanksAggregatorFactory> {
+        extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
 
     private final double[] percents;
     private final double compression;
     private final boolean keyed;
 
     TDigestPercentileRanksAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, double[] percents,
-            double compression, boolean keyed, SearchContext context, AggregatorFactory<?> parent,
+            double compression, boolean keyed, SearchContext context, AggregatorFactory parent,
             AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.percents = percents;

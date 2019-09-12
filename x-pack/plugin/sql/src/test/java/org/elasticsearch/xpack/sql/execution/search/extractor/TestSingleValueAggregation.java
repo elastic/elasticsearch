@@ -54,13 +54,4 @@ public class TestSingleValueAggregation extends InternalAggregation {
         throw new UnsupportedOperationException();
     }
 
-    @Override
-    protected int doHashCode() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    protected boolean doEquals(Object obj) {
-        throw new UnsupportedOperationException();
-    }
 }

@@ -384,3 +384,43 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "4" }
 
+---
+"Test prefix":
+  - skip:
+      version: " - 8.0.0"
+      reason: "TODO: change to 7.3 in backport"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: cold
+                    - prefix:
+                        prefix: out
+  - match: { hits.total.value: 3 }
+
+---
+"Test wildcard":
+  - skip:
+      version: " - 8.0.0"
+      reason: "TODO: change to 7.3 in backport"
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              text:
+                all_of:
+                  intervals:
+                    - match:
+                        query: cold
+                    - wildcard:
+                        pattern: out?ide
+  - match: { hits.total.value: 3 }
+

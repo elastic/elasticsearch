@@ -1,0 +1,111 @@
+---
+"Test exists query on flattened object field":
+  - skip:
+      version: " - 7.99.99"
+      reason: "Flat object fields are currently only implemented in 8.0."
+
+  - do:
+      indices.create:
+        index:  flat_object_test
+        body:
+          mappings:
+            properties:
+              flat_object:
+                type: flattened
+  - do:
+      index:
+        index:  flat_object_test
+        id:     1
+        body:
+          flat_object:
+            key: some_value
+        refresh: true
+
+  - do:
+      search:
+        index: flat_object_test
+        body:
+          query:
+            exists:
+              field: flat_object
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: flat_object_test
+        body:
+          query:
+            exists:
+              field: flat_object.key
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: flat_object_test
+        body:
+          query:
+            exists:
+              field: flat_object.nonexistent_key
+
+  - match: { hits.total.value: 0 }
+
+---
+"Test query string query on flattened object field":
+  - skip:
+      version: " - 7.99.99"
+      reason: "Flat object fields are currently only implemented in 8.0."
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              headers:
+                type: flattened
+
+  - do:
+      index:
+        index:  test
+        id:     1
+        body:
+          headers:
+            content-type: application/javascript
+            origin: elastic.co
+        refresh: true
+
+  - do:
+      index:
+        index:  test
+        id:     2
+        body:
+          headers:
+            content-type: text/plain
+            origin: elastic.co
+        refresh: true
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            query_string:
+              query: "headers:text\\/plain"
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "2" }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            query_string:
+              query: "application\\/javascript AND headers.origin:elastic.co"
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "1" }

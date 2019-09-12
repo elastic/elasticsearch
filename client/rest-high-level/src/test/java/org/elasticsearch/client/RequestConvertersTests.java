@@ -427,11 +427,7 @@ public class RequestConvertersTests extends ESTestCase {
             reindexRequest.setDestRouting("=cat");
         }
         if (randomBoolean()) {
-            if (randomBoolean()) {
-                reindexRequest.setMaxDocs(randomIntBetween(100, 1000));
-            } else {
-                reindexRequest.setSize(randomIntBetween(100, 1000));
-            }
+            reindexRequest.setMaxDocs(randomIntBetween(100, 1000));
         }
         if (randomBoolean()) {
             reindexRequest.setAbortOnVersionConflict(false);
@@ -442,6 +438,13 @@ public class RequestConvertersTests extends ESTestCase {
         }
         if (reindexRequest.getRemoteInfo() == null && randomBoolean()) {
             reindexRequest.setSourceQuery(new TermQueryBuilder("foo", "fooval"));
+        }
+        if (randomBoolean()) {
+            int slices = randomInt(100);
+            reindexRequest.setSlices(slices);
+            expectedParams.put("slices", String.valueOf(slices));
+        } else {
+            expectedParams.put("slices", "1");
         }
         setRandomTimeout(reindexRequest::setTimeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
         setRandomWaitForActiveShards(reindexRequest::setWaitForActiveShards, ActiveShardCount.DEFAULT, expectedParams);
@@ -479,13 +482,9 @@ public class RequestConvertersTests extends ESTestCase {
             expectedParams.put("routing", "=cat");
         }
         if (randomBoolean()) {
-            int size = randomIntBetween(100, 1000);
-            if (randomBoolean()) {
-                updateByQueryRequest.setMaxDocs(size);
-            } else {
-                updateByQueryRequest.setSize(size);
-            }
-            expectedParams.put("max_docs", Integer.toString(size));
+            int maxDocs = randomIntBetween(100, 1000);
+            updateByQueryRequest.setMaxDocs(maxDocs);
+            expectedParams.put("max_docs", Integer.toString(maxDocs));
         }
         if (randomBoolean()) {
             updateByQueryRequest.setAbortOnVersionConflict(false);
@@ -528,13 +527,9 @@ public class RequestConvertersTests extends ESTestCase {
             expectedParams.put("routing", "=cat");
         }
         if (randomBoolean()) {
-            int size = randomIntBetween(100, 1000);
-            if (randomBoolean()) {
-                deleteByQueryRequest.setMaxDocs(size);
-            } else {
-                deleteByQueryRequest.setSize(size);
-            }
-            expectedParams.put("max_docs", Integer.toString(size));
+            int maxDocs = randomIntBetween(100, 1000);
+            deleteByQueryRequest.setMaxDocs(maxDocs);
+            expectedParams.put("max_docs", Integer.toString(maxDocs));
         }
         if (randomBoolean()) {
             deleteByQueryRequest.setAbortOnVersionConflict(false);
@@ -1369,12 +1364,20 @@ public class RequestConvertersTests extends ESTestCase {
             multiSearchTemplateRequest.add(searchTemplateRequest);
         }
 
+        Map<String, String> expectedParams = new HashMap<>();
+        if (randomBoolean()) {
+            multiSearchTemplateRequest.maxConcurrentSearchRequests(randomIntBetween(1,10));
+            expectedParams.put("max_concurrent_searches", Integer.toString(multiSearchTemplateRequest.maxConcurrentSearchRequests()));
+        }
+        expectedParams.put(RestSearchAction.TYPED_KEYS_PARAM, "true");
+
         Request multiRequest = RequestConverters.multiSearchTemplate(multiSearchTemplateRequest);
 
         assertEquals(HttpPost.METHOD_NAME, multiRequest.getMethod());
         assertEquals("/_msearch/template", multiRequest.getEndpoint());
         List<SearchTemplateRequest> searchRequests = multiSearchTemplateRequest.requests();
         assertEquals(numSearchRequests, searchRequests.size());
+        assertEquals(expectedParams, multiRequest.getParameters());
 
         HttpEntity actualEntity = multiRequest.getEntity();
         byte[] expectedBytes = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, XContentType.JSON.xContent());

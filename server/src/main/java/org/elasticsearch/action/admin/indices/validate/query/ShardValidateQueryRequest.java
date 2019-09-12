@@ -42,7 +42,21 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
     private long nowInMillis;
     private AliasFilter filteringAliases;
 
-    public ShardValidateQueryRequest() {
+    public ShardValidateQueryRequest(StreamInput in) throws IOException {
+        super(in);
+        query = in.readNamedWriteable(QueryBuilder.class);
+
+        int typesSize = in.readVInt();
+        if (typesSize > 0) {
+            types = new String[typesSize];
+            for (int i = 0; i < typesSize; i++) {
+                types[i] = in.readString();
+            }
+        }
+        filteringAliases = new AliasFilter(in);
+        explain = in.readBoolean();
+        rewrite = in.readBoolean();
+        nowInMillis = in.readVLong();
     }
 
     public ShardValidateQueryRequest(ShardId shardId, AliasFilter filteringAliases, ValidateQueryRequest request) {
@@ -77,24 +91,6 @@ public class ShardValidateQueryRequest extends BroadcastShardRequest {
 
     public long nowInMillis() {
         return this.nowInMillis;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        query = in.readNamedWriteable(QueryBuilder.class);
-
-        int typesSize = in.readVInt();
-        if (typesSize > 0) {
-            types = new String[typesSize];
-            for (int i = 0; i < typesSize; i++) {
-                types[i] = in.readString();
-            }
-        }
-        filteringAliases = new AliasFilter(in);
-        explain = in.readBoolean();
-        rewrite = in.readBoolean();
-        nowInMillis = in.readVLong();
     }
 
     @Override

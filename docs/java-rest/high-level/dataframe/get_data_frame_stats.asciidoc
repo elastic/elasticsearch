@@ -4,23 +4,36 @@
 :response: GetDataFrameTransformStatsResponse
 --
 [id="{upid}-{api}"]
-=== Get Data Frame Transform Stats API
+=== Get {dataframe-transform} stats API
 
-The Get Data Frame Transform Stats API is used read the operational statistics
-of one or more {dataframe-transform}s.
+Retrieves the operational statistics of one or more {dataframe-transforms}.
 The API accepts a +{request}+ object and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Get Data Frame Transform Stats Request
+==== Get {dataframe-transform} stats request
 
 A +{request}+ requires a data frame transform id or the special wildcard `_all`
-to get the statistics for all {dataframe-transform}s
+to get the statistics for all {dataframe-transforms}.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Constructing a new GET Stats request referencing an existing {dataframe-transform}
+
+==== Optional arguments
+
+The following arguments are optional.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-options]
+--------------------------------------------------
+<1> The page parameters `from` and `size`. `from` specifies the number of
+{dataframe-transform} stats to skip.
+`size` specifies the maximum number of {dataframe-transform} stats to get.
+Defaults to `0` and `100` respectively.
+<2> Whether to ignore if a wildcard expression matches no transforms.
 
 
 include::../execution.asciidoc[]
@@ -34,9 +47,9 @@ The returned +{response}+ contains the requested {dataframe-transform} statistic
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> The response contains a list of `DataFrameTransformStateAndStats` objects
-<2> The running state of the transform task e.g `started`
-<3> The running state of the transform indexer e.g `started`, `indexing`, etc.
-<4> The overall transform statistics recording the number of documents indexed etc.
-<5> The progress of the current run in the transform. Supplies the number of docs left until the next checkpoint
+<1> The response contains a list of `DataFrameTransformStats` objects
+<2> The running state of the transform, for example `started`, `indexing`, etc.
+<3> The overall transform statistics recording the number of documents indexed etc.
+<4> The progress of the current run in the transform. Supplies the number of docs left until the next checkpoint
 and the total number of docs expected.
+<5> The assigned node information if the task is currently assigned to a node and running.

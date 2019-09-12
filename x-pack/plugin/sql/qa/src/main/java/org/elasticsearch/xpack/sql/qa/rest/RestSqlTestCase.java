@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.qa.rest;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -15,13 +14,12 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.NotEqualMessageBuilder;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.qa.ErrorsTestCase;
 import org.hamcrest.Matcher;
@@ -49,7 +47,7 @@ import static org.hamcrest.Matchers.containsString;
  * Integration test for the rest sql action. The one that speaks json directly to a
  * user rather than to the JDBC driver or CLI.
  */
-public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTestCase {
+public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements ErrorsTestCase {
     
     public static String SQL_QUERY_REST_ENDPOINT = org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
     private static String SQL_TRANSLATE_REST_ENDPOINT = org.elasticsearch.xpack.sql.proto.Protocol.SQL_TRANSLATE_REST_ENDPOINT;
@@ -314,7 +312,14 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         expectBadRequest(() -> runSql(randomMode(), "SELECT SIN(SCORE()) FROM test"),
             containsString("line 1:12: [SCORE()] cannot be an argument to a function"));
     }
-    
+
+    @Override
+    public void testHardLimitForSortOnAggregate() throws Exception {
+        index("{\"a\": 1, \"b\": 2}");
+        expectBadRequest(() -> runSql(randomMode(), "SELECT max(a) max FROM test GROUP BY b ORDER BY max LIMIT 12000"),
+            containsString("The maximum LIMIT for aggregate sorting is [10000], received [12000]"));
+    }
+
     public void testUseColumnarForUnsupportedFormats() throws Exception {
         String format = randomFrom("txt", "csv", "tsv");
         index("{\"foo\":1}");
@@ -343,7 +348,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
             }, containsString("unknown field [columnar], parser not found"));
     }
 
-    protected void expectBadRequest(CheckedSupplier<Map<String, Object>, Exception> code, Matcher<String> errorMessageMatcher) {
+    public static void expectBadRequest(CheckedSupplier<Map<String, Object>, Exception> code, Matcher<String> errorMessageMatcher) {
         try {
             Map<String, Object> result = code.get();
             fail("expected ResponseException but got " + result);
@@ -405,6 +410,85 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         Response response = client().performRequest(request);
         try (InputStream content = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
+        }
+    }
+
+    public void testPrettyPrintingEnabled() throws IOException {
+        boolean columnar = randomBoolean();
+        String expected = "";
+        if (columnar) {
+            expected = "{\n" + 
+                    "  \"columns\" : [\n" + 
+                    "    {\n" + 
+                    "      \"name\" : \"test1\",\n" + 
+                    "      \"type\" : \"text\"\n" + 
+                    "    }\n" + 
+                    "  ],\n" + 
+                    "  \"values\" : [\n" + 
+                    "    [\n" + 
+                    "      \"test1\",\n" + 
+                    "      \"test2\"\n" + 
+                    "    ]\n" + 
+                    "  ]\n" + 
+                    "}\n";
+        } else {
+            expected = "{\n" + 
+                    "  \"columns\" : [\n" + 
+                    "    {\n" + 
+                    "      \"name\" : \"test1\",\n" + 
+                    "      \"type\" : \"text\"\n" + 
+                    "    }\n" + 
+                    "  ],\n" + 
+                    "  \"rows\" : [\n" + 
+                    "    [\n" + 
+                    "      \"test1\"\n" + 
+                    "    ],\n" + 
+                    "    [\n" + 
+                    "      \"test2\"\n" + 
+                    "    ]\n" + 
+                    "  ]\n" + 
+                    "}\n";
+        }
+        executeAndAssertPrettyPrinting(expected, "true", columnar);
+    }
+    
+    public void testPrettyPrintingDisabled() throws IOException {
+        boolean columnar = randomBoolean();
+        String expected = "";
+        if (columnar) {
+            expected = "{\"columns\":[{\"name\":\"test1\",\"type\":\"text\"}],\"values\":[[\"test1\",\"test2\"]]}";
+        } else {
+            expected = "{\"columns\":[{\"name\":\"test1\",\"type\":\"text\"}],\"rows\":[[\"test1\"],[\"test2\"]]}";
+        }
+        executeAndAssertPrettyPrinting(expected, randomFrom("false", null), columnar);
+    }
+    
+    private void executeAndAssertPrettyPrinting(String expectedJson, String prettyParameter, boolean columnar)
+            throws IOException {
+        index("{\"test1\":\"test1\"}",
+              "{\"test1\":\"test2\"}");
+
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
+        if (prettyParameter != null) {
+            request.addParameter("pretty", prettyParameter);
+        }
+        if (randomBoolean()) {
+            // We default to JSON but we force it randomly for extra coverage
+            request.addParameter("format", "json");
+        }
+        if (randomBoolean()) {
+            // JSON is the default but randomly set it sometime for extra coverage
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.addHeader("Accept", randomFrom("*/*", "application/json"));
+            request.setOptions(options);
+        }
+        request.setEntity(new StringEntity("{\"query\":\"SELECT * FROM test\"" + mode("plain") + columnarParameter(columnar) + "}",
+                  ContentType.APPLICATION_JSON));
+        
+        Response response = client().performRequest(request);
+        try (InputStream content = response.getEntity().getContent()) {
+            String actualJson = new BytesArray(content.readAllBytes()).utf8ToString();
+            assertEquals(expectedJson, actualJson);
         }
     }
 
@@ -615,46 +699,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     }
 
     public void testNextPageText() throws IOException {
-        int size = 20;
-        String[] docs = new String[size];
-        for (int i = 0; i < size; i++) {
-            docs[i] = "{\"text\":\"text" + i + "\", \"number\":" + i + "}\n";
-        }
-        index(docs);
-
-        String request = "{\"query\":\"SELECT text, number, number + 5 AS sum FROM test ORDER BY number\", \"fetch_size\":2}";
-
-        String cursor = null;
-        for (int i = 0; i < 20; i += 2) {
-            Tuple<String, String> response;
-            if (i == 0) {
-                response = runSqlAsText(StringUtils.EMPTY, new StringEntity(request, ContentType.APPLICATION_JSON), "text/plain");
-            } else {
-                response = runSqlAsText(StringUtils.EMPTY, new StringEntity("{\"cursor\":\"" + cursor + "\"}",
-                        ContentType.APPLICATION_JSON), "text/plain");
-            }
-
-            StringBuilder expected = new StringBuilder();
-            if (i == 0) {
-                expected.append("     text      |    number     |      sum      \n");
-                expected.append("---------------+---------------+---------------\n");
-            }
-            expected.append(String.format(Locale.ROOT, "%-15s|%-15d|%-15d\n", "text" + i, i, i + 5));
-            expected.append(String.format(Locale.ROOT, "%-15s|%-15d|%-15d\n", "text" + (i + 1), i + 1, i + 6));
-            cursor = response.v2();
-            assertEquals(expected.toString(), response.v1());
-            assertNotNull(cursor);
-        }
-        Map<String, Object> expected = new HashMap<>();
-        expected.put("rows", emptyList());
-        assertResponse(expected, runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON),
-                StringUtils.EMPTY));
-
-        Map<String, Object> response = runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON),
-                "/close");
-        assertEquals(true, response.get("succeeded"));
-
-        assertEquals(0, getNumberOfSearchContexts("test"));
+        executeQueryWithNextPage("text/plain", "     text      |    number     |      sum      \n", "%-15s|%-15d|%-15d\n");
     }
 
     // CSV/TSV tests
@@ -696,6 +741,10 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         Tuple<String, String> response = runSqlAsText(query, "text/csv; header=absent");
         assertEquals(expected, response.v1());
     }
+    
+    public void testNextPageCSV() throws IOException {
+        executeQueryWithNextPage("text/csv; header=present", "text,number,sum\r\n", "%s,%d,%d\r\n");
+    }
 
     public void testQueryInTSV() throws IOException {
         index("{\"name\":" + toJson("first") + ", \"number\" : 1 }",
@@ -713,6 +762,55 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         assertEquals(expected, response.v1());
         response = runSqlAsTextFormat(query, "tsv");
         assertEquals(expected, response.v1());
+    }
+    
+    public void testNextPageTSV() throws IOException {
+        executeQueryWithNextPage("text/tab-separated-values", "text\tnumber\tsum\n", "%s\t%d\t%d\n");
+    }
+    
+    private void executeQueryWithNextPage(String format, String expectedHeader, String expectedLineFormat) throws IOException {
+        int size = 20;
+        String[] docs = new String[size];
+        for (int i = 0; i < size; i++) {
+            docs[i] = "{\"text\":\"text" + i + "\", \"number\":" + i + "}\n";
+        }
+        index(docs);
+
+        String request = "{\"query\":\"SELECT text, number, number + 5 AS sum FROM test ORDER BY number\", \"fetch_size\":2}";
+
+        String cursor = null;
+        for (int i = 0; i < 20; i += 2) {
+            Tuple<String, String> response;
+            if (i == 0) {
+                response = runSqlAsText(StringUtils.EMPTY, new StringEntity(request, ContentType.APPLICATION_JSON), format);
+            } else {
+                response = runSqlAsText(StringUtils.EMPTY, new StringEntity("{\"cursor\":\"" + cursor + "\"}",
+                        ContentType.APPLICATION_JSON), format);
+            }
+
+            StringBuilder expected = new StringBuilder();
+            if (i == 0) {
+                expected.append(expectedHeader);
+                if (format == "text/plain") {
+                    expected.append("---------------+---------------+---------------\n");
+                }
+            }
+            expected.append(String.format(Locale.ROOT, expectedLineFormat, "text" + i, i, i + 5));
+            expected.append(String.format(Locale.ROOT, expectedLineFormat, "text" + (i + 1), i + 1, i + 6));
+            cursor = response.v2();
+            assertEquals(expected.toString(), response.v1());
+            assertNotNull(cursor);
+        }
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("rows", emptyList());
+        assertResponse(expected, runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON),
+                StringUtils.EMPTY));
+
+        Map<String, Object> response = runSql(new StringEntity("{\"cursor\":\"" + cursor + "\"}", ContentType.APPLICATION_JSON),
+                "/close");
+        assertEquals(true, response.get("succeeded"));
+
+        assertEquals(0, getNumberOfSearchContexts("test"));
     }
 
     private Tuple<String, String> runSqlAsText(String sql, String accept) throws IOException {
@@ -754,7 +852,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         );
     }
 
-    private void assertResponse(Map<String, Object> expected, Map<String, Object> actual) {
+    public static void assertResponse(Map<String, Object> expected, Map<String, Object> actual) {
         if (false == expected.equals(actual)) {
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();
             message.compareMaps(actual, expected);
@@ -791,25 +889,5 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         try (InputStream content = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
         }
-    }
-
-    public static String randomMode() {
-        return randomFrom(StringUtils.EMPTY, "jdbc", "plain");
-    }
-    
-    public static String mode(String mode) {
-        return Strings.isEmpty(mode) ? StringUtils.EMPTY : ",\"mode\":\"" + mode + "\"";
-    }
-
-    protected void index(String... docs) throws IOException {
-        Request request = new Request("POST", "/test/_bulk");
-        request.addParameter("refresh", "true");
-        StringBuilder bulk = new StringBuilder();
-        for (String doc : docs) {
-            bulk.append("{\"index\":{}\n");
-            bulk.append(doc + "\n");
-        }
-        request.setJsonEntity(bulk.toString());
-        client().performRequest(request);
     }
 }

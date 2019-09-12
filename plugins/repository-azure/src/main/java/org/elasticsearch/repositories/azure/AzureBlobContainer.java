@@ -23,6 +23,7 @@ import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -38,7 +40,6 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
 import java.nio.file.NoSuchFileException;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -57,8 +58,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         this.threadPool = threadPool;
     }
 
-    @Override
-    public boolean blobExists(String blobName) {
+    private boolean blobExists(String blobName) {
         logger.trace("blobExists({})", blobName);
         try {
             return blobStore.blobExists(buildKey(blobName));
@@ -127,23 +127,34 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
-        if (blobNames.isEmpty()) {
-            return;
+    public DeleteResult delete() throws IOException {
+        try {
+            return blobStore.deleteBlobDirectory(keyPath, threadPool.executor(AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME));
+        } catch (URISyntaxException | StorageException e) {
+            throw new IOException(e);
         }
-        final PlainActionFuture<Collection<Void>> result = PlainActionFuture.newFuture();
-        final GroupedActionListener<Void> listener = new GroupedActionListener<>(result, blobNames.size());
-        final ExecutorService executor = threadPool.executor(AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME);
-        // Executing deletes in parallel since Azure SDK 8 is using blocking IO while Azure does not provide a bulk delete API endpoint.
-        // TODO: Upgrade to newer non-blocking Azure SDK 11 and execute delete requests in parallel that way.
-        for (String blobName : blobNames) {
-            executor.submit(new ActionRunnable<>(listener) {
-                @Override
-                protected void doRun() throws IOException {
-                    deleteBlobIgnoringIfNotExists(blobName);
-                    listener.onResponse(null);
-                }
-            });
+    }
+
+    @Override
+    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
+        final PlainActionFuture<Void> result = PlainActionFuture.newFuture();
+        if (blobNames.isEmpty()) {
+            result.onResponse(null);
+        } else {
+            final GroupedActionListener<Void> listener =
+                new GroupedActionListener<>(ActionListener.map(result, v -> null), blobNames.size());
+            final ExecutorService executor = threadPool.executor(AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME);
+            // Executing deletes in parallel since Azure SDK 8 is using blocking IO while Azure does not provide a bulk delete API endpoint
+            // TODO: Upgrade to newer non-blocking Azure SDK 11 and execute delete requests in parallel that way.
+            for (String blobName : blobNames) {
+                executor.execute(new ActionRunnable<>(listener) {
+                    @Override
+                    protected void doRun() throws IOException {
+                        deleteBlobIgnoringIfNotExists(blobName);
+                        listener.onResponse(null);
+                    }
+                });
+            }
         }
         try {
             result.actionGet();

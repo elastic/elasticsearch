@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -60,6 +61,8 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
     private static final IndexNameExpressionResolver INDEX_NAME_EXPRESSION_RESOLVER = new IndexNameExpressionResolver();
     private static final AutoCreateIndex AUTO_CREATE_INDEX = new AutoCreateIndex(Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), INDEX_NAME_EXPRESSION_RESOLVER);
+
+    private final BytesReference query = new BytesArray("{ \"foo\" : \"bar\" }");
 
     public void testObviousCases() {
         fails("target", "target");
@@ -106,10 +109,10 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
 
     public void testRemoteInfoSkipsValidation() {
         // The index doesn't have to exist
-        succeeds(new RemoteInfo(randomAlphaOfLength(5), "test", 9200, null, new BytesArray("test"), null, null, emptyMap(),
+        succeeds(new RemoteInfo(randomAlphaOfLength(5), "test", 9200, null, query, null, null, emptyMap(),
                 RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT), "does_not_exist", "target");
         // And it doesn't matter if they are the same index. They are considered to be different because the remote one is, well, remote.
-        succeeds(new RemoteInfo(randomAlphaOfLength(5), "test", 9200, null, new BytesArray("test"), null, null, emptyMap(),
+        succeeds(new RemoteInfo(randomAlphaOfLength(5), "test", 9200, null, query, null, null, emptyMap(),
                 RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT), "target", "target");
     }
 
@@ -123,7 +126,7 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
     }
 
     private void succeeds(RemoteInfo remoteInfo, String target, String... sources) {
-        TransportReindexAction.validateAgainstAliases(new SearchRequest(sources), new IndexRequest(target), remoteInfo,
+        ReindexValidator.validateAgainstAliases(new SearchRequest(sources), new IndexRequest(target), remoteInfo,
                 INDEX_NAME_EXPRESSION_RESOLVER, AUTO_CREATE_INDEX, STATE);
     }
 

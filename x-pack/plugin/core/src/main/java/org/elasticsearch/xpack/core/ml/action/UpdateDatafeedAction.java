@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -20,18 +20,13 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import java.io.IOException;
 import java.util.Objects;
 
-public class UpdateDatafeedAction extends Action<PutDatafeedAction.Response> {
+public class UpdateDatafeedAction extends ActionType<PutDatafeedAction.Response> {
 
     public static final UpdateDatafeedAction INSTANCE = new UpdateDatafeedAction();
     public static final String NAME = "cluster:admin/xpack/ml/datafeeds/update";
 
     private UpdateDatafeedAction() {
-        super(NAME);
-    }
-
-    @Override
-    public PutDatafeedAction.Response newResponse() {
-        return new PutDatafeedAction.Response();
+        super(NAME, PutDatafeedAction.Response::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -51,6 +46,11 @@ public class UpdateDatafeedAction extends Action<PutDatafeedAction.Response> {
         public Request() {
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            update = new DatafeedUpdate(in);
+        }
+
         public DatafeedUpdate getUpdate() {
             return update;
         }
@@ -58,12 +58,6 @@ public class UpdateDatafeedAction extends Action<PutDatafeedAction.Response> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            update = new DatafeedUpdate(in);
         }
 
         @Override

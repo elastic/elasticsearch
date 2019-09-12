@@ -5,22 +5,17 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
 /**
  * Sql action for translating SQL queries into ES requests
  */
-public class SqlTranslateAction extends Action<SqlTranslateResponse> {
+public class SqlTranslateAction extends ActionType<SqlTranslateResponse> {
 
     public static final SqlTranslateAction INSTANCE = new SqlTranslateAction();
     public static final String NAME = "indices:data/read/sql/translate";
 
     private SqlTranslateAction() {
-        super(NAME);
-    }
-
-    @Override
-    public SqlTranslateResponse newResponse() {
-        return new SqlTranslateResponse();
+        super(NAME, SqlTranslateResponse::new);
     }
 }

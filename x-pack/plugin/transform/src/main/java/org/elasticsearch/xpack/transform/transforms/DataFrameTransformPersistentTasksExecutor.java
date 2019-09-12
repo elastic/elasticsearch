@@ -198,12 +198,12 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
                 DataFrameTransformStoredDoc stateAndStats = stateAndStatsAndSeqNoPrimaryTermAndIndex.v1();
                 SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex = stateAndStatsAndSeqNoPrimaryTermAndIndex.v2();
                 // Since we have not set the value for this yet, it SHOULD be null
-                buildTask.updateSeqNoPrimaryTermAndIndex(null, seqNoPrimaryTermAndIndex);
                 logger.trace("[{}] initializing state and stats: [{}]", transformId, stateAndStats.toString());
                 indexerBuilder.setInitialStats(stateAndStats.getTransformStats())
                     .setInitialPosition(stateAndStats.getTransformState().getPosition())
                     .setProgress(stateAndStats.getTransformState().getProgress())
-                    .setIndexerState(currentIndexerState(stateAndStats.getTransformState()));
+                    .setIndexerState(currentIndexerState(stateAndStats.getTransformState()))
+                    .setSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex);
                 logger.debug("[{}] Loading existing state: [{}], position [{}]",
                     transformId,
                     stateAndStats.getTransformState(),

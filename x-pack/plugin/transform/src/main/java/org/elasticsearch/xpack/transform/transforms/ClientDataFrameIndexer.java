@@ -20,6 +20,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -66,6 +67,8 @@ class ClientDataFrameIndexer extends DataFrameIndexer {
     private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
     private volatile Instant changesLastDetectedAt;
 
+    private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndex;
+
     ClientDataFrameIndexer(DataFrameTransformsConfigManager transformsConfigManager,
                            CheckpointProvider checkpointProvider,
                            AtomicReference<IndexerState> initialState,
@@ -78,6 +81,7 @@ class ClientDataFrameIndexer extends DataFrameIndexer {
                            DataFrameTransformProgress transformProgress,
                            DataFrameTransformCheckpoint lastCheckpoint,
                            DataFrameTransformCheckpoint nextCheckpoint,
+                           SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
                            DataFrameTransformTask parentTask) {
         super(ExceptionsHelper.requireNonNull(parentTask, "parentTask")
                 .getThreadPool()
@@ -97,6 +101,7 @@ class ClientDataFrameIndexer extends DataFrameIndexer {
         this.client = ExceptionsHelper.requireNonNull(client, "client");
         this.transformTask = parentTask;
         this.failureCount = new AtomicInteger(0);
+        this.seqNoPrimaryTermAndIndex = new AtomicReference<>(seqNoPrimaryTermAndIndex);
     }
 
     @Override
@@ -336,7 +341,7 @@ class ClientDataFrameIndexer extends DataFrameIndexer {
         logger.debug("[{}] updating persistent state of transform to [{}].", transformConfig.getId(), state.toString());
 
         // This could be `null` but the putOrUpdateTransformStoredDoc handles that case just fine
-        SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex = transformTask.getSeqNoPrimaryTermAndIndex();
+        SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex = getSeqNoPrimaryTermAndIndex();
 
         // Persist the current state and stats in the internal index. The interval of this method being
         // called is controlled by AsyncTwoPhaseIndexer#onBulkResponse which calls doSaveState every so
@@ -346,7 +351,7 @@ class ClientDataFrameIndexer extends DataFrameIndexer {
                 seqNoPrimaryTermAndIndex,
                 ActionListener.wrap(
                         r -> {
-                            transformTask.updateSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex, r);
+                            updateSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex, r);
                             // for auto stop shutdown the task
                             if (state.getTaskState().equals(DataFrameTransformTaskState.STOPPED)) {
                                 transformTask.shutdown();
@@ -574,6 +579,19 @@ class ClientDataFrameIndexer extends DataFrameIndexer {
                 // Successfully marked as failed, reset counter so that task can be restarted
                 failureCount.set(0);
             }, e -> {}));
+    }
+
+    void updateSeqNoPrimaryTermAndIndex(SeqNoPrimaryTermAndIndex expectedValue, SeqNoPrimaryTermAndIndex newValue) {
+        boolean updated = seqNoPrimaryTermAndIndex.compareAndSet(expectedValue, newValue);
+        // This should never happen. We ONLY ever update this value if at initialization or we just finished updating the document
+        // famous last words...
+        assert updated :
+            "[" + getJobId() + "] unexpected change to seqNoPrimaryTermAndIndex.";
+    }
+
+    @Nullable
+    SeqNoPrimaryTermAndIndex getSeqNoPrimaryTermAndIndex() {
+        return seqNoPrimaryTermAndIndex.get();
     }
 
     // Considered a recoverable indexing failure

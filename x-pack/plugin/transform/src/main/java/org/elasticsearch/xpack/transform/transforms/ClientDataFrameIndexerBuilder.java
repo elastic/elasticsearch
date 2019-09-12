@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.transform.persistence.DataFrameTransformsConfigManager;
+import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -34,6 +35,7 @@ class ClientDataFrameIndexerBuilder {
     private DataFrameTransformProgress progress;
     private DataFrameTransformCheckpoint lastCheckpoint;
     private DataFrameTransformCheckpoint nextCheckpoint;
+    private SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex;
 
     ClientDataFrameIndexerBuilder() {
         this.initialStats = new DataFrameIndexerTransformStats();
@@ -54,6 +56,7 @@ class ClientDataFrameIndexerBuilder {
             this.progress,
             this.lastCheckpoint,
             this.nextCheckpoint,
+            this.seqNoPrimaryTermAndIndex,
             parentTask);
     }
 
@@ -118,6 +121,11 @@ class ClientDataFrameIndexerBuilder {
 
     ClientDataFrameIndexerBuilder setNextCheckpoint(DataFrameTransformCheckpoint nextCheckpoint) {
         this.nextCheckpoint = nextCheckpoint;
+        return this;
+    }
+
+    ClientDataFrameIndexerBuilder setSeqNoPrimaryTermAndIndex(SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex) {
+        this.seqNoPrimaryTermAndIndex = seqNoPrimaryTermAndIndex;
         return this;
     }
 }

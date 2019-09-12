@@ -13,7 +13,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -36,7 +35,6 @@ import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformState
 import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.xpack.transform.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
-import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -76,7 +74,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     private final AtomicReference<DataFrameTransformTaskState> taskState;
     private final AtomicReference<String> stateReason;
-    private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndex = new AtomicReference<>(null);
     // the checkpoint of this data frame, storing the checkpoint until data indexing from source to dest is _complete_
     // Note: Each indexer run creates a new future checkpoint which becomes the current checkpoint only after the indexer run finished
     private final AtomicLong currentCheckpoint;
@@ -482,19 +479,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     synchronized void initializeIndexer(ClientDataFrameIndexerBuilder indexerBuilder) {
         indexer.set(indexerBuilder.build(this));
-    }
-
-    void updateSeqNoPrimaryTermAndIndex(SeqNoPrimaryTermAndIndex expectedValue, SeqNoPrimaryTermAndIndex newValue) {
-        boolean updated = seqNoPrimaryTermAndIndex.compareAndSet(expectedValue, newValue);
-        // This should never happen. We ONLY ever update this value if at initialization or we just finished updating the document
-        // famous last words...
-        assert updated :
-            "[" + getTransformId() + "] unexpected change to seqNoPrimaryTermAndIndex.";
-    }
-
-    @Nullable
-    SeqNoPrimaryTermAndIndex getSeqNoPrimaryTermAndIndex() {
-        return seqNoPrimaryTermAndIndex.get();
     }
 
     ThreadPool getThreadPool() {

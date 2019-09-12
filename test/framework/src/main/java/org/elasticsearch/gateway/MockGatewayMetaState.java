@@ -54,7 +54,7 @@ public class MockGatewayMetaState extends GatewayMetaState {
         return ClusterStateUpdaters.setLocalNode(clusterState, localNode);
     }
 
-    public void start(NodeEnvironment nodeEnvironment, NamedXContentRegistry xContentRegistry) {
-        start(Settings.EMPTY, null, null, new MetaStateService(nodeEnvironment, xContentRegistry), null, null);
+    public void start(Settings settings, NodeEnvironment nodeEnvironment, NamedXContentRegistry xContentRegistry) {
+        start(settings, null, null, new MetaStateService(nodeEnvironment, xContentRegistry), null, null);
     }
 }

@@ -704,7 +704,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         nodeEnvironment = newNodeEnvironment();
                         nodeEnvironments.add(nodeEnvironment);
                         final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(localNode);
-                        gatewayMetaState.start(nodeEnvironment, xContentRegistry());
+                        gatewayMetaState.start(Settings.EMPTY, nodeEnvironment, xContentRegistry());
                         delegate = gatewayMetaState.getPersistedState();
                     } else {
                         nodeEnvironment = null;
@@ -736,7 +736,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                                     manifest.getIndexGenerations()));
                         }
                         final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(newLocalNode);
-                        gatewayMetaState.start(nodeEnvironment, xContentRegistry());
+                        gatewayMetaState.start(Settings.EMPTY, nodeEnvironment, xContentRegistry());
                         delegate = gatewayMetaState.getPersistedState();
                     } else {
                         nodeEnvironment = null;

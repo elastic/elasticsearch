@@ -86,7 +86,7 @@ public class SymbolicLinkPreservingUntarTask extends DefaultTask {
     @TaskAction
     final void execute() {
         // ensure the target extraction path is empty
-        getProject().getRootProject().delete(extractPath);
+        getProject().delete(extractPath);
         try (TarArchiveInputStream tar =
                  new TarArchiveInputStream(new GzipCompressorInputStream(new FileInputStream(tarFile.getAsFile().get())))) {
             final Path destinationPath = extractPath.get().getAsFile().toPath();

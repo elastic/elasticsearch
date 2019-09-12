@@ -29,6 +29,8 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
+
 /**
  * {@link GatewayMetaState} constructor accepts a lot of arguments.
  * It's not always easy / convenient to construct these dependencies.
@@ -38,14 +40,13 @@ import org.elasticsearch.transport.TransportService;
 public class MockGatewayMetaState extends GatewayMetaState {
     private final DiscoveryNode localNode;
 
-    public MockGatewayMetaState(Settings settings, NodeEnvironment nodeEnvironment,
-                                NamedXContentRegistry xContentRegistry, DiscoveryNode localNode) {
-        super(settings, new MetaStateService(nodeEnvironment, xContentRegistry));
+    public MockGatewayMetaState(DiscoveryNode localNode) {
         this.localNode = localNode;
     }
 
     @Override
-    protected void upgradeMetaData(MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader) {
+    void upgradeMetaData(Settings settings, MetaStateService metaStateService, MetaDataIndexUpgradeService metaDataIndexUpgradeService,
+                         MetaDataUpgrader metaDataUpgrader) {
         // MetaData upgrade is tested in GatewayMetaStateTests, we override this method to NOP to make mocking easier
     }
 
@@ -55,7 +56,7 @@ public class MockGatewayMetaState extends GatewayMetaState {
         return ClusterStateUpdaters.setLocalNode(clusterState, localNode);
     }
 
-    public void start() {
-        start(null, null, null, null);
+    public void start(NodeEnvironment nodeEnvironment, NamedXContentRegistry xContentRegistry) {
+        start(Settings.EMPTY, null, null, new MetaStateService(nodeEnvironment, xContentRegistry), null, null);
     }
 }

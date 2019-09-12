@@ -64,27 +64,30 @@ import java.util.function.UnaryOperator;
  * non-stale state, and master-ineligible nodes receive the real cluster state from the elected master after joining the cluster.
  */
 public class GatewayMetaState {
-    protected static final Logger logger = LogManager.getLogger(GatewayMetaState.class);
-
-    private final MetaStateService metaStateService;
-    private final Settings settings;
+    private static final Logger logger = LogManager.getLogger(GatewayMetaState.class);
 
     // Set by calling start()
     private final SetOnce<PersistedState> persistedState = new SetOnce<>();
 
-    public GatewayMetaState(Settings settings, MetaStateService metaStateService) {
-        this.settings = settings;
-        this.metaStateService = metaStateService;
+    public PersistedState getPersistedState() {
+        final PersistedState persistedState = this.persistedState.get();
+        assert persistedState != null : "not started";
+        return persistedState;
     }
 
-    public void start(TransportService transportService, ClusterService clusterService,
-                      MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader) {
+    public MetaData getMetaData() {
+        return getPersistedState().getLastAcceptedState().metaData();
+    }
+
+    public void start(Settings settings, TransportService transportService, ClusterService clusterService,
+                      MetaStateService metaStateService, MetaDataIndexUpgradeService metaDataIndexUpgradeService,
+                      MetaDataUpgrader metaDataUpgrader) {
         assert persistedState.get() == null : "should only start once, but already have " + persistedState.get();
 
         final Tuple<Manifest, ClusterState> manifestClusterStateTuple;
         try {
-            upgradeMetaData(metaDataIndexUpgradeService, metaDataUpgrader);
-            manifestClusterStateTuple = loadStateAndManifest(ClusterName.CLUSTER_NAME_SETTING.get(settings));
+            upgradeMetaData(settings, metaStateService, metaDataIndexUpgradeService, metaDataUpgrader);
+            manifestClusterStateTuple = loadStateAndManifest(ClusterName.CLUSTER_NAME_SETTING.get(settings), metaStateService);
         } catch (IOException e) {
             throw new ElasticsearchException("failed to load metadata", e);
         }
@@ -93,7 +96,7 @@ public class GatewayMetaState {
                 prepareInitialClusterState(transportService, clusterService, manifestClusterStateTuple.v2()));
         if (DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings).equals(DiscoveryModule.ZEN_DISCOVERY_TYPE)) {
             // only for tests that simulate a mixed Zen1/Zen2 clusters, see Zen1IT
-            if (isMasterOrDataNode()) {
+            if (isMasterOrDataNode(settings)) {
                 clusterService.addLowPriorityApplier(new GatewayClusterApplier(incrementalClusterStateWriter));
             }
             persistedState.set(new InMemoryPersistedState(manifestClusterStateTuple.v1().getCurrentTerm(), manifestClusterStateTuple.v2()));
@@ -121,20 +124,6 @@ public class GatewayMetaState {
         }
     }
 
-    private Tuple<Manifest,ClusterState> loadStateAndManifest(ClusterName clusterName) throws IOException {
-        final long startNS = System.nanoTime();
-        final Tuple<Manifest, MetaData> manifestAndMetaData = metaStateService.loadFullState();
-        final Manifest manifest = manifestAndMetaData.v1();
-
-        final ClusterState clusterState = ClusterState.builder(clusterName)
-                .version(manifest.getClusterStateVersion())
-                .metaData(manifestAndMetaData.v2()).build();
-
-        logger.debug("took {} to load state", TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - startNS)));
-
-        return Tuple.tuple(manifest, clusterState);
-    }
-
     // exposed so it can be overridden by tests
     ClusterState prepareInitialClusterState(TransportService transportService, ClusterService clusterService, ClusterState clusterState) {
         assert clusterState.nodes().getLocalNode() == null : "prepareInitialClusterState must only be called once";
@@ -147,9 +136,10 @@ public class GatewayMetaState {
             .apply(clusterState);
     }
 
-    protected void upgradeMetaData(MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader)
-            throws IOException {
-        if (isMasterOrDataNode()) {
+    // exposed so it can be overridden by tests
+    void upgradeMetaData(Settings settings, MetaStateService metaStateService, MetaDataIndexUpgradeService metaDataIndexUpgradeService,
+                         MetaDataUpgrader metaDataUpgrader) throws IOException {
+        if (isMasterOrDataNode(settings)) {
             try {
                 final Tuple<Manifest, MetaData> metaStateAndData = metaStateService.loadFullState();
                 final Manifest manifest = metaStateAndData.v1();
@@ -191,92 +181,23 @@ public class GatewayMetaState {
         }
     }
 
-    private boolean isMasterOrDataNode() {
+    private static Tuple<Manifest,ClusterState> loadStateAndManifest(ClusterName clusterName,
+                                                                     MetaStateService metaStateService) throws IOException {
+        final long startNS = System.nanoTime();
+        final Tuple<Manifest, MetaData> manifestAndMetaData = metaStateService.loadFullState();
+        final Manifest manifest = manifestAndMetaData.v1();
+
+        final ClusterState clusterState = ClusterState.builder(clusterName)
+            .version(manifest.getClusterStateVersion())
+            .metaData(manifestAndMetaData.v2()).build();
+
+        logger.debug("took {} to load state", TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - startNS)));
+
+        return Tuple.tuple(manifest, clusterState);
+    }
+
+    private static boolean isMasterOrDataNode(Settings settings) {
         return DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings);
-    }
-
-    public PersistedState getPersistedState() {
-        final PersistedState persistedState = this.persistedState.get();
-        assert persistedState != null : "not started";
-        return persistedState;
-    }
-
-    public MetaData getMetaData() {
-        return getPersistedState().getLastAcceptedState().metaData();
-    }
-
-    private static class GatewayClusterApplier implements ClusterStateApplier {
-
-        private final IncrementalClusterStateWriter incrementalClusterStateWriter;
-
-        private GatewayClusterApplier(IncrementalClusterStateWriter incrementalClusterStateWriter) {
-            this.incrementalClusterStateWriter = incrementalClusterStateWriter;
-        }
-
-        @Override
-        public void applyClusterState(ClusterChangedEvent event) {
-            if (event.state().blocks().disableStatePersistence()) {
-                incrementalClusterStateWriter.setIncrementalWrite(false);
-                return;
-            }
-
-            try {
-                // Hack: This is to ensure that non-master-eligible Zen2 nodes always store a current term
-                // that's higher than the last accepted term.
-                // TODO: can we get rid of this hack?
-                if (event.state().term() > incrementalClusterStateWriter.getPreviousManifest().getCurrentTerm()) {
-                    incrementalClusterStateWriter.setCurrentTerm(event.state().term());
-                }
-
-                incrementalClusterStateWriter.updateClusterState(event.state(), event.previousState());
-                incrementalClusterStateWriter.setIncrementalWrite(true);
-            } catch (WriteStateException e) {
-                logger.warn("Exception occurred when storing new meta data", e);
-            }
-        }
-    }
-
-    private static class GatewayPersistedState implements PersistedState {
-
-        private final IncrementalClusterStateWriter incrementalClusterStateWriter;
-
-        GatewayPersistedState(IncrementalClusterStateWriter incrementalClusterStateWriter) {
-            this.incrementalClusterStateWriter = incrementalClusterStateWriter;
-        }
-
-        @Override
-        public long getCurrentTerm() {
-            return incrementalClusterStateWriter.getPreviousManifest().getCurrentTerm();
-        }
-
-        @Override
-        public ClusterState getLastAcceptedState() {
-            final ClusterState previousClusterState = incrementalClusterStateWriter.getPreviousClusterState();
-            assert previousClusterState.nodes().getLocalNode() != null : "Cluster state is not fully built yet";
-            return previousClusterState;
-        }
-
-        @Override
-        public void setCurrentTerm(long currentTerm) {
-            try {
-                incrementalClusterStateWriter.setCurrentTerm(currentTerm);
-            } catch (WriteStateException e) {
-                logger.error(new ParameterizedMessage("Failed to set current term to {}", currentTerm), e);
-                e.rethrowAsErrorOrUncheckedException();
-            }
-        }
-
-        @Override
-        public void setLastAcceptedState(ClusterState clusterState) {
-            try {
-                final ClusterState previousClusterState = incrementalClusterStateWriter.getPreviousClusterState();
-                incrementalClusterStateWriter.setIncrementalWrite(previousClusterState.term() == clusterState.term());
-                incrementalClusterStateWriter.updateClusterState(clusterState, previousClusterState);
-            } catch (WriteStateException e) {
-                logger.error(new ParameterizedMessage("Failed to set last accepted state with version {}", clusterState.version()), e);
-                e.rethrowAsErrorOrUncheckedException();
-            }
-        }
     }
 
     /**
@@ -332,6 +253,83 @@ public class GatewayMetaState {
             return true;
         }
         return false;
+    }
+
+
+    private static class GatewayClusterApplier implements ClusterStateApplier {
+
+        private final IncrementalClusterStateWriter incrementalClusterStateWriter;
+
+        private GatewayClusterApplier(IncrementalClusterStateWriter incrementalClusterStateWriter) {
+            this.incrementalClusterStateWriter = incrementalClusterStateWriter;
+        }
+
+        @Override
+        public void applyClusterState(ClusterChangedEvent event) {
+            if (event.state().blocks().disableStatePersistence()) {
+                incrementalClusterStateWriter.setIncrementalWrite(false);
+                return;
+            }
+
+            try {
+                // Hack: This is to ensure that non-master-eligible Zen2 nodes always store a current term
+                // that's higher than the last accepted term.
+                // TODO: can we get rid of this hack?
+                if (event.state().term() > incrementalClusterStateWriter.getPreviousManifest().getCurrentTerm()) {
+                    incrementalClusterStateWriter.setCurrentTerm(event.state().term());
+                }
+
+                incrementalClusterStateWriter.updateClusterState(event.state(), event.previousState());
+                incrementalClusterStateWriter.setIncrementalWrite(true);
+            } catch (WriteStateException e) {
+                logger.warn("Exception occurred when storing new meta data", e);
+            }
+        }
+
+    }
+
+    private static class GatewayPersistedState implements PersistedState {
+
+        private final IncrementalClusterStateWriter incrementalClusterStateWriter;
+
+        GatewayPersistedState(IncrementalClusterStateWriter incrementalClusterStateWriter) {
+            this.incrementalClusterStateWriter = incrementalClusterStateWriter;
+        }
+
+        @Override
+        public long getCurrentTerm() {
+            return incrementalClusterStateWriter.getPreviousManifest().getCurrentTerm();
+        }
+
+        @Override
+        public ClusterState getLastAcceptedState() {
+            final ClusterState previousClusterState = incrementalClusterStateWriter.getPreviousClusterState();
+            assert previousClusterState.nodes().getLocalNode() != null : "Cluster state is not fully built yet";
+            return previousClusterState;
+        }
+
+        @Override
+        public void setCurrentTerm(long currentTerm) {
+            try {
+                incrementalClusterStateWriter.setCurrentTerm(currentTerm);
+            } catch (WriteStateException e) {
+                logger.error(new ParameterizedMessage("Failed to set current term to {}", currentTerm), e);
+                e.rethrowAsErrorOrUncheckedException();
+            }
+        }
+
+        @Override
+        public void setLastAcceptedState(ClusterState clusterState) {
+            try {
+                final ClusterState previousClusterState = incrementalClusterStateWriter.getPreviousClusterState();
+                incrementalClusterStateWriter.setIncrementalWrite(previousClusterState.term() == clusterState.term());
+                incrementalClusterStateWriter.updateClusterState(clusterState, previousClusterState);
+            } catch (WriteStateException e) {
+                logger.error(new ParameterizedMessage("Failed to set last accepted state with version {}", clusterState.version()), e);
+                e.rethrowAsErrorOrUncheckedException();
+            }
+        }
+
     }
 
 }

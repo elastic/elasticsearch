@@ -66,8 +66,8 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     }
 
     private CoordinationState.PersistedState newGatewayPersistedState() {
-        final MockGatewayMetaState gateway = new MockGatewayMetaState(settings, nodeEnvironment, xContentRegistry(), localNode);
-        gateway.start();
+        final MockGatewayMetaState gateway = new MockGatewayMetaState(localNode);
+        gateway.start(nodeEnvironment, xContentRegistry());
         final CoordinationState.PersistedState persistedState = gateway.getPersistedState();
         assertThat(persistedState, not(instanceOf(InMemoryPersistedState.class)));
         return persistedState;

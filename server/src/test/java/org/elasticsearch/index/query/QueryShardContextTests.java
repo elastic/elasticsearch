@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -128,9 +129,10 @@ public class QueryShardContextTests extends ESTestCase {
         final long nowInMillis = randomNonNegativeLong();
 
         return new QueryShardContext(
-            0, indexSettings, null, null, (mappedFieldType, idxName) ->
-            mappedFieldType.fielddataBuilder(idxName).build(indexSettings, mappedFieldType, null, null, null)
-            , mapperService, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()), null, null,
-            () -> nowInMillis, clusterAlias);
+            0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
+                (mappedFieldType, idxName) ->
+                    mappedFieldType.fielddataBuilder(idxName).build(indexSettings, mappedFieldType, null, null, null),
+                mapperService, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
+            null, null, () -> nowInMillis, clusterAlias);
     }
 }

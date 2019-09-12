@@ -107,7 +107,7 @@ GET _ilm/status
   "operation_mode": "STOPPING"
 }
 --------------------------------------------------
-// TESTRESPONSE[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/46528"]
+// TESTRESPONSE[s/"STOPPING"/$body.operation_mode/]
 
 The ILM service will then, asynchronously, run all policies to a point
 where it is safe to stop. After ILM verifies that it is safe, it will
@@ -129,6 +129,7 @@ GET _ilm/status
   "operation_mode": "STOPPED"
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"STOPPED"/$body.operation_mode/]
 
 [float]
 === Starting ILM

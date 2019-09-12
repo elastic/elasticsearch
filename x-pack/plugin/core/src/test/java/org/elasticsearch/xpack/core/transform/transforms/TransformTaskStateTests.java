@@ -73,7 +73,7 @@ public class TransformTaskStateTests extends ESTestCase {
                 TransformTaskState.fromStream(in);
                 fail("Expected IOException");
             } catch(IOException e) {
-                assertThat(e.getMessage(), containsString("Unknown DataFrameTransformTaskState ordinal ["));
+                assertThat(e.getMessage(), containsString("Unknown TransformTaskState ordinal ["));
             }
 
         }

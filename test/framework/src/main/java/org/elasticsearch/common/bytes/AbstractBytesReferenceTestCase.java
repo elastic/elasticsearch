@@ -70,9 +70,9 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
     public void testLength() throws IOException {
         int[] sizes = {0, randomInt(PAGE_SIZE), PAGE_SIZE, randomInt(PAGE_SIZE * 3)};
 
-        for (int i = 0; i < sizes.length; i++) {
-            BytesReference pbr = newBytesReference(sizes[i]);
-            assertEquals(sizes[i], pbr.length());
+        for (int size : sizes) {
+            BytesReference pbr = newBytesReference(size);
+            assertEquals(size, pbr.length());
         }
     }
 
@@ -313,11 +313,11 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
 
     public void testToBytes() throws IOException {
         int[] sizes = {0, randomInt(PAGE_SIZE), PAGE_SIZE, randomIntBetween(2, PAGE_SIZE * randomIntBetween(2, 5))};
-        for (int i = 0; i < sizes.length; i++) {
-            BytesReference pbr = newBytesReference(sizes[i]);
+        for (int size : sizes) {
+            BytesReference pbr = newBytesReference(size);
             byte[] bytes = BytesReference.toBytes(pbr);
-            assertEquals(sizes[i], bytes.length);
-            for (int j = 0; j  < bytes.length; j++) {
+            assertEquals(size, bytes.length);
+            for (int j = 0; j < bytes.length; j++) {
                 assertEquals(bytes[j], pbr.get(j));
             }
         }
@@ -593,7 +593,7 @@ public abstract class AbstractBytesReferenceTestCase extends ESTestCase {
             }
             PagedBytesReference crazyReference = crazyStream.bytes();
 
-            assertFalse(crazyReference.compareTo(bytesReference) == 0);
+            assertNotEquals(0, crazyReference.compareTo(bytesReference));
             assertEquals(0, crazyReference.slice(offset, length).compareTo(
                 bytesReference));
             assertEquals(0, bytesReference.compareTo(

@@ -152,7 +152,7 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
         int parsedNumberOfAggregations = 0;
         for (Aggregation parsedAgg : parsed.getAggregations()) {
             assertTrue(parsedAgg instanceof ParsedAggregation);
-            assertTrue(expectedAggregations.keySet().contains(parsedAgg.getName()));
+            assertTrue(expectedAggregations.containsKey(parsedAgg.getName()));
             Aggregation expectedInternalAggregation = expectedAggregations.get(parsedAgg.getName());
             final XContentType xContentType = randomFrom(XContentType.values());
             final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));

@@ -44,7 +44,7 @@ public class MockSearchService extends SearchService {
     /** Throw an {@link AssertionError} if there are still in-flight contexts. */
     public static void assertNoInFlightContext() {
         final Map<SearchContext, Throwable> copy = new HashMap<>(ACTIVE_SEARCH_CONTEXTS);
-        if (copy.isEmpty() == false) {
+        if (!copy.isEmpty()) {
             throw new AssertionError(
                     "There are still [" + copy.size()
                             + "] in-flight contexts. The first one's creation site is listed as the cause of this exception.",

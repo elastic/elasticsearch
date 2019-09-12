@@ -230,7 +230,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
 
                     final String range = exchange.getRequestHeaders().getFirst(Constants.HeaderConstants.STORAGE_RANGE_HEADER);
                     final Matcher matcher = Pattern.compile("^bytes=([0-9]+)-([0-9]+)$").matcher(range);
-                    assert matcher.matches();
+                    assertTrue(matcher.matches());
 
                     final int start = Integer.parseInt(matcher.group(1));
                     final int length = Integer.parseInt(matcher.group(2)) - start + 1;

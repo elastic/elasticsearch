@@ -22,12 +22,14 @@ package org.elasticsearch.common.joda;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -43,6 +45,26 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     protected boolean enableWarningsCheck() {
         return false;
     }
+
+    public void testCompositeParsingDateMath(){
+        //in all these examples the second pattern will be used
+
+        DateFormatter javaFormatter = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS").withLocale(randomLocale(random()));
+        DateMathParser javaDateMath = javaFormatter.toDateMathParser();
+        long gotMillisJava = javaDateMath.parse("2014-06-06T12:01:02.123", () -> 0, true, (ZoneId) null).toEpochMilli();
+
+        DateFormatter jodaFormatter = Joda.forPattern("yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS").withLocale(randomLocale(random()));
+        DateMathParser jodaDateMath = jodaFormatter.toDateMathParser();
+        long gotMillisJoda = jodaDateMath.parse("2014-06-06T12:01:02.123", () -> 0, true, (ZoneId) null).toEpochMilli();
+
+        assertEquals(gotMillisJoda, gotMillisJava);
+
+//        assertSameDate("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS");
+//        assertSameDate("2014-06-06T12:01:02.123", "strictDateTimeNoMillis||yyyy-MM-dd'T'HH:mm:ss.SSS");
+//        assertSameDate("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss+HH:MM||yyyy-MM-dd'T'HH:mm:ss.SSS");
+    }
+
+//    publi
 
     public void testDayOfWeek() {
         //7 (ok joda) vs 1 (java by default) but 7 with customized org.elasticsearch.common.time.IsoLocale.ISO8601

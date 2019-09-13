@@ -125,11 +125,11 @@ Setting this value to `-1` resets the global search timeout to no timeout.
 [[global-search-cancellation]]
 === Search Cancellation
 
-Searches are automatically cancelled when the http connection used to perform
-the request is closed by the client. It is fundamental that the http client
-sending requests closes connections whenever requests time out or are aborted.
-Automatic cancellation relies on standard  <<task-cancellation,task cancellation>>
-mechanism.
+Searches can be cancelled using standard <<task-cancellation,task cancellation>>
+mechanism and are also automatically cancelled when the http connection used to
+perform the request is closed by the client. It is fundamental that the http
+client sending requests closes connections whenever requests time out or are
+aborted.
 
 [float]
 [[search-concurrency-and-parallelism]]

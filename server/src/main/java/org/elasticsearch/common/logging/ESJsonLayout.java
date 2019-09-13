@@ -59,7 +59,7 @@ import java.util.Set;
  * </ul>
  * <p>
  * It is possible to add more field by extending ESLogMessage which expects a map of fields
- * or override them with <code>esmessagefield</code>
+ * or override them with <code>overrideFields</code>
  * <code>appender.logger.layout.overrideFields=message</code>
  * Each of these will be expanded into a json field with a value taken {@link ESLogMessage} field. In the example above
  * <code>... "message":  %ESMessageField{message} ...</code>

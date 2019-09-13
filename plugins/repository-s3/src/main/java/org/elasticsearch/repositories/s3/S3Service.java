@@ -37,7 +37,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -230,7 +229,7 @@ class S3Service implements Closeable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         releaseCachedClients();
     }
 

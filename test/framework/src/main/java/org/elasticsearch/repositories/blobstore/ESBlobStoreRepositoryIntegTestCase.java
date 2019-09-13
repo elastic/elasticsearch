@@ -307,7 +307,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         assertThat(response.getSnapshotInfo().successfulShards(), equalTo(response.getSnapshotInfo().totalShards()));
     }
 
-    private static void assertSuccessfulRestore(RestoreSnapshotRequestBuilder requestBuilder) {
+    protected static void assertSuccessfulRestore(RestoreSnapshotRequestBuilder requestBuilder) {
         RestoreSnapshotResponse response = requestBuilder.get();
         assertSuccessfulRestore(response);
     }

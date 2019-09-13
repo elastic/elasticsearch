@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.sql.expression.AttributeMap;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Foldables;
+import org.elasticsearch.xpack.sql.expression.LiteralAttribute;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.function.Function;
@@ -139,6 +140,10 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         if (pj instanceof ScalarFunction) {
                             ScalarFunction f = (ScalarFunction) pj;
                             processors.put(f.toAttribute(), Expressions.pipe(f));
+                        }
+
+                        if (pj instanceof LiteralAttribute) {
+                            processors.put(pj.toAttribute(), pj.asPipe());
                         }
                     }
                 }
@@ -348,6 +353,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, child.dataType().isDateBased()),
                                         ((GroupingFunction) child).toAttribute());
                             }
+                            else if (child.foldable()) {
+                                queryC = queryC.addColumn(ne.toAttribute());
+                            }
                             // fallback to regular agg functions
                             else {
                                 // the only thing left is agg function
@@ -368,6 +376,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                             queryC = queryC.addColumn(
                                 new GroupByRef(matchingGroup.id(), null, ne.dataType().isDateBased()), ne.toAttribute());
+                        }
+                        else if (ne.foldable()) {
+                            queryC = queryC.addColumn(ne.toAttribute());
                         }
                     }
                 }

@@ -1188,11 +1188,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected Expression rule(Expression e) {
-            if (e instanceof Alias) {
-                Alias a = (Alias) e;
-                return a.child().foldable() ? Literal.of(a.name(), a.child()) : a;
-            }
-
             return e.foldable() ? Literal.of(e) : e;
         }
     }
@@ -1968,7 +1963,16 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         private List<Object> extractConstants(List<? extends NamedExpression> named) {
             List<Object> values = new ArrayList<>();
             for (NamedExpression n : named) {
-                if (n.foldable()) {
+                if (n instanceof Alias) {
+                    Alias a = (Alias) n;
+                    if (a.child().foldable()) {
+                        values.add(a.child().fold());
+                    }
+                    // not everything is foldable, bail out early
+                    else {
+                        return values;
+                    }
+                } else if (n.foldable()) {
                     values.add(n.fold());
                 } else {
                     // not everything is foldable, bail-out early

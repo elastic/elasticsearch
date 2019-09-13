@@ -423,6 +423,21 @@ SELECT gender g, CAST(AVG(emp_no) AS FLOAT) a FROM "test_emp" GROUP BY g HAVING 
 aggAvgWithMultipleHavingOnAliasAndFunction
 SELECT gender g, CAST(AVG(emp_no) AS FLOAT) a FROM "test_emp" GROUP BY g HAVING a > 10 AND AVG(emp_no) > 10000000 ORDER BY g ;
 
+// Implicit grouping with filtering
+implicitGroupingWithLiteralAndFiltering
+SELECT 1 FROM test_emp HAVING COUNT(*) > 0;
+implicitGroupingWithLiteralAliasAndFiltering
+SELECT 1 AS l FROM test_emp HAVING COUNT(*) > 0;
+implicitGroupingWithLiteralAndFilteringOnAlias
+SELECT 1, COUNT(*) AS c FROM test_emp HAVING c > 0; 
+implicitGroupingWithLiteralAliasAndFilteringOnAlias
+SELECT 1 AS l FROM test_emp HAVING COUNT(*) > 0;
+implicitGroupingWithAggs
+SELECT MAX(emp_no) AS m FROM test_emp HAVING COUNT(*) > 0;
+implicitGroupingWithOptimizedAggs
+SELECT MIN(emp_no) AS m FROM test_emp HAVING MAX(emp_no) > 0 AND COUNT(*) > 0;
+
+
 //
 // GroupBy on Scalar plus Having
 //

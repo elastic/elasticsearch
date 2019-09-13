@@ -154,7 +154,10 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             if ((previousSnapshots == null && currentSnapshots != null)
                 || (previousSnapshots != null && previousSnapshots.equals(currentSnapshots) == false)) {
                 synchronized (shardSnapshots) {
-                    processIndexShardSnapshots(currentSnapshots);
+                    cancelRemoved(currentSnapshots);
+                    if (currentSnapshots != null) {
+                        startNewSnapshots(currentSnapshots);
+                    }
                 }
             }
 
@@ -197,18 +200,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         synchronized (shardSnapshots) {
             final Map<ShardId, IndexShardSnapshotStatus> current = shardSnapshots.get(snapshot);
             return current == null ? null : new HashMap<>(current);
-        }
-    }
-
-    /**
-     * Checks if any new shards should be snapshotted on this node
-     *
-     * @param snapshotsInProgress Current snapshots in progress in cluster state
-     */
-    private void processIndexShardSnapshots(SnapshotsInProgress snapshotsInProgress) {
-        cancelRemoved(snapshotsInProgress);
-        if (snapshotsInProgress != null) {
-            startNewSnapshots(snapshotsInProgress);
         }
     }
 

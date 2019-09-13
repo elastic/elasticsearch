@@ -1223,14 +1223,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     .collect(Collectors.toSet());
                 final BlobStoreIndexShardSnapshots updatedSnapshots = new BlobStoreIndexShardSnapshots(newSnapshotsList);
                 indexShardSnapshotsFormat.writeAtomic(updatedSnapshots, shardContainer, indexGeneration);
-                // Delete all previous index-N, data- and meta-blobs and that are not referenced by the new index-N and temporary blobs
-                blobsToDelete = blobs.keySet().stream().filter(blob ->
-                    blob.startsWith(SNAPSHOT_INDEX_PREFIX)
-                        || (blob.startsWith(SNAPSHOT_PREFIX) && blob.endsWith(".dat")
-                            && survivingSnapshotUUIDs.contains(
-                                blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length())) == false)
-                        || (blob.startsWith(DATA_BLOB_PREFIX) && updatedSnapshots.findNameFile(canonicalName(blob)) == null)
-                        || FsBlobContainer.isTempBlobName(blob)).collect(Collectors.toList());
+                blobsToDelete = unusedBlobs(blobs, survivingSnapshotUUIDs, updatedSnapshots);
             }
             try {
                 shardContainer.deleteBlobsIgnoringIfNotExists(blobsToDelete);
@@ -1244,6 +1237,20 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     + indexShardSnapshotsFormat.blobName(indexGeneration) + "]", e);
         }
     }
+
+    // Unused blobs are all previous index-, data- and meta-blobs and that are not referenced by the new index- as well as all
+    // temporary blobs
+    private static List<String> unusedBlobs(Map<String, BlobMetaData> blobs, Set<String> survivingSnapshotUUIDs,
+                                            BlobStoreIndexShardSnapshots updatedSnapshots) {
+        return blobs.keySet().stream().filter(blob ->
+            blob.startsWith(SNAPSHOT_INDEX_PREFIX)
+                || (blob.startsWith(SNAPSHOT_PREFIX) && blob.endsWith(".dat")
+                    && survivingSnapshotUUIDs.contains(
+                        blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - ".dat".length())) == false)
+                || (blob.startsWith(DATA_BLOB_PREFIX) && updatedSnapshots.findNameFile(canonicalName(blob)) == null)
+                || FsBlobContainer.isTempBlobName(blob)).collect(Collectors.toList());
+    }
+
 
     /**
      * Loads information about shard snapshot

@@ -83,7 +83,7 @@ If you want to use more complex queries, you can create your {dataframe} from a
 If you prefer, you can use the
 {ref}/preview-data-frame-transform.html[preview {dataframe-transforms} API]:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _data_frame/transforms/_preview
 {
@@ -130,7 +130,6 @@ POST _data_frame/transforms/_preview
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:set up sample data]
 --
 
@@ -159,7 +158,7 @@ If you prefer, you can use the
 {ref}/put-data-frame-transform.html[create {dataframe-transforms} API]. For
 example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _data_frame/transforms/ecommerce-customer-transform
 {
@@ -213,7 +212,6 @@ PUT _data_frame/transforms/ecommerce-customer-transform
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup kibana sample data]
 --
 
@@ -236,11 +234,10 @@ Alternatively, you can use the
 {ref}/stop-data-frame-transform.html[stop {dataframe-transforms}] APIs. For
 example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _data_frame/transforms/ecommerce-customer-transform/_start
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup kibana sample data]
 
 --

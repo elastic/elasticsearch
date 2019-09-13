@@ -21,9 +21,12 @@ import org.junit.After;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
 
@@ -87,6 +90,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
 
     public void testBasicFlow() throws Exception {
         setupGenericLifecycleTest(true);
+        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 30, TimeUnit.SECONDS);
     }
 
     public void testImmutablePolicy() throws IOException {
@@ -152,5 +156,36 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
 
     private static Map<String, Object> toMap(String response) {
         return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
+    }
+
+    private static void verifyEnrichMonitoring() throws IOException {
+        Request request = new Request("GET", "/.monitoring-*/_search");
+        request.setJsonEntity("{\"query\": {\"term\": {\"type\": \"enrich_coordinator_stats\"}}}");
+        Map<String, ?> response;
+        try {
+            response = toMap(adminClient().performRequest(request));
+        } catch (ResponseException e) {
+            throw new AssertionError("error while searching", e);
+        }
+
+        int maxRemoteRequestsTotal = 0;
+        int maxExecutedSearchesTotal = 0;
+
+        List<?> hits = (List<?>) XContentMapValues.extractValue("hits.hits", response);
+        assertThat(hits.size(), greaterThanOrEqualTo(1));
+
+        for (int i = 0; i < hits.size(); i++) {
+            Map<?, ?> hit = (Map<?, ?>) hits.get(i);
+
+            int foundRemoteRequestsTotal =
+                (int) XContentMapValues.extractValue("_source.enrich_coordinator_stats.remote_requests_total", hit);
+            maxRemoteRequestsTotal = Math.max(maxRemoteRequestsTotal, foundRemoteRequestsTotal);
+            int foundExecutedSearchesTotal =
+                (int) XContentMapValues.extractValue("_source.enrich_coordinator_stats.executed_searches_total", hit);
+            maxExecutedSearchesTotal = Math.max(maxExecutedSearchesTotal, foundExecutedSearchesTotal);
+        }
+
+        assertThat(maxRemoteRequestsTotal, greaterThan(0));
+        assertThat(maxExecutedSearchesTotal, greaterThan(0));
     }
 }

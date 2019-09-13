@@ -109,8 +109,8 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
             coordinateLookups();
         }
 
-        CoordinatorStats getStats() {
-            return new CoordinatorStats(queue.size(), remoteRequestsCurrent.get(), remoteRequestsTotal,
+        CoordinatorStats getStats(String nodeId) {
+            return new CoordinatorStats(nodeId, queue.size(), remoteRequestsCurrent.get(), remoteRequestsTotal,
                 executedSearchesTotal.get());
         }
 

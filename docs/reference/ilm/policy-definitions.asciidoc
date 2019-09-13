@@ -60,10 +60,12 @@ phase after one day. Until then, the index is in a waiting state. After
 moving into the warm phase, it will wait until 30 days have elapsed before
 moving to the delete phase and deleting the index.
 
-`min_age` is usually the time elapsed from the time the index is created. If the
-index is rolled over, then `min_age` is the time elapsed from the time the index
-is rolled over. The intention here is to execute following phases and actions
-relative to when data was written last to a rolled over index.
+`min_age` is usually the time elapsed from the time the index is created, unless
+the `index.lifecycle.origination_date` index setting is configured, in which
+case the `min_age` will be the time elapsed since that specified date. If the
+index is rolled over, then `min_age` is the time elapsed from the time the
+index is rolled over. The intention here is to execute following phases and
+actions relative to when data was written last to a rolled over index.
 
 The previous phase's actions must complete before {ilm} will check `min_age` and
 transition into the next phase. By default, {ilm} checks for indices that meet

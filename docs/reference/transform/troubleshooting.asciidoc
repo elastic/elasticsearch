@@ -16,11 +16,11 @@ information from the following files and APIs:
 by your `transform_id`.
 * The
 {ref}/get-data-frame-transform-stats.html[get {transform} statistics API] 
-provides information about the transform status and failures.
+provides information about the {transform} status and failures.
 * If the {transform} exists as a task, you can use the
 {ref}/tasks.html[task management API] to gather task information. For example:
 `GET _tasks?actions=data_frame/transforms*&detailed`. Typically, the task exists
-when the transform is in a started or failed state.
+when the {transform} is in a started or failed state.
 * The {es} logs from the node that was running the {transform} might
 also contain useful information. You can identify the node from the notification
 messages. Alternatively, if the task still exists, you can get that information

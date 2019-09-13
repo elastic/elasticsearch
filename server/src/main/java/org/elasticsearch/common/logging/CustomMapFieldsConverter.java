@@ -32,7 +32,8 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Pattern converter to populate ESMessageField in a pattern.
+ * Pattern converter to populate CustomMapFields in a pattern.
+ * This is to be used with custom ElasticSearch log messages
  * It will only populate these if the event have message of type <code>ESLogMessage</code>.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "CustomMapFields")
@@ -65,18 +66,20 @@ public final class CustomMapFieldsConverter extends LogEventPatternConverter {
         if (event.getMessage() instanceof ESLogMessage) {
             ESLogMessage logMessage = (ESLogMessage) event.getMessage();
 
+            String separator = "";
             Map<String, Object> fields = logMessage.getFields();
             for (String key : fields.keySet()) {
                 if (overridenFields.contains(key) == false) {
                     String value = logMessage.getValueFor(key);
                     if (Strings.isNullOrEmpty(value) == false) {
-                        String message = ESLogMessage.inQuotes(key) + ":" + ESLogMessage.inQuotes(value);
-                        StringBuilders.appendValue(toAppendTo, message);
-                        return;
+                        StringBuilders.appendValue(toAppendTo, separator);
+                        StringBuilders.appendValue(toAppendTo, ESLogMessage.inQuotes(key));
+                        StringBuilders.appendValue(toAppendTo, ":");
+                        StringBuilders.appendValue(toAppendTo, ESLogMessage.inQuotes(value));
+                        separator = ", ";
                     }
                 }
             }
         }
-        StringBuilders.appendValue(toAppendTo, "");
     }
 }

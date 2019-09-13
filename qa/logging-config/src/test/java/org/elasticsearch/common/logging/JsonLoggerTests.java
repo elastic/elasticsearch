@@ -100,13 +100,14 @@ public class JsonLoggerTests extends ESTestCase {
             );
         }
     }
-    class CustomMessage extends ESLogMessage{
-        CustomMessage() {
-            super(Map.of("message","overriden"), "some message");
-        }
-    }
 
     public void testMessageOverride() throws IOException {
+        class CustomMessage extends ESLogMessage{
+            CustomMessage() {
+                super(Map.of("message","overriden"), "some message");
+            }
+        }
+
         final Logger testLogger = LogManager.getLogger("custom.test");
         testLogger.info(new CustomMessage());
 
@@ -124,6 +125,38 @@ public class JsonLoggerTests extends ESTestCase {
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "overriden"))
+                )
+            );
+        }
+    }
+
+    public void testCustomMessageWithMultipleFields() throws IOException {
+        // if a field is defined to be overriden, it has to always be overriden in that appender.
+        class CustomMessage extends ESLogMessage{
+            CustomMessage() {
+                super(Map.of("field1","value1","field2","value2", "message", "some message"), "some message");
+            }
+        }
+
+        final Logger testLogger = LogManager.getLogger("custom.test");
+        testLogger.info(new CustomMessage());
+
+        final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
+            System.getProperty("es.logs.cluster_name") + "_custom.json");
+        try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
+            List<Map<String, String>> jsonLogs = stream
+                .collect(Collectors.toList());
+
+            assertThat(jsonLogs, contains(
+                allOf(
+                    hasEntry("type", "custom"),
+                    hasEntry("level", "INFO"),
+                    hasEntry("component", "c.test"),
+                    hasEntry("cluster.name", "elasticsearch"),
+                    hasEntry("node.name", "sample-name"),
+                    hasEntry("field1", "value1"),
+                    hasEntry("field2", "value2"),
+                    hasEntry("message", "some message"))
                 )
             );
         }
@@ -384,7 +417,7 @@ public class JsonLoggerTests extends ESTestCase {
     }
 
     private Path clusterLogsPath() {
-        return PathUtils.get(System.getProperty("es.logs.base_path"), System.getProperty("es.logs.cluster_name") + ".log");
+        return PathUtils.get(System.getProperty("es.logs.base_path"), System.getProperty("es.logs.cluster_name") + ".json");
     }
 
     private void setupLogging(final String config) throws IOException, UserException {

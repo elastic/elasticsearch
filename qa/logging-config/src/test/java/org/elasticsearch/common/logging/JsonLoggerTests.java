@@ -78,7 +78,7 @@ public class JsonLoggerTests extends ESTestCase {
         super.tearDown();
     }
     public void testDeprecatedMessage() throws IOException {
-        final Logger testLogger = LogManager.getLogger("test");
+        final Logger testLogger = LogManager.getLogger("deprecation.test");
         testLogger.info(new DeprecatedMessage("deprecated message1", "someId"));
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
@@ -91,7 +91,7 @@ public class JsonLoggerTests extends ESTestCase {
                 allOf(
                     hasEntry("type", "deprecation"),
                     hasEntry("level", "INFO"),
-                    hasEntry("component", "test"),
+                    hasEntry("component", "d.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message1"),
@@ -100,10 +100,38 @@ public class JsonLoggerTests extends ESTestCase {
             );
         }
     }
+    class CustomMessage extends ESLogMessage{
+        CustomMessage() {
+            super(Map.of("message","overriden"), "some message");
+        }
+    }
+
+    public void testMessageOverride() throws IOException {
+        final Logger testLogger = LogManager.getLogger("custom.test");
+        testLogger.info(new CustomMessage());
+
+        final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
+            System.getProperty("es.logs.cluster_name") + "_custom.json");
+        try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
+            List<Map<String, String>> jsonLogs = stream
+                .collect(Collectors.toList());
+
+            assertThat(jsonLogs, contains(
+                allOf(
+                    hasEntry("type", "custom"),
+                    hasEntry("level", "INFO"),
+                    hasEntry("component", "c.test"),
+                    hasEntry("cluster.name", "elasticsearch"),
+                    hasEntry("node.name", "sample-name"),
+                    hasEntry("message", "overriden"))
+                )
+            );
+        }
+    }
 
 
     public void testDeprecatedMessageWithoutXOpaqueId() throws IOException {
-        final Logger testLogger = LogManager.getLogger("test");
+        final Logger testLogger = LogManager.getLogger("deprecation.test");
         testLogger.info(new DeprecatedMessage("deprecated message1", "someId"));
         testLogger.info(new DeprecatedMessage("deprecated message2", ""));
         testLogger.info(new DeprecatedMessage("deprecated message3", null));
@@ -119,7 +147,7 @@ public class JsonLoggerTests extends ESTestCase {
                 allOf(
                     hasEntry("type", "deprecation"),
                     hasEntry("level", "INFO"),
-                    hasEntry("component", "test"),
+                    hasEntry("component", "d.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message1"),
@@ -127,7 +155,7 @@ public class JsonLoggerTests extends ESTestCase {
                 allOf(
                     hasEntry("type", "deprecation"),
                     hasEntry("level", "INFO"),
-                    hasEntry("component", "test"),
+                    hasEntry("component", "d.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message2"),
@@ -136,7 +164,7 @@ public class JsonLoggerTests extends ESTestCase {
                 allOf(
                     hasEntry("type", "deprecation"),
                     hasEntry("level", "INFO"),
-                    hasEntry("component", "test"),
+                    hasEntry("component", "d.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message3"),
@@ -145,7 +173,7 @@ public class JsonLoggerTests extends ESTestCase {
                 allOf(
                     hasEntry("type", "deprecation"),
                     hasEntry("level", "INFO"),
-                    hasEntry("component", "test"),
+                    hasEntry("component", "d.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
                     hasEntry("message", "deprecated message4"),

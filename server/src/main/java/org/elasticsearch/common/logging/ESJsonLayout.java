@@ -71,9 +71,11 @@ import java.util.Set;
 public class ESJsonLayout extends AbstractStringLayout {
 
     private final PatternLayout patternLayout;
+    private String overridenFields;
 
     protected ESJsonLayout(String typeName, Charset charset, String[] esmessagefields) {
         super(charset);
+        this.overridenFields = String.join(",",esmessagefields);
         this.patternLayout = PatternLayout.newBuilder()
                                           .withPattern(pattern(typeName, esmessagefields))
                                           .withAlwaysWriteExceptions(false)
@@ -120,6 +122,7 @@ public class ESJsonLayout extends AbstractStringLayout {
             separator = ", ";
         }
         sb.append(notEmpty(", %node_and_cluster_id "));
+        sb.append(notEmpty(", %CustomMapFields{"+overridenFields+"} "));
         sb.append("%exceptionAsJson ");
         sb.append("}");
         sb.append(System.lineSeparator());

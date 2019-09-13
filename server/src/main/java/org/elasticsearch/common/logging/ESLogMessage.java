@@ -50,6 +50,10 @@ public abstract class ESLogMessage extends ParameterizedMessage {
         return new String(sourceEscaped, Charset.defaultCharset());
     }
 
+    public Map<String,Object> getFields(){
+        return fields;
+    }
+
     public String getValueFor(String key) {
         Object value = fields.get(key);
         return value!=null ? value.toString() : null;

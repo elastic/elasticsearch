@@ -405,7 +405,8 @@ public class Setting<T> implements ToXContentObject {
      */
     public boolean exists(final Settings settings) {
         SecureSettings secureSettings = settings.getSecureSettings();
-        return settings.keySet().contains(getKey()) && (secureSettings == null || !secureSettings.getSettingNames().contains(getKey()));
+        return settings.keySet().contains(getKey()) &&
+            (secureSettings == null || secureSettings.getSettingNames().contains(getKey()) == false);
     }
 
     /**

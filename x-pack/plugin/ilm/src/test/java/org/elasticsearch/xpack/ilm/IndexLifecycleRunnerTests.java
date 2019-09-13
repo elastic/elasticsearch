@@ -1213,6 +1213,18 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         now.set(Long.MAX_VALUE);
         assertTrue("index should be able to transition past phase's age",
             runner.isReadyToTransitionToThisPhase(policyName, indexMetaData, "phase"));
+
+        // Come back to the "present"
+        now.set(5L);
+        indexMetaData = IndexMetaData.builder(indexMetaData)
+            .settings(Settings.builder()
+                .put(indexMetaData.getSettings())
+                .put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, 3L)
+                .build())
+            .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
+            .build();
+        assertTrue("index should be able to transition due to the origination date indicating it's old enough",
+            runner.isReadyToTransitionToThisPhase(policyName, indexMetaData, "phase"));
     }
 
 

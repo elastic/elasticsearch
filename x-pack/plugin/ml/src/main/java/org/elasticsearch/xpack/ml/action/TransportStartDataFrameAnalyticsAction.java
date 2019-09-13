@@ -413,6 +413,7 @@ public class TransportStartDataFrameAnalyticsAction
         private volatile int maxMachineMemoryPercent;
         private volatile int maxLazyMLNodes;
         private volatile int maxOpenJobs;
+        private volatile ClusterState clusterState;
 
         public TaskExecutor(Settings settings, Client client, ClusterService clusterService, DataFrameAnalyticsManager manager,
                             MlMemoryTracker memoryTracker) {
@@ -428,6 +429,7 @@ public class TransportStartDataFrameAnalyticsAction
                 .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, this::setMaxMachineMemoryPercent);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
             clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
+            clusterService.addListener(event -> clusterState = event.state());
         }
 
         @Override
@@ -494,10 +496,10 @@ public class TransportStartDataFrameAnalyticsAction
                 DataFrameAnalyticsTaskState startedState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.STARTED,
                     task.getAllocationId(), null);
                 task.updatePersistentTaskState(startedState, ActionListener.wrap(
-                    response -> manager.execute((DataFrameAnalyticsTask) task, DataFrameAnalyticsState.STARTED),
+                    response -> manager.execute((DataFrameAnalyticsTask) task, DataFrameAnalyticsState.STARTED, clusterState),
                     task::markAsFailed));
             } else {
-                manager.execute((DataFrameAnalyticsTask)task, analyticsTaskState.getState());
+                manager.execute((DataFrameAnalyticsTask) task, analyticsTaskState.getState(), clusterState);
             }
         }
 

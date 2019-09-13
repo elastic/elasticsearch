@@ -283,7 +283,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
     private final long mappingVersion;
 
     private final long settingsVersion;
-    
+
     private final long aliasesVersion;
 
     private final long[] primaryTerms;
@@ -1042,25 +1042,25 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             this.mappingVersion = mappingVersion;
             return this;
         }
-        
+
         public long settingsVersion() {
             return settingsVersion;
         }
-        
+
         public Builder settingsVersion(final long settingsVersion) {
             this.settingsVersion = settingsVersion;
             return this;
         }
-        
+
         public long aliasesVersion() {
             return aliasesVersion;
         }
-        
+
         public Builder aliasesVersion(final long aliasesVersion) {
             this.aliasesVersion = aliasesVersion;
             return this;
         }
-        
+
         /**
          * returns the primary term for the given shard.
          * See {@link IndexMetaData#primaryTerm(int)} for more information.

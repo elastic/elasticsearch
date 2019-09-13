@@ -155,7 +155,7 @@ Also see the {client}/python-api/current/index.html[official Elasticsearch Pytho
 * https://github.com/ropensci/elasticdsl[elasticdsl]:
   A high-level R DSL for Elasticsearch, wrapping the elastic R client.
   
-* https://github.com/UptakeOpenSource/uptasticsearch[uptasticsearch]:
+* https://github.com/uptake/uptasticsearch[uptasticsearch]:
   An R client tailored to data science workflows.
 
 [[ruby]]

@@ -44,6 +44,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -110,6 +111,7 @@ final class DefaultSearchContext extends SearchContext {
     private ScriptFieldsContext scriptFields;
     private FetchSourceContext fetchSourceContext;
     private DocValueFieldsContext docValueFieldsContext;
+    private Map<String, InnerHitContextBuilder> innerHits = Collections.emptyMap();
     private int from = -1;
     private int size = -1;
     private SortAndFormats sort;
@@ -375,6 +377,16 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public void highlight(SearchContextHighlight highlight) {
         this.highlight = highlight;
+    }
+
+    @Override
+    public void innerHits(Map<String, InnerHitContextBuilder> innerHits) {
+        this.innerHits = innerHits;
+    }
+
+    @Override
+    public Map<String, InnerHitContextBuilder> innerHits() {
+        return innerHits;
     }
 
     @Override

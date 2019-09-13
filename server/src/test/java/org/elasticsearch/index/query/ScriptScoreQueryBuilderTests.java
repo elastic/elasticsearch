@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
-import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
@@ -41,10 +40,7 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
     protected ScriptScoreQueryBuilder doCreateTestQueryBuilder() {
         String scriptStr = "1";
         Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, scriptStr, Collections.emptyMap());
-        ScriptScoreQueryBuilder queryBuilder = new ScriptScoreQueryBuilder(
-            RandomQueryBuilder.createQuery(random()),
-            new ScriptScoreFunctionBuilder(script)
-        );
+        ScriptScoreQueryBuilder queryBuilder = new ScriptScoreQueryBuilder(RandomQueryBuilder.createQuery(random()), script);
         if (randomBoolean()) {
             queryBuilder.setMinScore(randomFloat());
         }
@@ -75,7 +71,6 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
     public void testIllegalArguments() {
         String scriptStr = "1";
         Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, scriptStr, Collections.emptyMap());
-        ScriptScoreFunctionBuilder functionBuilder = new ScriptScoreFunctionBuilder(script);
 
         expectThrows(
             IllegalArgumentException.class,
@@ -84,7 +79,7 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
 
         expectThrows(
             IllegalArgumentException.class,
-            () -> new ScriptScoreQueryBuilder(null, functionBuilder)
+            () -> new ScriptScoreQueryBuilder(null, script)
         );
     }
 

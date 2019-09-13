@@ -19,11 +19,12 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Scorable;
+import org.elasticsearch.Version;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.Version;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -36,6 +37,33 @@ import java.util.function.DoubleSupplier;
  */
 public abstract class ScoreScript {
 
+    /** A helper to take in an explanation from a script and turn it into an {@link org.apache.lucene.search.Explanation}  */
+    public static class ExplanationHolder {
+        private String description;
+        private boolean usesScore;
+
+        /**
+         * Explain the current score.
+         *
+         * @param description A textual description of how the score was calculated
+         * @param usesScore {@code true} if {@code _score} was used, {@code false} otherwise
+         */
+        public void set(String description, boolean usesScore) {
+            this.description = description;
+            this.usesScore = usesScore;
+        }
+
+        public Explanation get(double score, Explanation subQueryExplanation) {
+            if (description == null) {
+                return null;
+            }
+            if (usesScore) {
+                return Explanation.match(score, description, subQueryExplanation);
+            }
+            return Explanation.match(score, description);
+        }
+    }
+
     private static final Map<String, String> DEPRECATIONS = Map.of(
             "doc",
             "Accessing variable [doc] via [params.doc] from within a score script "
@@ -43,7 +71,7 @@ public abstract class ScoreScript {
             "_doc", "Accessing variable [doc] via [params._doc] from within a score script "
                     + "is deprecated in favor of directly accessing [doc].");
 
-    public static final String[] PARAMETERS = new String[]{};
+    public static final String[] PARAMETERS = new String[]{ "explanation" };
 
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
@@ -76,7 +104,7 @@ public abstract class ScoreScript {
         }
     }
 
-    public abstract double execute();
+    public abstract double execute(ExplanationHolder explanation);
 
     /** Return the parameters for this script. */
     public Map<String, Object> getParams() {

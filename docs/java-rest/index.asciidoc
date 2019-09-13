@@ -1,6 +1,8 @@
 [[java-rest]]
 = Java REST Client
 
+include::{asciidoc-dir}/../../shared/versions/stack/{source_branch}.asciidoc[]
+
 include::../Versions.asciidoc[]
 
 include::overview.asciidoc[]

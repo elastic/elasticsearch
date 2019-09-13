@@ -1,6 +1,8 @@
 [[painless]]
 = Painless Scripting Language
 
+include::{asciidoc-dir}/../../shared/versions/stack/{source_branch}.asciidoc[]
+
 include::../Versions.asciidoc[]
 
 include::painless-guide.asciidoc[]

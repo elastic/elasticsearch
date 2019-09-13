@@ -245,14 +245,6 @@ PUT _cluster/settings
   Elasticsearch compresses the response. If unset, the global
   `transport.compress` is used as the fallback setting.
 
-`cluster.remote.${cluster_alias}.proxy`::
-
-  Sets a proxy address for the specified remote cluster. By default this is not
-  set, meaning that Elasticsearch will connect directly to the nodes in the
-  remote cluster using their <<advanced-network-settings,publish addresses>>.
-  If this setting is set to an IP address or hostname then Elasticsearch will
-  connect to the nodes in the remote cluster using this address instead.
-
 [float]
 [[retrieve-remote-clusters-info]]
 === Retrieving remote clusters info

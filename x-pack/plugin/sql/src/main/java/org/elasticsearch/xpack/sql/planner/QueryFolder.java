@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.sql.expression.AttributeMap;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Foldables;
-import org.elasticsearch.xpack.sql.expression.LiteralAttribute;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.function.Function;
@@ -141,10 +140,10 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             ScalarFunction f = (ScalarFunction) pj;
                             processors.put(f.toAttribute(), Expressions.pipe(f));
                         }
-
-                        if (pj instanceof LiteralAttribute) {
-                            processors.put(pj.toAttribute(), pj.asPipe());
-                        }
+                        //
+                        //                        if (pj instanceof LiteralAttribute) {
+                        //                            processors.put(pj.toAttribute(), pj.asPipe());
+                        //                        }
                     }
                 }
 

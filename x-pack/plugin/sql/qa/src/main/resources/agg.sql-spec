@@ -436,6 +436,12 @@ implicitGroupingWithAggs
 SELECT MAX(emp_no) AS m FROM test_emp HAVING COUNT(*) > 0;
 implicitGroupingWithOptimizedAggs
 SELECT MIN(emp_no) AS m FROM test_emp HAVING MAX(emp_no) > 0 AND COUNT(*) > 0;
+implicitGroupingWithNull
+SELECT NULL AS x FROM test_emp HAVING COUNT(1) > 1;
+implicitGroupingWithNullFunction
+SELECT LTRIM(CAST(YEAR(CAST(NULL AS DATE)) AS VARCHAR)) AS x FROM test_emp HAVING COUNT(1) > 1;
+implicitGroupingWithNullDateTimeFunction
+SELECT DAYNAME(CAST(NULL AS TIMESTAMP)) AS x FROM test_emp HAVING COUNT(1) > 1;
 
 
 //

@@ -59,6 +59,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
@@ -186,7 +187,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
     public void testExplainExecution() throws Exception {
         // start node
         logger.info("Starting server1");
-        final String server_1 = internalCluster().startNode();
+        internalCluster().startNode();
         logger.info("Creating lifecycle [test_lifecycle]");
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
         PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();
@@ -205,15 +206,39 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
             .actionGet();
         assertAcked(createIndexResponse);
 
+        // using AtomicLong only to extract a value from a lambda rather than the more traditional atomic update use-case
+        AtomicLong originalLifecycleDate = new AtomicLong();
         {
             PhaseExecutionInfo expectedExecutionInfo = new PhaseExecutionInfo(lifecyclePolicy.getName(), mockPhase, 1L, actualModifiedDate);
             assertBusy(() -> {
-                ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest();
-                ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
-                assertThat(explainResponse.getIndexResponses().size(), equalTo(1));
-                IndexLifecycleExplainResponse indexResponse = explainResponse.getIndexResponses().get("test");
+                IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse();
                 assertThat(indexResponse.getStep(), equalTo("observable_cluster_state_action"));
                 assertThat(indexResponse.getPhaseExecutionInfo(), equalTo(expectedExecutionInfo));
+                originalLifecycleDate.set(indexResponse.getLifecycleDate());
+            });
+        }
+
+        // set the origination date setting to an older value
+        client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Collections.singletonMap(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, 1000L)).get();
+
+        {
+            assertBusy(() -> {
+                IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse();
+                assertThat("The configured origination date dictates the lifecycle date",
+                    indexResponse.getLifecycleDate(), equalTo(1000L));
+            });
+        }
+
+        // set the origination date setting to null
+        client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Collections.singletonMap(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, null)).get();
+
+        {
+            assertBusy(() -> {
+                IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse();
+                assertThat("Without the origination date, the index create date should dictate the lifecycle date",
+                    indexResponse.getLifecycleDate(), equalTo(originalLifecycleDate.get()));
             });
         }
 
@@ -224,15 +249,19 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         {
             PhaseExecutionInfo expectedExecutionInfo = new PhaseExecutionInfo(lifecyclePolicy.getName(), null, 1L, actualModifiedDate);
             assertBusy(() -> {
-                ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest();
-                ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
-                assertThat(explainResponse.getIndexResponses().size(), equalTo(1));
-                IndexLifecycleExplainResponse indexResponse = explainResponse.getIndexResponses().get("test");
+                IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse();
                 assertThat(indexResponse.getPhase(), equalTo(TerminalPolicyStep.COMPLETED_PHASE));
                 assertThat(indexResponse.getStep(), equalTo(TerminalPolicyStep.KEY.getName()));
                 assertThat(indexResponse.getPhaseExecutionInfo(), equalTo(expectedExecutionInfo));
             });
         }
+    }
+
+    private IndexLifecycleExplainResponse executeExplainRequestAndGetTestIndexResponse() throws ExecutionException, InterruptedException {
+        ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest();
+        ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
+        assertThat(explainResponse.getIndexResponses().size(), equalTo(1));
+        return explainResponse.getIndexResponses().get("test");
     }
 
     public void testMasterDedicatedDataDedicated() throws Exception {

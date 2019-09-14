@@ -54,9 +54,10 @@ public final class ShardGenerations implements ToXContent {
 
     /**
      * Computes the obsolete shard index generations that can be deleted if this instance was written to the repository.
+     * NOTE: Indices that are only found in {@code previous} but not in this instance are not included in the result.
      *
      * @param previous Previous {@code ShardGenerations}
-     * @return Map of obsolete shard index generations
+     * @return Map of obsolete shard index generations in indices that are still tracked by this instance
      */
      Map<IndexId, Map<Integer, String>> obsoleteShardGenerations(ShardGenerations previous) {
         final Map<IndexId, Map<Integer, String>> result = new HashMap<>();
@@ -81,10 +82,10 @@ public final class ShardGenerations implements ToXContent {
 
     String getShardGen(IndexId indexId, int shardId) {
         final List<String> generations = shardGenerations.get(indexId);
-        if (generations == null || generations.isEmpty()) {
+        if (generations == null) {
             return null;
         }
-        if (generations.size() < shardId - 1) {
+        if (generations.size() < shardId + 1) {
             throw new IllegalArgumentException(
                 "Index [" + indexId + "] only has [" + generations.size() + "] shards but requested shard [" + shardId + "]");
         }
@@ -119,11 +120,7 @@ public final class ShardGenerations implements ToXContent {
 
     ShardGenerations forIndices(Set<IndexId> indices) {
         final Map<IndexId, List<String>> updatedGenerations = new HashMap<>(this.shardGenerations);
-        for (IndexId indexId : shardGenerations.keySet()) {
-            if (indices.contains(indexId) == false) {
-                updatedGenerations.remove(indexId);
-            }
-        }
+        updatedGenerations.keySet().retainAll(indices);
         assert assertShardGensUpdateConsistent(updatedGenerations);
         return new ShardGenerations(updatedGenerations);
     }
@@ -132,7 +129,7 @@ public final class ShardGenerations implements ToXContent {
         shardGenerations.forEach((indexId, gens) -> {
             final List<String> newGens = updated.get(indexId);
             assert newGens == null || gens.size() == 0
-                || newGens.size() == gens.size() : "Previous " + gens + ", updated " + newGens;
+                || newGens.size() <= gens.size() : "Previous " + gens + ", updated " + newGens;
             if (newGens != null && gens.size() != 0) {
                 for (int i = 0; i < newGens.size(); i++) {
                     assert (newGens.get(i) == null && gens.get(i) != null) == false;
@@ -178,9 +175,7 @@ public final class ShardGenerations implements ToXContent {
                  entry -> {
                      final int size = entry.getValue().keySet().stream().mapToInt(i -> i).max().orElse(-1) + 1;
                      final String[] gens = new String[size];
-                     entry.getValue().forEach((shardId, generation) -> {
-                         gens[shardId] = generation;
-                     });
+                     entry.getValue().forEach((shardId, generation) -> gens[shardId] = generation);
                      return Arrays.asList(gens);
                  }
              )));

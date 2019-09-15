@@ -243,8 +243,8 @@ public final class RepositoryData {
             assert snapshotIds != null;
             if (snapshotIds.contains(snapshotId)) {
                 if (snapshotIds.size() == 1) {
-                    // Removing the snapshot will mean no more snapshots reference this index, so we just skip over it since we will delete
-                    // it from the repository anyway
+                    // removing the snapshot will mean no more snapshots
+                    // have this index, so just skip over it
                     continue;
                 }
                 set = new LinkedHashSet<>(snapshotIds);

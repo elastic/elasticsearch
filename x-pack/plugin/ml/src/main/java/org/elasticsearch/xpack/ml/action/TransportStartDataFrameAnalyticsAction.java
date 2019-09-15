@@ -458,7 +458,12 @@ public class TransportStartDataFrameAnalyticsAction
 
         @Override
         public void markAsCompleted() {
-            persistProgress(() -> super.markAsCompleted());
+            // It is possible that the stop API has been called in the meantime and that
+            // may also cause this method to be called. We check whether we have already
+            // been marked completed to avoid doing it twice.
+            if (isCompleted() == false) {
+                persistProgress(() -> super.markAsCompleted());
+            }
         }
 
         @Override

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.dataframe;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
@@ -78,7 +79,13 @@ public class DataFrameAnalyticsManager {
                     case STARTED:
                         task.updatePersistentTaskState(reindexingState, ActionListener.wrap(
                             updatedTask -> reindexingStateListener.onResponse(config),
-                            reindexingStateListener::onFailure));
+                            error -> {
+                                if (error instanceof ResourceNotFoundException) {
+                                    // The task has been stopped
+                                } else {
+                                    reindexingStateListener.onFailure(error);
+                                }
+                            }));
                         break;
                     // The task has fully reindexed the documents and we should continue on with our analyses
                     case ANALYZING:
@@ -221,7 +228,13 @@ public class DataFrameAnalyticsManager {
                                 task.markAsCompleted();
                             }
                         }),
-                    error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
+                    error -> {
+                        if (error instanceof ResourceNotFoundException) {
+                            // Task has stopped
+                        } else {
+                            task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage());
+                        }
+                    }
                 ));
             },
             error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())

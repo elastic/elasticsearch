@@ -114,6 +114,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -381,8 +382,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             listener.onFailure(new RepositoryException(metadata.name(), "cannot delete snapshot from a readonly repository"));
         } else {
             try {
-                final Set<String> rootBlobs = blobContainer().listBlobs().keySet();
-                final RepositoryData repositoryData = getRepositoryData(latestGeneration(rootBlobs));
+                final Map<String, BlobMetaData> rootBlobs = blobContainer().listBlobs();
+                final RepositoryData repositoryData = getRepositoryData(latestGeneration(rootBlobs.keySet()));
                 final Map<String, BlobContainer> foundIndices = blobStore().blobContainer(indicesPath()).children();
                 if (version.onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
                     // New path that updates the pointer to each deleted shard's generation in the root RepositoryData
@@ -417,7 +418,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param listener          Listener to invoke once finished
      */
     private void doDeleteShardSnapshotsLegacy(SnapshotId snapshotId, long repositoryStateId, Version version,
-                                              Map<String, BlobContainer> foundIndices, Set<String> rootBlobs,
+                                              Map<String, BlobContainer> foundIndices, Map<String, BlobMetaData> rootBlobs,
                                               RepositoryData repositoryData, ActionListener<Void> listener) throws IOException {
         assert version.before(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION);
 
@@ -448,8 +449,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 .map(updatedRepositoryData::resolveIndexId).collect(Collectors.toList())).orElse(Collections.emptyList()),
             snapshotId,
             ActionListener.delegateFailure(listener,
-                (l, v) -> cleanupStaleBlobs(foundIndices, Sets.difference(rootBlobs, new HashSet<>(snapMetaFilesToDelete)),
-                    updatedRepositoryData, l)));
+                (l, v) -> cleanupStaleBlobs(foundIndices,
+                    Sets.difference(rootBlobs.keySet(), new HashSet<>(snapMetaFilesToDelete)).stream().collect(
+                        Collectors.toMap(Function.identity(), rootBlobs::get)),
+                    updatedRepositoryData, ActionListener.map(l, ignored -> null))));
     }
 
     /**
@@ -467,8 +470,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param listener          Listener to invoke once finished
      */
     private void doDeleteShardSnapshots(SnapshotId snapshotId, long repositoryStateId, Version version,
-                                        Map<String, BlobContainer> foundIndices, Set<String> rootBlobs, RepositoryData repositoryData,
-                                        ActionListener<Void> listener) {
+                                        Map<String, BlobContainer> foundIndices, Map<String,BlobMetaData> rootBlobs,
+                                        RepositoryData repositoryData, ActionListener<Void> listener) {
         assert version.onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION);
 
         // listener to complete once all shards folders affected by this delete have been added new metadata blobs without this snapshot
@@ -549,32 +552,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     return shardBlob.blobsToDelete.stream().map(blob -> pathToShard + blob);
                 }).collect(Collectors.toList())
             );
-            cleanupStaleBlobs(foundIndices, rootBlobs, newRepoData, listener);
+            cleanupStaleBlobs(foundIndices, rootBlobs, newRepoData, ActionListener.map(listener, r -> null));
         }, listener::onFailure);
-    }
-
-    /**
-     * Cleans up stale blobs directly under the repository root as well as all indices paths that aren't referenced by any existing
-     * snapshots. This method is only to be called directly after a new {@link RepositoryData} was written to the repository and with
-     * parameters {@code foundIndices}, {@code rootBlobs}
-     *
-     * @param foundIndices all indices blob containers found in the repository before {@code newRepoData} was written
-     * @param rootBlobs    all blobs found directly under the repository root
-     * @param newRepoData  new repository data that was just written
-     * @param listener     listener to invoke once done
-     */
-    private void cleanupStaleBlobs(Map<String, BlobContainer> foundIndices, Set<String> rootBlobs, RepositoryData newRepoData,
-                                   ActionListener<Void> listener) {
-        final GroupedActionListener<Void> afterCleanup = new GroupedActionListener<>(ActionListener.map(listener, v -> null), 2);
-        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
-        executor.execute(ActionRunnable.wrap(afterCleanup, l -> {
-            cleanupStaleIndices(foundIndices, newRepoData.getIndices().values().stream().map(IndexId::getId).collect(Collectors.toSet()));
-            l.onResponse(null);
-        }));
-        executor.execute(ActionRunnable.wrap(afterCleanup, l -> {
-            cleanupStaleRootFiles(staleRootBlobs(newRepoData, rootBlobs));
-            l.onResponse(null);
-        }));
     }
 
     /**

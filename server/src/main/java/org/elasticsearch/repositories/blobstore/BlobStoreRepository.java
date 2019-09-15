@@ -825,24 +825,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final RepositoryData updatedRepositoryData =
                 existingRepositoryData.addSnapshot(snapshotId, blobStoreSnapshot.state(), shardGenerations);
             snapshotFormat.write(blobStoreSnapshot, blobContainer(), snapshotId.getUUID(), false);
-            writeIndexGen(updatedRepositoryData, repositoryStateId, version);
 
             // Once we are done writing the updated index-N blob we remove the now unreferenced index-${uuid} blobs in each shard directory
             // if all nodes are at least at version SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION
             // If there are older version nodes in the cluster, we don't need to run this cleanup as it will have already happened when
             // writing the index-${N} to each shard directory.
+            writeIndexGen(updatedRepositoryData, repositoryStateId, version);
             if (version.onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
-                final List<String> toDelete = new ArrayList<>();
-                final int prefixPathLen = basePath().buildAsString().length();
-                for (Map.Entry<IndexId, Map<Integer, String>> entry
-                    : updatedRepositoryData.obsoleteShardGenerations(existingRepositoryData).entrySet()) {
-                    final IndexId indexId = entry.getKey();
-                    for (Map.Entry<Integer, String> shardEntry : entry.getValue().entrySet()) {
-                        toDelete.add(shardContainer(indexId, shardEntry.getKey()).path().buildAsString().substring(prefixPathLen)
-                            + INDEX_FILE_PREFIX + shardEntry.getValue());
-                    }
-                }
-                blobContainer().deleteBlobsIgnoringIfNotExists(toDelete);
+                cleanupOldShardGens(existingRepositoryData, updatedRepositoryData);
             }
         } catch (FileAlreadyExistsException ex) {
             // if another master was elected and took over finalizing the snapshot, it is possible
@@ -854,6 +844,20 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             throw new RepositoryException(metadata.name(), "failed to update snapshot in repository", ex);
         }
         return blobStoreSnapshot;
+    }
+
+    private void cleanupOldShardGens(RepositoryData existingRepositoryData, RepositoryData updatedRepositoryData) throws IOException {
+        final List<String> toDelete = new ArrayList<>();
+        final int prefixPathLen = basePath().buildAsString().length();
+        for (Map.Entry<IndexId, Map<Integer, String>> entry
+            : updatedRepositoryData.obsoleteShardGenerations(existingRepositoryData).entrySet()) {
+            final IndexId indexId = entry.getKey();
+            for (Map.Entry<Integer, String> shardEntry : entry.getValue().entrySet()) {
+                toDelete.add(shardContainer(indexId, shardEntry.getKey()).path().buildAsString().substring(prefixPathLen)
+                    + INDEX_FILE_PREFIX + shardEntry.getValue());
+            }
+        }
+        blobContainer().deleteBlobsIgnoringIfNotExists(toDelete);
     }
 
     @Override

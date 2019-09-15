@@ -530,4 +530,5 @@ public final class RepositoryData {
         }
         return new RepositoryData(genId, snapshots, snapshotStates, indexSnapshots, shardGenerations);
     }
+
 }

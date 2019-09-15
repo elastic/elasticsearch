@@ -23,8 +23,8 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformProgress;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
@@ -126,7 +126,7 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
         aggs.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         AggregationConfig aggregationConfig = new AggregationConfig(Collections.emptyMap(), aggs);
         PivotConfig pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig, null);
-        DataFrameTransformConfig config = new DataFrameTransformConfig("get_progress_transform",
+        TransformConfig config = new TransformConfig("get_progress_transform",
             sourceConfig,
             destConfig,
             null,
@@ -140,7 +140,7 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
             TransformProgressGatherer.getSearchRequest(config, config.getSource().getQueryConfig().getQuery()),
             RequestOptions.DEFAULT);
 
-        DataFrameTransformProgress progress =
+        TransformProgress progress =
             TransformProgressGatherer.searchResponseToDataFrameTransformProgressFunction().apply(response);
 
         assertThat(progress.getTotalDocs(), equalTo(1000L));
@@ -151,7 +151,7 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
         QueryConfig queryConfig = new QueryConfig(Collections.emptyMap(), QueryBuilders.termQuery("user_id", "user_26"));
         pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig, null);
         sourceConfig = new SourceConfig(new String[]{REVIEWS_INDEX_NAME}, queryConfig);
-        config = new DataFrameTransformConfig("get_progress_transform",
+        config = new TransformConfig("get_progress_transform",
             sourceConfig,
             destConfig,
             null,
@@ -171,7 +171,7 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
         histgramGroupConfig = new GroupConfig(Collections.emptyMap(),
             Collections.singletonMap("every_50", new HistogramGroupSource("missing_field", 50.0)));
         pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig, null);
-        config = new DataFrameTransformConfig("get_progress_transform",
+        config = new TransformConfig("get_progress_transform",
             sourceConfig,
             destConfig,
             null,

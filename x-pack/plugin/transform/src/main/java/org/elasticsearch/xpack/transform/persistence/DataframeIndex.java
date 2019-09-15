@@ -16,9 +16,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.core.transform.DataFrameMessages;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -40,7 +40,7 @@ public final class DataframeIndex {
 
     public static void createDestinationIndex(Client client,
                                               Clock clock,
-                                              DataFrameTransformConfig transformConfig,
+                                              TransformConfig transformConfig,
                                               Map<String, String> mappings,
                                               ActionListener<Boolean> listener) {
         CreateIndexRequest request = new CreateIndexRequest(transformConfig.getDestination().getIndex());
@@ -57,7 +57,7 @@ public final class DataframeIndex {
         client.execute(CreateIndexAction.INSTANCE, request, ActionListener.wrap(createIndexResponse -> {
             listener.onResponse(true);
         }, e -> {
-            String message = DataFrameMessages.getMessage(DataFrameMessages.FAILED_TO_CREATE_DESTINATION_INDEX,
+            String message = TransformMessages.getMessage(TransformMessages.FAILED_TO_CREATE_DESTINATION_INDEX,
                     transformConfig.getDestination().getIndex(), transformConfig.getId());
             logger.error(message);
             listener.onFailure(new RuntimeException(message, e));
@@ -97,13 +97,13 @@ public final class DataframeIndex {
 
     private static XContentBuilder addMetaData(XContentBuilder builder, String id, Clock clock) throws IOException {
         return builder.startObject(META)
-            .field(DataFrameField.CREATED_BY, DataFrameField.DATA_FRAME_SIGNATURE)
-            .startObject(DataFrameField.META_FIELDNAME)
-                .field(DataFrameField.CREATION_DATE_MILLIS, clock.millis())
-                .startObject(DataFrameField.VERSION.getPreferredName())
-                    .field(DataFrameField.CREATED, Version.CURRENT)
+            .field(TransformField.CREATED_BY, TransformField.DATA_FRAME_SIGNATURE)
+            .startObject(TransformField.META_FIELDNAME)
+                .field(TransformField.CREATION_DATE_MILLIS, clock.millis())
+                .startObject(TransformField.VERSION.getPreferredName())
+                    .field(TransformField.CREATED, Version.CURRENT)
                 .endObject()
-                .field(DataFrameField.TRANSFORM, id)
+                .field(TransformField.TRANSFORM, id)
             .endObject() // META_FIELDNAME
         .endObject(); // META
     }

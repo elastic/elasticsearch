@@ -20,7 +20,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.transform.action.StartDataFrameTransformTaskAction;
+import org.elasticsearch.xpack.core.transform.action.StartTransformTaskAction;
 import org.elasticsearch.xpack.transform.transforms.DataFrameTransformTask;
 
 import java.util.List;
@@ -29,26 +29,26 @@ import java.util.List;
  * Internal only transport class to change an allocated persistent task's state to started
  */
 public class TransportStartDataFrameTransformTaskAction extends
-    TransportTasksAction<DataFrameTransformTask, StartDataFrameTransformTaskAction.Request,
-        StartDataFrameTransformTaskAction.Response, StartDataFrameTransformTaskAction.Response> {
+    TransportTasksAction<DataFrameTransformTask, StartTransformTaskAction.Request,
+        StartTransformTaskAction.Response, StartTransformTaskAction.Response> {
 
     private final XPackLicenseState licenseState;
 
     @Inject
     public TransportStartDataFrameTransformTaskAction(TransportService transportService, ActionFilters actionFilters,
                                                   ClusterService clusterService, XPackLicenseState licenseState) {
-        super(StartDataFrameTransformTaskAction.NAME, clusterService, transportService, actionFilters,
-            StartDataFrameTransformTaskAction.Request::new, StartDataFrameTransformTaskAction.Response::new,
-            StartDataFrameTransformTaskAction.Response::new, ThreadPool.Names.SAME);
+        super(StartTransformTaskAction.NAME, clusterService, transportService, actionFilters,
+            StartTransformTaskAction.Request::new, StartTransformTaskAction.Response::new,
+            StartTransformTaskAction.Response::new, ThreadPool.Names.SAME);
         this.licenseState = licenseState;
     }
 
     @Override
-    protected void doExecute(Task task, StartDataFrameTransformTaskAction.Request request,
-                             ActionListener<StartDataFrameTransformTaskAction.Response> listener) {
+    protected void doExecute(Task task, StartTransformTaskAction.Request request,
+                             ActionListener<StartTransformTaskAction.Response> listener) {
 
         if (!licenseState.isDataFrameAllowed()) {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.DATA_FRAME));
+            listener.onFailure(LicenseUtils.newComplianceException(XPackField.Transform));
             return;
         }
 
@@ -56,8 +56,8 @@ public class TransportStartDataFrameTransformTaskAction extends
     }
 
     @Override
-    protected void taskOperation(StartDataFrameTransformTaskAction.Request request, DataFrameTransformTask transformTask,
-                                 ActionListener<StartDataFrameTransformTaskAction.Response> listener) {
+    protected void taskOperation(StartTransformTaskAction.Request request, DataFrameTransformTask transformTask,
+                                 ActionListener<StartTransformTaskAction.Response> listener) {
         if (transformTask.getTransformId().equals(request.getId())) {
             transformTask.start(null, request.isForce(), listener);
         } else {
@@ -67,8 +67,8 @@ public class TransportStartDataFrameTransformTaskAction extends
     }
 
     @Override
-    protected StartDataFrameTransformTaskAction.Response newResponse(StartDataFrameTransformTaskAction.Request request,
-                                                                     List<StartDataFrameTransformTaskAction.Response> tasks,
+    protected StartTransformTaskAction.Response newResponse(StartTransformTaskAction.Request request,
+                                                                     List<StartTransformTaskAction.Response> tasks,
                                                                      List<TaskOperationFailure> taskOperationFailures,
                                                                      List<FailedNodeException> failedNodeExceptions) {
 
@@ -87,7 +87,7 @@ public class TransportStartDataFrameTransformTaskAction extends
 
         assert tasks.size() == 1;
 
-        boolean allStarted = tasks.stream().allMatch(StartDataFrameTransformTaskAction.Response::isStarted);
-        return new StartDataFrameTransformTaskAction.Response(allStarted);
+        boolean allStarted = tasks.stream().allMatch(StartTransformTaskAction.Response::isStarted);
+        return new StartTransformTaskAction.Response(allStarted);
     }
 }

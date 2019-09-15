@@ -21,11 +21,11 @@ package org.elasticsearch.client.transform.transforms.hlrc;
 
 import org.elasticsearch.client.AbstractHlrcXContentTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpointStats;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpointingInfo;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformProgress;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
+import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
 import org.elasticsearch.xpack.core.transform.transforms.NodeAttributes;
 
 import java.io.IOException;
@@ -34,7 +34,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class DataFrameTransformStatsTests extends AbstractHlrcXContentTestCase<DataFrameTransformStats,
+public class DataFrameTransformStatsTests extends AbstractHlrcXContentTestCase<TransformStats,
     org.elasticsearch.client.transform.transforms.DataFrameTransformStats> {
 
     public static NodeAttributes fromHlrc(org.elasticsearch.client.transform.transforms.NodeAttributes attributes) {
@@ -45,11 +45,11 @@ public class DataFrameTransformStatsTests extends AbstractHlrcXContentTestCase<D
             attributes.getAttributes());
     }
 
-    public static DataFrameTransformStats
+    public static TransformStats
         fromHlrc(org.elasticsearch.client.transform.transforms.DataFrameTransformStats instance) {
 
-        return new DataFrameTransformStats(instance.getId(),
-            DataFrameTransformStats.State.fromString(instance.getState().value()),
+        return new TransformStats(instance.getId(),
+            TransformStats.State.fromString(instance.getState().value()),
             instance.getReason(),
             fromHlrc(instance.getNode()),
             DataFrameIndexerTransformStatsTests.fromHlrc(instance.getIndexerStats()),
@@ -63,19 +63,19 @@ public class DataFrameTransformStatsTests extends AbstractHlrcXContentTestCase<D
     }
 
     @Override
-    public DataFrameTransformStats convertHlrcToInternal(
+    public TransformStats convertHlrcToInternal(
         org.elasticsearch.client.transform.transforms.DataFrameTransformStats instance) {
-        return new DataFrameTransformStats(instance.getId(),
-                DataFrameTransformStats.State.fromString(instance.getState().value()),
+        return new TransformStats(instance.getId(),
+                TransformStats.State.fromString(instance.getState().value()),
                 instance.getReason(),
                 fromHlrc(instance.getNode()),
                 DataFrameIndexerTransformStatsTests.fromHlrc(instance.getIndexerStats()),
                 DataFrameTransformCheckpointingInfoTests.fromHlrc(instance.getCheckpointingInfo()));
     }
 
-    public static DataFrameTransformStats randomDataFrameTransformStats() {
-        return new DataFrameTransformStats(randomAlphaOfLength(10),
-            randomFrom(DataFrameTransformStats.State.values()),
+    public static TransformStats randomDataFrameTransformStats() {
+        return new TransformStats(randomAlphaOfLength(10),
+            randomFrom(TransformStats.State.values()),
             randomBoolean() ? null : randomAlphaOfLength(100),
             randomBoolean() ? null : randomNodeAttributes(),
             randomStats(),
@@ -83,13 +83,13 @@ public class DataFrameTransformStatsTests extends AbstractHlrcXContentTestCase<D
     }
 
     @Override
-    protected DataFrameTransformStats createTestInstance() {
+    protected TransformStats createTestInstance() {
         return randomDataFrameTransformStats();
     }
 
     @Override
-    protected DataFrameTransformStats doParseInstance(XContentParser parser) throws IOException {
-        return DataFrameTransformStats.PARSER.apply(parser, null);
+    protected TransformStats doParseInstance(XContentParser parser) throws IOException {
+        return TransformStats.PARSER.apply(parser, null);
     }
 
     @Override
@@ -97,24 +97,24 @@ public class DataFrameTransformStatsTests extends AbstractHlrcXContentTestCase<D
         return field -> field.contains("position") || field.equals("node.attributes");
     }
 
-    public static DataFrameTransformProgress randomDataFrameTransformProgress() {
+    public static TransformProgress randomDataFrameTransformProgress() {
         Long totalDocs = randomBoolean() ? null : randomNonNegativeLong();
         Long docsRemaining = totalDocs != null ? randomLongBetween(0, totalDocs) : null;
-        return new DataFrameTransformProgress(
+        return new TransformProgress(
             totalDocs,
             docsRemaining,
             totalDocs != null ? totalDocs - docsRemaining : randomNonNegativeLong(),
             randomBoolean() ? null : randomNonNegativeLong());
     }
 
-    public static DataFrameTransformCheckpointingInfo randomDataFrameTransformCheckpointingInfo() {
-        return new DataFrameTransformCheckpointingInfo(randomDataFrameTransformCheckpointStats(),
+    public static TransformCheckpointingInfo randomDataFrameTransformCheckpointingInfo() {
+        return new TransformCheckpointingInfo(randomDataFrameTransformCheckpointStats(),
             randomDataFrameTransformCheckpointStats(), randomNonNegativeLong(),
             randomBoolean() ? null : Instant.ofEpochMilli(randomNonNegativeLong()));
     }
 
-    public static DataFrameTransformCheckpointStats randomDataFrameTransformCheckpointStats() {
-        return new DataFrameTransformCheckpointStats(randomLongBetween(1, 1_000_000),
+    public static TransformCheckpointStats randomDataFrameTransformCheckpointStats() {
+        return new TransformCheckpointStats(randomLongBetween(1, 1_000_000),
             DataFrameIndexerPositionTests.randomDataFrameIndexerPosition(),
             randomBoolean() ? null : DataFrameTransformProgressTests.randomDataFrameTransformProgress(),
             randomLongBetween(1, 1_000_000), randomLongBetween(0, 1_000_000));
@@ -134,8 +134,8 @@ public class DataFrameTransformStatsTests extends AbstractHlrcXContentTestCase<D
             attributes);
     }
 
-    public static DataFrameIndexerTransformStats randomStats() {
-        return new DataFrameIndexerTransformStats(randomLongBetween(10L, 10000L),
+    public static TransformIndexerStats randomStats() {
+        return new TransformIndexerStats(randomLongBetween(10L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L),

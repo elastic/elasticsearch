@@ -105,7 +105,7 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
         dependsOn fetchLatest
         doLast {
             String refspec = System.getProperty("bwc.refspec.${bwcBranch}") ?: System.getProperty("tests.bwc.refspec.${bwcBranch}") ?: "${remote}/${bwcBranch}"
-            if (System.getProperty("bwc.checkout.align") != null || System.getProperty("tests.bwc.checkout.align") != null) {
+            if (System.getProperty("bwc.checkout.align") != null) {
                 /*
                     We use a time based approach to make the bwc versions built deterministic and compatible with the current hash.
                     Most of the time we want to test against latest, but when running delayed exhaustive tests or wanting
@@ -141,12 +141,14 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
                 }
             }
 
-            logger.lifecycle("Checkout hash for ${project.path} is ${refspec}")
+            logger.lifecycle("Performing checkout of ${refspec}...")
             LoggedExec.exec(project) { spec ->
                 spec.workingDir = checkoutDir
                 spec.commandLine "git", "checkout", refspec
             }
-            file("${project.buildDir}/refspec").text = GlobalBuildInfoPlugin.gitRevision(checkoutDir)
+            String checkoutHash = GlobalBuildInfoPlugin.gitRevision(checkoutDir)
+            logger.lifecycle("Checkout hash for ${project.path} is ${checkoutHash}")
+            file("${project.buildDir}/refspec").text = checkoutHash
         }
     }
 

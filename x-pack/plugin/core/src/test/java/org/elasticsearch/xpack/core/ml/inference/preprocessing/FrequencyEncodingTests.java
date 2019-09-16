@@ -37,7 +37,7 @@ public class FrequencyEncodingTests extends AbstractSerializingTestCase<Frequenc
         for (int i = 0; i < valuesSize; i++) {
             valueMap.put(randomAlphaOfLength(10), randomDoubleBetween(0.0, 1.0, false));
         }
-        return new FrequencyEncoding(randomAlphaOfLength(10), valueMap);
+        return new FrequencyEncoding(randomAlphaOfLength(10), randomAlphaOfLength(10), valueMap);
     }
 
     @Override
@@ -50,7 +50,8 @@ public class FrequencyEncodingTests extends AbstractSerializingTestCase<Frequenc
         List<String> values = Arrays.asList("foo", "bar", "foobar", "baz", "farequote");
         Map<String, Double> valueMap = values.stream().collect(Collectors.toMap(Function.identity(),
             v -> randomDoubleBetween(0.0, 1.0, false)));
-        FrequencyEncoding encoding = new FrequencyEncoding(field, valueMap);
+        String encodedFeatureName = "encoded";
+        FrequencyEncoding encoding = new FrequencyEncoding(field, encodedFeatureName, valueMap);
         for(int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
             int numFields = randomIntBetween(1, 5);
             Map<String, Object> fieldValues = new HashMap<>(numFields);
@@ -65,7 +66,7 @@ public class FrequencyEncodingTests extends AbstractSerializingTestCase<Frequenc
             }
             Map<String, Object> resultFields = encoding.process(fieldValues);
             if (addedField) {
-                assertThat(resultFields.get(field), equalTo(valueMap.getOrDefault(addedValue, 0.0)));
+                assertThat(resultFields.get(encodedFeatureName), equalTo(valueMap.getOrDefault(addedValue, 0.0)));
             }
         }
     }

@@ -37,7 +37,10 @@ public class TargetMeanEncodingTests extends AbstractSerializingTestCase<TargetM
         for (int i = 0; i < valuesSize; i++) {
             valueMap.put(randomAlphaOfLength(10), randomDoubleBetween(0.0, 1.0, false));
         }
-        return new TargetMeanEncoding(randomAlphaOfLength(10), valueMap, randomDoubleBetween(0.0, 1.0, false));
+        return new TargetMeanEncoding(randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            valueMap,
+            randomDoubleBetween(0.0, 1.0, false));
     }
 
     @Override
@@ -50,9 +53,10 @@ public class TargetMeanEncodingTests extends AbstractSerializingTestCase<TargetM
         List<String> values = Arrays.asList("foo", "bar", "foobar", "baz", "farequote");
         Map<String, Double> valueMap = values.stream().collect(Collectors.toMap(Function.identity(),
             v -> randomDoubleBetween(0.0, 1.0, false)));
+        String encodedFeatureName = "encoded";
         for(int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
             Double defaultvalue = randomDouble();
-            TargetMeanEncoding encoding = new TargetMeanEncoding(field, valueMap, defaultvalue);
+            TargetMeanEncoding encoding = new TargetMeanEncoding(field, encodedFeatureName, valueMap, defaultvalue);
             int numFields = randomIntBetween(1, 5);
             Map<String, Object> fieldValues = new HashMap<>(numFields);
             for (int k = 0; k < numFields; k++) {
@@ -66,7 +70,7 @@ public class TargetMeanEncodingTests extends AbstractSerializingTestCase<TargetM
             }
             Map<String, Object> resultFields = encoding.process(fieldValues);
             if (addedField) {
-                assertThat(resultFields.get(field), equalTo(valueMap.getOrDefault(addedValue, defaultvalue)));
+                assertThat(resultFields.get(encodedFeatureName), equalTo(valueMap.getOrDefault(addedValue, defaultvalue)));
             }
         }
     }

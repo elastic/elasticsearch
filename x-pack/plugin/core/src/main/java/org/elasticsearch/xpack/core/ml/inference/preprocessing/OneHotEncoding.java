@@ -25,7 +25,7 @@ public class OneHotEncoding implements PreProcessor {
 
     public static final ParseField NAME = new ParseField("one_hot_encoding");
     public static final ParseField FIELD = new ParseField("field");
-    public static final ParseField VALUE_MAP = new ParseField("value_map");
+    public static final ParseField HOT_MAP = new ParseField("hot_map");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<OneHotEncoding, Void> PARSER = new ConstructingObjectParser<>(
@@ -33,7 +33,7 @@ public class OneHotEncoding implements PreProcessor {
         a -> new OneHotEncoding((String)a[0], (Map<String, String>)a[1]));
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), VALUE_MAP);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), HOT_MAP);
     }
 
     public static OneHotEncoding fromXContent(XContentParser parser) {
@@ -41,16 +41,16 @@ public class OneHotEncoding implements PreProcessor {
     }
 
     private final String field;
-    private final Map<String, String> valueMap;
+    private final Map<String, String> hotMap;
 
-    public OneHotEncoding(String field, Map<String, String> valueMap) {
+    public OneHotEncoding(String field, Map<String, String> hotMap) {
         this.field = ExceptionsHelper.requireNonNull(field, FIELD);
-        this.valueMap = Collections.unmodifiableMap(ExceptionsHelper.requireNonNull(valueMap, VALUE_MAP));
+        this.hotMap = Collections.unmodifiableMap(ExceptionsHelper.requireNonNull(hotMap, HOT_MAP));
     }
 
     public OneHotEncoding(StreamInput in) throws IOException {
         this.field = in.readString();
-        this.valueMap = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
+        this.hotMap = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
     }
 
     /**
@@ -63,8 +63,8 @@ public class OneHotEncoding implements PreProcessor {
     /**
      * @return Map of Value: ColumnName for the one hot encoding
      */
-    public Map<String, String> getValueMap() {
-        return valueMap;
+    public Map<String, String> getHotMap() {
+        return hotMap;
     }
 
     @Override
@@ -78,7 +78,7 @@ public class OneHotEncoding implements PreProcessor {
         if (value == null) {
             return fields;
         }
-        valueMap.forEach((val, col) -> {
+        hotMap.forEach((val, col) -> {
             int encoding = value.equals(val) ? 1 : 0;
             fields.put(col, encoding);
         });
@@ -93,14 +93,14 @@ public class OneHotEncoding implements PreProcessor {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
-        out.writeMap(valueMap, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(hotMap, StreamOutput::writeString, StreamOutput::writeString);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(FIELD.getPreferredName(), field);
-        builder.field(VALUE_MAP.getPreferredName(), valueMap);
+        builder.field(HOT_MAP.getPreferredName(), hotMap);
         builder.endObject();
         return builder;
     }
@@ -111,12 +111,12 @@ public class OneHotEncoding implements PreProcessor {
         if (o == null || getClass() != o.getClass()) return false;
         OneHotEncoding that = (OneHotEncoding) o;
         return Objects.equals(field, that.field)
-            && Objects.equals(valueMap, that.valueMap);
+            && Objects.equals(hotMap, that.hotMap);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, valueMap);
+        return Objects.hash(field, hotMap);
     }
 
 }

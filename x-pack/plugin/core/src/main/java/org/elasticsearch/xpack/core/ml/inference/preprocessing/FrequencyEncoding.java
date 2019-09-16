@@ -27,17 +27,19 @@ public class FrequencyEncoding implements PreProcessor {
 
     public static final ParseField NAME = new ParseField("frequency_encoding");
     public static final ParseField FIELD = new ParseField("field");
-    public static final ParseField FREQUENCIES = new ParseField("frequencies");
+    public static final ParseField FEATURE_NAME = new ParseField("feature_name");
+    public static final ParseField FREQUENCY_MAP = new ParseField("frequency_map");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<FrequencyEncoding, Void> PARSER = new ConstructingObjectParser<>(
         NAME.getPreferredName(),
-        a -> new FrequencyEncoding((String)a[0], (Map<String, Double>)a[1]));
+        a -> new FrequencyEncoding((String)a[0], (String)a[1], (Map<String, Double>)a[2]));
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), FEATURE_NAME);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(),
             (p, c) -> p.map(HashMap::new, XContentParser::doubleValue),
-            FREQUENCIES);
+            FREQUENCY_MAP);
     }
 
     public static FrequencyEncoding fromXContent(XContentParser parser) {
@@ -45,15 +47,18 @@ public class FrequencyEncoding implements PreProcessor {
     }
 
     private final String field;
+    private final String featureName;
     private final Map<String, Double> frequencyMap;
 
-    public FrequencyEncoding(String field, Map<String, Double> frequencyMap) {
+    public FrequencyEncoding(String field, String featureName, Map<String, Double> frequencyMap) {
         this.field = ExceptionsHelper.requireNonNull(field, FIELD);
-        this.frequencyMap = Collections.unmodifiableMap(ExceptionsHelper.requireNonNull(frequencyMap, FREQUENCIES));
+        this.featureName = ExceptionsHelper.requireNonNull(featureName, FEATURE_NAME);
+        this.frequencyMap = Collections.unmodifiableMap(ExceptionsHelper.requireNonNull(frequencyMap, FREQUENCY_MAP));
     }
 
     public FrequencyEncoding(StreamInput in) throws IOException {
         this.field = in.readString();
+        this.featureName = in.readString();
         this.frequencyMap = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readDouble));
     }
 
@@ -71,6 +76,13 @@ public class FrequencyEncoding implements PreProcessor {
         return frequencyMap;
     }
 
+    /**
+     * @return The encoded feature name
+     */
+    public String getFeatureName() {
+        return featureName;
+    }
+
     @Override
     public String getName() {
         return NAME.getPreferredName();
@@ -82,7 +94,7 @@ public class FrequencyEncoding implements PreProcessor {
         if (value == null) {
             return fields;
         }
-        fields.put(field, frequencyMap.getOrDefault(value, 0.0));
+        fields.put(featureName, frequencyMap.getOrDefault(value, 0.0));
         return fields;
     }
 
@@ -94,6 +106,7 @@ public class FrequencyEncoding implements PreProcessor {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
+        out.writeString(featureName);
         out.writeMap(frequencyMap, StreamOutput::writeString, StreamOutput::writeDouble);
     }
 
@@ -101,7 +114,8 @@ public class FrequencyEncoding implements PreProcessor {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(FIELD.getPreferredName(), field);
-        builder.field(FREQUENCIES.getPreferredName(), frequencyMap);
+        builder.field(FEATURE_NAME.getPreferredName(), featureName);
+        builder.field(FREQUENCY_MAP.getPreferredName(), frequencyMap);
         builder.endObject();
         return builder;
     }
@@ -112,12 +126,13 @@ public class FrequencyEncoding implements PreProcessor {
         if (o == null || getClass() != o.getClass()) return false;
         FrequencyEncoding that = (FrequencyEncoding) o;
         return Objects.equals(field, that.field)
+            && Objects.equals(featureName, that.featureName)
             && Objects.equals(frequencyMap, that.frequencyMap);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, frequencyMap);
+        return Objects.hash(field, featureName, frequencyMap);
     }
 
 }

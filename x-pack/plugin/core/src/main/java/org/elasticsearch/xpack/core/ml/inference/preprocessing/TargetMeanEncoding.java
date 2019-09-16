@@ -27,15 +27,17 @@ public class TargetMeanEncoding implements PreProcessor {
 
     public static final ParseField NAME = new ParseField("target_mean_encoding");
     public static final ParseField FIELD = new ParseField("field");
+    public static final ParseField FEATURE_NAME = new ParseField("feature_name");
     public static final ParseField TARGET_MEANS = new ParseField("target_means");
     public static final ParseField DEFAULT_VALUE = new ParseField("default_value");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<TargetMeanEncoding, Void> PARSER = new ConstructingObjectParser<>(
         NAME.getPreferredName(),
-        a -> new TargetMeanEncoding((String)a[0], (Map<String, Double>)a[1], (Double)a[2]));
+        a -> new TargetMeanEncoding((String)a[0], (String)a[1], (Map<String, Double>)a[2], (Double)a[3]));
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), FEATURE_NAME);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(),
             (p, c) -> p.map(HashMap::new, XContentParser::doubleValue),
             TARGET_MEANS);
@@ -47,17 +49,20 @@ public class TargetMeanEncoding implements PreProcessor {
     }
 
     private final String field;
+    private final String featureName;
     private final Map<String, Double> meanMap;
     private final double defaultValue;
 
-    public TargetMeanEncoding(String field, Map<String, Double> meanMap, Double defaultValue) {
+    public TargetMeanEncoding(String field, String featureName, Map<String, Double> meanMap, Double defaultValue) {
         this.field = ExceptionsHelper.requireNonNull(field, FIELD);
+        this.featureName = ExceptionsHelper.requireNonNull(field, FEATURE_NAME);
         this.meanMap = Collections.unmodifiableMap(ExceptionsHelper.requireNonNull(meanMap, TARGET_MEANS));
         this.defaultValue = ExceptionsHelper.requireNonNull(defaultValue, DEFAULT_VALUE);
     }
 
     public TargetMeanEncoding(StreamInput in) throws IOException {
         this.field = in.readString();
+        this.featureName = in.readString();
         this.meanMap = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readDouble));
         this.defaultValue = in.readDouble();
     }
@@ -83,6 +88,13 @@ public class TargetMeanEncoding implements PreProcessor {
         return defaultValue;
     }
 
+    /**
+     * @return The feature name for the encoded value
+     */
+    public String getFeatureName() {
+        return featureName;
+    }
+
     @Override
     public String getName() {
         return NAME.getPreferredName();
@@ -94,7 +106,7 @@ public class TargetMeanEncoding implements PreProcessor {
         if (value == null) {
             return fields;
         }
-        fields.put(field, meanMap.getOrDefault(value, defaultValue));
+        fields.put(featureName, meanMap.getOrDefault(value, defaultValue));
         return fields;
     }
 
@@ -106,6 +118,7 @@ public class TargetMeanEncoding implements PreProcessor {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
+        out.writeString(featureName);
         out.writeMap(meanMap, StreamOutput::writeString, StreamOutput::writeDouble);
         out.writeDouble(defaultValue);
     }
@@ -114,6 +127,7 @@ public class TargetMeanEncoding implements PreProcessor {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(FIELD.getPreferredName(), field);
+        builder.field(FEATURE_NAME.getPreferredName(), featureName);
         builder.field(TARGET_MEANS.getPreferredName(), meanMap);
         builder.field(DEFAULT_VALUE.getPreferredName(), defaultValue);
         builder.endObject();
@@ -126,13 +140,14 @@ public class TargetMeanEncoding implements PreProcessor {
         if (o == null || getClass() != o.getClass()) return false;
         TargetMeanEncoding that = (TargetMeanEncoding) o;
         return Objects.equals(field, that.field)
+            && Objects.equals(featureName, that.featureName)
             && Objects.equals(meanMap, that.meanMap)
             && Objects.equals(defaultValue, that.defaultValue);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, meanMap, defaultValue);
+        return Objects.hash(field, featureName, meanMap, defaultValue);
     }
 
 }

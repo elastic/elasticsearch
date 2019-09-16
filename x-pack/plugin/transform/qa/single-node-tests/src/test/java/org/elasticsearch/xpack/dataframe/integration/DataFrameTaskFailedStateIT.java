@@ -28,8 +28,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.oneOf;
 
 public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
 
@@ -65,7 +63,7 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         createDestinationIndexWithBadMapping(dataFrameIndex);
         createContinuousPivotReviewsTransform(transformId, dataFrameIndex, null);
         failureTransforms.add(transformId);
-        startDataframeTransform(transformId, false);
+        startDataframeTransform(transformId);
         awaitState(transformId, TransformStats.State.FAILED);
         Map<?, ?> fullState = getDataFrameState(transformId);
         final String failureReason = "task encountered more than 0 failures; latest failure: " +
@@ -89,14 +87,14 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         assertThat(XContentMapValues.extractValue("reason", fullState), is(nullValue()));
     }
 
-    public void testForceStartFailedTransform() throws Exception {
+    public void testStartFailedTransform() throws Exception {
         String transformId = "test-force-start-failed-transform";
         createReviewsIndex(REVIEWS_INDEX_NAME, 10);
         String dataFrameIndex = "failure_pivot_reviews";
         createDestinationIndexWithBadMapping(dataFrameIndex);
         createContinuousPivotReviewsTransform(transformId, dataFrameIndex, null);
         failureTransforms.add(transformId);
-        startDataframeTransform(transformId, false);
+        startDataframeTransform(transformId);
         awaitState(transformId, TransformStats.State.FAILED);
         Map<?, ?> fullState = getDataFrameState(transformId);
         final String failureReason = "task encountered more than 0 failures; latest failure: " +
@@ -106,25 +104,14 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
 
         final String expectedFailure = "Unable to start data frame transform [test-force-start-failed-transform] " +
             "as it is in a failed state with failure: [" + failureReason +
-            "]. Use force start to restart data frame transform once error is resolved.";
+            "]. Use force stop and then restart the data frame transform once error is resolved.";
         // Verify that we cannot start the transform when the task is in a failed state
         assertBusy(() -> {
-            ResponseException ex = expectThrows(ResponseException.class, () -> startDataframeTransform(transformId, false));
+            ResponseException ex = expectThrows(ResponseException.class, () -> startDataframeTransform(transformId));
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.CONFLICT.getStatus()));
             assertThat(XContentMapValues.extractValue("error.reason", entityAsMap(ex.getResponse())),
                 equalTo(expectedFailure));
         }, 60, TimeUnit.SECONDS);
-
-        // Correct the failure by deleting the destination index
-        deleteIndex(dataFrameIndex);
-        // Force start the data frame to indicate failure correction
-        startDataframeTransform(transformId, true);
-
-        // Verify that we have started and that our reason is cleared
-        fullState = getDataFrameState(transformId);
-        assertThat(XContentMapValues.extractValue("reason", fullState), is(nullValue()));
-        assertThat(XContentMapValues.extractValue("state", fullState), oneOf("started", "indexing"));
-        assertThat((Integer)XContentMapValues.extractValue("stats.index_failures", fullState), greaterThanOrEqualTo(1));
 
         stopDataFrameTransform(transformId, true);
     }

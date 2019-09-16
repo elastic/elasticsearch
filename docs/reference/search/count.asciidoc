@@ -108,7 +108,7 @@ GET /twitter/_count
 Both examples above do the same: count the number of tweets from the `twitter` 
 index for a certain user. The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "count" : 1,

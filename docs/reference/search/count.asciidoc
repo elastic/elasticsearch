@@ -55,9 +55,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=df]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
-`ignore_throttled`::
-  (Optional, boolean) If `true`, concrete, expanded or aliased indices are 
-  ignored when throttled.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
@@ -80,9 +78,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 [[search-count-request-body]]
 ==== {api-request-body-title}
 
-`query`::
-  (Optional, <<query-dsl,query object>>) Defines the search definition using the 
-  <<query-dsl,Query DSL>>.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=query]
 
 
 [[search-count-api-example]]
@@ -120,7 +116,6 @@ index for a certain user. The API returns the following response:
     }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 The query is optional, and when not provided, it will use `match_all` to
 count all the docs.

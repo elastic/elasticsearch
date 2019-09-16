@@ -12,15 +12,18 @@ Evaluation configuration objects relate to the <<evaluate-dfanalytics>>.
 `evaluation`::
   (object) Defines the type of evaluation you want to perform. The value of this 
   object can be different depending on the type of evaluation you want to 
-  perform. For example, it can contain <<binary-sc-resources>>.
+  perform.
++
+--
+Available evaluation types:
+* `binary_soft_classification`
+* `regression`
+--
   
 `query`::
-  (object) The {es} query domain-specific language (<<query-dsl,DSL>>). This 
-  value corresponds to the query object in an {es} search POST body. All the 
-  options that are supported by {es} can be used, as this object is passed 
-  verbatim to {es}. By default, this property has the following value: 
-  `{"match_all": {}}`. The evaluation only applies to those documents of the 
-  index that match the query.
+  (object) A query clause that retrieves a subset of data from the source index. 
+  See <<query-dsl>>. The evaluation only applies to those documents of the index 
+  that match the query.
 
 
 [[binary-sc-resources]]

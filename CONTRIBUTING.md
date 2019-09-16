@@ -190,6 +190,13 @@ Please follow these formatting guidelines:
      '*'` and `Names count to use static import with '*'`. Set their values
      to 99999 or some other absurdly high value.
 
+If a file compiles successfully but fails to format, the Gradle plugin does
+not give much help. Instead, download the `google-java-format` JAR
+directly, ensuring to fetch the one with all dependencies included, and
+check the files like so:
+
+    java -jar path/to/google-java-format-1.7-all-deps.jar --aosp path/to/File.java
+
 ### License Headers
 
 We require license headers on all Java files. You will notice that all the Java files in

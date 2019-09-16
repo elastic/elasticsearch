@@ -1,6 +1,6 @@
 [role="xpack"]
 [[ml-dataframes]]
-= {dataframe-transforms-cap}
+= {transforms-cap}
 
 [partintro]
 --
@@ -65,7 +65,7 @@ create a {dataframe} to cache results. Thus, each user doesn't need to run the
 aggregation query.
 
 Though there are multiple ways to create {dataframes}, this content pertains
-to one specific method: _{dataframe-transforms}_.
+to one specific method: _{transforms}_.
 
 * <<ml-transform-overview>>
 * <<df-api-quickref>>

@@ -5,13 +5,13 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Start {dataframe-transform} API
+=== Start {transform} API
 
-Starts a {dataframe-transform}.
+Starts a {transform}.
 It accepts a +{request}+ object and responds with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Start {dataframe-transform} request
+==== Start {transform} request
 
 A +{request}+ object requires a non-null `id`.
 
@@ -20,7 +20,7 @@ A +{request}+ object requires a non-null `id`.
 include-tagged::{doc-tests-file}[{api}-request]
 ---------------------------------------------------
 <1> Constructing a new start request referencing an existing
-{dataframe-transform}
+{transform}
 
 ==== Optional arguments
 
@@ -30,11 +30,11 @@ The following arguments are optional.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request-options]
 --------------------------------------------------
-<1> Controls the amount of time to wait until the {dataframe-transform} starts.
+<1> Controls the amount of time to wait until the {transform} starts.
 
 include::../execution.asciidoc[]
 
 ==== Response
 
-The returned +{response}+ object acknowledges the {dataframe-transform} has
+The returned +{response}+ object acknowledges the {transform} has
 started.

@@ -28,7 +28,7 @@ POST /twitter/_split/split-twitter-index
 
 To split an index,
 the index must be marked as read-only
-and have <<cluster-health,health>> `green`.
+and have a <<cluster-health,health>> status of `green`.
 
 You can do this
 with the following request:

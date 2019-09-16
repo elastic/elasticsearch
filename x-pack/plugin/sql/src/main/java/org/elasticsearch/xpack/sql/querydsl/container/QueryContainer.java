@@ -174,8 +174,7 @@ public class QueryContainer {
      */
     public BitSet columnMask(List<Attribute> columns) {
         BitSet mask = new BitSet(fields.size());
-        for (int columnIndex = 0; columnIndex < columns.size(); columnIndex++) {
-            Attribute column = columns.get(columnIndex);
+        for (Attribute column : columns) {
             Attribute alias = aliases.get(column);
             // find the column index
             int index = -1;

@@ -1005,7 +1005,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
     //
     // Detect implicit grouping with filtering and convert them into aggregates.
-    // SELECT 1 FROM x WHERE COUNT(*) > 0
+    // SELECT 1 FROM x HAVING COUNT(*) > 0
     // is a filter followed by projection and fails as the engine does not
     // understand it is an implicit grouping.
     //

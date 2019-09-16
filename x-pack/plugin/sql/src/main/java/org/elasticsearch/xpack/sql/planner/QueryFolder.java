@@ -135,15 +135,10 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         // for named expressions nothing is recorded as these are resolved last
                         // otherwise 'intermediate' projects might pollute the
                         // output
-
                         if (pj instanceof ScalarFunction) {
                             ScalarFunction f = (ScalarFunction) pj;
                             processors.put(f.toAttribute(), Expressions.pipe(f));
                         }
-                        //
-                        //                        if (pj instanceof LiteralAttribute) {
-                        //                            processors.put(pj.toAttribute(), pj.asPipe());
-                        //                        }
                     }
                 }
 

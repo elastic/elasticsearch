@@ -228,14 +228,7 @@ on index creation applies to the split index action as well.
 (Required, string)
 Name of the source index to split.
 
-`<target-index>`::
-+
---
-(Required, string)
-Name of the target index to create.
-
-include::{docdir}/indices/create-index.asciidoc[tag=index-name-reqs]
---
+include::{docdir}/rest-api/common-parms.asciidoc[tag=target-index]
 
 
 [[split-index-api-query-params]]

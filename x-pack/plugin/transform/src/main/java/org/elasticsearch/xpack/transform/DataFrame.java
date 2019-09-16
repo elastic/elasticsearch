@@ -44,15 +44,15 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
-import org.elasticsearch.xpack.core.transform.DataFrameNamedXContentProvider;
-import org.elasticsearch.xpack.core.transform.action.DeleteDataFrameTransformAction;
-import org.elasticsearch.xpack.core.transform.action.GetDataFrameTransformsAction;
-import org.elasticsearch.xpack.core.transform.action.GetDataFrameTransformsStatsAction;
-import org.elasticsearch.xpack.core.transform.action.PreviewDataFrameTransformAction;
-import org.elasticsearch.xpack.core.transform.action.PutDataFrameTransformAction;
-import org.elasticsearch.xpack.core.transform.action.StartDataFrameTransformAction;
-import org.elasticsearch.xpack.core.transform.action.StopDataFrameTransformAction;
-import org.elasticsearch.xpack.core.transform.action.UpdateDataFrameTransformAction;
+import org.elasticsearch.xpack.core.transform.TransformNamedXContentProvider;
+import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
+import org.elasticsearch.xpack.core.transform.action.GetTransformsAction;
+import org.elasticsearch.xpack.core.transform.action.GetTransformsStatsAction;
+import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
+import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
+import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
+import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
+import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportDeleteDataFrameTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportGetDataFrameTransformsAction;
 import org.elasticsearch.xpack.transform.action.TransportGetDataFrameTransformsStatsAction;
@@ -139,14 +139,14 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
         }
 
         return Arrays.asList(
-                new ActionHandler<>(PutDataFrameTransformAction.INSTANCE, TransportPutDataFrameTransformAction.class),
-                new ActionHandler<>(StartDataFrameTransformAction.INSTANCE, TransportStartDataFrameTransformAction.class),
-                new ActionHandler<>(StopDataFrameTransformAction.INSTANCE, TransportStopDataFrameTransformAction.class),
-                new ActionHandler<>(DeleteDataFrameTransformAction.INSTANCE, TransportDeleteDataFrameTransformAction.class),
-                new ActionHandler<>(GetDataFrameTransformsAction.INSTANCE, TransportGetDataFrameTransformsAction.class),
-                new ActionHandler<>(GetDataFrameTransformsStatsAction.INSTANCE, TransportGetDataFrameTransformsStatsAction.class),
-                new ActionHandler<>(PreviewDataFrameTransformAction.INSTANCE, TransportPreviewDataFrameTransformAction.class),
-                new ActionHandler<>(UpdateDataFrameTransformAction.INSTANCE, TransportUpdateDataFrameTransformAction.class),
+                new ActionHandler<>(PutTransformAction.INSTANCE, TransportPutDataFrameTransformAction.class),
+                new ActionHandler<>(StartTransformAction.INSTANCE, TransportStartDataFrameTransformAction.class),
+                new ActionHandler<>(StopTransformAction.INSTANCE, TransportStopDataFrameTransformAction.class),
+                new ActionHandler<>(DeleteTransformAction.INSTANCE, TransportDeleteDataFrameTransformAction.class),
+                new ActionHandler<>(GetTransformsAction.INSTANCE, TransportGetDataFrameTransformsAction.class),
+                new ActionHandler<>(GetTransformsStatsAction.INSTANCE, TransportGetDataFrameTransformsStatsAction.class),
+                new ActionHandler<>(PreviewTransformAction.INSTANCE, TransportPreviewDataFrameTransformAction.class),
+                new ActionHandler<>(UpdateTransformAction.INSTANCE, TransportUpdateDataFrameTransformAction.class),
                 usageAction,
                 infoAction);
     }
@@ -236,6 +236,6 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
 
     @Override
     public List<Entry> getNamedXContent() {
-        return new DataFrameNamedXContentProvider().getNamedXContentParsers();
+        return new TransformNamedXContentProvider().getNamedXContentParsers();
     }
 }

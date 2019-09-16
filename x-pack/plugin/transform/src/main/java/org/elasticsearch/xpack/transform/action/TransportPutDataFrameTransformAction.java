@@ -42,10 +42,10 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
-import org.elasticsearch.xpack.core.transform.DataFrameMessages;
-import org.elasticsearch.xpack.core.transform.action.PutDataFrameTransformAction;
-import org.elasticsearch.xpack.core.transform.action.PutDataFrameTransformAction.Request;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
+import org.elasticsearch.xpack.core.transform.action.PutTransformAction.Request;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.transform.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.transform.transforms.SourceDestValidator;
@@ -72,8 +72,8 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
                                                 ClusterService clusterService, XPackLicenseState licenseState,
                                                 DataFrameTransformsConfigManager dataFrameTransformsConfigManager, Client client,
                                                 DataFrameAuditor auditor) {
-        super(PutDataFrameTransformAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                PutDataFrameTransformAction.Request::new, indexNameExpressionResolver);
+        super(PutTransformAction.NAME, transportService, clusterService, threadPool, actionFilters,
+                PutTransformAction.Request::new, indexNameExpressionResolver);
         this.licenseState = licenseState;
         this.client = client;
         this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;
@@ -82,7 +82,7 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
         this.auditor = auditor;
     }
 
-    static HasPrivilegesRequest buildPrivilegeCheck(DataFrameTransformConfig config,
+    static HasPrivilegesRequest buildPrivilegeCheck(TransformConfig config,
                                                     IndexNameExpressionResolver indexNameExpressionResolver,
                                                     ClusterState clusterState,
                                                     String username) {
@@ -135,7 +135,7 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
     protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener) {
 
         if (!licenseState.isDataFrameAllowed()) {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.DATA_FRAME));
+            listener.onFailure(LicenseUtils.newComplianceException(XPackField.Transform));
             return;
         }
 
@@ -146,7 +146,7 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
                     .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-        DataFrameTransformConfig config = request.getConfig()
+        TransformConfig config = request.getConfig()
             .setHeaders(filteredHeaders)
             .setCreateTime(Instant.now())
             .setVersion(Version.CURRENT);
@@ -155,7 +155,7 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
         // quick check whether a transform has already been created under that name
         if (PersistentTasksCustomMetaData.getTaskWithId(clusterState, transformId) != null) {
             listener.onFailure(new ResourceAlreadyExistsException(
-                    DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_TRANSFORM_EXISTS, transformId)));
+                    TransformMessages.getMessage(TransformMessages.REST_PUT_DATA_FRAME_TRANSFORM_EXISTS, transformId)));
             return;
         }
         try {
@@ -180,7 +180,7 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
     }
 
     @Override
-    protected ClusterBlockException checkBlock(PutDataFrameTransformAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(PutTransformAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
@@ -206,7 +206,7 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
 
     private void putDataFrame(Request request, ActionListener<AcknowledgedResponse> listener) {
 
-        final DataFrameTransformConfig config = request.getConfig();
+        final TransformConfig config = request.getConfig();
         final Pivot pivot = new Pivot(config.getPivotConfig());
 
         // <3> Return to the listener
@@ -224,12 +224,12 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
             validationException -> {
                 if (validationException instanceof ElasticsearchStatusException) {
                     listener.onFailure(new ElasticsearchStatusException(
-                        DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
+                        TransformMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
                         ((ElasticsearchStatusException)validationException).status(),
                         validationException));
                 } else {
                     listener.onFailure(new ElasticsearchStatusException(
-                        DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
+                        TransformMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
                         RestStatus.INTERNAL_SERVER_ERROR,
                         validationException));
                 }
@@ -240,13 +240,13 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
             pivot.validateConfig();
         } catch (ElasticsearchStatusException e) {
             listener.onFailure(new ElasticsearchStatusException(
-                DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
+                TransformMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
                 e.status(),
                 e));
             return;
         } catch (Exception e) {
             listener.onFailure(new ElasticsearchStatusException(
-                DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION, RestStatus.INTERNAL_SERVER_ERROR, e));
+                TransformMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION, RestStatus.INTERNAL_SERVER_ERROR, e));
             return;
         }
 

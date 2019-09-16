@@ -71,8 +71,10 @@ public interface GeoGridTiler {
             // find minimum (x,y) of geo-hash-cell that contains (bounds.minX, bounds.minY)
             String hash = Geohash.stringEncode(bounds.minX(), bounds.minY(), precision);
             Rectangle geoHashCell = Geohash.toBoundingBox(hash);
-            long numLonCells = Math.max(1, (long) Math.ceil((bounds.maxX() - geoHashCell.getMinX()) / Geohash.lonWidthInDegrees(precision)));
-            long numLatCells = Math.max(1, (long) Math.ceil((bounds.maxY() - geoHashCell.getMinY()) / Geohash.latHeightInDegrees(precision)));
+            long numLonCells = Math.max(1, (long) Math.ceil(
+                (bounds.maxX() - geoHashCell.getMinX()) / Geohash.lonWidthInDegrees(precision)));
+            long numLatCells = Math.max(1, (long) Math.ceil(
+                (bounds.maxY() - geoHashCell.getMinY()) / Geohash.latHeightInDegrees(precision)));
             return numLonCells * numLatCells;
         }
 

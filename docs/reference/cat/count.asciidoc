@@ -50,11 +50,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 The following `count` API request retrieves the document count of a single
 index, `twitter`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/count/twitter?v
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:big_twitter]
 
 
@@ -73,11 +72,10 @@ epoch      timestamp count
 The following `count` API request retrieves the document count of all indices in
 the cluster.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/count?v
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:big_twitter]
 // TEST[s/^/POST test\/test\?refresh\n{"test": "test"}\n/]
 

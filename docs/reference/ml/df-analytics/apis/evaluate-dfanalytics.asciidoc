@@ -77,7 +77,7 @@ Available evaluation types:
 
 ===== Binary soft classification
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/data_frame/_evaluate
 {
@@ -90,12 +90,11 @@ POST _ml/data_frame/_evaluate
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:TBD]
 
 The API returns the following results:
 
-[source,js]
+[source,console-result]
 ----
 {
   "binary_soft_classification": {
@@ -135,12 +134,11 @@ The API returns the following results:
   }
 }
 ----
-// TESTRESPONSE
 
 
 ===== {regression-cap}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ml/data_frame/_evaluate
 {

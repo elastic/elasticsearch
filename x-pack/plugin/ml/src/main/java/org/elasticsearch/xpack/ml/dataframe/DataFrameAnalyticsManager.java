@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.dataframe;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
@@ -19,6 +20,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -30,8 +32,8 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.dataframe.process.AnalyticsProcessManager;
@@ -60,7 +62,7 @@ public class DataFrameAnalyticsManager {
         this.processManager = Objects.requireNonNull(processManager);
     }
 
-    public void execute(DataFrameAnalyticsTask task, DataFrameAnalyticsState currentState) {
+    public void execute(DataFrameAnalyticsTask task, DataFrameAnalyticsState currentState, ClusterState clusterState) {
         ActionListener<DataFrameAnalyticsConfig> reindexingStateListener = ActionListener.wrap(
             config -> reindexDataframeAndStartAnalysis(task, config),
             error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
@@ -77,7 +79,13 @@ public class DataFrameAnalyticsManager {
                     case STARTED:
                         task.updatePersistentTaskState(reindexingState, ActionListener.wrap(
                             updatedTask -> reindexingStateListener.onResponse(config),
-                            reindexingStateListener::onFailure));
+                            error -> {
+                                if (error instanceof ResourceNotFoundException) {
+                                    // The task has been stopped
+                                } else {
+                                    reindexingStateListener.onFailure(error);
+                                }
+                            }));
                         break;
                     // The task has fully reindexed the documents and we should continue on with our analyses
                     case ANALYZING:
@@ -113,7 +121,13 @@ public class DataFrameAnalyticsManager {
         );
 
         // Retrieve configuration
-        configProvider.get(task.getParams().getId(), configListener);
+        ActionListener<Boolean> stateAliasListener = ActionListener.wrap(
+            aBoolean -> configProvider.get(task.getParams().getId(), configListener),
+            configListener::onFailure
+        );
+
+        // Make sure the state index and alias exist
+        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, stateAliasListener);
     }
 
     private void reindexDataframeAndStartAnalysis(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {
@@ -214,7 +228,13 @@ public class DataFrameAnalyticsManager {
                                 task.markAsCompleted();
                             }
                         }),
-                    error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
+                    error -> {
+                        if (error instanceof ResourceNotFoundException) {
+                            // Task has stopped
+                        } else {
+                            task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage());
+                        }
+                    }
                 ));
             },
             error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())

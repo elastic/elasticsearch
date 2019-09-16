@@ -40,7 +40,7 @@ settings defined in the `elasticsearch.yml`).
 One can use the hunspell stem filter by configuring it the analysis
 settings:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /hunspell_example
 {
@@ -63,7 +63,6 @@ PUT /hunspell_example
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The hunspell token filter accepts four options:
 

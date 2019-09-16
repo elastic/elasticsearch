@@ -27,10 +27,7 @@ check.dependsOn internalClusterTest
 dependencies {
     compileOnly project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    testCompile project(":test:framework")    
-    if (isEclipse) {
-        testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-    }
+    testCompile project(":test:framework")
 }
 
 // copied from CCR

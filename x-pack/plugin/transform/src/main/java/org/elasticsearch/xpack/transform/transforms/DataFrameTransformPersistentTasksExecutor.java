@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
-import org.elasticsearch.xpack.core.transform.action.StartTransformTaskAction;
+import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.Transform;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -141,9 +141,13 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
 
         final SetOnce<TransformState> stateHolder = new SetOnce<>();
 
-        ActionListener<StartTransformTaskAction.Response> startTaskListener = ActionListener.wrap(
-            response -> logger.info("Successfully completed and scheduled task in node operation"),
-            failure -> logger.error("Failed to start task ["+ transformId +"] in node operation", failure)
+        ActionListener<StartTransformAction.Response> startTaskListener = ActionListener.wrap(
+            response -> logger.info("[{}] successfully completed and scheduled task in node operation", transformId),
+            failure -> {
+                auditor.error(transformId, "Failed to start data frame transform. " +
+                    "Please stop and attempt to start again. Failure: " + failure.getMessage());
+                logger.error("Failed to start task ["+ transformId +"] in node operation", failure);
+            }
         );
 
         // <7> load next checkpoint
@@ -315,11 +319,10 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
     private void startTask(DataFrameTransformTask buildTask,
                            ClientDataFrameIndexerBuilder indexerBuilder,
                            Long previousCheckpoint,
-                           ActionListener<StartTransformTaskAction.Response> listener) {
+                           ActionListener<StartTransformAction.Response> listener) {
         buildTask.initializeIndexer(indexerBuilder);
         // DataFrameTransformTask#start will fail if the task state is FAILED
-        // Will continue to attempt to start the indexer, even if the state is STARTED
-        buildTask.setNumFailureRetries(numFailureRetries).start(previousCheckpoint, false, false, listener);
+        buildTask.setNumFailureRetries(numFailureRetries).start(previousCheckpoint, listener);
     }
 
     private void setNumFailureRetries(int numFailureRetries) {

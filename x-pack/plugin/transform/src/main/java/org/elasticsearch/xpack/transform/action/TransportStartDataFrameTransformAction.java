@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
-import org.elasticsearch.xpack.core.transform.action.StartTransformTaskAction;
 import org.elasticsearch.xpack.core.transform.transforms.Transform;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
@@ -55,6 +54,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+
+import static org.elasticsearch.xpack.core.transform.TransformMessages.DATA_FRAME_CANNOT_START_FAILED_TRANSFORM;
 
 public class TransportStartDataFrameTransformAction extends
     TransportMasterNodeAction<StartTransformAction.Request, StartTransformAction.Response> {
@@ -133,38 +134,20 @@ public class TransportStartDataFrameTransformAction extends
                         newPersistentTaskActionListener);
                 } else {
                     TransformState transformState = (TransformState)existingTask.getState();
-                    if(transformState.getTaskState() == TransformTaskState.FAILED && request.isForce() == false) {
+                    if(transformState.getTaskState() == TransformTaskState.FAILED) {
                         listener.onFailure(new ElasticsearchStatusException(
-                            "Unable to start data frame transform [" + request.getId() +
-                                "] as it is in a failed state with failure: [" + transformState.getReason() +
-                            "]. Use force start to restart data frame transform once error is resolved.",
+                            TransformMessages.getMessage(DATA_FRAME_CANNOT_START_FAILED_TRANSFORM,
+                                request.getId(),
+                                transformState.getReason()),
                             RestStatus.CONFLICT));
-                    } else if (transformState.getTaskState() != TransformTaskState.STOPPED &&
-                               transformState.getTaskState() != TransformTaskState.FAILED) {
-                        listener.onFailure(new ElasticsearchStatusException(
-                            "Unable to start data frame transform [" + request.getId() +
-                                "] as it is in state [" + transformState.getTaskState()  + "]", RestStatus.CONFLICT));
                     } else {
-                        // If the task already exists but is not assigned to a node, something is weird
-                        // return a failure that includes the current assignment explanation (if one exists)
-                        if (existingTask.isAssigned() == false) {
-                            String assignmentExplanation = "unknown reason";
-                            if (existingTask.getAssignment() != null) {
-                                assignmentExplanation = existingTask.getAssignment().getExplanation();
-                            }
-                            listener.onFailure(new ElasticsearchStatusException("Unable to start data frame transform [" +
-                                request.getId() + "] as it is not assigned to a node, explanation: " + assignmentExplanation,
-                                RestStatus.CONFLICT));
-                            return;
-                        }
-                        // If the task already exists and is assigned to a node, simply attempt to set it to start
-                        ClientHelper.executeAsyncWithOrigin(client,
-                            ClientHelper.DATA_FRAME_ORIGIN,
-                            StartTransformTaskAction.INSTANCE,
-                            new StartTransformTaskAction.Request(request.getId(), request.isForce()),
-                            ActionListener.wrap(
-                                r -> listener.onResponse(new StartTransformAction.Response(true)),
-                                listener::onFailure));
+                        // If the task already exists that means that it is either running or failed
+                        // Since it is not failed, that means it is running, we return a conflict.
+                        listener.onFailure(new ElasticsearchStatusException(
+                            "Cannot start transform [{}] as it is already started.",
+                            RestStatus.CONFLICT,
+                            request.getId()
+                        ));
                     }
                 }
             },

@@ -224,14 +224,13 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
     }
 
-    protected void startDataframeTransform(String transformId, boolean force) throws IOException {
-        startDataframeTransform(transformId, force, null);
+    protected void startDataframeTransform(String transformId) throws IOException {
+        startDataframeTransform(transformId, null);
     }
 
-    protected void startDataframeTransform(String transformId, boolean force, String authHeader, String... warnings) throws IOException {
+    protected void startDataframeTransform(String transformId, String authHeader, String... warnings) throws IOException {
         // start the transform
         final Request startTransformRequest = createRequestWithAuth("POST", DATAFRAME_ENDPOINT + transformId + "/_start", authHeader);
-        startTransformRequest.addParameter(TransformField.FORCE.getPreferredName(), Boolean.toString(force));
         if (warnings.length > 0) {
             startTransformRequest.setOptions(expectWarnings(warnings));
         }
@@ -259,7 +258,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
     protected void startAndWaitForTransform(String transformId, String dataFrameIndex,
                                             String authHeader, String... warnings) throws Exception {
         // start the transform
-        startDataframeTransform(transformId, false, authHeader, warnings);
+        startDataframeTransform(transformId, authHeader, warnings);
         assertTrue(indexExists(dataFrameIndex));
         // wait until the dataframe has been created and all data is available
         waitForDataFrameCheckpoint(transformId);
@@ -279,7 +278,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
                                                       String authHeader,
                                                       long checkpoint) throws Exception {
         // start the transform
-        startDataframeTransform(transformId, false, authHeader, new String[0]);
+        startDataframeTransform(transformId, authHeader, new String[0]);
         assertTrue(indexExists(dataFrameIndex));
         // wait until the dataframe has been created and all data is available
         waitForDataFrameCheckpoint(transformId, checkpoint);

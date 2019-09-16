@@ -1,14 +1,14 @@
 [role="xpack"]
 [testenv="basic"]
 [[update-data-frame-transform]]
-=== Update {dataframe-transforms} API
+=== Update {transforms} API
 
 [subs="attributes"]
 ++++
-<titleabbrev>Update {dataframe-transforms}</titleabbrev>
+<titleabbrev>Update {transforms}</titleabbrev>
 ++++
 
-Updates an existing {dataframe-transform}.
+Updates an existing {transform}.
 
 beta[]
 
@@ -31,16 +31,16 @@ information, see {stack-ov}/security-privileges.html[Security privileges] and
 [[update-data-frame-transform-desc]]
 ==== {api-description-title}
 
-This API updates an existing {dataframe-transform}. All settings except description do not
-take effect until after the {dataframe-transform} starts the next checkpoint. This is
+This API updates an existing {transform}. All settings except description do not
+take effect until after the {transform} starts the next checkpoint. This is
 so there is consistency with the pivoted data in each checkpoint.
 
-IMPORTANT: When {es} {security-features} are enabled, your {dataframe-transform}
+IMPORTANT: When {es} {security-features} are enabled, your {transform}
 remembers which roles the user who updated it had at the time of update and
 runs with those privileges.
 
-IMPORTANT:  You must use {kib} or this API to update a {dataframe-transform}.
-            Do not update a {dataframe-transform} directly via
+IMPORTANT:  You must use {kib} or this API to update a {transform}.
+            Do not update a {transform} directly via
             `.data-frame-internal*` indices using the Elasticsearch index API.
             If {es} {security-features} are enabled, do not give users any
             privileges on `.data-frame-internal*` indices.
@@ -49,7 +49,7 @@ IMPORTANT:  You must use {kib} or this API to update a {dataframe-transform}.
 ==== {api-path-parms-title}
 
 `<data_frame_transform_id>`::
-  (Required, string) Identifier for the {dataframe-transform}. This identifier
+  (Required, string) Identifier for the {transform}. This identifier
   can contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
   underscores. It must start and end with alphanumeric characters.
 
@@ -59,29 +59,29 @@ IMPORTANT:  You must use {kib} or this API to update a {dataframe-transform}.
 `defer_validation`::
   (Optional, boolean) When `true`, deferrable validations are not run. This
   behavior may be desired if the source index does not exist until after the
-  {dataframe-transform} is updated.
+  {transform} is updated.
 
 [[update-data-frame-transform-request-body]]
 ==== {api-request-body-title}
 
 `description`::
-  (Optional, string) Free text description of the {dataframe-transform}.
+  (Optional, string) Free text description of the {transform}.
 
 `dest`::
   (Optional, object) The destination configuration, which has the
   following properties:
   
   `index`:::
-    (Required, string) The _destination index_ for the {dataframe-transform}.
+    (Required, string) The _destination index_ for the {transform}.
 
   `pipeline`:::
     (Optional, string) The unique identifier for a <<pipeline,pipeline>>.
 
 `frequency`::
   (Optional, <<time-units, time units>>) The interval between checks for changes 
-  in the source indices when the {dataframe-transform} is running continuously. 
+  in the source indices when the {transform} is running continuously. 
   Also determines the retry interval in the event of transient failures while 
-  the {dataframe-transform} is searching or indexing. The minimum value is `1s` 
+  the {transform} is searching or indexing. The minimum value is `1s` 
   and the maximum is `1h`. The default value is `1m`.
 
 `source`::
@@ -90,7 +90,7 @@ IMPORTANT:  You must use {kib} or this API to update a {dataframe-transform}.
   
   `index`:::
     (Required, string or array) The _source indices_ for the
-    {dataframe-transform}. It can be a single index, an index pattern (for
+    {transform}. It can be a single index, an index pattern (for
     example, `"myindex*"`), or an array of indices (for example,
     `["index1", "index2"]`).
     
@@ -101,7 +101,7 @@ IMPORTANT:  You must use {kib} or this API to update a {dataframe-transform}.
 `sync`::
   (Optional, object) Defines the properties required to run continuously.
   `time`:::
-    (Required, object) Specifies that the {dataframe-transform} uses a time
+    (Required, object) Specifies that the {transform} uses a time
     field to synchronize the source and destination indices.
     `field`::::
       (Required, string) The date field that is used to identify new documents
@@ -151,7 +151,7 @@ POST _data_frame/transforms/simple-kibana-ecomm-pivot/_update
 --------------------------------------------------
 // TEST[setup:simple_kibana_continuous_pivot]
 
-When the transform is updated, you receive the updated configuration:
+When the {transform} is updated, you receive the updated configuration:
 
 [source,console-result]
 ----

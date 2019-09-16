@@ -1,6 +1,6 @@
 [role="xpack"]
 [[ml-transform-overview]]
-== {dataframe-transform-cap} overview
+== {transform-cap} overview
 ++++
 <titleabbrev>Overview</titleabbrev>
 ++++
@@ -19,8 +19,8 @@ you to summarize this data, bringing it into an organized, more
 analysis-friendly format. For example, you can summarize all the purchases of a
 single customer.
 
-You can create {dataframes} by using {dataframe-transforms}.
-{dataframe-transforms-cap} enable you to define a pivot, which is a set of
+You can create {dataframes} by using {transforms}.
+{transforms-cap} enable you to define a pivot, which is a set of
 features that transform the index into a different, more digestible format.
 Pivoting results in a summary of your data, which is the {dataframe}.
 
@@ -33,19 +33,19 @@ The second step is deciding how you want to aggregate the grouped data. When
 using aggregations, you practically ask questions about the index. There are 
 different types of aggregations, each with its own purpose and output. To learn 
 more about the supported aggregations and group-by fields, see 
-{ref}/data-frame-transform-resource.html[{dataframe-transform-cap} resources].
+{ref}/data-frame-transform-resource.html[{transform-cap} resources].
 
 As an optional step, you can also add a query to further limit the scope of the
 aggregation.
 
-The {dataframe-transform} performs a composite aggregation that 
+The {transform} performs a composite aggregation that 
 paginates through all the data defined by the source index query. The output of
 the aggregation is stored in a destination index. Each time the 
-{dataframe-transform} queries the source index, it creates a _checkpoint_. You 
-can decide whether you want the {dataframe-transform} to run once (batch 
-{dataframe-transform}) or continuously ({cdataframe-transform}). A batch 
-{dataframe-transform} is a single operation that has a single checkpoint. 
-{cdataframe-transforms-cap} continually increment and process checkpoints as new 
+{transform} queries the source index, it creates a _checkpoint_. You 
+can decide whether you want the {transform} to run once (batch 
+{transform}) or continuously ({transform}). A batch 
+{transform} is a single operation that has a single checkpoint. 
+{ctransforms-cap} continually increment and process checkpoints as new 
 source data is ingested.
 
 .Example
@@ -57,7 +57,7 @@ information (name, gender, location, etc). Your dataset contains all the transac
 from last year.
 
 If you want to check the sales in the different categories in your last fiscal
-year, define a {dataframe-transform} that groups the data by the product
+year, define a {transform} that groups the data by the product
 categories (women's shoes, men's clothing, etc.) and the order date. Use the
 last year as the interval for the order date. Then add a sum aggregation on the
 ordered quantity. The result is a {dataframe} that shows the number of sold
@@ -66,6 +66,6 @@ items in every product category in the last year.
 [role="screenshot"]
 image::images/ml-dataframepivot.jpg["Example of a data frame pivot in {kib}"]
 
-IMPORTANT: The {dataframe-transform} leaves your source index intact. It
+IMPORTANT: The {transform} leaves your source index intact. It
 creates a new index that is dedicated to the {dataframe}.
 

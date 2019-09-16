@@ -29,10 +29,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerPosition;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpoint;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
@@ -80,17 +80,17 @@ public class DataFrameIndexerTests extends ESTestCase {
 
         MockedDataFrameIndexer(
                 Executor executor,
-                DataFrameTransformConfig transformConfig,
+                TransformConfig transformConfig,
                 Map<String, String> fieldMappings,
                 DataFrameAuditor auditor,
                 AtomicReference<IndexerState> initialState,
-                DataFrameIndexerPosition initialPosition,
-                DataFrameIndexerTransformStats jobStats,
+                TransformIndexerPosition initialPosition,
+                TransformIndexerStats jobStats,
                 Function<SearchRequest, SearchResponse> searchFunction,
                 Function<BulkRequest, BulkResponse> bulkFunction,
                 Consumer<Exception> failureConsumer) {
             super(executor, auditor, transformConfig, fieldMappings, initialState, initialPosition, jobStats,
-                    /* DataFrameTransformProgress */ null, DataFrameTransformCheckpoint.EMPTY, DataFrameTransformCheckpoint.EMPTY);
+                    /* DataFrameTransformProgress */ null, TransformCheckpoint.EMPTY, TransformCheckpoint.EMPTY);
             this.searchFunction = searchFunction;
             this.bulkFunction = bulkFunction;
             this.failureConsumer = failureConsumer;
@@ -101,8 +101,8 @@ public class DataFrameIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void createCheckpoint(ActionListener<DataFrameTransformCheckpoint> listener) {
-            listener.onResponse(DataFrameTransformCheckpoint.EMPTY);
+        protected void createCheckpoint(ActionListener<TransformCheckpoint> listener) {
+            listener.onResponse(TransformCheckpoint.EMPTY);
         }
 
         @Override
@@ -145,7 +145,7 @@ public class DataFrameIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void doSaveState(IndexerState state, DataFrameIndexerPosition position, Runnable next) {
+        protected void doSaveState(IndexerState state, TransformIndexerPosition position, Runnable next) {
             assert state == IndexerState.STARTED || state == IndexerState.INDEXING || state == IndexerState.STOPPED;
             next.run();
         }
@@ -197,7 +197,7 @@ public class DataFrameIndexerTests extends ESTestCase {
 
     public void testPageSizeAdapt() throws InterruptedException {
         Integer pageSize = randomBoolean() ? null : randomIntBetween(500, 10_000);
-        DataFrameTransformConfig config = new DataFrameTransformConfig(randomAlphaOfLength(10),
+        TransformConfig config = new TransformConfig(randomAlphaOfLength(10),
             randomSourceConfig(),
             randomDestConfig(),
             null,
@@ -226,7 +226,7 @@ public class DataFrameIndexerTests extends ESTestCase {
             DataFrameAuditor auditor = new DataFrameAuditor(client, "node_1");
 
             MockedDataFrameIndexer indexer = new MockedDataFrameIndexer(executor, config, Collections.emptyMap(), auditor, state, null,
-                    new DataFrameIndexerTransformStats(), searchFunction, bulkFunction, failureConsumer);
+                    new TransformIndexerStats(), searchFunction, bulkFunction, failureConsumer);
             final CountDownLatch latch = indexer.newLatch(1);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
@@ -259,7 +259,7 @@ public class DataFrameIndexerTests extends ESTestCase {
 
     public void testDoProcessAggNullCheck() {
         Integer pageSize = randomBoolean() ? null : randomIntBetween(500, 10_000);
-        DataFrameTransformConfig config = new DataFrameTransformConfig(randomAlphaOfLength(10),
+        TransformConfig config = new TransformConfig(randomAlphaOfLength(10),
             randomSourceConfig(),
             randomDestConfig(),
             null,
@@ -291,9 +291,9 @@ public class DataFrameIndexerTests extends ESTestCase {
             DataFrameAuditor auditor = mock(DataFrameAuditor.class);
 
             MockedDataFrameIndexer indexer = new MockedDataFrameIndexer(executor, config, Collections.emptyMap(), auditor, state, null,
-                new DataFrameIndexerTransformStats(), searchFunction, bulkFunction, failureConsumer);
+                new TransformIndexerStats(), searchFunction, bulkFunction, failureConsumer);
 
-            IterationResult<DataFrameIndexerPosition> newPosition = indexer.doProcess(searchResponse);
+            IterationResult<TransformIndexerPosition> newPosition = indexer.doProcess(searchResponse);
             assertThat(newPosition.getToIndex(), is(empty()));
             assertThat(newPosition.getPosition(), is(nullValue()));
             assertThat(newPosition.isDone(), is(true));

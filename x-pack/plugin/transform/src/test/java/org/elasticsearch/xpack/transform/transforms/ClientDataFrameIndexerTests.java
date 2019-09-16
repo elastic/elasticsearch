@@ -12,10 +12,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransform;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpoint;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.Transform;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.transform.persistence.DataFrameTransformsConfigManager;
@@ -40,7 +40,7 @@ public class ClientDataFrameIndexerTests extends ESTestCase {
             "dataframe",
             "ptask",
             new TaskId("dataframe:1"),
-            mock(DataFrameTransform.class),
+            mock(Transform.class),
             null,
             mock(SchedulerEngine.class),
             mock(DataFrameAuditor.class),
@@ -53,16 +53,16 @@ public class ClientDataFrameIndexerTests extends ESTestCase {
             null,
             mock(Client.class),
             mock(DataFrameAuditor.class),
-            mock(DataFrameIndexerTransformStats.class),
-            mock(DataFrameTransformConfig.class),
+            mock(TransformIndexerStats.class),
+            mock(TransformConfig.class),
             Collections.emptyMap(),
             null,
-            new DataFrameTransformCheckpoint("transform",
+            new TransformCheckpoint("transform",
                 Instant.now().toEpochMilli(),
                 0L,
                 Collections.emptyMap(),
                 Instant.now().toEpochMilli()),
-            new DataFrameTransformCheckpoint("transform",
+            new TransformCheckpoint("transform",
                 Instant.now().toEpochMilli(),
                 2L,
                 Collections.emptyMap(),

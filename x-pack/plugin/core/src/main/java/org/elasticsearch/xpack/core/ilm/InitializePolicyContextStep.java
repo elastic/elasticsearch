@@ -22,7 +22,7 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
     public static final StepKey KEY = new StepKey(INITIALIZATION_PHASE, "init", "init");
     private static final Logger logger = LogManager.getLogger(InitializePolicyContextStep.class);
 
-    public InitializePolicyContextStep(Step.StepKey key, StepKey nextStepKey) {
+    InitializePolicyContextStep(Step.StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
     }
 

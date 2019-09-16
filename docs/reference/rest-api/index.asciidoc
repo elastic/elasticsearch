@@ -14,7 +14,7 @@ not be included yet.
 * <<cat, cat APIs>>
 * <<cluster, Cluster APIs>>
 * <<ccr-apis,{ccr-cap} APIs>>
-* <<data-frame-apis,{dataframe-transform-cap} APIs>>
+* <<data-frame-apis,{transform-cap} APIs>>
 * <<docs, Document APIs>>
 * <<graph-explore-api,Graph Explore API>>
 * <<indices, Index APIs>>

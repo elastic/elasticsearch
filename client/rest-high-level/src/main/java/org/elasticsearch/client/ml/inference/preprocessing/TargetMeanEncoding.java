@@ -1,17 +1,28 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
-package org.elasticsearch.xpack.core.ml.inference.preprocessing;
+package org.elasticsearch.client.ml.inference.preprocessing;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -34,6 +45,7 @@ public class TargetMeanEncoding implements PreProcessor {
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<TargetMeanEncoding, Void> PARSER = new ConstructingObjectParser<>(
         NAME.getPreferredName(),
+        true,
         a -> new TargetMeanEncoding((String)a[0], (String)a[1], (Map<String, Double>)a[2], (Double)a[3]));
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD);
@@ -54,17 +66,10 @@ public class TargetMeanEncoding implements PreProcessor {
     private final double defaultValue;
 
     public TargetMeanEncoding(String field, String featureName, Map<String, Double> meanMap, Double defaultValue) {
-        this.field = ExceptionsHelper.requireNonNull(field, FIELD);
-        this.featureName = ExceptionsHelper.requireNonNull(featureName, FEATURE_NAME);
-        this.meanMap = Collections.unmodifiableMap(ExceptionsHelper.requireNonNull(meanMap, TARGET_MEANS));
-        this.defaultValue = ExceptionsHelper.requireNonNull(defaultValue, DEFAULT_VALUE);
-    }
-
-    public TargetMeanEncoding(StreamInput in) throws IOException {
-        this.field = in.readString();
-        this.featureName = in.readString();
-        this.meanMap = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readDouble));
-        this.defaultValue = in.readDouble();
+        this.field = Objects.requireNonNull(field);
+        this.featureName = Objects.requireNonNull(featureName);
+        this.meanMap = Collections.unmodifiableMap(Objects.requireNonNull(meanMap));
+        this.defaultValue = Objects.requireNonNull(defaultValue);
     }
 
     /**
@@ -84,7 +89,7 @@ public class TargetMeanEncoding implements PreProcessor {
     /**
      * @return The default value to set when a previously unobserved value is seen
      */
-    public Double getDefaultValue() {
+    public double getDefaultValue() {
         return defaultValue;
     }
 
@@ -101,30 +106,7 @@ public class TargetMeanEncoding implements PreProcessor {
     }
 
     @Override
-    public Map<String, Object> process(Map<String, Object> fields) {
-        String value = (String)fields.get(field);
-        if (value == null) {
-            return fields;
-        }
-        fields.put(featureName, meanMap.getOrDefault(value, defaultValue));
-        return fields;
-    }
-
-    @Override
-    public String getWriteableName() {
-        return NAME.getPreferredName();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(field);
-        out.writeString(featureName);
-        out.writeMap(meanMap, StreamOutput::writeString, StreamOutput::writeDouble);
-        out.writeDouble(defaultValue);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.field(FIELD.getPreferredName(), field);
         builder.field(FEATURE_NAME.getPreferredName(), featureName);
@@ -150,4 +132,64 @@ public class TargetMeanEncoding implements PreProcessor {
         return Objects.hash(field, featureName, meanMap, defaultValue);
     }
 
+    public Builder builder(String field) {
+        return new Builder(field);
+    }
+
+    public static class Builder {
+
+        private String field;
+        private String featureName;
+        private Map<String, Double> meanMap = new HashMap<>();
+        private double defaultValue;
+
+        public Builder(String field) {
+            this.field = field;
+        }
+
+        public String getField() {
+            return field;
+        }
+
+        public Builder setField(String field) {
+            this.field = field;
+            return this;
+        }
+
+        public String getFeatureName() {
+            return featureName;
+        }
+
+        public Builder setFeatureName(String featureName) {
+            this.featureName = featureName;
+            return this;
+        }
+
+        public Map<String, Double> getMeanMap() {
+            return meanMap;
+        }
+
+        public Builder setMeanMap(Map<String, Double> meanMap) {
+            this.meanMap = meanMap;
+            return this;
+        }
+
+        public Builder addMeanMapEntry(String valueName, double meanEncoding) {
+            this.meanMap.put(valueName, meanEncoding);
+            return this;
+        }
+
+        public double getDefaultValue() {
+            return defaultValue;
+        }
+
+        public Builder setDefaultValue(double defaultValue) {
+            this.defaultValue = defaultValue;
+            return this;
+        }
+
+        public TargetMeanEncoding build() {
+            return new TargetMeanEncoding(field, featureName, meanMap, defaultValue);
+        }
+    }
 }

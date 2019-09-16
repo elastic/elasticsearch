@@ -24,9 +24,11 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
@@ -36,18 +38,20 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
     private static final Logger logger = LogManager.getLogger(ReindexTask.class);
 
     private final ReindexIndexClient reindexIndexClient;
+    private final ThreadPool threadPool;
     private final String persistentTaskId;
     private final long allocationId;
     private final Consumer<BulkByScrollTask.Status> committedCallback;
-    private final Semaphore semaphore = new Semaphore(1);
+    private ThrottlingConsumer<Tuple<ScrollableHitSource.Checkpoint, BulkByScrollTask.Status>> checkpointThrottler;
 
     private int assignmentAttempts = 0;
     private ReindexTaskState lastState;
-    private boolean isDone = false;
+    private AtomicBoolean isDone = new AtomicBoolean();
 
-    public ReindexTaskStateUpdater(ReindexIndexClient reindexIndexClient, String persistentTaskId, long allocationId,
+    public ReindexTaskStateUpdater(ReindexIndexClient reindexIndexClient, ThreadPool threadPool, String persistentTaskId, long allocationId,
                                    Consumer<BulkByScrollTask.Status> committedCallback) {
         this.reindexIndexClient = reindexIndexClient;
+        this.threadPool = threadPool;
         this.persistentTaskId = persistentTaskId;
         this.allocationId = allocationId;
         // TODO: At some point I think we would like to replace a single universal callback to a listener that
@@ -70,7 +74,12 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
                     reindexIndexClient.updateReindexTaskDoc(persistentTaskId, newDoc, term, seqNo, new ActionListener<>() {
                         @Override
                         public void onResponse(ReindexTaskState newTaskState) {
+                            assert checkpointThrottler == null;
                             lastState = newTaskState;
+                            checkpointThrottler = new ThrottlingConsumer<>(
+                                (t, whenDone) -> updateCheckpoint(t.v1(), t.v2(), whenDone),
+                                newTaskState.getStateDoc().getReindexRequest().getCheckpointInterval(), System::nanoTime, threadPool
+                            );
                             listener.onResponse(newTaskState.getStateDoc());
                         }
 
@@ -114,61 +123,59 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
 
     @Override
     public void onCheckpoint(ScrollableHitSource.Checkpoint checkpoint, BulkByScrollTask.Status status) {
-        // TODO: Need some kind of throttling here, no need to do this all the time.
-        // only do one checkpoint at a time, in case checkpointing is too slow.
-        if (semaphore.tryAcquire()) {
-            if (isDone) {
-                semaphore.release();
-            } else {
-                ReindexTaskStateDoc nextState = lastState.getStateDoc().withCheckpoint(checkpoint, status);
-                // TODO: This can fail due to conditional update. Need to hook into ability to cancel reindex process
-                long term = lastState.getPrimaryTerm();
-                long seqNo = lastState.getSeqNo();
-                reindexIndexClient.updateReindexTaskDoc(persistentTaskId, nextState, term, seqNo, new ActionListener<>() {
-                    @Override
-                    public void onResponse(ReindexTaskState taskState) {
-                        lastState = taskState;
-                        committedCallback.accept(status);
-                        semaphore.release();
-                    }
+        assert checkpointThrottler != null;
+        checkpointThrottler.accept(Tuple.tuple(checkpoint, status));
+    }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        semaphore.release();
-                    }
-                });
+    private void updateCheckpoint(ScrollableHitSource.Checkpoint checkpoint, BulkByScrollTask.Status status, Runnable whenDone) {
+        ReindexTaskStateDoc nextState = lastState.getStateDoc().withCheckpoint(checkpoint, status);
+        // TODO: This can fail due to conditional update. Need to hook into ability to cancel reindex process
+        long term = lastState.getPrimaryTerm();
+        long seqNo = lastState.getSeqNo();
+        reindexIndexClient.updateReindexTaskDoc(persistentTaskId, nextState, term, seqNo, new ActionListener<>() {
+            @Override
+            public void onResponse(ReindexTaskState taskState) {
+                lastState = taskState;
+                committedCallback.accept(status);
+                whenDone.run();
             }
-        }
+
+            @Override
+            public void onFailure(Exception e) {
+                whenDone.run();
+            }
+        });
+
     }
 
     public void finish(@Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception,
                        ActionListener<ReindexTaskStateDoc> listener) {
-        // TODO: Move to try acquire and a scheduled retry if there is currently contention
-        semaphore.acquireUninterruptibly();
-        if (isDone) {
-            semaphore.release();
+        assert checkpointThrottler != null;
+        if (isDone.compareAndSet(false, true) == false) {
             listener.onFailure(new ElasticsearchException("Reindex task already finished locally"));
         } else {
-            ReindexTaskStateDoc state = lastState.getStateDoc().withFinishedState(reindexResponse, exception);
-            isDone = true;
-            long term = lastState.getPrimaryTerm();
-            long seqNo = lastState.getSeqNo();
-            reindexIndexClient.updateReindexTaskDoc(persistentTaskId, state, term, seqNo, new ActionListener<>() {
-                @Override
-                public void onResponse(ReindexTaskState taskState) {
-                    lastState = null;
-                    semaphore.release();
-                    listener.onResponse(taskState.getStateDoc());
-
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    lastState = null;
-                    semaphore.release();
-                    listener.onFailure(e);
-                }
-            });
+            checkpointThrottler.close(() -> writeFinishedState(reindexResponse, exception, listener));
         }
+    }
+
+    private void writeFinishedState(@Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception,
+                                    ActionListener<ReindexTaskStateDoc> listener) {
+        ReindexTaskStateDoc state = lastState.getStateDoc().withFinishedState(reindexResponse, exception);
+        long term = lastState.getPrimaryTerm();
+        long seqNo = lastState.getSeqNo();
+        reindexIndexClient.updateReindexTaskDoc(persistentTaskId, state, term, seqNo, new ActionListener<>() {
+            @Override
+            public void onResponse(ReindexTaskState taskState) {
+                lastState = null;
+                listener.onResponse(taskState.getStateDoc());
+
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                lastState = null;
+                listener.onFailure(e);
+            }
+        });
     }
 }

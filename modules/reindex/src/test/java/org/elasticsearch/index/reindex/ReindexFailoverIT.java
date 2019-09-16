@@ -104,6 +104,7 @@ public class ReindexFailoverIT extends ReindexTestCase {
         ReindexRequestBuilder copy = reindex().source("source").destination("dest").refresh(true);
         ReindexRequest reindexRequest = copy.request();
         reindexRequest.setScroll(TimeValue.timeValueSeconds(scrollTimeout));
+        reindexRequest.setCheckpointInterval(TimeValue.timeValueMillis(100));
         StartReindexJobAction.Request request = new StartReindexJobAction.Request(reindexRequest, false);
 
         copy.source().setSize(10);
@@ -173,7 +174,8 @@ public class ReindexFailoverIT extends ReindexTestCase {
                 assertThat(seqNos.length(), greaterThan(docCount));
             }
             // The first 9 should not be replayed, we restart from at least seqNo 9.
-            assertThat(seqNos.length(), lessThan(Math.toIntExact(docCount + hitsAfterRestart - 9)));
+            assertThat("docCount: " + docCount + " hitsAfterRestart " + hitsAfterRestart, seqNos.length()-1,
+                lessThan(Math.toIntExact(docCount + hitsAfterRestart - 9)));
 
         });
 

@@ -155,6 +155,10 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
             }
         }
 
+        if (randomBoolean()) {
+            reindexRequest.setCheckpointInterval(TimeValue.timeValueMillis(randomNonNegativeLong()));
+        }
+
         return reindexRequest;
     }
 
@@ -192,6 +196,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
             assertEquals(expectedInstance.getSlices(), newInstance.getSlices());
             assertEquals(expectedInstance.getRequestsPerSecond(), newInstance.getRequestsPerSecond(), 0.1);
             assertEquals(expectedInstance.getWaitForActiveShards(), newInstance.getWaitForActiveShards());
+            assertEquals(expectedInstance.getCheckpointInterval(), newInstance.getCheckpointInterval());
         }
     }
 

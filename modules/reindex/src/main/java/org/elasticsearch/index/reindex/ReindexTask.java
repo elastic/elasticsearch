@@ -118,7 +118,8 @@ public class ReindexTask extends AllocatedPersistentTask {
         String taskId = getPersistentTaskId();
         long allocationId = getAllocationId();
         Consumer<BulkByScrollTask.Status> committedCallback = childTask::setCommittedStatus;
-        ReindexTaskStateUpdater taskUpdater = new ReindexTaskStateUpdater(reindexIndexClient, taskId, allocationId, committedCallback);
+        ReindexTaskStateUpdater taskUpdater = new ReindexTaskStateUpdater(reindexIndexClient, client.threadPool(), taskId, allocationId,
+            committedCallback);
         taskUpdater.assign(new ActionListener<>() {
             @Override
             public void onResponse(ReindexTaskStateDoc stateDoc) {

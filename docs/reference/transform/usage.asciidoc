@@ -18,6 +18,11 @@ points. If you have an ongoing background process that fuses related events from
 one index into entity-centric summaries in another index, you get a more useful,
 joined-up picture--this is essentially what _{dataframes}_ are.
 
+
+[discrete]
+[[ml-dataframes-usage]]
+== When to use {dataframes}
+
 You might want to consider using {dataframes} instead of aggregations when:
 
 * You need a complete _feature index_ rather than a top-N set of items.

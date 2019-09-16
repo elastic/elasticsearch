@@ -39,11 +39,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.core.transform.DataFrameMessages;
-import org.elasticsearch.xpack.core.transform.action.PreviewDataFrameTransformAction;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
@@ -58,7 +58,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.transform.transforms.DataFrameIndexer.COMPOSITE_AGGREGATION_NAME;
 
 public class TransportPreviewDataFrameTransformAction extends
-    HandledTransportAction<PreviewDataFrameTransformAction.Request, PreviewDataFrameTransformAction.Response> {
+    HandledTransportAction<PreviewTransformAction.Request, PreviewTransformAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportPreviewDataFrameTransformAction.class);
     private static final int NUMBER_OF_PREVIEW_BUCKETS = 100;
@@ -73,7 +73,7 @@ public class TransportPreviewDataFrameTransformAction extends
                                                     Client client, ThreadPool threadPool, XPackLicenseState licenseState,
                                                     IndexNameExpressionResolver indexNameExpressionResolver,
                                                     ClusterService clusterService) {
-        super(PreviewDataFrameTransformAction.NAME,transportService, actionFilters, PreviewDataFrameTransformAction.Request::new);
+        super(PreviewTransformAction.NAME,transportService, actionFilters, PreviewTransformAction.Request::new);
         this.licenseState = licenseState;
         this.client = client;
         this.threadPool = threadPool;
@@ -83,21 +83,21 @@ public class TransportPreviewDataFrameTransformAction extends
 
     @Override
     protected void doExecute(Task task,
-                             PreviewDataFrameTransformAction.Request request,
-                             ActionListener<PreviewDataFrameTransformAction.Response> listener) {
+                             PreviewTransformAction.Request request,
+                             ActionListener<PreviewTransformAction.Response> listener) {
         if (!licenseState.isDataFrameAllowed()) {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.DATA_FRAME));
+            listener.onFailure(LicenseUtils.newComplianceException(XPackField.Transform));
             return;
         }
 
         ClusterState clusterState = clusterService.state();
 
-        final DataFrameTransformConfig config = request.getConfig();
+        final TransformConfig config = request.getConfig();
         for(String src : config.getSource().getIndex()) {
             String[] concreteNames = indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), src);
             if (concreteNames.length == 0) {
                 listener.onFailure(new ElasticsearchStatusException(
-                    DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_SOURCE_INDEX_MISSING, src),
+                    TransformMessages.getMessage(TransformMessages.REST_PUT_DATA_FRAME_SOURCE_INDEX_MISSING, src),
                     RestStatus.BAD_REQUEST));
                 return;
             }
@@ -108,13 +108,13 @@ public class TransportPreviewDataFrameTransformAction extends
             pivot.validateConfig();
         } catch (ElasticsearchStatusException e) {
             listener.onFailure(
-                new ElasticsearchStatusException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
+                new ElasticsearchStatusException(TransformMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
                     e.status(),
                     e));
             return;
         } catch (Exception e) {
             listener.onFailure(new ElasticsearchStatusException(
-                DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION, RestStatus.INTERNAL_SERVER_ERROR, e));
+                TransformMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION, RestStatus.INTERNAL_SERVER_ERROR, e));
             return;
         }
 
@@ -126,8 +126,8 @@ public class TransportPreviewDataFrameTransformAction extends
                             SourceConfig source,
                             String pipeline,
                             String dest,
-                            ActionListener<PreviewDataFrameTransformAction.Response> listener) {
-        final PreviewDataFrameTransformAction.Response previewResponse = new PreviewDataFrameTransformAction.Response();
+                            ActionListener<PreviewTransformAction.Response> listener) {
+        final PreviewTransformAction.Response previewResponse = new PreviewTransformAction.Response();
         ActionListener<SimulatePipelineResponse> pipelineResponseActionListener = ActionListener.wrap(
             simulatePipelineResponse -> {
                 List<Map<String, Object>> response = new ArrayList<>(simulatePipelineResponse.getResults().size());
@@ -165,7 +165,7 @@ public class TransportPreviewDataFrameTransformAction extends
                                     return;
                                 }
                                 final CompositeAggregation agg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
-                                DataFrameIndexerTransformStats stats = new DataFrameIndexerTransformStats();
+                                TransformIndexerStats stats = new TransformIndexerStats();
                                 // remove all internal fields
 
                                 if (pipeline == null) {
@@ -178,7 +178,7 @@ public class TransportPreviewDataFrameTransformAction extends
                                     List<Map<String, Object>> results = pivot.extractResults(agg, deducedMappings, stats)
                                         .map(doc -> {
                                             Map<String, Object> src = new HashMap<>();
-                                            String id = (String) doc.get(DataFrameField.DOCUMENT_ID_FIELD);
+                                            String id = (String) doc.get(TransformField.DOCUMENT_ID_FIELD);
                                             doc.keySet().removeIf(k -> k.startsWith("_"));
                                             src.put("_source", doc);
                                             src.put("_id", id);

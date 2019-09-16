@@ -48,11 +48,11 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.action.util.PageParams;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.core.transform.DataFrameMessages;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpoint;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformStoredDoc;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -91,7 +91,7 @@ public class DataFrameTransformsConfigManager {
 
     private static final Logger logger = LogManager.getLogger(DataFrameTransformsConfigManager.class);
 
-    public static final Map<String, String> TO_XCONTENT_PARAMS = Collections.singletonMap(DataFrameField.FOR_INTERNAL_STORAGE, "true");
+    public static final Map<String, String> TO_XCONTENT_PARAMS = Collections.singletonMap(TransformField.FOR_INTERNAL_STORAGE, "true");
 
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
@@ -107,14 +107,14 @@ public class DataFrameTransformsConfigManager {
      * @param checkpoint the @link{DataFrameTransformCheckpoint}
      * @param listener listener to call after request has been made
      */
-    public void putTransformCheckpoint(DataFrameTransformCheckpoint checkpoint, ActionListener<Boolean> listener) {
+    public void putTransformCheckpoint(TransformCheckpoint checkpoint, ActionListener<Boolean> listener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = checkpoint.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
 
             IndexRequest indexRequest = new IndexRequest(DataFrameInternalIndex.LATEST_INDEX_NAME)
                     .opType(DocWriteRequest.OpType.INDEX)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                    .id(DataFrameTransformCheckpoint.documentId(checkpoint.getTransformId(), checkpoint.getCheckpoint()))
+                    .id(TransformCheckpoint.documentId(checkpoint.getTransformId(), checkpoint.getCheckpoint()))
                     .source(source);
 
             executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(r -> {
@@ -132,14 +132,14 @@ public class DataFrameTransformsConfigManager {
      * @param transformConfig the @link{DataFrameTransformConfig}
      * @param listener listener to call after request
      */
-    public void putTransformConfiguration(DataFrameTransformConfig transformConfig, ActionListener<Boolean> listener) {
+    public void putTransformConfiguration(TransformConfig transformConfig, ActionListener<Boolean> listener) {
         putTransformConfiguration(transformConfig, DocWriteRequest.OpType.CREATE, null, listener);
     }
 
     /**
      * Update the transform configuration in the internal index.
      *
-     * Essentially the same as {@link DataFrameTransformsConfigManager#putTransformConfiguration(DataFrameTransformConfig, ActionListener)}
+     * Essentially the same as {@link DataFrameTransformsConfigManager#putTransformConfiguration(TransformConfig, ActionListener)}
      * but is an index operation that will fail with a version conflict
      * if the current document seqNo and primaryTerm is not the same as the provided version.
      * @param transformConfig the @link{DataFrameTransformConfig}
@@ -147,7 +147,7 @@ public class DataFrameTransformsConfigManager {
      *                             Used for optimistic concurrency control
      * @param listener listener to call after request
      */
-    public void updateTransformConfiguration(DataFrameTransformConfig transformConfig,
+    public void updateTransformConfiguration(TransformConfig transformConfig,
                                              SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
                                              ActionListener<Boolean> listener) {
         if (seqNoPrimaryTermAndIndex.getIndex().equals(DataFrameInternalIndex.LATEST_INDEX_NAME)) {
@@ -170,7 +170,7 @@ public class DataFrameTransformsConfigManager {
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(DataFrameInternalIndex.INDEX_NAME_PATTERN)
             .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
                 .mustNot(QueryBuilders.termQuery("_index", DataFrameInternalIndex.LATEST_INDEX_NAME))
-                .filter(QueryBuilders.termQuery("_id", DataFrameTransformConfig.documentId(transformId)))))
+                .filter(QueryBuilders.termQuery("_id", TransformConfig.documentId(transformId)))))
             .setIndicesOptions(IndicesOptions.lenientExpandOpen());
 
         executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(
@@ -197,7 +197,7 @@ public class DataFrameTransformsConfigManager {
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(DataFrameInternalIndex.INDEX_NAME_PATTERN)
             .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
                 .mustNot(QueryBuilders.termQuery("_index", DataFrameInternalIndex.LATEST_INDEX_NAME))
-                .filter(QueryBuilders.termQuery("_id", DataFrameTransformStoredDoc.documentId(transformId)))))
+                .filter(QueryBuilders.termQuery("_id", TransformStoredDoc.documentId(transformId)))))
             .setIndicesOptions(IndicesOptions.lenientExpandOpen());
 
         executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(
@@ -214,7 +214,7 @@ public class DataFrameTransformsConfigManager {
         ));
     }
 
-    private void putTransformConfiguration(DataFrameTransformConfig transformConfig,
+    private void putTransformConfiguration(TransformConfig transformConfig,
                                            DocWriteRequest.OpType optType,
                                            SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
                                            ActionListener<Boolean> listener) {
@@ -224,7 +224,7 @@ public class DataFrameTransformsConfigManager {
             IndexRequest indexRequest = new IndexRequest(DataFrameInternalIndex.LATEST_INDEX_NAME)
                 .opType(optType)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .id(DataFrameTransformConfig.documentId(transformConfig.getId()))
+                .id(TransformConfig.documentId(transformConfig.getId()))
                 .source(source);
             if (seqNoPrimaryTermAndIndex != null) {
                 indexRequest.setIfSeqNo(seqNoPrimaryTermAndIndex.getSeqNo())
@@ -236,17 +236,17 @@ public class DataFrameTransformsConfigManager {
                 if (e instanceof VersionConflictEngineException) {
                     // the transform already exists
                     listener.onFailure(new ResourceAlreadyExistsException(
-                        DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_TRANSFORM_EXISTS,
+                        TransformMessages.getMessage(TransformMessages.REST_PUT_DATA_FRAME_TRANSFORM_EXISTS,
                             transformConfig.getId())));
                 } else {
                     listener.onFailure(
-                        new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_PERSIST_TRANSFORM_CONFIGURATION, e));
+                        new RuntimeException(TransformMessages.REST_PUT_DATA_FRAME_FAILED_PERSIST_TRANSFORM_CONFIGURATION, e));
                 }
             }));
         } catch (IOException e) {
             // not expected to happen but for the sake of completeness
             listener.onFailure(new ElasticsearchParseException(
-                DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_FAILED_TO_SERIALIZE_TRANSFORM, transformConfig.getId()),
+                TransformMessages.getMessage(TransformMessages.REST_DATA_FRAME_FAILED_TO_SERIALIZE_TRANSFORM, transformConfig.getId()),
                 e));
         }
     }
@@ -258,8 +258,8 @@ public class DataFrameTransformsConfigManager {
      * @param checkpoint the checkpoint
      * @param resultListener listener to call after request has been made
      */
-    public void getTransformCheckpoint(String transformId, long checkpoint, ActionListener<DataFrameTransformCheckpoint> resultListener) {
-        QueryBuilder queryBuilder = QueryBuilders.termQuery("_id", DataFrameTransformCheckpoint.documentId(transformId, checkpoint));
+    public void getTransformCheckpoint(String transformId, long checkpoint, ActionListener<TransformCheckpoint> resultListener) {
+        QueryBuilder queryBuilder = QueryBuilders.termQuery("_id", TransformCheckpoint.documentId(transformId, checkpoint));
         SearchRequest searchRequest = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME_PATTERN)
             .setQuery(queryBuilder)
             // use sort to get the last
@@ -272,7 +272,7 @@ public class DataFrameTransformsConfigManager {
                 if (searchResponse.getHits().getHits().length == 0) {
                     // do not fail if checkpoint does not exist but return an empty checkpoint
                     logger.trace("found no checkpoint for transform [" + transformId + "], returning empty checkpoint");
-                    resultListener.onResponse(DataFrameTransformCheckpoint.EMPTY);
+                    resultListener.onResponse(TransformCheckpoint.EMPTY);
                     return;
                 }
                 BytesReference source = searchResponse.getHits().getHits()[0].getSourceRef();
@@ -287,8 +287,8 @@ public class DataFrameTransformsConfigManager {
      * @param transformId the transform id
      * @param resultListener listener to call after inner request has returned
      */
-    public void getTransformConfiguration(String transformId, ActionListener<DataFrameTransformConfig> resultListener) {
-        QueryBuilder queryBuilder = QueryBuilders.termQuery("_id", DataFrameTransformConfig.documentId(transformId));
+    public void getTransformConfiguration(String transformId, ActionListener<TransformConfig> resultListener) {
+        QueryBuilder queryBuilder = QueryBuilders.termQuery("_id", TransformConfig.documentId(transformId));
         SearchRequest searchRequest = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME_PATTERN)
             .setQuery(queryBuilder)
             // use sort to get the last
@@ -301,7 +301,7 @@ public class DataFrameTransformsConfigManager {
                 searchResponse -> {
                     if (searchResponse.getHits().getHits().length == 0) {
                         resultListener.onFailure(new ResourceNotFoundException(
-                            DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, transformId)));
+                            TransformMessages.getMessage(TransformMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, transformId)));
                         return;
                     }
                     BytesReference source = searchResponse.getHits().getHits()[0].getSourceRef();
@@ -317,9 +317,9 @@ public class DataFrameTransformsConfigManager {
      * @param configAndVersionListener listener to call after inner request has returned
      */
     public void getTransformConfigurationForUpdate(String transformId,
-                                                   ActionListener<Tuple<DataFrameTransformConfig,
+                                                   ActionListener<Tuple<TransformConfig,
                                                        SeqNoPrimaryTermAndIndex>> configAndVersionListener) {
-        QueryBuilder queryBuilder = QueryBuilders.termQuery("_id", DataFrameTransformConfig.documentId(transformId));
+        QueryBuilder queryBuilder = QueryBuilders.termQuery("_id", TransformConfig.documentId(transformId));
         SearchRequest searchRequest = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME_PATTERN)
             .setQuery(queryBuilder)
             // use sort to get the last
@@ -332,7 +332,7 @@ public class DataFrameTransformsConfigManager {
             searchResponse -> {
                 if (searchResponse.getHits().getHits().length == 0) {
                     configAndVersionListener.onFailure(new ResourceNotFoundException(
-                        DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, transformId)));
+                        TransformMessages.getMessage(TransformMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, transformId)));
                     return;
                 }
                 SearchHit hit = searchResponse.getHits().getHits()[0];
@@ -359,16 +359,16 @@ public class DataFrameTransformsConfigManager {
                                    boolean allowNoMatch,
                                    ActionListener<Tuple<Long, List<String>>> foundIdsListener) {
         String[] idTokens = ExpandedIdsMatcher.tokenizeExpression(transformIdsExpression);
-        QueryBuilder queryBuilder = buildQueryFromTokenizedIds(idTokens, DataFrameTransformConfig.NAME);
+        QueryBuilder queryBuilder = buildQueryFromTokenizedIds(idTokens, TransformConfig.NAME);
 
         SearchRequest request = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME_PATTERN)
-            .addSort(DataFrameField.ID.getPreferredName(), SortOrder.ASC)
+            .addSort(TransformField.ID.getPreferredName(), SortOrder.ASC)
             .setFrom(pageParams.getFrom())
             .setTrackTotalHits(true)
             .setSize(pageParams.getSize())
             .setQuery(queryBuilder)
             // We only care about the `id` field, small optimization
-            .setFetchSource(DataFrameField.ID.getPreferredName(), "")
+            .setFetchSource(TransformField.ID.getPreferredName(), "")
             .request();
 
         final ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(idTokens, allowNoMatch);
@@ -383,7 +383,7 @@ public class DataFrameTransformsConfigManager {
                     try (InputStream stream = source.streamInput();
                          XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY,
                              LoggingDeprecationHandler.INSTANCE, stream)) {
-                        ids.add((String) parser.map().get(DataFrameField.ID.getPreferredName()));
+                        ids.add((String) parser.map().get(TransformField.ID.getPreferredName()));
                     } catch (IOException e) {
                         foundIdsListener.onFailure(new ElasticsearchParseException("failed to parse search hit for ids", e));
                         return;
@@ -394,7 +394,7 @@ public class DataFrameTransformsConfigManager {
                     // some required Ids were not found
                     foundIdsListener.onFailure(
                         new ResourceNotFoundException(
-                            DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM,
+                            TransformMessages.getMessage(TransformMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM,
                                 requiredMatches.unmatchedIdsString())));
                     return;
                 }
@@ -413,28 +413,28 @@ public class DataFrameTransformsConfigManager {
             .setAbortOnVersionConflict(false); //since these documents are not updated, a conflict just means it was deleted previously
 
         request.indices(DataFrameInternalIndex.INDEX_NAME_PATTERN);
-        QueryBuilder query = QueryBuilders.termQuery(DataFrameField.ID.getPreferredName(), transformId);
+        QueryBuilder query = QueryBuilders.termQuery(TransformField.ID.getPreferredName(), transformId);
         request.setQuery(query);
         request.setRefresh(true);
 
         executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, DeleteByQueryAction.INSTANCE, request, ActionListener.wrap(deleteResponse -> {
             if (deleteResponse.getDeleted() == 0) {
                 listener.onFailure(new ResourceNotFoundException(
-                        DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, transformId)));
+                        TransformMessages.getMessage(TransformMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, transformId)));
                 return;
             }
             listener.onResponse(true);
         }, e -> {
             if (e.getClass() == IndexNotFoundException.class) {
                 listener.onFailure(new ResourceNotFoundException(
-                        DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, transformId)));
+                        TransformMessages.getMessage(TransformMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, transformId)));
             } else {
                 listener.onFailure(e);
             }
         }));
     }
 
-    public void putOrUpdateTransformStoredDoc(DataFrameTransformStoredDoc stats,
+    public void putOrUpdateTransformStoredDoc(TransformStoredDoc stats,
                                               SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
                                               ActionListener<SeqNoPrimaryTermAndIndex> listener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
@@ -442,7 +442,7 @@ public class DataFrameTransformsConfigManager {
 
             IndexRequest indexRequest = new IndexRequest(DataFrameInternalIndex.LATEST_INDEX_NAME)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .id(DataFrameTransformStoredDoc.documentId(stats.getId()))
+                .id(TransformStoredDoc.documentId(stats.getId()))
                 .source(source);
             if (seqNoPrimaryTermAndIndex != null &&
                 seqNoPrimaryTermAndIndex.getIndex().equals(DataFrameInternalIndex.LATEST_INDEX_NAME)) {
@@ -457,20 +457,20 @@ public class DataFrameTransformsConfigManager {
             executeAsyncWithOrigin(client, DATA_FRAME_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
                 r -> listener.onResponse(SeqNoPrimaryTermAndIndex.fromIndexResponse(r)),
                 e -> listener.onFailure(new RuntimeException(
-                        DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_FAILED_TO_PERSIST_STATS, stats.getId()),
+                        TransformMessages.getMessage(TransformMessages.DATA_FRAME_FAILED_TO_PERSIST_STATS, stats.getId()),
                         e))
             ));
         } catch (IOException e) {
             // not expected to happen but for the sake of completeness
             listener.onFailure(new ElasticsearchParseException(
-                DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_FAILED_TO_PERSIST_STATS, stats.getId()),
+                TransformMessages.getMessage(TransformMessages.DATA_FRAME_FAILED_TO_PERSIST_STATS, stats.getId()),
                 e));
         }
     }
 
     public void getTransformStoredDoc(String transformId,
-                                      ActionListener<Tuple<DataFrameTransformStoredDoc, SeqNoPrimaryTermAndIndex>> resultListener) {
-        QueryBuilder queryBuilder = QueryBuilders.termQuery("_id", DataFrameTransformStoredDoc.documentId(transformId));
+                                      ActionListener<Tuple<TransformStoredDoc, SeqNoPrimaryTermAndIndex>> resultListener) {
+        QueryBuilder queryBuilder = QueryBuilders.termQuery("_id", TransformStoredDoc.documentId(transformId));
         SearchRequest searchRequest = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME_PATTERN)
             .setQuery(queryBuilder)
             // use sort to get the last
@@ -483,7 +483,7 @@ public class DataFrameTransformsConfigManager {
             searchResponse -> {
                 if (searchResponse.getHits().getHits().length == 0) {
                     resultListener.onFailure(new ResourceNotFoundException(
-                        DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_UNKNOWN_TRANSFORM_STATS, transformId)));
+                        TransformMessages.getMessage(TransformMessages.DATA_FRAME_UNKNOWN_TRANSFORM_STATS, transformId)));
                     return;
                 }
                 SearchHit searchHit = searchResponse.getHits().getHits()[0];
@@ -492,23 +492,23 @@ public class DataFrameTransformsConfigManager {
                     XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                         .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
                     resultListener.onResponse(
-                        Tuple.tuple(DataFrameTransformStoredDoc.fromXContent(parser),
+                        Tuple.tuple(TransformStoredDoc.fromXContent(parser),
                         SeqNoPrimaryTermAndIndex.fromSearchHit(searchHit)));
                 } catch (Exception e) {
-                    logger.error(DataFrameMessages.getMessage(DataFrameMessages.FAILED_TO_PARSE_TRANSFORM_STATISTICS_CONFIGURATION,
+                    logger.error(TransformMessages.getMessage(TransformMessages.FAILED_TO_PARSE_TRANSFORM_STATISTICS_CONFIGURATION,
                             transformId), e);
                     resultListener.onFailure(e);
                 }
             }, resultListener::onFailure));
     }
 
-    public void getTransformStoredDoc(Collection<String> transformIds, ActionListener<List<DataFrameTransformStoredDoc>> listener) {
+    public void getTransformStoredDoc(Collection<String> transformIds, ActionListener<List<TransformStoredDoc>> listener) {
         QueryBuilder builder = QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
-            .filter(QueryBuilders.termsQuery(DataFrameField.ID.getPreferredName(), transformIds))
-            .filter(QueryBuilders.termQuery(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), DataFrameTransformStoredDoc.NAME)));
+            .filter(QueryBuilders.termsQuery(TransformField.ID.getPreferredName(), transformIds))
+            .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(), TransformStoredDoc.NAME)));
 
         SearchRequest searchRequest = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME_PATTERN)
-            .addSort(DataFrameField.ID.getPreferredName(), SortOrder.ASC)
+            .addSort(TransformField.ID.getPreferredName(), SortOrder.ASC)
             .addSort("_index", SortOrder.DESC)
             .setQuery(builder)
             // the limit for getting stats and transforms is 1000, as long as we do not have 10 indices this works
@@ -518,7 +518,7 @@ public class DataFrameTransformsConfigManager {
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), DATA_FRAME_ORIGIN, searchRequest,
             ActionListener.<SearchResponse>wrap(
                     searchResponse -> {
-                        List<DataFrameTransformStoredDoc> stats = new ArrayList<>();
+                        List<TransformStoredDoc> stats = new ArrayList<>();
                         String previousId = null;
                         for (SearchHit hit : searchResponse.getHits().getHits()) {
                             // skip old versions
@@ -528,7 +528,7 @@ public class DataFrameTransformsConfigManager {
                                 try (InputStream stream = source.streamInput();
                                      XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                                              .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-                                    stats.add(DataFrameTransformStoredDoc.fromXContent(parser));
+                                    stats.add(TransformStoredDoc.fromXContent(parser));
                                 } catch (IOException e) {
                                     listener.onFailure(
                                             new ElasticsearchParseException("failed to parse data frame stats from search hit", e));
@@ -543,44 +543,44 @@ public class DataFrameTransformsConfigManager {
     }
 
     private void parseTransformLenientlyFromSource(BytesReference source, String transformId,
-            ActionListener<DataFrameTransformConfig> transformListener) {
+            ActionListener<TransformConfig> transformListener) {
         try (InputStream stream = source.streamInput();
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                      .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
-            transformListener.onResponse(DataFrameTransformConfig.fromXContent(parser, transformId, true));
+            transformListener.onResponse(TransformConfig.fromXContent(parser, transformId, true));
         } catch (Exception e) {
-            logger.error(DataFrameMessages.getMessage(DataFrameMessages.FAILED_TO_PARSE_TRANSFORM_CONFIGURATION, transformId), e);
+            logger.error(TransformMessages.getMessage(TransformMessages.FAILED_TO_PARSE_TRANSFORM_CONFIGURATION, transformId), e);
             transformListener.onFailure(e);
         }
     }
 
     private void parseCheckpointsLenientlyFromSource(BytesReference source, String transformId,
-            ActionListener<DataFrameTransformCheckpoint> transformListener) {
+            ActionListener<TransformCheckpoint> transformListener) {
         try (InputStream stream = source.streamInput();
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                      .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
-            transformListener.onResponse(DataFrameTransformCheckpoint.fromXContent(parser, true));
+            transformListener.onResponse(TransformCheckpoint.fromXContent(parser, true));
         } catch (Exception e) {
-            logger.error(DataFrameMessages.getMessage(DataFrameMessages.FAILED_TO_PARSE_TRANSFORM_CHECKPOINTS, transformId), e);
+            logger.error(TransformMessages.getMessage(TransformMessages.FAILED_TO_PARSE_TRANSFORM_CHECKPOINTS, transformId), e);
             transformListener.onFailure(e);
         }
     }
 
     private QueryBuilder buildQueryFromTokenizedIds(String[] idTokens, String resourceName) {
         BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery()
-            .filter(QueryBuilders.termQuery(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), resourceName));
+            .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(), resourceName));
         if (Strings.isAllOrWildcard(idTokens) == false) {
             List<String> terms = new ArrayList<>();
             BoolQueryBuilder shouldQueries = new BoolQueryBuilder();
             for (String token : idTokens) {
                 if (Regex.isSimpleMatchPattern(token)) {
-                    shouldQueries.should(QueryBuilders.wildcardQuery(DataFrameField.ID.getPreferredName(), token));
+                    shouldQueries.should(QueryBuilders.wildcardQuery(TransformField.ID.getPreferredName(), token));
                 } else {
                     terms.add(token);
                 }
             }
             if (terms.isEmpty() == false) {
-                shouldQueries.should(QueryBuilders.termsQuery(DataFrameField.ID.getPreferredName(), terms));
+                shouldQueries.should(QueryBuilders.termsQuery(TransformField.ID.getPreferredName(), terms));
             }
 
             if (shouldQueries.should().isEmpty() == false) {

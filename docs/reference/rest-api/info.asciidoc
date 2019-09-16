@@ -67,10 +67,6 @@ Example response:
         "available" : true,
         "enabled" : true
       },
-      "data_frame" : {
-          "available" : true,
-          "enabled" : true
-      },
       "analytics" : {
           "available" : true,
           "enabled" : true
@@ -116,6 +112,10 @@ Example response:
          "enabled" : true
       },
       "sql" : {
+         "available" : true,
+         "enabled" : true
+      },
+      "transform" : {
          "available" : true,
          "enabled" : true
       },

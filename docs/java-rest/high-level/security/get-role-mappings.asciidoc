@@ -1,3 +1,4 @@
+[role="xpack"]
 [[java-rest-high-security-get-role-mappings]]
 === Get Role Mappings API
 

@@ -31,7 +31,6 @@
   - match: { transforms.0.id: "mixed-simple-transform" }
   # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
   # assert on state in the mixed cluster as it could be state at the top level or state.task_state
-  # TODO: uncomment this assertion in master
   #- match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
 
   - do:
@@ -47,7 +46,6 @@
   - match: { transforms.0.id: "mixed-simple-transform" }
   # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
   # assert on state in the mixed cluster as it could be state at the top level or state.task_state
-  # TODO: uncomment this assertion in master
   #- match: { transforms.0.state: "stopped" }
 
   - do:
@@ -94,7 +92,6 @@
   - match: { transforms.0.id: "mixed-complex-transform" }
   # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
   # assert on state in the mixed cluster as it could be state at the top level or state.task_state
-  # TODO: uncomment this assertion in master
   #- match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
 
   - do:
@@ -110,14 +107,72 @@
   - match: { transforms.0.id: "mixed-complex-transform" }
   # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
   # assert on state in the mixed cluster as it could be state at the top level or state.task_state
-  # TODO: uncomment this assertion in master
   #- match: { transforms.0.state: "stopped" }
 
 ---
+"Test put continuous data frame transform on mixed cluster":
+  - do:
+      cluster.health:
+        index: "dataframe-transform-airline-data-cont"
+        wait_for_status: green
+        timeout: 70s
+
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "mixed-simple-continuous-transform"
+        body: >
+          {
+            "source": { "index": "dataframe-transform-airline-data-cont" },
+            "dest": { "index": "mixed-simple-continuous-transform-idx" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "sync": {
+              "time": {
+                "field": "time",
+                "delay": "90m"
+              }
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.get_data_frame_transform:
+        transform_id: "mixed-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-simple-continuous-transform" }
+  - match: { transforms.0.sync.time.field: "time" }
+  - match: { transforms.0.sync.time.delay: "90m" }
+  - is_true: transforms.0.version
+  - is_true: transforms.0.create_time
+
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "mixed-simple-continuous-transform"
+  - match: { acknowledged: true }
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "mixed-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-simple-continuous-transform" }
+  - match: { transforms.0.state: "/started|indexing/" }
+
+  - do:
+      data_frame.stop_data_frame_transform:
+        transform_id: "mixed-simple-continuous-transform"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "mixed-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-simple-continuous-transform" }
+  - match: { transforms.0.state: "stopped" }
+
+---
 "Test GET, start, and stop old cluster batch transforms":
-  - skip:
-      reason: "https://github.com/elastic/elasticsearch/issues/44808"
-      version: "all"
   - do:
       cluster.health:
         index: "dataframe-transform-airline-data"
@@ -145,7 +200,6 @@
   - match: { transforms.0.id: "old-simple-transform" }
   # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
   # assert on state in the mixed cluster as it could be state at the top level or state.task_state
-  # TODO: uncomment this assertion in master
   #- match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
 
   - do:
@@ -160,7 +214,6 @@
   - match: { transforms.0.id: "old-simple-transform" }
   # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
   # assert on state in the mixed cluster as it could be state at the top level or state.task_state
-  # TODO: uncomment this assertion in master
   #- match: { transforms.0.state: "stopped" }
 
   - do:
@@ -186,7 +239,6 @@
   - match: { transforms.0.id: "old-complex-transform" }
   # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
   # assert on state in the mixed cluster as it could be state at the top level or state.task_state
-  # TODO: uncomment this assertion in master
   #- match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
 
   - do:
@@ -201,5 +253,46 @@
   - match: { transforms.0.id: "old-complex-transform" }
   # Since we are breaking the stats format between 7.3 and 7.4 (allowed because we're beta) we cannot
   # assert on state in the mixed cluster as it could be state at the top level or state.task_state
-  # TODO: uncomment this assertion in master
   #- match: { transforms.0.state: "stopped" }
+
+---
+"Test GET, stop, start, old continuous transforms":
+  - do:
+      cluster.health:
+        index: "dataframe-transform-airline-data-cont"
+        wait_for_status: green
+        timeout: 70s
+
+  - do:
+      data_frame.get_data_frame_transform:
+        transform_id: "old-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-continuous-transform" }
+  - match: { transforms.0.sync.time.field: "time" }
+  - match: { transforms.0.sync.time.delay: "90m" }
+  - is_true: transforms.0.version
+  - is_true: transforms.0.create_time
+
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "old-simple-continuous-transform"
+  - match: { acknowledged: true }
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "old-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-continuous-transform" }
+  - match: { transforms.0.state: "/started|indexing/" }
+
+  - do:
+      data_frame.stop_data_frame_transform:
+        transform_id: "old-simple-continuous-transform"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "old-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-continuous-transform" }
+  - match: { transforms.0.state: "stopped" }

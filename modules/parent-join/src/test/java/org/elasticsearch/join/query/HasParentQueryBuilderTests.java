@@ -148,17 +148,15 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
             // doCreateTestQueryBuilder)
             queryBuilder = (HasParentQueryBuilder) queryBuilder.rewrite(searchContext.getQueryShardContext());
 
-            assertNotNull(searchContext);
             Map<String, InnerHitContextBuilder> innerHitBuilders = new HashMap<>();
             InnerHitContextBuilder.extractInnerHits(queryBuilder, innerHitBuilders);
+            final InnerHitsContext innerHitsContext = new InnerHitsContext();
             for (InnerHitContextBuilder builder : innerHitBuilders.values()) {
-                builder.build(searchContext, searchContext.innerHits());
+                builder.build(searchContext, innerHitsContext);
             }
-            assertNotNull(searchContext.innerHits());
-            assertEquals(1, searchContext.innerHits().getInnerHits().size());
-            assertTrue(searchContext.innerHits().getInnerHits().containsKey(queryBuilder.innerHit().getName()));
-            InnerHitsContext.InnerHitSubContext innerHits = searchContext.innerHits()
-                    .getInnerHits().get(queryBuilder.innerHit().getName());
+            assertEquals(1, innerHitsContext.getInnerHits().size());
+            assertTrue(innerHitsContext.getInnerHits().containsKey(queryBuilder.innerHit().getName()));
+            InnerHitsContext.InnerHitSubContext innerHits = innerHitsContext.getInnerHits().get(queryBuilder.innerHit().getName());
             assertEquals(innerHits.size(), queryBuilder.innerHit().getSize());
             assertEquals(innerHits.sort().sort.getSort().length, 1);
             assertEquals(innerHits.sort().sort.getSort()[0].getField(), STRING_FIELD_NAME_2);

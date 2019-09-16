@@ -5,13 +5,13 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Evaluate Data Frame API
+=== Evaluate {dfanalytics} API
 
-The Evaluate Data Frame API is used to evaluate an ML algorithm that ran on a {dataframe}.
+Evaluates the {ml} algorithm that ran on a {dataframe}.
 The API accepts an +{request}+ object and returns an +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Evaluate Data Frame Request
+==== Evaluate {dfanalytics} request
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

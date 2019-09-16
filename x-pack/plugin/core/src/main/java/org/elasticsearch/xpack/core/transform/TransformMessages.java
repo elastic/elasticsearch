@@ -36,7 +36,7 @@ public class TransformMessages {
             " Use force stop to stop the data frame transform.";
     public static final String DATA_FRAME_CANNOT_START_FAILED_TRANSFORM =
         "Unable to start data frame transform [{0}] as it is in a failed state with failure: [{1}]. " +
-            "Use force start to restart data frame transform once error is resolved.";
+            "Use force stop and then restart the data frame transform once error is resolved.";
 
     public static final String FAILED_TO_CREATE_DESTINATION_INDEX = "Could not create destination index [{0}] for transform [{1}]";
     public static final String FAILED_TO_RELOAD_TRANSFORM_CONFIGURATION =

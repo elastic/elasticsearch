@@ -51,7 +51,6 @@ import org.elasticsearch.xpack.core.transform.action.GetTransformsStatsAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
-import org.elasticsearch.xpack.core.transform.action.StartTransformTaskAction;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportDeleteDataFrameTransformAction;
@@ -60,7 +59,6 @@ import org.elasticsearch.xpack.transform.action.TransportGetDataFrameTransformsS
 import org.elasticsearch.xpack.transform.action.TransportPreviewDataFrameTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportPutDataFrameTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportStartDataFrameTransformAction;
-import org.elasticsearch.xpack.transform.action.TransportStartDataFrameTransformTaskAction;
 import org.elasticsearch.xpack.transform.action.TransportStopDataFrameTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportUpdateDataFrameTransformAction;
 import org.elasticsearch.xpack.transform.checkpoint.DataFrameTransformsCheckpointService;
@@ -143,7 +141,6 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
         return Arrays.asList(
                 new ActionHandler<>(PutTransformAction.INSTANCE, TransportPutDataFrameTransformAction.class),
                 new ActionHandler<>(StartTransformAction.INSTANCE, TransportStartDataFrameTransformAction.class),
-                new ActionHandler<>(StartTransformTaskAction.INSTANCE, TransportStartDataFrameTransformTaskAction.class),
                 new ActionHandler<>(StopTransformAction.INSTANCE, TransportStopDataFrameTransformAction.class),
                 new ActionHandler<>(DeleteTransformAction.INSTANCE, TransportDeleteDataFrameTransformAction.class),
                 new ActionHandler<>(GetTransformsAction.INSTANCE, TransportGetDataFrameTransformsAction.class),

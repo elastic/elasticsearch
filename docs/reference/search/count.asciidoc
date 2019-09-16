@@ -3,7 +3,7 @@
 
 Gets the number of matches for a search query.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_count?q=user:kimchy
 --------------------------------------------------

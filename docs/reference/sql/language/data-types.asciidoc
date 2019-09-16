@@ -102,7 +102,7 @@ To do that, it will search for the first `keyword` that it can find that is _not
 
 Consider the following `string` mapping:
 
-[source, js]
+[source,js]
 ----
 {
     "first_name" : {

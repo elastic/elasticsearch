@@ -5,11 +5,18 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
@@ -23,15 +30,19 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Base class of ML integration tests that use a native data_frame_analytics process
@@ -150,5 +161,44 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         configBuilder.setDest(new DataFrameAnalyticsDest(destIndex, resultsField));
         configBuilder.setAnalysis(regression);
         return configBuilder.build();
+    }
+
+    /**
+     * Asserts whether the audit messages fetched from index match provided prefixes.
+     * More specifically, in order to pass:
+     *  1. the number of fetched messages must equal the number of provided prefixes
+     * AND
+     *  2. each fetched message must start with the corresponding prefix
+     */
+    protected static void assertThatAuditMessagesMatch(String configId, String... expectedAuditMessagePrefixes) throws Exception {
+        // Make sure we wrote to the audit
+        // Since calls to write the AbstractAuditor are sent and forgot (async) we could have returned from the start,
+        // finished the job (as this is a very short analytics job), all without the audit being fully written.
+        assertBusy(() -> assertTrue(indexExists(AuditorField.NOTIFICATIONS_INDEX)));
+        assertBusy(() -> {
+            String[] actualAuditMessages = fetchAllAuditMessages(configId);
+            assertThat(actualAuditMessages.length, equalTo(expectedAuditMessagePrefixes.length));
+            for (int i = 0; i < actualAuditMessages.length; i++) {
+                assertThat(actualAuditMessages[i], startsWith(expectedAuditMessagePrefixes[i]));
+            }
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private static String[] fetchAllAuditMessages(String dataFrameAnalyticsId) throws Exception {
+        RefreshRequest refreshRequest = new RefreshRequest(AuditorField.NOTIFICATIONS_INDEX);
+        RefreshResponse refreshResponse = client().execute(RefreshAction.INSTANCE, refreshRequest).actionGet();
+        assertThat(refreshResponse.getStatus().getStatus(), anyOf(equalTo(200), equalTo(201)));
+
+        SearchRequest searchRequest = new SearchRequestBuilder(client(), SearchAction.INSTANCE)
+            .setIndices(AuditorField.NOTIFICATIONS_INDEX)
+            .addSort("timestamp", SortOrder.ASC)
+            .setQuery(QueryBuilders.termQuery("job_id", dataFrameAnalyticsId))
+            .request();
+        SearchResponse searchResponse = client().execute(SearchAction.INSTANCE, searchRequest).actionGet();
+
+        return Arrays.stream(searchResponse.getHits().getHits())
+            .map(hit -> (String) hit.getSourceAsMap().get("message"))
+            .toArray(String[]::new);
     }
 }

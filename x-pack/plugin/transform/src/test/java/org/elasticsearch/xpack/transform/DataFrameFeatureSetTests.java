@@ -23,7 +23,7 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackFeatureSet.Usage;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -81,9 +81,9 @@ public class DataFrameFeatureSetTests extends ESTestCase {
         SearchResponse withEmptyAggs = mock(SearchResponse.class);
         when(withEmptyAggs.getAggregations()).thenReturn(emptyAggs);
 
-        assertThat(DataFrameFeatureSet.parseSearchAggs(withEmptyAggs), equalTo(new DataFrameIndexerTransformStats()));
+        assertThat(DataFrameFeatureSet.parseSearchAggs(withEmptyAggs), equalTo(new TransformIndexerStats()));
 
-        DataFrameIndexerTransformStats expectedStats = new DataFrameIndexerTransformStats(
+        TransformIndexerStats expectedStats = new TransformIndexerStats(
             1,  // numPages
             2,  // numInputDocuments
             3,  // numOutputDocuments
@@ -98,7 +98,7 @@ public class DataFrameFeatureSetTests extends ESTestCase {
         int currentStat = 1;
         List<Aggregation> aggs = new ArrayList<>(PROVIDED_STATS.length);
         for (String statName : PROVIDED_STATS) {
-            aggs.add(buildAgg(statName, (double) currentStat++));
+            aggs.add(buildAgg(statName, currentStat++));
         }
         Aggregations aggregations = new Aggregations(aggs);
         SearchResponse withAggs = mock(SearchResponse.class);

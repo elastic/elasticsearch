@@ -10,10 +10,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerPosition;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpointingInfo;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformProgress;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.transform.persistence.DataFrameTransformsConfigManager;
@@ -41,7 +41,7 @@ public class DataFrameTransformsCheckpointService {
         this.dataFrameAuditor = dataFrameAuditor;
     }
 
-    public CheckpointProvider getCheckpointProvider(final DataFrameTransformConfig transformConfig) {
+    public CheckpointProvider getCheckpointProvider(final TransformConfig transformConfig) {
         if (transformConfig.getSyncConfig() instanceof TimeSyncConfig) {
             return new TimeBasedCheckpointProvider(client, dataFrameTransformsConfigManager, dataFrameAuditor, transformConfig);
         }
@@ -60,9 +60,9 @@ public class DataFrameTransformsCheckpointService {
      */
     public void getCheckpointingInfo(final String transformId,
                                      final long lastCheckpointNumber,
-                                     final DataFrameIndexerPosition nextCheckpointPosition,
-                                     final DataFrameTransformProgress nextCheckpointProgress,
-                                     final ActionListener<DataFrameTransformCheckpointingInfo> listener) {
+                                     final TransformIndexerPosition nextCheckpointPosition,
+                                     final TransformProgress nextCheckpointProgress,
+                                     final ActionListener<TransformCheckpointingInfo> listener) {
 
         // we need to retrieve the config first before we can defer the rest to the corresponding provider
         dataFrameTransformsConfigManager.getTransformConfiguration(transformId, ActionListener.wrap(

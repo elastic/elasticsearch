@@ -15,8 +15,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransform;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.transforms.Transform;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -31,10 +31,10 @@ public class DataFrameNodesTests extends ESTestCase {
 
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
         tasksBuilder.addTask(dataFrameIdFoo,
-                DataFrameField.TASK_NAME, new DataFrameTransform(dataFrameIdFoo, Version.CURRENT, null),
+                TransformField.TASK_NAME, new Transform(dataFrameIdFoo, Version.CURRENT, null),
                 new PersistentTasksCustomMetaData.Assignment("node-1", "test assignment"));
         tasksBuilder.addTask(dataFrameIdBar,
-                DataFrameField.TASK_NAME, new DataFrameTransform(dataFrameIdBar, Version.CURRENT, null),
+                TransformField.TASK_NAME, new Transform(dataFrameIdBar, Version.CURRENT, null),
                 new PersistentTasksCustomMetaData.Assignment("node-2", "test assignment"));
         tasksBuilder.addTask("test-task1", "testTasks", new PersistentTaskParams() {
                 @Override

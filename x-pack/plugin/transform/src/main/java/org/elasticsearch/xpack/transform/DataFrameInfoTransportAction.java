@@ -28,9 +28,9 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformStoredDoc;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndex;
 
 import java.util.ArrayList;
@@ -46,16 +46,16 @@ public class DataFrameInfoTransportAction extends XPackInfoFeatureTransportActio
     private static final Logger logger = LogManager.getLogger(DataFrameInfoTransportAction.class);
 
     public static final String[] PROVIDED_STATS = new String[] {
-        DataFrameIndexerTransformStats.NUM_PAGES.getPreferredName(),
-        DataFrameIndexerTransformStats.NUM_INPUT_DOCUMENTS.getPreferredName(),
-        DataFrameIndexerTransformStats.NUM_OUTPUT_DOCUMENTS.getPreferredName(),
-        DataFrameIndexerTransformStats.NUM_INVOCATIONS.getPreferredName(),
-        DataFrameIndexerTransformStats.INDEX_TIME_IN_MS.getPreferredName(),
-        DataFrameIndexerTransformStats.SEARCH_TIME_IN_MS.getPreferredName(),
-        DataFrameIndexerTransformStats.INDEX_TOTAL.getPreferredName(),
-        DataFrameIndexerTransformStats.SEARCH_TOTAL.getPreferredName(),
-        DataFrameIndexerTransformStats.INDEX_FAILURES.getPreferredName(),
-        DataFrameIndexerTransformStats.SEARCH_FAILURES.getPreferredName(),
+        TransformIndexerStats.NUM_PAGES.getPreferredName(),
+        TransformIndexerStats.NUM_INPUT_DOCUMENTS.getPreferredName(),
+        TransformIndexerStats.NUM_OUTPUT_DOCUMENTS.getPreferredName(),
+        TransformIndexerStats.NUM_INVOCATIONS.getPreferredName(),
+        TransformIndexerStats.INDEX_TIME_IN_MS.getPreferredName(),
+        TransformIndexerStats.SEARCH_TIME_IN_MS.getPreferredName(),
+        TransformIndexerStats.INDEX_TOTAL.getPreferredName(),
+        TransformIndexerStats.SEARCH_TOTAL.getPreferredName(),
+        TransformIndexerStats.INDEX_FAILURES.getPreferredName(),
+        TransformIndexerStats.SEARCH_FAILURES.getPreferredName(),
     };
 
     @Inject
@@ -68,7 +68,7 @@ public class DataFrameInfoTransportAction extends XPackInfoFeatureTransportActio
 
     @Override
     public String name() {
-        return XPackField.DATA_FRAME;
+        return XPackField.Transform;
     }
 
     @Override
@@ -81,7 +81,7 @@ public class DataFrameInfoTransportAction extends XPackInfoFeatureTransportActio
         return enabled;
     }
 
-    static DataFrameIndexerTransformStats parseSearchAggs(SearchResponse searchResponse) {
+    static TransformIndexerStats parseSearchAggs(SearchResponse searchResponse) {
         List<Long> statisticsList = new ArrayList<>(PROVIDED_STATS.length);
 
         for(String statName : PROVIDED_STATS) {
@@ -93,7 +93,7 @@ public class DataFrameInfoTransportAction extends XPackInfoFeatureTransportActio
                 statisticsList.add(0L);
             }
         }
-        return new DataFrameIndexerTransformStats(statisticsList.get(0),  // numPages
+        return new TransformIndexerStats(statisticsList.get(0),  // numPages
             statisticsList.get(1),  // numInputDocuments
             statisticsList.get(2),  // numOutputDocuments
             statisticsList.get(3),  // numInvocations
@@ -105,16 +105,16 @@ public class DataFrameInfoTransportAction extends XPackInfoFeatureTransportActio
             statisticsList.get(9)); // searchFailures
     }
 
-    static void getStatisticSummations(Client client, ActionListener<DataFrameIndexerTransformStats> statsListener) {
+    static void getStatisticSummations(Client client, ActionListener<TransformIndexerStats> statsListener) {
         QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
-            .filter(QueryBuilders.termQuery(DataFrameField.INDEX_DOC_TYPE.getPreferredName(),
-                    DataFrameTransformStoredDoc.NAME)));
+            .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(),
+                    TransformStoredDoc.NAME)));
 
         SearchRequestBuilder requestBuilder = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME_PATTERN)
             .setSize(0)
             .setQuery(queryBuilder);
 
-        final String path = DataFrameField.STATS_FIELD.getPreferredName() + ".";
+        final String path = TransformField.STATS_FIELD.getPreferredName() + ".";
         for(String statName : PROVIDED_STATS) {
             requestBuilder.addAggregation(AggregationBuilders.sum(statName).field(path + statName));
         }
@@ -130,7 +130,7 @@ public class DataFrameInfoTransportAction extends XPackInfoFeatureTransportActio
             },
             failure -> {
                 if (failure instanceof ResourceNotFoundException) {
-                    statsListener.onResponse(new DataFrameIndexerTransformStats());
+                    statsListener.onResponse(new TransformIndexerStats());
                 } else {
                     statsListener.onFailure(failure);
                 }

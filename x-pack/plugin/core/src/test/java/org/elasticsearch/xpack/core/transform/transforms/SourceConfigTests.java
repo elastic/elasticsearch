@@ -13,7 +13,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.function.Predicate;
 
-public class SourceConfigTests extends AbstractSerializingDataFrameTestCase<SourceConfig> {
+public class SourceConfigTests extends AbstractSerializingTransformTestCase<SourceConfig> {
 
     private boolean lenient;
 

@@ -38,17 +38,19 @@ see {stack-ov}/security-privileges.html[Security privileges] and
 [[delete-data-frame-transform-examples]]
 ==== {api-examples-title}
 
-[source,console]
+[source,js]
 --------------------------------------------------
 DELETE _data_frame/transforms/ecommerce_transform
 --------------------------------------------------
+// CONSOLE
 // TEST[skip:setup kibana sample data]
 
 When the {transform} is deleted, you receive the following results:
 
-[source,console-result]
+[source,js]
 ----
 {
   "acknowledged" : true
 }
 ----
+// TESTRESPONSE

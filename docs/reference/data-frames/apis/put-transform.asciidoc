@@ -123,7 +123,7 @@ delays.
 [[put-data-frame-transform-example]]
 ==== {api-examples-title}
 
-[source,console]
+[source,js]
 --------------------------------------------------
 PUT _data_frame/transforms/ecommerce_transform
 {
@@ -167,13 +167,15 @@ PUT _data_frame/transforms/ecommerce_transform
   }
 }
 --------------------------------------------------
+// CONSOLE
 // TEST[setup:kibana_sample_data_ecommerce]
 
 When the {transform} is created, you receive the following results:
 
-[source,console-result]
+[source,js]
 ----
 {
   "acknowledged" : true
 }
 ----
+// TESTRESPONSE

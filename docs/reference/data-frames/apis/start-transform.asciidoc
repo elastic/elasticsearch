@@ -59,17 +59,19 @@ indices, the {transform} fails when it attempts unauthorized operations.
 [[start-data-frame-transform-example]]
 ==== {api-examples-title}
 
-[source,console]
+[source,js]
 --------------------------------------------------
 POST _data_frame/transforms/ecommerce_transform/_start
 --------------------------------------------------
+// CONSOLE
 // TEST[skip:set up kibana samples]
 
 When the {transform} starts, you receive the following results:
 
-[source,console-result]
-----
+[source,js]
+--------------------------------------------------
 {
   "acknowledged" : true
 }
-----
+--------------------------------------------------
+// TESTRESPONSE

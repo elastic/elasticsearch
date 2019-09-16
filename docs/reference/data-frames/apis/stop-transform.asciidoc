@@ -91,17 +91,19 @@ are no matches or only partial matches.
 [[stop-data-frame-transform-example]]
 ==== {api-examples-title}
 
-[source,console]
+[source,js]
 --------------------------------------------------
 POST _data_frame/transforms/ecommerce_transform/_stop
 --------------------------------------------------
+// CONSOLE
 // TEST[skip:set up kibana samples]
 
 When the {transform} stops, you receive the following results:
 
-[source,console-result]
+[source,js]
 ----
 {
   "acknowledged" : true
 }
 ----
+// TESTRESPONSE

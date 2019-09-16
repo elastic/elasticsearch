@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
+import org.elasticsearch.xpack.core.transform.TransformField;
 
 import java.util.Collection;
 import java.util.HashSet;
@@ -38,7 +38,7 @@ public final class DataFrameNodes {
             Set<String> dataFrameIdsSet = new HashSet<>(dataFrameIds);
 
             Collection<PersistentTasksCustomMetaData.PersistentTask<?>> tasks =
-                    tasksMetaData.findTasks(DataFrameField.TASK_NAME, t -> dataFrameIdsSet.contains(t.getId()));
+                    tasksMetaData.findTasks(TransformField.TASK_NAME, t -> dataFrameIdsSet.contains(t.getId()));
 
             for (PersistentTasksCustomMetaData.PersistentTask<?> task : tasks) {
                 executorNodes.add(task.getExecutorNode());

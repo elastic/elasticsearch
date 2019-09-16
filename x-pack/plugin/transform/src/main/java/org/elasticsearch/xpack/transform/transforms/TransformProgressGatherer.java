@@ -16,8 +16,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformProgress;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 
 import java.util.function.Function;
 
@@ -36,8 +36,8 @@ public final class TransformProgressGatherer {
      */
     public static void getInitialProgress(Client client,
                                           QueryBuilder filterQuery,
-                                          DataFrameTransformConfig config,
-                                          ActionListener<DataFrameTransformProgress> progressListener) {
+                                          TransformConfig config,
+                                          ActionListener<TransformProgress> progressListener) {
         SearchRequest request = getSearchRequest(config, filterQuery);
 
         ActionListener<SearchResponse> searchResponseActionListener = ActionListener.wrap(
@@ -52,7 +52,7 @@ public final class TransformProgressGatherer {
             searchResponseActionListener);
     }
 
-    public static SearchRequest getSearchRequest(DataFrameTransformConfig config, QueryBuilder filteredQuery) {
+    public static SearchRequest getSearchRequest(TransformConfig config, QueryBuilder filteredQuery) {
         SearchRequest request = new SearchRequest(config.getSource().getIndex());
         request.allowPartialSearchResults(false);
         BoolQueryBuilder existsClauses = QueryBuilders.boolQuery();
@@ -72,7 +72,7 @@ public final class TransformProgressGatherer {
         return request;
     }
 
-    public static Function<SearchResponse, DataFrameTransformProgress> searchResponseToDataFrameTransformProgressFunction() {
-        return searchResponse -> new DataFrameTransformProgress(searchResponse.getHits().getTotalHits().value, 0L, 0L);
+    public static Function<SearchResponse, TransformProgress> searchResponseToDataFrameTransformProgressFunction() {
+        return searchResponse -> new TransformProgress(searchResponse.getHits().getTotalHits().value, 0L, 0L);
     }
 }

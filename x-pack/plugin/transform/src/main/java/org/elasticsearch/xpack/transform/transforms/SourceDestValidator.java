@@ -13,8 +13,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.transform.DataFrameMessages;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -22,14 +22,14 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * This class contains more complex validations in regards to how {@link DataFrameTransformConfig#getSource()} and
- * {@link DataFrameTransformConfig#getDestination()} relate to each other.
+ * This class contains more complex validations in regards to how {@link TransformConfig#getSource()} and
+ * {@link TransformConfig#getDestination()} relate to each other.
  */
 public final class SourceDestValidator {
 
     interface SourceDestValidation {
         boolean isDeferrable();
-        void validate(DataFrameTransformConfig config, ClusterState clusterState, IndexNameExpressionResolver indexNameExpressionResolver);
+        void validate(TransformConfig config, ClusterState clusterState, IndexNameExpressionResolver indexNameExpressionResolver);
     }
 
     private static final List<SourceDestValidation> VALIDATIONS = Arrays.asList(new SourceMissingValidation(),
@@ -39,8 +39,8 @@ public final class SourceDestValidator {
     /**
      * Validates the DataFrameTransformConfiguration source and destination indices.
      *
-     * A simple name validation is done on {@link DataFrameTransformConfig#getDestination()} inside
-     * {@link org.elasticsearch.xpack.core.transform.action.PutDataFrameTransformAction}
+     * A simple name validation is done on {@link TransformConfig#getDestination()} inside
+     * {@link org.elasticsearch.xpack.core.transform.action.PutTransformAction}
      *
      * So, no need to do the name checks here.
      *
@@ -49,7 +49,7 @@ public final class SourceDestValidator {
      * @param indexNameExpressionResolver A valid IndexNameExpressionResolver object
      * @throws ElasticsearchStatusException when a validation fails
      */
-    public static void validate(DataFrameTransformConfig config,
+    public static void validate(TransformConfig config,
                                 ClusterState clusterState,
                                 IndexNameExpressionResolver indexNameExpressionResolver,
                                 boolean shouldDefer) {
@@ -69,7 +69,7 @@ public final class SourceDestValidator {
         }
 
         @Override
-        public void validate(DataFrameTransformConfig config,
+        public void validate(TransformConfig config,
                              ClusterState clusterState,
                              IndexNameExpressionResolver indexNameExpressionResolver) {
             for(String src : config.getSource().getIndex()) {
@@ -78,7 +78,7 @@ public final class SourceDestValidator {
                     src);
                 if (concreteNames.length == 0) {
                     throw new ElasticsearchStatusException(
-                        DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_SOURCE_INDEX_MISSING, src),
+                        TransformMessages.getMessage(TransformMessages.REST_PUT_DATA_FRAME_SOURCE_INDEX_MISSING, src),
                         RestStatus.BAD_REQUEST);
                 }
             }
@@ -93,7 +93,7 @@ public final class SourceDestValidator {
         }
 
         @Override
-        public void validate(DataFrameTransformConfig config,
+        public void validate(TransformConfig config,
                              ClusterState clusterState,
                              IndexNameExpressionResolver indexNameExpressionResolver) {
             final String destIndex = config.getDestination().getIndex();
@@ -104,7 +104,7 @@ public final class SourceDestValidator {
                     src);
                 if (Regex.simpleMatch(src, destIndex)) {
                     throw new ElasticsearchStatusException(
-                        DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_DEST_IN_SOURCE, destIndex, src),
+                        TransformMessages.getMessage(TransformMessages.REST_PUT_DATA_FRAME_DEST_IN_SOURCE, destIndex, src),
                         RestStatus.BAD_REQUEST);
                 }
                 concreteSourceIndexNames.addAll(Arrays.asList(concreteNames));
@@ -112,7 +112,7 @@ public final class SourceDestValidator {
 
             if (concreteSourceIndexNames.contains(destIndex)) {
                 throw new ElasticsearchStatusException(
-                    DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_DEST_IN_SOURCE,
+                    TransformMessages.getMessage(TransformMessages.REST_PUT_DATA_FRAME_DEST_IN_SOURCE,
                         destIndex,
                         Strings.arrayToCommaDelimitedString(config.getSource().getIndex())),
                     RestStatus.BAD_REQUEST
@@ -124,7 +124,7 @@ public final class SourceDestValidator {
                 destIndex);
             if (concreteDest.length > 0 && concreteSourceIndexNames.contains(concreteDest[0])) {
                 throw new ElasticsearchStatusException(
-                    DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_DEST_IN_SOURCE,
+                    TransformMessages.getMessage(TransformMessages.REST_PUT_DATA_FRAME_DEST_IN_SOURCE,
                         concreteDest[0],
                         Strings.arrayToCommaDelimitedString(concreteSourceIndexNames.toArray(new String[0]))),
                     RestStatus.BAD_REQUEST
@@ -141,7 +141,7 @@ public final class SourceDestValidator {
         }
 
         @Override
-        public void validate(DataFrameTransformConfig config,
+        public void validate(TransformConfig config,
                              ClusterState clusterState,
                              IndexNameExpressionResolver indexNameExpressionResolver) {
             final String destIndex = config.getDestination().getIndex();
@@ -150,7 +150,7 @@ public final class SourceDestValidator {
 
             if (concreteDest.length > 1) {
                 throw new ElasticsearchStatusException(
-                    DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_DEST_SINGLE_INDEX, destIndex),
+                    TransformMessages.getMessage(TransformMessages.REST_PUT_DATA_FRAME_DEST_SINGLE_INDEX, destIndex),
                     RestStatus.BAD_REQUEST
                 );
             }

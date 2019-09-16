@@ -8,7 +8,6 @@ These resource definitions are used in APIs related to {ml-features} and
 * <<ml-calendar-resource,Calendars>>
 * <<ml-datafeed-resource,{dfeeds-cap}>>
 * <<ml-datafeed-counts,{dfeed-cap} counts>>
-* <<data-frame-transform-resource,{dataframe-transforms-cap}>>
 * <<ml-filter-resource,Filters>>
 * <<ml-job-resource,Jobs>>
 * <<ml-jobstats,Job statistics>>
@@ -16,10 +15,10 @@ These resource definitions are used in APIs related to {ml-features} and
 * <<ml-results-resource,Results>>
 * <<role-mapping-resources,Role mappings>>
 * <<ml-event-resource,Scheduled Events>>
+* <<data-frame-transform-resource,{dataframe-transforms-cap}>>
 
 include::{es-repo-dir}/ml/anomaly-detection/apis/calendarresource.asciidoc[]
 include::{es-repo-dir}/ml/anomaly-detection/apis/datafeedresource.asciidoc[]
-include::{es-repo-dir}/data-frames/apis/transformresource.asciidoc[]
 include::{es-repo-dir}/ml/anomaly-detection/apis/filterresource.asciidoc[]
 include::{es-repo-dir}/ml/anomaly-detection/apis/jobresource.asciidoc[]
 include::{es-repo-dir}/ml/anomaly-detection/apis/jobcounts.asciidoc[]
@@ -27,3 +26,4 @@ include::{es-repo-dir}/ml/anomaly-detection/apis/snapshotresource.asciidoc[]
 include::{xes-repo-dir}/rest-api/security/role-mapping-resources.asciidoc[]
 include::{es-repo-dir}/ml/anomaly-detection/apis/resultsresource.asciidoc[]
 include::{es-repo-dir}/ml/anomaly-detection/apis/eventresource.asciidoc[]
+include::{es-repo-dir}/transform/apis/transformresource.asciidoc[]

@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -290,6 +291,31 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             assertThat(exception.getMessage(), containsString("which is larger than the limit of [209715200/200mb]"));
             assertThat("Expected [" + expectedDurability + "] due to [" + exception.getMessage() + "]",
                 exception.getDurability(), equalTo(expectedDurability));
+        }
+    }
+
+    public void testAllocationBucketsBreaker() throws Exception {
+        Settings clusterSettings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "20mb")
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), "true")
+            .build();
+
+        try (CircuitBreakerService service = new HierarchyCircuitBreakerService(clusterSettings,
+            new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
+
+            long parentLimitBytes = ((HierarchyCircuitBreakerService) service).getParentLimit();
+            assertEquals(new ByteSizeValue(20, ByteSizeUnit.MB).getBytes(), parentLimitBytes);
+
+            MultiBucketConsumerService.MultiBucketConsumer multiBucketConsumer =
+                new MultiBucketConsumerService.MultiBucketConsumer(10000, 10000, service);
+
+            long currentMemory = ((HierarchyCircuitBreakerService) service).currentMemoryUsage();
+            if (currentMemory > parentLimitBytes) {
+                CircuitBreakingException exception =
+                    expectThrows(CircuitBreakingException.class, () -> multiBucketConsumer.accept(10000));
+                assertThat(exception.getMessage(), containsString("[parent] Data too large, data for [check_allocation_buckets] would be"));
+                assertThat(exception.getMessage(), containsString("which is larger than the limit of [20971520/20mb]"));
+            }
         }
     }
 

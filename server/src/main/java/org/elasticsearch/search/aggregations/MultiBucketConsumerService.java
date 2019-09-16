@@ -24,6 +24,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 
@@ -38,14 +40,27 @@ import java.util.function.IntConsumer;
  */
 public class MultiBucketConsumerService {
     public static final int DEFAULT_MAX_BUCKETS = 10000;
+    public static final int DEFAULT_CHECK_BUCKETS_STEP_SIZE = 10000;
     public static final Setting<Integer> MAX_BUCKET_SETTING =
         Setting.intSetting("search.max_buckets", DEFAULT_MAX_BUCKETS, 0, Setting.Property.NodeScope, Setting.Property.Dynamic);
 
-    private volatile int maxBucket;
+    public static final Setting<Integer> CHECK_BUCKETS_STEP_SIZE_SETTING =
+        Setting.intSetting("search.check_buckets_step_size", DEFAULT_CHECK_BUCKETS_STEP_SIZE,
+            -1, Setting.Property.NodeScope, Setting.Property.Dynamic);
 
-    public MultiBucketConsumerService(ClusterService clusterService, Settings settings) {
-       this.maxBucket = MAX_BUCKET_SETTING.get(settings);
-       clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_BUCKET_SETTING, this::setMaxBucket);
+    private final CircuitBreakerService circuitBreakerService;
+
+    private volatile int maxBucket;
+    private volatile int checkBucketsStepSize;
+
+    public MultiBucketConsumerService(ClusterService clusterService, Settings settings, CircuitBreakerService circuitBreakerService) {
+        this.circuitBreakerService = circuitBreakerService;
+        this.maxBucket = MAX_BUCKET_SETTING.get(settings);
+        this.checkBucketsStepSize = CHECK_BUCKETS_STEP_SIZE_SETTING.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_BUCKET_SETTING, this::setMaxBucket);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(CHECK_BUCKETS_STEP_SIZE_SETTING, value -> {
+            checkBucketsStepSize = value;
+        });
     }
 
     private void setMaxBucket(int maxBucket) {
@@ -94,11 +109,16 @@ public class MultiBucketConsumerService {
      */
     public static class MultiBucketConsumer implements IntConsumer {
         private final int limit;
+        private final int checkBucketsStepSizeLimit;
+        private final CircuitBreakerService circuitBreakerService;
+
         // aggregations execute in a single thread so no atomic here
         private int count;
 
-        public MultiBucketConsumer(int limit) {
+        public MultiBucketConsumer(int limit, int checkBucketsStepSizeLimit, CircuitBreakerService circuitBreakerService) {
             this.limit = limit;
+            this.checkBucketsStepSizeLimit = checkBucketsStepSizeLimit;
+            this.circuitBreakerService = circuitBreakerService;
         }
 
         @Override
@@ -108,6 +128,11 @@ public class MultiBucketConsumerService {
                 throw new TooManyBucketsException("Trying to create too many buckets. Must be less than or equal to: [" + limit
                     + "] but was [" + count + "]. This limit can be set by changing the [" +
                     MAX_BUCKET_SETTING.getKey() + "] cluster level setting.", limit);
+            }
+
+            if (value > 0 && this.circuitBreakerService instanceof HierarchyCircuitBreakerService
+                && checkBucketsStepSizeLimit > 0 && count % checkBucketsStepSizeLimit == 0) {
+                ((HierarchyCircuitBreakerService) this.circuitBreakerService).checkParentLimit(0, "check_allocation_buckets");
             }
         }
 
@@ -125,6 +150,6 @@ public class MultiBucketConsumerService {
     }
 
     public MultiBucketConsumer create() {
-        return new MultiBucketConsumer(maxBucket);
+        return new MultiBucketConsumer(maxBucket, checkBucketsStepSize, this.circuitBreakerService);
     }
 }

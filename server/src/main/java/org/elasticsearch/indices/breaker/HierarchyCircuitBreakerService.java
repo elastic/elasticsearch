@@ -302,6 +302,10 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
     }
 
+    public long getParentLimit() {
+        return this.parentSettings.getLimit();
+    }
+
     /**
      * Checks whether the parent breaker has been tripped
      */

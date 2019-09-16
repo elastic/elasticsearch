@@ -159,6 +159,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public abstract class InternalAggregationTestCase<T extends InternalAggregation> extends AbstractWireSerializingTestCase<T> {
     public static final int DEFAULT_MAX_BUCKETS = 100000;
+    public static final int DEFAULT_CHECK_BUCKETS_STEP_SIZE = 100000;
     protected static final double TOLERANCE = 1e-10;
 
     private static final Comparator<InternalAggregation> INTERNAL_AGG_COMPARATOR = (agg1, agg2) -> {
@@ -269,7 +270,8 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             Collections.shuffle(toReduce, random());
             int r = randomIntBetween(1, toReduceSize);
             List<InternalAggregation> internalAggregations = toReduce.subList(0, r);
-            MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(DEFAULT_MAX_BUCKETS);
+            MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(DEFAULT_MAX_BUCKETS,
+                DEFAULT_CHECK_BUCKETS_STEP_SIZE, new NoneCircuitBreakerService());
             InternalAggregation.ReduceContext context =
                 new InternalAggregation.ReduceContext(bigArrays, mockScriptService, bucketConsumer,false);
             @SuppressWarnings("unchecked")
@@ -285,7 +287,8 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             toReduce = new ArrayList<>(toReduce.subList(r, toReduceSize));
             toReduce.add(reduced);
         }
-        MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(DEFAULT_MAX_BUCKETS);
+        MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(DEFAULT_MAX_BUCKETS,
+            DEFAULT_CHECK_BUCKETS_STEP_SIZE, new NoneCircuitBreakerService());
         InternalAggregation.ReduceContext context =
             new InternalAggregation.ReduceContext(bigArrays, mockScriptService, bucketConsumer, true);
         @SuppressWarnings("unchecked")

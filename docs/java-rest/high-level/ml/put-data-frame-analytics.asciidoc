@@ -5,13 +5,13 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Put Data Frame Analytics API
+=== Put {dfanalytics} API
 
-The Put Data Frame Analytics API is used to create a new {dataframe-analytics-config}.
+The Put {dfanalytics} API is used to create a new {dataframe-analytics-config}.
 The API accepts a +{request}+ object as a request and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Put Data Frame Analytics Request
+==== Put {dfanalytics} request
 
 A +{request}+ requires the following argument:
 
@@ -19,12 +19,12 @@ A +{request}+ requires the following argument:
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> The configuration of the {dataframe-job} to create
+<1> The configuration of the {dfanalytics-job} to create
 
 [id="{upid}-{api}-config"]
-==== Data Frame Analytics Configuration
+==== {dfanalytics-cap} configuration
 
-The `DataFrameAnalyticsConfig` object contains all the details about the {dataframe-job}
+The `DataFrameAnalyticsConfig` object contains all the details about the {dfanalytics-job}
 configuration and contains the following arguments:
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -64,7 +64,7 @@ include-tagged::{doc-tests-file}[{api}-query-config]
 
 ==== DestinationConfig
 
-The index to which data should be written by the {dataframe-job}.
+The index to which data should be written by the {dfanalytics-job}.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -78,7 +78,7 @@ include-tagged::{doc-tests-file}[{api}-dest-config]
 The analysis to be performed.
 Currently, the supported analyses include : +OutlierDetection+, +Regression+.
 
-===== Outlier Detection
+===== Outlier detection
 
 +OutlierDetection+ analysis can be created in one of two ways:
 

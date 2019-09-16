@@ -466,7 +466,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public boolean isAfterLast() throws SQLException {
-        return wasLast;
+        return rowNumber > 0 && wasLast;
     }
 
     @Override

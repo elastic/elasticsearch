@@ -1426,6 +1426,7 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
 
         SQLException sqle = expectThrows(SQLException.class, () -> {
             doWithQuery(SELECT_WILDCARD, rs -> {
+                assertFalse(rs.isAfterLast());
                 rs.getObject(1);
             });
         });
@@ -1437,8 +1438,11 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
 
         SQLException sqle = expectThrows(SQLException.class, () -> {
             doWithQuery("SELECT * FROM test LIMIT 1", rs -> {
+                assertFalse(rs.isAfterLast());
                 assertTrue(rs.next());
+                assertFalse(rs.isAfterLast());
                 assertFalse(rs.next());
+                assertTrue(rs.isAfterLast());
                 rs.getObject(1);
             });
         });

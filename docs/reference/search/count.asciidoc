@@ -88,7 +88,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 [[search-count-api-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /twitter/_doc/1?refresh
 {

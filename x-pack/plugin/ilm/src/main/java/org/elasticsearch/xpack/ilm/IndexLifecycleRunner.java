@@ -50,7 +50,6 @@ import java.util.function.LongSupplier;
 
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
-import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_ORIGINATION_DATE;
 
 public class IndexLifecycleRunner {
     private static final Logger logger = LogManager.getLogger(IndexLifecycleRunner.class);

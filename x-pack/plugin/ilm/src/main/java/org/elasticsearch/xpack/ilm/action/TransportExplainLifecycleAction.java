@@ -42,8 +42,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_ORIGINATION_DATE;
-
 public class TransportExplainLifecycleAction
         extends TransportClusterInfoAction<ExplainLifecycleRequest, ExplainLifecycleResponse> {
 

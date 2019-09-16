@@ -104,11 +104,11 @@ public class NoMasterNodeIT extends ESIntegTestCase {
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(clientToMasterlessNode.prepareMultiGet().add("test", "type1", "1"),
+        assertThrows(clientToMasterlessNode.prepareMultiGet().add("test", "1"),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(clientToMasterlessNode.prepareMultiGet().add("no_index", "type1", "1"),
+        assertThrows(clientToMasterlessNode.prepareMultiGet().add("no_index", "1"),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 

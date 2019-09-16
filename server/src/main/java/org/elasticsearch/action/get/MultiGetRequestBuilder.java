@@ -36,14 +36,14 @@ public class MultiGetRequestBuilder extends ActionRequestBuilder<MultiGetRequest
         return this;
     }
 
-    public MultiGetRequestBuilder add(String index, Iterable<String> ids) {
+    public MultiGetRequestBuilder addIds(String index, Iterable<String> ids) {
         for (String id : ids) {
             request.add(index, id);
         }
         return this;
     }
 
-    public MultiGetRequestBuilder add(String index, String... ids) {
+    public MultiGetRequestBuilder addIds(String index, String... ids) {
         for (String id : ids) {
             request.add(index, id);
         }

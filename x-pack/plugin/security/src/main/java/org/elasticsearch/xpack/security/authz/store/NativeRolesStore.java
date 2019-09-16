@@ -131,7 +131,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 final String[] roleIds = names.stream().map(NativeRolesStore::getIdForRole).toArray(String[]::new);
-                MultiGetRequest multiGetRequest = client.prepareMultiGet().add(SECURITY_MAIN_ALIAS, roleIds).request();
+                MultiGetRequest multiGetRequest = client.prepareMultiGet().addIds(SECURITY_MAIN_ALIAS, roleIds).request();
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, multiGetRequest,
                     ActionListener.<MultiGetResponse>wrap(mGetResponse -> {
                             final MultiGetItemResponse[] responses = mGetResponse.getResponses();

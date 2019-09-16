@@ -217,7 +217,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
                     testDocs++;
                     processor.add(new IndexRequest("test", "test", Integer.toString(testDocs))
                         .source(Requests.INDEX_CONTENT_TYPE, "field", "value"));
-                    multiGetRequestBuilder.add("test", "test", Integer.toString(testDocs));
+                    multiGetRequestBuilder.add("test", Integer.toString(testDocs));
                 } else {
                     testReadOnlyDocs++;
                     processor.add(new IndexRequest("test-ro", "test", Integer.toString(testReadOnlyDocs))

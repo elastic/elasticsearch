@@ -64,6 +64,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 include::{docdir}/rest-api/common-parms.asciidoc[tag=lenient]
 
 `min_score`::
+(Optional, float)
   Sets the minimum `_score` value that documents must have to be included in the 
   result.
 

@@ -1,14 +1,14 @@
 [role="xpack"]
 [testenv="basic"]
 [[put-data-frame-transform]]
-=== Create {dataframe-transforms} API
+=== Create {transforms} API
 
 [subs="attributes"]
 ++++
-<titleabbrev>Create {dataframe-transforms}</titleabbrev>
+<titleabbrev>Create {transforms}</titleabbrev>
 ++++
 
-Instantiates a {dataframe-transform}.
+Instantiates a {transform}.
 
 beta[]
 
@@ -31,30 +31,30 @@ information, see {stack-ov}/security-privileges.html[Security privileges] and
 [[put-data-frame-transform-desc]]
 ==== {api-description-title}
 
-This API defines a {dataframe-transform}, which copies data from source indices,
+This API defines a {transform}, which copies data from source indices,
 transforms it, and persists it into an entity-centric destination index. The
 entities are defined by the set of `group_by` fields in the `pivot` object. You
 can also think of the destination index as a two-dimensional tabular data
 structure (known as a {dataframe}). The ID for each document in the
 {dataframe} is generated from a hash of the entity, so there is a unique row
 per entity. For more information, see
-{stack-ov}/ml-dataframes.html[{dataframe-transforms-cap}].
+{stack-ov}/ml-dataframes.html[{transforms-cap}].
 
-When the {dataframe-transform} is created, a series of validations occur to
+When the {transform} is created, a series of validations occur to
 ensure its success. For example, there is a check for the existence of the
 source indices and a check that the destination index is not part of the source
 index pattern. You can use the `defer_validation` parameter to skip these
 checks.
 
-Deferred validations are always run when the {dataframe-transform} is started,
+Deferred validations are always run when the {transform} is started,
 with the exception of privilege checks. When {es} {security-features} are
-enabled, the {dataframe-transform} remembers which roles the user that created
+enabled, the {transform} remembers which roles the user that created
 it had at the time of creation and uses those same roles. If those roles do not
 have the required privileges on the source and destination indices, the
-{dataframe-transform} fails when it attempts unauthorized operations.
+{transform} fails when it attempts unauthorized operations.
 
-IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
-            Do not put a {dataframe-transform} directly into any
+IMPORTANT:  You must use {kib} or this API to create a {transform}.
+            Do not put a {transform} directly into any
             `.data-frame-internal*` indices using the Elasticsearch index API.
             If {es} {security-features} are enabled, do not give users any
             privileges on `.data-frame-internal*` indices.
@@ -63,7 +63,7 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
 ==== {api-path-parms-title}
 
 `<data_frame_transform_id>`::
-  (Required, string) Identifier for the {dataframe-transform}. This identifier
+  (Required, string) Identifier for the {transform}. This identifier
   can contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
   underscores. It must start and end with alphanumeric characters.
 
@@ -73,28 +73,28 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
 `defer_validation`::
   (Optional, boolean) When `true`, deferrable validations are not run. This
   behavior may be desired if the source index does not exist until after the
-  {dataframe-transform} is created.
+  {transform} is created.
 
 [[put-data-frame-transform-request-body]]
 ==== {api-request-body-title}
 
 `description`::
-  (Optional, string) Free text description of the {dataframe-transform}.
+  (Optional, string) Free text description of the {transform}.
 
 `dest`::
   (Required, object) Required. The destination configuration, which has the
   following properties:
   
   `index`:::
-    (Required, string) The _destination index_ for the {dataframe-transform}.
+    (Required, string) The _destination index_ for the {transform}.
 
   `pipeline`:::
     (Optional, string) The unique identifier for a <<pipeline,pipeline>>.
 
 `frequency`::
   (Optional, <<time-units, time units>>) The interval between checks for changes in the source
-  indices when the {dataframe-transform} is running continuously. Also determines
-  the retry interval in the event of transient failures while the {dataframe-transform} is
+  indices when the {transform} is running continuously. Also determines
+  the retry interval in the event of transient failures while the {transform} is
   searching or indexing. The minimum value is `1s` and the maximum is `1h`. The
   default value is `1m`.
 
@@ -108,7 +108,7 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
   
   `index`:::
     (Required, string or array) The _source indices_ for the
-    {dataframe-transform}. It can be a single index, an index pattern (for
+    {transform}. It can be a single index, an index pattern (for
     example, `"myindex*"`), or an array of indices (for example,
     `["index1", "index2"]`).
     
@@ -119,7 +119,7 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
 `sync`::
   (Optional, object) Defines the properties required to run continuously.
   `time`:::
-    (Required, object) Specifies that the {dataframe-transform} uses a time
+    (Required, object) Specifies that the {transform} uses a time
     field to synchronize the source and destination indices.
     `field`::::
       (Required, string) The date field that is used to identify new documents
@@ -185,7 +185,7 @@ PUT _data_frame/transforms/ecommerce_transform
 --------------------------------------------------
 // TEST[setup:kibana_sample_data_ecommerce]
 
-When the transform is created, you receive the following results:
+When the {transform} is created, you receive the following results:
 
 [source,console-result]
 ----

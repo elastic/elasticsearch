@@ -27,7 +27,7 @@ POST /twitter/_shrink/shrunk-twitter-index
 
 In order to shrink an index, the index must be marked as read-only, and a
 (primary or replica) copy of every shard in the index must be relocated to the
-same node and have <<cluster-health,health>> `green`.
+same node and have a <<cluster-health,health>> status of `green`.
 
 These two conditions can be achieved with the following request:
 

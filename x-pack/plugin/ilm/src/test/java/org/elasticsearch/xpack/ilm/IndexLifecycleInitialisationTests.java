@@ -58,6 +58,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 import java.util.concurrent.ExecutionException;
@@ -285,7 +286,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
             ).actionGet();
         assertAcked(createIndexResponse);
 
-        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd");
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd", Locale.getDefault());
         dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
         long parsedLifecycleDate = dateFormat.parse("2019.09.14").getTime();
         assertBusy(() -> {

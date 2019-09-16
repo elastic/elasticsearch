@@ -420,6 +420,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "*"), is(false));
 
         assertNoAccessAllowed(kibanaUserRole, RestrictedIndicesNames.RESTRICTED_NAMES);
+
+        assertThat(kibanaUserRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".apm-agent-configuration"), is(true));
     }
 
     public void testMonitoringUserRole() {

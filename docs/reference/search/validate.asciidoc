@@ -87,6 +87,7 @@ When sent a valid query:
 --------------------------------------------------
 GET twitter/_validate/query?q=user:foo
 --------------------------------------------------
+// TEST[continued]
 
 
 The response contains `valid:true`:

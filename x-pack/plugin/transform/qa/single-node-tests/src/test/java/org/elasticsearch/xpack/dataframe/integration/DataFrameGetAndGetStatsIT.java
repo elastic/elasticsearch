@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.dataframe.integration;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.junit.After;
 import org.junit.Before;
 
@@ -158,11 +158,11 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         stopDataFrameTransform("pivot_stats_1", false);
 
         // Get rid of the first transform task, but keep the configuration
-        client().performRequest(new Request("POST", "_tasks/_cancel?actions="+DataFrameField.TASK_NAME+"*"));
+        client().performRequest(new Request("POST", "_tasks/_cancel?actions="+TransformField.TASK_NAME+"*"));
 
         // Verify that the task is gone
         Map<String, Object> tasks =
-            entityAsMap(client().performRequest(new Request("GET", "_tasks?actions="+DataFrameField.TASK_NAME+"*")));
+            entityAsMap(client().performRequest(new Request("GET", "_tasks?actions="+TransformField.TASK_NAME+"*")));
         assertTrue(((Map<?, ?>)XContentMapValues.extractValue("nodes", tasks)).isEmpty());
 
         createPivotReviewsTransform("pivot_stats_2", "pivot_reviews_stats_2", null);

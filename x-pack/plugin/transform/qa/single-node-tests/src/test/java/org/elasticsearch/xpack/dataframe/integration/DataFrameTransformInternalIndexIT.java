@@ -15,8 +15,8 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndex;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.transform.GetDataFrameTransformRequest;
@@ -53,7 +53,7 @@ public class DataFrameTransformInternalIndexIT extends ESRestTestCase {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.startObject();
             builder.startObject("properties");
-            builder.startObject(DataFrameField.INDEX_DOC_TYPE.getPreferredName()).field("type", "keyword").endObject();
+            builder.startObject(TransformField.INDEX_DOC_TYPE.getPreferredName()).field("type", "keyword").endObject();
             addDataFrameTransformsConfigMappings(builder);
             builder.endObject();
             builder.endObject();
@@ -80,11 +80,11 @@ public class DataFrameTransformInternalIndexIT extends ESRestTestCase {
             + "\"frequency\":\"1s\""
             + "}";
         client.index(new IndexRequest(OLD_INDEX)
-                .id(DataFrameTransformConfig.documentId(transformId))
+                .id(TransformConfig.documentId(transformId))
                 .source(config, XContentType.JSON)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
             RequestOptions.DEFAULT);
-        GetResponse getResponse = client.get(new GetRequest(OLD_INDEX, DataFrameTransformConfig.documentId(transformId)),
+        GetResponse getResponse = client.get(new GetRequest(OLD_INDEX, TransformConfig.documentId(transformId)),
             RequestOptions.DEFAULT);
         assertThat(getResponse.isExists(), is(true));
 
@@ -100,11 +100,11 @@ public class DataFrameTransformInternalIndexIT extends ESRestTestCase {
         assertThat(updated.getTransformConfiguration().getDescription(), equalTo("updated"));
 
         // Old should now be gone
-        getResponse = client.get(new GetRequest(OLD_INDEX, DataFrameTransformConfig.documentId(transformId)), RequestOptions.DEFAULT);
+        getResponse = client.get(new GetRequest(OLD_INDEX, TransformConfig.documentId(transformId)), RequestOptions.DEFAULT);
         assertThat(getResponse.isExists(), is(false));
 
         // New should be here
-        getResponse = client.get(new GetRequest(CURRENT_INDEX, DataFrameTransformConfig.documentId(transformId)),
+        getResponse = client.get(new GetRequest(CURRENT_INDEX, TransformConfig.documentId(transformId)),
             RequestOptions.DEFAULT);
         assertThat(getResponse.isExists(), is(true));
     }

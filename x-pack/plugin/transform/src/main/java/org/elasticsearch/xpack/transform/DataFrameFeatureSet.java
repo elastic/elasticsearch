@@ -29,14 +29,14 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.transform.DataFrameFeatureSetUsage;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransform;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformState;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformStoredDoc;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformTaskState;
+import org.elasticsearch.xpack.core.transform.TransformFeatureSetUsage;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.transforms.Transform;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformState;
+import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
+import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndex;
 
 import java.util.ArrayList;
@@ -59,16 +59,16 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
     private static final Logger logger = LogManager.getLogger(DataFrameFeatureSet.class);
 
     public static final String[] PROVIDED_STATS = new String[] {
-        DataFrameIndexerTransformStats.NUM_PAGES.getPreferredName(),
-        DataFrameIndexerTransformStats.NUM_INPUT_DOCUMENTS.getPreferredName(),
-        DataFrameIndexerTransformStats.NUM_OUTPUT_DOCUMENTS.getPreferredName(),
-        DataFrameIndexerTransformStats.NUM_INVOCATIONS.getPreferredName(),
-        DataFrameIndexerTransformStats.INDEX_TIME_IN_MS.getPreferredName(),
-        DataFrameIndexerTransformStats.SEARCH_TIME_IN_MS.getPreferredName(),
-        DataFrameIndexerTransformStats.INDEX_TOTAL.getPreferredName(),
-        DataFrameIndexerTransformStats.SEARCH_TOTAL.getPreferredName(),
-        DataFrameIndexerTransformStats.INDEX_FAILURES.getPreferredName(),
-        DataFrameIndexerTransformStats.SEARCH_FAILURES.getPreferredName(),
+        TransformIndexerStats.NUM_PAGES.getPreferredName(),
+        TransformIndexerStats.NUM_INPUT_DOCUMENTS.getPreferredName(),
+        TransformIndexerStats.NUM_OUTPUT_DOCUMENTS.getPreferredName(),
+        TransformIndexerStats.NUM_INVOCATIONS.getPreferredName(),
+        TransformIndexerStats.INDEX_TIME_IN_MS.getPreferredName(),
+        TransformIndexerStats.SEARCH_TIME_IN_MS.getPreferredName(),
+        TransformIndexerStats.INDEX_TOTAL.getPreferredName(),
+        TransformIndexerStats.SEARCH_TOTAL.getPreferredName(),
+        TransformIndexerStats.INDEX_FAILURES.getPreferredName(),
+        TransformIndexerStats.SEARCH_FAILURES.getPreferredName(),
     };
 
     @Inject
@@ -81,7 +81,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
 
     @Override
     public String name() {
-        return XPackField.DATA_FRAME;
+        return XPackField.Transform;
     }
 
     @Override
@@ -102,26 +102,26 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
         if (enabled == false) {
-            listener.onResponse(new DataFrameFeatureSetUsage(available(),
+            listener.onResponse(new TransformFeatureSetUsage(available(),
                 enabled(),
                 Collections.emptyMap(),
-                new DataFrameIndexerTransformStats()));
+                new TransformIndexerStats()));
             return;
         }
 
         PersistentTasksCustomMetaData taskMetadata = PersistentTasksCustomMetaData.getPersistentTasksCustomMetaData(clusterService.state());
         Collection<PersistentTasksCustomMetaData.PersistentTask<?>> dataFrameTasks = taskMetadata == null ?
             Collections.emptyList() :
-            taskMetadata.findTasks(DataFrameTransform.NAME, (t) -> true);
+            taskMetadata.findTasks(Transform.NAME, (t) -> true);
         final int taskCount = dataFrameTasks.size();
         final Map<String, Long> transformsCountByState = new HashMap<>();
         for(PersistentTasksCustomMetaData.PersistentTask<?> dataFrameTask : dataFrameTasks) {
-            DataFrameTransformState state = (DataFrameTransformState)dataFrameTask.getState();
+            TransformState state = (TransformState)dataFrameTask.getState();
             transformsCountByState.merge(state.getTaskState().value(), 1L, Long::sum);
         }
 
-        ActionListener<DataFrameIndexerTransformStats> totalStatsListener = ActionListener.wrap(
-            statSummations -> listener.onResponse(new DataFrameFeatureSetUsage(available(),
+        ActionListener<TransformIndexerStats> totalStatsListener = ActionListener.wrap(
+            statSummations -> listener.onResponse(new TransformFeatureSetUsage(available(),
                 enabled(),
                 transformsCountByState,
                 statSummations)),
@@ -136,13 +136,13 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
                 }
                 long totalTransforms = transformCountSuccess.getHits().getTotalHits().value;
                 if (totalTransforms == 0) {
-                    listener.onResponse(new DataFrameFeatureSetUsage(available(),
+                    listener.onResponse(new TransformFeatureSetUsage(available(),
                         enabled(),
                         transformsCountByState,
-                        new DataFrameIndexerTransformStats()));
+                        new TransformIndexerStats()));
                     return;
                 }
-                transformsCountByState.merge(DataFrameTransformTaskState.STOPPED.value(), totalTransforms - taskCount, Long::sum);
+                transformsCountByState.merge(TransformTaskState.STOPPED.value(), totalTransforms - taskCount, Long::sum);
                 getStatisticSummations(client, totalStatsListener);
             },
             transformCountFailure -> {
@@ -157,7 +157,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
         SearchRequest totalTransformCount = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME_PATTERN)
             .setTrackTotalHits(true)
             .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termQuery(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), DataFrameTransformConfig.NAME))))
+                .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(), TransformConfig.NAME))))
             .request();
 
         ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(),
@@ -167,7 +167,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
             client::search);
     }
 
-    static DataFrameIndexerTransformStats parseSearchAggs(SearchResponse searchResponse) {
+    static TransformIndexerStats parseSearchAggs(SearchResponse searchResponse) {
         List<Long> statisticsList = new ArrayList<>(PROVIDED_STATS.length);
 
         for(String statName : PROVIDED_STATS) {
@@ -179,7 +179,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
                 statisticsList.add(0L);
             }
         }
-        return new DataFrameIndexerTransformStats(statisticsList.get(0),  // numPages
+        return new TransformIndexerStats(statisticsList.get(0),  // numPages
             statisticsList.get(1),  // numInputDocuments
             statisticsList.get(2),  // numOutputDocuments
             statisticsList.get(3),  // numInvocations
@@ -191,16 +191,16 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
             statisticsList.get(9)); // searchFailures
     }
 
-    static void getStatisticSummations(Client client, ActionListener<DataFrameIndexerTransformStats> statsListener) {
+    static void getStatisticSummations(Client client, ActionListener<TransformIndexerStats> statsListener) {
         QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
-            .filter(QueryBuilders.termQuery(DataFrameField.INDEX_DOC_TYPE.getPreferredName(),
-                    DataFrameTransformStoredDoc.NAME)));
+            .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(),
+                    TransformStoredDoc.NAME)));
 
         SearchRequestBuilder requestBuilder = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME_PATTERN)
             .setSize(0)
             .setQuery(queryBuilder);
 
-        final String path = DataFrameField.STATS_FIELD.getPreferredName() + ".";
+        final String path = TransformField.STATS_FIELD.getPreferredName() + ".";
         for(String statName : PROVIDED_STATS) {
             requestBuilder.addAggregation(AggregationBuilders.sum(statName).field(path + statName));
         }
@@ -216,7 +216,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
             },
             failure -> {
                 if (failure instanceof ResourceNotFoundException) {
-                    statsListener.onResponse(new DataFrameIndexerTransformStats());
+                    statsListener.onResponse(new TransformIndexerStats());
                 } else {
                     statsListener.onFailure(failure);
                 }

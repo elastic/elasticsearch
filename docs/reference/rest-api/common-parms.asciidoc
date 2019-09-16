@@ -22,7 +22,7 @@ that point to a missing or closed index.
 end::allow-no-indices[]
 
 tag::analyzer[]
-analyzer`::
+`analyzer`::
 (Optional, string) Analyzer to use for the query string.
 end::analyzer[]
 

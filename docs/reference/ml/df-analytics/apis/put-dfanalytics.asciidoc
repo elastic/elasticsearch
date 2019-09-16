@@ -179,52 +179,52 @@ The API returns the following result:
 [[ml-put-dfanalytics-example-r]]
 ===== {regression-cap} example
 
-The following example creates the `wine_quality_white` {dfanalytics-job}, the 
-analysis type is `regression`:
+The following example creates the `house_price_regression_analysis` {
+dfanalytics-job}, the analysis type is `regression`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-PUT _ml/data_frame/analytics/wine_quality_prediction
+PUT _ml/data_frame/analytics/house_price_regression_analysis
 {
   "source": {
-    "index": "wine_quality_white"
+    "index": "houses_sold_last_10_yrs"
   },
   "dest": {
-    "index": "wine_quality_white_regression"
+    "index": "house_price_predictions"
   },
   "analysis": 
     {
       "regression": {
-        "dependent_variable": "quality"
+        "dependent_variable": "price"
       }
     }
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:setup_wine_quality_white]
+// TEST[setup:setup_houses_sold_last_10_yrs]
 
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 ----
 {
-  "id" : "wine_quality_prediction",
+  "id" : "house_price_regression_analysis",
   "source" : {
     "index" : [
-      "wine_quality_white"
+      "houses_sold_last_10_yrs"
     ],
     "query" : {
       "match_all" : { }
     }
   },
   "dest" : {
-    "index" : "wine_quality_white_regression",
+    "index" : "house_price_predictions",
     "results_field" : "ml"
   },
   "analysis" : {
     "regression" : {
-      "dependent_variable" : "quality"
+      "dependent_variable" : "price"
       "training_percent" : 100
     }
   },

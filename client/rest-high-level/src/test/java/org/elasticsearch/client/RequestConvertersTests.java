@@ -439,6 +439,13 @@ public class RequestConvertersTests extends ESTestCase {
         if (reindexRequest.getRemoteInfo() == null && randomBoolean()) {
             reindexRequest.setSourceQuery(new TermQueryBuilder("foo", "fooval"));
         }
+        if (randomBoolean()) {
+            int slices = randomInt(100);
+            reindexRequest.setSlices(slices);
+            expectedParams.put("slices", String.valueOf(slices));
+        } else {
+            expectedParams.put("slices", "1");
+        }
         setRandomTimeout(reindexRequest::setTimeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
         setRandomWaitForActiveShards(reindexRequest::setWaitForActiveShards, ActiveShardCount.DEFAULT, expectedParams);
         expectedParams.put("scroll", reindexRequest.getScrollTime().getStringRep());
@@ -1357,12 +1364,20 @@ public class RequestConvertersTests extends ESTestCase {
             multiSearchTemplateRequest.add(searchTemplateRequest);
         }
 
+        Map<String, String> expectedParams = new HashMap<>();
+        if (randomBoolean()) {
+            multiSearchTemplateRequest.maxConcurrentSearchRequests(randomIntBetween(1,10));
+            expectedParams.put("max_concurrent_searches", Integer.toString(multiSearchTemplateRequest.maxConcurrentSearchRequests()));
+        }
+        expectedParams.put(RestSearchAction.TYPED_KEYS_PARAM, "true");
+
         Request multiRequest = RequestConverters.multiSearchTemplate(multiSearchTemplateRequest);
 
         assertEquals(HttpPost.METHOD_NAME, multiRequest.getMethod());
         assertEquals("/_msearch/template", multiRequest.getEndpoint());
         List<SearchTemplateRequest> searchRequests = multiSearchTemplateRequest.requests();
         assertEquals(numSearchRequests, searchRequests.size());
+        assertEquals(expectedParams, multiRequest.getParameters());
 
         HttpEntity actualEntity = multiRequest.getEntity();
         byte[] expectedBytes = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, XContentType.JSON.xContent());

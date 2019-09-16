@@ -27,13 +27,20 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DatafeedTimingStatsTests extends AbstractXContentTestCase<DatafeedTimingStats> {
 
     private static final String JOB_ID = "my-job-id";
 
     public static DatafeedTimingStats createRandomInstance() {
-        return new DatafeedTimingStats(randomAlphaOfLength(10), randomLong(), randomDouble());
+        return new DatafeedTimingStats(
+            randomAlphaOfLength(10),
+            randomLong(),
+            randomLong(),
+            randomDouble(),
+            randomBoolean() ? null : randomDouble(),
+            randomBoolean() ? null : randomDouble());
     }
 
     @Override
@@ -59,34 +66,20 @@ public class DatafeedTimingStatsTests extends AbstractXContentTestCase<DatafeedT
             DatafeedTimingStats stats = DatafeedTimingStats.PARSER.apply(parser, null);
             assertThat(stats.getJobId(), equalTo(JOB_ID));
             assertThat(stats.getSearchCount(), equalTo(0L));
+            assertThat(stats.getBucketCount(), equalTo(0L));
             assertThat(stats.getTotalSearchTimeMs(), equalTo(0.0));
+            assertThat(stats.getAvgSearchTimePerBucketMs(), nullValue());
+            assertThat(stats.getExponentialAvgSearchTimePerHourMs(), nullValue());
         }
     }
 
-    public void testEquals() {
-        DatafeedTimingStats stats1 = new DatafeedTimingStats(JOB_ID, 5, 100.0);
-        DatafeedTimingStats stats2 = new DatafeedTimingStats(JOB_ID, 5, 100.0);
-        DatafeedTimingStats stats3 = new DatafeedTimingStats(JOB_ID, 5, 200.0);
-
-        assertTrue(stats1.equals(stats1));
-        assertTrue(stats1.equals(stats2));
-        assertFalse(stats2.equals(stats3));
-    }
-
-    public void testHashCode() {
-        DatafeedTimingStats stats1 = new DatafeedTimingStats(JOB_ID, 5, 100.0);
-        DatafeedTimingStats stats2 = new DatafeedTimingStats(JOB_ID, 5, 100.0);
-        DatafeedTimingStats stats3 = new DatafeedTimingStats(JOB_ID, 5, 200.0);
-
-        assertEquals(stats1.hashCode(), stats1.hashCode());
-        assertEquals(stats1.hashCode(), stats2.hashCode());
-        assertNotEquals(stats2.hashCode(), stats3.hashCode());
-    }
-
     public void testConstructorAndGetters() {
-        DatafeedTimingStats stats = new DatafeedTimingStats(JOB_ID, 5, 123.456);
+        DatafeedTimingStats stats = new DatafeedTimingStats(JOB_ID, 5, 10, 123.456, 78.9, 98.7);
         assertThat(stats.getJobId(), equalTo(JOB_ID));
         assertThat(stats.getSearchCount(), equalTo(5L));
+        assertThat(stats.getBucketCount(), equalTo(10L));
         assertThat(stats.getTotalSearchTimeMs(), equalTo(123.456));
+        assertThat(stats.getAvgSearchTimePerBucketMs(), equalTo(78.9));
+        assertThat(stats.getExponentialAvgSearchTimePerHourMs(), equalTo(98.7));
     }
 }

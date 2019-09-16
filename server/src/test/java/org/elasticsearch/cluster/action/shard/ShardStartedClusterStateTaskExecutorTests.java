@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.action.shard;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -29,6 +30,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -53,13 +55,18 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
 
     private ShardStateAction.ShardStartedClusterStateTaskExecutor executor;
 
+    private static void neverReroutes(String reason, Priority priority, ActionListener<Void> listener) {
+        fail("unexpectedly ran a deferred reroute");
+    }
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
         AllocationService allocationService = createAllocationService(Settings.builder()
             .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), Integer.MAX_VALUE)
             .build());
-        executor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, logger);
+        executor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService,
+            ShardStartedClusterStateTaskExecutorTests::neverReroutes, logger);
     }
 
     public void testEmptyTaskListProducesSameClusterState() throws Exception {

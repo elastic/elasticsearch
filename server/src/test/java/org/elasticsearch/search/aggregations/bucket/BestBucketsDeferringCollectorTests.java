@@ -67,7 +67,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         Query rewrittenQuery = indexSearcher.rewrite(termQuery);
         TopDocs topDocs = indexSearcher.search(termQuery, numDocs);
 
-        SearchContext searchContext = createSearchContext(indexSearcher, createIndexSettings());
+        SearchContext searchContext = createSearchContext(indexSearcher, createIndexSettings(), rewrittenQuery, null);
         when(searchContext.query()).thenReturn(rewrittenQuery);
         BestBucketsDeferringCollector collector = new BestBucketsDeferringCollector(searchContext, false) {
             @Override

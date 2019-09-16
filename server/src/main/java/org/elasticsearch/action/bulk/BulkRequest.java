@@ -78,7 +78,17 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     private long sizeInBytes = 0;
 
-    public BulkRequest() {
+    public BulkRequest() {}
+
+    public BulkRequest(StreamInput in) throws IOException {
+        super(in);
+        waitForActiveShards = ActiveShardCount.readFrom(in);
+        int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            requests.add(DocWriteRequest.readDocumentRequest(in));
+        }
+        refreshPolicy = RefreshPolicy.readFrom(in);
+        timeout = in.readTimeValue();
     }
 
     public BulkRequest(@Nullable String globalIndex) {
@@ -387,18 +397,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         }
 
         return validationException;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        waitForActiveShards = ActiveShardCount.readFrom(in);
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            requests.add(DocWriteRequest.readDocumentRequest(in));
-        }
-        refreshPolicy = RefreshPolicy.readFrom(in);
-        timeout = in.readTimeValue();
     }
 
     @Override

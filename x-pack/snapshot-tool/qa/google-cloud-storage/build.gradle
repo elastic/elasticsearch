@@ -1,0 +1,80 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+import java.nio.file.Files
+
+apply plugin: 'elasticsearch.build'
+
+dependencies {
+    compile project(":plugins:repository-gcs")
+    testCompile project(":test:framework")
+    testCompile project(':x-pack:snapshot-tool')
+    testCompile files(project(':x-pack:snapshot-tool').sourceSets.test.output)
+}
+
+test.enabled = false
+
+task gcsThirdPartyTests {
+    dependsOn check
+}
+
+boolean useGCSFixture = false
+
+String gcsServiceAccount = System.getenv("google_storage_service_account")
+String gcsBucket = System.getenv("google_storage_bucket")
+String gcsBasePath = System.getenv("google_storage_base_path")
+
+if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
+    gcsServiceAccount = new File(project(':plugins:repository-gcs:qa:google-cloud-storage').buildDir,
+            'generated-resources/service_account_test.json').path
+    gcsBucket = 'bucket_test'
+    gcsBasePath = 'integration_test'
+
+    useGCSFixture = true
+} else if (!gcsServiceAccount || !gcsBucket || !gcsBasePath) {
+    throw new IllegalArgumentException("not all options specified to run thirdPartyTestGCS against external GCS service are present")
+}
+
+def encodedCredentials = {
+    Base64.encoder.encodeToString(Files.readAllBytes(file(gcsServiceAccount).toPath()))
+}
+
+task thirdPartyTest (type: Test) {
+    include '**/GCSCleanupTests.class'
+
+    systemProperty 'tests.security.manager', false
+
+    systemProperty 'test.google.bucket', gcsBucket
+    systemProperty 'test.google.base', gcsBasePath
+    nonInputProperties.systemProperty 'test.google.account', "${-> encodedCredentials.call()}"
+}
+
+if (useGCSFixture) {
+    thirdPartyTest.dependsOn(':plugins:repository-gcs:qa:google-cloud-storage:createServiceAccountFile',
+            ':plugins:repository-gcs:qa:google-cloud-storage:googleCloudStorageFixture')
+    thirdPartyTest.finalizedBy(':plugins:repository-gcs:qa:google-cloud-storage:googleCloudStorageFixture#stop')
+
+    def fixtureEndpoint = {
+        "http://${project(':plugins:repository-gcs:qa:google-cloud-storage').googleCloudStorageFixture.addressAndPort}"
+    }
+
+    def tokenURI = {
+        "http://${project(':plugins:repository-gcs:qa:google-cloud-storage').googleCloudStorageFixture.addressAndPort}/o/oauth2/token"
+    }
+
+    thirdPartyTest {
+        nonInputProperties.systemProperty 'test.google.endpoint', "${-> fixtureEndpoint.call()}"
+        nonInputProperties.systemProperty 'test.google.tokenURI', "${-> tokenURI.call()}"
+    }
+
+    gradle.taskGraph.whenReady {
+        if (it.hasTask(gcsThirdPartyTests)) {
+            throw new IllegalStateException("Tried to run third party tests but not all of the necessary environment variables 'google_storage_service_account', " +
+                    "'google_storage_bucket', 'google_storage_base_path' are set.")
+        }
+    }
+}
+
+check.dependsOn(thirdPartyTest)

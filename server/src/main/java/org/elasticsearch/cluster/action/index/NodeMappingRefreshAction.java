@@ -54,7 +54,7 @@ public class NodeMappingRefreshAction {
         this.transportService = transportService;
         this.metaDataMappingService = metaDataMappingService;
         transportService.registerRequestHandler(ACTION_NAME,
-            NodeMappingRefreshRequest::new, ThreadPool.Names.SAME, new NodeMappingRefreshTransportHandler());
+           ThreadPool.Names.SAME,  NodeMappingRefreshRequest::new, new NodeMappingRefreshTransportHandler());
     }
 
     public void nodeMappingRefresh(final DiscoveryNode masterNode, final NodeMappingRefreshRequest request) {
@@ -80,7 +80,11 @@ public class NodeMappingRefreshAction {
         private String indexUUID = IndexMetaData.INDEX_UUID_NA_VALUE;
         private String nodeId;
 
-        public NodeMappingRefreshRequest() {
+        public NodeMappingRefreshRequest(StreamInput in) throws IOException {
+            super(in);
+            index = in.readString();
+            nodeId = in.readString();
+            indexUUID = in.readString();
         }
 
         public NodeMappingRefreshRequest(String index, String indexUUID, String nodeId) {
@@ -117,14 +121,6 @@ public class NodeMappingRefreshAction {
             out.writeString(index);
             out.writeString(nodeId);
             out.writeString(indexUUID);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            index = in.readString();
-            nodeId = in.readString();
-            indexUUID = in.readString();
         }
     }
 }

@@ -1,0 +1,34 @@
+{
+  "data_frame.update_data_frame_transform": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/update-data-frame-transform.html"
+    },
+    "stability": "beta",
+    "url": {
+      "paths": [
+        {
+          "path": "/_data_frame/transforms/{transform_id}/_update",
+          "methods": [ "POST" ],
+          "parts": {
+            "transform_id": {
+              "type": "string",
+              "required": true,
+              "description": "The id of the transform."
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "defer_validation": {
+        "type": "boolean",
+        "required": false,
+        "description": "If validations should be deferred until data frame transform starts, defaults to false."
+      }
+    },
+    "body": {
+      "description" : "The update data frame transform definition",
+      "required": true
+    }
+  }
+}

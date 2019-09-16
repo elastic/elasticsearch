@@ -115,7 +115,11 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
         PARSER.declareNamedObjects(VerifyRepositoryResponse::setNodes, NodeView.PARSER, new ParseField("nodes"));
     }
 
-    VerifyRepositoryResponse() {
+    public VerifyRepositoryResponse() {}
+
+    public VerifyRepositoryResponse(StreamInput in) throws IOException {
+        super(in);
+        this.nodes = in.readList(NodeView::new);
     }
 
     public VerifyRepositoryResponse(DiscoveryNode[] nodes) {
@@ -124,12 +128,6 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
 
     public VerifyRepositoryResponse(List<NodeView> nodes) {
         this.nodes = nodes;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.nodes = in.readList(NodeView::new);
     }
 
     @Override

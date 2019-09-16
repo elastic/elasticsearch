@@ -17,7 +17,7 @@ integTest {
 }
 
 testClusters.integTest {
-  distribution = "DEFAULT"
+  testDistribution = 'DEFAULT'
   setting 'xpack.ilm.enabled', 'true'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.watcher.enabled', 'false'

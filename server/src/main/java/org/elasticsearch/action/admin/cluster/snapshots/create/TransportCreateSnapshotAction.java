@@ -28,10 +28,13 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 /**
  * Transport action for create snapshot operation
@@ -56,8 +59,8 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
     }
 
     @Override
-    protected CreateSnapshotResponse newResponse() {
-        return new CreateSnapshotResponse();
+    protected CreateSnapshotResponse read(StreamInput in) throws IOException {
+        return new CreateSnapshotResponse(in);
     }
 
     @Override

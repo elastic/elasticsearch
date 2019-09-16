@@ -238,7 +238,9 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
             private @Nullable String nodeId;
 
-            private Failure() {
+            private Failure(StreamInput in) throws IOException {
+                super(in);
+                nodeId = in.readOptionalString();
             }
 
             public Failure(final String index, final int shardId, final Throwable reason) {
@@ -252,12 +254,6 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
             public String getNodeId() {
                 return nodeId;
-            }
-
-            @Override
-            public void readFrom(final StreamInput in) throws IOException {
-                super.readFrom(in);
-                nodeId = in.readOptionalString();
             }
 
             @Override
@@ -280,9 +276,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
             }
 
             static Failure readFailure(final StreamInput in) throws IOException {
-                final Failure failure = new Failure();
-                failure.readFrom(in);
-                return failure;
+                return new Failure(in);
             }
         }
     }

@@ -17,15 +17,14 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -40,12 +39,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedRespon
     public static final String NAME = "cluster:admin/xpack/ml/data_frame/analytics/start";
 
     private StartDataFrameAnalyticsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
-        return AcknowledgedResponse::new;
+        super(NAME, AcknowledgedResponse::new);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -152,7 +146,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedRespon
         }
     }
 
-    public static class TaskParams implements XPackPlugin.XPackPersistentTaskParams {
+    public static class TaskParams implements PersistentTaskParams {
 
         public static final Version VERSION_INTRODUCED = Version.V_7_3_0;
 

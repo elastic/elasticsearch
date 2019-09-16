@@ -1,0 +1,54 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-delete-calendar-job]]
+=== Delete {anomaly-jobs} from calendar API
+++++
+<titleabbrev>Delete jobs from calendar</titleabbrev>
+++++
+
+Deletes {anomaly-jobs} from a calendar.
+
+[[ml-delete-calendar-job-request]]
+==== {api-request-title}
+
+`DELETE _ml/calendars/<calendar_id>/jobs/<job_id>`
+
+[[ml-delete-calendar-job-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
+[[ml-delete-calendar-job-path-parms]]
+==== {api-path-parms-title}
+
+`<calendar_id>`::
+  (Required, string) Identifier for the calendar.
+
+`<job_id>`::
+  (Required, string) An identifier for the {anomaly-jobs}. It can be a job
+  identifier, a group name, or a comma-separated list of jobs or groups.
+
+[[ml-delete-calendar-job-example]]
+==== {api-examples-title}
+
+The following example removes the association between the `planned-outages`
+calendar and `total-requests` job:
+
+[source,console]
+--------------------------------------------------
+DELETE _ml/calendars/planned-outages/jobs/total-requests
+--------------------------------------------------
+// TEST[skip:setup:calendar_outages_addjob]
+
+When the job is removed from the calendar, you receive the following
+results:
+
+[source,console-result]
+----
+{
+   "calendar_id": "planned-outages",
+   "job_ids": []
+}
+----

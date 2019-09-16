@@ -43,6 +43,15 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
     private XContentType xContentType;
     private StoredScriptSource source;
 
+    public PutStoredScriptRequest(StreamInput in) throws IOException {
+        super(in);
+        id = in.readOptionalString();
+        content = in.readBytesReference();
+        xContentType = in.readEnum(XContentType.class);
+        context = in.readOptionalString();
+        source = new StoredScriptSource(in);
+    }
+
     public PutStoredScriptRequest() {
         super();
     }
@@ -111,16 +120,6 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         this.xContentType = Objects.requireNonNull(xContentType);
         this.source = StoredScriptSource.parse(content, xContentType);
         return this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        id = in.readOptionalString();
-        content = in.readBytesReference();
-        xContentType = in.readEnum(XContentType.class);
-        context = in.readOptionalString();
-        source = new StoredScriptSource(in);
     }
 
     @Override

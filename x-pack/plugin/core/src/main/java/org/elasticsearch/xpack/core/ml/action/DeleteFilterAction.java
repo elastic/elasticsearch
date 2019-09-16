@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
@@ -14,7 +14,6 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -27,12 +26,7 @@ public class DeleteFilterAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/ml/filters/delete";
 
     private DeleteFilterAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
-        return AcknowledgedResponse::new;
+        super(NAME, AcknowledgedResponse::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -40,6 +34,11 @@ public class DeleteFilterAction extends ActionType<AcknowledgedResponse> {
         public static final ParseField FILTER_ID = new ParseField("filter_id");
 
         private String filterId;
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            filterId = in.readString();
+        }
 
         public Request() {
 
@@ -56,12 +55,6 @@ public class DeleteFilterAction extends ActionType<AcknowledgedResponse> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            filterId = in.readString();
         }
 
         @Override

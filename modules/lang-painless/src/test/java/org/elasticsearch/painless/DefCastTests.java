@@ -683,4 +683,17 @@ public class DefCastTests extends ScriptTestCase {
     public void testdefToStringExplicit() {
         assertEquals("s", exec("def d = (char)'s'; String b = (String)d; b"));
     }
+
+    // TODO: remove this when the transition from Joda to Java datetimes is completed
+    public void testdefToZonedDateTime() {
+        assertEquals(0L, exec(
+                "Instant instant = Instant.ofEpochMilli(434931330000L);" +
+                "def d = new JodaCompatibleZonedDateTime(instant, ZoneId.of('Z'));" +
+                "def x = new HashMap(); x.put('dt', d);" +
+                "ZonedDateTime t = x['dt'];" +
+                "def y = t;" +
+                "t = y;" +
+                "return ChronoUnit.MILLIS.between(d, t);"
+        ));
+    }
 }

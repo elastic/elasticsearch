@@ -11,66 +11,66 @@ Creates a {rollup-job}.
 
 experimental[]
 
-[[sample-api-request]]
+[[rollup-put-job-api-request]]
 ==== {api-request-title}
 
 `PUT _rollup/job/<job_id>`
 
-[[sample-api-prereqs]]
+[[rollup-put-job-api-prereqs]]
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have `manage` or
 `manage_rollup` cluster privileges to use this API. For more information, see
 {stack-ov}/security-privileges.html[Security privileges].
 
-[[sample-api-desc]]
+[[rollup-put-job-api-desc]]
 ==== {api-description-title}
 
 Jobs are created in a `STOPPED` state. You can start them with the
 <<rollup-start-job,start {rollup-jobs} API>>.
 
-[[sample-api-path-params]]
+[[rollup-put-job-api-path-params]]
 ==== {api-path-parms-title}
 
 `job_id`::
-  (string) Required. Identifier for the {rollup-job}.
+  (Required, string) Identifier for the {rollup-job}.
 
-[[sample-api-request-body]]
+[[rollup-put-job-api-request-body]]
 ==== {api-request-body-title}
 
 `cron`::
-  (string) Required. A cron string which defines when the {rollup-job} should be executed.
+  (Required, string) A cron string which defines when the {rollup-job} should be executed.
 
 `groups`::
-  (object) Required. Defines the grouping fields that are defined for this
+  (Required, object) Defines the grouping fields that are defined for this
   {rollup-job}. See <<rollup-job-config,{rollup-job} config>>.
 
 `index_pattern`::
-  (string) Required. The index or index pattern to roll up. Supports
+  (Required, string) The index or index pattern to roll up. Supports
   wildcard-style patterns (`logstash-*`).
 
 `metrics`::
-  (object) Optional. Defines the metrics to collect for each grouping tuple. See
+  (Optional, object) Defines the metrics to collect for each grouping tuple. See
   <<rollup-job-config,{rollup-job} config>>.
 
 `page_size`::
-  (integer) Required. The number of bucket results that are processed on each
+  (Required, integer) The number of bucket results that are processed on each
   iteration of the rollup indexer. A larger value tends to execute faster, but
   requires more memory during processing.
 
 `rollup_index`::
-  (string) Required. The index that contains the rollup results. The index can
+  (Required, string) The index that contains the rollup results. The index can
   be shared with other {rollup-jobs}.
 
 For more details about the job configuration, see <<rollup-job-config>>.
 
-[[sample-api-example]]
+[[rollup-put-job-api-example]]
 ==== {api-example-title}
 
 The following example creates a {rollup-job} named "sensor", targeting the
 "sensor-*" index pattern:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _rollup/job/sensor
 {
@@ -100,15 +100,13 @@ PUT _rollup/job/sensor
     ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_index]
 
 When the job is created, you receive the following results:
 
-[source,js]
+[source,console-result]
 ----
 {
   "acknowledged": true
 }
 ----
-// TESTRESPONSE

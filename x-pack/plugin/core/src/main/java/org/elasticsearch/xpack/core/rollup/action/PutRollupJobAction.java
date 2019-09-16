@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -32,12 +31,7 @@ public class PutRollupJobAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/rollup/put";
 
     private PutRollupJobAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
-        return AcknowledgedResponse::new;
+        super(NAME, AcknowledgedResponse::new);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest, ToXContentObject {
@@ -47,6 +41,11 @@ public class PutRollupJobAction extends ActionType<AcknowledgedResponse> {
 
         public Request(RollupJobConfig config) {
             this.config = config;
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.config = new RollupJobConfig(in);
         }
 
         public Request() {
@@ -63,12 +62,6 @@ public class PutRollupJobAction extends ActionType<AcknowledgedResponse> {
 
         public void setConfig(RollupJobConfig config) {
             this.config = config;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.config = new RollupJobConfig(in);
         }
 
         @Override

@@ -34,8 +34,7 @@ public class InvalidateTokenResponseTests extends ESTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             response.writeTo(output);
             try (StreamInput input = output.bytes().streamInput()) {
-                InvalidateTokenResponse serialized = new InvalidateTokenResponse();
-                serialized.readFrom(input);
+                InvalidateTokenResponse serialized = new InvalidateTokenResponse(input);
                 assertThat(serialized.getResult().getInvalidatedTokens(), equalTo(response.getResult().getInvalidatedTokens()));
                 assertThat(serialized.getResult().getPreviouslyInvalidatedTokens(),
                     equalTo(response.getResult().getPreviouslyInvalidatedTokens()));
@@ -51,8 +50,7 @@ public class InvalidateTokenResponseTests extends ESTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             response.writeTo(output);
             try (StreamInput input = output.bytes().streamInput()) {
-                InvalidateTokenResponse serialized = new InvalidateTokenResponse();
-                serialized.readFrom(input);
+                InvalidateTokenResponse serialized = new InvalidateTokenResponse(input);
                 assertThat(serialized.getResult().getInvalidatedTokens(), equalTo(response.getResult().getInvalidatedTokens()));
                 assertThat(serialized.getResult().getPreviouslyInvalidatedTokens(),
                     equalTo(response.getResult().getPreviouslyInvalidatedTokens()));

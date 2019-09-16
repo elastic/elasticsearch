@@ -23,6 +23,7 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -90,6 +91,20 @@ final class SnapshotRequestConverters {
         RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withMasterTimeout(verifyRepositoryRequest.masterNodeTimeout());
         parameters.withTimeout(verifyRepositoryRequest.timeout());
+        request.addParameters(parameters.asMap());
+        return request;
+    }
+
+    static Request cleanupRepository(CleanupRepositoryRequest cleanupRepositoryRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_snapshot")
+            .addPathPart(cleanupRepositoryRequest.name())
+            .addPathPartAsIs("_cleanup")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+
+        RequestConverters.Params parameters = new RequestConverters.Params();
+        parameters.withMasterTimeout(cleanupRepositoryRequest.masterNodeTimeout());
+        parameters.withTimeout(cleanupRepositoryRequest.timeout());
         request.addParameters(parameters.asMap());
         return request;
     }

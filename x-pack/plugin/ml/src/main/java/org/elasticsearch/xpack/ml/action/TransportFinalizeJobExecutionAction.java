@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.WriteRequest;
@@ -40,6 +42,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public class TransportFinalizeJobExecutionAction extends TransportMasterNodeAction<FinalizeJobExecutionAction.Request,
     AcknowledgedResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportFinalizeJobExecutionAction.class);
+
     private final Client client;
 
     @Inject
@@ -47,7 +51,7 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
                                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                                Client client) {
         super(FinalizeJobExecutionAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, FinalizeJobExecutionAction.Request::new);
+                FinalizeJobExecutionAction.Request::new, indexNameExpressionResolver);
         this.client = client;
     }
 
@@ -59,11 +63,6 @@ public class TransportFinalizeJobExecutionAction extends TransportMasterNodeActi
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

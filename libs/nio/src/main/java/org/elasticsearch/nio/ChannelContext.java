@@ -50,17 +50,19 @@ public abstract class ChannelContext<S extends SelectableChannel & NetworkChanne
         doSelectorRegister();
     }
 
+    protected void channelActive() throws IOException {}
+
     // Package private for testing
     void doSelectorRegister() throws IOException {
-        setSelectionKey(rawChannel.register(getSelector().rawSelector(), 0));
+        setSelectionKey(rawChannel.register(getSelector().rawSelector(), 0, this));
     }
 
-    SelectionKey getSelectionKey() {
+    protected SelectionKey getSelectionKey() {
         return selectionKey;
     }
 
-    // Protected for tests
-    protected void setSelectionKey(SelectionKey selectionKey) {
+    // public for tests
+    public void setSelectionKey(SelectionKey selectionKey) {
         this.selectionKey = selectionKey;
     }
 

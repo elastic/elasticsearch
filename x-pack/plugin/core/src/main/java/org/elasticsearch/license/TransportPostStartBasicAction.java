@@ -30,18 +30,13 @@ public class TransportPostStartBasicAction extends TransportMasterNodeAction<Pos
                                          LicenseService licenseService, ThreadPool threadPool, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(PostStartBasicAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, PostStartBasicRequest::new);
+                PostStartBasicRequest::new, indexNameExpressionResolver);
         this.licenseService = licenseService;
     }
 
     @Override
     protected String executor() {
         return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected PostStartBasicResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

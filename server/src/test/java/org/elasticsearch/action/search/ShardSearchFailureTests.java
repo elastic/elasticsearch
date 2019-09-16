@@ -138,7 +138,7 @@ public class ShardSearchFailureTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         ShardSearchFailure testItem = createTestItem(randomAlphaOfLength(12));
-        ShardSearchFailure deserializedInstance = copyStreamable(testItem, writableRegistry(),
+        ShardSearchFailure deserializedInstance = copyWriteable(testItem, writableRegistry(),
             ShardSearchFailure::new, VersionUtils.randomVersion(random()));
         assertEquals(testItem.index(), deserializedInstance.index());
         assertEquals(testItem.shard(), deserializedInstance.shard());

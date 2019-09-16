@@ -87,11 +87,6 @@ public class StringRareTerms extends InternalMappedRareTerms<StringRareTerms, St
         }
 
         @Override
-        Bucket newBucket(long docCount, InternalAggregations aggs) {
-            return new Bucket(termBytes, docCount, aggs, format);
-        }
-
-        @Override
         protected final XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
             return builder.field(CommonFields.KEY.getPreferredName(), getKeyAsString());
         }
@@ -156,4 +151,10 @@ public class StringRareTerms extends InternalMappedRareTerms<StringRareTerms, St
     public void addToFilter(SetBackedScalingCuckooFilter filter, StringRareTerms.Bucket bucket) {
         filter.add(bucket.termBytes);
     }
+
+    @Override
+    Bucket createBucket(long docCount, InternalAggregations aggs, StringRareTerms.Bucket prototype) {
+        return new Bucket(prototype.termBytes, docCount, aggs, format);
+    }
+
 }

@@ -49,13 +49,14 @@ public class VotingOnlyNodeCoordinatorTests extends AbstractCoordinatorTestCase 
     }
 
     public void testDoesNotElectVotingOnlyMasterNode() {
-        final Cluster cluster = new Cluster(randomIntBetween(1, 5), false, Settings.EMPTY);
-        cluster.runRandomly();
-        cluster.stabilise();
+        try (Cluster cluster = new Cluster(randomIntBetween(1, 5), false, Settings.EMPTY)) {
+            cluster.runRandomly();
+            cluster.stabilise();
 
-        final Cluster.ClusterNode leader = cluster.getAnyLeader();
-        assertTrue(leader.getLocalNode().isMasterNode());
-        assertFalse(leader.getLocalNode().toString(), VotingOnlyNodePlugin.isVotingOnlyNode(leader.getLocalNode()));
+            final Cluster.ClusterNode leader = cluster.getAnyLeader();
+            assertTrue(leader.getLocalNode().isMasterNode());
+            assertFalse(leader.getLocalNode().toString(), VotingOnlyNodePlugin.isVotingOnlyNode(leader.getLocalNode()));
+        }
     }
 
     @Override

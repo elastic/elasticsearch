@@ -1,0 +1,58 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-delete-calendar-event]]
+=== Delete events from calendar API
+++++
+<titleabbrev>Delete events from calendar</titleabbrev>
+++++
+
+Deletes scheduled events from a calendar.
+
+[[ml-delete-calendar-event-request]]
+==== {api-request-title}
+
+`DELETE _ml/calendars/<calendar_id>/events/<event_id>`
+
+[[ml-delete-calendar-event-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
+[[ml-delete-calendar-event-desc]]
+==== {api-description-title}
+
+This API removes individual events from a calendar. To remove all scheduled
+events and delete the calendar, see the
+<<ml-delete-calendar,delete calendar API>>.
+
+[[ml-delete-calendar-event-path-parms]]
+==== {api-path-parms-title}
+
+`<calendar_id>`::
+  (Required, string) Identifier for the calendar.
+
+`<event_id>`::
+  (Required, string) Identifier for the scheduled event. You can obtain this
+  identifier by using the <<ml-get-calendar-event,get calendar events API>>.
+
+[[ml-delete-calendar-event-example]]
+==== {api-examples-title}
+
+The following example deletes a scheduled event from the `planned-outages`
+calendar:
+
+[source,console]
+--------------------------------------------------
+DELETE _ml/calendars/planned-outages/events/LS8LJGEBMTCMA-qz49st
+--------------------------------------------------
+// TEST[skip:catch:missing]
+
+When the event is removed, you receive the following results:
+[source,js]
+----
+{
+  "acknowledged": true
+}
+----

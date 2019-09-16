@@ -135,9 +135,10 @@ public class TransportServiceHandshakeTests extends ESTestCase {
                 PlainActionFuture.get(fut -> handleA.transportService.handshake(connection, timeout, ActionListener.map(fut, x -> null)));
             }
         });
-        assertThat(ex.getMessage(), containsString("handshake failed, mismatched cluster name [Cluster [b]]"));
+        assertThat(ex.getMessage(), containsString("handshake with [" + discoveryNode +
+            "] failed: remote cluster name [b] does not match local cluster name [a]"));
         assertFalse(handleA.transportService.nodeConnected(discoveryNode));
-}
+    }
 
     public void testIncompatibleVersions() {
         Settings settings = Settings.builder().put("cluster.name", "test").build();
@@ -156,7 +157,9 @@ public class TransportServiceHandshakeTests extends ESTestCase {
                 PlainActionFuture.get(fut -> handleA.transportService.handshake(connection, timeout, ActionListener.map(fut, x -> null)));
             }
         });
-        assertThat(ex.getMessage(), containsString("handshake failed, incompatible version"));
+        assertThat(ex.getMessage(), containsString("handshake with [" + discoveryNode +
+            "] failed: remote node version [" + handleB.discoveryNode.getVersion() + "] is incompatible with local node version [" +
+            Version.CURRENT + "]"));
         assertFalse(handleA.transportService.nodeConnected(discoveryNode));
     }
 

@@ -20,9 +20,14 @@ package org.elasticsearch.gradle.tool;
 
 import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
+import org.gradle.api.PolymorphicDomainObjectContainer;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
+import org.gradle.api.UnknownTaskException;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.TaskContainer;
+import org.gradle.api.tasks.TaskProvider;
 
 import java.util.Optional;
 
@@ -37,6 +42,7 @@ public abstract class Boilerplate {
             .orElse(collection.create(name));
 
     }
+
     public static <T> T maybeCreate(NamedDomainObjectContainer<T> collection, String name, Action<T> action) {
         return Optional.ofNullable(collection.findByName(name))
             .orElseGet(() -> {
@@ -47,4 +53,55 @@ public abstract class Boilerplate {
 
     }
 
+    public static <T> T maybeCreate(PolymorphicDomainObjectContainer<T> collection, String name, Class<T> type, Action<T> action) {
+        return Optional.ofNullable(collection.findByName(name))
+            .orElseGet(() -> {
+                T result = collection.create(name, type);
+                action.execute(result);
+                return result;
+            });
+
+    }
+
+    public static <T extends Task> TaskProvider<T> maybeRegister(TaskContainer tasks, String name, Class<T> clazz, Action<T> action) {
+        try {
+            return tasks.named(name, clazz);
+        } catch (UnknownTaskException e) {
+            return tasks.register(name, clazz, action);
+        }
+    }
+
+    public static void maybeConfigure(TaskContainer tasks, String name, Action<? super Task> config) {
+        TaskProvider<?> task;
+        try {
+            task = tasks.named(name);
+        } catch (UnknownTaskException e) {
+            return;
+        }
+
+        task.configure(config);
+    }
+
+    public static <T extends Task> void maybeConfigure(
+        TaskContainer tasks, String name,
+        Class<? extends T> type,
+        Action<? super T> config
+    ) {
+        tasks.withType(type).configureEach(task -> {
+            if (task.getName().equals(name)) {
+                config.execute(task);
+            }
+        });
+    }
+
+    public static TaskProvider<?> findByName(TaskContainer tasks, String name) {
+        TaskProvider<?> task;
+        try {
+            task = tasks.named(name);
+        } catch (UnknownTaskException e) {
+            return null;
+        }
+
+        return task;
+    }
 }

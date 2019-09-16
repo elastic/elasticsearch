@@ -1,0 +1,195 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-get-overall-buckets]]
+=== Get overall buckets API
+++++
+<titleabbrev>Get overall buckets</titleabbrev>
+++++
+
+Retrieves overall bucket results that summarize the bucket results of multiple
+{anomaly-jobs}.
+
+[[ml-get-overall-buckets-request]]
+==== {api-request-title}
+
+`GET _ml/anomaly_detectors/<job_id>/results/overall_buckets` +
+
+`GET _ml/anomaly_detectors/<job_id>,<job_id>/results/overall_buckets` +
+
+`GET _ml/anomaly_detectors/_all/results/overall_buckets`
+
+[[ml-get-overall-buckets-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `monitor_ml`,
+`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. You also
+need `read` index privilege on the index that stores the results. The
+`machine_learning_admin` and `machine_learning_user` roles provide these
+privileges. See {stack-ov}/security-privileges.html[Security privileges] and
+{stack-ov}/built-in-roles.html[Built-in roles].
+
+[[ml-get-overall-buckets-desc]]
+==== {api-description-title}
+
+You can summarize the bucket results for all {anomaly-jobs} by using `_all` or
+by specifying `*` as the `<job_id>`.
+
+By default, an overall bucket has a span equal to the largest bucket span of the
+specified {anomaly-jobs}. To override that behavior, use the optional
+`bucket_span` parameter. To learn more about the concept of buckets, see
+{stack-ov}/ml-buckets.html[Buckets].
+
+The `overall_score` is calculated by combining the scores of all the buckets
+within the overall bucket span. First, the maximum `anomaly_score` per
+{anomaly-job} in the overall bucket is calculated. Then the `top_n` of those
+scores are averaged to result in the `overall_score`. This means that you can
+fine-tune the `overall_score` so that it is more or less sensitive to the number
+of jobs that detect an anomaly at the same time. For example, if you set `top_n`
+to `1`, the `overall_score` is the maximum bucket score in the overall bucket.
+Alternatively, if you set `top_n` to the number of jobs, the `overall_score` is
+high only when all jobs detect anomalies in that overall bucket.  If you set
+the `bucket_span` parameter (to a value greater than its default), the
+`overall_score` is the maximum `overall_score` of the overall buckets that have
+a span equal to the jobs' largest bucket span.
+
+[[ml-get-overall-buckets-path-parms]]
+==== {api-path-parms-title}
+
+`<job_id>`::
+  (Required, string) Identifier for the {anomaly-job}. It can be a job
+  identifier, a group name, a comma-separated list of jobs or groups, or a
+  wildcard expression.
+
+[[ml-get-overall-buckets-request-body]]
+==== {api-request-body-title}
+
+`allow_no_jobs`::
+  (Optional, boolean) If `false` and the `job_id` does not match any
+  {anomaly-jobs}, an error occurs. The default value is `true`.
+
+`bucket_span`::
+  (Optional, string) The span of the overall buckets. Must be greater or equal
+  to the largest bucket span of the specified {anomaly-jobs}, which is the
+  default value.
+
+`end`::
+  (Optional, string) Returns overall buckets with timestamps earlier than this
+  time.
+
+`exclude_interim`::
+  (Optional, boolean) If `true`, the output excludes interim overall buckets.
+  Overall buckets are interim if any of the job buckets within the overall
+  bucket interval are interim. By default, interim results are included.
+
+`overall_score`::
+  (Optional, double) Returns overall buckets with overall scores greater or
+  equal than this value.
+
+`start`::
+  (Optional, string) Returns overall buckets with timestamps after this time.
+
+`top_n`::
+  (Optional, integer) The number of top {anomaly-job} bucket scores to be used
+  in the `overall_score` calculation. The default value is `1`.
+
+[[ml-get-overall-buckets-results]]
+==== {api-response-body-title}
+
+The API returns the following information:
+
+`overall_buckets`::
+  (array) An array of overall bucket objects. For more information, see
+  <<ml-results-overall-buckets,Overall Buckets>>.
+
+[[ml-get-overall-buckets-example]]
+==== {api-examples-title}
+
+The following example gets overall buckets for {anomaly-jobs} with IDs matching
+`job-*`:
+
+[source,console]
+--------------------------------------------------
+GET _ml/anomaly_detectors/job-*/results/overall_buckets
+{
+  "overall_score": 80,
+  "start": "1403532000000"
+}
+--------------------------------------------------
+// TEST[skip:todo]
+
+In this example, the API returns a single result that matches the specified
+score and time constraints. The `overall_score` is the max job score as
+`top_n` defaults to 1 when not specified:
+[source,js]
+----
+{
+  "count": 1,
+  "overall_buckets": [
+    {
+      "timestamp" : 1403532000000,
+      "bucket_span" : 3600,
+      "overall_score" : 80.0,
+      "jobs" : [
+        {
+          "job_id" : "job-1",
+          "max_anomaly_score" : 30.0
+        },
+        {
+          "job_id" : "job-2",
+          "max_anomaly_score" : 10.0
+        },
+        {
+          "job_id" : "job-3",
+          "max_anomaly_score" : 80.0
+        }
+      ],
+      "is_interim" : false,
+      "result_type" : "overall_bucket"
+    }
+  ]
+}
+----
+
+The next example is similar but this time `top_n` is set to `2`:
+
+[source,console]
+--------------------------------------------------
+GET _ml/anomaly_detectors/job-*/results/overall_buckets
+{
+  "top_n": 2,
+  "overall_score": 50.0,
+  "start": "1403532000000"
+}
+--------------------------------------------------
+// TEST[skip:todo]
+
+Note how the `overall_score` is now the average of the top 2 job scores:
+[source,js]
+----
+{
+  "count": 1,
+  "overall_buckets": [
+    {
+      "timestamp" : 1403532000000,
+      "bucket_span" : 3600,
+      "overall_score" : 55.0,
+      "jobs" : [
+        {
+          "job_id" : "job-1",
+          "max_anomaly_score" : 30.0
+        },
+        {
+          "job_id" : "job-2",
+          "max_anomaly_score" : 10.0
+        },
+        {
+          "job_id" : "job-3",
+          "max_anomaly_score" : 80.0
+        }
+      ],
+      "is_interim" : false,
+      "result_type" : "overall_bucket"
+    }
+  ]
+}
+----

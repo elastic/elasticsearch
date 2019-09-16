@@ -22,8 +22,7 @@ public class GetBuiltinPrivilegesResponseTests extends ESTestCase {
         final BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
 
-        final GetBuiltinPrivilegesResponse copy = new GetBuiltinPrivilegesResponse();
-        copy.readFrom(out.bytes().streamInput());
+        final GetBuiltinPrivilegesResponse copy = new GetBuiltinPrivilegesResponse(out.bytes().streamInput());
 
         assertThat(copy.getClusterPrivileges(), Matchers.equalTo(cluster));
         assertThat(copy.getIndexPrivileges(), Matchers.equalTo(index));

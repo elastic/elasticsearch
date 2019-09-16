@@ -30,7 +30,7 @@ If no context is specified then this context is used by default.
 
 Request:
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 POST /_scripts/painless/_execute
 {
@@ -43,17 +43,15 @@ POST /_scripts/painless/_execute
   }
 }
 ----------------------------------------------------------------
-// CONSOLE
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "result": "0.1"
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 ===== Filter context
 
@@ -69,7 +67,7 @@ index:: The name of an index containing a mapping that is compatible with the do
 
 *Example*
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 PUT /my-index
 {
@@ -99,17 +97,15 @@ POST /_scripts/painless/_execute
   }
 }
 ----------------------------------------------------------------
-// CONSOLE
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "result": true
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 
 ===== Score context
@@ -125,7 +121,7 @@ query:: If `_score` is used in the script then a query can specified that will b
 
 *Example*
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------
 PUT /my-index
 {
@@ -159,14 +155,12 @@ POST /_scripts/painless/_execute
   }
 }
 ----------------------------------------------------------------
-// CONSOLE
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "result": 0.8
 }
 --------------------------------------------------
-// TESTRESPONSE

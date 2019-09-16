@@ -1,5 +1,5 @@
-[[search-request-scroll]]
-=== Scroll
+[[request-body-search-scroll]]
+==== Scroll
 
 While a `search` request returns a single ``page'' of results, the `scroll`
 API can be used to retrieve large numbers of results (or even all results)
@@ -36,7 +36,7 @@ In order to use scrolling, the initial search request should specify the
 `scroll` parameter in the query string, which tells Elasticsearch how long it
 should keep the ``search context'' alive (see <<scroll-search-context>>), eg `?scroll=1m`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /twitter/_search?scroll=1m
 {
@@ -48,14 +48,13 @@ POST /twitter/_search?scroll=1m
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 The result from the above request includes a `_scroll_id`, which should
 be passed to the `scroll` API in order to retrieve the next batch of
 results.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search/scroll <1>
 {
@@ -63,7 +62,6 @@ POST /_search/scroll <1>
     "scroll_id" : "DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==" <3>
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued s/DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==/$body._scroll_id/]
 
 <1> `GET` or `POST` can be used and the URL should not include the `index`
@@ -88,7 +86,7 @@ NOTE: Scroll requests have optimizations that make them faster when the sort
 order is `_doc`. If you want to iterate over all documents regardless of the
 order, this is the most efficient option:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search?scroll=1m
 {
@@ -97,11 +95,10 @@ GET /_search?scroll=1m
   ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 [[scroll-search-context]]
-==== Keeping the search context alive
+===== Keeping the search context alive
 
 A scroll returns all the documents which matched the search at the time of the
 initial search request. It ignores any subsequent changes to these documents.
@@ -142,13 +139,12 @@ maximum number of open scrolls is 500. This limit can be updated with the
 You can check how many search contexts are open with the
 <<cluster-nodes-stats,nodes stats API>>:
 
-[source,js]
+[source,console]
 ---------------------------------------
 GET /_nodes/stats/indices/search
 ---------------------------------------
-// CONSOLE
 
-==== Clear scroll API
+===== Clear scroll API
 
 Search context are automatically removed when the `scroll` timeout has been
 exceeded. However keeping scrolls open has a cost, as discussed in the
@@ -156,19 +152,18 @@ exceeded. However keeping scrolls open has a cost, as discussed in the
 cleared as soon as the scroll is not being used anymore using the
 `clear-scroll` API:
 
-[source,js]
+[source,console]
 ---------------------------------------
 DELETE /_search/scroll
 {
     "scroll_id" : "DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ=="
 }
 ---------------------------------------
-// CONSOLE
 // TEST[catch:missing]
 
 Multiple scroll IDs can be passed as array:
 
-[source,js]
+[source,console]
 ---------------------------------------
 DELETE /_search/scroll
 {
@@ -178,34 +173,31 @@ DELETE /_search/scroll
     ]
 }
 ---------------------------------------
-// CONSOLE
 // TEST[catch:missing]
 
 All search contexts can be cleared with the `_all` parameter:
 
-[source,js]
+[source,console]
 ---------------------------------------
 DELETE /_search/scroll/_all
 ---------------------------------------
-// CONSOLE
 
 The `scroll_id` can also be passed as a query string parameter or in the request body.
 Multiple scroll IDs can be passed as comma separated values:
 
-[source,js]
+[source,console]
 ---------------------------------------
 DELETE /_search/scroll/DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==,DnF1ZXJ5VGhlbkZldGNoBQAAAAAAAAABFmtSWWRRWUJrU2o2ZExpSGJCVmQxYUEAAAAAAAAAAxZrUllkUVlCa1NqNmRMaUhiQlZkMWFBAAAAAAAAAAIWa1JZZFFZQmtTajZkTGlIYkJWZDFhQQAAAAAAAAAFFmtSWWRRWUJrU2o2ZExpSGJCVmQxYUEAAAAAAAAABBZrUllkUVlCa1NqNmRMaUhiQlZkMWFB
 ---------------------------------------
-// CONSOLE
 // TEST[catch:missing]
 
 [[sliced-scroll]]
-==== Sliced Scroll
+===== Sliced Scroll
 
 For scroll queries that return a lot of documents it is possible to split the scroll in multiple slices which
 can be consumed independently:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_search?scroll=1m
 {
@@ -232,7 +224,6 @@ GET /twitter/_search?scroll=1m
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:big_twitter]
 
 <1> The id of the slice
@@ -268,7 +259,7 @@ slice gets deterministic results.
 
     * The cardinality of the field should be high. This ensures that each slice gets approximately the same amount of documents.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_search?scroll=1m
 {
@@ -284,7 +275,6 @@ GET /twitter/_search?scroll=1m
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:big_twitter]
 
 For append only time-based indices, the `timestamp` field can be used safely.

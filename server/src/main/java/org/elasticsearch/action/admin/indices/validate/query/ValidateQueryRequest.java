@@ -55,6 +55,21 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
         this(Strings.EMPTY_ARRAY);
     }
 
+    public ValidateQueryRequest(StreamInput in) throws IOException {
+        super(in);
+        query = in.readNamedWriteable(QueryBuilder.class);
+        int typesSize = in.readVInt();
+        if (typesSize > 0) {
+            types = new String[typesSize];
+            for (int i = 0; i < typesSize; i++) {
+                types[i] = in.readString();
+            }
+        }
+        explain = in.readBoolean();
+        rewrite = in.readBoolean();
+        allShards = in.readBoolean();
+    }
+
     /**
      * Constructs a new validate request against the provided indices. No indices provided means it will
      * run against all indices.
@@ -148,22 +163,6 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
      */
     public boolean allShards() {
         return allShards;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        query = in.readNamedWriteable(QueryBuilder.class);
-        int typesSize = in.readVInt();
-        if (typesSize > 0) {
-            types = new String[typesSize];
-            for (int i = 0; i < typesSize; i++) {
-                types[i] = in.readString();
-            }
-        }
-        explain = in.readBoolean();
-        rewrite = in.readBoolean();
-        allShards = in.readBoolean();
     }
 
     @Override

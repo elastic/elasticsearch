@@ -23,7 +23,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
@@ -52,7 +51,7 @@ public class RestGetSourceActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        new RestGetSourceAction(Settings.EMPTY, controller());
+        new RestGetSourceAction(controller());
     }
 
     @AfterClass

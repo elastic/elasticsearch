@@ -47,7 +47,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * <p>
  * Tasks are used for communication with transport actions. As a result, they can contain callback
  * references as well as mutable state. That makes it impractical to send tasks over transport channels
- * and use in APIs. Instead, immutable and streamable TaskInfo objects are used to represent
+ * and use in APIs. Instead, immutable and writeable TaskInfo objects are used to represent
  * snapshot information about currently running tasks.
  */
 public final class TaskInfo implements Writeable, ToXContentFragment {

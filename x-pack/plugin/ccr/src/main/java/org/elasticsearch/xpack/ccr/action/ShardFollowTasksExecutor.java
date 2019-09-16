@@ -44,7 +44,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
-import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
+import org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.ShardId;
@@ -185,6 +185,10 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                             }
                             return existingSettings.get(s) == null || existingSettings.get(s).equals(settings.get(s)) == false;
                         });
+                        if (updatedSettings.isEmpty()) {
+                            finalHandler.accept(leaderIMD.getSettingsVersion());
+                            return;
+                        }
                         // Figure out whether the updated settings are all dynamic settings and
                         // if so just update the follower index's settings:
                         if (updatedSettings.keySet().stream().allMatch(indexScopedSettings::isDynamicSetting)) {
@@ -435,7 +439,6 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                                      * going on. Log it, and renew again after another renew interval has passed.
                                                      */
                                                     final Throwable innerCause = ExceptionsHelper.unwrapCause(inner);
-                                                    assert innerCause instanceof RetentionLeaseAlreadyExistsException == false;
                                                     logRetentionLeaseFailure(retentionLeaseId, innerCause);
                                                 }));
                             } else {
@@ -467,11 +470,13 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
             private void logRetentionLeaseFailure(final String retentionLeaseId, final Throwable cause) {
                 assert cause instanceof ElasticsearchSecurityException == false : cause;
-                logger.warn(new ParameterizedMessage(
-                                "{} background management of retention lease [{}] failed while following",
-                                params.getFollowShardId(),
-                                retentionLeaseId),
+                if (cause instanceof RetentionLeaseInvalidRetainingSeqNoException == false) {
+                    logger.warn(new ParameterizedMessage(
+                            "{} background management of retention lease [{}] failed while following",
+                            params.getFollowShardId(),
+                            retentionLeaseId),
                         cause);
+                }
             }
 
         };

@@ -62,7 +62,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.MockClientBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Matchers;
@@ -105,7 +105,7 @@ public class JobManagerTests extends ESTestCase {
     private ThreadPool threadPool;
     private JobResultsProvider jobResultsProvider;
     private JobResultsPersister jobResultsPersister;
-    private Auditor auditor;
+    private AnomalyDetectionAuditor auditor;
     private UpdateJobProcessNotifier updateJobProcessNotifier;
 
     @Override
@@ -126,7 +126,7 @@ public class JobManagerTests extends ESTestCase {
 
         jobResultsProvider = mock(JobResultsProvider.class);
         jobResultsPersister = mock(JobResultsPersister.class);
-        auditor = mock(Auditor.class);
+        auditor = mock(AnomalyDetectionAuditor.class);
         updateJobProcessNotifier = mock(UpdateJobProcessNotifier.class);
 
         ExecutorService executorService = mock(ExecutorService.class);
@@ -323,6 +323,7 @@ public class JobManagerTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(auditor, updateJobProcessNotifier);
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testNotifyFilterChanged() throws IOException {
         Detector.Builder detectorReferencingFilter = new Detector.Builder("count", null);
         detectorReferencingFilter.setByFieldName("foo");
@@ -531,7 +532,7 @@ public class JobManagerTests extends ESTestCase {
                 ));
 
         ArgumentCaptor<UpdateParams> updateParamsCaptor = ArgumentCaptor.forClass(UpdateParams.class);
-        verify(updateJobProcessNotifier, times(2)).submitJobUpdate(updateParamsCaptor.capture(), any(ActionListener.class));
+        verify(updateJobProcessNotifier, times(2)).submitJobUpdate(updateParamsCaptor.capture(), any());
 
         List<UpdateParams> capturedUpdateParams = updateParamsCaptor.getAllValues();
         assertThat(capturedUpdateParams.size(), equalTo(2));
@@ -573,7 +574,7 @@ public class JobManagerTests extends ESTestCase {
                 ));
 
         ArgumentCaptor<UpdateParams> updateParamsCaptor = ArgumentCaptor.forClass(UpdateParams.class);
-        verify(updateJobProcessNotifier, times(2)).submitJobUpdate(updateParamsCaptor.capture(), any(ActionListener.class));
+        verify(updateJobProcessNotifier, times(2)).submitJobUpdate(updateParamsCaptor.capture(), any());
 
         List<UpdateParams> capturedUpdateParams = updateParamsCaptor.getAllValues();
         assertThat(capturedUpdateParams.size(), equalTo(2));

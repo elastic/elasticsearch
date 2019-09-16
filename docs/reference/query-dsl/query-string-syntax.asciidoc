@@ -1,6 +1,6 @@
 [[query-string-syntax]]
 
-==== Query string syntax
+===== Query string syntax
 
 The query string ``mini-language'' is used by the
 <<query-dsl-query-string-query>> and by the
@@ -14,10 +14,9 @@ phrase, in the same order.
 Operators allow you to customize the search -- the available options are
 explained below.
 
-===== Field names
+====== Field names
 
-As mentioned in <<query-dsl-query-string-query>>, the `default_field` is searched for the
-search terms, but it is possible to specify other fields in the query syntax:
+You can specify fields to search in the query syntax:
 
 * where the `status` field contains `active`
 
@@ -40,7 +39,7 @@ search terms, but it is possible to specify other fields in the query syntax:
 
     _exists_:title
 
-===== Wildcards
+====== Wildcards
 
 Wildcard searches can be run on individual terms, using `?` to replace
 a single character, and `*` to replace zero or more characters:
@@ -88,7 +87,7 @@ analyzed and a boolean query will be built out of the different tokens, by
 ensuring exact matches on the first N-1 tokens, and prefix match on the last
 token.
 
-===== Regular expressions
+====== Regular expressions
 
 Regular expression patterns can be embedded in the query string by
 wrapping them in forward-slashes (`"/"`):
@@ -108,7 +107,7 @@ Elasticsearch to visit every term in the index:
 Use with caution!
 =======
 
-===== Fuzziness
+====== Fuzziness
 
 We can search for terms that are
 similar to, but not exactly like our search terms, using the ``fuzzy''
@@ -128,7 +127,7 @@ sufficient to catch 80% of all human misspellings. It can be specified as:
 
     quikc~1
 
-===== Proximity searches
+====== Proximity searches
 
 While a phrase query (eg `"john smith"`) expects all of the terms in exactly
 the same order, a proximity query allows the specified words to be further
@@ -143,7 +142,7 @@ query string, the more relevant that document is considered to be. When
 compared to the above example query, the phrase `"quick fox"` would be
 considered more relevant than `"quick brown fox"`.
 
-===== Ranges
+====== Ranges
 
 Ranges can be specified for date, numeric or string fields. Inclusive ranges
 are specified with square brackets `[min TO max]` and exclusive ranges with
@@ -197,7 +196,7 @@ The parsing of ranges in query strings can be complex and error prone. It is
 much more reliable to use an explicit <<query-dsl-range-query,`range` query>>.
 
 
-===== Boosting
+====== Boosting
 
 Use the _boost_ operator `^` to make one term more relevant than another.
 For instance, if we want to find all documents about foxes, but we are
@@ -212,7 +211,7 @@ Boosts can also be applied to phrases or to groups:
 
     "john smith"^2   (foo bar)^4
 
-===== Boolean operators
+====== Boolean operators
 
 By default, all terms are optional, as long as one term matches.  A search
 for `foo bar baz` will find any document that contains one or more of
@@ -255,7 +254,7 @@ would look like this:
     }
 
 
-===== Grouping
+====== Grouping
 
 Multiple terms or clauses can be grouped together with parentheses, to form
 sub-queries:
@@ -267,7 +266,7 @@ of a sub-query:
 
     status:(active OR pending) title:(full text search)^2
 
-===== Reserved characters
+====== Reserved characters
 
 If you need to use any of the characters which function as operators in your
 query itself (and not as operators), then you should escape them with
@@ -283,7 +282,9 @@ NOTE: `<` and `>` can't be escaped at all. The only way to prevent them from
 attempting to create a range query is to remove them from the query string
 entirely.
 
-===== Empty Query
+====== Whitespaces and empty queries
+
+Whitespace is not considered an operator.
 
 If the query string is empty or only contains whitespaces the query will
 yield an empty result set.

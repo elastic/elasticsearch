@@ -20,6 +20,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.collect.Tuple;
 
@@ -89,17 +90,13 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
 
     private void notifyListener(ActionListener<V> listener, ExecutorService executorService) {
         try {
-            executorService.execute(new Runnable() {
+            executorService.execute(new ActionRunnable<>(listener) {
                 @Override
-                public void run() {
-                    try {
-                        // call get in a non-blocking fashion as we could be on a network thread
-                        // or another thread like the scheduler, which we should never block!
-                        V value = FutureUtils.get(ListenableFuture.this, 0L, TimeUnit.NANOSECONDS);
-                        listener.onResponse(value);
-                    } catch (Exception e) {
-                        listener.onFailure(e);
-                    }
+                protected void doRun() {
+                    // call get in a non-blocking fashion as we could be on a network thread
+                    // or another thread like the scheduler, which we should never block!
+                    V value = FutureUtils.get(ListenableFuture.this, 0L, TimeUnit.NANOSECONDS);
+                    listener.onResponse(value);
                 }
 
                 @Override

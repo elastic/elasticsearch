@@ -226,9 +226,7 @@ public interface DocWriteRequest<T> extends IndicesRequest {
         } else if (type == 1) {
             docWriteRequest = new DeleteRequest(in);
         } else if (type == 2) {
-            UpdateRequest updateRequest = new UpdateRequest();
-            updateRequest.readFrom(in);
-            docWriteRequest = updateRequest;
+            docWriteRequest = new UpdateRequest(in);
         } else {
             throw new IllegalStateException("invalid request type [" + type+ " ]");
         }

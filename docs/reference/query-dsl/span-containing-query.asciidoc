@@ -1,10 +1,13 @@
 [[query-dsl-span-containing-query]]
-=== Span Containing Query
+=== Span containing query
+++++
+<titleabbrev>Span containing</titleabbrev>
+++++
 
 Returns matches which enclose another span query. The span containing
 query maps to Lucene `SpanContainingQuery`. Here is an example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -27,7 +30,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-//  CONSOLE
 
 The `big` and `little` clauses can be any span type query. Matching
 spans from `big` that contain matches from `little` are returned.

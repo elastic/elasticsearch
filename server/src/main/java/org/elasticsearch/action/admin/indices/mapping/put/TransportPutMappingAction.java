@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.mapping.put;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RequestValidators;
@@ -49,6 +51,8 @@ import java.util.Optional;
  */
 public class TransportPutMappingAction extends TransportMasterNodeAction<PutMappingRequest, AcknowledgedResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportPutMappingAction.class);
+
     private final MetaDataMappingService metaDataMappingService;
     private final RequestValidators<PutMappingRequest> requestValidators;
 
@@ -61,8 +65,8 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
             final ActionFilters actionFilters,
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final RequestValidators<PutMappingRequest> requestValidators) {
-        super(PutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            PutMappingRequest::new);
+        super(PutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters, PutMappingRequest::new,
+            indexNameExpressionResolver);
         this.metaDataMappingService = metaDataMappingService;
         this.requestValidators = Objects.requireNonNull(requestValidators);
     }
@@ -76,11 +80,6 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

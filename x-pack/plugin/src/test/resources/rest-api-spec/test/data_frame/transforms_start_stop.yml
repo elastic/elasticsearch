@@ -5,6 +5,9 @@ setup:
         body:
           mappings:
             properties:
+              time_alias:
+                type: alias
+                path: time
               time:
                 type: date
               airline:
@@ -100,8 +103,7 @@ teardown:
         transform_id: "airline-transform-start-stop"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-stop" }
-  - match: { transforms.0.state.indexer_state: "/started|indexing/" }
-  - match: { transforms.0.state.task_state: "started" }
+  - match: { transforms.0.state: "/started|indexing/" }
 
   - do:
       data_frame.stop_data_frame_transform:
@@ -114,8 +116,7 @@ teardown:
         transform_id: "airline-transform-start-stop"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-stop" }
-  - match: { transforms.0.state.indexer_state: "stopped" }
-  - match: { transforms.0.state.task_state: "stopped" }
+  - match: { transforms.0.state: "stopped" }
 
   - do:
       data_frame.start_data_frame_transform:
@@ -127,8 +128,7 @@ teardown:
         transform_id: "airline-transform-start-stop"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-stop" }
-  - match: { transforms.0.state.indexer_state: "/started|indexing/" }
-  - match: { transforms.0.state.task_state: "started" }
+  - match: { transforms.0.state: "/started|indexing/" }
 ---
 "Test start/stop/start continuous transform":
   - do:
@@ -141,6 +141,12 @@ teardown:
             "pivot": {
               "group_by": { "airline": {"terms": {"field": "airline"}}},
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "sync": {
+              "time": {
+                "field": "time",
+                "delay": "90m"
+              }
             }
           }
 
@@ -154,8 +160,7 @@ teardown:
         transform_id: "airline-transform-start-stop-continuous"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-stop-continuous" }
-  - match: { transforms.0.state.indexer_state: "/started|indexing/" }
-  - match: { transforms.0.state.task_state: "started" }
+  - match: { transforms.0.state: "/started|indexing/" }
 
   - do:
       data_frame.stop_data_frame_transform:
@@ -168,8 +173,7 @@ teardown:
         transform_id: "airline-transform-start-stop-continuous"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-stop-continuous" }
-  - match: { transforms.0.state.indexer_state: "stopped" }
-  - match: { transforms.0.state.task_state: "stopped" }
+  - match: { transforms.0.state: "stopped" }
 
   - do:
       data_frame.start_data_frame_transform:
@@ -181,8 +185,7 @@ teardown:
         transform_id: "airline-transform-start-stop-continuous"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-stop-continuous" }
-  - match: { transforms.0.state.indexer_state: "/started|indexing/" }
-  - match: { transforms.0.state.task_state: "started" }
+  - match: { transforms.0.state: "/started|indexing/" }
 
   - do:
       data_frame.stop_data_frame_transform:
@@ -244,16 +247,14 @@ teardown:
         transform_id: "airline-transform-start-stop"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-stop" }
-  - match: { transforms.0.state.indexer_state: "/started|indexing/" }
-  - match: { transforms.0.state.task_state: "started" }
+  - match: { transforms.0.state: "/started|indexing/" }
 
   - do:
       data_frame.get_data_frame_transform_stats:
         transform_id: "airline-transform-start-later"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-later" }
-  - match: { transforms.0.state.indexer_state: "stopped" }
-  - match: { transforms.0.state.task_state: "stopped" }
+  - match: { transforms.0.state: "stopped" }
 
   - do:
       data_frame.start_data_frame_transform:
@@ -272,8 +273,7 @@ teardown:
         transform_id: "airline-transform-start-later"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-later" }
-  - match: { transforms.0.state.indexer_state: "/started|indexing/" }
-  - match: { transforms.0.state.task_state: "started" }
+  - match: { transforms.0.state: "/started|indexing/" }
 
   - do:
       data_frame.stop_data_frame_transform:
@@ -319,11 +319,33 @@ teardown:
       data_frame.get_data_frame_transform_stats:
         transform_id: "*"
   - match: { count: 2 }
-  - match: { transforms.0.state.indexer_state: "stopped" }
-  - match: { transforms.0.state.task_state: "stopped" }
-  - match: { transforms.1.state.indexer_state: "stopped" }
-  - match: { transforms.1.state.task_state: "stopped" }
+  - match: { transforms.0.state: "stopped" }
+  - match: { transforms.1.state: "stopped" }
 
   - do:
       data_frame.delete_data_frame_transform:
         transform_id: "airline-transform-stop-all"
+---
+"Test start/stop with field alias":
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "airline_via_field_alias"
+        body: >
+          {
+            "source": {"index": "airline-data"},
+            "dest": {"index": "airline-data-time-alias"},
+            "pivot": {
+              "group_by": {"time": {"date_histogram": {"field": "time_alias", "calendar_interval": "1m"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline_via_field_alias"
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_mapping:
+        index: airline-data-time-alias
+  - match: { airline-data-time-alias.mappings.properties.time.type: date }
+  - match: { airline-data-time-alias.mappings.properties.avg_response.type: double }

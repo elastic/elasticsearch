@@ -248,6 +248,14 @@ public interface Scheduler {
                 }
             }
         }
+
+        @Override
+        public String toString() {
+            return "ReschedulingRunnable{" +
+                "runnable=" + runnable +
+                ", interval=" + interval +
+                '}';
+        }
     }
 
     /**

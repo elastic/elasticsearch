@@ -54,7 +54,9 @@ import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
@@ -254,6 +256,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
             HttpTransportSettings.SETTING_HTTP_RESET_COOKIES,
             HttpTransportSettings.SETTING_HTTP_TCP_NO_DELAY,
             HttpTransportSettings.SETTING_HTTP_TCP_KEEP_ALIVE,
+            HttpTransportSettings.SETTING_HTTP_TCP_KEEP_IDLE,
+            HttpTransportSettings.SETTING_HTTP_TCP_KEEP_INTERVAL,
+            HttpTransportSettings.SETTING_HTTP_TCP_KEEP_COUNT,
             HttpTransportSettings.SETTING_HTTP_TCP_REUSE_ADDRESS,
             HttpTransportSettings.SETTING_HTTP_TCP_SEND_BUFFER_SIZE,
             HttpTransportSettings.SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE,
@@ -268,8 +273,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
             HierarchyCircuitBreakerService.ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING,
             HierarchyCircuitBreakerService.ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING,
             IndexModule.NODE_STORE_ALLOW_MMAP,
-            ClusterService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+            ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
             ClusterService.USER_DEFINED_META_DATA,
+            MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
             SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
             SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
             TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
@@ -304,6 +310,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
             TransportSettings.TCP_NO_DELAY_PROFILE,
             TransportSettings.TCP_KEEP_ALIVE,
             TransportSettings.TCP_KEEP_ALIVE_PROFILE,
+            TransportSettings.TCP_KEEP_IDLE,
+            TransportSettings.TCP_KEEP_IDLE_PROFILE,
+            TransportSettings.TCP_KEEP_INTERVAL,
+            TransportSettings.TCP_KEEP_INTERVAL_PROFILE,
+            TransportSettings.TCP_KEEP_COUNT,
+            TransportSettings.TCP_KEEP_COUNT_PROFILE,
             TransportSettings.TCP_REUSE_ADDRESS,
             TransportSettings.TCP_REUSE_ADDRESS_PROFILE,
             TransportSettings.TCP_SEND_BUFFER_SIZE,
@@ -323,6 +335,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
             NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING,
             NetworkService.TCP_NO_DELAY,
             NetworkService.TCP_KEEP_ALIVE,
+            NetworkService.TCP_KEEP_IDLE,
+            NetworkService.TCP_KEEP_INTERVAL,
+            NetworkService.TCP_KEEP_COUNT,
             NetworkService.TCP_REUSE_ADDRESS,
             NetworkService.TCP_SEND_BUFFER_SIZE,
             NetworkService.TCP_RECEIVE_BUFFER_SIZE,
@@ -347,7 +362,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             Environment.PATH_LOGS_SETTING,
             Environment.PATH_REPO_SETTING,
             Environment.PATH_SHARED_DATA_SETTING,
-            Environment.PIDFILE_SETTING,
+            Environment.NODE_PIDFILE_SETTING,
             NodeEnvironment.NODE_ID_SEED_SETTING,
             Node.INITIAL_STATE_TIMEOUT_SETTING,
             DiscoveryModule.DISCOVERY_TYPE_SETTING,
@@ -374,7 +389,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             ClusterName.CLUSTER_NAME_SETTING,
             Client.CLIENT_TYPE_SETTING_S,
             ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING,
-            EsExecutors.PROCESSORS_SETTING,
+            EsExecutors.NODE_PROCESSORS_SETTING,
             ThreadContext.DEFAULT_HEADERS_SETTING,
             Loggers.LOG_DEFAULT_LEVEL_SETTING,
             Loggers.LOG_LEVEL_SETTING,
@@ -426,6 +441,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             ElectionSchedulerFactory.ELECTION_MAX_TIMEOUT_SETTING,
             ElectionSchedulerFactory.ELECTION_DURATION_SETTING,
             Coordinator.PUBLISH_TIMEOUT_SETTING,
+            Coordinator.PUBLISH_INFO_TIMEOUT_SETTING,
             JoinHelper.JOIN_TIMEOUT_SETTING,
             FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING,
             FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING,

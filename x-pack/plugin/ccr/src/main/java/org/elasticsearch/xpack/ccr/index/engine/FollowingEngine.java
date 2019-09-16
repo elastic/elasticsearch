@@ -77,7 +77,7 @@ public final class FollowingEngine extends InternalEngine {
              */
             final AlreadyProcessedFollowingEngineException error = new AlreadyProcessedFollowingEngineException(
                 shardId, index.seqNo(), lookupPrimaryTerm(index.seqNo()));
-            return IndexingStrategy.skipDueToVersionConflict(error, false, index.version(), index.primaryTerm());
+            return IndexingStrategy.skipDueToVersionConflict(error, false, index.version());
         } else {
             return planIndexingAsNonPrimary(index);
         }
@@ -90,7 +90,7 @@ public final class FollowingEngine extends InternalEngine {
             // See the comment in #indexingStrategyForOperation for the explanation why we can safely skip this operation.
             final AlreadyProcessedFollowingEngineException error = new AlreadyProcessedFollowingEngineException(
                 shardId, delete.seqNo(), lookupPrimaryTerm(delete.seqNo()));
-            return DeletionStrategy.skipDueToVersionConflict(error, delete.version(), delete.primaryTerm(), false);
+            return DeletionStrategy.skipDueToVersionConflict(error, delete.version(), false);
         } else {
             return planDeletionAsNonPrimary(delete);
         }

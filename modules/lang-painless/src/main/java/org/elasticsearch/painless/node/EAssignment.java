@@ -21,6 +21,7 @@ package org.elasticsearch.painless.node;
 
 
 import org.elasticsearch.painless.AnalyzerCaster;
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -63,9 +64,21 @@ public final class EAssignment extends AExpression {
     }
 
     @Override
+    void storeSettings(CompilerSettings settings) {
+        lhs.storeSettings(settings);
+
+        if (rhs != null) {
+            rhs.storeSettings(settings);
+        }
+    }
+
+    @Override
     void extractVariables(Set<String> variables) {
         lhs.extractVariables(variables);
-        rhs.extractVariables(variables);
+
+        if (rhs != null) {
+            rhs.extractVariables(variables);
+        }
     }
 
     @Override

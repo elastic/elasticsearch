@@ -242,11 +242,9 @@ public class FollowersChecker {
     }
 
     private void handleDisconnectedNode(DiscoveryNode discoveryNode) {
-        synchronized (mutex) {
-            FollowerChecker followerChecker = followerCheckers.get(discoveryNode);
-            if (followerChecker != null && followerChecker.running()) {
-                followerChecker.failNode("disconnected");
-            }
+        FollowerChecker followerChecker = followerCheckers.get(discoveryNode);
+        if (followerChecker != null) {
+            followerChecker.failNode("disconnected");
         }
     }
 

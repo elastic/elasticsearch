@@ -31,12 +31,7 @@ public class FlushJobAction extends ActionType<FlushJobAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/job/flush";
 
     private FlushJobAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, FlushJobAction.Response::new);
     }
 
     public static class Request extends JobTaskRequest<Request> implements ToXContentObject {

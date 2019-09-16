@@ -254,12 +254,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             if (retryCount < request.retryOnConflict()) {
                 logger.trace("Retry attempt [{}] of [{}] on version conflict on [{}][{}][{}]",
                         retryCount + 1, request.retryOnConflict(), request.index(), request.getShardId(), request.id());
-                threadPool.executor(executor()).execute(new ActionRunnable<UpdateResponse>(listener) {
-                    @Override
-                    protected void doRun() {
-                        shardOperation(request, listener, retryCount + 1);
-                    }
-                });
+                threadPool.executor(executor()).execute(ActionRunnable.wrap(listener, l -> shardOperation(request, l, retryCount + 1)));
                 return;
             }
         }

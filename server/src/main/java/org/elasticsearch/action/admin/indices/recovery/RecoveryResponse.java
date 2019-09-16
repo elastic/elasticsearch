@@ -40,7 +40,19 @@ public class RecoveryResponse extends BroadcastResponse {
 
     private Map<String, List<RecoveryState>> shardRecoveryStates = new HashMap<>();
 
-    public RecoveryResponse() { }
+    public RecoveryResponse(StreamInput in) throws IOException {
+        super(in);
+        int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            String s = in.readString();
+            int listSize = in.readVInt();
+            List<RecoveryState> list = new ArrayList<>(listSize);
+            for (int j = 0; j < listSize; j++) {
+                list.add(RecoveryState.readRecoveryState(in));
+            }
+            shardRecoveryStates.put(s, list);
+        }
+    }
 
     /**
      * Constructs recovery information for a collection of indices and associated shards. Keeps track of how many total shards
@@ -100,21 +112,6 @@ public class RecoveryResponse extends BroadcastResponse {
             for (RecoveryState recoveryState : entry.getValue()) {
                 recoveryState.writeTo(out);
             }
-        }
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            String s = in.readString();
-            int listSize = in.readVInt();
-            List<RecoveryState> list = new ArrayList<>(listSize);
-            for (int j = 0; j < listSize; j++) {
-                list.add(RecoveryState.readRecoveryState(in));
-            }
-            shardRecoveryStates.put(s, list);
         }
     }
 

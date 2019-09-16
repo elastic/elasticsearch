@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -106,6 +107,8 @@ public class GatewayAllocator {
     }
 
     public void allocateUnassigned(final RoutingAllocation allocation) {
+        assert primaryShardAllocator != null;
+        assert replicaShardAllocator != null;
         innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator);
     }
 
@@ -127,8 +130,10 @@ public class GatewayAllocator {
      */
     public AllocateUnassignedDecision decideUnassignedShardAllocation(ShardRouting unassignedShard, RoutingAllocation routingAllocation) {
         if (unassignedShard.primary()) {
+            assert primaryShardAllocator != null;
             return primaryShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger);
         } else {
+            assert replicaShardAllocator != null;
             return replicaShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger);
         }
     }
@@ -142,7 +147,8 @@ public class GatewayAllocator {
         @Override
         protected void reroute(ShardId shardId, String reason) {
             logger.trace("{} scheduling reroute for {}", shardId, reason);
-            rerouteService.reroute("async_shard_fetch", ActionListener.wrap(
+            assert rerouteService != null;
+            rerouteService.reroute("async_shard_fetch", Priority.HIGH, ActionListener.wrap(
                 r -> logger.trace("{} scheduled reroute completed for {}", shardId, reason),
                 e -> logger.debug(new ParameterizedMessage("{} scheduled reroute failed for {}", shardId, reason), e)));
         }

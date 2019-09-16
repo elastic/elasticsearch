@@ -46,7 +46,7 @@ It is possible to use the Script Processor to manipulate document metadata like 
 ingestion. Here is an example of an Ingest Pipeline that renames the index and type to `my_index` no matter what
 was provided in the original index request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/my_index
 {
@@ -63,23 +63,21 @@ PUT _ingest/pipeline/my_index
     ]
 }
 --------------------------------------------------
-// CONSOLE
 
 Using the above pipeline, we can attempt to index a document into the `any_index` index.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT any_index/_doc/1?pipeline=my_index
 {
   "message": "text"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The response from the above index request:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index": "my_index",

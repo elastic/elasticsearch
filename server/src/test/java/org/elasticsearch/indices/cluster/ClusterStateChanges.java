@@ -146,8 +146,10 @@ public class ClusterStateChanges {
                 new RandomAllocationDeciderTests.RandomAllocationDecider(getRandom())))),
             new TestGatewayAllocator(), new BalancedShardsAllocator(SETTINGS),
             EmptyClusterInfoService.INSTANCE);
-        shardFailedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, logger);
-        shardStartedClusterStateTaskExecutor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, logger);
+        shardFailedClusterStateTaskExecutor
+            = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, logger);
+        shardStartedClusterStateTaskExecutor
+            = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, null, logger);
         ActionFilters actionFilters = new ActionFilters(Collections.emptySet());
         IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
         DestructiveOperations destructiveOperations = new DestructiveOperations(SETTINGS, clusterSettings);
@@ -194,7 +196,7 @@ public class ClusterStateChanges {
         Map<ActionType, TransportAction> actions = new HashMap<>();
         actions.put(TransportVerifyShardBeforeCloseAction.TYPE, new TransportVerifyShardBeforeCloseAction(SETTINGS,
             transportService, clusterService, indicesService, threadPool, null, actionFilters, indexNameExpressionResolver));
-        client.initialize(actions, null, null);
+        client.initialize(actions, transportService.getTaskManager(), null, null);
 
         MetaDataIndexStateService indexStateService = new MetaDataIndexStateService(clusterService, allocationService,
             metaDataIndexUpgradeService, indicesService, threadPool, client);
@@ -219,7 +221,7 @@ public class ClusterStateChanges {
             transportService, clusterService, threadPool, createIndexService, actionFilters, indexNameExpressionResolver);
 
         nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
-        joinTaskExecutor = new JoinTaskExecutor(allocationService, logger, (s, r) -> {});
+        joinTaskExecutor = new JoinTaskExecutor(allocationService, logger, (s, p, r) -> {});
     }
 
     public ClusterState createIndex(ClusterState state, CreateIndexRequest request) {

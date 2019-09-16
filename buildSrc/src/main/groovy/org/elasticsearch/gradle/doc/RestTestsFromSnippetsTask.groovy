@@ -202,11 +202,12 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                 previousTest = snippet
                 return
             }
-            if (snippet.testResponse) {
+            if (snippet.testResponse || snippet.language == 'console-result') {
                 response(snippet)
                 return
             }
-            if (snippet.test || snippet.console) {
+            if (snippet.test || snippet.console ||
+                    snippet.language == 'console') {
                 test(snippet)
                 previousTest = snippet
                 return
@@ -353,7 +354,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
 
         private void testSetup(Snippet snippet) {
             if (lastDocsPath == snippet.path) {
-                throw new InvalidUserDataException("$snippet: wasn't first")
+                throw new InvalidUserDataException("$snippet: wasn't first. TESTSETUP can only be used in the first snippet of a document.")
             }
             setupCurrent(snippet)
             current.println('---')

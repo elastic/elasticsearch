@@ -1,0 +1,11 @@
+[float]
+[[breaking_80_indices_changes]]
+=== Force Merge API changes
+
+Previously, the Force Merge API allowed the parameters `only_expunge_deletes`
+and `max_num_segments` to be set to a non default value at the same time. But
+the `max_num_segments` was silently ignored when `only_expunge_deletes` is set
+to `true`, leaving the false impression that it has been applied.
+
+The Force Merge API now rejects requests that have a `max_num_segments` greater
+than or equal to 0 when the `only_expunge_deletes` is set to true.

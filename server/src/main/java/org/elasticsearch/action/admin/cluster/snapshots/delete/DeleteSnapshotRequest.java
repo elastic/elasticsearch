@@ -125,9 +125,4 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
         this.snapshot = snapshot;
         return this;
     }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
 }

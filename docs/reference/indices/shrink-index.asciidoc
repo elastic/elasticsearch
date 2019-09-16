@@ -206,13 +206,6 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 [[shrink-index-api-request-body]]
 ==== {api-request-body-title}
 
-`aliases`::
-(Optional, <<indices-aliases,alias object>>)
-Index aliases which include the target index.
-See <<indices-aliases>>.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=target-index-aliases]
 
-`settings`::
-(Optional, <<index-modules-settings,index setting object>>)
-Configuration options for the target index.
-See <<index-modules-settings>>.
-
+include::{docdir}/rest-api/common-parms.asciidoc[tag=target-index-settings]

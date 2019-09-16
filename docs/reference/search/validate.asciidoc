@@ -119,6 +119,7 @@ GET twitter/_validate/query
   }
 }
 --------------------------------------------------
+// TEST[continued]
 
 NOTE: The query being sent in the body must be nested in a `query` key, same as
 the <<search-search,search api>> works
@@ -139,6 +140,7 @@ GET twitter/_validate/query
   }
 }
 --------------------------------------------------
+// TEST[continued]
 
 [source,js]
 --------------------------------------------------
@@ -163,6 +165,7 @@ GET twitter/_validate/query?explain=true
   }
 }
 --------------------------------------------------
+// TEST[continued]
 
 
 The API returns the following response:
@@ -239,6 +242,16 @@ being hit, and therefore may vary from one request to another. So, in case of
 query rewrite the `all_shards` parameter should be used to get response from
 all available shards.
 
+////
+[source,console]
+--------------------------------------------------
+PUT twitter/_bulk?refresh
+{"index":{"_id":1}}
+{"user" : "kimchy", "post_date" : "2009-11-15T14:12:12", "message" : "trying out Elasticsearch"}
+{"index":{"_id":2}}
+{"user" : "kimchi", "post_date" : "2009-11-15T14:12:13", "message" : "My username is similar to @kimchy!"}
+--------------------------------------------------
+////
 [source,console]
 --------------------------------------------------
 GET twitter/_validate/query?rewrite=true&all_shards=true

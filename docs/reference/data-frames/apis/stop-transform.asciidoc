@@ -72,7 +72,7 @@ are no matches or only partial matches.
 --
 
 `force`::
-  (Optional, boolean) If `true`, resets the state of a failed {transform} back to 
+  (Optional, boolean) If `true`, resets the state of a failed {transform} to 
   started. It is required to do in order to delete or restart the job (after 
   resolving root cause of the original issue).
 

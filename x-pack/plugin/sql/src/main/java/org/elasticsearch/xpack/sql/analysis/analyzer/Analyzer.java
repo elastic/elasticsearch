@@ -1021,7 +1021,10 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         n = ((Alias) n).child();
                     }
                     // no literal or aggregates - it's a 'regular' projection
-                    if (n.foldable() == false && Functions.isAggregate(n) == false) {
+                    if (n.foldable() == false && Functions.isAggregate(n) == false
+                            // folding might not work (it might wait for the optimizer)
+                            // so check whether any column is referenced
+                            && n.anyMatch(e -> e instanceof FieldAttribute) == true) {
                         return f;
                     }
                 }

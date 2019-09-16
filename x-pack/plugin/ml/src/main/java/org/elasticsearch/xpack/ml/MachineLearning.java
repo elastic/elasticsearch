@@ -216,7 +216,8 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.MultiplyingNormalizerPr
 import org.elasticsearch.xpack.ml.job.process.normalizer.NativeNormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
+import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.process.DummyController;
 import org.elasticsearch.xpack.ml.process.MlController;
 import org.elasticsearch.xpack.ml.process.MlControllerHolder;
@@ -369,6 +370,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     private final SetOnce<AutodetectProcessManager> autodetectProcessManager = new SetOnce<>();
     private final SetOnce<DatafeedManager> datafeedManager = new SetOnce<>();
     private final SetOnce<DataFrameAnalyticsManager> dataFrameAnalyticsManager = new SetOnce<>();
+    private final SetOnce<DataFrameAnalyticsAuditor> dataFrameAnalyticsAuditor = new SetOnce<>();
     private final SetOnce<MlMemoryTracker> memoryTracker = new SetOnce<>();
 
     public MachineLearning(Settings settings, Path configPath) {
@@ -470,7 +472,9 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             return Collections.singletonList(new JobManagerHolder());
         }
 
-        Auditor auditor = new Auditor(client, clusterService.getNodeName());
+        AnomalyDetectionAuditor anomalyDetectionAuditor = new AnomalyDetectionAuditor(client, clusterService.getNodeName());
+        DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor = new DataFrameAnalyticsAuditor(client, clusterService.getNodeName());
+        this.dataFrameAnalyticsAuditor.set(dataFrameAnalyticsAuditor);
         JobResultsProvider jobResultsProvider = new JobResultsProvider(client, settings);
         JobResultsPersister jobResultsPersister = new JobResultsPersister(client);
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client);
@@ -482,7 +486,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             jobResultsProvider,
             jobResultsPersister,
             clusterService,
-            auditor,
+            anomalyDetectionAuditor,
             threadPool,
             client,
             notifier,
@@ -534,21 +538,23 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME));
         AutodetectProcessManager autodetectProcessManager = new AutodetectProcessManager(env, settings, client, threadPool,
-                xContentRegistry, auditor, clusterService, jobManager, jobResultsProvider, jobResultsPersister, jobDataCountsPersister,
-                autodetectProcessFactory, normalizerFactory, nativeStorageProvider);
+                xContentRegistry, anomalyDetectionAuditor, clusterService, jobManager, jobResultsProvider, jobResultsPersister,
+                jobDataCountsPersister, autodetectProcessFactory, normalizerFactory, nativeStorageProvider);
         this.autodetectProcessManager.set(autodetectProcessManager);
         DatafeedJobBuilder datafeedJobBuilder =
             new DatafeedJobBuilder(
                 client,
                 xContentRegistry,
-                auditor,
+                anomalyDetectionAuditor,
                 System::currentTimeMillis,
                 jobConfigProvider,
                 jobResultsProvider,
                 datafeedConfigProvider,
-                jobResultsPersister);
+                jobResultsPersister,
+                settings,
+                clusterService.getNodeName());
         DatafeedManager datafeedManager = new DatafeedManager(threadPool, client, clusterService, datafeedJobBuilder,
-                System::currentTimeMillis, auditor, autodetectProcessManager);
+                System::currentTimeMillis, anomalyDetectionAuditor, autodetectProcessManager);
         this.datafeedManager.set(datafeedManager);
 
         // Data frame analytics components
@@ -558,8 +564,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 threadPool.generic(), threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME), memoryEstimationProcessFactory);
         DataFrameAnalyticsConfigProvider dataFrameAnalyticsConfigProvider = new DataFrameAnalyticsConfigProvider(client);
         assert client instanceof NodeClient;
-        DataFrameAnalyticsManager dataFrameAnalyticsManager = new DataFrameAnalyticsManager((NodeClient) client,
-            dataFrameAnalyticsConfigProvider, analyticsProcessManager);
+        DataFrameAnalyticsManager dataFrameAnalyticsManager = new DataFrameAnalyticsManager(
+            (NodeClient) client, dataFrameAnalyticsConfigProvider, analyticsProcessManager, dataFrameAnalyticsAuditor);
         this.dataFrameAnalyticsManager.set(dataFrameAnalyticsManager);
 
         // Components shared by anomaly detection and data frame analytics
@@ -590,8 +596,9 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 new MlInitializationService(settings, threadPool, clusterService, client),
                 jobDataCountsPersister,
                 datafeedManager,
-                auditor,
-                new MlAssignmentNotifier(settings, auditor, threadPool, client, clusterService),
+                anomalyDetectionAuditor,
+                dataFrameAnalyticsAuditor,
+                new MlAssignmentNotifier(settings, anomalyDetectionAuditor, threadPool, client, clusterService),
                 memoryTracker,
                 analyticsProcessManager,
                 memoryEstimationProcessManager,
@@ -613,7 +620,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                     memoryTracker.get(), client),
                 new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(datafeedManager.get()),
                 new TransportStartDataFrameAnalyticsAction.TaskExecutor(settings, client, clusterService, dataFrameAnalyticsManager.get(),
-                    memoryTracker.get())
+                    dataFrameAnalyticsAuditor.get(), memoryTracker.get())
         );
     }
 
@@ -797,7 +804,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             }
 
             try (XContentBuilder auditMapping = ElasticsearchMappings.auditMessageMapping()) {
-                IndexTemplateMetaData notificationMessageTemplate = IndexTemplateMetaData.builder(AuditorField.NOTIFICATIONS_INDEX)
+                IndexTemplateMetaData notificationMessageTemplate =
+                    IndexTemplateMetaData.builder(AuditorField.NOTIFICATIONS_INDEX)
                         .putMapping(SINGLE_MAPPING_NAME, Strings.toString(auditMapping))
                         .patterns(Collections.singletonList(AuditorField.NOTIFICATIONS_INDEX))
                         .version(Version.CURRENT.id)
@@ -814,7 +822,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             }
 
             try (XContentBuilder docMapping = MlMetaIndex.docMapping()) {
-                IndexTemplateMetaData metaTemplate = IndexTemplateMetaData.builder(MlMetaIndex.INDEX_NAME)
+                IndexTemplateMetaData metaTemplate =
+                    IndexTemplateMetaData.builder(MlMetaIndex.INDEX_NAME)
                         .patterns(Collections.singletonList(MlMetaIndex.INDEX_NAME))
                         .settings(Settings.builder()
                                 // Our indexes are small and one shard puts the
@@ -831,7 +840,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             }
 
             try (XContentBuilder configMapping = ElasticsearchMappings.configMapping()) {
-                IndexTemplateMetaData configTemplate = IndexTemplateMetaData.builder(AnomalyDetectorsIndex.configIndexName())
+                IndexTemplateMetaData configTemplate =
+                    IndexTemplateMetaData.builder(AnomalyDetectorsIndex.configIndexName())
                         .patterns(Collections.singletonList(AnomalyDetectorsIndex.configIndexName()))
                         .settings(Settings.builder()
                                 // Our indexes are small and one shard puts the
@@ -850,7 +860,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             }
 
             try (XContentBuilder stateMapping = ElasticsearchMappings.stateMapping()) {
-                IndexTemplateMetaData stateTemplate = IndexTemplateMetaData.builder(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX)
+                IndexTemplateMetaData stateTemplate =
+                    IndexTemplateMetaData.builder(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX)
                         .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobStateIndexPattern()))
                         // TODO review these settings
                         .settings(Settings.builder()
@@ -866,7 +877,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             }
 
             try (XContentBuilder docMapping = ElasticsearchMappings.resultsMapping(SINGLE_MAPPING_NAME)) {
-                IndexTemplateMetaData jobResultsTemplate = IndexTemplateMetaData.builder(AnomalyDetectorsIndex.jobResultsIndexPrefix())
+                IndexTemplateMetaData jobResultsTemplate =
+                    IndexTemplateMetaData.builder(AnomalyDetectorsIndex.jobResultsIndexPrefix())
                         .patterns(Collections.singletonList(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*"))
                         .settings(Settings.builder()
                                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
@@ -891,8 +903,12 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
     public static boolean allTemplatesInstalled(ClusterState clusterState) {
         boolean allPresent = true;
-        List<String> templateNames = Arrays.asList(AuditorField.NOTIFICATIONS_INDEX, MlMetaIndex.INDEX_NAME,
-                AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX, AnomalyDetectorsIndex.jobResultsIndexPrefix());
+        List<String> templateNames =
+            Arrays.asList(
+                AuditorField.NOTIFICATIONS_INDEX,
+                MlMetaIndex.INDEX_NAME,
+                AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
+                AnomalyDetectorsIndex.jobResultsIndexPrefix());
         for (String templateName : templateNames) {
             allPresent = allPresent && TemplateUtils.checkTemplateExistsAndVersionIsGTECurrentVersion(templateName, clusterState);
         }

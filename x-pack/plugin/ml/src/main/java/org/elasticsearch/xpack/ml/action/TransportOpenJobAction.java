@@ -81,6 +81,8 @@ import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
 */
 public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAction.Request, AcknowledgedResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportOpenJobAction.class);
+
     static final PersistentTasksCustomMetaData.Assignment AWAITING_MIGRATION =
             new PersistentTasksCustomMetaData.Assignment(null, "job cannot be assigned until it has been migrated.");
 

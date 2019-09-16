@@ -117,7 +117,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
-        }, 30, TimeUnit.SECONDS);
+        }, 60, TimeUnit.SECONDS);
 
         adminClient().performRequest(new Request("DELETE", "/my_test_index"));
     }

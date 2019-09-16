@@ -33,7 +33,7 @@ import static org.elasticsearch.gradle.tool.Boilerplate.maybeConfigure
 
 plugins {
     id 'com.gradle.build-scan' version '2.4'
-    id 'base'
+    id 'lifecycle-base'
     id 'elasticsearch.global-build-info'
 }
 

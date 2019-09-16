@@ -44,6 +44,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     public static final ByteSizeValue PROCESS_MEMORY_OVERHEAD = new ByteSizeValue(20, ByteSizeUnit.MB);
 
     public static final ParseField ID = new ParseField("id");
+    public static final ParseField DESCRIPTION = new ParseField("description");
     public static final ParseField SOURCE = new ParseField("source");
     public static final ParseField DEST = new ParseField("dest");
     public static final ParseField ANALYSIS = new ParseField("analysis");
@@ -62,6 +63,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
         parser.declareString((c, s) -> {}, CONFIG_TYPE);
         parser.declareString(Builder::setId, ID);
+        parser.declareString(Builder::setDescription, DESCRIPTION);
         parser.declareObject(Builder::setSource, DataFrameAnalyticsSource.createParser(ignoreUnknownFields), SOURCE);
         parser.declareObject(Builder::setDest, DataFrameAnalyticsDest.createParser(ignoreUnknownFields), DEST);
         parser.declareObject(Builder::setAnalysis, (p, c) -> parseAnalysis(p, ignoreUnknownFields), ANALYSIS);
@@ -100,6 +102,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     }
 
     private final String id;
+    private final String description;
     private final DataFrameAnalyticsSource source;
     private final DataFrameAnalyticsDest dest;
     private final DataFrameAnalysis analysis;
@@ -117,10 +120,11 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     private final Instant createTime;
     private final Version version;
 
-    public DataFrameAnalyticsConfig(String id, DataFrameAnalyticsSource source, DataFrameAnalyticsDest dest,
+    public DataFrameAnalyticsConfig(String id, String description, DataFrameAnalyticsSource source, DataFrameAnalyticsDest dest,
                                     DataFrameAnalysis analysis, Map<String, String> headers, ByteSizeValue modelMemoryLimit,
                                     FetchSourceContext analyzedFields, Instant createTime, Version version) {
         this.id = ExceptionsHelper.requireNonNull(id, ID);
+        this.description = description;
         this.source = ExceptionsHelper.requireNonNull(source, SOURCE);
         this.dest = ExceptionsHelper.requireNonNull(dest, DEST);
         this.analysis = ExceptionsHelper.requireNonNull(analysis, ANALYSIS);
@@ -133,6 +137,11 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
     public DataFrameAnalyticsConfig(StreamInput in) throws IOException {
         this.id = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
+            description = in.readOptionalString();
+        } else {
+            description = null;
+        }
         this.source = new DataFrameAnalyticsSource(in);
         this.dest = new DataFrameAnalyticsDest(in);
         this.analysis = in.readNamedWriteable(DataFrameAnalysis.class);
@@ -150,6 +159,10 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
     public String getId() {
         return id;
+    }
+
+    public String getDescription() {
+        return description;
     }
 
     public DataFrameAnalyticsSource getSource() {
@@ -188,6 +201,9 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ID.getPreferredName(), id);
+        if (description != null) {
+            builder.field(DESCRIPTION.getPreferredName(), description);
+        }
         builder.field(SOURCE.getPreferredName(), source);
         builder.field(DEST.getPreferredName(), dest);
 
@@ -218,6 +234,9 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
+        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
+            out.writeOptionalString(description);
+        }
         source.writeTo(out);
         dest.writeTo(out);
         out.writeNamedWriteable(analysis);
@@ -242,6 +261,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
         DataFrameAnalyticsConfig other = (DataFrameAnalyticsConfig) o;
         return Objects.equals(id, other.id)
+            && Objects.equals(description, other.description)
             && Objects.equals(source, other.source)
             && Objects.equals(dest, other.dest)
             && Objects.equals(analysis, other.analysis)
@@ -254,7 +274,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, source, dest, analysis, headers, getModelMemoryLimit(), analyzedFields, createTime, version);
+        return Objects.hash(id, description, source, dest, analysis, headers, getModelMemoryLimit(), analyzedFields, createTime, version);
     }
 
     @Override
@@ -269,6 +289,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
     public static class Builder {
 
         private String id;
+        private String description;
         private DataFrameAnalyticsSource source;
         private DataFrameAnalyticsDest dest;
         private DataFrameAnalysis analysis;
@@ -287,6 +308,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
         public Builder(DataFrameAnalyticsConfig config, ByteSizeValue maxModelMemoryLimit) {
             this.id = config.id;
+            this.description = config.description;
             this.source = new DataFrameAnalyticsSource(config.source);
             this.dest = new DataFrameAnalyticsDest(config.dest);
             this.analysis = config.analysis;
@@ -302,6 +324,11 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
         public String getId() {
             return id;
+        }
+
+        public Builder setDescription(String description) {
+            this.description = description;
+            return this;
         }
 
         public Builder setId(String id) {
@@ -354,7 +381,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
          */
         public DataFrameAnalyticsConfig build() {
             applyMaxModelMemoryLimit();
-            return new DataFrameAnalyticsConfig(id, source, dest, analysis, headers, modelMemoryLimit, analyzedFields, createTime, version);
+            return new DataFrameAnalyticsConfig(id, description, source, dest, analysis, headers, modelMemoryLimit, analyzedFields,
+                createTime, version);
         }
 
         /**
@@ -365,6 +393,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         public DataFrameAnalyticsConfig buildForMemoryEstimation() {
             return new DataFrameAnalyticsConfig(
                 id != null ? id : "dummy",
+                description,
                 source,
                 dest != null ? dest : new DataFrameAnalyticsDest("dummy", null),
                 analysis,

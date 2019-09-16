@@ -109,7 +109,7 @@ public class SmokeTestWatcherWithSecurityClientYamlTestSuiteIT extends ESClientY
                 default:
                     throw new AssertionError("unknown state[" + state + "]");
             }
-        }, 30, TimeUnit.SECONDS);
+        }, 60, TimeUnit.SECONDS);
     }
 
     @Override

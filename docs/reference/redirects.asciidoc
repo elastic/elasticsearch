@@ -404,7 +404,7 @@ GET _search
 move the query and filter to the `must` and `filter` parameters in the `bool`
 query:
 
-[source,js]
+[source,console]
 -------------------------
 GET _search
 {
@@ -424,7 +424,6 @@ GET _search
   }
 }
 -------------------------
-// CONSOLE
 
 [role="exclude",id="query-dsl-or-query"]
 === Or query

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -81,7 +80,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
                     wrap(p -> listener.onResponse(createResponseWithSchema(request, p)), listener::onFailure));
         } else {
             planExecutor.nextPage(cfg, Cursors.decodeFromString(request.cursor()),
-                    wrap(p -> listener.onResponse(createResponse(request.mode(), request.columnar(), null, p)),
+                    wrap(p -> listener.onResponse(createResponse(request, null, p)),
                             listener::onFailure));
         }
     }
@@ -102,10 +101,10 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
             }
         }
         columns = unmodifiableList(columns);
-        return createResponse(request.mode(), request.columnar(), columns, page);
+        return createResponse(request, columns, page);
     }
 
-    static SqlQueryResponse createResponse(Mode mode, boolean columnar, List<ColumnInfo> header, Page page) {
+    static SqlQueryResponse createResponse(SqlQueryRequest request, List<ColumnInfo> header, Page page) {
         List<List<Object>> rows = new ArrayList<>();
         page.rowSet().forEachRow(rowView -> {
             List<Object> row = new ArrayList<>(rowView.columnCount());
@@ -114,9 +113,9 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         });
 
         return new SqlQueryResponse(
-                Cursors.encodeToString(Version.CURRENT, page.next()),
-                mode,
-                columnar,
+                Cursors.encodeToString(page.next(), request.zoneId()),
+                request.mode(),
+                request.columnar(),
                 header,
                 rows);
     }

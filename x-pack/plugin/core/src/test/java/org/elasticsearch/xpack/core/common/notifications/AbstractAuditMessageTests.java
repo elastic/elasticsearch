@@ -7,105 +7,76 @@ package org.elasticsearch.xpack.core.common.notifications;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.xpack.core.common.time.TimeUtils;
-import org.junit.Before;
 
 import java.util.Date;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.hamcrest.Matchers.equalTo;
 
 public class AbstractAuditMessageTests extends AbstractXContentTestCase<AbstractAuditMessageTests.TestAuditMessage> {
-    private long startMillis;
 
     static class TestAuditMessage extends AbstractAuditMessage {
-        private static final ParseField ID = new ParseField("test_id");
-        public static final ConstructingObjectParser<TestAuditMessage, Void> PARSER = new ConstructingObjectParser<>(
-            AbstractAuditMessage.TYPE.getPreferredName(),
-            true,
-            a -> new TestAuditMessage((String)a[0], (String)a[1], (Level)a[2], (Date)a[3], (String)a[4]));
 
-        static {
-            PARSER.declareString(optionalConstructorArg(), ID);
-            PARSER.declareString(constructorArg(), MESSAGE);
-            PARSER.declareField(constructorArg(), p -> {
-                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    return Level.fromString(p.text());
-                }
-                throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-            }, LEVEL, ObjectParser.ValueType.STRING);
-            PARSER.declareField(constructorArg(), parser -> {
-                if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-                    return new Date(parser.longValue());
-                } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    return new Date(TimeUtils.dateStringToEpoch(parser.text()));
-                }
-                throw new IllegalArgumentException(
-                    "unexpected token [" + parser.currentToken() + "] for [" + TIMESTAMP.getPreferredName() + "]");
-            }, TIMESTAMP, ObjectParser.ValueType.VALUE);
-            PARSER.declareString(optionalConstructorArg(), NODE_NAME);
-        }
-
-        TestAuditMessage(String resourceId, String message, Level level, String nodeName) {
-            super(resourceId, message, level, nodeName);
-        }
+        private static final ParseField TEST_ID = new ParseField("test_id");
+        public static final ConstructingObjectParser<TestAuditMessage, Void> PARSER =
+            createParser("test_audit_message", TestAuditMessage::new, TEST_ID);
 
         TestAuditMessage(String resourceId, String message, Level level, Date timestamp, String nodeName) {
             super(resourceId, message, level, timestamp, nodeName);
         }
 
         @Override
-        protected String getResourceField() {
-            return "test_id";
+        public String getJobType() {
+            return "test_type";
         }
 
-        static AbstractAuditMessage.AbstractBuilder<TestAuditMessage> newBuilder() {
-            return new AbstractBuilder<TestAuditMessage>() {
-                @Override
-                protected TestAuditMessage newMessage(Level level, String resourceId, String message, String nodeName) {
-                    return new TestAuditMessage(resourceId, message, level, nodeName);
-                }
-            };
+        @Override
+        protected String getResourceField() {
+            return TEST_ID.getPreferredName();
         }
     }
 
-    @Before
-    public void setStartTime() {
-        startMillis = System.currentTimeMillis();
+    private static final String RESOURCE_ID = "foo";
+    private static final String MESSAGE = "some message";
+    private static final Date TIMESTAMP = new Date(123456789);
+    private static final String NODE_NAME = "some_node";
+
+    public void testGetResourceField() {
+        TestAuditMessage message = new TestAuditMessage(RESOURCE_ID, MESSAGE, Level.INFO, TIMESTAMP, NODE_NAME);
+        assertThat(message.getResourceField(), equalTo(TestAuditMessage.TEST_ID.getPreferredName()));
+    }
+
+    public void testGetJobType() {
+        TestAuditMessage message = createTestInstance();
+        assertThat(message.getJobType(), equalTo("test_type"));
     }
 
     public void testNewInfo() {
-        TestAuditMessage info = TestAuditMessage.newBuilder().info("foo", "some info", "some_node");
-        assertEquals("foo", info.getResourceId());
-        assertEquals("some info", info.getMessage());
-        assertEquals(Level.INFO, info.getLevel());
-        assertDateBetweenStartAndNow(info.getTimestamp());
+        TestAuditMessage message = new TestAuditMessage(RESOURCE_ID, MESSAGE, Level.INFO, TIMESTAMP, NODE_NAME);
+        assertThat(message.getResourceId(), equalTo(RESOURCE_ID));
+        assertThat(message.getMessage(), equalTo(MESSAGE));
+        assertThat(message.getLevel(), equalTo(Level.INFO));
+        assertThat(message.getTimestamp(), equalTo(TIMESTAMP));
+        assertThat(message.getNodeName(), equalTo(NODE_NAME));
     }
 
     public void testNewWarning() {
-        TestAuditMessage warning = TestAuditMessage.newBuilder().warning("bar", "some warning", "some_node");
-        assertEquals("bar", warning.getResourceId());
-        assertEquals("some warning", warning.getMessage());
-        assertEquals(Level.WARNING, warning.getLevel());
-        assertDateBetweenStartAndNow(warning.getTimestamp());
+        TestAuditMessage message = new TestAuditMessage(RESOURCE_ID, MESSAGE, Level.WARNING, TIMESTAMP, NODE_NAME);
+        assertThat(message.getResourceId(), equalTo(RESOURCE_ID));
+        assertThat(message.getMessage(), equalTo(MESSAGE));
+        assertThat(message.getLevel(), equalTo(Level.WARNING));
+        assertThat(message.getTimestamp(), equalTo(TIMESTAMP));
+        assertThat(message.getNodeName(), equalTo(NODE_NAME));
     }
-
 
     public void testNewError() {
-        TestAuditMessage error = TestAuditMessage.newBuilder().error("foo", "some error", "some_node");
-        assertEquals("foo", error.getResourceId());
-        assertEquals("some error", error.getMessage());
-        assertEquals(Level.ERROR, error.getLevel());
-        assertDateBetweenStartAndNow(error.getTimestamp());
-    }
-
-    private void assertDateBetweenStartAndNow(Date timestamp) {
-        long timestampMillis = timestamp.getTime();
-        assertTrue(timestampMillis >= startMillis);
-        assertTrue(timestampMillis <= System.currentTimeMillis());
+        TestAuditMessage message = new TestAuditMessage(RESOURCE_ID, MESSAGE, Level.ERROR, TIMESTAMP, NODE_NAME);
+        assertThat(message.getResourceId(), equalTo(RESOURCE_ID));
+        assertThat(message.getMessage(), equalTo(MESSAGE));
+        assertThat(message.getLevel(), equalTo(Level.ERROR));
+        assertThat(message.getTimestamp(), equalTo(TIMESTAMP));
+        assertThat(message.getNodeName(), equalTo(NODE_NAME));
     }
 
     @Override
@@ -120,7 +91,12 @@ public class AbstractAuditMessageTests extends AbstractXContentTestCase<Abstract
 
     @Override
     protected TestAuditMessage createTestInstance() {
-        return new TestAuditMessage(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 200),
-                randomFrom(Level.values()), randomAlphaOfLengthBetween(1, 20));
+        return new TestAuditMessage(
+            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomAlphaOfLengthBetween(1, 20),
+            randomFrom(Level.values()),
+            new Date(),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20)
+        );
     }
 }

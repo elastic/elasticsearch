@@ -33,6 +33,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -113,6 +114,7 @@ import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.search.HttpChannelTaskHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
@@ -165,6 +167,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.client.Requests.syncedFlushRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -508,7 +511,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return testCluster;
     }
 
-    private static void clearClusters() throws IOException {
+    private static void clearClusters() throws Exception {
         if (!clusters.isEmpty()) {
             IOUtils.close(clusters.values());
             clusters.clear();
@@ -517,6 +520,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
             restClient.close();
             restClient = null;
         }
+        assertBusy(() -> assertEquals(HttpChannelTaskHandler.INSTANCE.getNumChannels() + " channels still being tracked in " +
+                    HttpChannelTaskHandler.class.getSimpleName() + " while there should be none", 0,
+                HttpChannelTaskHandler.INSTANCE.getNumChannels()));
     }
 
     private void afterInternal(boolean afterClass) throws Exception {
@@ -876,10 +882,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
         ClusterHealthResponse actionGet = client().admin().cluster().health(healthRequest).actionGet();
         if (actionGet.isTimedOut()) {
-            logger.info("{} timed out, cluster state:\n{}\n{}",
+            final String hotThreads = client().admin().cluster().prepareNodesHotThreads().setIgnoreIdleThreads(false).get().getNodes()
+                .stream().map(NodeHotThreads::getHotThreads).collect(Collectors.joining("\n"));
+            logger.info("{} timed out, cluster state:\n{}\npending tasks:\n{}\nhot threads:\n{}\n",
                 method,
                 client().admin().cluster().prepareState().get().getState(),
-                client().admin().cluster().preparePendingClusterTasks().get());
+                client().admin().cluster().preparePendingClusterTasks().get(),
+                hotThreads);
             fail("timed out waiting for " + color + " state");
         }
         assertThat("Expected at least " + clusterHealthStatus + " but got " + actionGet.getStatus(),

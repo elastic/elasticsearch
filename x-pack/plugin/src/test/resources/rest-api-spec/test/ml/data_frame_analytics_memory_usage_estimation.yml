@@ -13,19 +13,16 @@ setup:
 
 ---
 "Test memory usage estimation for empty data frame":
-
   - do:
       ml.estimate_memory_usage:
         body:
-          data_frame_analytics_config:
-            source: { index: "index-source" }
-            analysis: { outlier_detection: {} }
-  - match: { expected_memory_usage_with_one_partition: "0" }
-  - match: { expected_memory_usage_with_max_partitions: "0" }
+          source: { index: "index-source" }
+          analysis: { outlier_detection: {} }
+  - match: { expected_memory_without_disk: "0" }
+  - match: { expected_memory_with_disk: "0" }
 
 ---
 "Test memory usage estimation for non-empty data frame":
-
   - do:
       index:
         index: index-source
@@ -36,11 +33,10 @@ setup:
   - do:
       ml.estimate_memory_usage:
         body:
-          data_frame_analytics_config:
-            source: { index: "index-source" }
-            analysis: { outlier_detection: {} }
-  - match: { expected_memory_usage_with_one_partition: "3kb" }
-  - match: { expected_memory_usage_with_max_partitions: "3kb" }
+          source: { index: "index-source" }
+          analysis: { outlier_detection: {} }
+  - match: { expected_memory_without_disk: "3kb" }
+  - match: { expected_memory_with_disk: "3kb" }
 
   - do:
       index:
@@ -52,11 +48,10 @@ setup:
   - do:
       ml.estimate_memory_usage:
         body:
-          data_frame_analytics_config:
-            source: { index: "index-source" }
-            analysis: { outlier_detection: {} }
-  - match: { expected_memory_usage_with_one_partition: "4kb" }
-  - match: { expected_memory_usage_with_max_partitions: "4kb" }
+          source: { index: "index-source" }
+          analysis: { outlier_detection: {} }
+  - match: { expected_memory_without_disk: "4kb" }
+  - match: { expected_memory_with_disk: "4kb" }
 
   - do:
       index:
@@ -68,8 +63,7 @@ setup:
   - do:
       ml.estimate_memory_usage:
         body:
-          data_frame_analytics_config:
-            source: { index: "index-source" }
-            analysis: { outlier_detection: {} }
-  - match: { expected_memory_usage_with_one_partition: "6kb" }
-  - match: { expected_memory_usage_with_max_partitions: "5kb" }
+          source: { index: "index-source" }
+          analysis: { outlier_detection: {} }
+  - match: { expected_memory_without_disk: "6kb" }
+  - match: { expected_memory_with_disk: "5kb" }

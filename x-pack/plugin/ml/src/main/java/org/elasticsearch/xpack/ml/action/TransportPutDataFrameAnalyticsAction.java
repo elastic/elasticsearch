@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.ml.dataframe.SourceDestValidator;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
+import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -64,6 +65,7 @@ public class TransportPutDataFrameAnalyticsAction
     private final Client client;
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final DataFrameAnalyticsAuditor auditor;
 
     private volatile ByteSizeValue maxModelMemoryLimit;
 
@@ -71,7 +73,7 @@ public class TransportPutDataFrameAnalyticsAction
     public TransportPutDataFrameAnalyticsAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
                                                 XPackLicenseState licenseState, Client client, ThreadPool threadPool,
                                                 ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
-                                                DataFrameAnalyticsConfigProvider configProvider) {
+                                                DataFrameAnalyticsConfigProvider configProvider, DataFrameAnalyticsAuditor auditor) {
         super(PutDataFrameAnalyticsAction.NAME, transportService, actionFilters, PutDataFrameAnalyticsAction.Request::new);
         this.licenseState = licenseState;
         this.configProvider = configProvider;
@@ -81,6 +83,7 @@ public class TransportPutDataFrameAnalyticsAction
         this.client = client;
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = Objects.requireNonNull(indexNameExpressionResolver);
+        this.auditor = Objects.requireNonNull(auditor);
 
         maxModelMemoryLimit = MachineLearningField.MAX_MODEL_MEMORY_LIMIT.get(settings);
         clusterService.getClusterSettings()
@@ -179,7 +182,14 @@ public class TransportPutDataFrameAnalyticsAction
             client,
             clusterState,
             ActionListener.wrap(
-                unused -> configProvider.put(config, headers, listener),
+                unused -> configProvider.put(config, headers, ActionListener.wrap(
+                    indexResponse -> {
+                        auditor.info(
+                            config.getId(),
+                            Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_CREATED, config.getAnalysis().getWriteableName()));
+                        listener.onResponse(indexResponse);
+                    },
+                    listener::onFailure)),
                 listener::onFailure));
     }
 

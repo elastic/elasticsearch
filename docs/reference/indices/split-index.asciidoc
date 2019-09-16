@@ -26,10 +26,12 @@ POST /twitter/_split/split-twitter-index
 [[split-index-api-prereqs]]
 ==== {api-prereq-title}
 
-In order to split an index, the index must be marked as read-only,
+To split an index,
+the index must be marked as read-only
 and have <<cluster-health,health>> `green`.
 
-This can be achieved with the following request:
+You can do this
+with the following request:
 
 [source,console]
 --------------------------------------------------

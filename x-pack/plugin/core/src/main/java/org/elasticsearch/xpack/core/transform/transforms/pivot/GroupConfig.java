@@ -21,8 +21,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.core.transform.DataFrameMessages;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -45,7 +45,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
     private final Map<String, SingleGroupSource> groups;
 
     public GroupConfig(final Map<String, Object> source, final Map<String, SingleGroupSource> groups) {
-        this.source = ExceptionsHelper.requireNonNull(source, DataFrameField.GROUP_BY.getPreferredName());
+        this.source = ExceptionsHelper.requireNonNull(source, TransformField.GROUP_BY.getPreferredName());
         this.groups = groups;
     }
 
@@ -115,9 +115,9 @@ public class GroupConfig implements Writeable, ToXContentObject {
 
         if (source.isEmpty()) {
             if (lenient) {
-                logger.warn(DataFrameMessages.DATA_FRAME_TRANSFORM_CONFIGURATION_PIVOT_NO_GROUP_BY);
+                logger.warn(TransformMessages.DATA_FRAME_TRANSFORM_CONFIGURATION_PIVOT_NO_GROUP_BY);
             } else {
-                throw new IllegalArgumentException(DataFrameMessages.DATA_FRAME_TRANSFORM_CONFIGURATION_PIVOT_NO_GROUP_BY);
+                throw new IllegalArgumentException(TransformMessages.DATA_FRAME_TRANSFORM_CONFIGURATION_PIVOT_NO_GROUP_BY);
             }
         } else {
             try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
@@ -126,7 +126,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
                 groups = parseGroupConfig(sourceParser, lenient);
             } catch (Exception e) {
                 if (lenient) {
-                    logger.warn(DataFrameMessages.LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_GROUP_BY, e);
+                    logger.warn(TransformMessages.LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_GROUP_BY, e);
                 } else {
                     throw e;
                 }

@@ -10,6 +10,13 @@ tag::aliases[]
 index. See <<indices-aliases>>.
 end::aliases[]
 
+tag::target-index-aliases[]
+`aliases`::
+(Optional, <<indices-aliases,alias object>>)
+Index aliases which include the target index.
+See <<indices-aliases>>.
+end::target-index-aliases[]
+
 tag::allow-no-indices[]
 `allow_no_indices`::
 (Optional, boolean) If `true`,
@@ -466,6 +473,13 @@ tag::settings[]
 (Optional, <<index-modules-settings,index setting object>>) Configuration
 options for the index. See <<index-modules-settings>>.
 end::settings[]
+
+tag::target-index-settings[]
+`settings`::
+(Optional, <<index-modules-settings,index setting object>>)
+Configuration options for the target index.
+See <<index-modules-settings>>.
+end::target-index-settings[]
 
 tag::segment-size[]
 Disk space used by the segment, such as `50kb`.

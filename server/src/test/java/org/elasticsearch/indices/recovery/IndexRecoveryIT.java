@@ -55,6 +55,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimary
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -910,7 +911,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         assertThat(recoveryStates, hasSize(1));
         final RecoveryState recoveryState = recoveryStates.get(0);
-        assertThat(recoveryState.toString(), recoveryState.getIndex().totalFileCount(), is(0));
+        assertThat(Strings.toString(recoveryState), recoveryState.getIndex().totalFileCount(), is(0));
         assertThat(recoveryState.getTranslog().recoveredOperations(), greaterThan(0));
     }
 

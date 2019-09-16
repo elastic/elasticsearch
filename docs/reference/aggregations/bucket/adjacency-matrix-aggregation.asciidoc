@@ -62,7 +62,7 @@ of groups that have recorded interactions.
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 9,

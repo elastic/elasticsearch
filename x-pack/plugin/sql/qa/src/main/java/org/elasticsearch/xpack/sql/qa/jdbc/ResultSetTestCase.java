@@ -34,6 +34,7 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
@@ -1155,6 +1156,33 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             java.sql.Timestamp expectedTimestamp = new java.sql.Timestamp(c.getTimeInMillis());
             assertEquals(expectedTimestamp, results.getTimestamp("date"));
             assertEquals(expectedTimestamp, results.getObject("date", java.sql.Timestamp.class));
+        });
+    }
+    
+    public void testGetDateTypeFromAggregation() throws Exception {
+        createIndex("test");
+        updateMapping("test", builder -> builder.startObject("test_date").field("type", "date").endObject());
+
+        // 1984-05-02 14:59:12 UTC
+        Long timeInMillis = 452357952000L;
+        index("test", "1", builder -> builder.field("test_date", timeInMillis));
+
+        doWithQueryAndTimezone("SELECT CONVERT(test_date, DATE) AS converted FROM test GROUP BY converted", "UTC", results -> {
+            results.next();
+            ZonedDateTime zdt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(timeInMillis), ZoneId.of("Z"))
+                    .toLocalDate().atStartOfDay(ZoneId.of("Z"));
+
+            java.sql.Date expectedDate = new java.sql.Date(zdt.toInstant().toEpochMilli());
+            assertEquals(expectedDate, results.getDate("converted"));
+            assertEquals(expectedDate, results.getObject("converted", java.sql.Date.class));
+
+            java.sql.Time expectedTime = new java.sql.Time(0L);
+            assertEquals(expectedTime, results.getTime("converted"));
+            assertEquals(expectedTime, results.getObject("converted", java.sql.Time.class));
+
+            java.sql.Timestamp expectedTimestamp = new java.sql.Timestamp(zdt.toInstant().toEpochMilli());
+            assertEquals(expectedTimestamp, results.getTimestamp("converted"));
+            assertEquals(expectedTimestamp, results.getObject("converted", java.sql.Timestamp.class));
         });
     }
 

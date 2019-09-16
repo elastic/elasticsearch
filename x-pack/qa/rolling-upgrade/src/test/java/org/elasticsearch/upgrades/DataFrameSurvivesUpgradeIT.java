@@ -7,20 +7,19 @@ package org.elasticsearch.upgrades;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.core.IndexerState;
-import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsResponse;
-import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
-import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStats;
-import org.elasticsearch.client.dataframe.transforms.DestConfig;
-import org.elasticsearch.client.dataframe.transforms.SourceConfig;
-import org.elasticsearch.client.dataframe.transforms.TimeSyncConfig;
-import org.elasticsearch.client.dataframe.transforms.pivot.GroupConfig;
-import org.elasticsearch.client.dataframe.transforms.pivot.PivotConfig;
-import org.elasticsearch.client.dataframe.transforms.pivot.TermsGroupSource;
+import org.elasticsearch.client.transform.GetDataFrameTransformStatsResponse;
+import org.elasticsearch.client.transform.transforms.DataFrameTransformConfig;
+import org.elasticsearch.client.transform.transforms.DataFrameTransformStats;
+import org.elasticsearch.client.transform.transforms.DestConfig;
+import org.elasticsearch.client.transform.transforms.SourceConfig;
+import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
+import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
+import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
+import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -52,7 +51,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.oneOf;
 
-@LuceneTestCase.AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/46341")
 public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
 
     private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));

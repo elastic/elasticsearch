@@ -18,7 +18,7 @@ many shards. Pretty-printing the response is recommended to help understand the 
 
 Any `_search` request can be profiled by adding a top-level `profile` parameter:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_search
 {
@@ -28,7 +28,6 @@ GET /twitter/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 <1> Setting the top-level `profile` parameter to `true` will enable profiling
@@ -36,7 +35,7 @@ for the search
 
 This will yield the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "took": 25,
@@ -175,7 +174,7 @@ to more complex examples.
 
 First, the overall structure of the profile response is as follows:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "profile": {
@@ -251,7 +250,7 @@ The overall structure of this query tree will resemble your original Elasticsear
 (or sometimes very) different.  It will also use similar but not always identical naming.  Using our previous
 `match` query example, let's analyze the `query` section:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 "query": [
     {
@@ -300,7 +299,7 @@ breakdown, etc).  Children are allowed to have their own children.
 
 The `breakdown` component lists detailed timing statistics about low-level Lucene execution:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 "breakdown": {
    "score": 51306,
@@ -410,7 +409,7 @@ filters, etc.
 
 Looking at the previous example:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 "collector": [
    {
@@ -505,7 +504,7 @@ value is cumulative and contains the total time for all queries being rewritten.
 
 To demonstrate a slightly more complex query and the associated results, we can profile the following query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_search
 {
@@ -541,7 +540,6 @@ GET /twitter/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/_search/_search\?filter_path=profile.shards.id,profile.shards.searches,profile.shards.aggregations/]
 // TEST[continued]
 
@@ -554,7 +552,7 @@ This example has:
 
 And the response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    ...
@@ -704,7 +702,7 @@ The `aggregations` section contains detailed timing of the aggregation tree exec
 The overall structure of this aggregation tree will resemble your original Elasticsearch request.  Let's
 execute the previous query again and look at the aggregation profile this time:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_search
 {
@@ -740,13 +738,12 @@ GET /twitter/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/_search/_search\?filter_path=profile.shards.aggregations/]
 // TEST[continued]
 
 This yields the following aggregation profile output:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "profile" : {

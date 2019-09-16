@@ -50,6 +50,7 @@ import java.util.function.LongSupplier;
 
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_ORIGINATION_DATE;
 
 public class IndexLifecycleRunner {
     private static final Logger logger = LogManager.getLogger(IndexLifecycleRunner.class);
@@ -73,11 +74,12 @@ public class IndexLifecycleRunner {
      */
     boolean isReadyToTransitionToThisPhase(final String policy, final IndexMetaData indexMetaData, final String phase) {
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
-        if (lifecycleState.getLifecycleDate() == null) {
-            logger.trace("no index creation date has been set yet");
+        Long originationDate = indexMetaData.getSettings().getAsLong(LIFECYCLE_ORIGINATION_DATE, -1L);
+        if (lifecycleState.getLifecycleDate() == null && originationDate == -1L) {
+            logger.trace("no index creation or origination date has been set yet");
             return true;
         }
-        final Long lifecycleDate = lifecycleState.getLifecycleDate();
+        final Long lifecycleDate = originationDate != -1L ? originationDate : lifecycleState.getLifecycleDate();
         assert lifecycleDate != null && lifecycleDate >= 0 : "expected index to have a lifecycle date but it did not";
         final TimeValue after = stepRegistry.getIndexAgeForPhase(policy, phase);
         final long now = nowSupplier.getAsLong();

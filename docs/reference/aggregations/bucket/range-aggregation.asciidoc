@@ -29,7 +29,7 @@ GET /_search
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -87,7 +87,7 @@ GET /_search
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -140,7 +140,7 @@ GET /_search
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -242,7 +242,7 @@ GET /_search
 
 //////////////////////////
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "aggregations": {
@@ -264,7 +264,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 //////////////////////////
 
@@ -330,7 +329,7 @@ GET /_search
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   ...

@@ -506,6 +506,17 @@ tag::stats[]
 purposes.
 end::stats[]
 
+tag::target-index[]
+`<target-index>`::
++
+--
+(Required, string)
+Name of the target index to create.
+
+include::{docdir}/indices/create-index.asciidoc[tag=index-name-reqs]
+--
+end::target-index[]
+
 tag::terminate_after[]
 `terminate_after`::
 (Optional, integer) The maximum number of documents to collect for each shard, 

@@ -64,8 +64,8 @@ public class DocumentMapperParser {
         this.rootTypeParsers = mapperRegistry.getMetadataMapperParsers(indexVersionCreated);
     }
 
-    public Mapper.TypeParser.ParserContext parserContext(String type) {
-        return new Mapper.TypeParser.ParserContext(type, similarityService::getSimilarity, mapperService,
+    public Mapper.TypeParser.ParserContext parserContext() {
+        return new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperService,
                 typeParsers::get, indexVersionCreated, queryShardContextSupplier);
     }
 
@@ -101,7 +101,7 @@ public class DocumentMapperParser {
         }
 
 
-        Mapper.TypeParser.ParserContext parserContext = parserContext(type);
+        Mapper.TypeParser.ParserContext parserContext = parserContext();
         // parse RootObjectMapper
         DocumentMapper.Builder docBuilder = new DocumentMapper.Builder(
                 (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext), mapperService);

@@ -35,7 +35,7 @@ public abstract class BytesWriteHandler implements NioChannelHandler {
     }
 
     @Override
-    public void channelRegistered() {}
+    public void channelActive() {}
 
     @Override
     public List<FlushOperation> writeToBytes(WriteOperation writeOperation) {

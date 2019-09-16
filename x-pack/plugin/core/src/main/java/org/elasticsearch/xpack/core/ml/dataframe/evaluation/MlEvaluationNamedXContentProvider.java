@@ -9,6 +9,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.MeanSquaredError;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.RSquared;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.Regression;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.RegressionMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.AucRoc;
@@ -42,6 +43,7 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
 
         // Regression metrics
         namedXContent.add(new NamedXContentRegistry.Entry(RegressionMetric.class, MeanSquaredError.NAME, MeanSquaredError::fromXContent));
+        namedXContent.add(new NamedXContentRegistry.Entry(RegressionMetric.class, RSquared.NAME, RSquared::fromXContent));
 
         return namedXContent;
     }
@@ -66,6 +68,9 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
         namedWriteables.add(new NamedWriteableRegistry.Entry(RegressionMetric.class,
             MeanSquaredError.NAME.getPreferredName(),
             MeanSquaredError::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RegressionMetric.class,
+            RSquared.NAME.getPreferredName(),
+            RSquared::new));
 
         // Evaluation Metrics Results
         namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetricResult.class, AucRoc.NAME.getPreferredName(),
@@ -77,6 +82,9 @@ public class MlEvaluationNamedXContentProvider implements NamedXContentProvider 
         namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
             MeanSquaredError.NAME.getPreferredName(),
             MeanSquaredError.Result::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(EvaluationMetricResult.class,
+            RSquared.NAME.getPreferredName(),
+            RSquared.Result::new));
 
         return namedWriteables;
     }

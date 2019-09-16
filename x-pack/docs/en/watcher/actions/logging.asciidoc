@@ -1,3 +1,4 @@
+[role="xpack"]
 [[actions-logging]]
 === Logging Action
 

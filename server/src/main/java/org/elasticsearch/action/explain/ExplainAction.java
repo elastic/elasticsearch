@@ -20,7 +20,6 @@
 package org.elasticsearch.action.explain;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 /**
  * Entry point for the explain feature.
@@ -31,11 +30,7 @@ public class ExplainAction extends ActionType<ExplainResponse> {
     public static final String NAME = "indices:data/read/explain";
 
     private ExplainAction() {
-        super(NAME);
+        super(NAME, ExplainResponse::new);
     }
 
-    @Override
-    public Writeable.Reader<ExplainResponse> getResponseReader() {
-        return ExplainResponse::new;
-    }
 }

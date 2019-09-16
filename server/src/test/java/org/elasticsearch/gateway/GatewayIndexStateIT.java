@@ -220,11 +220,13 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         logger.info("--> create an index");
         client().admin().indices().prepareCreate("test").setWaitForActiveShards(ActiveShardCount.NONE).execute().actionGet();
 
-        logger.info("--> closing master node");
-        internalCluster().closeNonSharedNodes(false);
-
-        logger.info("--> starting 1 master node non data again");
-        internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build());
+        logger.info("--> restarting master node");
+        internalCluster().fullRestart(new RestartCallback(){
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                return Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build();
+            }
+        });
 
         logger.info("--> waiting for test index to be created");
         ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setIndices("test")
@@ -236,7 +238,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertThat(clusterStateResponse.getState().metaData().hasIndex("test"), equalTo(true));
     }
 
-    public void testJustMasterNodeAndJustDataNode() throws Exception {
+    public void testJustMasterNodeAndJustDataNode() {
         logger.info("--> cleaning nodes");
 
         logger.info("--> starting 1 master node non data");
@@ -373,7 +375,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         final IndexMetaData brokenMeta = IndexMetaData.builder(metaData).settings(Settings.builder().put(metaData.getSettings())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.minimumIndexCompatibilityVersion().id)
                 // this is invalid but should be archived
-                .put("index.similarity.BM25.type", "classic")
+                .put("index.similarity.BM25.type", "boolean")
                 // this one is not validated ahead of time and breaks allocation
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
         ).build();
@@ -395,7 +397,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         state = client().admin().cluster().prepareState().get().getState();
         assertEquals(IndexMetaData.State.CLOSE, state.getMetaData().index(metaData.getIndex()).getState());
-        assertEquals("classic", state.getMetaData().index(metaData.getIndex()).getSettings().get("archived.index.similarity.BM25.type"));
+        assertEquals("boolean", state.getMetaData().index(metaData.getIndex()).getSettings().get("archived.index.similarity.BM25.type"));
         // try to open it with the broken setting - fail again!
         ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> client().admin().indices().prepareOpen("test").get());
         assertEquals(ex.getMessage(), "Failed to verify index " + metaData.getIndex());

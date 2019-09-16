@@ -21,7 +21,6 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class PutPipelineAction extends ActionType<AcknowledgedResponse> {
 
@@ -29,11 +28,7 @@ public class PutPipelineAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/ingest/pipeline/put";
 
     public PutPipelineAction() {
-        super(NAME);
+        super(NAME, AcknowledgedResponse::new);
     }
 
-    @Override
-    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
-        return AcknowledgedResponse::new;
-    }
 }

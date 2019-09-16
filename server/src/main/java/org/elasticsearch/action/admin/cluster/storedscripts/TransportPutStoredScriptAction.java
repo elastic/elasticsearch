@@ -46,7 +46,7 @@ public class TransportPutStoredScriptAction extends TransportMasterNodeAction<Pu
                                           ThreadPool threadPool, ActionFilters actionFilters,
                                           IndexNameExpressionResolver indexNameExpressionResolver, ScriptService scriptService) {
         super(PutStoredScriptAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, PutStoredScriptRequest::new);
+                PutStoredScriptRequest::new, indexNameExpressionResolver);
         this.scriptService = scriptService;
     }
 
@@ -58,11 +58,6 @@ public class TransportPutStoredScriptAction extends TransportMasterNodeAction<Pu
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

@@ -168,6 +168,7 @@ public final class DataFrameAnalyticsIndex {
         metadata.put(ANALYTICS, analyticsId);
     }
 
+    @SuppressWarnings("unchecked")
     private static <K, V> V getOrPutDefault(Map<K, Object> map, K key, Supplier<V> valueSupplier) {
         V value = (V) map.get(key);
         if (value == null) {

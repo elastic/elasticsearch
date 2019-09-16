@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -25,8 +24,7 @@ public class RestGetRollupJobsAction extends BaseRestHandler {
 
     public static final ParseField ID = new ParseField("id");
 
-    public RestGetRollupJobsAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestGetRollupJobsAction(RestController controller) {
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
                 GET, "/_rollup/job/{id}", this,

@@ -30,8 +30,9 @@ public abstract class BroadcastShardResponse extends TransportResponse {
 
     ShardId shardId;
 
-    protected BroadcastShardResponse() {
-
+    protected BroadcastShardResponse(StreamInput in) throws IOException {
+        super(in);
+        shardId = new ShardId(in);
     }
 
     protected BroadcastShardResponse(ShardId shardId) {
@@ -44,12 +45,6 @@ public abstract class BroadcastShardResponse extends TransportResponse {
 
     public ShardId getShardId() {
         return this.shardId;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        shardId = new ShardId(in);
     }
 
     @Override

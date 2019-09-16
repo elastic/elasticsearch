@@ -52,6 +52,11 @@ grant codeBase "${codebase.elasticsearch-plugin-classloader}" {
   permission java.lang.RuntimePermission "createClassLoader";
 };
 
+grant codeBase "${codebase.jna}" {
+  // for registering native methods
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+};
+
 //// Everything else:
 
 grant {
@@ -64,6 +69,14 @@ grant {
 
   // Allow host/ip name service lookups
   permission java.net.SocketPermission "*", "resolve";
+
+  // Allow reading and setting socket keepalive options
+  permission jdk.net.NetworkPermission "getOption.TCP_KEEPIDLE";
+  permission jdk.net.NetworkPermission "setOption.TCP_KEEPIDLE";
+  permission jdk.net.NetworkPermission "getOption.TCP_KEEPINTERVAL";
+  permission jdk.net.NetworkPermission "setOption.TCP_KEEPINTERVAL";
+  permission jdk.net.NetworkPermission "getOption.TCP_KEEPCOUNT";
+  permission jdk.net.NetworkPermission "setOption.TCP_KEEPCOUNT";
 
   // Allow read access to all system properties
   permission java.util.PropertyPermission "*", "read";
@@ -143,4 +156,5 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/cpuacct/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
+
 };

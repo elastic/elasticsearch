@@ -18,7 +18,7 @@ The most common use case for cluster-level shard allocation filtering is when
 you want to decommission a node. To move shards off of a node prior to shutting
 it down, you could create a filter that excludes the node by its IP address:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _cluster/settings
 {
@@ -27,7 +27,6 @@ PUT _cluster/settings
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 [[cluster-routing-settings]]
@@ -57,7 +56,7 @@ The cluster allocation settings support the following built-in attributes:
 
 You can use wildcards when specifying attribute values, for example:
 
-[source,js]
+[source,console]
 ------------------------
 PUT _cluster/settings
 {
@@ -66,4 +65,3 @@ PUT _cluster/settings
   }
 }
 ------------------------
-// CONSOLE

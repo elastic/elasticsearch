@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.security.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 /**
  * ActionType for retrieving API key(s)
@@ -18,11 +17,6 @@ public final class GetApiKeyAction extends ActionType<GetApiKeyResponse> {
     public static final GetApiKeyAction INSTANCE = new GetApiKeyAction();
 
     private GetApiKeyAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<GetApiKeyResponse> getResponseReader() {
-        return GetApiKeyResponse::new;
+        super(NAME, GetApiKeyResponse::new);
     }
 }

@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -64,17 +65,17 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
     }
 
     @Override
+    protected ClusterStateResponse read(StreamInput in) throws IOException {
+        return new ClusterStateResponse(in);
+    }
+
+    @Override
     protected ClusterBlockException checkBlock(ClusterStateRequest request, ClusterState state) {
         // cluster state calls are done also on a fully blocked cluster to figure out what is going
         // on in the cluster. For example, which nodes have joined yet the recovery has not yet kicked
         // in, we need to make sure we allow those calls
         // return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA);
         return null;
-    }
-
-    @Override
-    protected ClusterStateResponse newResponse() {
-        return new ClusterStateResponse();
     }
 
     @Override

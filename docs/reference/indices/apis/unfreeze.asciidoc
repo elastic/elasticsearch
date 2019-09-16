@@ -30,18 +30,17 @@ limitation might be removed in the future.
 [[unfreeze-index-api-path-parms]]
 ==== {api-path-parms-title}
 
-`<index>` (Required)::
-(string) Identifier for the index.
+`<index>`::
+  (Required, string) Identifier for the index.
 
 [[unfreeze-index-api-examples]]
 ==== {api-examples-title}
 
 The following example freezes and unfreezes an index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /my_index/_freeze
 POST /my_index/_unfreeze
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT my_index\n/]

@@ -32,24 +32,30 @@ see {stack-ov}/security-privileges.html[Security privileges] and
 ==== {api-path-parms-title}
 
 `<data_frame_transform_id>`::
-  (string) Required. Identifier for the {dataframe-transform}.
+  (Required, string) Identifier for the {dataframe-transform}.
 
+[[delete-data-frame-transform-query-parms]]
+==== {api-query-parms-title}
+
+`force`::
+(Optional, boolean) When `true`, the {dataframe-transform} is deleted regardless of its
+current state. The default value is `false`, meaning that the {dataframe-transform} must be
+`stopped` before it can be deleted.
 
 [[delete-data-frame-transform-examples]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE _data_frame/transforms/ecommerce_transform
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup kibana sample data]
 
 When the {dataframe-transform} is deleted, you receive the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "acknowledged" : true
 }
 ----
-// TESTRESPONSE

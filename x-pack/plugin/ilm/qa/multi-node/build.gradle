@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.test.RestIntegTestTask
-
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
@@ -16,7 +14,7 @@ integTest.runner {
 }
 
 testClusters.integTest {
-    distribution = 'DEFAULT'
+    testDistribution = 'DEFAULT'
     numberOfNodes = 4
     
     setting 'path.repo', repoDir.absolutePath

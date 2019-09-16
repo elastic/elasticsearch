@@ -95,8 +95,7 @@ public class SegmentTests extends ESTestCase {
             segment.writeTo(output);
             output.flush();
             StreamInput input = output.bytes().streamInput();
-            Segment deserialized = new Segment();
-            deserialized.readFrom(input);
+            Segment deserialized = new Segment(input);
             assertTrue(isSegmentEquals(deserialized, segment));
         }
     }

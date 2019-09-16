@@ -1,5 +1,5 @@
 [[search-suggesters]]
-== Suggesters
+=== Suggesters
 
 The suggest feature suggests similar looking terms based on a provided
 text by using a suggester. Parts of the suggest feature are still under
@@ -12,7 +12,7 @@ NOTE: `_suggest` endpoint has been deprecated in favour of using suggest via
 `_search` endpoint. In 5.0, the `_search` endpoint has been optimized for
 suggest only search requests.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST twitter/_search
 {
@@ -31,7 +31,6 @@ POST twitter/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 Several suggestions can be specified per request. Each suggestion is
@@ -39,7 +38,7 @@ identified with an arbitrary name. In the example below two suggestions
 are requested. Both `my-suggest-1` and `my-suggest-2` suggestions use
 the `term` suggester, but have a different `text`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _search
 {
@@ -59,7 +58,6 @@ POST _search
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 The below suggest response example includes the suggestion response for
@@ -68,7 +66,7 @@ entries. Each entry is effectively a token from the suggest text and
 contains the suggestion entry text, the original start offset and length
 in the suggest text and if found an arbitrary number of options.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_shards": ...
@@ -109,13 +107,13 @@ term suggester's score is based on the edit distance.
 
 [float]
 [[global-suggest]]
-=== Global suggest text
+==== Global suggest text
 
 To avoid repetition of the suggest text, it is possible to define a
 global text. In the example below the suggest text is defined globally
 and applies to the `my-suggest-1` and `my-suggest-2` suggestions.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _search
 {
@@ -134,7 +132,6 @@ POST _search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 The suggest text can in the above example also be specified as
 suggestion specific option. The suggest text specified on suggestion

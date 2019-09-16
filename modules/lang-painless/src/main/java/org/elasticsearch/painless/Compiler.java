@@ -35,11 +35,12 @@ import java.security.SecureClassLoader;
 import java.security.cert.Certificate;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
-import static org.elasticsearch.painless.node.SSource.MainMethodReserved;
 
 /**
  * The Compiler is the entry point for generating a Painless script.  The compiler will receive a Painless
@@ -206,10 +207,11 @@ final class Compiler {
      * @param settings The CompilerSettings to be used during the compilation.
      * @return An executable script that implements both a specified interface and is a subclass of {@link PainlessScript}
      */
-    Constructor<?> compile(Loader loader, MainMethodReserved reserved, String name, String source, CompilerSettings settings) {
+    Constructor<?> compile(Loader loader, Set<String> extractedVariables, String name, String source, CompilerSettings settings) {
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
-        SSource root = Walker.buildPainlessTree(scriptClassInfo, reserved, name, source, settings, painlessLookup,
-                null);
+        SSource root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup, null);
+        root.extractVariables(extractedVariables);
+        root.storeSettings(settings);
         root.analyze(painlessLookup);
         Map<String, Object> statics = root.write();
 
@@ -238,8 +240,10 @@ final class Compiler {
      */
     byte[] compile(String name, String source, CompilerSettings settings, Printer debugStream) {
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
-        SSource root = Walker.buildPainlessTree(scriptClassInfo, new MainMethodReserved(), name, source, settings, painlessLookup,
+        SSource root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, painlessLookup,
                 debugStream);
+        root.extractVariables(new HashSet<>());
+        root.storeSettings(settings);
         root.analyze(painlessLookup);
         root.write();
 

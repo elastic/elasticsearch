@@ -51,7 +51,6 @@ import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
-import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 
 public abstract class ESAllocationTestCase extends ESTestCase {
     private static final ClusterSettings EMPTY_CLUSTER_SETTINGS =
@@ -122,8 +121,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         if (initializingShards.isEmpty()) {
             return clusterState;
         }
-        return strategy.applyStartedShards(clusterState,
-            arrayAsArrayList(initializingShards.get(randomInt(initializingShards.size() - 1))));
+        return startShardsAndReroute(strategy, clusterState, randomFrom(initializingShards));
     }
 
     protected static AllocationDeciders yesAllocationDeciders() {
@@ -149,9 +147,63 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         do {
             lastClusterState = clusterState;
             logger.debug("ClusterState: {}", clusterState.getRoutingNodes());
-            clusterState = service.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+            clusterState = startInitializingShardsAndReroute(service, clusterState);
         } while (lastClusterState.equals(clusterState) == false);
         return clusterState;
+    }
+
+    /**
+     * Mark all initializing shards as started, then perform a reroute (which may start some other shards initializing).
+     *
+     * @return the cluster state after completing the reroute.
+     */
+    public static ClusterState startInitializingShardsAndReroute(AllocationService allocationService, ClusterState clusterState) {
+        return startShardsAndReroute(allocationService, clusterState, clusterState.routingTable().shardsWithState(INITIALIZING));
+    }
+
+    /**
+     * Mark all initializing shards on the given node as started, then perform a reroute (which may start some other shards initializing).
+     *
+     * @return the cluster state after completing the reroute.
+     */
+    public static ClusterState startInitializingShardsAndReroute(AllocationService allocationService,
+                                                                 ClusterState clusterState,
+                                                                 RoutingNode routingNode) {
+        return startShardsAndReroute(allocationService, clusterState, routingNode.shardsWithState(INITIALIZING));
+    }
+
+    /**
+     * Mark all initializing shards for the given index as started, then perform a reroute (which may start some other shards initializing).
+     *
+     * @return the cluster state after completing the reroute.
+     */
+    public static ClusterState startInitializingShardsAndReroute(AllocationService allocationService,
+                                                                 ClusterState clusterState,
+                                                                 String index) {
+        return startShardsAndReroute(allocationService, clusterState,
+            clusterState.routingTable().index(index).shardsWithState(INITIALIZING));
+    }
+
+    /**
+     * Mark the given shards as started, then perform a reroute (which may start some other shards initializing).
+     *
+     * @return the cluster state after completing the reroute.
+     */
+    public static ClusterState startShardsAndReroute(AllocationService allocationService,
+                                                     ClusterState clusterState,
+                                                     ShardRouting... initializingShards) {
+        return startShardsAndReroute(allocationService, clusterState, Arrays.asList(initializingShards));
+    }
+
+    /**
+     * Mark the given shards as started, then perform a reroute (which may start some other shards initializing).
+     *
+     * @return the cluster state after completing the reroute.
+     */
+    public static ClusterState startShardsAndReroute(AllocationService allocationService,
+                                                     ClusterState clusterState,
+                                                     List<ShardRouting> initializingShards) {
+        return allocationService.reroute(allocationService.applyStartedShards(clusterState, initializingShards), "reroute after starting");
     }
 
     public static class TestAllocateDecision extends AllocationDecider {

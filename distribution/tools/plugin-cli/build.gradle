@@ -24,8 +24,8 @@ archivesBaseName = 'elasticsearch-plugin-cli'
 dependencies {
   compileOnly project(":server")
   compileOnly project(":libs:elasticsearch-cli")
-  compile "org.bouncycastle:bcpg-jdk15on:${versions.bouncycastle}"
-  compile "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
+  compile "org.bouncycastle:bcpg-fips:1.0.3"
+  compile "org.bouncycastle:bc-fips:1.0.1"
   testCompile project(":test:framework")
   testCompile 'com.google.jimfs:jimfs:1.1'
   testCompile 'com.google.guava:guava:18.0'
@@ -45,3 +45,28 @@ thirdPartyAudit.onlyIf {
   // rather than provide a long list of exclusions, disable the check on FIPS.
   project.inFipsJvm == false
 }
+
+/*
+ * these two classes intentionally use the following JDK internal APIs in order to offer the necessary
+ * functionality
+ *
+ * sun.security.internal.spec.TlsKeyMaterialParameterSpec
+ * sun.security.internal.spec.TlsKeyMaterialSpec
+ * sun.security.internal.spec.TlsMasterSecretParameterSpec
+ * sun.security.internal.spec.TlsPrfParameterSpec
+ * sun.security.internal.spec.TlsRsaPremasterSecretParameterSpec
+ * sun.security.provider.SecureRandom
+ *
+ */
+thirdPartyAudit.ignoreViolations(
+        'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider$CoreSecureRandom',
+        'org.bouncycastle.jcajce.provider.ProvSunTLSKDF',
+        'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$BaseTLSKeyGeneratorSpi',
+        'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSKeyMaterialGenerator',
+        'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSKeyMaterialGenerator$2',
+        'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSMasterSecretGenerator',
+        'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSMasterSecretGenerator$2',
+        'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSPRFKeyGenerator',
+        'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator',
+        'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator$2'
+)

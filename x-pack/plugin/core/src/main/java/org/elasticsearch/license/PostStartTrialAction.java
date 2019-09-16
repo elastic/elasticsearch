@@ -5,19 +5,14 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
-public class PostStartTrialAction extends StreamableResponseActionType<PostStartTrialResponse> {
+public class PostStartTrialAction extends ActionType<PostStartTrialResponse> {
 
     public static final PostStartTrialAction INSTANCE = new PostStartTrialAction();
     public static final String NAME = "cluster:admin/xpack/license/start_trial";
 
     private PostStartTrialAction() {
-        super(NAME);
-    }
-
-    @Override
-    public PostStartTrialResponse newResponse() {
-        return new PostStartTrialResponse();
+        super(NAME, PostStartTrialResponse::new);
     }
 }

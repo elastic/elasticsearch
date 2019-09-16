@@ -265,6 +265,7 @@ public class CsvDataToProcessWriterTests extends ESTestCase {
         verify(dataCountsReporter).finishReporting(any());
     }
 
+    @SuppressWarnings("unchecked")
     public void testWrite_EmptyInput() throws IOException {
         AnalysisConfig.Builder builder =
                 new AnalysisConfig.Builder(Collections.singletonList(new Detector.Builder("metric", "value").build()));

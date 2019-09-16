@@ -1,0 +1,81 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-forecast]]
+=== Forecast jobs API
+++++
+<titleabbrev>Forecast jobs</titleabbrev>
+++++
+
+Predicts the future behavior of a time series by using its historical behavior. 
+
+[[ml-forecast-request]]
+==== {api-request-title}
+
+`POST _ml/anomaly_detectors/<job_id>/_forecast`
+
+[[ml-forecast-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
+[[ml-forecast-desc]]
+==== {api-description-title}
+
+See {stack-ov}/ml-overview.html#ml-forecasting[Forecasting the future].
+
+[NOTE]
+===============================
+
+* If you use an `over_field_name` property in your job, you cannot create a
+forecast. For more information about this property, see <<ml-job-resource>>.
+* The job must be open when you create a forecast. Otherwise, an error occurs.
+===============================
+
+[[ml-forecast-path-parms]]
+==== {api-path-parms-title}
+
+`<job_id>`::
+  (Required, string) Identifier for the job.
+
+[[ml-forecast-request-body]]
+==== {api-request-body-title}
+
+`duration`::
+  (Optional, <<time-units, time units>>) A period of time that indicates how far 
+  into the future to forecast. For example, `30d` corresponds to 30 days. The 
+  default value is 1 day. The forecast starts at the last record that was 
+  processed.
+
+`expires_in`::
+  (Optional, <<time-units, time units>>) The period of time that forecast results are retained.
+  After a forecast expires, the results are deleted. The default value is 14 days.
+  If set to a value of `0`, the forecast is never automatically deleted.
+
+[[ml-forecast-example]]
+==== {api-examples-title}
+
+The following example requests a 10 day forecast for the `total-requests` job:
+
+[source,console]
+--------------------------------------------------
+POST _ml/anomaly_detectors/total-requests/_forecast
+{
+  "duration": "10d"
+}
+--------------------------------------------------
+// TEST[skip:requires delay]
+
+When the forecast is created, you receive the following results:
+[source,js]
+----
+{
+  "acknowledged": true,
+  "forecast_id": "wkCWa2IB2lF8nSE_TzZo"
+}
+----
+// NOTCONSOLE
+
+You can subsequently see the forecast in the *Single Metric Viewer* in {kib}.
+

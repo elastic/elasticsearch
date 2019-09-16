@@ -573,7 +573,7 @@ public class IndexNameExpressionResolver {
         return false;
     }
 
-    static final class Context {
+    public static class Context {
 
         private final ClusterState state;
         private final IndicesOptions options;
@@ -593,7 +593,8 @@ public class IndexNameExpressionResolver {
            this(state, options, startTime, false, false);
         }
 
-        Context(ClusterState state, IndicesOptions options, long startTime, boolean preserveAliases, boolean resolveToWriteIndex) {
+        protected Context(ClusterState state, IndicesOptions options, long startTime,
+                          boolean preserveAliases, boolean resolveToWriteIndex) {
             this.state = state;
             this.options = options;
             this.startTime = startTime;
@@ -851,7 +852,7 @@ public class IndexNameExpressionResolver {
         }
     }
 
-    static final class DateMathExpressionResolver implements ExpressionResolver {
+    public static final class DateMathExpressionResolver implements ExpressionResolver {
 
         private static final DateFormatter DEFAULT_DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
         private static final String EXPRESSION_LEFT_BOUND = "<";

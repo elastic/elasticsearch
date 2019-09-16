@@ -48,23 +48,23 @@ public class BuildTests extends ESTestCase {
         try (InputStream ignored = FileSystemUtils.openFileURLStream(url)) {}
         // these should never be null
         assertNotNull(Build.CURRENT.date());
-        assertNotNull(Build.CURRENT.shortHash());
+        assertNotNull(Build.CURRENT.hash());
     }
 
     public void testIsProduction() {
         Build build = new Build(
-            Build.CURRENT.flavor(), Build.CURRENT.type(), Build.CURRENT.shortHash(), Build.CURRENT.date(),
+            Build.CURRENT.flavor(), Build.CURRENT.type(), Build.CURRENT.hash(), Build.CURRENT.date(),
             Build.CURRENT.isSnapshot(), Math.abs(randomInt()) + "." + Math.abs(randomInt()) + "." + Math.abs(randomInt())
         );
         assertTrue(build.getQualifiedVersion(), build.isProductionRelease());
 
         assertFalse(new Build(
-            Build.CURRENT.flavor(), Build.CURRENT.type(), Build.CURRENT.shortHash(), Build.CURRENT.date(),
+            Build.CURRENT.flavor(), Build.CURRENT.type(), Build.CURRENT.hash(), Build.CURRENT.date(),
             Build.CURRENT.isSnapshot(), "7.0.0-SNAPSHOT"
         ).isProductionRelease());
 
         assertFalse(new Build(
-            Build.CURRENT.flavor(), Build.CURRENT.type(), Build.CURRENT.shortHash(), Build.CURRENT.date(),
+            Build.CURRENT.flavor(), Build.CURRENT.type(), Build.CURRENT.hash(), Build.CURRENT.date(),
             Build.CURRENT.isSnapshot(), "Unknown"
         ).isProductionRelease());
     }
@@ -73,7 +73,7 @@ public class BuildTests extends ESTestCase {
         Build build = Build.CURRENT;
 
         Build another = new Build(
-            build.flavor(), build.type(), build.shortHash(), build.date(), build.isSnapshot(), build.getQualifiedVersion()
+            build.flavor(), build.type(), build.hash(), build.date(), build.isSnapshot(), build.getQualifiedVersion()
         );
         assertEquals(build, another);
         assertEquals(build.hashCode(), another.hashCode());
@@ -82,7 +82,7 @@ public class BuildTests extends ESTestCase {
                 Arrays.stream(Build.Flavor.values()).filter(f -> !f.equals(build.flavor())).collect(Collectors.toSet());
         final Build.Flavor otherFlavor = randomFrom(otherFlavors);
         Build differentFlavor = new Build(
-            otherFlavor, build.type(), build.shortHash(), build.date(), build.isSnapshot(), build.getQualifiedVersion()
+            otherFlavor, build.type(), build.hash(), build.date(), build.isSnapshot(), build.getQualifiedVersion()
         );
         assertNotEquals(build, differentFlavor);
 
@@ -90,7 +90,7 @@ public class BuildTests extends ESTestCase {
                 Arrays.stream(Build.Type.values()).filter(f -> !f.equals(build.type())).collect(Collectors.toSet());
         final Build.Type otherType = randomFrom(otherTypes);
         Build differentType = new Build(
-            build.flavor(), otherType, build.shortHash(), build.date(), build.isSnapshot(), build.getQualifiedVersion()
+            build.flavor(), otherType, build.hash(), build.date(), build.isSnapshot(), build.getQualifiedVersion()
         );
         assertNotEquals(build, differentType);
 
@@ -101,17 +101,17 @@ public class BuildTests extends ESTestCase {
         assertNotEquals(build, differentHash);
 
         Build differentDate = new Build(
-            build.flavor(), build.type(), build.shortHash(), "1970-01-01", build.isSnapshot(), build.getQualifiedVersion()
+            build.flavor(), build.type(), build.hash(), "1970-01-01", build.isSnapshot(), build.getQualifiedVersion()
         );
         assertNotEquals(build, differentDate);
 
         Build differentSnapshot = new Build(
-            build.flavor(), build.type(), build.shortHash(), build.date(), !build.isSnapshot(), build.getQualifiedVersion()
+            build.flavor(), build.type(), build.hash(), build.date(), !build.isSnapshot(), build.getQualifiedVersion()
         );
         assertNotEquals(build, differentSnapshot);
 
         Build differentVersion = new Build(
-            build.flavor(), build.type(), build.shortHash(), build.date(), build.isSnapshot(), "1.2.3"
+            build.flavor(), build.type(), build.hash(), build.date(), build.isSnapshot(), "1.2.3"
         );
         assertNotEquals(build, differentVersion);
     }
@@ -161,23 +161,23 @@ public class BuildTests extends ESTestCase {
                     case 1:
                         return new WriteableBuild(new Build(
                             randomValueOtherThan(b.build.flavor(), () -> randomFrom(Build.Flavor.values())), b.build.type(),
-                            b.build.shortHash(), b.build.date(), b.build.isSnapshot(), b.build.getQualifiedVersion()));
+                            b.build.hash(), b.build.date(), b.build.isSnapshot(), b.build.getQualifiedVersion()));
                     case 2:
                         return new WriteableBuild(new Build(b.build.flavor(),
                             randomValueOtherThan(b.build.type(), () -> randomFrom(Build.Type.values())),
-                            b.build.shortHash(), b.build.date(), b.build.isSnapshot(), b.build.getQualifiedVersion()));
+                            b.build.hash(), b.build.date(), b.build.isSnapshot(), b.build.getQualifiedVersion()));
                     case 3:
                         return new WriteableBuild(new Build(b.build.flavor(), b.build.type(),
-                            randomStringExcept(b.build.shortHash()), b.build.date(), b.build.isSnapshot(), b.build.getQualifiedVersion()));
+                            randomStringExcept(b.build.hash()), b.build.date(), b.build.isSnapshot(), b.build.getQualifiedVersion()));
                     case 4:
                         return new WriteableBuild(new Build(b.build.flavor(), b.build.type(),
-                            b.build.shortHash(), randomStringExcept(b.build.date()), b.build.isSnapshot(), b.build.getQualifiedVersion()));
+                            b.build.hash(), randomStringExcept(b.build.date()), b.build.isSnapshot(), b.build.getQualifiedVersion()));
                     case 5:
                         return new WriteableBuild(new Build(b.build.flavor(), b.build.type(),
-                            b.build.shortHash(), b.build.date(), b.build.isSnapshot() == false, b.build.getQualifiedVersion()));
+                            b.build.hash(), b.build.date(), b.build.isSnapshot() == false, b.build.getQualifiedVersion()));
                     case 6:
                         return new WriteableBuild(new Build(b.build.flavor(), b.build.type(),
-                            b.build.shortHash(), b.build.date(), b.build.isSnapshot(), randomStringExcept(b.build.getQualifiedVersion())));
+                            b.build.hash(), b.build.date(), b.build.isSnapshot(), randomStringExcept(b.build.getQualifiedVersion())));
                 }
                 throw new AssertionError();
             });

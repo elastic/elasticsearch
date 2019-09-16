@@ -41,6 +41,16 @@ Vagrant.configure(2) do |config|
   # the elasticsearch project called vagrant....
   config.vm.synced_folder '.', '/vagrant', disabled: true
   config.vm.synced_folder '.', '/elasticsearch'
+  # TODO: make these syncs work for windows!!!
+  config.vm.synced_folder "#{Dir.home}/.vagrant/gradle/caches/jars-3", "/root/.gradle/caches/jars-3",
+      create: true,
+      owner: "vagrant"
+  config.vm.synced_folder "#{Dir.home}/.vagrant/gradle/caches/modules-2", "/root/.gradle/caches/modules-2",
+      create: true,
+      owner: "vagrant"
+  config.vm.synced_folder "#{Dir.home}/.gradle/wrapper", "/root/.gradle/wrapper",
+      create: true,
+      owner: "vagrant"
 
   # Expose project directory. Note that VAGRANT_CWD may not be the same as Dir.pwd
   PROJECT_DIR = ENV['VAGRANT_PROJECT_DIR'] || Dir.pwd
@@ -376,10 +386,6 @@ export ZIP=/elasticsearch/distribution/zip/build/distributions
 export TAR=/elasticsearch/distribution/tar/build/distributions
 export RPM=/elasticsearch/distribution/rpm/build/distributions
 export DEB=/elasticsearch/distribution/deb/build/distributions
-export BATS=/project/build/bats
-export BATS_UTILS=/project/build/packaging/bats/utils
-export BATS_TESTS=/project/build/packaging/bats/tests
-export PACKAGING_ARCHIVES=/project/build/packaging/archives
 export PACKAGING_TESTS=/project/build/packaging/tests
 VARS
     cat \<\<SUDOERS_VARS > /etc/sudoers.d/elasticsearch_vars
@@ -387,11 +393,10 @@ Defaults   env_keep += "ZIP"
 Defaults   env_keep += "TAR"
 Defaults   env_keep += "RPM"
 Defaults   env_keep += "DEB"
-Defaults   env_keep += "BATS"
-Defaults   env_keep += "BATS_UTILS"
-Defaults   env_keep += "BATS_TESTS"
 Defaults   env_keep += "PACKAGING_ARCHIVES"
 Defaults   env_keep += "PACKAGING_TESTS"
+Defaults   env_keep += "BATS_UTILS"
+Defaults   env_keep += "BATS_TESTS"
 Defaults   env_keep += "JAVA_HOME"
 Defaults   env_keep += "SYSTEM_JAVA_HOME"
 SUDOERS_VARS

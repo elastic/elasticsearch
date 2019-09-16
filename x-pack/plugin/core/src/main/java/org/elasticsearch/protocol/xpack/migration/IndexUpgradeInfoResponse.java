@@ -23,18 +23,13 @@ public class IndexUpgradeInfoResponse extends ActionResponse implements ToXConte
 
     private Map<String, UpgradeActionRequired> actions;
 
-    public IndexUpgradeInfoResponse() {
-
+    public IndexUpgradeInfoResponse(StreamInput in) throws IOException {
+        super(in);
+        actions = in.readMap(StreamInput::readString, UpgradeActionRequired::readFromStream);
     }
 
     public IndexUpgradeInfoResponse(Map<String, UpgradeActionRequired> actions) {
         this.actions = actions;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        actions = in.readMap(StreamInput::readString, UpgradeActionRequired::readFromStream);
     }
 
     @Override

@@ -16,17 +16,12 @@ public final class OpenIdConnectLogoutResponse extends ActionResponse {
     private String endSessionUrl;
 
     public OpenIdConnectLogoutResponse(StreamInput in) throws IOException {
-        super.readFrom(in);
+        super(in);
         this.endSessionUrl = in.readString();
     }
 
     public OpenIdConnectLogoutResponse(String endSessionUrl) {
         this.endSessionUrl = endSessionUrl;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

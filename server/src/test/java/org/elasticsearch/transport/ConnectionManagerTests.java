@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -68,7 +69,7 @@ public class ConnectionManagerTests extends ESTestCase {
 
     @After
     public void stopThreadPool() {
-        threadPool.shutdown();
+        ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS);
     }
 
     public void testConnectAndDisconnect() {
@@ -130,7 +131,7 @@ public class ConnectionManagerTests extends ESTestCase {
             ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
             if (rarely()) {
                 listener.onResponse(connection);
-            } if (frequently()) {
+            } else if (frequently()) {
                 threadPool.generic().execute(() -> listener.onResponse(connection));
             } else {
                 threadPool.generic().execute(() -> listener.onFailure(new IllegalStateException("dummy exception")));
@@ -143,7 +144,7 @@ public class ConnectionManagerTests extends ESTestCase {
         ConnectionManager.ConnectionValidator validator = (c, p, l) -> {
             if (rarely()) {
                 l.onResponse(null);
-            } if (frequently()) {
+            } else if (frequently()) {
                 threadPool.generic().execute(() -> l.onResponse(null));
             } else {
                 threadPool.generic().execute(() -> l.onFailure(new IllegalStateException("dummy exception")));

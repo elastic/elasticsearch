@@ -71,7 +71,7 @@ Returns the geometry from WKT representation.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs/geo.csv-spec[aswkt]
+include-tagged::{sql-specs}/docs/geo.csv-spec[wkttosql]
 --------------------------------------------------
 
 ==== Geometry Properties

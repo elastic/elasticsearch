@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -40,7 +41,6 @@ import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -179,10 +179,10 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
         final BulkByScrollResponse response = highLevelClient().reindex(reindexRequest, RequestOptions.DEFAULT);
 
         assertThat(response.getVersionConflicts(), equalTo(2L));
-        assertThat(response.getBulkFailures(), empty());
-        assertThat(response.getSearchFailures(), hasSize(2));
+        assertThat(response.getSearchFailures(), empty());
+        assertThat(response.getBulkFailures(), hasSize(2));
         assertThat(
-            response.getSearchFailures().stream().map(ScrollableHitSource.SearchFailure::toString).collect(Collectors.toSet()),
+            response.getBulkFailures().stream().map(BulkItemResponse.Failure::getMessage).collect(Collectors.toSet()),
             everyItem(containsString("version conflict"))
         );
 
@@ -292,7 +292,7 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             assertThat(response.getTasks().get(0).getStatus(), instanceOf(RawTaskStatus.class));
             assertEquals(Float.toString(requestsPerSecond),
                 ((RawTaskStatus) response.getTasks().get(0).getStatus()).toMap().get("requests_per_second").toString());
-            taskFinished.await(2, TimeUnit.SECONDS);
+            assertTrue(taskFinished.await(10, TimeUnit.SECONDS));
 
             // any rethrottling after the update-by-query is done performed with the same taskId should result in a failure
             response = execute(new RethrottleRequest(taskIdToRethrottle, requestsPerSecond),
@@ -328,10 +328,10 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
         final BulkByScrollResponse response = highLevelClient().updateByQuery(updateByQueryRequest, RequestOptions.DEFAULT);
 
         assertThat(response.getVersionConflicts(), equalTo(1L));
-        assertThat(response.getBulkFailures(), empty());
-        assertThat(response.getSearchFailures(), hasSize(1));
+        assertThat(response.getSearchFailures(), empty());
+        assertThat(response.getBulkFailures(), hasSize(1));
         assertThat(
-            response.getSearchFailures().stream().map(ScrollableHitSource.SearchFailure::toString).collect(Collectors.toSet()),
+            response.getBulkFailures().stream().map(BulkItemResponse.Failure::getMessage).collect(Collectors.toSet()),
             everyItem(containsString("version conflict"))
         );
 
@@ -423,7 +423,7 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             assertThat(response.getTasks().get(0).getStatus(), instanceOf(RawTaskStatus.class));
             assertEquals(Float.toString(requestsPerSecond),
                 ((RawTaskStatus) response.getTasks().get(0).getStatus()).toMap().get("requests_per_second").toString());
-            taskFinished.await(2, TimeUnit.SECONDS);
+            assertTrue(taskFinished.await(10, TimeUnit.SECONDS));
 
             // any rethrottling after the delete-by-query is done performed with the same taskId should result in a failure
             response = execute(new RethrottleRequest(taskIdToRethrottle, requestsPerSecond),

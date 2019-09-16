@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.document;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.test.rest.RestActionTestCase;
@@ -30,7 +29,7 @@ public class RestDeleteActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        new RestDeleteAction(Settings.EMPTY, controller());
+        new RestDeleteAction(controller());
     }
 
     public void testTypeInPath() {

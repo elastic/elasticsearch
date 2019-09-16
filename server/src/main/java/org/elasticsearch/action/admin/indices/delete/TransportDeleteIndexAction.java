@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.delete;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -48,6 +50,8 @@ import java.util.Set;
  */
 public class TransportDeleteIndexAction extends TransportMasterNodeAction<DeleteIndexRequest, AcknowledgedResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportDeleteIndexAction.class);
+
     private final MetaDataDeleteIndexService deleteIndexService;
     private final DestructiveOperations destructiveOperations;
 
@@ -56,8 +60,8 @@ public class TransportDeleteIndexAction extends TransportMasterNodeAction<Delete
                                       MetaDataDeleteIndexService deleteIndexService, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver,
                                       DestructiveOperations destructiveOperations) {
-        super(DeleteIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            DeleteIndexRequest::new);
+        super(DeleteIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, DeleteIndexRequest::new,
+            indexNameExpressionResolver );
         this.deleteIndexService = deleteIndexService;
         this.destructiveOperations = destructiveOperations;
     }
@@ -70,11 +74,6 @@ public class TransportDeleteIndexAction extends TransportMasterNodeAction<Delete
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

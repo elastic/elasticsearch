@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class RolloverAction extends ActionType<RolloverResponse> {
 
@@ -28,11 +27,7 @@ public class RolloverAction extends ActionType<RolloverResponse> {
     public static final String NAME = "indices:admin/rollover";
 
     private RolloverAction() {
-        super(NAME);
+        super(NAME, RolloverResponse::new);
     }
 
-    @Override
-    public Writeable.Reader<RolloverResponse> getResponseReader() {
-        return RolloverResponse::new;
-    }
 }

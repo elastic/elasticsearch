@@ -1,0 +1,102 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-get-category]]
+=== Get categories API
+++++
+<titleabbrev>Get categories</titleabbrev>
+++++
+
+Retrieves {anomaly-job} results for one or more categories.
+
+[[ml-get-category-request]]
+==== {api-request-title}
+
+`GET _ml/anomaly_detectors/<job_id>/results/categories` +
+
+`GET _ml/anomaly_detectors/<job_id>/results/categories/<category_id>`
+
+[[ml-get-category-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `monitor_ml`,
+`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. You also
+need `read` index privilege on the index that stores the results. The
+`machine_learning_admin` and `machine_learning_user` roles provide these
+privileges. See {stack-ov}/security-privileges.html[Security privileges] and
+{stack-ov}/built-in-roles.html[Built-in roles].
+
+[[ml-get-category-desc]]
+==== {api-description-title}
+
+For more information about categories, see
+{stack-ov}/ml-configuring-categories.html[Categorizing log messages].
+
+[[ml-get-category-path-parms]]
+==== {api-path-parms-title}
+
+`<job_id>`::
+  (Required, string) Identifier for the {anomaly-job}.
+
+`<category_id>`::
+  (Optional, long) Identifier for the category. If you do not specify this
+  parameter, the API returns information about all categories in the
+  {anomaly-job}.
+
+[[ml-get-category-request-body]]
+==== {api-request-body-title}
+
+`page`::
+`from`:::
+  (Optional, integer) Skips the specified number of categories.
+`size`:::
+  (Optional, integer) Specifies the maximum number of categories to obtain.
+
+[[ml-get-category-results]]
+==== {api-response-body-title}
+
+The API returns the following information:
+
+`categories`::
+  (array) An array of category objects. For more information, see
+  <<ml-results-categories,Categories>>.
+
+[[ml-get-category-example]]
+==== {api-examples-title}
+
+The following example gets information about one category for the
+`esxi_log` job:
+
+[source,console]
+--------------------------------------------------
+GET _ml/anomaly_detectors/esxi_log/results/categories
+{
+  "page":{
+    "size": 1
+  }
+}
+--------------------------------------------------
+// TEST[skip:todo]
+
+In this example, the API returns the following information:
+[source,js]
+----
+{
+  "count": 11,
+  "categories": [
+    {
+      "job_id" : "esxi_log",
+      "category_id" : 1,
+      "terms" : "Vpxa verbose vpxavpxaInvtVm opID VpxaInvtVmChangeListener Guest DiskInfo Changed",
+      "regex" : ".*?Vpxa.+?verbose.+?vpxavpxaInvtVm.+?opID.+?VpxaInvtVmChangeListener.+?Guest.+?DiskInfo.+?Changed.*",
+      "max_matching_length": 154,
+      "examples" : [
+        "Oct 19 17:04:44 esxi1.acme.com Vpxa: [3CB3FB90 verbose 'vpxavpxaInvtVm' opID=WFU-33d82c31] [VpxaInvtVmChangeListener] Guest DiskInfo Changed",
+        "Oct 19 17:04:45 esxi2.acme.com Vpxa: [3CA66B90 verbose 'vpxavpxaInvtVm' opID=WFU-33927856] [VpxaInvtVmChangeListener] Guest DiskInfo Changed",
+        "Oct 19 17:04:51 esxi1.acme.com Vpxa: [FFDBAB90 verbose 'vpxavpxaInvtVm' opID=WFU-25e0d447] [VpxaInvtVmChangeListener] Guest DiskInfo Changed",
+        "Oct 19 17:04:58 esxi2.acme.com Vpxa: [FFDDBB90 verbose 'vpxavpxaInvtVm' opID=WFU-bbff0134] [VpxaInvtVmChangeListener] Guest DiskInfo Changed"
+      ],
+      "grok_pattern" : ".*?%{SYSLOGTIMESTAMP:timestamp}.+?Vpxa.+?%{BASE16NUM:field}.+?verbose.+?vpxavpxaInvtVm.+?opID.+?VpxaInvtVmChangeListener.+?Guest.+?DiskInfo.+?Changed.*"
+    }
+  ]
+}
+----

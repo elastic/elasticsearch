@@ -257,6 +257,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("f*")
                 .get();
         assertThat(clusterStateResponse.getState().metaData().indices().size(), is(2));
+        ensureGreen("fuu");
 
         // close one index
         assertAcked(client().admin().indices().close(Requests.closeIndexRequest("fuu")).get());

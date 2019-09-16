@@ -39,8 +39,13 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
 
     private final List<IndexTemplateMetaData> indexTemplates;
 
-    GetIndexTemplatesResponse() {
+    public GetIndexTemplatesResponse(StreamInput in) throws IOException {
+        super(in);
+        int size = in.readVInt();
         indexTemplates = new ArrayList<>();
+        for (int i = 0 ; i < size ; i++) {
+            indexTemplates.add(0, IndexTemplateMetaData.readFrom(in));
+        }
     }
 
     public GetIndexTemplatesResponse(List<IndexTemplateMetaData> indexTemplates) {
@@ -49,16 +54,6 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
 
     public List<IndexTemplateMetaData> getIndexTemplates() {
         return indexTemplates;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int size = in.readVInt();
-        indexTemplates.clear();
-        for (int i = 0 ; i < size ; i++) {
-            indexTemplates.add(0, IndexTemplateMetaData.readFrom(in));
-        }
     }
 
     @Override

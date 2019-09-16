@@ -37,7 +37,7 @@ import java.io.IOException;
 
 import static org.mockito.Mockito.mock;
 
-@TestLogging(value = "org.elasticsearch.transport.TransportLogger:trace")
+@TestLogging(value = "org.elasticsearch.transport.TransportLogger:trace", reason = "to ensure we log network events on TRACE level")
 public class TransportLoggerTests extends ESTestCase {
 
     private MockLogAppender appender;
@@ -56,8 +56,6 @@ public class TransportLoggerTests extends ESTestCase {
     }
 
     public void testLoggingHandler() throws IOException {
-        TransportLogger transportLogger = new TransportLogger();
-
         final String writePattern =
             ".*\\[length: \\d+" +
                 ", request id: \\d+" +
@@ -84,8 +82,8 @@ public class TransportLoggerTests extends ESTestCase {
         appender.addExpectation(writeExpectation);
         appender.addExpectation(readExpectation);
         BytesReference bytesReference = buildRequest();
-        transportLogger.logInboundMessage(mock(TcpChannel.class), bytesReference.slice(6, bytesReference.length() - 6));
-        transportLogger.logOutboundMessage(mock(TcpChannel.class), bytesReference);
+        TransportLogger.logInboundMessage(mock(TcpChannel.class), bytesReference.slice(6, bytesReference.length() - 6));
+        TransportLogger.logOutboundMessage(mock(TcpChannel.class), bytesReference);
         appender.assertAllExpectationsMatched();
     }
 
@@ -95,7 +93,6 @@ public class TransportLoggerTests extends ESTestCase {
             try (ThreadContext context = new ThreadContext(Settings.EMPTY)) {
                 context.writeTo(messageOutput);
             }
-            messageOutput.writeStringArray(new String[0]);
             messageOutput.writeString(ClusterStatsAction.NAME);
             new ClusterStatsRequest().writeTo(messageOutput);
             BytesReference messageBody = messageOutput.bytes();

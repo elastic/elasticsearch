@@ -23,7 +23,6 @@ import java.io.ByteArrayInputStream;
 import java.io.CharArrayWriter;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.Locale;
 import java.util.Map;
 
 import org.elasticsearch.cli.Command;
@@ -176,14 +175,15 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         assertThat(e.getMessage(), containsString("The setting name can not be null"));
     }
 
-    public void testUpperCaseInName() throws Exception {
+    public void testSpecialCharacterInName() throws Exception {
         createKeystore("");
         terminal.addSecretInput("value");
-        final String key = randomAlphaOfLength(4) + randomAlphaOfLength(1).toUpperCase(Locale.ROOT) + randomAlphaOfLength(4);
+        final String key = randomAlphaOfLength(4) + '@' + randomAlphaOfLength(4);
         final UserException e = expectThrows(UserException.class, () -> execute(key));
+        final String exceptionString= "Setting name [" + key + "] does not match the allowed setting name pattern [[A-Za-z0-9_\\-.]+]";
         assertThat(
                 e,
-                hasToString(containsString("Setting name [" + key + "] does not match the allowed setting name pattern [[a-z0-9_\\-.]+]")));
+                hasToString(containsString(exceptionString)));
     }
 
     void setInput(String inputStr) {

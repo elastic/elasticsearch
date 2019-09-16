@@ -63,11 +63,6 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<Del
     }
 
     @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected ClusterBlockException checkBlock(DeleteSnapshotRequest request, ClusterState state) {
         // Cluster is not affected but we look up repositories in metadata
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);

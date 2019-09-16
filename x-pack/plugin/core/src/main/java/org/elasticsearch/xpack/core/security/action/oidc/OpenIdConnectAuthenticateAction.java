@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.security.action.oidc;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 /**
  * ActionType for initiating an authentication process using OpenID Connect
@@ -17,11 +16,7 @@ public final class OpenIdConnectAuthenticateAction extends ActionType<OpenIdConn
     public static final String NAME = "cluster:admin/xpack/security/oidc/authenticate";
 
     private OpenIdConnectAuthenticateAction() {
-        super(NAME);
+        super(NAME, OpenIdConnectAuthenticateResponse::new);
     }
 
-    @Override
-    public Writeable.Reader<OpenIdConnectAuthenticateResponse> getResponseReader() {
-        return OpenIdConnectAuthenticateResponse::new;
-    }
 }

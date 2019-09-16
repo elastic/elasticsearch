@@ -70,6 +70,16 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
     // expressions only against indices
     private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, false, true, false, true, false);
 
+    public IndicesAliasesRequest(StreamInput in) throws IOException {
+        super(in);
+        allAliasActions = in.readList(AliasActions::new);
+        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+            origin = in.readOptionalString();
+        } else {
+            origin = null;
+        }
+    }
+
     public IndicesAliasesRequest() {
     }
 
@@ -561,17 +571,6 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             return addValidationError("Must specify at least one alias action", validationException);
         }
         return validationException;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        allAliasActions = in.readList(AliasActions::new);
-        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-            origin = in.readOptionalString();
-        } else {
-            origin = null;
-        }
     }
 
     @Override

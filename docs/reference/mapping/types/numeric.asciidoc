@@ -1,5 +1,8 @@
 [[number]]
 === Numeric datatypes
+++++
+<titleabbrev>Numeric</titleabbrev>
+++++
 
 The following numeric types are supported:
 
@@ -15,7 +18,7 @@ The following numeric types are supported:
 
 Below is an example of configuring a mapping with numeric fields:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -35,7 +38,6 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 NOTE: The `double`, `float` and `half_float` types consider that `-0.0` and
 `+0.0` are different values. As a consequence, doing a `term` query on

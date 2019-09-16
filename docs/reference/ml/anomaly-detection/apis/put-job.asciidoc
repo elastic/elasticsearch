@@ -1,0 +1,156 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-put-job]]
+=== Create {anomaly-jobs} API
+++++
+<titleabbrev>Create jobs</titleabbrev>
+++++
+
+Instantiates an {anomaly-job}.
+
+[[ml-put-job-request]]
+==== {api-request-title}
+
+`PUT _ml/anomaly_detectors/<job_id>`
+
+[[ml-put-job-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
+[[ml-put-job-desc]]
+==== {api-description-title}
+
+IMPORTANT: You must use {kib} or this API to create an {anomaly-job}. Do not put
+a job directly to the `.ml-config` index using the {es} index API. If {es}
+{security-features} are enabled, do not give users `write` privileges on the
+`.ml-config` index.
+
+[[ml-put-job-path-parms]]
+==== {api-path-parms-title}
+
+`<job_id>`::
+  (Required, string) Identifier for the job. This identifier can contain
+  lowercase alphanumeric characters (a-z and 0-9), hyphens, and underscores. It
+  must start and end with alphanumeric characters.
+
+[[ml-put-job-request-body]]
+==== {api-request-body-title}
+
+`analysis_config`::
+  (Required, object) The analysis configuration, which specifies how to analyze
+  the data. See <<ml-analysisconfig, analysis configuration objects>>.
+
+`analysis_limits`::
+  (Optional, object) Specifies runtime limits for the job. See
+  <<ml-apilimits,analysis limits>>.
+
+`background_persist_interval`::
+  (Optional, <<time-units, time units>>) Advanced configuration option. The time 
+  between each periodic persistence of the model. See <<ml-job-resource>>.
+
+`custom_settings`::
+  (Optional, object) Advanced configuration option. Contains custom meta data
+  about the job. See <<ml-job-resource>>.
+
+`data_description`::
+  (Required, object) Describes the format of the input data. This object is
+  required, but it can be empty (`{}`). See
+    <<ml-datadescription,data description objects>>.
+
+`description`::
+  (Optional, string) A description of the job.
+
+`groups`::
+  (Optional, array of strings) A list of job groups. See <<ml-job-resource>>.
+
+`model_plot_config`::
+  (Optional, object) Advanced configuration option. Specifies to store model 
+  information along with the results. This adds overhead to the performance of
+  the system and is not feasible for jobs with many entities, see
+  <<ml-apimodelplotconfig>>.
+
+`model_snapshot_retention_days`::
+  (Optional, long) The time in days that model snapshots are retained for the
+  job. Older snapshots are deleted. The default value is `1`, which means
+  snapshots are retained for one day (twenty-four hours). 
+
+`renormalization_window_days`::
+  (Optional, long) Advanced configuration option. The period over which
+  adjustments to the score are applied, as new data is seen. See
+  <<ml-job-resource>>.
+
+`results_index_name`::
+  (Optional, string) A text string that affects the name of the {ml} results
+  index. The default value is `shared`, which generates an index named
+  `.ml-anomalies-shared`. 
+
+`results_retention_days`::
+  (Optional, long) Advanced configuration option. The number of days for which
+  job results are retained. See <<ml-job-resource>>.
+
+[[ml-put-job-example]]
+==== {api-examples-title}
+
+The following example creates the `total-requests` job:
+
+[source,console]
+--------------------------------------------------
+PUT _ml/anomaly_detectors/total-requests
+{
+  "description" : "Total sum of requests",
+  "analysis_config" : {
+    "bucket_span":"10m",
+    "detectors": [
+      {
+        "detector_description": "Sum of total",
+        "function": "sum",
+        "field_name": "total"
+      }
+    ]
+  },
+  "data_description" : {
+    "time_field":"timestamp",
+    "time_format": "epoch_ms"
+  }
+}
+--------------------------------------------------
+
+When the job is created, you receive the following results:
+
+[source,console-result]
+----
+{
+  "job_id" : "total-requests",
+  "job_type" : "anomaly_detector",
+  "job_version" : "8.0.0",
+  "description" : "Total sum of requests",
+  "create_time" : 1562352500629,
+  "analysis_config" : {
+    "bucket_span" : "10m",
+    "detectors" : [
+      {
+        "detector_description" : "Sum of total",
+        "function" : "sum",
+        "field_name" : "total",
+        "detector_index" : 0
+      }
+    ],
+    "influencers" : [ ]
+  },
+  "analysis_limits" : {
+    "model_memory_limit" : "1024mb",
+    "categorization_examples_limit" : 4
+  },
+  "data_description" : {
+    "time_field" : "timestamp",
+    "time_format" : "epoch_ms"
+  },
+  "model_snapshot_retention_days" : 1,
+  "results_index_name" : "shared"
+}
+----
+// TESTRESPONSE[s/"job_version" : "8.0.0"/"job_version" : $body.job_version/]
+// TESTRESPONSE[s/1562352500629/$body.$_path/]

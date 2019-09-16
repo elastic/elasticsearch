@@ -35,12 +35,7 @@ public class DeleteRollupJobAction extends ActionType<DeleteRollupJobAction.Resp
     public static final String NAME = "cluster:admin/xpack/rollup/delete";
 
     private DeleteRollupJobAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, DeleteRollupJobAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentFragment {

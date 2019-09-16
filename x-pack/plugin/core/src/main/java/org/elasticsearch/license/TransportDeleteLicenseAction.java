@@ -34,7 +34,7 @@ public class TransportDeleteLicenseAction extends TransportMasterNodeAction<Dele
                                         LicenseService licenseService, ThreadPool threadPool, ActionFilters actionFilters,
                                         IndexNameExpressionResolver indexNameExpressionResolver) {
         super(DeleteLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, DeleteLicenseRequest::new);
+                DeleteLicenseRequest::new, indexNameExpressionResolver);
         this.licenseService = licenseService;
     }
 
@@ -46,11 +46,6 @@ public class TransportDeleteLicenseAction extends TransportMasterNodeAction<Dele
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

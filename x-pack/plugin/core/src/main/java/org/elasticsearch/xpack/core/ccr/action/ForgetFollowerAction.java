@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ccr.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.ParseField;
@@ -19,18 +19,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
-public class ForgetFollowerAction extends StreamableResponseActionType<BroadcastResponse> {
+public class ForgetFollowerAction extends ActionType<BroadcastResponse> {
 
     public static final String NAME = "indices:admin/xpack/ccr/forget_follower";
     public static final ForgetFollowerAction INSTANCE = new ForgetFollowerAction();
 
     private ForgetFollowerAction() {
-        super(NAME);
-    }
-
-    @Override
-    public BroadcastResponse newResponse() {
-        return new BroadcastResponse();
+        super(NAME, BroadcastResponse::new);
     }
 
     /**
@@ -115,8 +110,13 @@ public class ForgetFollowerAction extends StreamableResponseActionType<Broadcast
             return leaderIndex;
         }
 
-        public Request() {
-
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            followerCluster = in.readString();
+            leaderIndex = in.readString();
+            leaderRemoteCluster = in.readString();
+            followerIndex = in.readString();
+            followerIndexUUID = in.readString();
         }
 
         /**
@@ -140,15 +140,6 @@ public class ForgetFollowerAction extends StreamableResponseActionType<Broadcast
             this.leaderRemoteCluster = Objects.requireNonNull(leaderRemoteCluster);
             this.followerIndex = Objects.requireNonNull(followerIndex);
             this.followerIndexUUID = Objects.requireNonNull(followerIndexUUID);
-        }
-
-        public Request(final StreamInput in) throws IOException {
-            super.readFrom(in);
-            followerCluster = in.readString();
-            leaderIndex = in.readString();
-            leaderRemoteCluster = in.readString();
-            followerIndex = in.readString();
-            followerIndexUUID = in.readString();
         }
 
         @Override

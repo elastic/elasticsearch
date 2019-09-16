@@ -50,7 +50,7 @@ import java.util.function.Consumer;
  * }</pre>
  */
 
-public final class StepListener<Response> implements ActionListener<Response> {
+public final class StepListener<Response> extends NotifyOnceListener<Response> {
     private final ListenableFuture<Response> delegate;
 
     public StepListener() {
@@ -58,12 +58,12 @@ public final class StepListener<Response> implements ActionListener<Response> {
     }
 
     @Override
-    public void onResponse(Response response) {
+    protected void innerOnResponse(Response response) {
         delegate.onResponse(response);
     }
 
     @Override
-    public void onFailure(Exception e) {
+    protected void innerOnFailure(Exception e) {
         delegate.onFailure(e);
     }
 

@@ -19,19 +19,14 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.action.StreamableResponseActionType;
+import org.elasticsearch.action.ActionType;
 
-public class SimulatePipelineAction extends StreamableResponseActionType<SimulatePipelineResponse> {
+public class SimulatePipelineAction extends ActionType<SimulatePipelineResponse> {
 
     public static final SimulatePipelineAction INSTANCE = new SimulatePipelineAction();
     public static final String NAME = "cluster:admin/ingest/pipeline/simulate";
 
     public SimulatePipelineAction() {
-        super(NAME);
-    }
-
-    @Override
-    public SimulatePipelineResponse newResponse() {
-        return new SimulatePipelineResponse();
+        super(NAME, SimulatePipelineResponse::new);
     }
 }

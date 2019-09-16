@@ -11,7 +11,7 @@ Creates an auto-follow pattern.
 [[ccr-put-auto-follow-pattern-request]]
 ==== {api-request-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_ccr/auto_follow/<auto_follow_pattern_name>
 {
@@ -23,7 +23,6 @@ PUT /_ccr/auto_follow/<auto_follow_pattern_name>
   "follow_index_pattern" : "<follow_index_pattern>"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:remote_cluster]
 // TEST[s/<auto_follow_pattern_name>/auto_follow_pattern_name/]
 // TEST[s/<remote_cluster>/remote_cluster/]
@@ -32,11 +31,10 @@ PUT /_ccr/auto_follow/<auto_follow_pattern_name>
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_ccr/auto_follow/auto_follow_pattern_name
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 //////////////////////////
@@ -61,24 +59,24 @@ indices.
 
 [[ccr-put-auto-follow-pattern-path-parms]]
 ==== {api-path-parms-title}
-`<auto_follow_pattern_name>` (Required)::
-  (string) The name of the collection of auto-follow patterns.
+`<auto_follow_pattern_name>`::
+  (Required, string) The name of the collection of auto-follow patterns.
 
 [[ccr-put-auto-follow-pattern-request-body]]
 ==== {api-request-body-title}
 
-`remote_cluster` (Required)::
-  (string) The <<modules-remote-clusters,remote cluster>> containing the
-  leader indices to match against.
+`remote_cluster`::
+  (Required, string) The <<modules-remote-clusters,remote cluster>> containing
+  the leader indices to match against.
 
-`leader_index_patterns` (Optional)::
-  (array) An array of simple index patterns to match against indices in the
-  remote cluster specified by the `remote_cluster` field.
+`leader_index_patterns`::
+  (Optional, array) An array of simple index patterns to match against indices
+  in the remote cluster specified by the `remote_cluster` field.
 
-`follow_index_pattern` (Optional)::
-  (string) The name of follower index. The template `{{leader_index}}` can be
-  used to derive the name of the follower index from the name of the leader
-  index.
+`follow_index_pattern`::
+  (Optional, string) The name of follower index. The template `{{leader_index}}`
+  can be used to derive the name of the follower index from the name of the
+  leader index.
 
 include::../follow-request-body.asciidoc[]
 
@@ -87,7 +85,7 @@ include::../follow-request-body.asciidoc[]
 
 This example creates an auto-follow pattern named `my_auto_follow_pattern`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_ccr/auto_follow/my_auto_follow_pattern
 {
@@ -109,26 +107,23 @@ PUT /_ccr/auto_follow/my_auto_follow_pattern
   "read_poll_timeout" : "30s"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:remote_cluster]
 
 The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "acknowledged" : true
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_ccr/auto_follow/my_auto_follow_pattern
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 //////////////////////////

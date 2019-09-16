@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions.service;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -34,6 +36,8 @@ import java.io.IOException;
 
 public class TransportWatcherServiceAction extends TransportMasterNodeAction<WatcherServiceRequest, AcknowledgedResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportWatcherServiceAction.class);
+
     private AckedRequest ackedRequest = new AckedRequest() {
         @Override
         public TimeValue ackTimeout() {
@@ -51,7 +55,7 @@ public class TransportWatcherServiceAction extends TransportMasterNodeAction<Wat
                                          ThreadPool threadPool, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
         super(WatcherServiceAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                indexNameExpressionResolver, WatcherServiceRequest::new);
+            WatcherServiceRequest::new, indexNameExpressionResolver);
     }
 
     @Override
@@ -62,11 +66,6 @@ public class TransportWatcherServiceAction extends TransportMasterNodeAction<Wat
     @Override
     protected AcknowledgedResponse read(StreamInput in) throws IOException {
         return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

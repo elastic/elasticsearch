@@ -1,0 +1,22 @@
+[float]
+[[breaking_80_allocation_changes]]
+=== Allocation changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+
+// end::notable-breaking-changes[]
+
+[float]
+[[breaking_80_allocation_change_flood_stage_block_always_removed]]
+==== Auto-release flood-stage block no longer optional
+
+If a node exceeds the flood-stage disk watermark then we add a block to all of
+its indices to prevent further writes as a last-ditch attempt to prevent the
+node completely exhausting its disk space. By default, from 7.4 onwards the
+block is automatically removed when a node drops below the high watermark
+again, but this behaviour could be disabled by setting the system property
+`es.disk.auto_release_flood_stage_block` to `false`. This behaviour is no
+longer optional, and this system property must now not be set.

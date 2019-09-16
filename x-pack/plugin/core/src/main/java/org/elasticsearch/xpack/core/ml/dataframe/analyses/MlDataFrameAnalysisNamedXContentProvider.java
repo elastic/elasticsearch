@@ -22,6 +22,10 @@ public class MlDataFrameAnalysisNamedXContentProvider implements NamedXContentPr
             boolean ignoreUnknownFields = (boolean) c;
             return OutlierDetection.fromXContent(p, ignoreUnknownFields);
         }));
+        namedXContent.add(new NamedXContentRegistry.Entry(DataFrameAnalysis.class, Regression.NAME, (p, c) -> {
+            boolean ignoreUnknownFields = (boolean) c;
+            return Regression.fromXContent(p, ignoreUnknownFields);
+        }));
 
         return namedXContent;
     }
@@ -31,6 +35,8 @@ public class MlDataFrameAnalysisNamedXContentProvider implements NamedXContentPr
 
         namedWriteables.add(new NamedWriteableRegistry.Entry(DataFrameAnalysis.class, OutlierDetection.NAME.getPreferredName(),
             OutlierDetection::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(DataFrameAnalysis.class, Regression.NAME.getPreferredName(),
+            Regression::new));
 
         return namedWriteables;
     }

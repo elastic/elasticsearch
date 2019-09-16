@@ -104,17 +104,17 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
         @Override
         public Query existsQuery(QueryShardContext context) {
-            throw new UnsupportedOperationException("[rank_features] fields do not support [exists] queries");
+            throw new IllegalArgumentException("[rank_features] fields do not support [exists] queries");
         }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            throw new UnsupportedOperationException("[rank_features] fields do not support sorting, scripting or aggregating");
+            throw new IllegalArgumentException("[rank_features] fields do not support sorting, scripting or aggregating");
         }
 
         @Override
         public Query termQuery(Object value, QueryShardContext context) {
-            throw new UnsupportedOperationException("Queries on [rank_features] fields are not supported");
+            throw new IllegalArgumentException("Queries on [rank_features] fields are not supported");
         }
     }
 

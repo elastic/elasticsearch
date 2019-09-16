@@ -10,10 +10,14 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -32,8 +36,20 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
     }
 
     public static Regression createRandom() {
-        List<RegressionMetric> metrics = Collections.singletonList(MeanSquaredErrorTests.createRandom());
-        return new Regression(randomAlphaOfLength(10), randomAlphaOfLength(10), randomBoolean() ? null : metrics);
+        List<RegressionMetric> metrics = new ArrayList<>();
+        if (randomBoolean()) {
+            metrics.add(MeanSquaredErrorTests.createRandom());
+        }
+        if (randomBoolean()) {
+            metrics.add(RSquaredTests.createRandom());
+        }
+        return new Regression(randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomBoolean() ?
+                null :
+                metrics.isEmpty() ?
+                    null :
+                    metrics);
     }
 
     @Override
@@ -55,5 +71,21 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
             () -> new Regression("foo", "bar", Collections.emptyList()));
         assertThat(e.getMessage(), equalTo("[regression] must have one or more metrics"));
+    }
+
+    public void testBuildSearch() {
+        Regression evaluation = new Regression("act", "prob", Arrays.asList(new MeanSquaredError()));
+        QueryBuilder userProvidedQuery =
+            QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery("field_A", "some-value"))
+                .filter(QueryBuilders.termQuery("field_B", "some-other-value"));
+        QueryBuilder expectedSearchQuery =
+            QueryBuilders.boolQuery()
+                .filter(QueryBuilders.existsQuery("act"))
+                .filter(QueryBuilders.existsQuery("prob"))
+                .filter(QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery("field_A", "some-value"))
+                    .filter(QueryBuilders.termQuery("field_B", "some-other-value")));
+        assertThat(evaluation.buildSearch(userProvidedQuery).query(), equalTo(expectedSearchQuery));
     }
 }

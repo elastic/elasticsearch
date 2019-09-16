@@ -37,6 +37,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -97,6 +98,51 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         } catch (IllegalArgumentException e) {
             verifyException(dataNodes, counts, e);
         }
+        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        assertFalse(clusterState.getMetaData().hasIndex("should-fail"));
+    }
+
+    public void testIndexCreationOverLimitFromTemplate() {
+        int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
+
+        final ShardCounts counts;
+        {
+            final ShardCounts temporaryCounts = ShardCounts.forDataNodeCount(dataNodes);
+            /*
+             * We are going to create an index that will bring us up to one below the limit; we go one below the limit to ensure the
+             * template is used instead of one shard.
+             */
+            counts = new ShardCounts(
+                temporaryCounts.shardsPerNode,
+                temporaryCounts.firstIndexShards - 1,
+                temporaryCounts.firstIndexReplicas,
+                temporaryCounts.failingIndexShards + 1,
+                temporaryCounts.failingIndexReplicas);
+        }
+        setShardsPerNode(counts.getShardsPerNode());
+
+        if (counts.firstIndexShards > 0) {
+            createIndex(
+                "test",
+                Settings.builder()
+                    .put(indexSettings())
+                    .put(SETTING_NUMBER_OF_SHARDS, counts.getFirstIndexShards())
+                    .put(SETTING_NUMBER_OF_REPLICAS, counts.getFirstIndexReplicas()).build());
+        }
+
+        assertAcked(client().admin()
+            .indices()
+            .preparePutTemplate("should-fail*")
+            .setPatterns(Collections.singletonList("should-fail"))
+            .setOrder(1)
+            .setSettings(Settings.builder()
+                .put(SETTING_NUMBER_OF_SHARDS, counts.getFailingIndexShards())
+                .put(SETTING_NUMBER_OF_REPLICAS, counts.getFailingIndexReplicas()))
+            .get());
+
+        final IllegalArgumentException e =
+            expectThrows(IllegalArgumentException.class, () -> client().admin().indices().prepareCreate("should-fail").get());
+        verifyException(dataNodes, counts, e);
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         assertFalse(clusterState.getMetaData().hasIndex("should-fail"));
     }

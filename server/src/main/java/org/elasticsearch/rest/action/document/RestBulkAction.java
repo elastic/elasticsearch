@@ -57,7 +57,6 @@ public class RestBulkAction extends BaseRestHandler {
     " Specifying types in bulk requests is deprecated.";
 
     public RestBulkAction(Settings settings, RestController controller) {
-        super(settings);
         controller.registerHandler(POST, "/_bulk", this);
         controller.registerHandler(PUT, "/_bulk", this);
         controller.registerHandler(POST, "/{index}/_bulk", this);
@@ -83,7 +82,7 @@ public class RestBulkAction extends BaseRestHandler {
         if (defaultType == null) {
             defaultType = MapperService.SINGLE_MAPPING_NAME;
         } else {
-            deprecationLogger.deprecatedAndMaybeLog("bulk_with_types", RestBulkAction.TYPES_DEPRECATION_MESSAGE);            
+            deprecationLogger.deprecatedAndMaybeLog("bulk_with_types", RestBulkAction.TYPES_DEPRECATION_MESSAGE);
         }
         String defaultRouting = request.param("routing");
         FetchSourceContext defaultFetchSourceContext = FetchSourceContext.parseFromRestRequest(request);

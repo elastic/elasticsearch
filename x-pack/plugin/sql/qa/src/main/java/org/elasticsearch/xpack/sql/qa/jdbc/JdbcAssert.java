@@ -8,15 +8,16 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import com.carrotsearch.hppc.IntObjectHashMap;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.geometry.Point;
-import org.elasticsearch.geo.utils.StandardValidator;
-import org.elasticsearch.geo.utils.WellKnownText;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.StandardValidator;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.xpack.sql.jdbc.EsType;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.relique.jdbc.csv.CsvResultSet;
 
 import java.io.IOException;
+import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -37,6 +38,9 @@ import static java.sql.Types.INTEGER;
 import static java.sql.Types.REAL;
 import static java.sql.Types.SMALLINT;
 import static java.sql.Types.TINYINT;
+import static java.time.ZoneOffset.UTC;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.logResultSetMetadata;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.resultSetCurrentData;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
@@ -78,7 +82,7 @@ public class JdbcAssert {
     public static void assertResultSets(ResultSet expected, ResultSet actual, Logger logger, boolean lenientDataType) throws SQLException {
         assertResultSets(expected, actual, logger, lenientDataType, true);
     }
-    
+
     /**
      * Assert the given result sets, potentially in a lenient way.
      * When lenientDataType is specified, the type comparison of a column is widden to reach a common, compatible ground.
@@ -107,7 +111,7 @@ public class JdbcAssert {
         ResultSetMetaData actualMeta = actual.getMetaData();
 
         if (logger != null) {
-            JdbcTestUtils.logResultSetMetadata(actual, logger);
+            logResultSetMetadata(actual, logger);
         }
 
         if (expectedMeta.getColumnCount() != actualMeta.getColumnCount()) {
@@ -165,7 +169,7 @@ public class JdbcAssert {
             if ((expectedType == Types.VARCHAR && expected instanceof CsvResultSet) && nameOf(actualType).startsWith("INTERVAL_")) {
                 expectedType = actualType;
             }
-            
+
             // csv doesn't support NULL type so skip type checking
             if (actualType == Types.NULL && expected instanceof CsvResultSet) {
                 expectedType = Types.NULL;
@@ -177,7 +181,7 @@ public class JdbcAssert {
                     expectedType, actualType);
         }
     }
-    
+
     private static String nameOf(int sqlType) {
         return SQL_TO_TYPE.get(sqlType).getName();
     }
@@ -191,7 +195,7 @@ public class JdbcAssert {
             throws SQLException {
         assertResultSetData(expected, actual, logger, lenientDataType, true);
     }
-    
+
     public static void assertResultSetData(ResultSet expected, ResultSet actual, Logger logger, boolean lenientDataType,
             boolean lenientFloatingNumbers) throws SQLException {
         try (ResultSet ex = expected; ResultSet ac = actual) {
@@ -210,7 +214,7 @@ public class JdbcAssert {
                 assertTrue("Expected more data but no more entries found after [" + count + "]", actual.next());
 
                 if (logger != null) {
-                    logger.info(JdbcTestUtils.resultSetCurrentData(actual));
+                    logger.info(resultSetCurrentData(actual));
                 }
 
                 for (int column = 1; column <= columns; column++) {
@@ -264,6 +268,10 @@ public class JdbcAssert {
                     else if (type == Types.TIMESTAMP || type == Types.TIMESTAMP_WITH_TIMEZONE) {
                         assertEquals(msg, expected.getTimestamp(column), actual.getTimestamp(column));
                     }
+                    // then date
+                    else if (type == Types.DATE) {
+                        assertEquals(msg, convertDateToSystemTimezone(expected.getDate(column)), actual.getDate(column));
+                    }
                     // and floats/doubles
                     else if (type == Types.DOUBLE) {
                         assertEquals(msg, (double) expectedObject, (double) actualObject, lenientFloatingNumbers ? 1d : 0.0d);
@@ -282,8 +290,8 @@ public class JdbcAssert {
                             // geo points are loaded form doc values where they are stored as long-encoded values leading
                             // to lose in precision
                             assertThat(expectedObject, instanceOf(Point.class));
-                            assertEquals(((Point) expectedObject).getLat(), ((Point) actualObject).getLat(), 0.000001d);
-                            assertEquals(((Point) expectedObject).getLon(), ((Point) actualObject).getLon(), 0.000001d);
+                            assertEquals(((Point) expectedObject).getY(), ((Point) actualObject).getY(), 0.000001d);
+                            assertEquals(((Point) expectedObject).getX(), ((Point) actualObject).getX(), 0.000001d);
                         } else {
                             assertEquals(msg, expectedObject, actualObject);
                         }
@@ -301,14 +309,14 @@ public class JdbcAssert {
         } catch (AssertionError ae) {
             if (logger != null && actual.next()) {
                 logger.info("^^^ Assertion failure ^^^");
-                logger.info(JdbcTestUtils.resultSetCurrentData(actual));
+                logger.info(resultSetCurrentData(actual));
             }
             throw ae;
         }
 
         if (actual.next()) {
             fail("Elasticsearch [" + actual + "] still has data after [" + count + "] entries:\n"
-                    + JdbcTestUtils.resultSetCurrentData(actual));
+                    + resultSetCurrentData(actual));
         }
     }
 
@@ -327,5 +335,10 @@ public class JdbcAssert {
         }
 
         return columnType;
+    }
+
+    // Used to convert the DATE read from CSV file to a java.sql.Date at the System's timezone (-Dtests.timezone=XXXX)
+    private static Date convertDateToSystemTimezone(Date date) {
+        return new Date(date.toLocalDate().atStartOfDay(UTC).toInstant().toEpochMilli());
     }
 }

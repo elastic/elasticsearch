@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -135,13 +135,13 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
     }
 
     @Override
-    public final AggregatorFactory build(SearchContext context, AggregatorFactory parent) throws IOException {
-        AggregatorFactory factory = doBuild(context, parent, factoriesBuilder);
+    public final AggregatorFactory build(QueryShardContext queryShardContext, AggregatorFactory parent) throws IOException {
+        AggregatorFactory factory = doBuild(queryShardContext, parent, factoriesBuilder);
         return factory;
     }
 
-    protected abstract AggregatorFactory doBuild(SearchContext context, AggregatorFactory parent,
-            AggregatorFactories.Builder subfactoriesBuilder) throws IOException;
+    protected abstract AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
+                                                 AggregatorFactories.Builder subfactoriesBuilder) throws IOException;
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

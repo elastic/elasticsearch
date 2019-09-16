@@ -155,19 +155,40 @@ For Eclipse, go to `Preferences->Java->Installed JREs` and add `-ea` to
 
 ### Java Language Formatting Guidelines
 
+Java files in the Elasticsearch codebase are formatted with
+[google-java-format](https://github.com/google/google-java-format), which
+enforces the [Google Java
+Style](https://google.github.io/styleguide/javaguide.html). There are
+plugins available for Eclipse, JetBrains IDEs such as IntelliJ IDEA, and a
+CLI interface. Formatting checks are also integrated into the build - check
+the code with:
+
+    ./gradlew verifyGoogleJavaFormat
+
+Format the code with:
+
+    ./gradlew googleJavaFormat
+
+Code is formatted with the `--aosp` option (Android Open Source Project),
+which indents with 4 spaces instead of 2. There are no other formatting
+options available.
+
+These tasks can also be run for specific subprojects.
+
 Please follow these formatting guidelines:
 
-* Java indent is 4 spaces
-* Line width is 140 characters
-* Lines of code surrounded by `// tag` and `// end` comments are included in the
-documentation and should only be 76 characters wide not counting
-leading indentation
-* The rest is left to Java coding standards
-* Disable “auto-format on save” to prevent unnecessary format changes. This makes reviews much harder as it generates unnecessary formatting changes. If your IDE supports formatting only modified chunks that is fine to do.
-* Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause the build to fail. This can be done automatically by your IDE:
- * Eclipse: `Preferences->Java->Code Style->Organize Imports`. There are two boxes labeled "`Number of (static )? imports needed for .*`". Set their values to 99999 or some other absurdly high value.
- * IntelliJ: `Preferences/Settings->Editor->Code Style->Java->Imports`. There are two configuration options: `Class count to use import with '*'` and `Names count to use static import with '*'`. Set their values to 99999 or some other absurdly high value.
-* Don't worry too much about import order. Try not to change it but don't worry about fighting your IDE to stop it from doing so.
+* Lines of code surrounded by `// tag` and `// end` comments are included
+  in the documentation and should only be 76 characters wide not counting
+  leading indentation
+* Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause
+  the build to fail. This can be done automatically by your IDE:
+   * Eclipse: `Preferences->Java->Code Style->Organize Imports`. There are
+     two boxes labeled "`Number of (static )? imports needed for .*`". Set
+     their values to 99999 or some other absurdly high value.
+   * IntelliJ: `Preferences/Settings->Editor->Code Style->Java->Imports`.
+     There are two configuration options: `Class count to use import with
+     '*'` and `Names count to use static import with '*'`. Set their values
+     to 99999 or some other absurdly high value.
 
 ### License Headers
 

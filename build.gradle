@@ -35,10 +35,15 @@ plugins {
     id 'com.gradle.build-scan' version '2.4'
     id 'lifecycle-base'
     id 'elasticsearch.global-build-info'
+    id 'com.github.sherter.google-java-format' version '0.8'
 }
 
 apply plugin: 'nebula.info-scm'
 apply from: 'gradle/build-scan.gradle'
+
+googleJavaFormat {
+  options style: 'AOSP'
+}
 
 // common maven publishing configuration
 allprojects {
@@ -99,6 +104,11 @@ subprojects {
     project.licenseFile = project.rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
     project.noticeFile = project.rootProject.file('NOTICE.txt')
   }
+
+  // Although the plugin is applied at the top-level, that doesn't make
+  // it available on subprojects.
+  project.apply plugin: 'com.github.sherter.google-java-format'
+  check.dependsOn 'verifyGoogleJavaFormat'
 }
 
 /* Introspect all versions of ES that may be tested against for backwards

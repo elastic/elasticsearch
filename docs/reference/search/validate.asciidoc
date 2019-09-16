@@ -7,6 +7,7 @@ Validates a potentially expensive query without executing it.
 --------------------------------------------------
 GET twitter/_validate/query?q=user:foo
 --------------------------------------------------
+// TEST[setup:twitter]
 
 
 [[search-validate-api-request]]

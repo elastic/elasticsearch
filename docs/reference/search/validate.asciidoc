@@ -29,9 +29,7 @@ request body.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
 
-`query`::
-  (Required, <<query-dsl,query object>>) Defines the search definition using the 
-  <<query-dsl,Query DSL>>.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=query]
   
 
 [[search-validate-api-query-params]]

@@ -33,5 +33,4 @@ PUT tweets
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[warning:Index [tweets] uses the deprecated `enabled` setting for `_field_names`. Disabling _field_names is not necessary because it no longer carries a large index overhead. Support for this setting will be removed in a future major version. Please remove it from your mappings and templates.]

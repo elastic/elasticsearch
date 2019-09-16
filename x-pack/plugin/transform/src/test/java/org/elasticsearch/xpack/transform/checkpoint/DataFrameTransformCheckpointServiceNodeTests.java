@@ -39,14 +39,14 @@ import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerPosition;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerPositionTests;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpoint;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpointStats;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpointingInfo;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfigTests;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformProgress;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformProgressTests;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPositionTests;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgressTests;
 import org.elasticsearch.xpack.transform.DataFrameSingleNodeTestCase;
 import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.transform.persistence.DataFrameTransformsConfigManager;
@@ -149,25 +149,25 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
         String transformId = randomAlphaOfLengthBetween(3, 10);
         long timestamp = 1000;
 
-        DataFrameTransformCheckpoint checkpoint = new DataFrameTransformCheckpoint(transformId, timestamp, 1L,
+        TransformCheckpoint checkpoint = new TransformCheckpoint(transformId, timestamp, 1L,
                 createCheckPointMap(transformId, 10, 10, 10), null);
 
         // create transform
         assertAsync(
                 listener -> transformsConfigManager
-                        .putTransformConfiguration(DataFrameTransformConfigTests.randomDataFrameTransformConfig(transformId), listener),
+                        .putTransformConfiguration(TransformConfigTests.randomDataFrameTransformConfig(transformId), listener),
                 true, null, null);
 
         // by design no exception is thrown but an empty checkpoint is returned
         assertAsync(listener -> transformsConfigManager.getTransformCheckpoint(transformId, 1L, listener),
-                DataFrameTransformCheckpoint.EMPTY, null, null);
+                TransformCheckpoint.EMPTY, null, null);
 
         assertAsync(listener -> transformsConfigManager.putTransformCheckpoint(checkpoint, listener), true, null, null);
 
         assertAsync(listener -> transformsConfigManager.getTransformCheckpoint(transformId, 1L, listener), checkpoint, null, null);
 
         // add a 2nd checkpoint
-        DataFrameTransformCheckpoint checkpoint2 = new DataFrameTransformCheckpoint(transformId, timestamp + 100L, 2L,
+        TransformCheckpoint checkpoint2 = new TransformCheckpoint(transformId, timestamp + 100L, 2L,
                 createCheckPointMap(transformId, 20, 20, 20), null);
 
         assertAsync(listener -> transformsConfigManager.putTransformCheckpoint(checkpoint2, listener), true, null, null);
@@ -181,38 +181,38 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
 
         // checkpoints should be empty again
         assertAsync(listener -> transformsConfigManager.getTransformCheckpoint(transformId, 1L, listener),
-                DataFrameTransformCheckpoint.EMPTY, null, null);
+                TransformCheckpoint.EMPTY, null, null);
 
         assertAsync(listener -> transformsConfigManager.getTransformCheckpoint(transformId, 2L, listener),
-                DataFrameTransformCheckpoint.EMPTY, null, null);
+                TransformCheckpoint.EMPTY, null, null);
     }
 
     public void testGetCheckpointStats() throws InterruptedException {
         String transformId = randomAlphaOfLengthBetween(3, 10);
         long timestamp = 1000;
-        DataFrameIndexerPosition position = DataFrameIndexerPositionTests.randomDataFrameIndexerPosition();
-        DataFrameTransformProgress progress = DataFrameTransformProgressTests.randomDataFrameTransformProgress();
+        TransformIndexerPosition position = TransformIndexerPositionTests.randomDataFrameIndexerPosition();
+        TransformProgress progress = TransformProgressTests.randomDataFrameTransformProgress();
 
         // create transform
         assertAsync(
                 listener -> transformsConfigManager
-                        .putTransformConfiguration(DataFrameTransformConfigTests.randomDataFrameTransformConfig(transformId), listener),
+                        .putTransformConfiguration(TransformConfigTests.randomDataFrameTransformConfig(transformId), listener),
                 true, null, null);
 
-        DataFrameTransformCheckpoint checkpoint = new DataFrameTransformCheckpoint(transformId, timestamp, 1L,
+        TransformCheckpoint checkpoint = new TransformCheckpoint(transformId, timestamp, 1L,
                 createCheckPointMap(transformId, 10, 10, 10), null);
 
         assertAsync(listener -> transformsConfigManager.putTransformCheckpoint(checkpoint, listener), true, null, null);
 
-        DataFrameTransformCheckpoint checkpoint2 = new DataFrameTransformCheckpoint(transformId, timestamp + 100L, 2L,
+        TransformCheckpoint checkpoint2 = new TransformCheckpoint(transformId, timestamp + 100L, 2L,
                 createCheckPointMap(transformId, 20, 20, 20), null);
 
         assertAsync(listener -> transformsConfigManager.putTransformCheckpoint(checkpoint2, listener), true, null, null);
 
         mockClientForCheckpointing.setShardStats(createShardStats(createCheckPointMap(transformId, 20, 20, 20)));
-        DataFrameTransformCheckpointingInfo checkpointInfo = new DataFrameTransformCheckpointingInfo(
-                new DataFrameTransformCheckpointStats(1, null, null, timestamp, 0L),
-                new DataFrameTransformCheckpointStats(2, position, progress, timestamp + 100L, 0L),
+        TransformCheckpointingInfo checkpointInfo = new TransformCheckpointingInfo(
+                new TransformCheckpointStats(1, null, null, timestamp, 0L),
+                new TransformCheckpointStats(2, position, progress, timestamp + 100L, 0L),
                 30L);
 
         assertAsync(listener ->
@@ -220,9 +220,9 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
             checkpointInfo, null, null);
 
         mockClientForCheckpointing.setShardStats(createShardStats(createCheckPointMap(transformId, 10, 50, 33)));
-        checkpointInfo = new DataFrameTransformCheckpointingInfo(
-                new DataFrameTransformCheckpointStats(1, null, null, timestamp, 0L),
-                new DataFrameTransformCheckpointStats(2, position, progress, timestamp + 100L, 0L),
+        checkpointInfo = new TransformCheckpointingInfo(
+                new TransformCheckpointStats(1, null, null, timestamp, 0L),
+                new TransformCheckpointStats(2, position, progress, timestamp + 100L, 0L),
                 63L);
         assertAsync(listener ->
                 transformsCheckpointService.getCheckpointingInfo(transformId, 1, position, progress, listener),
@@ -230,9 +230,9 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
 
         // same as current
         mockClientForCheckpointing.setShardStats(createShardStats(createCheckPointMap(transformId, 10, 10, 10)));
-        checkpointInfo = new DataFrameTransformCheckpointingInfo(
-                new DataFrameTransformCheckpointStats(1, null, null, timestamp, 0L),
-                new DataFrameTransformCheckpointStats(2, position, progress, timestamp + 100L, 0L),
+        checkpointInfo = new TransformCheckpointingInfo(
+                new TransformCheckpointStats(1, null, null, timestamp, 0L),
+                new TransformCheckpointStats(2, position, progress, timestamp + 100L, 0L),
                 0L);
         assertAsync(listener ->
                 transformsCheckpointService.getCheckpointingInfo(transformId, 1, position, progress, listener),

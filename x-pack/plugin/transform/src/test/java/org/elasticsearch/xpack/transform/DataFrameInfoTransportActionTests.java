@@ -25,7 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -78,9 +78,9 @@ public class DataFrameInfoTransportActionTests extends ESTestCase {
         when(withEmptyAggs.getAggregations()).thenReturn(emptyAggs);
 
         assertThat(DataFrameInfoTransportAction.parseSearchAggs(withEmptyAggs),
-            equalTo(new DataFrameIndexerTransformStats()));
+            equalTo(new TransformIndexerStats()));
 
-        DataFrameIndexerTransformStats expectedStats = new DataFrameIndexerTransformStats(
+        TransformIndexerStats expectedStats = new TransformIndexerStats(
             1,  // numPages
             2,  // numInputDocuments
             3,  // numOutputDocuments

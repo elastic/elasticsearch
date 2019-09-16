@@ -54,7 +54,7 @@ The settings have the form `azure.client.CLIENT_NAME.SETTING_NAME`. By default,
 the <<repository-azure-repository-settings,repository setting>> `client`.
 For example:
 
-[source,js]
+[source,console]
 ----
 PUT _snapshot/my_backup
 {
@@ -64,7 +64,6 @@ PUT _snapshot/my_backup
     }
 }
 ----
-// CONSOLE
 // TEST[skip:we don't have azure setup while testing this]
 
 Most client settings can be added to the `elasticsearch.yml` configuration file.
@@ -184,7 +183,7 @@ include::repository-shared-settings.asciidoc[]
 
 Some examples, using scripts:
 
-[source,js]
+[source,console]
 ----
 # The simplest one
 PUT _snapshot/my_backup1
@@ -222,7 +221,6 @@ PUT _snapshot/my_backup4
     }
 }
 ----
-// CONSOLE
 // TEST[skip:we don't have azure setup while testing this]
 
 Example using Java:

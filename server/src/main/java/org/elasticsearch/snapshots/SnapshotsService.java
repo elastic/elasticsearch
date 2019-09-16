@@ -105,7 +105,7 @@ import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
  * the {@link #beginSnapshot(ClusterState, SnapshotsInProgress.Entry, boolean, ActionListener)} method kicks in and initializes
  * the snapshot in the repository and then populates list of shards that needs to be snapshotted in cluster state</li>
  * <li>Each data node is watching for these shards and when new shards scheduled for snapshotting appear in the cluster state, data nodes
- * start processing them through {@link SnapshotShardsService#processIndexShardSnapshots(SnapshotsInProgress)} method</li>
+ * start processing them through {@link SnapshotShardsService#startNewSnapshots} method</li>
  * <li>Once shard snapshot is created data node updates state of the shard in the cluster state using
  * the {@link SnapshotShardsService#sendSnapshotShardUpdate(Snapshot, ShardId, ShardSnapshotStatus)} method</li>
  * <li>When last shard is completed master node in {@link SnapshotShardsService#innerUpdateSnapshotState} method marks the snapshot
@@ -559,26 +559,28 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
 
         private void cleanupAfterError(Exception exception) {
-            if(snapshotCreated) {
-                try {
-                    repositoriesService.repository(snapshot.snapshot().getRepository())
-                                       .finalizeSnapshot(snapshot.snapshot().getSnapshotId(),
-                                                         snapshot.indices(),
-                                                         snapshot.startTime(),
-                                                         ExceptionsHelper.detailedMessage(exception),
-                                                         0,
-                                                         Collections.emptyList(),
-                                                         snapshot.getRepositoryStateId(),
-                                                         snapshot.includeGlobalState(),
-                                                         metaDataForSnapshot(snapshot, clusterService.state().metaData()),
-                                                         snapshot.userMetadata());
-                } catch (Exception inner) {
-                    inner.addSuppressed(exception);
-                    logger.warn(() -> new ParameterizedMessage("[{}] failed to close snapshot in repository",
-                        snapshot.snapshot()), inner);
+            threadPool.generic().execute(() -> {
+                if (snapshotCreated) {
+                    try {
+                        repositoriesService.repository(snapshot.snapshot().getRepository())
+                            .finalizeSnapshot(snapshot.snapshot().getSnapshotId(),
+                                snapshot.indices(),
+                                snapshot.startTime(),
+                                ExceptionsHelper.detailedMessage(exception),
+                                0,
+                                Collections.emptyList(),
+                                snapshot.getRepositoryStateId(),
+                                snapshot.includeGlobalState(),
+                                metaDataForSnapshot(snapshot, clusterService.state().metaData()),
+                                snapshot.userMetadata());
+                    } catch (Exception inner) {
+                        inner.addSuppressed(exception);
+                        logger.warn(() -> new ParameterizedMessage("[{}] failed to close snapshot in repository",
+                            snapshot.snapshot()), inner);
+                    }
                 }
-            }
-            userCreateSnapshotListener.onFailure(e);
+                userCreateSnapshotListener.onFailure(e);
+            });
         }
     }
 

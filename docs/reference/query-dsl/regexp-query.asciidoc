@@ -19,7 +19,7 @@ that begins with `k` and ends with `y`. The `.*` operators match any
 characters of any length, including no characters. Matching
 terms can include `ky`, `kay`, and `kimchy`.
 
-[source,js]
+[source,console]
 ----
 GET /_search
 {
@@ -35,7 +35,6 @@ GET /_search
     }
 }
 ----
-// CONSOLE
 
 
 [[regexp-top-level-params]]

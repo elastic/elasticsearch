@@ -16,11 +16,10 @@ and now contains separate response for each repository.
 
 For example, requesting one snapshot from particular repository
 
-[source,js]
+[source,console]
 -----------------------------------
 GET _snapshot/repo1/snap1
 -----------------------------------
-// CONSOLE
 // TEST[skip:no repo and snapshots are created]
 
 produces the following response

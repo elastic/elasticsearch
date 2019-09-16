@@ -144,7 +144,7 @@ GET /_search
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
  ...

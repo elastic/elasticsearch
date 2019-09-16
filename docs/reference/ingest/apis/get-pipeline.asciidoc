@@ -5,7 +5,7 @@ The get pipeline API returns pipelines based on ID. This API always returns a lo
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/my-pipeline-id
 {
@@ -20,15 +20,13 @@ PUT _ingest/pipeline/my-pipeline-id
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ingest/pipeline/my-pipeline-id
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Example response:
@@ -64,7 +62,7 @@ field is completely optional and it is meant solely for external management of
 pipelines. To unset a `version`, simply replace the pipeline without specifying
 one.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ingest/pipeline/my-pipeline-id
 {
@@ -80,17 +78,15 @@ PUT _ingest/pipeline/my-pipeline-id
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 To check for the `version`, you can
 <<common-options-response-filtering, filter responses>>
 using `filter_path` to limit the response to just the `version`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_ingest/pipeline/my-pipeline-id?filter_path=*.version
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 This should give a small response that makes it both easy and inexpensive to parse:
@@ -106,11 +102,10 @@ This should give a small response that makes it both easy and inexpensive to par
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_ingest/pipeline/my-pipeline-id
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [source,console-result]

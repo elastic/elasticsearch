@@ -19,7 +19,7 @@ time. You can then detect anomalies and surface rare events or unusual types of
 messages by using count or rare functions. For example:
 
 //Obtained from it_ops_new_app_logs.sh
-[source,js]
+[source,console]
 ----------------------------------
 PUT _ml/anomaly_detectors/it_ops_new_logs
 {
@@ -43,8 +43,8 @@ PUT _ml/anomaly_detectors/it_ops_new_logs
   }
 }
 ----------------------------------
-//CONSOLE
 // TEST[skip:needs-licence]
+
 <1> The `categorization_field_name` property indicates which field will be
 categorized.
 <2> The resulting categories are used in a detector by setting `by_field_name`,
@@ -89,7 +89,7 @@ supported, as described in the <<ml-limitations>>.
 You can, however, change the tokenization rules by customizing the way the
 categorization field values are interpreted. For example:
 
-[source,js]
+[source,console]
 ----------------------------------
 PUT _ml/anomaly_detectors/it_ops_new_logs2
 {
@@ -127,8 +127,8 @@ PUT _ml/anomaly_detectors/it_ops_new_logs2
   }
 }
 ----------------------------------
-//CONSOLE
 // TEST[skip:needs-licence]
+
 <1> The
 {ref}/analysis-pattern-replace-charfilter.html[`pattern_replace` character filter]
 here achieves exactly the same as the `categorization_filters` in the first
@@ -151,7 +151,7 @@ equivalent to the following analyzer, which is defined using only built-in {es}
 {ref}/analysis-tokenizers.html[tokenizers] and
 {ref}/analysis-tokenfilters.html[token filters]:
 
-[source,js]
+[source,console]
 ----------------------------------
 PUT _ml/anomaly_detectors/it_ops_new_logs3
 {
@@ -194,8 +194,8 @@ PUT _ml/anomaly_detectors/it_ops_new_logs3
   }
 }
 ----------------------------------
-//CONSOLE
 // TEST[skip:needs-licence]
+
 <1> Tokens basically consist of hyphens, digits, letters, underscores and dots.
 <2> By default, categorization ignores tokens that begin with a digit.
 <3> By default, categorization also ignores tokens that are hexadecimal numbers.

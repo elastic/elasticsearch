@@ -42,7 +42,7 @@ For more information, see
 Imagine we have an index named `sensor-1` full of raw data.  We know that the data will grow over time, so there
 will be a `sensor-2`, `sensor-3`, etc.  Let's create a Rollup job, which stores it's data in `sensor_rollup`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _rollup/job/sensor
 {
@@ -72,17 +72,15 @@ PUT _rollup/job/sensor
     ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_index]
 
 If at a later date, we'd like to determine what jobs and capabilities were stored in the `sensor_rollup` index, we can use the Get Rollup
 Index API:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /sensor_rollup/_rollup/data
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Note how we are requesting the concrete rollup index name (`sensor_rollup`) as the first part of the URL.
@@ -150,10 +148,9 @@ configurations available.
 
 Like other APIs that interact with indices, you can specify index patterns instead of explicit indices:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /*_rollup/_rollup/data
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 

@@ -38,7 +38,7 @@ The following example retrieves `my_policy`:
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -62,22 +62,19 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ilm/policy/my_policy
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 
 If the request succeeds, the body of the response contains the policy definition:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "my_policy": {
@@ -104,7 +101,7 @@ If the request succeeds, the body of the response contains the policy definition
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTRESPONSE[s/"modified_date": 82392349/"modified_date": $body.my_policy.modified_date/]
+
 <1> The policy version is incremented whenever the policy is updated
 <2> When this policy was last modified

@@ -18,29 +18,23 @@
  */
 package org.elasticsearch.repositories.azure;
 
+import com.microsoft.azure.storage.Constants;
+import com.microsoft.azure.storage.RetryExponentialRetry;
+import com.microsoft.azure.storage.RetryPolicyFactory;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import com.sun.net.httpserver.HttpServer;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
+import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collection;
@@ -50,31 +44,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
-public class AzureBlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCase {
-
-    private static HttpServer httpServer;
-
-    @BeforeClass
-    public static void startHttpServer() throws Exception {
-        httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-        httpServer.start();
-    }
-
-    @Before
-    public void setUpHttpServer() {
-        httpServer.createContext("/container", new InternalHttpHandler());
-    }
-
-    @AfterClass
-    public static void stopHttpServer() {
-        httpServer.stop(0);
-        httpServer = null;
-    }
-
-    @After
-    public void tearDownHttpServer() {
-        httpServer.removeContext("/container");
-    }
+public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
     @Override
     protected String repositoryType() {
@@ -91,7 +61,17 @@ public class AzureBlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTes
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(AzureRepositoryPlugin.class);
+        return Collections.singletonList(TestAzureRepositoryPlugin.class);
+    }
+
+    @Override
+    protected Map<String, HttpHandler> createHttpHandlers() {
+        return Collections.singletonMap("/container", new InternalHttpHandler());
+    }
+
+    @Override
+    protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
+        return new AzureErroneousHttpHandler(delegate, randomIntBetween(2, 3));
     }
 
     @Override
@@ -101,15 +81,32 @@ public class AzureBlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTes
         secureSettings.setString(AzureStorageSettings.ACCOUNT_SETTING.getConcreteSettingForNamespace("test").getKey(), "account");
         secureSettings.setString(AzureStorageSettings.KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), key);
 
-        final InetSocketAddress address = httpServer.getAddress();
-        final String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://"
-            + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
-
+        final String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + httpServerUrl();
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
             .put(AzureStorageSettings.ENDPOINT_SUFFIX_SETTING.getConcreteSettingForNamespace("test").getKey(), endpoint)
             .setSecureSettings(secureSettings)
             .build();
+    }
+
+    /**
+     * AzureRepositoryPlugin that allows to set very low values for the Azure's client retry policy
+     */
+    public static class TestAzureRepositoryPlugin extends AzureRepositoryPlugin {
+
+        public TestAzureRepositoryPlugin(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        AzureStorageService createAzureStoreService(final Settings settings) {
+            return new AzureStorageService(settings) {
+                @Override
+                RetryPolicyFactory createRetryPolicy(final AzureStorageSettings azureStorageSettings) {
+                    return new RetryExponentialRetry(1, 100, 500, azureStorageSettings.getMaxRetries());
+                }
+            };
+        }
     }
 
     /**
@@ -185,6 +182,26 @@ public class AzureBlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTes
             } finally {
                 exchange.close();
             }
+        }
+    }
+
+    /**
+     * HTTP handler that injects random Azure service errors
+     *
+     * Note: it is not a good idea to allow this handler to simulate too many errors as it would
+     * slow down the test suite.
+     */
+    @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
+    private static class AzureErroneousHttpHandler extends ErroneousHttpHandler {
+
+        AzureErroneousHttpHandler(final HttpHandler delegate, final int maxErrorsPerRequest) {
+            super(delegate, maxErrorsPerRequest);
+        }
+
+        @Override
+        protected String requestUniqueId(final HttpExchange exchange) {
+            // Azure SDK client provides a unique ID per request
+            return exchange.getRequestHeaders().getFirst(Constants.HeaderConstants.CLIENT_REQUEST_ID_HEADER);
         }
     }
 }

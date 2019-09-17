@@ -35,7 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.xpack.transform.DataFrameInfoTransportAction.PROVIDED_STATS;
+import static org.elasticsearch.xpack.transform.TransformInfoTransportAction.PROVIDED_STATS;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
@@ -50,10 +50,10 @@ public class DataFrameInfoTransportActionTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        DataFrameInfoTransportAction featureSet = new DataFrameInfoTransportAction(
+        TransformInfoTransportAction featureSet = new TransformInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
         boolean available = randomBoolean();
-        when(licenseState.isDataFrameAllowed()).thenReturn(available);
+        when(licenseState.isTransformAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 
@@ -61,13 +61,13 @@ public class DataFrameInfoTransportActionTests extends ESTestCase {
         boolean enabled = randomBoolean();
         Settings.Builder settings = Settings.builder();
         settings.put("xpack.data_frame.enabled", enabled);
-        DataFrameInfoTransportAction featureSet = new DataFrameInfoTransportAction(
+        TransformInfoTransportAction featureSet = new TransformInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
         assertThat(featureSet.enabled(), is(enabled));
     }
 
     public void testEnabledDefault() {
-        DataFrameInfoTransportAction featureSet = new DataFrameInfoTransportAction(
+        TransformInfoTransportAction featureSet = new TransformInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
         assertTrue(featureSet.enabled());
     }
@@ -77,7 +77,7 @@ public class DataFrameInfoTransportActionTests extends ESTestCase {
         SearchResponse withEmptyAggs = mock(SearchResponse.class);
         when(withEmptyAggs.getAggregations()).thenReturn(emptyAggs);
 
-        assertThat(DataFrameInfoTransportAction.parseSearchAggs(withEmptyAggs),
+        assertThat(TransformInfoTransportAction.parseSearchAggs(withEmptyAggs),
             equalTo(new TransformIndexerStats()));
 
         TransformIndexerStats expectedStats = new TransformIndexerStats(
@@ -101,7 +101,7 @@ public class DataFrameInfoTransportActionTests extends ESTestCase {
         SearchResponse withAggs = mock(SearchResponse.class);
         when(withAggs.getAggregations()).thenReturn(aggregations);
 
-        assertThat(DataFrameInfoTransportAction.parseSearchAggs(withAggs), equalTo(expectedStats));
+        assertThat(TransformInfoTransportAction.parseSearchAggs(withAggs), equalTo(expectedStats));
     }
 
     private static Aggregation buildAgg(String name, double value) {
@@ -112,10 +112,10 @@ public class DataFrameInfoTransportActionTests extends ESTestCase {
     }
 
     public void testUsageDisabled() throws IOException, InterruptedException, ExecutionException {
-        when(licenseState.isDataFrameAllowed()).thenReturn(true);
+        when(licenseState.isTransformAllowed()).thenReturn(true);
         Settings.Builder settings = Settings.builder();
         settings.put("xpack.data_frame.enabled", false);
-        var usageAction = new DataFrameUsageTransportAction(mock(TransportService.class), null, null,
+        var usageAction = new TransformUsageTransportAction(mock(TransportService.class), null, null,
             mock(ActionFilters.class), null, settings.build(), licenseState, mock(Client.class));
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(null, null, mock(ClusterState.class), future);

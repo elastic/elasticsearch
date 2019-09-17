@@ -16,7 +16,7 @@ import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.transform.TransformField;
-import org.elasticsearch.xpack.core.transform.transforms.Transform;
+import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -31,10 +31,10 @@ public class DataFrameNodesTests extends ESTestCase {
 
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
         tasksBuilder.addTask(dataFrameIdFoo,
-                TransformField.TASK_NAME, new Transform(dataFrameIdFoo, Version.CURRENT, null),
+                TransformField.TASK_NAME, new TransformTaskParams(dataFrameIdFoo, Version.CURRENT, null),
                 new PersistentTasksCustomMetaData.Assignment("node-1", "test assignment"));
         tasksBuilder.addTask(dataFrameIdBar,
-                TransformField.TASK_NAME, new Transform(dataFrameIdBar, Version.CURRENT, null),
+                TransformField.TASK_NAME, new TransformTaskParams(dataFrameIdBar, Version.CURRENT, null),
                 new PersistentTasksCustomMetaData.Assignment("node-2", "test assignment"));
         tasksBuilder.addTask("test-task1", "testTasks", new PersistentTaskParams() {
                 @Override
@@ -63,7 +63,7 @@ public class DataFrameNodesTests extends ESTestCase {
                 .metaData(MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()))
                 .build();
 
-        String[] nodes = DataFrameNodes.dataFrameTaskNodes(Arrays.asList(dataFrameIdFoo, dataFrameIdBar), cs);
+        String[] nodes = TransformNodes.transformTaskNodes(Arrays.asList(dataFrameIdFoo, dataFrameIdBar), cs);
         assertEquals(2, nodes.length);
         assertThat(nodes, hasItemInArray("node-1"));
         assertThat(nodes, hasItemInArray("node-2"));
@@ -71,7 +71,7 @@ public class DataFrameNodesTests extends ESTestCase {
 
     public void testDataframeNodes_NoTasks() {
         ClusterState emptyState = ClusterState.builder(new ClusterName("_name")).build();
-        String[] nodes = DataFrameNodes.dataFrameTaskNodes(Collections.singletonList("df-id"), emptyState);
+        String[] nodes = TransformNodes.transformTaskNodes(Collections.singletonList("df-id"), emptyState);
         assertEquals(0, nodes.length);
     }
 }

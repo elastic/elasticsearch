@@ -8,16 +8,16 @@ package org.elasticsearch.xpack.transform.notifications;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
 import org.elasticsearch.xpack.core.transform.notifications.TransformAuditMessage;
-import org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndex;
+import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 
-import static org.elasticsearch.xpack.core.ClientHelper.DATA_FRAME_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 
 /**
- * DataFrameAuditor class that abstracts away generic templating for easier injection
+ * TransformAuditor class that abstracts away generic templating for easier injection
  */
-public class DataFrameAuditor extends AbstractAuditor<TransformAuditMessage> {
+public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
 
-    public DataFrameAuditor(Client client, String nodeName) {
-        super(client, nodeName, DataFrameInternalIndex.AUDIT_INDEX, DATA_FRAME_ORIGIN, TransformAuditMessage::new);
+    public TransformAuditor(Client client, String nodeName) {
+        super(client, nodeName, TransformInternalIndex.AUDIT_INDEX, TRANSFORM_ORIGIN, TransformAuditMessage::new);
     }
 }

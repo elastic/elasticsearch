@@ -13,29 +13,26 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.transform.TransformField;
-import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
+import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 
 import java.io.IOException;
 
-public class RestPutDataFrameTransformAction extends BaseRestHandler {
+public class RestPreviewTransformAction extends BaseRestHandler {
 
-    public RestPutDataFrameTransformAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.PUT, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID, this);
+    public RestPreviewTransformAction(RestController controller) {
+        controller.registerHandler(RestRequest.Method.POST, TransformField.REST_BASE_PATH + "transforms/_preview", this);
     }
 
     @Override
     public String getName() {
-        return "data_frame_put_transform_action";
+        return "data_frame_preview_transform_action";
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String id = restRequest.param(TransformField.ID.getPreferredName());
         XContentParser parser = restRequest.contentParser();
 
-        boolean deferValidation = restRequest.paramAsBoolean(TransformField.DEFER_VALIDATION.getPreferredName(), false);
-        PutTransformAction.Request request = PutTransformAction.Request.fromXContent(parser, id, deferValidation);
-
-        return channel -> client.execute(PutTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        PreviewTransformAction.Request request = PreviewTransformAction.Request.fromXContent(parser);
+        return channel -> client.execute(PreviewTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

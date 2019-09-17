@@ -11,7 +11,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
-import org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndex;
+import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.core.transform.TransformField.INDEX_DOC_TYPE;
-import static org.elasticsearch.xpack.transform.DataFrameInfoTransportAction.PROVIDED_STATS;
+import static org.elasticsearch.xpack.transform.TransformInfoTransportAction.PROVIDED_STATS;
 
 public class DataFrameUsageIT extends DataFrameRestTestCase {
 
@@ -53,7 +53,7 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
         stopDataFrameTransform("test_usage", false);
 
         Request statsExistsRequest = new Request("GET",
-            DataFrameInternalIndex.LATEST_INDEX_NAME+"/_search?q=" +
+            TransformInternalIndex.LATEST_INDEX_NAME+"/_search?q=" +
                 INDEX_DOC_TYPE.getPreferredName() + ":" +
                 TransformStoredDoc.NAME);
         // Verify that we have one stat document
@@ -95,7 +95,7 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
                     XContentMapValues.extractValue("transform.stats." + statName, statsMap));
             }
             // Refresh the index so that statistics are searchable
-            refreshIndex(DataFrameInternalIndex.LATEST_INDEX_VERSIONED_NAME);
+            refreshIndex(TransformInternalIndex.LATEST_INDEX_VERSIONED_NAME);
         }, 60, TimeUnit.SECONDS);
 
 

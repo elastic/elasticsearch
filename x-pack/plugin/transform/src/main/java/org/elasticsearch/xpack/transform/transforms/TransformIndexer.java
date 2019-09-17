@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
+import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 
 import java.io.IOException;
@@ -51,7 +51,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
-public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<TransformIndexerPosition, TransformIndexerStats> {
+public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformIndexerPosition, TransformIndexerStats> {
 
     /**
      * RunState is an internal (non-persisted) state that controls the internal logic
@@ -71,9 +71,9 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     public static final int MINIMUM_PAGE_SIZE = 10;
     public static final String COMPOSITE_AGGREGATION_NAME = "_data_frame";
-    private static final Logger logger = LogManager.getLogger(DataFrameIndexer.class);
+    private static final Logger logger = LogManager.getLogger(TransformIndexer.class);
 
-    protected final DataFrameAuditor auditor;
+    protected final TransformAuditor auditor;
 
     protected volatile TransformConfig transformConfig;
     protected volatile TransformProgress progress;
@@ -90,8 +90,8 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private volatile Map<String, Set<String>> changedBuckets;
     private volatile Map<String, Object> changedBucketsAfterKey;
 
-    public DataFrameIndexer(Executor executor,
-                            DataFrameAuditor auditor,
+    public TransformIndexer(Executor executor,
+                            TransformAuditor auditor,
                             TransformConfig transformConfig,
                             Map<String, String> fieldMappings,
                             AtomicReference<IndexerState> initialState,

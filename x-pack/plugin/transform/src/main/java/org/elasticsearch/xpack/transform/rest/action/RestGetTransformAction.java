@@ -17,9 +17,9 @@ import org.elasticsearch.xpack.core.transform.action.GetTransformsAction;
 
 import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MATCH;
 
-public class RestGetDataFrameTransformsAction extends BaseRestHandler {
+public class RestGetTransformAction extends BaseRestHandler {
 
-    public RestGetDataFrameTransformsAction(RestController controller) {
+    public RestGetTransformAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.GET, TransformField.REST_BASE_PATH_TRANSFORMS, this);
         controller.registerHandler(RestRequest.Method.GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID, this);
     }

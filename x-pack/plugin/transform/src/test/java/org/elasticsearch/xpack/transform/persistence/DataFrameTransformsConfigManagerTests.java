@@ -36,19 +36,19 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndex.mappings;
-import static org.elasticsearch.xpack.transform.persistence.DataFrameTransformsConfigManager.TO_XCONTENT_PARAMS;
+import static org.elasticsearch.xpack.transform.persistence.TransformInternalIndex.mappings;
+import static org.elasticsearch.xpack.transform.persistence.TransformConfigManager.TO_XCONTENT_PARAMS;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTestCase {
 
-    private DataFrameTransformsConfigManager transformsConfigManager;
+    private TransformConfigManager transformsConfigManager;
 
     @Before
     public void createComponents() {
-        transformsConfigManager = new DataFrameTransformsConfigManager(client(), xContentRegistry());
+        transformsConfigManager = new TransformConfigManager(client(), xContentRegistry());
     }
 
     public void testGetMissingTransform() throws InterruptedException {
@@ -56,7 +56,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         assertAsync(listener -> transformsConfigManager.getTransformConfiguration("not_there", listener), (TransformConfig) null,
                 null, e -> {
                     assertEquals(ResourceNotFoundException.class, e.getClass());
-                    assertEquals(TransformMessages.getMessage(TransformMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, "not_there"),
+                    assertEquals(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, "not_there"),
                             e.getMessage());
                 });
 
@@ -70,7 +70,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         assertAsync(listener -> transformsConfigManager.getTransformConfiguration("not_there", listener), (TransformConfig) null,
                 null, e -> {
                     assertEquals(ResourceNotFoundException.class, e.getClass());
-                    assertEquals(TransformMessages.getMessage(TransformMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, "not_there"),
+                    assertEquals(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, "not_there"),
                             e.getMessage());
                 });
     }
@@ -79,7 +79,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         // the index does not exist yet
         assertAsync(listener -> transformsConfigManager.deleteTransform("not_there", listener), (Boolean) null, null, e -> {
             assertEquals(ResourceNotFoundException.class, e.getClass());
-            assertEquals(TransformMessages.getMessage(TransformMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, "not_there"), e.getMessage());
+            assertEquals(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, "not_there"), e.getMessage());
         });
 
         // create one transform and test with an existing index
@@ -91,7 +91,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         // same test, but different code path
         assertAsync(listener -> transformsConfigManager.deleteTransform("not_there", listener), (Boolean) null, null, e -> {
             assertEquals(ResourceNotFoundException.class, e.getClass());
-            assertEquals(TransformMessages.getMessage(TransformMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, "not_there"), e.getMessage());
+            assertEquals(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, "not_there"), e.getMessage());
         });
     }
 
@@ -108,7 +108,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         // try to create again
         assertAsync(listener -> transformsConfigManager.putTransformConfiguration(transformConfig, listener), (Boolean) null, null, e -> {
             assertEquals(ResourceAlreadyExistsException.class, e.getClass());
-            assertEquals(TransformMessages.getMessage(TransformMessages.REST_PUT_DATA_FRAME_TRANSFORM_EXISTS, transformConfig.getId()),
+            assertEquals(TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_EXISTS, transformConfig.getId()),
                     e.getMessage());
         });
 
@@ -118,7 +118,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         // delete again
         assertAsync(listener -> transformsConfigManager.deleteTransform(transformConfig.getId(), listener), (Boolean) null, null, e -> {
             assertEquals(ResourceNotFoundException.class, e.getClass());
-            assertEquals(TransformMessages.getMessage(TransformMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, transformConfig.getId()),
+            assertEquals(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformConfig.getId()),
                     e.getMessage());
         });
 
@@ -126,7 +126,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         assertAsync(listener -> transformsConfigManager.getTransformConfiguration(transformConfig.getId(), listener),
                 (TransformConfig) null, null, e -> {
                     assertEquals(ResourceNotFoundException.class, e.getClass());
-                    assertEquals(TransformMessages.getMessage(TransformMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, transformConfig.getId()),
+                    assertEquals(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformConfig.getId()),
                             e.getMessage());
                 });
     }
@@ -147,7 +147,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         // delete again
         assertAsync(listener -> transformsConfigManager.deleteTransform(checkpoint.getTransformId(), listener), (Boolean) null, null, e -> {
             assertEquals(ResourceNotFoundException.class, e.getClass());
-            assertEquals(TransformMessages.getMessage(TransformMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, checkpoint.getTransformId()),
+            assertEquals(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, checkpoint.getTransformId()),
                     e.getMessage());
         });
 
@@ -238,7 +238,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
             e -> {
                 assertThat(e, instanceOf(ResourceNotFoundException.class));
                 assertThat(e.getMessage(),
-                    equalTo(TransformMessages.getMessage(TransformMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, "unknown,unknown2")));
+                    equalTo(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, "unknown,unknown2")));
             });
 
         // expand 1 id implicitly that does not exist
@@ -252,7 +252,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
             e -> {
                 assertThat(e, instanceOf(ResourceNotFoundException.class));
                 assertThat(e.getMessage(),
-                    equalTo(TransformMessages.getMessage(TransformMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, "unknown*")));
+                    equalTo(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, "unknown*")));
             });
 
     }
@@ -261,7 +261,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         String transformId = "transform_test_stored_doc_create_read_update";
 
         TransformStoredDoc storedDocs = TransformStoredDocTests.randomDataFrameTransformStoredDoc(transformId);
-        SeqNoPrimaryTermAndIndex firstIndex = new SeqNoPrimaryTermAndIndex(0, 1, DataFrameInternalIndex.LATEST_INDEX_NAME);
+        SeqNoPrimaryTermAndIndex firstIndex = new SeqNoPrimaryTermAndIndex(0, 1, TransformInternalIndex.LATEST_INDEX_NAME);
 
         assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStoredDoc(storedDocs, null, listener),
             firstIndex,
@@ -272,7 +272,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
             null,
             null);
 
-        SeqNoPrimaryTermAndIndex secondIndex = new SeqNoPrimaryTermAndIndex(1, 1, DataFrameInternalIndex.LATEST_INDEX_NAME);
+        SeqNoPrimaryTermAndIndex secondIndex = new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndex.LATEST_INDEX_NAME);
         TransformStoredDoc updated = TransformStoredDocTests.randomDataFrameTransformStoredDoc(transformId);
         assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStoredDoc(updated, firstIndex, listener),
             secondIndex,
@@ -297,7 +297,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         List<TransformStoredDoc> expectedDocs = new ArrayList<>();
         for (int i=0; i<numStats; i++) {
             SeqNoPrimaryTermAndIndex initialSeqNo =
-                new SeqNoPrimaryTermAndIndex(i, 1, DataFrameInternalIndex.LATEST_INDEX_NAME);
+                new SeqNoPrimaryTermAndIndex(i, 1, TransformInternalIndex.LATEST_INDEX_NAME);
             TransformStoredDoc stat =
                     TransformStoredDocTests.randomDataFrameTransformStoredDoc(randomAlphaOfLength(6) + i);
             expectedDocs.add(stat);
@@ -319,7 +319,7 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
     }
 
     public void testDeleteOldTransformConfigurations() throws Exception {
-        String oldIndex = DataFrameInternalIndex.INDEX_PATTERN + "1";
+        String oldIndex = TransformInternalIndex.INDEX_PATTERN + "1";
         String transformId = "transform_test_delete_old_configurations";
         String docId = TransformConfig.documentId(transformId);
         TransformConfig transformConfig = TransformConfigTests
@@ -339,17 +339,17 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         assertAsync(listener -> transformsConfigManager.putTransformConfiguration(transformConfig, listener), true, null, null);
 
         assertThat(client().get(new GetRequest(oldIndex).id(docId)).actionGet().isExists(), is(true));
-        assertThat(client().get(new GetRequest(DataFrameInternalIndex.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(), is(true));
+        assertThat(client().get(new GetRequest(TransformInternalIndex.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(), is(true));
 
         assertAsync(listener -> transformsConfigManager.deleteOldTransformConfigurations(transformId, listener), true, null, null);
 
-        client().admin().indices().refresh(new RefreshRequest(DataFrameInternalIndex.INDEX_NAME_PATTERN)).actionGet();
+        client().admin().indices().refresh(new RefreshRequest(TransformInternalIndex.INDEX_NAME_PATTERN)).actionGet();
         assertThat(client().get(new GetRequest(oldIndex).id(docId)).actionGet().isExists(), is(false));
-        assertThat(client().get(new GetRequest(DataFrameInternalIndex.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(), is(true));
+        assertThat(client().get(new GetRequest(TransformInternalIndex.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(), is(true));
     }
 
     public void testDeleteOldTransformStoredDocuments() throws Exception {
-        String oldIndex = DataFrameInternalIndex.INDEX_PATTERN + "1";
+        String oldIndex = TransformInternalIndex.INDEX_PATTERN + "1";
         String transformId = "transform_test_delete_old_stored_documents";
         String docId = TransformStoredDoc.documentId(transformId);
         TransformStoredDoc dataFrameTransformStoredDoc = TransformStoredDocTests
@@ -369,22 +369,22 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
         assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStoredDoc(dataFrameTransformStoredDoc,
             new SeqNoPrimaryTermAndIndex(3, 1, oldIndex),
             listener),
-            new SeqNoPrimaryTermAndIndex(0, 1, DataFrameInternalIndex.LATEST_INDEX_NAME),
+            new SeqNoPrimaryTermAndIndex(0, 1, TransformInternalIndex.LATEST_INDEX_NAME),
             null,
             null);
 
-        client().admin().indices().refresh(new RefreshRequest(DataFrameInternalIndex.INDEX_NAME_PATTERN)).actionGet();
+        client().admin().indices().refresh(new RefreshRequest(TransformInternalIndex.INDEX_NAME_PATTERN)).actionGet();
 
         assertThat(client().get(new GetRequest(oldIndex).id(docId)).actionGet().isExists(), is(true));
-        assertThat(client().get(new GetRequest(DataFrameInternalIndex.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(), is(true));
+        assertThat(client().get(new GetRequest(TransformInternalIndex.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(), is(true));
 
         assertAsync(listener -> transformsConfigManager.deleteOldTransformStoredDocuments(transformId, listener),
             true,
             null,
             null);
 
-        client().admin().indices().refresh(new RefreshRequest(DataFrameInternalIndex.INDEX_NAME_PATTERN)).actionGet();
+        client().admin().indices().refresh(new RefreshRequest(TransformInternalIndex.INDEX_NAME_PATTERN)).actionGet();
         assertThat(client().get(new GetRequest(oldIndex).id(docId)).actionGet().isExists(), is(false));
-        assertThat(client().get(new GetRequest(DataFrameInternalIndex.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(), is(true));
+        assertThat(client().get(new GetRequest(TransformInternalIndex.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(), is(true));
     }
 }

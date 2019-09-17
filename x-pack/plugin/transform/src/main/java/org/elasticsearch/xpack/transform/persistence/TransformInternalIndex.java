@@ -37,11 +37,11 @@ import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
-import static org.elasticsearch.xpack.core.ClientHelper.DATA_FRAME_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.transform.TransformField.TRANSFORM_ID;
 
-public final class DataFrameInternalIndex {
+public final class TransformInternalIndex {
 
     /* Changelog of internal index versions
      *
@@ -82,7 +82,7 @@ public final class DataFrameInternalIndex {
     public static final String KEYWORD = "keyword";
 
     public static IndexTemplateMetaData getIndexTemplateMetaData() throws IOException {
-        IndexTemplateMetaData dataFrameTemplate = IndexTemplateMetaData.builder(LATEST_INDEX_VERSIONED_NAME)
+        IndexTemplateMetaData transformTemplate = IndexTemplateMetaData.builder(LATEST_INDEX_VERSIONED_NAME)
                 .patterns(Collections.singletonList(LATEST_INDEX_VERSIONED_NAME))
                 .version(Version.CURRENT.id)
                 .settings(Settings.builder()
@@ -91,11 +91,11 @@ public final class DataFrameInternalIndex {
                         .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
                 .putMapping(MapperService.SINGLE_MAPPING_NAME, Strings.toString(mappings()))
                 .build();
-        return dataFrameTemplate;
+        return transformTemplate;
     }
 
     public static IndexTemplateMetaData getAuditIndexTemplateMetaData() throws IOException {
-        IndexTemplateMetaData dataFrameTemplate = IndexTemplateMetaData.builder(AUDIT_INDEX)
+        IndexTemplateMetaData transformTemplate = IndexTemplateMetaData.builder(AUDIT_INDEX)
             .patterns(Collections.singletonList(AUDIT_INDEX_PREFIX + "*"))
             .version(Version.CURRENT.id)
             .settings(Settings.builder()
@@ -104,7 +104,7 @@ public final class DataFrameInternalIndex {
                 .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-1"))
             .putMapping(MapperService.SINGLE_MAPPING_NAME, Strings.toString(auditMappings()))
             .build();
-        return dataFrameTemplate;
+        return transformTemplate;
     }
 
     private static XContentBuilder auditMappings() throws IOException {
@@ -158,11 +158,11 @@ public final class DataFrameInternalIndex {
         // overall doc type
         builder.startObject(TransformField.INDEX_DOC_TYPE.getPreferredName()).field(TYPE, KEYWORD).endObject();
         // add the schema for transform configurations
-        addDataFrameTransformsConfigMappings(builder);
+        addTransformsConfigMappings(builder);
         // add the schema for transform stats
-        addDataFrameTransformStoredDocMappings(builder);
+        addTransformStoredDocMappings(builder);
         // add the schema for checkpoints
-        addDataFrameCheckpointMappings(builder);
+        addTransformCheckpointMappings(builder);
         // end type
         builder.endObject();
         // end properties
@@ -173,7 +173,7 @@ public final class DataFrameInternalIndex {
     }
 
 
-    private static XContentBuilder addDataFrameTransformStoredDocMappings(XContentBuilder builder) throws IOException {
+    private static XContentBuilder addTransformStoredDocMappings(XContentBuilder builder) throws IOException {
         return builder
             .startObject(TransformStoredDoc.STATE_FIELD.getPreferredName())
                 .startObject(PROPERTIES)
@@ -261,7 +261,7 @@ public final class DataFrameInternalIndex {
             // .startObject("checkpointing").field(ENABLED, false).endObject();
     }
 
-    public static XContentBuilder addDataFrameTransformsConfigMappings(XContentBuilder builder) throws IOException {
+    public static XContentBuilder addTransformsConfigMappings(XContentBuilder builder) throws IOException {
         return builder
             .startObject(TransformField.ID.getPreferredName())
                 .field(TYPE, KEYWORD)
@@ -294,7 +294,7 @@ public final class DataFrameInternalIndex {
             .endObject();
     }
 
-    private static XContentBuilder addDataFrameCheckpointMappings(XContentBuilder builder) throws IOException {
+    private static XContentBuilder addTransformCheckpointMappings(XContentBuilder builder) throws IOException {
         return builder
             .startObject(TransformField.TIMESTAMP_MILLIS.getPreferredName())
                 .field(TYPE, DATE)
@@ -350,13 +350,13 @@ public final class DataFrameInternalIndex {
                 .settings(indexTemplateMetaData.settings())
                 .mapping(SINGLE_MAPPING_NAME, XContentHelper.convertToMap(jsonMappings, true, XContentType.JSON).v2());
             ActionListener<AcknowledgedResponse> innerListener = ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure);
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), DATA_FRAME_ORIGIN, request,
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), TRANSFORM_ORIGIN, request,
                 innerListener, client.admin().indices()::putTemplate);
         } catch (IOException e) {
             listener.onFailure(e);
         }
     }
 
-    private DataFrameInternalIndex() {
+    private TransformInternalIndex() {
     }
 }

@@ -33,11 +33,11 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.transform.TransformFeatureSetUsage;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
-import org.elasticsearch.xpack.core.transform.transforms.Transform;
+import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
-import org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndex;
+import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -45,21 +45,21 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-public class DataFrameUsageTransportAction extends XPackUsageFeatureTransportAction {
+public class TransformUsageTransportAction extends XPackUsageFeatureTransportAction {
 
-    private static final Logger logger = LogManager.getLogger(DataFrameUsageTransportAction.class);
+    private static final Logger logger = LogManager.getLogger(TransformUsageTransportAction.class);
 
     private final boolean enabled;
     private final XPackLicenseState licenseState;
     private final Client client;
 
     @Inject
-    public DataFrameUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+    public TransformUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                          Settings settings, XPackLicenseState licenseState, Client client) {
-        super(XPackUsageFeatureAction.DATA_FRAME.name(), transportService, clusterService,
+        super(XPackUsageFeatureAction.TRANSFORM.name(), transportService, clusterService,
             threadPool, actionFilters, indexNameExpressionResolver);
-        this.enabled = XPackSettings.DATA_FRAME_ENABLED.get(settings);
+        this.enabled = XPackSettings.TRANSFORM_ENABLED.get(settings);
         this.licenseState = licenseState;
         this.client = client;
     }
@@ -67,7 +67,7 @@ public class DataFrameUsageTransportAction extends XPackUsageFeatureTransportAct
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
-        boolean available = licenseState.isDataFrameAllowed();
+        boolean available = licenseState.isTransformAllowed();
         if (enabled == false) {
             var usage = new TransformFeatureSetUsage(available, enabled, Collections.emptyMap(), new TransformIndexerStats());
             listener.onResponse(new XPackUsageFeatureResponse(usage));
@@ -75,13 +75,13 @@ public class DataFrameUsageTransportAction extends XPackUsageFeatureTransportAct
         }
 
         PersistentTasksCustomMetaData taskMetadata = PersistentTasksCustomMetaData.getPersistentTasksCustomMetaData(state);
-        Collection<PersistentTasksCustomMetaData.PersistentTask<?>> dataFrameTasks = taskMetadata == null ?
+        Collection<PersistentTasksCustomMetaData.PersistentTask<?>> transformTasks = taskMetadata == null ?
             Collections.emptyList() :
-            taskMetadata.findTasks(Transform.NAME, (t) -> true);
-        final int taskCount = dataFrameTasks.size();
+            taskMetadata.findTasks(TransformTaskParams.NAME, (t) -> true);
+        final int taskCount = transformTasks.size();
         final Map<String, Long> transformsCountByState = new HashMap<>();
-        for(PersistentTasksCustomMetaData.PersistentTask<?> dataFrameTask : dataFrameTasks) {
-            TransformState transformState = (TransformState)dataFrameTask.getState();
+        for(PersistentTasksCustomMetaData.PersistentTask<?> transformTask : transformTasks) {
+            TransformState transformState = (TransformState)transformTask.getState();
             transformsCountByState.merge(transformState.getTaskState().value(), 1L, Long::sum);
         }
 
@@ -107,25 +107,25 @@ public class DataFrameUsageTransportAction extends XPackUsageFeatureTransportAct
                     return;
                 }
                 transformsCountByState.merge(TransformTaskState.STOPPED.value(), totalTransforms - taskCount, Long::sum);
-                DataFrameInfoTransportAction.getStatisticSummations(client, totalStatsListener);
+                TransformInfoTransportAction.getStatisticSummations(client, totalStatsListener);
             },
             transformCountFailure -> {
                 if (transformCountFailure instanceof ResourceNotFoundException) {
-                    DataFrameInfoTransportAction.getStatisticSummations(client, totalStatsListener);
+                    TransformInfoTransportAction.getStatisticSummations(client, totalStatsListener);
                 } else {
                     listener.onFailure(transformCountFailure);
                 }
             }
         );
 
-        SearchRequest totalTransformCount = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME_PATTERN)
+        SearchRequest totalTransformCount = client.prepareSearch(TransformInternalIndex.INDEX_NAME_PATTERN)
             .setTrackTotalHits(true)
             .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(), TransformConfig.NAME))))
             .request();
 
         ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(),
-            ClientHelper.DATA_FRAME_ORIGIN,
+            ClientHelper.TRANSFORM_ORIGIN,
             totalTransformCount,
             totalTransformCountListener,
             client::search);

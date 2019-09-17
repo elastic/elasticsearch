@@ -24,7 +24,7 @@ import static org.mockito.Mockito.mock;
  *
  * TODO: ideally this would be a generalized  MockAuditor, but the current inheritance doesn't let us
  */
-public class MockDataFrameAuditor extends DataFrameAuditor {
+public class MockDataFrameAuditor extends TransformAuditor {
 
     private List<AuditExpectation> expectations;
 

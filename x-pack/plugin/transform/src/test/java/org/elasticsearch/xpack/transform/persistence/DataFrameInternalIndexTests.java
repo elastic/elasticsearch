@@ -41,7 +41,7 @@ public class DataFrameInternalIndexTests extends ESTestCase {
     static {
         ImmutableOpenMap.Builder<String, IndexTemplateMetaData> mapBuilder = ImmutableOpenMap.builder();
         try {
-            mapBuilder.put(DataFrameInternalIndex.LATEST_INDEX_VERSIONED_NAME, DataFrameInternalIndex.getIndexTemplateMetaData());
+            mapBuilder.put(TransformInternalIndex.LATEST_INDEX_VERSIONED_NAME, TransformInternalIndex.getIndexTemplateMetaData());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -54,8 +54,8 @@ public class DataFrameInternalIndexTests extends ESTestCase {
 
     public void testHaveLatestVersionedIndexTemplate() {
 
-        assertTrue(DataFrameInternalIndex.haveLatestVersionedIndexTemplate(STATE_WITH_LATEST_VERSIONED_INDEX_TEMPLATE));
-        assertFalse(DataFrameInternalIndex.haveLatestVersionedIndexTemplate(ClusterState.EMPTY_STATE));
+        assertTrue(TransformInternalIndex.haveLatestVersionedIndexTemplate(STATE_WITH_LATEST_VERSIONED_INDEX_TEMPLATE));
+        assertFalse(TransformInternalIndex.haveLatestVersionedIndexTemplate(ClusterState.EMPTY_STATE));
     }
 
     public void testInstallLatestVersionedIndexTemplateIfRequired_GivenNotRequired() {
@@ -68,7 +68,7 @@ public class DataFrameInternalIndexTests extends ESTestCase {
         AtomicBoolean gotResponse = new AtomicBoolean(false);
         ActionListener<Void> testListener = ActionListener.wrap(aVoid -> gotResponse.set(true), e -> fail(e.getMessage()));
 
-        DataFrameInternalIndex.installLatestVersionedIndexTemplateIfRequired(clusterService, client, testListener);
+        TransformInternalIndex.installLatestVersionedIndexTemplateIfRequired(clusterService, client, testListener);
 
         assertTrue(gotResponse.get());
         verifyNoMoreInteractions(client);
@@ -100,7 +100,7 @@ public class DataFrameInternalIndexTests extends ESTestCase {
         AtomicBoolean gotResponse = new AtomicBoolean(false);
         ActionListener<Void> testListener = ActionListener.wrap(aVoid -> gotResponse.set(true), e -> fail(e.getMessage()));
 
-        DataFrameInternalIndex.installLatestVersionedIndexTemplateIfRequired(clusterService, client, testListener);
+        TransformInternalIndex.installLatestVersionedIndexTemplateIfRequired(clusterService, client, testListener);
 
         assertTrue(gotResponse.get());
         verify(client, times(1)).threadPool();

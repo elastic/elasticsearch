@@ -30,12 +30,12 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
-import org.elasticsearch.xpack.core.transform.transforms.Transform;
-import org.elasticsearch.xpack.transform.checkpoint.DataFrameTransformsCheckpointService;
-import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
-import org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndex;
+import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
+import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
+import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 import org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndexTests;
-import org.elasticsearch.xpack.transform.persistence.DataFrameTransformsConfigManager;
+import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -54,16 +54,16 @@ public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
         addIndices(metaData, routingTable);
         PersistentTasksCustomMetaData.Builder pTasksBuilder = PersistentTasksCustomMetaData.builder()
             .addTask("data-frame-task-1",
-                Transform.NAME,
-                new Transform("data-frame-task-1", Version.CURRENT, null),
+                TransformTaskParams.NAME,
+                new TransformTaskParams("data-frame-task-1", Version.CURRENT, null),
                 new PersistentTasksCustomMetaData.Assignment("current-data-node-with-1-tasks", ""))
             .addTask("data-frame-task-2",
-                Transform.NAME,
-                new Transform("data-frame-task-2", Version.CURRENT, null),
+                TransformTaskParams.NAME,
+                new TransformTaskParams("data-frame-task-2", Version.CURRENT, null),
                 new PersistentTasksCustomMetaData.Assignment("current-data-node-with-2-tasks", ""))
             .addTask("data-frame-task-3",
-                Transform.NAME,
-                new Transform("data-frame-task-3", Version.CURRENT, null),
+                TransformTaskParams.NAME,
+                new TransformTaskParams("data-frame-task-3", Version.CURRENT, null),
                 new PersistentTasksCustomMetaData.Assignment("current-data-node-with-2-tasks", ""));
 
         PersistentTasksCustomMetaData pTasks = pTasksBuilder.build();
@@ -99,26 +99,26 @@ public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
 
         ClusterState cs = csBuilder.build();
         Client client = mock(Client.class);
-        DataFrameAuditor mockAuditor = mock(DataFrameAuditor.class);
-        DataFrameTransformsConfigManager transformsConfigManager = new DataFrameTransformsConfigManager(client, xContentRegistry());
-        DataFrameTransformsCheckpointService dataFrameTransformsCheckpointService = new DataFrameTransformsCheckpointService(client,
+        TransformAuditor mockAuditor = mock(TransformAuditor.class);
+        TransformConfigManager transformsConfigManager = new TransformConfigManager(client, xContentRegistry());
+        TransformCheckpointService dataFrameTransformsCheckpointService = new TransformCheckpointService(client,
             transformsConfigManager, mockAuditor);
         ClusterSettings cSettings = new ClusterSettings(Settings.EMPTY,
-            Collections.singleton(DataFrameTransformTask.NUM_FAILURE_RETRIES_SETTING));
+            Collections.singleton(TransformTask.NUM_FAILURE_RETRIES_SETTING));
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(cSettings);
         when(clusterService.state()).thenReturn(DataFrameInternalIndexTests.STATE_WITH_LATEST_VERSIONED_INDEX_TEMPLATE);
-        DataFrameTransformPersistentTasksExecutor executor = new DataFrameTransformPersistentTasksExecutor(client,
+        TransformPersistentTasksExecutor executor = new TransformPersistentTasksExecutor(client,
             transformsConfigManager,
             dataFrameTransformsCheckpointService, mock(SchedulerEngine.class),
-            new DataFrameAuditor(client, ""),
+            new TransformAuditor(client, ""),
             mock(ThreadPool.class),
             clusterService,
             Settings.EMPTY);
 
-        assertThat(executor.getAssignment(new Transform("new-task-id", Version.CURRENT, null), cs).getExecutorNode(),
+        assertThat(executor.getAssignment(new TransformTaskParams("new-task-id", Version.CURRENT, null), cs).getExecutorNode(),
             equalTo("current-data-node-with-1-tasks"));
-        assertThat(executor.getAssignment(new Transform("new-old-task-id", Version.V_7_2_0, null), cs).getExecutorNode(),
+        assertThat(executor.getAssignment(new TransformTaskParams("new-old-task-id", Version.V_7_2_0, null), cs).getExecutorNode(),
             equalTo("past-data-node-1"));
     }
 
@@ -132,11 +132,11 @@ public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
         csBuilder.metaData(metaData);
 
         ClusterState cs = csBuilder.build();
-        assertEquals(0, DataFrameTransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(cs).size());
+        assertEquals(0, TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(cs).size());
 
         metaData = new MetaData.Builder(cs.metaData());
         routingTable = new RoutingTable.Builder(cs.routingTable());
-        String indexToRemove = DataFrameInternalIndex.LATEST_INDEX_NAME;
+        String indexToRemove = TransformInternalIndex.LATEST_INDEX_NAME;
         if (randomBoolean()) {
             routingTable.remove(indexToRemove);
         } else {
@@ -151,15 +151,15 @@ public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
 
         csBuilder.routingTable(routingTable.build());
         csBuilder.metaData(metaData);
-        List<String> result = DataFrameTransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(csBuilder.build());
+        List<String> result = TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(csBuilder.build());
         assertEquals(1, result.size());
         assertEquals(indexToRemove, result.get(0));
     }
 
     private void addIndices(MetaData.Builder metaData, RoutingTable.Builder routingTable) {
         List<String> indices = new ArrayList<>();
-        indices.add(DataFrameInternalIndex.AUDIT_INDEX);
-        indices.add(DataFrameInternalIndex.LATEST_INDEX_NAME);
+        indices.add(TransformInternalIndex.AUDIT_INDEX);
+        indices.add(TransformInternalIndex.LATEST_INDEX_NAME);
         for (String indexName : indices) {
             IndexMetaData.Builder indexMetaData = IndexMetaData.builder(indexName);
             indexMetaData.settings(Settings.builder()

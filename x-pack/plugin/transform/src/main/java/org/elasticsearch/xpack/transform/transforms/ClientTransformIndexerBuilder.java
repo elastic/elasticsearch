@@ -14,18 +14,18 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
-import org.elasticsearch.xpack.transform.checkpoint.DataFrameTransformsCheckpointService;
-import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
-import org.elasticsearch.xpack.transform.persistence.DataFrameTransformsConfigManager;
+import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
+import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-class ClientDataFrameIndexerBuilder {
+class ClientTransformIndexerBuilder {
     private Client client;
-    private DataFrameTransformsConfigManager transformsConfigManager;
-    private DataFrameTransformsCheckpointService transformsCheckpointService;
-    private DataFrameAuditor auditor;
+    private TransformConfigManager transformsConfigManager;
+    private TransformCheckpointService transformsCheckpointService;
+    private TransformAuditor auditor;
     private Map<String, String> fieldMappings;
     private TransformConfig transformConfig;
     private TransformIndexerStats initialStats;
@@ -35,14 +35,14 @@ class ClientDataFrameIndexerBuilder {
     private TransformCheckpoint lastCheckpoint;
     private TransformCheckpoint nextCheckpoint;
 
-    ClientDataFrameIndexerBuilder() {
+    ClientTransformIndexerBuilder() {
         this.initialStats = new TransformIndexerStats();
     }
 
-    ClientDataFrameIndexer build(DataFrameTransformTask parentTask) {
+    ClientTransformIndexer build(TransformTask parentTask) {
         CheckpointProvider checkpointProvider = transformsCheckpointService.getCheckpointProvider(transformConfig);
 
-        return new ClientDataFrameIndexer(this.transformsConfigManager,
+        return new ClientTransformIndexer(this.transformsConfigManager,
             checkpointProvider,
             new AtomicReference<>(this.indexerState),
             this.initialPosition,
@@ -57,32 +57,32 @@ class ClientDataFrameIndexerBuilder {
             parentTask);
     }
 
-    ClientDataFrameIndexerBuilder setClient(Client client) {
+    ClientTransformIndexerBuilder setClient(Client client) {
         this.client = client;
         return this;
     }
 
-    ClientDataFrameIndexerBuilder setTransformsConfigManager(DataFrameTransformsConfigManager transformsConfigManager) {
+    ClientTransformIndexerBuilder setTransformsConfigManager(TransformConfigManager transformsConfigManager) {
         this.transformsConfigManager = transformsConfigManager;
         return this;
     }
 
-    ClientDataFrameIndexerBuilder setTransformsCheckpointService(DataFrameTransformsCheckpointService transformsCheckpointService) {
+    ClientTransformIndexerBuilder setTransformsCheckpointService(TransformCheckpointService transformsCheckpointService) {
         this.transformsCheckpointService = transformsCheckpointService;
         return this;
     }
 
-    ClientDataFrameIndexerBuilder setAuditor(DataFrameAuditor auditor) {
+    ClientTransformIndexerBuilder setAuditor(TransformAuditor auditor) {
         this.auditor = auditor;
         return this;
     }
 
-    ClientDataFrameIndexerBuilder setFieldMappings(Map<String, String> fieldMappings) {
+    ClientTransformIndexerBuilder setFieldMappings(Map<String, String> fieldMappings) {
         this.fieldMappings = fieldMappings;
         return this;
     }
 
-    ClientDataFrameIndexerBuilder setTransformConfig(TransformConfig transformConfig) {
+    ClientTransformIndexerBuilder setTransformConfig(TransformConfig transformConfig) {
         this.transformConfig = transformConfig;
         return this;
     }
@@ -91,32 +91,32 @@ class ClientDataFrameIndexerBuilder {
         return this.transformConfig;
     }
 
-    ClientDataFrameIndexerBuilder setInitialStats(TransformIndexerStats initialStats) {
+    ClientTransformIndexerBuilder setInitialStats(TransformIndexerStats initialStats) {
         this.initialStats = initialStats;
         return this;
     }
 
-    ClientDataFrameIndexerBuilder setIndexerState(IndexerState indexerState) {
+    ClientTransformIndexerBuilder setIndexerState(IndexerState indexerState) {
         this.indexerState = indexerState;
         return this;
     }
 
-    ClientDataFrameIndexerBuilder setInitialPosition(TransformIndexerPosition initialPosition) {
+    ClientTransformIndexerBuilder setInitialPosition(TransformIndexerPosition initialPosition) {
         this.initialPosition = initialPosition;
         return this;
     }
 
-    ClientDataFrameIndexerBuilder setProgress(TransformProgress progress) {
+    ClientTransformIndexerBuilder setProgress(TransformProgress progress) {
         this.progress = progress;
         return this;
     }
 
-    ClientDataFrameIndexerBuilder setLastCheckpoint(TransformCheckpoint lastCheckpoint) {
+    ClientTransformIndexerBuilder setLastCheckpoint(TransformCheckpoint lastCheckpoint) {
         this.lastCheckpoint = lastCheckpoint;
         return this;
     }
 
-    ClientDataFrameIndexerBuilder setNextCheckpoint(TransformCheckpoint nextCheckpoint) {
+    ClientTransformIndexerBuilder setNextCheckpoint(TransformCheckpoint nextCheckpoint) {
         this.nextCheckpoint = nextCheckpoint;
         return this;
     }

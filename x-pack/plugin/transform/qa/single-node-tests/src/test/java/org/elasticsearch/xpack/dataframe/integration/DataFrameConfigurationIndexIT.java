@@ -16,7 +16,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
-import org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndex;
+import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 
 import java.io.IOException;
 
@@ -42,13 +42,13 @@ public class DataFrameConfigurationIndexIT extends DataFrameRestTestCase {
             builder.endObject();
             final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
             Request req = new Request("PUT",
-                    DataFrameInternalIndex.LATEST_INDEX_NAME + "/_doc/" + TransformConfig.documentId(fakeTransformName));
+                    TransformInternalIndex.LATEST_INDEX_NAME + "/_doc/" + TransformConfig.documentId(fakeTransformName));
             req.setEntity(entity);
             client().performRequest(req);
         }
 
         // refresh the index
-        assertOK(client().performRequest(new Request("POST", DataFrameInternalIndex.LATEST_INDEX_NAME + "/_refresh")));
+        assertOK(client().performRequest(new Request("POST", TransformInternalIndex.LATEST_INDEX_NAME + "/_refresh")));
 
         Request deleteRequest = new Request("DELETE", DATAFRAME_ENDPOINT + fakeTransformName);
         Response deleteResponse = client().performRequest(deleteRequest);

@@ -36,8 +36,8 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
-import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
-import org.elasticsearch.xpack.transform.persistence.DataFrameTransformsConfigManager;
+import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils;
 
@@ -47,16 +47,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-class ClientDataFrameIndexer extends DataFrameIndexer {
+class ClientTransformIndexer extends TransformIndexer {
 
-    private static final Logger logger = LogManager.getLogger(ClientDataFrameIndexer.class);
+    private static final Logger logger = LogManager.getLogger(ClientTransformIndexer.class);
 
     private long logEvery = 1;
     private long logCount = 0;
     private final Client client;
-    private final DataFrameTransformsConfigManager transformsConfigManager;
+    private final TransformConfigManager transformsConfigManager;
     private final CheckpointProvider checkpointProvider;
-    private final DataFrameTransformTask transformTask;
+    private final TransformTask transformTask;
     private final AtomicInteger failureCount;
     private volatile boolean auditBulkFailures = true;
     // Indicates that the source has changed for the current run
@@ -66,19 +66,19 @@ class ClientDataFrameIndexer extends DataFrameIndexer {
     private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
     private volatile Instant changesLastDetectedAt;
 
-    ClientDataFrameIndexer(DataFrameTransformsConfigManager transformsConfigManager,
+    ClientTransformIndexer(TransformConfigManager transformsConfigManager,
                            CheckpointProvider checkpointProvider,
                            AtomicReference<IndexerState> initialState,
                            TransformIndexerPosition initialPosition,
                            Client client,
-                           DataFrameAuditor auditor,
+                           TransformAuditor auditor,
                            TransformIndexerStats initialStats,
                            TransformConfig transformConfig,
                            Map<String, String> fieldMappings,
                            TransformProgress transformProgress,
                            TransformCheckpoint lastCheckpoint,
                            TransformCheckpoint nextCheckpoint,
-                           DataFrameTransformTask parentTask) {
+                           TransformTask parentTask) {
         super(ExceptionsHelper.requireNonNull(parentTask, "parentTask")
                 .getThreadPool()
                 .executor(ThreadPool.Names.GENERIC),
@@ -150,7 +150,7 @@ class ClientDataFrameIndexer extends DataFrameIndexer {
                     transformsConfigManager.getTransformConfiguration(getJobId(), ActionListener.wrap(
                         config -> {
                             transformConfig = config;
-                            logger.debug("[{}] successfully refreshed data frame transform config from index.", getJobId());
+                            logger.debug("[{}] successfully refreshed transform config from index.", getJobId());
                             updateConfigListener.onResponse(null);
                         },
                         failure -> {
@@ -237,7 +237,7 @@ class ClientDataFrameIndexer extends DataFrameIndexer {
                 getJobId()));
             return;
         }
-        ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(), ClientHelper.DATA_FRAME_ORIGIN, client,
+        ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(), ClientHelper.TRANSFORM_ORIGIN, client,
                 SearchAction.INSTANCE, request, nextPhase);
     }
 
@@ -250,7 +250,7 @@ class ClientDataFrameIndexer extends DataFrameIndexer {
             return;
         }
         ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(),
-            ClientHelper.DATA_FRAME_ORIGIN,
+            ClientHelper.TRANSFORM_ORIGIN,
             client,
             BulkAction.INSTANCE,
             request,
@@ -298,7 +298,7 @@ class ClientDataFrameIndexer extends DataFrameIndexer {
         }
 
         // This means that the indexer was triggered to discover changes, found none, and exited early.
-        // If the state is `STOPPED` this means that DataFrameTransformTask#stop was called while we were checking for changes.
+        // If the state is `STOPPED` this means that TransformTask#stop was called while we were checking for changes.
         // Allow the stop call path to continue
         if (hasSourceChanged == false && indexerState.equals(IndexerState.STOPPED) == false) {
             next.run();
@@ -313,8 +313,8 @@ class ClientDataFrameIndexer extends DataFrameIndexer {
             // set both to stopped so they are persisted as such
             indexerState = IndexerState.STOPPED;
 
-            auditor.info(transformConfig.getId(), "Data frame finished indexing all data, initiating stop");
-            logger.info("[{}] data frame transform finished indexing all data, initiating stop.", transformConfig.getId());
+            auditor.info(transformConfig.getId(), "Transform finished indexing all data, initiating stop");
+            logger.info("[{}] transform finished indexing all data, initiating stop.", transformConfig.getId());
         }
 
         // If we are `STOPPED` on a `doSaveState` call, that indicates we transitioned to `STOPPED` from `STOPPING`
@@ -393,7 +393,7 @@ class ClientDataFrameIndexer extends DataFrameIndexer {
             handleFailure(exc);
         } catch (Exception e) {
             logger.error(
-                new ParameterizedMessage("[{}] data frame transform encountered an unexpected internal exception: ", getJobId()),
+                new ParameterizedMessage("[{}] transform encountered an unexpected internal exception: ", getJobId()),
                 e);
         }
     }
@@ -442,10 +442,10 @@ class ClientDataFrameIndexer extends DataFrameIndexer {
             }
             if (shouldAuditOnFinish(checkpoint)) {
                 auditor.info(getJobId(),
-                    "Finished indexing for data frame transform checkpoint [" + checkpoint + "].");
+                    "Finished indexing for transform checkpoint [" + checkpoint + "].");
             }
             logger.debug(
-                "[{}] finished indexing for data frame transform checkpoint [{}].", getJobId(), checkpoint);
+                "[{}] finished indexing for transform checkpoint [{}].", getJobId(), checkpoint);
             auditBulkFailures = true;
             listener.onResponse(null);
         } catch (Exception e) {
@@ -478,14 +478,14 @@ class ClientDataFrameIndexer extends DataFrameIndexer {
 
     @Override
     protected void onStop() {
-        auditor.info(transformConfig.getId(), "Data frame transform has stopped.");
-        logger.info("[{}] data frame transform has stopped.", transformConfig.getId());
+        auditor.info(transformConfig.getId(), "Transform has stopped.");
+        logger.info("[{}] transform has stopped.", transformConfig.getId());
     }
 
     @Override
     protected void onAbort() {
-        auditor.info(transformConfig.getId(), "Received abort request, stopping data frame transform.");
-        logger.info("[{}] data frame transform received abort request. Stopping indexer.", transformConfig.getId());
+        auditor.info(transformConfig.getId(), "Received abort request, stopping transform.");
+        logger.info("[{}] transform received abort request. Stopping indexer.", transformConfig.getId());
         transformTask.shutdown();
     }
 
@@ -524,11 +524,11 @@ class ClientDataFrameIndexer extends DataFrameIndexer {
                 e -> {
                     logger.warn(
                         new ParameterizedMessage(
-                            "[{}] failed to detect changes for data frame transform. Skipping update till next check.",
+                            "[{}] failed to detect changes for transform. Skipping update till next check.",
                             getJobId()),
                         e);
                     auditor.warning(getJobId(),
-                        "Failed to detect changes for data frame transform, skipping update till next check. Exception: "
+                        "Failed to detect changes for transform, skipping update till next check. Exception: "
                             + e.getMessage());
                     hasChangedListener.onResponse(false);
                 }));
@@ -541,7 +541,7 @@ class ClientDataFrameIndexer extends DataFrameIndexer {
     }
 
     synchronized void handleFailure(Exception e) {
-        logger.warn(new ParameterizedMessage("[{}] data frame transform encountered an exception: ",
+        logger.warn(new ParameterizedMessage("[{}] transform encountered an exception: ",
             getJobId()),
             e);
         if (handleCircuitBreakingException(e)) {
@@ -558,7 +558,7 @@ class ClientDataFrameIndexer extends DataFrameIndexer {
             // times in a row, very quickly. We do not want to spam the audit log with repeated failures, so only record the first one
             if (e.getMessage().equals(lastAuditedExceptionMessage) == false) {
                 auditor.warning(getJobId(),
-                    "Data frame transform encountered an exception: " + e.getMessage() +
+                    "Transform encountered an exception: " + e.getMessage() +
                         " Will attempt again at next scheduled trigger.");
                 lastAuditedExceptionMessage = e.getMessage();
             }

@@ -28,17 +28,17 @@ import org.elasticsearch.xpack.core.transform.action.GetTransformsAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformsAction.Request;
 import org.elasticsearch.xpack.core.transform.action.GetTransformsAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
-import org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndex;
+import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 
 import static org.elasticsearch.xpack.core.transform.TransformField.INDEX_DOC_TYPE;
 
 
-public class TransportGetDataFrameTransformsAction extends AbstractTransportGetResourcesAction<TransformConfig,
+public class TransportGetTransformsAction extends AbstractTransportGetResourcesAction<TransformConfig,
                                                                                                Request,
                                                                                                Response> {
 
     @Inject
-    public TransportGetDataFrameTransformsAction(TransportService transportService, ActionFilters actionFilters,
+    public TransportGetTransformsAction(TransportService transportService, ActionFilters actionFilters,
                                                  Client client, NamedXContentRegistry xContentRegistry) {
         super(GetTransformsAction.NAME, transportService, actionFilters, Request::new, client, xContentRegistry);
     }
@@ -58,7 +58,7 @@ public class TransportGetDataFrameTransformsAction extends AbstractTransportGetR
 
     @Override
     protected String[] getIndices() {
-        return new String[]{DataFrameInternalIndex.INDEX_NAME_PATTERN};
+        return new String[]{TransformInternalIndex.INDEX_NAME_PATTERN};
     }
 
     @Override
@@ -69,12 +69,12 @@ public class TransportGetDataFrameTransformsAction extends AbstractTransportGetR
     @Override
     protected ResourceNotFoundException notFoundException(String resourceId) {
         return new ResourceNotFoundException(
-            TransformMessages.getMessage(TransformMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, resourceId));
+            TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, resourceId));
     }
 
     @Override
     protected String executionOrigin() {
-        return ClientHelper.DATA_FRAME_ORIGIN;
+        return ClientHelper.TRANSFORM_ORIGIN;
     }
 
     @Override

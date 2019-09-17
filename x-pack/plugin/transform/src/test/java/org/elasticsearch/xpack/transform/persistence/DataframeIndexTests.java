@@ -51,7 +51,7 @@ public class DataframeIndexTests extends ESTestCase {
             })
             .when(client).execute(any(), any(), any());
 
-        DataframeIndex.createDestinationIndex(
+        TransformIndex.createDestinationIndex(
             client,
             clock,
             TransformConfigTests.randomDataFrameTransformConfig(TRANSFORM_ID),

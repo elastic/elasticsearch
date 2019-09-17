@@ -36,7 +36,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
-import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
+import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 import org.junit.Before;
 
@@ -69,7 +69,7 @@ public class DataFrameIndexerTests extends ESTestCase {
 
     private Client client;
 
-    class MockedDataFrameIndexer extends DataFrameIndexer {
+    class MockedDataFrameIndexer extends TransformIndexer {
 
         private final Function<SearchRequest, SearchResponse> searchFunction;
         private final Function<BulkRequest, BulkResponse> bulkFunction;
@@ -82,7 +82,7 @@ public class DataFrameIndexerTests extends ESTestCase {
                 Executor executor,
                 TransformConfig transformConfig,
                 Map<String, String> fieldMappings,
-                DataFrameAuditor auditor,
+                TransformAuditor auditor,
                 AtomicReference<IndexerState> initialState,
                 TransformIndexerPosition initialPosition,
                 TransformIndexerStats jobStats,
@@ -223,7 +223,7 @@ public class DataFrameIndexerTests extends ESTestCase {
 
         final ExecutorService executor = Executors.newFixedThreadPool(1);
         try {
-            DataFrameAuditor auditor = new DataFrameAuditor(client, "node_1");
+            TransformAuditor auditor = new TransformAuditor(client, "node_1");
 
             MockedDataFrameIndexer indexer = new MockedDataFrameIndexer(executor, config, Collections.emptyMap(), auditor, state, null,
                     new TransformIndexerStats(), searchFunction, bulkFunction, failureConsumer);
@@ -236,7 +236,7 @@ public class DataFrameIndexerTests extends ESTestCase {
             awaitBusy(() -> indexer.getState() == IndexerState.STOPPED);
             long pageSizeAfterFirstReduction = indexer.getPageSize();
             assertThat(initialPageSize, greaterThan(pageSizeAfterFirstReduction));
-            assertThat(pageSizeAfterFirstReduction, greaterThan((long)DataFrameIndexer.MINIMUM_PAGE_SIZE));
+            assertThat(pageSizeAfterFirstReduction, greaterThan((long)TransformIndexer.MINIMUM_PAGE_SIZE));
 
             // run indexer a 2nd time
             final CountDownLatch secondRunLatch = indexer.newLatch(1);
@@ -250,7 +250,7 @@ public class DataFrameIndexerTests extends ESTestCase {
 
             // assert that page size has been reduced again
             assertThat(pageSizeAfterFirstReduction, greaterThan((long)indexer.getPageSize()));
-            assertThat(pageSizeAfterFirstReduction, greaterThan((long)DataFrameIndexer.MINIMUM_PAGE_SIZE));
+            assertThat(pageSizeAfterFirstReduction, greaterThan((long)TransformIndexer.MINIMUM_PAGE_SIZE));
 
         } finally {
             executor.shutdownNow();
@@ -288,7 +288,7 @@ public class DataFrameIndexerTests extends ESTestCase {
 
         final ExecutorService executor = Executors.newFixedThreadPool(1);
         try {
-            DataFrameAuditor auditor = mock(DataFrameAuditor.class);
+            TransformAuditor auditor = mock(TransformAuditor.class);
 
             MockedDataFrameIndexer indexer = new MockedDataFrameIndexer(executor, config, Collections.emptyMap(), auditor, state, null,
                 new TransformIndexerStats(), searchFunction, bulkFunction, failureConsumer);

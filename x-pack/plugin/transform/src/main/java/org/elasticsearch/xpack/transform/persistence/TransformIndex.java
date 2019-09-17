@@ -28,14 +28,14 @@ import java.util.Map.Entry;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 
-public final class DataframeIndex {
-    private static final Logger logger = LogManager.getLogger(DataframeIndex.class);
+public final class TransformIndex {
+    private static final Logger logger = LogManager.getLogger(TransformIndex.class);
 
     private static final String PROPERTIES = "properties";
     private static final String TYPE = "type";
     private static final String META = "_meta";
 
-    private DataframeIndex() {
+    private TransformIndex() {
     }
 
     public static void createDestinationIndex(Client client,
@@ -97,7 +97,7 @@ public final class DataframeIndex {
 
     private static XContentBuilder addMetaData(XContentBuilder builder, String id, Clock clock) throws IOException {
         return builder.startObject(META)
-            .field(TransformField.CREATED_BY, TransformField.DATA_FRAME_SIGNATURE)
+            .field(TransformField.CREATED_BY, TransformField.TRANSFORM_SIGNATURE)
             .startObject(TransformField.META_FIELDNAME)
                 .field(TransformField.CREATION_DATE_MILLIS, clock.millis())
                 .startObject(TransformField.VERSION.getPreferredName())

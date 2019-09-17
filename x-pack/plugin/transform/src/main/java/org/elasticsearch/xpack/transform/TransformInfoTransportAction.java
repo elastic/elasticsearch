@@ -31,19 +31,19 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
-import org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndex;
+import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 
-public class DataFrameInfoTransportAction extends XPackInfoFeatureTransportAction {
+public class TransformInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     private final boolean enabled;
     private final XPackLicenseState licenseState;
 
-    private static final Logger logger = LogManager.getLogger(DataFrameInfoTransportAction.class);
+    private static final Logger logger = LogManager.getLogger(TransformInfoTransportAction.class);
 
     public static final String[] PROVIDED_STATS = new String[] {
         TransformIndexerStats.NUM_PAGES.getPreferredName(),
@@ -59,21 +59,21 @@ public class DataFrameInfoTransportAction extends XPackInfoFeatureTransportActio
     };
 
     @Inject
-    public DataFrameInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
+    public TransformInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
                                         Settings settings, XPackLicenseState licenseState) {
-        super(XPackInfoFeatureAction.DATA_FRAME.name(), transportService, actionFilters);
-        this.enabled = XPackSettings.DATA_FRAME_ENABLED.get(settings);
+        super(XPackInfoFeatureAction.TRANSFORM.name(), transportService, actionFilters);
+        this.enabled = XPackSettings.TRANSFORM_ENABLED.get(settings);
         this.licenseState = licenseState;
     }
 
     @Override
     public String name() {
-        return XPackField.Transform;
+        return XPackField.TRANSFORM;
     }
 
     @Override
     public boolean available() {
-        return licenseState.isDataFrameAllowed();
+        return licenseState.isTransformAllowed();
     }
 
     @Override
@@ -110,7 +110,7 @@ public class DataFrameInfoTransportAction extends XPackInfoFeatureTransportActio
             .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(),
                     TransformStoredDoc.NAME)));
 
-        SearchRequestBuilder requestBuilder = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME_PATTERN)
+        SearchRequestBuilder requestBuilder = client.prepareSearch(TransformInternalIndex.INDEX_NAME_PATTERN)
             .setSize(0)
             .setQuery(queryBuilder);
 
@@ -137,7 +137,7 @@ public class DataFrameInfoTransportAction extends XPackInfoFeatureTransportActio
             }
         );
         ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(),
-            ClientHelper.DATA_FRAME_ORIGIN,
+            ClientHelper.TRANSFORM_ORIGIN,
             requestBuilder.request(),
             getStatisticSummationsListener,
             client::search);

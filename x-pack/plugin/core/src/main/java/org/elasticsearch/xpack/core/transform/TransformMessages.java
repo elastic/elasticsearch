@@ -15,26 +15,26 @@ public class TransformMessages {
             "Timed out after [{0}] while waiting for data frame transform [{1}] to stop";
     public static final String REST_STOP_TRANSFORM_WAIT_FOR_COMPLETION_INTERRUPT =
             "Interrupted while waiting for data frame transform [{0}] to stop";
-    public static final String REST_PUT_DATA_FRAME_TRANSFORM_EXISTS = "Transform with id [{0}] already exists";
-    public static final String REST_DATA_FRAME_UNKNOWN_TRANSFORM = "Transform with id [{0}] could not be found";
-    public static final String REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION =
+    public static final String REST_PUT_TRANSFORM_EXISTS = "Transform with id [{0}] already exists";
+    public static final String REST_UNKNOWN_TRANSFORM = "Transform with id [{0}] could not be found";
+    public static final String REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION =
             "Failed to validate data frame configuration";
-    public static final String REST_PUT_DATA_FRAME_FAILED_PERSIST_TRANSFORM_CONFIGURATION = "Failed to persist data frame configuration";
-    public static final String REST_PUT_DATA_FRAME_FAILED_TO_DEDUCE_DEST_MAPPINGS = "Failed to deduce dest mappings";
-    public static final String REST_PUT_DATA_FRAME_SOURCE_INDEX_MISSING = "Source index [{0}] does not exist";
+    public static final String REST_PUT_FAILED_PERSIST_TRANSFORM_CONFIGURATION = "Failed to persist data frame configuration";
+    public static final String REST_PUT_TRANSFORM_FAILED_TO_DEDUCE_DEST_MAPPINGS = "Failed to deduce dest mappings";
+    public static final String REST_PUT_TRANSFORM_SOURCE_INDEX_MISSING = "Source index [{0}] does not exist";
     public static final String REST_PUT_DATA_FRAME_DEST_IN_SOURCE = "Destination index [{0}] is included in source expression [{1}]";
     public static final String REST_PUT_DATA_FRAME_DEST_SINGLE_INDEX = "Destination index [{0}] should refer to a single index";
     public static final String REST_PUT_DATA_FRAME_INCONSISTENT_ID =
             "Inconsistent id; ''{0}'' specified in the body differs from ''{1}'' specified as a URL argument";
-    public static final String DATA_FRAME_CONFIG_INVALID = "Data frame transform configuration is invalid [{0}]";
-    public static final String REST_DATA_FRAME_FAILED_TO_SERIALIZE_TRANSFORM = "Failed to serialise transform [{0}]";
-    public static final String DATA_FRAME_FAILED_TO_PERSIST_STATS = "Failed to persist data frame statistics for transform [{0}]";
-    public static final String DATA_FRAME_UNKNOWN_TRANSFORM_STATS = "Statistics for transform [{0}] could not be found";
+    public static final String TRANSFORM_CONFIG_INVALID = "Data frame transform configuration is invalid [{0}]";
+    public static final String REST_FAILED_TO_SERIALIZE_TRANSFORM = "Failed to serialise transform [{0}]";
+    public static final String TRANSFORM_FAILED_TO_PERSIST_STATS = "Failed to persist data frame statistics for transform [{0}]";
+    public static final String UNKNOWN_TRANSFORM_STATS = "Statistics for transform [{0}] could not be found";
 
-    public static final String DATA_FRAME_CANNOT_STOP_FAILED_TRANSFORM =
+    public static final String CANNOT_STOP_FAILED_TRANSFORM =
         "Unable to stop data frame transform [{0}] as it is in a failed state with reason [{1}]." +
             " Use force stop to stop the data frame transform.";
-    public static final String DATA_FRAME_CANNOT_START_FAILED_TRANSFORM =
+    public static final String CANNOT_START_FAILED_TRANSFORM =
         "Unable to start data frame transform [{0}] as it is in a failed state with failure: [{1}]. " +
             "Use force stop and then restart the data frame transform once error is resolved.";
 
@@ -57,11 +57,11 @@ public class TransformMessages {
             "Data frame pivot transform configuration must specify at least 1 group_by";
     public static final String DATA_FRAME_TRANSFORM_CONFIGURATION_PIVOT_NO_AGGREGATION =
             "Data frame pivot transform configuration must specify at least 1 aggregation";
-    public static final String DATA_FRAME_TRANSFORM_PIVOT_FAILED_TO_CREATE_COMPOSITE_AGGREGATION =
+    public static final String TRANSFORM_PIVOT_FAILED_TO_CREATE_COMPOSITE_AGGREGATION =
             "Failed to create composite aggregation from pivot function";
-    public static final String DATA_FRAME_TRANSFORM_CONFIGURATION_INVALID =
+    public static final String TRANSFORM_CONFIGURATION_INVALID =
             "Data frame transform configuration [{0}] has invalid elements";
-    public static final String DATA_FRAME_UNABLE_TO_GATHER_FIELD_MAPPINGS = "Failed to gather field mappings for index [{0}]";
+    public static final String UNABLE_TO_GATHER_FIELD_MAPPINGS = "Failed to gather field mappings for index [{0}]";
     public static final String DATA_FRAME_UPDATE_CANNOT_CHANGE_SYNC_METHOD =
         "Cannot change the current sync configuration of transform [{0}] from [{1}] to [{2}]";
     public static final String LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_QUERY =

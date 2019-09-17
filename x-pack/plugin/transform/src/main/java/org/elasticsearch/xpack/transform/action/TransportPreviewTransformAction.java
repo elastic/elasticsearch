@@ -55,12 +55,12 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.transform.transforms.DataFrameIndexer.COMPOSITE_AGGREGATION_NAME;
+import static org.elasticsearch.xpack.transform.transforms.TransformIndexer.COMPOSITE_AGGREGATION_NAME;
 
-public class TransportPreviewDataFrameTransformAction extends
+public class TransportPreviewTransformAction extends
     HandledTransportAction<PreviewTransformAction.Request, PreviewTransformAction.Response> {
 
-    private static final Logger logger = LogManager.getLogger(TransportPreviewDataFrameTransformAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportPreviewTransformAction.class);
     private static final int NUMBER_OF_PREVIEW_BUCKETS = 100;
     private final XPackLicenseState licenseState;
     private final Client client;
@@ -69,7 +69,7 @@ public class TransportPreviewDataFrameTransformAction extends
     private final ClusterService clusterService;
 
     @Inject
-    public TransportPreviewDataFrameTransformAction(TransportService transportService, ActionFilters actionFilters,
+    public TransportPreviewTransformAction(TransportService transportService, ActionFilters actionFilters,
                                                     Client client, ThreadPool threadPool, XPackLicenseState licenseState,
                                                     IndexNameExpressionResolver indexNameExpressionResolver,
                                                     ClusterService clusterService) {
@@ -85,8 +85,8 @@ public class TransportPreviewDataFrameTransformAction extends
     protected void doExecute(Task task,
                              PreviewTransformAction.Request request,
                              ActionListener<PreviewTransformAction.Response> listener) {
-        if (!licenseState.isDataFrameAllowed()) {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.Transform));
+        if (!licenseState.isTransformAllowed()) {
+            listener.onFailure(LicenseUtils.newComplianceException(XPackField.TRANSFORM));
             return;
         }
 
@@ -97,7 +97,7 @@ public class TransportPreviewDataFrameTransformAction extends
             String[] concreteNames = indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), src);
             if (concreteNames.length == 0) {
                 listener.onFailure(new ElasticsearchStatusException(
-                    TransformMessages.getMessage(TransformMessages.REST_PUT_DATA_FRAME_SOURCE_INDEX_MISSING, src),
+                    TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_SOURCE_INDEX_MISSING, src),
                     RestStatus.BAD_REQUEST));
                 return;
             }
@@ -108,13 +108,13 @@ public class TransportPreviewDataFrameTransformAction extends
             pivot.validateConfig();
         } catch (ElasticsearchStatusException e) {
             listener.onFailure(
-                new ElasticsearchStatusException(TransformMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
+                new ElasticsearchStatusException(TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
                     e.status(),
                     e));
             return;
         } catch (Exception e) {
             listener.onFailure(new ElasticsearchStatusException(
-                TransformMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION, RestStatus.INTERNAL_SERVER_ERROR, e));
+                TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION, RestStatus.INTERNAL_SERVER_ERROR, e));
             return;
         }
 
@@ -149,7 +149,7 @@ public class TransportPreviewDataFrameTransformAction extends
             deducedMappings -> {
                 previewResponse.setMappingsFromStringMap(deducedMappings);
                 ClientHelper.executeWithHeadersAsync(threadPool.getThreadContext().getHeaders(),
-                    ClientHelper.DATA_FRAME_ORIGIN,
+                    ClientHelper.TRANSFORM_ORIGIN,
                     client,
                     SearchAction.INSTANCE,
                     pivot.buildSearchRequest(source, null, NUMBER_OF_PREVIEW_BUCKETS),
@@ -192,7 +192,7 @@ public class TransportPreviewDataFrameTransformAction extends
                                         var pipelineRequest = new SimulatePipelineRequest(BytesReference.bytes(builder), XContentType.JSON);
                                         pipelineRequest.setId(pipeline);
                                         ClientHelper.executeAsyncWithOrigin(client,
-                                            ClientHelper.DATA_FRAME_ORIGIN,
+                                            ClientHelper.TRANSFORM_ORIGIN,
                                             SimulatePipelineAction.INSTANCE,
                                             pipelineRequest,
                                             pipelineResponseActionListener);

@@ -37,13 +37,13 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
-import org.elasticsearch.xpack.core.transform.transforms.Transform;
+import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
-import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
-import org.elasticsearch.xpack.transform.persistence.DataFrameTransformsConfigManager;
-import org.elasticsearch.xpack.transform.persistence.DataframeIndex;
+import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.SourceDestValidator;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 
@@ -55,29 +55,29 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.core.transform.TransformMessages.DATA_FRAME_CANNOT_START_FAILED_TRANSFORM;
+import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_START_FAILED_TRANSFORM;
 
-public class TransportStartDataFrameTransformAction extends
+public class TransportStartTransformAction extends
     TransportMasterNodeAction<StartTransformAction.Request, StartTransformAction.Response> {
 
-    private static final Logger logger = LogManager.getLogger(TransportStartDataFrameTransformAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportStartTransformAction.class);
     private final XPackLicenseState licenseState;
-    private final DataFrameTransformsConfigManager dataFrameTransformsConfigManager;
+    private final TransformConfigManager transformsConfigManager;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
-    private final DataFrameAuditor auditor;
+    private final TransformAuditor auditor;
 
     @Inject
-    public TransportStartDataFrameTransformAction(TransportService transportService, ActionFilters actionFilters,
-                                                  ClusterService clusterService, XPackLicenseState licenseState,
-                                                  ThreadPool threadPool, IndexNameExpressionResolver indexNameExpressionResolver,
-                                                  DataFrameTransformsConfigManager dataFrameTransformsConfigManager,
-                                                  PersistentTasksService persistentTasksService, Client client,
-                                                  DataFrameAuditor auditor) {
+    public TransportStartTransformAction(TransportService transportService, ActionFilters actionFilters,
+                                         ClusterService clusterService, XPackLicenseState licenseState,
+                                         ThreadPool threadPool, IndexNameExpressionResolver indexNameExpressionResolver,
+                                         TransformConfigManager transformsConfigManager,
+                                         PersistentTasksService persistentTasksService, Client client,
+                                         TransformAuditor auditor) {
         super(StartTransformAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 StartTransformAction.Request::new, indexNameExpressionResolver);
         this.licenseState = licenseState;
-        this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;
+        this.transformsConfigManager = transformsConfigManager;
         this.persistentTasksService = persistentTasksService;
         this.client = client;
         this.auditor = auditor;
@@ -97,19 +97,19 @@ public class TransportStartDataFrameTransformAction extends
     protected void masterOperation(Task ignoredTask, StartTransformAction.Request request,
                                    ClusterState state,
                                    ActionListener<StartTransformAction.Response> listener) throws Exception {
-        if (!licenseState.isDataFrameAllowed()) {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.Transform));
+        if (!licenseState.isTransformAllowed()) {
+            listener.onFailure(LicenseUtils.newComplianceException(XPackField.TRANSFORM));
             return;
         }
-        final AtomicReference<Transform> transformTaskHolder = new AtomicReference<>();
+        final AtomicReference<TransformTaskParams> transformTaskHolder = new AtomicReference<>();
 
         // <4> Wait for the allocated task's state to STARTED
-        ActionListener<PersistentTasksCustomMetaData.PersistentTask<Transform>> newPersistentTaskActionListener =
+        ActionListener<PersistentTasksCustomMetaData.PersistentTask<TransformTaskParams>> newPersistentTaskActionListener =
             ActionListener.wrap(
                 task -> {
-                    Transform transformTask = transformTaskHolder.get();
+                    TransformTaskParams transformTask = transformTaskHolder.get();
                     assert transformTask != null;
-                    waitForDataFrameTaskStarted(task.getId(),
+                    waitForTransformTaskStarted(task.getId(),
                         transformTask,
                         request.timeout(),
                         ActionListener.wrap(
@@ -122,21 +122,21 @@ public class TransportStartDataFrameTransformAction extends
         // <3> Create the task in cluster state so that it will start executing on the node
         ActionListener<Void> createOrGetIndexListener = ActionListener.wrap(
             unused -> {
-                Transform transformTask = transformTaskHolder.get();
+                TransformTaskParams transformTask = transformTaskHolder.get();
                 assert transformTask != null;
-                PersistentTasksCustomMetaData.PersistentTask<Transform> existingTask =
+                PersistentTasksCustomMetaData.PersistentTask<TransformTaskParams> existingTask =
                     getExistingTask(transformTask.getId(), state);
                 if (existingTask == null) {
                     // Create the allocated task and wait for it to be started
                     persistentTasksService.sendStartRequest(transformTask.getId(),
-                        Transform.NAME,
+                        TransformTaskParams.NAME,
                         transformTask,
                         newPersistentTaskActionListener);
                 } else {
                     TransformState transformState = (TransformState)existingTask.getState();
                     if(transformState.getTaskState() == TransformTaskState.FAILED) {
                         listener.onFailure(new ElasticsearchStatusException(
-                            TransformMessages.getMessage(DATA_FRAME_CANNOT_START_FAILED_TRANSFORM,
+                            TransformMessages.getMessage(CANNOT_START_FAILED_TRANSFORM,
                                 request.getId(),
                                 transformState.getReason()),
                             RestStatus.CONFLICT));
@@ -159,7 +159,7 @@ public class TransportStartDataFrameTransformAction extends
             config -> {
                 if (config.isValid() == false) {
                     listener.onFailure(new ElasticsearchStatusException(
-                        TransformMessages.getMessage(TransformMessages.DATA_FRAME_CONFIG_INVALID, request.getId()),
+                        TransformMessages.getMessage(TransformMessages.TRANSFORM_CONFIG_INVALID, request.getId()),
                         RestStatus.BAD_REQUEST
                     ));
                     return;
@@ -167,7 +167,7 @@ public class TransportStartDataFrameTransformAction extends
                 // Validate source and destination indices
                 SourceDestValidator.validate(config, clusterService.state(), indexNameExpressionResolver, false);
 
-                transformTaskHolder.set(createDataFrameTransform(config.getId(), config.getVersion(), config.getFrequency()));
+                transformTaskHolder.set(createTransform(config.getId(), config.getVersion(), config.getFrequency()));
                 final String destinationIndex = config.getDestination().getIndex();
                 String[] dest = indexNameExpressionResolver.concreteIndexNames(state,
                     IndicesOptions.lenientExpandOpen(),
@@ -180,7 +180,7 @@ public class TransportStartDataFrameTransformAction extends
                 } else {
                     auditor.info(request.getId(), "Using existing destination index [" + destinationIndex + "].");
                     ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(),
-                        ClientHelper.DATA_FRAME_ORIGIN,
+                        ClientHelper.TRANSFORM_ORIGIN,
                         client.admin()
                             .indices()
                             .prepareStats(dest)
@@ -209,7 +209,7 @@ public class TransportStartDataFrameTransformAction extends
         );
 
         // <1> Get the config to verify it exists and is valid
-        dataFrameTransformsConfigManager.getTransformConfiguration(request.getId(), getTransformListener);
+        transformsConfigManager.getTransformConfiguration(request.getId(), getTransformListener);
     }
 
     private void createDestinationIndex(final TransformConfig config, final ActionListener<Void> listener) {
@@ -217,14 +217,14 @@ public class TransportStartDataFrameTransformAction extends
         final Pivot pivot = new Pivot(config.getPivotConfig());
 
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(
-            mappings -> DataframeIndex.createDestinationIndex(
+            mappings -> TransformIndex.createDestinationIndex(
                 client,
                 Clock.systemUTC(),
                 config,
                 mappings,
                 ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure)),
             deduceTargetMappingsException -> listener.onFailure(
-                new RuntimeException(TransformMessages.REST_PUT_DATA_FRAME_FAILED_TO_DEDUCE_DEST_MAPPINGS,
+                new RuntimeException(TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_DEDUCE_DEST_MAPPINGS,
                     deduceTargetMappingsException))
         );
 
@@ -236,44 +236,44 @@ public class TransportStartDataFrameTransformAction extends
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-    private static Transform createDataFrameTransform(String transformId, Version transformVersion, TimeValue frequency) {
-        return new Transform(transformId, transformVersion, frequency);
+    private static TransformTaskParams createTransform(String transformId, Version transformVersion, TimeValue frequency) {
+        return new TransformTaskParams(transformId, transformVersion, frequency);
     }
 
     @SuppressWarnings("unchecked")
-    private static PersistentTasksCustomMetaData.PersistentTask<Transform> getExistingTask(String id, ClusterState state) {
+    private static PersistentTasksCustomMetaData.PersistentTask<TransformTaskParams> getExistingTask(String id, ClusterState state) {
         PersistentTasksCustomMetaData pTasksMeta = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         if (pTasksMeta == null) {
             return null;
         }
-        Collection<PersistentTasksCustomMetaData.PersistentTask<?>> existingTask = pTasksMeta.findTasks(Transform.NAME,
+        Collection<PersistentTasksCustomMetaData.PersistentTask<?>> existingTask = pTasksMeta.findTasks(TransformTaskParams.NAME,
             t -> t.getId().equals(id));
         if (existingTask.isEmpty()) {
             return null;
         } else {
             assert(existingTask.size() == 1);
             PersistentTasksCustomMetaData.PersistentTask<?> pTask = existingTask.iterator().next();
-            if (pTask.getParams() instanceof Transform) {
-                return (PersistentTasksCustomMetaData.PersistentTask<Transform>)pTask;
+            if (pTask.getParams() instanceof TransformTaskParams) {
+                return (PersistentTasksCustomMetaData.PersistentTask<TransformTaskParams>)pTask;
             }
-            throw new ElasticsearchStatusException("Found data frame transform persistent task [" + id + "] with incorrect params",
+            throw new ElasticsearchStatusException("Found transform persistent task [" + id + "] with incorrect params",
                 RestStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
-    private void cancelDataFrameTask(String taskId, String dataFrameId, Exception exception, Consumer<Exception> onFailure) {
+    private void cancelTransformTask(String taskId, String transformId, Exception exception, Consumer<Exception> onFailure) {
         persistentTasksService.sendRemoveRequest(taskId,
             new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> task) {
-                    // We succeeded in cancelling the persistent task, but the
+                    // We succeeded in canceling the persistent task, but the
                     // problem that caused us to cancel it is the overall result
                     onFailure.accept(exception);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error("[" + dataFrameId + "] Failed to cancel persistent task that could " +
+                    logger.error("[" + transformId + "] Failed to cancel persistent task that could " +
                         "not be assigned due to [" + exception.getMessage() + "]", e);
                     onFailure.accept(exception);
                 }
@@ -281,19 +281,19 @@ public class TransportStartDataFrameTransformAction extends
         );
     }
 
-    private void waitForDataFrameTaskStarted(String taskId,
-                                             Transform params,
+    private void waitForTransformTaskStarted(String taskId,
+                                             TransformTaskParams params,
                                              TimeValue timeout,
                                              ActionListener<Boolean> listener) {
-        DataFramePredicate predicate = new DataFramePredicate();
+        TransformPredicate predicate = new TransformPredicate();
         persistentTasksService.waitForPersistentTaskCondition(taskId, predicate, timeout,
-            new PersistentTasksService.WaitForPersistentTaskListener<Transform>() {
+            new PersistentTasksService.WaitForPersistentTaskListener<TransformTaskParams>() {
                 @Override
-                public void onResponse(PersistentTasksCustomMetaData.PersistentTask<Transform>
+                public void onResponse(PersistentTasksCustomMetaData.PersistentTask<TransformTaskParams>
                                            persistentTask) {
                     if (predicate.exception != null) {
                         // We want to return to the caller without leaving an unassigned persistent task
-                        cancelDataFrameTask(taskId, params.getId(), predicate.exception, listener::onFailure);
+                        cancelTransformTask(taskId, params.getId(), predicate.exception, listener::onFailure);
                     } else {
                         listener.onResponse(true);
                     }
@@ -306,7 +306,7 @@ public class TransportStartDataFrameTransformAction extends
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    listener.onFailure(new ElasticsearchException("Starting dataframe ["
+                    listener.onFailure(new ElasticsearchException("Starting transform ["
                         + params.getId() + "] timed out after [" + timeout + "]"));
                 }
             });
@@ -316,7 +316,7 @@ public class TransportStartDataFrameTransformAction extends
      * Important: the methods of this class must NOT throw exceptions.  If they did then the callers
      * of endpoints waiting for a condition tested by this predicate would never get a response.
      */
-    private class DataFramePredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
+    private class TransformPredicate implements Predicate<PersistentTasksCustomMetaData.PersistentTask<?>> {
 
         private volatile Exception exception;
 
@@ -331,7 +331,7 @@ public class TransportStartDataFrameTransformAction extends
                 assignment.isAssigned() == false) {
                 // For some reason, the task is not assigned to a node, but is no longer in the `INITIAL_ASSIGNMENT` state
                 // Consider this a failure.
-                exception = new ElasticsearchStatusException("Could not start dataframe, allocation explanation [" +
+                exception = new ElasticsearchStatusException("Could not start transform, allocation explanation [" +
                     assignment.getExplanation() + "]", RestStatus.TOO_MANY_REQUESTS);
                 return true;
             }

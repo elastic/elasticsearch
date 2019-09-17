@@ -70,7 +70,7 @@ public final class TransformField {
     public static final String CREATED = "created";
     public static final String CREATED_BY = "created_by";
     public static final String TRANSFORM = "transform";
-    public static final String DATA_FRAME_SIGNATURE = "data-frame-transform";
+    public static final String TRANSFORM_SIGNATURE = "data-frame-transform";
 
     /**
      * Parameter to indicate whether we are serialising to X Content for internal storage. Default the field is invisible (e.g. for get

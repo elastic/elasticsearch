@@ -26,24 +26,24 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction.Request;
-import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
-import org.elasticsearch.xpack.transform.persistence.DataFrameTransformsConfigManager;
+import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.core.ClientHelper.DATA_FRAME_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class TransportDeleteDataFrameTransformAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
+public class TransportDeleteTransformAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
-    private final DataFrameTransformsConfigManager transformsConfigManager;
-    private final DataFrameAuditor auditor;
+    private final TransformConfigManager transformsConfigManager;
+    private final TransformAuditor auditor;
     private final Client client;
 
     @Inject
-    public TransportDeleteDataFrameTransformAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool,
+    public TransportDeleteTransformAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool,
                                                    ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
-                                                   DataFrameTransformsConfigManager transformsConfigManager, DataFrameAuditor auditor,
+                                                   TransformConfigManager transformsConfigManager, TransformAuditor auditor,
                                                    Client client) {
         super(DeleteTransformAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 Request::new, indexNameExpressionResolver);
@@ -67,14 +67,14 @@ public class TransportDeleteDataFrameTransformAction extends TransportMasterNode
                                    ActionListener<AcknowledgedResponse> listener) {
         final PersistentTasksCustomMetaData pTasksMeta = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         if (pTasksMeta != null && pTasksMeta.getTask(request.getId()) != null && request.isForce() == false) {
-            listener.onFailure(new ElasticsearchStatusException("Cannot delete data frame [" + request.getId() +
+            listener.onFailure(new ElasticsearchStatusException("Cannot delete transform [" + request.getId() +
                     "] as the task is running. Stop the task first", RestStatus.CONFLICT));
         } else {
             ActionListener<Void> stopTransformActionListener = ActionListener.wrap(
                 stopResponse -> transformsConfigManager.deleteTransform(request.getId(),
                     ActionListener.wrap(
                         r -> {
-                            auditor.info(request.getId(), "Deleted data frame transform.");
+                            auditor.info(request.getId(), "Deleted transform.");
                             listener.onResponse(new AcknowledgedResponse(r));
                         },
                         listener::onFailure)),
@@ -83,7 +83,7 @@ public class TransportDeleteDataFrameTransformAction extends TransportMasterNode
 
             if (pTasksMeta != null && pTasksMeta.getTask(request.getId()) != null) {
                 executeAsyncWithOrigin(client,
-                    DATA_FRAME_ORIGIN,
+                    TRANSFORM_ORIGIN,
                     StopTransformAction.INSTANCE,
                     new StopTransformAction.Request(request.getId(), true, true, null, true),
                     ActionListener.wrap(

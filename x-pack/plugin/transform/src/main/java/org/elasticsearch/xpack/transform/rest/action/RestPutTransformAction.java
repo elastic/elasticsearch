@@ -13,28 +13,29 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.transform.TransformField;
-import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
+import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 
 import java.io.IOException;
 
-public class RestUpdateDataFrameTransformAction extends BaseRestHandler {
+public class RestPutTransformAction extends BaseRestHandler {
 
-    public RestUpdateDataFrameTransformAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID + "_update", this);
+    public RestPutTransformAction(RestController controller) {
+        controller.registerHandler(RestRequest.Method.PUT, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID, this);
     }
 
     @Override
     public String getName() {
-        return "data_frame_update_transform_action";
+        return "data_frame_put_transform_action";
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String id = restRequest.param(TransformField.ID.getPreferredName());
-        boolean deferValidation = restRequest.paramAsBoolean(TransformField.DEFER_VALIDATION.getPreferredName(), false);
         XContentParser parser = restRequest.contentParser();
-        UpdateTransformAction.Request request = UpdateTransformAction.Request.fromXContent(parser, id, deferValidation);
 
-        return channel -> client.execute(UpdateTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        boolean deferValidation = restRequest.paramAsBoolean(TransformField.DEFER_VALIDATION.getPreferredName(), false);
+        PutTransformAction.Request request = PutTransformAction.Request.fromXContent(parser, id, deferValidation);
+
+        return channel -> client.execute(PutTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

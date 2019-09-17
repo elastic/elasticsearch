@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.dataframe.integration;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndex;
+import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -63,15 +63,15 @@ public class DataFrameAuditorIT extends DataFrameRestTestCase {
         startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
 
         // Make sure we wrote to the audit
-        final Request request = new Request("GET", DataFrameInternalIndex.AUDIT_INDEX + "/_search");
+        final Request request = new Request("GET", TransformInternalIndex.AUDIT_INDEX + "/_search");
         request.setJsonEntity("{\"query\":{\"term\":{\"transform_id\":\"simple_pivot_for_audit\"}}}");
         assertBusy(() -> {
-            assertTrue(indexExists(DataFrameInternalIndex.AUDIT_INDEX));
+            assertTrue(indexExists(TransformInternalIndex.AUDIT_INDEX));
         });
         // Since calls to write the AbstractAuditor are sent and forgot (async) we could have returned from the start,
         // finished the job (as this is a very short DF job), all without the audit being fully written.
         assertBusy(() -> {
-            refreshIndex(DataFrameInternalIndex.AUDIT_INDEX);
+            refreshIndex(TransformInternalIndex.AUDIT_INDEX);
             Map<String, Object> response = entityAsMap(client().performRequest(request));
             List<?> hitList = ((List<?>) ((Map<?, ?>)response.get("hits")).get("hits"));
             assertThat(hitList, is(not(empty())));

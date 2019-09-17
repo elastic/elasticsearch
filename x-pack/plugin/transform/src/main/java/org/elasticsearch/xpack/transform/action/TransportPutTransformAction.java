@@ -46,8 +46,8 @@ import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
-import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
-import org.elasticsearch.xpack.transform.persistence.DataFrameTransformsConfigManager;
+import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.SourceDestValidator;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
 
@@ -58,25 +58,25 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class TransportPutDataFrameTransformAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
+public class TransportPutTransformAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
     private final XPackLicenseState licenseState;
     private final Client client;
-    private final DataFrameTransformsConfigManager dataFrameTransformsConfigManager;
+    private final TransformConfigManager transformsConfigManager;
     private final SecurityContext securityContext;
-    private final DataFrameAuditor auditor;
+    private final TransformAuditor auditor;
 
     @Inject
-    public TransportPutDataFrameTransformAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                                ClusterService clusterService, XPackLicenseState licenseState,
-                                                DataFrameTransformsConfigManager dataFrameTransformsConfigManager, Client client,
-                                                DataFrameAuditor auditor) {
+    public TransportPutTransformAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                       ClusterService clusterService, XPackLicenseState licenseState,
+                                       TransformConfigManager transformsConfigManager, Client client,
+                                       TransformAuditor auditor) {
         super(PutTransformAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 PutTransformAction.Request::new, indexNameExpressionResolver);
         this.licenseState = licenseState;
         this.client = client;
-        this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;
+        this.transformsConfigManager = transformsConfigManager;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
             new SecurityContext(settings, threadPool.getThreadContext()) : null;
         this.auditor = auditor;
@@ -134,14 +134,14 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
     @Override
     protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener) {
 
-        if (!licenseState.isDataFrameAllowed()) {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.Transform));
+        if (!licenseState.isTransformAllowed()) {
+            listener.onFailure(LicenseUtils.newComplianceException(XPackField.TRANSFORM));
             return;
         }
 
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
-        // set headers to run data frame transform as calling user
+        // set headers to run transform as calling user
         Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
                     .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
@@ -155,7 +155,7 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
         // quick check whether a transform has already been created under that name
         if (PersistentTasksCustomMetaData.getTaskWithId(clusterState, transformId) != null) {
             listener.onFailure(new ResourceAlreadyExistsException(
-                    TransformMessages.getMessage(TransformMessages.REST_PUT_DATA_FRAME_TRANSFORM_EXISTS, transformId)));
+                    TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_EXISTS, transformId)));
             return;
         }
         try {
@@ -175,7 +175,7 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
 
             client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
         } else { // No security enabled, just create the transform
-            putDataFrame(request, listener);
+            putTransform(request, listener);
         }
     }
 
@@ -189,7 +189,7 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
                                      HasPrivilegesResponse privilegesResponse,
                                      ActionListener<AcknowledgedResponse> listener) {
         if (privilegesResponse.isCompleteMatch()) {
-            putDataFrame(request, listener);
+            putTransform(request, listener);
         } else {
             List<String> indices = privilegesResponse.getIndexPrivileges()
                 .stream()
@@ -197,14 +197,14 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
                 .collect(Collectors.toList());
 
             listener.onFailure(Exceptions.authorizationError(
-                "Cannot create data frame transform [{}] because user {} lacks all the required permissions for indices: {}",
+                "Cannot create transform [{}] because user {} lacks all the required permissions for indices: {}",
                 request.getConfig().getId(),
                 username,
                 indices));
         }
     }
 
-    private void putDataFrame(Request request, ActionListener<AcknowledgedResponse> listener) {
+    private void putTransform(Request request, ActionListener<AcknowledgedResponse> listener) {
 
         final TransformConfig config = request.getConfig();
         final Pivot pivot = new Pivot(config.getPivotConfig());
@@ -212,7 +212,7 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
         // <3> Return to the listener
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(
             putTransformConfigurationResult -> {
-                auditor.info(config.getId(), "Created data frame transform.");
+                auditor.info(config.getId(), "Created transform.");
                 listener.onResponse(new AcknowledgedResponse(true));
             },
             listener::onFailure
@@ -220,16 +220,16 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
 
         // <2> Put our transform
         ActionListener<Boolean> pivotValidationListener = ActionListener.wrap(
-            validationResult -> dataFrameTransformsConfigManager.putTransformConfiguration(config, putTransformConfigurationListener),
+            validationResult -> transformsConfigManager.putTransformConfiguration(config, putTransformConfigurationListener),
             validationException -> {
                 if (validationException instanceof ElasticsearchStatusException) {
                     listener.onFailure(new ElasticsearchStatusException(
-                        TransformMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
+                        TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
                         ((ElasticsearchStatusException)validationException).status(),
                         validationException));
                 } else {
                     listener.onFailure(new ElasticsearchStatusException(
-                        TransformMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
+                        TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
                         RestStatus.INTERNAL_SERVER_ERROR,
                         validationException));
                 }
@@ -240,13 +240,13 @@ public class TransportPutDataFrameTransformAction extends TransportMasterNodeAct
             pivot.validateConfig();
         } catch (ElasticsearchStatusException e) {
             listener.onFailure(new ElasticsearchStatusException(
-                TransformMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
+                TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION,
                 e.status(),
                 e));
             return;
         } catch (Exception e) {
             listener.onFailure(new ElasticsearchStatusException(
-                TransformMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION, RestStatus.INTERNAL_SERVER_ERROR, e));
+                TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_VALIDATE_CONFIGURATION, RestStatus.INTERNAL_SERVER_ERROR, e));
             return;
         }
 

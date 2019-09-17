@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import java.io.IOException;
 import java.util.Objects;
 
-public class Transform extends AbstractDiffable<Transform> implements PersistentTaskParams {
+public class TransformTaskParams extends AbstractDiffable<TransformTaskParams> implements PersistentTaskParams {
 
     public static final String NAME = TransformField.TASK_NAME;
     public static final ParseField FREQUENCY = TransformField.FREQUENCY;
@@ -30,8 +30,8 @@ public class Transform extends AbstractDiffable<Transform> implements Persistent
     private final Version version;
     private final TimeValue frequency;
 
-    public static final ConstructingObjectParser<Transform, Void> PARSER = new ConstructingObjectParser<>(NAME, true,
-            a -> new Transform((String) a[0], (String) a[1], (String) a[2]));
+    public static final ConstructingObjectParser<TransformTaskParams, Void> PARSER = new ConstructingObjectParser<>(NAME, true,
+            a -> new TransformTaskParams((String) a[0], (String) a[1], (String) a[2]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TransformField.ID);
@@ -39,18 +39,18 @@ public class Transform extends AbstractDiffable<Transform> implements Persistent
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FREQUENCY);
     }
 
-    private Transform(String transformId, String version, String frequency) {
+    private TransformTaskParams(String transformId, String version, String frequency) {
         this(transformId, version == null ? null : Version.fromString(version),
             frequency == null ? null : TimeValue.parseTimeValue(frequency, FREQUENCY.getPreferredName()));
     }
 
-    public Transform(String transformId, Version version, TimeValue frequency) {
+    public TransformTaskParams(String transformId, Version version, TimeValue frequency) {
         this.transformId = transformId;
         this.version = version == null ? Version.V_7_2_0 : version;
         this.frequency = frequency;
     }
 
-    public Transform(StreamInput in) throws IOException {
+    public TransformTaskParams(StreamInput in) throws IOException {
         this.transformId  = in.readString();
         if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
             this.version = Version.readVersion(in);
@@ -109,7 +109,7 @@ public class Transform extends AbstractDiffable<Transform> implements Persistent
         return frequency;
     }
 
-    public static Transform fromXContent(XContentParser parser) throws IOException {
+    public static TransformTaskParams fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
@@ -123,7 +123,7 @@ public class Transform extends AbstractDiffable<Transform> implements Persistent
             return false;
         }
 
-        Transform that = (Transform) other;
+        TransformTaskParams that = (TransformTaskParams) other;
 
         return Objects.equals(this.transformId, that.transformId)
             && Objects.equals(this.version, that.version)

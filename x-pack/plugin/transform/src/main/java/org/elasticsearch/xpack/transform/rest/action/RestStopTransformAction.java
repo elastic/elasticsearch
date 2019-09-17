@@ -14,9 +14,9 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 
-public class RestStopDataFrameTransformAction extends BaseRestHandler {
+public class RestStopTransformAction extends BaseRestHandler {
 
-    public RestStopDataFrameTransformAction(RestController controller) {
+    public RestStopTransformAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID + "_stop", this);
     }
 

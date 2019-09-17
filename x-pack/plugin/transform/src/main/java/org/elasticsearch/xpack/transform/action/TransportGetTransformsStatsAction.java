@@ -31,9 +31,9 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.NodeAttributes;
-import org.elasticsearch.xpack.transform.checkpoint.DataFrameTransformsCheckpointService;
-import org.elasticsearch.xpack.transform.persistence.DataFrameTransformsConfigManager;
-import org.elasticsearch.xpack.transform.transforms.DataFrameTransformTask;
+import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
+import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -45,26 +45,26 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-public class TransportGetDataFrameTransformsStatsAction extends
-        TransportTasksAction<DataFrameTransformTask,
+public class TransportGetTransformsStatsAction extends
+        TransportTasksAction<TransformTask,
         GetTransformsStatsAction.Request,
         GetTransformsStatsAction.Response,
         GetTransformsStatsAction.Response> {
 
-    private static final Logger logger = LogManager.getLogger(TransportGetDataFrameTransformsStatsAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportGetTransformsStatsAction.class);
 
-    private final DataFrameTransformsConfigManager dataFrameTransformsConfigManager;
-    private final DataFrameTransformsCheckpointService transformsCheckpointService;
+    private final TransformConfigManager transformConfigManager;
+    private final TransformCheckpointService transformCheckpointService;
 
     @Inject
-    public TransportGetDataFrameTransformsStatsAction(TransportService transportService, ActionFilters actionFilters,
-                                                      ClusterService clusterService,
-                                                      DataFrameTransformsConfigManager dataFrameTransformsConfigManager,
-                                                      DataFrameTransformsCheckpointService transformsCheckpointService) {
+    public TransportGetTransformsStatsAction(TransportService transportService, ActionFilters actionFilters,
+                                             ClusterService clusterService,
+                                             TransformConfigManager transformsConfigManager,
+                                             TransformCheckpointService transformsCheckpointService) {
         super(GetTransformsStatsAction.NAME, clusterService, transportService, actionFilters, Request::new, Response::new,
             Response::new, ThreadPool.Names.SAME);
-        this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;
-        this.transformsCheckpointService = transformsCheckpointService;
+        this.transformConfigManager = transformsConfigManager;
+        this.transformCheckpointService = transformsCheckpointService;
     }
 
     @Override
@@ -80,13 +80,13 @@ public class TransportGetDataFrameTransformsStatsAction extends
     }
 
     @Override
-    protected void taskOperation(Request request, DataFrameTransformTask task, ActionListener<Response> listener) {
+    protected void taskOperation(Request request, TransformTask task, ActionListener<Response> listener) {
         // Little extra insurance, make sure we only return transforms that aren't cancelled
         ClusterState state = clusterService.state();
         String nodeId = state.nodes().getLocalNode().getId();
         if (task.isCancelled() == false) {
             TransformState transformState = task.getState();
-            task.getCheckpointingInfo(transformsCheckpointService, ActionListener.wrap(
+            task.getCheckpointingInfo(transformCheckpointService, ActionListener.wrap(
                 checkpointingInfo -> listener.onResponse(new Response(
                     Collections.singletonList(new TransformStats(task.getTransformId(),
                         TransformStats.State.fromComponents(transformState.getTaskState(), transformState.getIndexerState()),
@@ -116,13 +116,13 @@ public class TransportGetDataFrameTransformsStatsAction extends
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> finalListener) {
-        dataFrameTransformsConfigManager.expandTransformIds(request.getId(),
+        transformConfigManager.expandTransformIds(request.getId(),
             request.getPageParams(),
             request.isAllowNoMatch(),
             ActionListener.wrap(hitsAndIds -> {
                 request.setExpandedIds(hitsAndIds.v2());
                 final ClusterState state = clusterService.state();
-                request.setNodes(DataFrameNodes.dataFrameTaskNodes(hitsAndIds.v2(), state));
+                request.setNodes(TransformNodes.transformTaskNodes(hitsAndIds.v2(), state));
                 super.doExecute(task, request, ActionListener.wrap(
                     response -> {
                         PersistentTasksCustomMetaData tasksInProgress = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
@@ -152,11 +152,11 @@ public class TransportGetDataFrameTransformsStatsAction extends
         ));
     }
 
-    private static void setNodeAttributes(TransformStats dataFrameTransformStats,
+    private static void setNodeAttributes(TransformStats transformStats,
                                           PersistentTasksCustomMetaData persistentTasksCustomMetaData, ClusterState state) {
-        var pTask = persistentTasksCustomMetaData.getTask(dataFrameTransformStats.getId());
+        var pTask = persistentTasksCustomMetaData.getTask(transformStats.getId());
         if (pTask != null) {
-            dataFrameTransformStats.setNode(NodeAttributes.fromDiscoveryNode(state.nodes().get(pTask.getExecutorNode())));
+            transformStats.setNode(NodeAttributes.fromDiscoveryNode(state.nodes().get(pTask.getExecutorNode())));
         }
     }
 
@@ -212,12 +212,12 @@ public class TransportGetDataFrameTransformsStatsAction extends
             }
         );
 
-        dataFrameTransformsConfigManager.getTransformStoredDoc(transformsWithoutTasks, searchStatsListener);
+        transformConfigManager.getTransformStoredDoc(transformsWithoutTasks, searchStatsListener);
     }
 
     private void populateSingleStoppedTransformStat(TransformStoredDoc transform,
                                                     ActionListener<TransformCheckpointingInfo> listener) {
-        transformsCheckpointService.getCheckpointingInfo(
+        transformCheckpointService.getCheckpointingInfo(
             transform.getId(),
             transform.getTransformState().getCheckpoint(),
             transform.getTransformState().getPosition(),

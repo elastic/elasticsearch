@@ -18,7 +18,7 @@ public class LocalStateDataFrame extends LocalStateCompositeXPackPlugin {
         @SuppressWarnings("resource")
         LocalStateDataFrame thisVar = this;
 
-        plugins.add(new DataFrame(settings) {
+        plugins.add(new Transform(settings) {
             @Override
             protected XPackLicenseState getLicenseState() {
                 return thisVar.getLicenseState();

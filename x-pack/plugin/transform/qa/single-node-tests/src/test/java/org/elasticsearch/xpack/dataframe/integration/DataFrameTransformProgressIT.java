@@ -141,7 +141,7 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
             RequestOptions.DEFAULT);
 
         TransformProgress progress =
-            TransformProgressGatherer.searchResponseToDataFrameTransformProgressFunction().apply(response);
+            TransformProgressGatherer.searchResponseToTransformProgressFunction().apply(response);
 
         assertThat(progress.getTotalDocs(), equalTo(1000L));
         assertThat(progress.getDocumentsProcessed(), equalTo(0L));
@@ -162,7 +162,7 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
 
         response = restClient.search(TransformProgressGatherer.getSearchRequest(config, config.getSource().getQueryConfig().getQuery()),
             RequestOptions.DEFAULT);
-        progress = TransformProgressGatherer.searchResponseToDataFrameTransformProgressFunction().apply(response);
+        progress = TransformProgressGatherer.searchResponseToTransformProgressFunction().apply(response);
 
         assertThat(progress.getTotalDocs(), equalTo(35L));
         assertThat(progress.getDocumentsProcessed(), equalTo(0L));
@@ -182,7 +182,7 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
 
         response = restClient.search(TransformProgressGatherer.getSearchRequest(config, config.getSource().getQueryConfig().getQuery()),
             RequestOptions.DEFAULT);
-        progress = TransformProgressGatherer.searchResponseToDataFrameTransformProgressFunction().apply(response);
+        progress = TransformProgressGatherer.searchResponseToTransformProgressFunction().apply(response);
 
         assertThat(progress.getTotalDocs(), equalTo(0L));
         assertThat(progress.getDocumentsProcessed(), equalTo(0L));

@@ -15,19 +15,19 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public final class DataFrameNodes {
+public final class TransformNodes {
 
-    private DataFrameNodes() {
+    private TransformNodes() {
     }
 
     /**
-     * Get the list of nodes the data frames are executing on
+     * Get the list of nodes transforms are executing on
      *
-     * @param dataFrameIds The data frames.
+     * @param transformIds The transforms.
      * @param clusterState State
      * @return The executor nodes
      */
-    public static String[] dataFrameTaskNodes(List<String> dataFrameIds, ClusterState clusterState) {
+    public static String[] transformTaskNodes(List<String> transformIds, ClusterState clusterState) {
 
         Set<String> executorNodes = new HashSet<>();
 
@@ -35,10 +35,10 @@ public final class DataFrameNodes {
                 PersistentTasksCustomMetaData.getPersistentTasksCustomMetaData(clusterState);
 
         if (tasksMetaData != null) {
-            Set<String> dataFrameIdsSet = new HashSet<>(dataFrameIds);
+            Set<String> transformIdsSet = new HashSet<>(transformIds);
 
             Collection<PersistentTasksCustomMetaData.PersistentTask<?>> tasks =
-                    tasksMetaData.findTasks(TransformField.TASK_NAME, t -> dataFrameIdsSet.contains(t.getId()));
+                    tasksMetaData.findTasks(TransformField.TASK_NAME, t -> transformIdsSet.contains(t.getId()));
 
             for (PersistentTasksCustomMetaData.PersistentTask<?> task : tasks) {
                 executorNodes.add(task.getExecutorNode());

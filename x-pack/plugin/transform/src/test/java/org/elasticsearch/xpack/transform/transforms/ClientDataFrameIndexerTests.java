@@ -13,12 +13,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
-import org.elasticsearch.xpack.core.transform.transforms.Transform;
+import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
-import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
-import org.elasticsearch.xpack.transform.persistence.DataFrameTransformsConfigManager;
+import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 import java.time.Instant;
 import java.util.Collections;
@@ -36,23 +36,23 @@ public class ClientDataFrameIndexerTests extends ESTestCase {
     public void testAudiOnFinishFrequency() {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
-        DataFrameTransformTask parentTask = new DataFrameTransformTask(1,
+        TransformTask parentTask = new TransformTask(1,
             "dataframe",
             "ptask",
             new TaskId("dataframe:1"),
-            mock(Transform.class),
+            mock(TransformTaskParams.class),
             null,
             mock(SchedulerEngine.class),
-            mock(DataFrameAuditor.class),
+            mock(TransformAuditor.class),
             threadPool,
             Collections.emptyMap());
-        ClientDataFrameIndexer indexer = new ClientDataFrameIndexer(
-            mock(DataFrameTransformsConfigManager.class),
+        ClientTransformIndexer indexer = new ClientTransformIndexer(
+            mock(TransformConfigManager.class),
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),
             null,
             mock(Client.class),
-            mock(DataFrameAuditor.class),
+            mock(TransformAuditor.class),
             mock(TransformIndexerStats.class),
             mock(TransformConfig.class),
             Collections.emptyMap(),

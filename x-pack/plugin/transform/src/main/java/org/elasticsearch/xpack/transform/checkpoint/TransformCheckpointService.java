@@ -15,44 +15,44 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingI
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
-import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
-import org.elasticsearch.xpack.transform.persistence.DataFrameTransformsConfigManager;
+import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 /**
- * DataFrameTransform Checkpoint Service
+ * Transform Checkpoint Service
  *
- * Allows checkpointing a source of a data frame transform which includes all relevant checkpoints of the source.
+ * Allows checkpointing a source of a transform which includes all relevant checkpoints of the source.
  *
  * This will be used to checkpoint a transform, detect changes, run the transform in continuous mode.
  *
  */
-public class DataFrameTransformsCheckpointService {
+public class TransformCheckpointService {
 
-    private static final Logger logger = LogManager.getLogger(DataFrameTransformsCheckpointService.class);
+    private static final Logger logger = LogManager.getLogger(TransformCheckpointService.class);
 
     private final Client client;
-    private final DataFrameTransformsConfigManager dataFrameTransformsConfigManager;
-    private final DataFrameAuditor dataFrameAuditor;
+    private final TransformConfigManager transformConfigManager;
+    private final TransformAuditor transformAuditor;
 
-    public DataFrameTransformsCheckpointService(final Client client,
-            final DataFrameTransformsConfigManager dataFrameTransformsConfigManager, DataFrameAuditor dataFrameAuditor) {
+    public TransformCheckpointService(final Client client,
+            final TransformConfigManager transformConfigManager, TransformAuditor transformAuditor) {
         this.client = client;
-        this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;
-        this.dataFrameAuditor = dataFrameAuditor;
+        this.transformConfigManager = transformConfigManager;
+        this.transformAuditor = transformAuditor;
     }
 
     public CheckpointProvider getCheckpointProvider(final TransformConfig transformConfig) {
         if (transformConfig.getSyncConfig() instanceof TimeSyncConfig) {
-            return new TimeBasedCheckpointProvider(client, dataFrameTransformsConfigManager, dataFrameAuditor, transformConfig);
+            return new TimeBasedCheckpointProvider(client, transformConfigManager, transformAuditor, transformConfig);
         }
 
-        return new DefaultCheckpointProvider(client, dataFrameTransformsConfigManager, dataFrameAuditor, transformConfig);
+        return new DefaultCheckpointProvider(client, transformConfigManager, transformAuditor, transformConfig);
     }
 
     /**
-     * Get checkpointing stats for a stopped data frame
+     * Get checkpointing stats for a stopped transform
      *
-     * @param transformId The data frame task
+     * @param transformId The transform id
      * @param lastCheckpointNumber the last checkpoint
      * @param nextCheckpointPosition position for the next checkpoint
      * @param nextCheckpointProgress progress for the next checkpoint
@@ -65,13 +65,13 @@ public class DataFrameTransformsCheckpointService {
                                      final ActionListener<TransformCheckpointingInfo> listener) {
 
         // we need to retrieve the config first before we can defer the rest to the corresponding provider
-        dataFrameTransformsConfigManager.getTransformConfiguration(transformId, ActionListener.wrap(
+        transformConfigManager.getTransformConfiguration(transformId, ActionListener.wrap(
             transformConfig -> {
                 getCheckpointProvider(transformConfig).getCheckpointingInfo(lastCheckpointNumber,
                             nextCheckpointPosition, nextCheckpointProgress, listener);
                 },
             transformError -> {
-                logger.warn("Failed to retrieve configuration for data frame [" + transformId + "]", transformError);
+                logger.warn("Failed to retrieve configuration for transform [" + transformId + "]", transformError);
                 listener.onFailure(new CheckpointException("Failed to retrieve configuration", transformError));
             })
         );

@@ -17,7 +17,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
-import org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndex;
+import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.transform.GetDataFrameTransformRequest;
 import org.elasticsearch.client.transform.GetDataFrameTransformResponse;
@@ -35,15 +35,15 @@ import java.util.Base64;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.is;
-import static org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndex.addDataFrameTransformsConfigMappings;
+import static org.elasticsearch.xpack.transform.persistence.TransformInternalIndex.addTransformsConfigMappings;
 import static org.hamcrest.Matchers.equalTo;
 
 
 public class DataFrameTransformInternalIndexIT extends ESRestTestCase {
 
 
-    private static final String CURRENT_INDEX = DataFrameInternalIndex.LATEST_INDEX_NAME;
-    private static final String OLD_INDEX = DataFrameInternalIndex.INDEX_PATTERN + "1";
+    private static final String CURRENT_INDEX = TransformInternalIndex.LATEST_INDEX_NAME;
+    private static final String OLD_INDEX = TransformInternalIndex.INDEX_PATTERN + "1";
 
 
     public void testUpdateDeletesOldTransformConfig() throws Exception {
@@ -54,7 +54,7 @@ public class DataFrameTransformInternalIndexIT extends ESRestTestCase {
             builder.startObject();
             builder.startObject("properties");
             builder.startObject(TransformField.INDEX_DOC_TYPE.getPreferredName()).field("type", "keyword").endObject();
-            addDataFrameTransformsConfigMappings(builder);
+            addTransformsConfigMappings(builder);
             builder.endObject();
             builder.endObject();
             client.indices().create(new CreateIndexRequest(OLD_INDEX).mapping(builder), RequestOptions.DEFAULT);

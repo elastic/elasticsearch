@@ -78,7 +78,7 @@ public final class SourceDestValidator {
                     src);
                 if (concreteNames.length == 0) {
                     throw new ElasticsearchStatusException(
-                        TransformMessages.getMessage(TransformMessages.REST_PUT_DATA_FRAME_SOURCE_INDEX_MISSING, src),
+                        TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_SOURCE_INDEX_MISSING, src),
                         RestStatus.BAD_REQUEST);
                 }
             }

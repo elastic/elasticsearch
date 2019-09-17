@@ -48,8 +48,8 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgressTests;
 import org.elasticsearch.xpack.transform.DataFrameSingleNodeTestCase;
-import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
-import org.elasticsearch.xpack.transform.persistence.DataFrameTransformsConfigManager;
+import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -72,8 +72,8 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
     // see https://github.com/elastic/elasticsearch/issues/45238 and https://github.com/elastic/elasticsearch/issues/42577
     private static MockClientForCheckpointing mockClientForCheckpointing = null;
 
-    private DataFrameTransformsConfigManager transformsConfigManager;
-    private DataFrameTransformsCheckpointService transformsCheckpointService;
+    private TransformConfigManager transformsConfigManager;
+    private TransformCheckpointService transformsCheckpointService;
 
     private class MockClientForCheckpointing extends NoOpClient {
 
@@ -130,11 +130,11 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
             mockClientForCheckpointing = new MockClientForCheckpointing("DataFrameTransformCheckpointServiceNodeTests");
         }
 
-        transformsConfigManager = new DataFrameTransformsConfigManager(client(), xContentRegistry());
+        transformsConfigManager = new TransformConfigManager(client(), xContentRegistry());
 
         // use a mock for the checkpoint service
-        DataFrameAuditor mockAuditor = mock(DataFrameAuditor.class);
-        transformsCheckpointService = new DataFrameTransformsCheckpointService(mockClientForCheckpointing,
+        TransformAuditor mockAuditor = mock(TransformAuditor.class);
+        transformsCheckpointService = new TransformCheckpointService(mockClientForCheckpointing,
                                                                                transformsConfigManager,
                                                                                mockAuditor);
     }

@@ -352,7 +352,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                                 final InputStream input,
                                 final long blobSize) throws IOException {
 
-        assertMultipartUploadSize(blobSize);
+        ensureMultiPartUploadSize(blobSize);
         final long partSize = blobStore.bufferSizeInBytes();
         final Tuple<Long, Long> multiparts = numberOfMultiparts(blobSize, partSize);
 
@@ -430,7 +430,7 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     // non-static, package private for testing
-    void assertMultipartUploadSize(final long blobSize) {
+    void ensureMultiPartUploadSize(final long blobSize) {
         if (blobSize > MAX_FILE_SIZE_USING_MULTIPART.getBytes()) {
             throw new IllegalArgumentException("Multipart upload request size [" + blobSize
                 + "] can't be larger than " + MAX_FILE_SIZE_USING_MULTIPART);

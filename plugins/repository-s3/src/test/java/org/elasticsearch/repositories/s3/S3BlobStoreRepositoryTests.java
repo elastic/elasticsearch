@@ -176,7 +176,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                                 }
 
                                 @Override
-                                void assertMultipartUploadSize(long blobSize) {
+                                void ensureMultiPartUploadSize(long blobSize) {
                                 }
                             };
                         }

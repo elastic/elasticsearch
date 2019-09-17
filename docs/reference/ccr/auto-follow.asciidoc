@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-auto-follow]]
-=== Automatically following indices
+== Automatically following indices
 
 beta[]
 
@@ -12,7 +12,7 @@ functionality in {ccr} is aimed at easing this burden. With the auto-follow
 functionality, you can specify that new indices in a remote cluster that have a 
 name that matches a pattern are automatically followed.
 
-==== Managing auto-follow patterns
+=== Managing auto-follow patterns
 
 You can add a new auto-follow pattern configuration with the
 {ref}/ccr-put-auto-follow-pattern.html[create auto-follow pattern API].  When you create

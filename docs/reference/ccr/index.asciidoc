@@ -1,15 +1,12 @@
 [role="xpack"]
 [testenv="platinum"]
 [[xpack-ccr]]
-= {ccr-cap}
-
-[partintro]
---
+== {ccr-cap}
 
 beta[]
 
 WARNING: {ccr} is currently not supported by indices being managed by
-{ref}/index-lifecycle-management.html[Index Lifecycle Management].
+<<index-lifecycle-management,Index Lifecycle Management>>.
 
 The {ccr} (CCR) feature enables replication of indices in remote clusters to a 
 local cluster. This functionality can be used in some common production use
@@ -26,7 +23,6 @@ This guide provides an overview of {ccr}:
 * <<ccr-auto-follow>>
 * <<ccr-getting-started>>
 
---
 
 include::overview.asciidoc[]
 include::requirements.asciidoc[]

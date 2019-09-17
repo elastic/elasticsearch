@@ -19,21 +19,20 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.client.tasks.CancelTasksRequest;
+import org.elasticsearch.client.tasks.CancelTasksResponse;
 import org.elasticsearch.client.tasks.GetTaskRequest;
 import org.elasticsearch.client.tasks.GetTaskResponse;
+import org.elasticsearch.client.tasks.TaskId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskInfo;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -58,12 +57,12 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getTasks().size(), greaterThanOrEqualTo(2));
         boolean listTasksFound = false;
         for (TaskGroup taskGroup : response.getTaskGroups()) {
-            TaskInfo parent = taskGroup.getTaskInfo();
+            org.elasticsearch.tasks.TaskInfo parent = taskGroup.getTaskInfo();
             if ("cluster:monitor/tasks/lists".equals(parent.getAction())) {
                 assertThat(taskGroup.getChildTasks().size(), equalTo(1));
                 TaskGroup childGroup = taskGroup.getChildTasks().iterator().next();
                 assertThat(childGroup.getChildTasks().isEmpty(), equalTo(true));
-                TaskInfo child = childGroup.getTaskInfo();
+                org.elasticsearch.tasks.TaskInfo child = childGroup.getTaskInfo();
                 assertThat(child.getAction(), equalTo("cluster:monitor/tasks/lists[n]"));
                 assertThat(child.getParentTaskId(), equalTo(parent.getTaskId()));
                 listTasksFound = true;
@@ -71,7 +70,7 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
         }
         assertTrue("List tasks were not found", listTasksFound);
     }
-    
+
     public void testGetValidTask() throws Exception {
 
         // Run a Reindex to create a task
@@ -86,7 +85,7 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
                 .add(new IndexRequest(sourceIndex).id("2").source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON))
                 .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         assertEquals(RestStatus.OK, highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT).status());
-        
+
         // (need to use low level client because currently high level client
         // doesn't support async return of task id - needs
         // https://github.com/elastic/elasticsearch/pull/35202 )
@@ -105,24 +104,24 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
         gtr.setWaitForCompletion(randomBoolean());
         Optional<GetTaskResponse> getTaskResponse = execute(gtr, highLevelClient().tasks()::get, highLevelClient().tasks()::getAsync);
         assertTrue(getTaskResponse.isPresent());
-        GetTaskResponse taskResponse = getTaskResponse.get();        
+        GetTaskResponse taskResponse = getTaskResponse.get();
         if (gtr.getWaitForCompletion()) {
             assertTrue(taskResponse.isCompleted());
         }
-        TaskInfo info = taskResponse.getTaskInfo();
+        org.elasticsearch.tasks.TaskInfo info = taskResponse.getTaskInfo();
         assertTrue(info.isCancellable());
         assertEquals("reindex from [source1] to [dest][_doc]", info.getDescription());
         assertEquals("indices:data/write/reindex", info.getAction());
         if (taskResponse.isCompleted() == false) {
             assertBusy(ReindexIT.checkCompletionStatus(client(), taskId.toString()));
         }
-    }    
-    
+    }
+
     public void testGetInvalidTask() throws IOException {
         // Check 404s are returned as empty Optionals
-        GetTaskRequest gtr = new GetTaskRequest("doesNotExistNodeName", 123);                
+        GetTaskRequest gtr = new GetTaskRequest("doesNotExistNodeName", 123);
         Optional<GetTaskResponse> getTaskResponse = execute(gtr, highLevelClient().tasks()::get, highLevelClient().tasks()::getAsync);
-        assertFalse(getTaskResponse.isPresent());               
+        assertFalse(getTaskResponse.isPresent());
     }
 
     public void testCancelTasks() throws IOException {
@@ -134,7 +133,7 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
         );
         // in this case, probably no task will actually be cancelled.
         // this is ok, that case is covered in TasksIT.testTasksCancellation
-        TaskInfo firstTask = listResponse.getTasks().get(0);
+        org.elasticsearch.tasks.TaskInfo firstTask = listResponse.getTasks().get(0);
         String node = listResponse.getPerNodeTasks().keySet().iterator().next();
 
         CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();

@@ -21,9 +21,9 @@ package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
+import org.elasticsearch.client.tasks.CancelTasksRequest;
 import org.elasticsearch.client.tasks.GetTaskRequest;
 
 final class TasksRequestConverters {
@@ -70,5 +70,5 @@ final class TasksRequestConverters {
         request.addParameters(params.asMap());
         return request;
     }
-    
+
 }

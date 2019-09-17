@@ -41,4 +41,9 @@ public class LiteralAttribute extends TypedAttribute {
     public Pipe asPipe() {
         return literal.asPipe();
     }
+    
+    @Override
+    public Object fold() {
+        return literal.fold();
+    }
 }

@@ -34,11 +34,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 [[cat-plugins-api-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 ------------------------------------------------------------------------------
 GET /_cat/plugins?v&s=component&h=name,component,version,description
 ------------------------------------------------------------------------------
-// CONSOLE
 
 The API returns the following response:
 

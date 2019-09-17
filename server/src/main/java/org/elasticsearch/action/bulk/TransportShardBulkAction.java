@@ -393,22 +393,20 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     public static Translog.Location performOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
         Translog.Location location = null;
         for (int i = 0; i < request.items().length; i++) {
-            BulkItemRequest item = request.items()[i];
-            final Engine.Result operationResult;
-            DocWriteRequest<?> docWriteRequest = item.request();
+            final BulkItemRequest item = request.items()[i];
             final BulkItemResponse response = item.getPrimaryResponse();
-            final BulkItemResponse.Failure failure = response.getFailure();
-            final DocWriteResponse writeResponse = response.getResponse();
-            final long seqNum = failure == null ? writeResponse.getSeqNo() : failure.getSeqNo();
-            if (seqNum == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                assert failure != null || writeResponse.getResult() == DocWriteResponse.Result.NOOP
-                    || writeResponse.getResult() == DocWriteResponse.Result.NOT_FOUND;
-                continue;
-            }
-            if (failure == null) {
-                operationResult = performOpOnReplica(writeResponse, docWriteRequest, replica);
+            final Engine.Result operationResult;
+            if (item.getPrimaryResponse().isFailed()) {
+                if (response.getFailure().getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                    continue; // ignore replication as we didn't generate a sequence number for this request.
+                }
+                operationResult = replica.markSeqNoAsNoop(response.getFailure().getSeqNo(), response.getFailure().getMessage());
             } else {
-                operationResult = replica.markSeqNoAsNoop(seqNum, failure.getMessage());
+                if (response.getResponse().getResult() == DocWriteResponse.Result.NOOP) {
+                    continue; // ignore replication as it's a noop
+                }
+                assert response.getResponse().getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
+                operationResult = performOpOnReplica(response.getResponse(), item.request(), replica);
             }
             assert operationResult != null : "operation result must never be null when primary response has no failure";
             location = syncOperationResultOrThrow(operationResult, location);
@@ -435,8 +433,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     deleteRequest.type(), deleteRequest.id());
                 break;
             default:
-                throw new IllegalStateException("Unexpected request operation type on replica: "
-                    + docWriteRequest.opType().getLowercase());
+                assert false : "Unexpected request operation type on replica: " + docWriteRequest + ";primary result: " + primaryResponse;
+                throw new IllegalStateException("Unexpected request operation type on replica: " + docWriteRequest.opType().getLowercase());
         }
         if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
             // Even though the primary waits on all nodes to ack the mapping changes to the master

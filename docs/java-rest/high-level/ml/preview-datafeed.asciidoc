@@ -3,6 +3,7 @@
 :request: PreviewDatafeedRequest
 :response: PreviewDatafeedResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Preview Datafeed API
 

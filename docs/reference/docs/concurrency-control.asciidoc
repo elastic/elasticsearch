@@ -20,7 +20,7 @@ a change that has a smaller sequence number assigned to it.
 For example, the following indexing command will create a document and assign it
 an initial sequence number and primary term:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT products/_doc/1567
 {
@@ -28,12 +28,11 @@ PUT products/_doc/1567
     "details" : "A resourceful astromech droid"
 }
 --------------------------------------------------
-// CONSOLE
 
 You can see the assigned sequence number and primary term in the 
 `_seq_no` and `_primary_term` fields of the response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "_shards" : {
@@ -58,16 +57,15 @@ operation to have changed each of the documents it stores. The sequence number
 and primary term are returned in the `_seq_no` and `_primary_term` fields in
 the response of the <<docs-get,GET API>>:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET products/_doc/1567
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "_index" : "products",
@@ -99,7 +97,7 @@ For example, the following indexing call will make sure to add a tag to the
 document without losing any potential change to the description or an addition
 of another tag by another API:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT products/_doc/1567?if_seq_no=362&if_primary_term=2
 {
@@ -108,7 +106,6 @@ PUT products/_doc/1567?if_seq_no=362&if_primary_term=2
     "tags": ["droid"]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 // TEST[catch: conflict]
 

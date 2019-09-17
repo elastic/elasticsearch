@@ -18,7 +18,7 @@ POST /_sql/translate
 
 Which returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "size" : 10,
@@ -47,7 +47,6 @@ Which returns:
     ]
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 Which is the request that SQL will run to provide the results.
 In this case, SQL will use the <<request-body-search-scroll,scroll>>

@@ -27,13 +27,13 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.core.transform.DataFrameMessages;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerPosition;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpoint;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformProgress;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.transform.transforms.pivot.Pivot;
@@ -51,7 +51,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
-public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameIndexerPosition, DataFrameIndexerTransformStats> {
+public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<TransformIndexerPosition, TransformIndexerStats> {
 
     /**
      * RunState is an internal (non-persisted) state that controls the internal logic
@@ -75,14 +75,14 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
 
     protected final DataFrameAuditor auditor;
 
-    protected volatile DataFrameTransformConfig transformConfig;
-    protected volatile DataFrameTransformProgress progress;
+    protected volatile TransformConfig transformConfig;
+    protected volatile TransformProgress progress;
     private final Map<String, String> fieldMappings;
 
     private Pivot pivot;
     private int pageSize = 0;
-    protected volatile DataFrameTransformCheckpoint lastCheckpoint;
-    protected volatile DataFrameTransformCheckpoint nextCheckpoint;
+    protected volatile TransformCheckpoint lastCheckpoint;
+    protected volatile TransformCheckpoint nextCheckpoint;
 
     private volatile RunState runState;
 
@@ -92,14 +92,14 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
 
     public DataFrameIndexer(Executor executor,
                             DataFrameAuditor auditor,
-                            DataFrameTransformConfig transformConfig,
+                            TransformConfig transformConfig,
                             Map<String, String> fieldMappings,
                             AtomicReference<IndexerState> initialState,
-                            DataFrameIndexerPosition initialPosition,
-                            DataFrameIndexerTransformStats jobStats,
-                            DataFrameTransformProgress transformProgress,
-                            DataFrameTransformCheckpoint lastCheckpoint,
-                            DataFrameTransformCheckpoint nextCheckpoint) {
+                            TransformIndexerPosition initialPosition,
+                            TransformIndexerStats jobStats,
+                            TransformProgress transformProgress,
+                            TransformCheckpoint lastCheckpoint,
+                            TransformCheckpoint nextCheckpoint) {
         super(executor, initialState, initialPosition, jobStats);
         this.auditor = Objects.requireNonNull(auditor);
         this.transformConfig = ExceptionsHelper.requireNonNull(transformConfig, "transformConfig");
@@ -122,7 +122,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
         return transformConfig.getId();
     }
 
-    public DataFrameTransformConfig getConfig() {
+    public TransformConfig getConfig() {
         return transformConfig;
     }
 
@@ -134,22 +134,22 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
         return fieldMappings;
     }
 
-    public DataFrameTransformProgress getProgress() {
+    public TransformProgress getProgress() {
         return progress;
     }
 
-    public DataFrameTransformCheckpoint getLastCheckpoint() {
+    public TransformCheckpoint getLastCheckpoint() {
         return lastCheckpoint;
     }
 
-    public DataFrameTransformCheckpoint getNextCheckpoint() {
+    public TransformCheckpoint getNextCheckpoint() {
         return nextCheckpoint;
     }
 
     /**
      * Request a checkpoint
      */
-    protected abstract void createCheckpoint(ActionListener<DataFrameTransformCheckpoint> listener);
+    protected abstract void createCheckpoint(ActionListener<TransformCheckpoint> listener);
 
     @Override
     protected void onStart(long now, ActionListener<Boolean> listener) {
@@ -181,7 +181,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
     }
 
     @Override
-    protected IterationResult<DataFrameIndexerPosition> doProcess(SearchResponse searchResponse) {
+    protected IterationResult<TransformIndexerPosition> doProcess(SearchResponse searchResponse) {
         final Aggregations aggregations = searchResponse.getAggregations();
         // Treat this as a "we reached the end".
         // This should only happen when all underlying indices have gone away. Consequently, there is no more data to read.
@@ -212,7 +212,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
         }
     }
 
-    private IterationResult<DataFrameIndexerPosition> processBuckets(final CompositeAggregation agg) {
+    private IterationResult<TransformIndexerPosition> processBuckets(final CompositeAggregation agg) {
         // we reached the end
         if (agg.getBuckets().isEmpty()) {
             return new IterationResult<>(Collections.emptyList(), null, true);
@@ -220,11 +220,11 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
 
         long docsBeforeProcess = getStats().getNumDocuments();
 
-        DataFrameIndexerPosition oldPosition = getPosition();
-        DataFrameIndexerPosition newPosition = new DataFrameIndexerPosition(agg.afterKey(),
+        TransformIndexerPosition oldPosition = getPosition();
+        TransformIndexerPosition newPosition = new TransformIndexerPosition(agg.afterKey(),
                 oldPosition != null ? getPosition().getBucketsPosition() : null);
 
-        IterationResult<DataFrameIndexerPosition> result = new IterationResult<>(
+        IterationResult<TransformIndexerPosition> result = new IterationResult<>(
                 processBucketsToIndexRequests(agg).collect(Collectors.toList()),
                 newPosition,
                 agg.getBuckets().isEmpty());
@@ -238,7 +238,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
         return result;
     }
 
-    private IterationResult<DataFrameIndexerPosition> processPartialBucketUpdates(final CompositeAggregation agg) {
+    private IterationResult<TransformIndexerPosition> processPartialBucketUpdates(final CompositeAggregation agg) {
         // we reached the end
         if (agg.getBuckets().isEmpty()) {
             // cleanup changed Buckets
@@ -248,14 +248,14 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
             runState = RunState.PARTIAL_RUN_IDENTIFY_CHANGES;
             // advance the cursor for changed bucket detection
             return new IterationResult<>(Collections.emptyList(),
-                    new DataFrameIndexerPosition(null, changedBucketsAfterKey), false);
+                    new TransformIndexerPosition(null, changedBucketsAfterKey), false);
         }
 
         return processBuckets(agg);
     }
 
 
-    private IterationResult<DataFrameIndexerPosition> processChangedBuckets(final CompositeAggregation agg) {
+    private IterationResult<TransformIndexerPosition> processChangedBuckets(final CompositeAggregation agg) {
         // initialize the map of changed buckets, the map might be empty if source do not require/implement
         // changed bucket detection
         changedBuckets = pivot.initialIncrementalBucketUpdateMap();
@@ -294,11 +294,11 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
      * in later versions, see {@link IngestDocument).
      */
     private Stream<IndexRequest> processBucketsToIndexRequests(CompositeAggregation agg) {
-        final DataFrameTransformConfig transformConfig = getConfig();
+        final TransformConfig transformConfig = getConfig();
         String indexName = transformConfig.getDestination().getIndex();
 
         return pivot.extractResults(agg, getFieldMappings(), getStats()).map(document -> {
-            String id = (String) document.get(DataFrameField.DOCUMENT_ID_FIELD);
+            String id = (String) document.get(TransformField.DOCUMENT_ID_FIELD);
 
             if (id == null) {
                 throw new RuntimeException("Expected a document id but got null.");
@@ -332,7 +332,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
 
         QueryBuilder pivotQueryBuilder = getConfig().getSource().getQueryConfig().getQuery();
 
-        DataFrameTransformConfig config = getConfig();
+        TransformConfig config = getConfig();
         if (this.isContinuous()) {
 
             BoolQueryBuilder filteredQuery = new BoolQueryBuilder()
@@ -380,10 +380,10 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
     }
 
     private SearchSourceBuilder buildFullRunQuery(SearchSourceBuilder sourceBuilder) {
-        DataFrameIndexerPosition position = getPosition();
+        TransformIndexerPosition position = getPosition();
 
         sourceBuilder.aggregation(pivot.buildAggregation(position != null ? position.getIndexerPosition() : null, pageSize));
-        DataFrameTransformConfig config = getConfig();
+        TransformConfig config = getConfig();
 
         QueryBuilder pivotQueryBuilder = config.getSource().getQueryConfig().getQuery();
         if (isContinuous()) {
@@ -404,7 +404,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
     private SearchSourceBuilder buildChangedBucketsQuery(SearchSourceBuilder sourceBuilder) {
         assert isContinuous();
 
-        DataFrameIndexerPosition position = getPosition();
+        TransformIndexerPosition position = getPosition();
 
         CompositeAggregationBuilder changesAgg = pivot.buildIncrementalBucketUpdateAggregation(pageSize);
         changesAgg.aggregateAfter(position != null ? position.getBucketsPosition() : null);
@@ -412,7 +412,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
 
         QueryBuilder pivotQueryBuilder = getConfig().getSource().getQueryConfig().getQuery();
 
-        DataFrameTransformConfig config = getConfig();
+        TransformConfig config = getConfig();
         BoolQueryBuilder filteredQuery = new BoolQueryBuilder().
                 filter(pivotQueryBuilder).
                 filter(config.getSyncConfig().getRangeQuery(lastCheckpoint, nextCheckpoint));
@@ -426,10 +426,10 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
     private SearchSourceBuilder buildPartialUpdateQuery(SearchSourceBuilder sourceBuilder) {
         assert isContinuous();
 
-        DataFrameIndexerPosition position = getPosition();
+        TransformIndexerPosition position = getPosition();
 
         sourceBuilder.aggregation(pivot.buildAggregation(position != null ? position.getIndexerPosition() : null, pageSize));
-        DataFrameTransformConfig config = getConfig();
+        TransformConfig config = getConfig();
 
         QueryBuilder pivotQueryBuilder = config.getSource().getQueryConfig().getQuery();
 
@@ -475,12 +475,12 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<DataFrameInd
         int newPageSize = (int) Math.round(reducingFactor * pageSize);
 
         if (newPageSize < MINIMUM_PAGE_SIZE) {
-            String message = DataFrameMessages.getMessage(DataFrameMessages.LOG_DATA_FRAME_TRANSFORM_PIVOT_LOW_PAGE_SIZE_FAILURE, pageSize);
+            String message = TransformMessages.getMessage(TransformMessages.LOG_DATA_FRAME_TRANSFORM_PIVOT_LOW_PAGE_SIZE_FAILURE, pageSize);
             failIndexer(message);
             return true;
         }
 
-        String message = DataFrameMessages.getMessage(DataFrameMessages.LOG_DATA_FRAME_TRANSFORM_PIVOT_REDUCE_PAGE_SIZE, pageSize,
+        String message = TransformMessages.getMessage(TransformMessages.LOG_DATA_FRAME_TRANSFORM_PIVOT_REDUCE_PAGE_SIZE, pageSize,
                 newPageSize);
         auditor.info(getJobId(), message);
         logger.info("Data frame transform [" + getJobId() + "]:" + message);

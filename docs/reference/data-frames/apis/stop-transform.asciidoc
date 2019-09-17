@@ -72,9 +72,9 @@ are no matches or only partial matches.
 --
 
 `force`::
-  (Optional, boolean) If `true`, resets the state of a failed job back to 
-  started. It is required to do in order to delete or restart the job (after 
-  resolving root cause of the original issue).
+  (Optional, boolean) Set to `true` to stop a failed {transform} or to 
+  forcefully stop a {transform} that did not respond to the initial stop 
+  request.
 
 `timeout`::
   (Optional, time value) If `wait_for_completion=true`, the API blocks for (at
@@ -99,12 +99,11 @@ are no matches or only partial matches.
 [[stop-data-frame-transform-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _data_frame/transforms/ecommerce_transform/_stop
 --------------------------------------------------
 // CONSOLE
-// TEST[skip:set up kibana samples]
 
 When the {dataframe-transform} stops, you receive the following results:
 

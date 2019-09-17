@@ -153,20 +153,6 @@ null           |48396.28571428572|62140.666666666664
 ;
 
 
-averageWithOneValueAndAlias
-schema::languages:bt|ONE:d
-SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('F' AS "ONE"));
-
-   languages   |       ONE        
----------------+------------------
-null           |62140.666666666664
-1              |47073.25          
-2              |50684.4           
-3              |53660.0           
-4              |49291.5           
-5              |46705.555555555555
-;
-
 sumWithoutSubquery
 schema::birth_date:ts|emp_no:i|first_name:s|gender:s|hire_date:ts|last_name:s|1:i|2:i
 SELECT * FROM test_emp PIVOT (SUM(salary) FOR languages IN (1, 2)) LIMIT 5;
@@ -240,3 +226,12 @@ OK             |10.0.1.207
 OK             |10.0.1.208     
 OK             |10.0.1.222        
 ;
+
+averageWithScalarOverAggregateAndFoldedValueAndColumn
+schema::status:s|client_ip:s
+SELECT status, client_ip FROM logs 
+PIVOT (MAX(bytes_out) FOR "@timestamp" IN (CAST('2017-11-10T20:35:55Z' AS DATETIME), CAST('2017-11-10T21:15:40Z' AS DATETIME)));
+    status     |   client_ip   
+---------------+---------------
+Error          |null           
+Error          |10.0.0.107     

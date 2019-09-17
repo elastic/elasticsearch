@@ -200,13 +200,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
             }
             Filter filter = new Filter(plan.source(), plan.child(), new In(plan.source(), plan.column(), rawValues));
-
-            // 2. create the agg (mark it as pivot through the dedicated agg function)
-            //            Aggregate agg = new Aggregate(plan.source(), filter, plan.groupings(),
-            //                    singletonList(new PivotOf(plan.source(), plan.column(), plan.aggregates(), plan.output())));
-
-            // 3. preserve the output as a projection
-            //Project project = new Project(plan.source(), agg, plan.output());
+            // 2. preserve the PIVOT
             return new Pivot(plan.source(), filter, plan.column(), plan.values(), plan.aggregates());
         }
     }
@@ -1216,7 +1210,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     return Literal.of(in, null);
                 }
 
-            } else if (e instanceof Alias == false 
+            } else if (e instanceof Alias == false
                     && e.nullable() == Nullability.TRUE
                     && Expressions.anyMatch(e.children(), Expressions::isNull)) {
                 return Literal.of(e, null);

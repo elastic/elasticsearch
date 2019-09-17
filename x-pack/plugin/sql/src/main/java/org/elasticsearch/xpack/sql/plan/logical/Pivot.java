@@ -66,7 +66,7 @@ public class Pivot extends UnaryPlan {
         if (groupingSet == null) {
             AttributeSet columnSet = Expressions.references(singletonList(column));
             // grouping can happen only on "primitive" fields, thus exclude multi-fields or nested docs
-            // the verifier enforces this rule so it does not catches folks by surprise
+            // the verifier enforces this rule so it does not catch folks by surprise
             groupingSet = new AttributeSet(Expressions.onlyPrimitiveFieldAttributes(child().output()))
                     // make sure to have the column as the last entry (helps with translation)
                     .subtract(columnSet)

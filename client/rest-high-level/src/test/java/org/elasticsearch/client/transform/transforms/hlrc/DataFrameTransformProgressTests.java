@@ -22,29 +22,29 @@ package org.elasticsearch.client.transform.transforms.hlrc;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformProgress;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataFrameTransformProgressTests extends AbstractResponseTestCase<
-        DataFrameTransformProgress,
+        TransformProgress,
         org.elasticsearch.client.transform.transforms.DataFrameTransformProgress> {
 
-    public static DataFrameTransformProgress fromHlrc(
+    public static TransformProgress fromHlrc(
             org.elasticsearch.client.transform.transforms.DataFrameTransformProgress instance) {
         if (instance == null) {
             return null;
         }
-        return new DataFrameTransformProgress(instance.getTotalDocs(),
+        return new TransformProgress(instance.getTotalDocs(),
             instance.getRemainingDocs(),
             instance.getDocumentsProcessed(),
             instance.getDocumentsIndexed());
     }
 
-    public static DataFrameTransformProgress randomDataFrameTransformProgress() {
+    public static TransformProgress randomDataFrameTransformProgress() {
         Long totalDocs = randomBoolean() ? null : randomNonNegativeLong();
         Long docsRemaining = totalDocs != null ? randomLongBetween(0, totalDocs) : null;
-        return new DataFrameTransformProgress(
+        return new TransformProgress(
             totalDocs,
             docsRemaining,
             totalDocs != null ? totalDocs - docsRemaining : randomNonNegativeLong(),
@@ -52,7 +52,7 @@ public class DataFrameTransformProgressTests extends AbstractResponseTestCase<
     }
 
     @Override
-    protected DataFrameTransformProgress createServerTestInstance(XContentType xContentType) {
+    protected TransformProgress createServerTestInstance(XContentType xContentType) {
         return randomDataFrameTransformProgress();
     }
 
@@ -62,7 +62,7 @@ public class DataFrameTransformProgressTests extends AbstractResponseTestCase<
     }
 
     @Override
-    protected void assertInstances(DataFrameTransformProgress serverTestInstance,
+    protected void assertInstances(TransformProgress serverTestInstance,
                                    org.elasticsearch.client.transform.transforms.DataFrameTransformProgress clientInstance) {
         assertThat(serverTestInstance.getTotalDocs(), equalTo(clientInstance.getTotalDocs()));
         assertThat(serverTestInstance.getDocumentsProcessed(), equalTo(clientInstance.getDocumentsProcessed()));

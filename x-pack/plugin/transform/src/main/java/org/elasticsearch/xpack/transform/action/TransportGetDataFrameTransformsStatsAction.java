@@ -23,13 +23,13 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.transform.action.GetDataFrameTransformsStatsAction;
-import org.elasticsearch.xpack.core.transform.action.GetDataFrameTransformsStatsAction.Request;
-import org.elasticsearch.xpack.core.transform.action.GetDataFrameTransformsStatsAction.Response;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpointingInfo;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformState;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformStats;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformStoredDoc;
+import org.elasticsearch.xpack.core.transform.action.GetTransformsStatsAction;
+import org.elasticsearch.xpack.core.transform.action.GetTransformsStatsAction.Request;
+import org.elasticsearch.xpack.core.transform.action.GetTransformsStatsAction.Response;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.transform.transforms.TransformState;
+import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.NodeAttributes;
 import org.elasticsearch.xpack.transform.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.transform.persistence.DataFrameTransformsConfigManager;
@@ -47,9 +47,9 @@ import java.util.stream.Collectors;
 
 public class TransportGetDataFrameTransformsStatsAction extends
         TransportTasksAction<DataFrameTransformTask,
-        GetDataFrameTransformsStatsAction.Request,
-        GetDataFrameTransformsStatsAction.Response,
-        GetDataFrameTransformsStatsAction.Response> {
+        GetTransformsStatsAction.Request,
+        GetTransformsStatsAction.Response,
+        GetTransformsStatsAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportGetDataFrameTransformsStatsAction.class);
 
@@ -61,7 +61,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
                                                       ClusterService clusterService,
                                                       DataFrameTransformsConfigManager dataFrameTransformsConfigManager,
                                                       DataFrameTransformsCheckpointService transformsCheckpointService) {
-        super(GetDataFrameTransformsStatsAction.NAME, clusterService, transportService, actionFilters, Request::new, Response::new,
+        super(GetTransformsStatsAction.NAME, clusterService, transportService, actionFilters, Request::new, Response::new,
             Response::new, ThreadPool.Names.SAME);
         this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;
         this.transformsCheckpointService = transformsCheckpointService;
@@ -70,9 +70,9 @@ public class TransportGetDataFrameTransformsStatsAction extends
     @Override
     protected Response newResponse(Request request, List<Response> tasks, List<TaskOperationFailure> taskOperationFailures,
             List<FailedNodeException> failedNodeExceptions) {
-        List<DataFrameTransformStats> responses = tasks.stream()
+        List<TransformStats> responses = tasks.stream()
             .flatMap(r -> r.getTransformsStats().stream())
-            .sorted(Comparator.comparing(DataFrameTransformStats::getId))
+            .sorted(Comparator.comparing(TransformStats::getId))
             .collect(Collectors.toList());
         List<ElasticsearchException> allFailedNodeExceptions = new ArrayList<>(failedNodeExceptions);
         allFailedNodeExceptions.addAll(tasks.stream().flatMap(r -> r.getNodeFailures().stream()).collect(Collectors.toList()));
@@ -85,11 +85,11 @@ public class TransportGetDataFrameTransformsStatsAction extends
         ClusterState state = clusterService.state();
         String nodeId = state.nodes().getLocalNode().getId();
         if (task.isCancelled() == false) {
-            DataFrameTransformState transformState = task.getState();
+            TransformState transformState = task.getState();
             task.getCheckpointingInfo(transformsCheckpointService, ActionListener.wrap(
                 checkpointingInfo -> listener.onResponse(new Response(
-                    Collections.singletonList(new DataFrameTransformStats(task.getTransformId(),
-                        DataFrameTransformStats.State.fromComponents(transformState.getTaskState(), transformState.getIndexerState()),
+                    Collections.singletonList(new TransformStats(task.getTransformId(),
+                        TransformStats.State.fromComponents(transformState.getTaskState(), transformState.getIndexerState()),
                         transformState.getReason(),
                         null,
                         task.getStats(),
@@ -98,12 +98,12 @@ public class TransportGetDataFrameTransformsStatsAction extends
                 e -> {
                     logger.warn("Failed to retrieve checkpointing info for transform [" + task.getTransformId() + "]", e);
                     listener.onResponse(new Response(
-                    Collections.singletonList(new DataFrameTransformStats(task.getTransformId(),
-                        DataFrameTransformStats.State.fromComponents(transformState.getTaskState(), transformState.getIndexerState()),
+                    Collections.singletonList(new TransformStats(task.getTransformId(),
+                        TransformStats.State.fromComponents(transformState.getTaskState(), transformState.getIndexerState()),
                         transformState.getReason(),
                         null,
                         task.getStats(),
-                        DataFrameTransformCheckpointingInfo.EMPTY)),
+                        TransformCheckpointingInfo.EMPTY)),
                     1L,
                     Collections.emptyList(),
                     Collections.singletonList(new FailedNodeException(nodeId, "Failed to retrieve checkpointing info", e))));
@@ -152,7 +152,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
         ));
     }
 
-    private static void setNodeAttributes(DataFrameTransformStats dataFrameTransformStats,
+    private static void setNodeAttributes(TransformStats dataFrameTransformStats,
                                           PersistentTasksCustomMetaData persistentTasksCustomMetaData, ClusterState state) {
         var pTask = persistentTasksCustomMetaData.getTask(dataFrameTransformStats.getId());
         if (pTask != null) {
@@ -170,7 +170,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
         }
 
         Set<String> transformsWithoutTasks = new HashSet<>(request.getExpandedIds());
-        transformsWithoutTasks.removeAll(response.getTransformsStats().stream().map(DataFrameTransformStats::getId)
+        transformsWithoutTasks.removeAll(response.getTransformsStats().stream().map(TransformStats::getId)
             .collect(Collectors.toList()));
 
         // Small assurance that we are at least below the max. Terms search has a hard limit of 10k, we should at least be below that.
@@ -179,22 +179,22 @@ public class TransportGetDataFrameTransformsStatsAction extends
         // If the persistent task does NOT exist, it is STOPPED
         // There is a potential race condition where the saved document does not actually have a STOPPED state
         // as the task is cancelled before we persist state.
-        ActionListener<List<DataFrameTransformStoredDoc>> searchStatsListener = ActionListener.wrap(
+        ActionListener<List<TransformStoredDoc>> searchStatsListener = ActionListener.wrap(
             statsForTransformsWithoutTasks -> {
-                List<DataFrameTransformStats> allStateAndStats = response.getTransformsStats();
+                List<TransformStats> allStateAndStats = response.getTransformsStats();
                 addCheckpointingInfoForTransformsWithoutTasks(allStateAndStats, statsForTransformsWithoutTasks,
                     ActionListener.wrap(
                         aVoid -> {
                             transformsWithoutTasks.removeAll(statsForTransformsWithoutTasks.stream()
-                                .map(DataFrameTransformStoredDoc::getId).collect(Collectors.toSet()));
+                                .map(TransformStoredDoc::getId).collect(Collectors.toSet()));
 
                             // Transforms that have not been started and have no state or stats.
                             transformsWithoutTasks.forEach(
-                                transformId -> allStateAndStats.add(DataFrameTransformStats.initialStats(transformId)));
+                                transformId -> allStateAndStats.add(TransformStats.initialStats(transformId)));
 
                             // Any transform in collection could NOT have a task, so, even though the list is initially sorted
                             // it can easily become arbitrarily ordered based on which transforms don't have a task or stats docs
-                            allStateAndStats.sort(Comparator.comparing(DataFrameTransformStats::getId));
+                            allStateAndStats.sort(Comparator.comparing(TransformStats::getId));
 
                             listener.onResponse(new Response(allStateAndStats,
                                 allStateAndStats.size(),
@@ -215,8 +215,8 @@ public class TransportGetDataFrameTransformsStatsAction extends
         dataFrameTransformsConfigManager.getTransformStoredDoc(transformsWithoutTasks, searchStatsListener);
     }
 
-    private void populateSingleStoppedTransformStat(DataFrameTransformStoredDoc transform,
-                                                    ActionListener<DataFrameTransformCheckpointingInfo> listener) {
+    private void populateSingleStoppedTransformStat(TransformStoredDoc transform,
+                                                    ActionListener<TransformCheckpointingInfo> listener) {
         transformsCheckpointService.getCheckpointingInfo(
             transform.getId(),
             transform.getTransformState().getCheckpoint(),
@@ -226,13 +226,13 @@ public class TransportGetDataFrameTransformsStatsAction extends
                 listener::onResponse,
                 e -> {
                     logger.warn("Failed to retrieve checkpointing info for transform [" + transform.getId() + "]", e);
-                    listener.onResponse(DataFrameTransformCheckpointingInfo.EMPTY);
+                    listener.onResponse(TransformCheckpointingInfo.EMPTY);
                 }
             ));
     }
 
-    private void addCheckpointingInfoForTransformsWithoutTasks(List<DataFrameTransformStats> allStateAndStats,
-                                                               List<DataFrameTransformStoredDoc> statsForTransformsWithoutTasks,
+    private void addCheckpointingInfoForTransformsWithoutTasks(List<TransformStats> allStateAndStats,
+                                                               List<TransformStoredDoc> statsForTransformsWithoutTasks,
                                                                ActionListener<Void> listener) {
 
         if (statsForTransformsWithoutTasks.isEmpty()) {
@@ -248,9 +248,9 @@ public class TransportGetDataFrameTransformsStatsAction extends
             ActionListener.wrap(
                 checkpointingInfo -> {
                     synchronized (allStateAndStats) {
-                        allStateAndStats.add(new DataFrameTransformStats(
+                        allStateAndStats.add(new TransformStats(
                             stat.getId(),
-                            DataFrameTransformStats.State.STOPPED,
+                            TransformStats.State.STOPPED,
                             null,
                             null,
                             stat.getTransformStats(),

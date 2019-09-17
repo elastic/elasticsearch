@@ -1362,14 +1362,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private void deleteShardSnapshotLegacy(RepositoryData repositoryData, IndexId indexId, ShardId snapshotShardId,
                                            SnapshotId snapshotId) {
         final BlobContainer shardContainer = shardContainer(indexId, snapshotShardId);
-        final Map<String, BlobMetaData> blobs;
+        final Set<String> blobs;
         try {
-            blobs = shardContainer.listBlobs();
+            blobs = shardContainer.listBlobs().keySet();
         } catch (IOException e) {
             throw new IndexShardSnapshotException(snapshotShardId, "Failed to list content of shard directory", e);
         }
 
-        Tuple<BlobStoreIndexShardSnapshots, String> tuple = buildBlobStoreIndexShardSnapshots(blobs.keySet(), shardContainer, null);
+        Tuple<BlobStoreIndexShardSnapshots, String> tuple = buildBlobStoreIndexShardSnapshots(blobs, shardContainer, null);
         BlobStoreIndexShardSnapshots snapshots = tuple.v1();
         long fileListGeneration = Long.parseLong(tuple.v2());
 
@@ -1387,7 +1387,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final List<String> blobsToDelete;
             if (newSnapshotsList.isEmpty()) {
                 // If we deleted all snapshots, we don't need to create a new index file and simply delete all the blobs we found
-                blobsToDelete = List.copyOf(blobs.keySet());
+                blobsToDelete = List.copyOf(blobs);
             } else {
                 final Set<String> survivingSnapshotUUIDs = repositoryData.getSnapshots(indexId).stream().map(SnapshotId::getUUID)
                     .collect(Collectors.toSet());
@@ -1410,9 +1410,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     // Unused blobs are all previous index-, data- and meta-blobs and that are not referenced by the new index- as well as all
     // temporary blobs
-    private static List<String> unusedBlobs(Map<String, BlobMetaData> blobs, Set<String> survivingSnapshotUUIDs,
+    private static List<String> unusedBlobs(Set<String> blobs, Set<String> survivingSnapshotUUIDs,
                                             BlobStoreIndexShardSnapshots updatedSnapshots) {
-        return blobs.keySet().stream().filter(blob ->
+        return blobs.stream().filter(blob ->
             blob.startsWith(SNAPSHOT_INDEX_PREFIX)
                 || (blob.startsWith(SNAPSHOT_PREFIX) && blob.endsWith(".dat")
                     && survivingSnapshotUUIDs.contains(
@@ -1429,9 +1429,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ActionListener.completeWith(listener, () -> {
             final String shardGen = repositoryData.getShardGen(indexId, snapshotShardId.getId());
             final BlobContainer shardContainer = shardContainer(indexId, snapshotShardId);
-            final Map<String, BlobMetaData> blobs;
+            final Set<String> blobs;
             try {
-                blobs = shardContainer.listBlobs();
+                blobs = shardContainer.listBlobs().keySet();
             } catch (IOException e) {
                 throw new IndexShardSnapshotException(snapshotShardId, "Failed to list content of shard directory", e);
             }
@@ -1439,7 +1439,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // for this shard yet.
             Tuple<BlobStoreIndexShardSnapshots, String> tuple;
             if (shardGen == null) {
-                tuple = buildBlobStoreIndexShardSnapshots(blobs.keySet(), shardContainer, null);
+                tuple = buildBlobStoreIndexShardSnapshots(blobs, shardContainer, null);
             } else {
                 tuple = buildBlobStoreIndexShardSnapshots(Collections.emptySet(), shardContainer, shardGen);
             }

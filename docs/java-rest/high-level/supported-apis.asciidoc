@@ -577,12 +577,12 @@ include::ilm/remove_lifecycle_policy_from_index.asciidoc[]
 
 [role="xpack"]
 [[_data_frame_transform_apis]]
-== {dataframe-transform-cap} APIs
+== {transform-cap} APIs
 
 :upid: {mainid}-dataframe
 :doc-tests-file: {doc-tests}/DataFrameTransformDocumentationIT.java
 
-The Java High Level REST Client supports the following {dataframe-transform}
+The Java High Level REST Client supports the following {transform}
 APIs:
 
 * <<{upid}-get-data-frame-transform>>

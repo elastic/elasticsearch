@@ -62,7 +62,7 @@ include::rollup/index.asciidoc[]
 
 include::frozen-indices.asciidoc[]
 
-include::administering.asciidoc[]
+include::high-availability.asciidoc[]
 
 include::rest-api/index.asciidoc[]
 

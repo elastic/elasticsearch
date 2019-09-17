@@ -471,7 +471,7 @@ public class IndexResolver {
             String fieldName = entry.getKey();
             Map<String, FieldCapabilities> types = entry.getValue();
 
-            // ignore size added by the mapper plugin or indices with no mapping
+            // ignore size added by the mapper plugin
             if (FIELD_NAMES_BLACKLIST.contains(fieldName)) {
                 continue;
             }

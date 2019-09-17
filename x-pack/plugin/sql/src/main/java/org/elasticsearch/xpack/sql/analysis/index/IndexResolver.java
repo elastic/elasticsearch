@@ -338,12 +338,13 @@ public class IndexResolver {
             return null;
         });
 
-        if (indices.size() != 1) {
-            throw new SqlIllegalArgumentException("Incorrect merging of mappings (likely due to a bug) - expect 1 but found [{}]",
+        if (indices.size() > 1) {
+            throw new SqlIllegalArgumentException(
+                    "Incorrect merging of mappings (likely due to a bug) - expect at most one but found [{}]",
                     indices.size());
         }
 
-        return IndexResolution.valid(indices.get(0));
+        return IndexResolution.valid(indices.isEmpty() ? new EsIndex(indexNames[0], emptyMap()) : indices.get(0));
     }
 
     private static EsField createField(String fieldName, Map<String, Map<String, FieldCapabilities>> globalCaps,
@@ -470,7 +471,7 @@ public class IndexResolver {
             String fieldName = entry.getKey();
             Map<String, FieldCapabilities> types = entry.getValue();
 
-            // ignore size added by the mapper plugin
+            // ignore size added by the mapper plugin or indices with no mapping
             if (FIELD_NAMES_BLACKLIST.contains(fieldName)) {
                 continue;
             }

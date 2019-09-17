@@ -23,14 +23,14 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.tasks.CancelTasksRequest;
+import org.elasticsearch.client.tasks.CancelTasksResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
@@ -80,7 +80,7 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
             request.setParentTaskId(new TaskId("parentTaskId", 42)); // <3>
             // end::list-tasks-request-filter
 
-            // tag::list-tasks-request-detailed
+            // tag::list-tasks-request-detailed~
             request.setDetailed(true); // <1>
             // end::list-tasks-request-detailed
 
@@ -159,7 +159,7 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::cancel-tasks-request
 
             // tag::cancel-tasks-request-filter
-            request.setTaskId(new TaskId("nodeId1", 42)); //<1>
+            request.setTaskId(new org.elasticsearch.client.tasks.TaskId("nodeId1", 42)); //<1>
             request.setActions("cluster:*"); // <2>
             request.setNodes("nodeId1", "nodeId2"); // <3>
             // end::cancel-tasks-request-filter
@@ -167,7 +167,7 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         CancelTasksRequest request = new CancelTasksRequest();
-        request.setTaskId(TaskId.EMPTY_TASK_ID);
+        request.setTaskId(org.elasticsearch.client.tasks.TaskId.EMPTY_TASK_ID);
 
         // tag::cancel-tasks-execute
         CancelTasksResponse response = client.tasks().cancel(request, RequestOptions.DEFAULT);
@@ -176,18 +176,18 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
         assertThat(response, notNullValue());
 
         // tag::cancel-tasks-response-tasks
-        List<TaskInfo> tasks = response.getTasks(); // <1>
+        List<org.elasticsearch.client.tasks.TaskInfo> tasks = response.getTasks(); // <1>
         // end::cancel-tasks-response-tasks
 
         // tag::cancel-tasks-response-calc
-        Map<String, List<TaskInfo>> perNodeTasks = response.getPerNodeTasks(); // <1>
-        List<TaskGroup> groups = response.getTaskGroups(); // <2>
+        Map<String, List<org.elasticsearch.client.tasks.TaskInfo>> perNodeTasks = response.getPerNodeTasks(); // <1>
+        List<org.elasticsearch.client.tasks.TaskGroup> groups = response.getTaskGroups(); // <2>
         // end::cancel-tasks-response-calc
 
 
         // tag::cancel-tasks-response-failures
-        List<ElasticsearchException> nodeFailures = response.getNodeFailures(); // <1>
-        List<TaskOperationFailure> taskFailures = response.getTaskFailures(); // <2>
+        List<org.elasticsearch.client.tasks.ElasticsearchException> nodeFailures = response.getNodeFailures(); // <1>
+        List<org.elasticsearch.client.tasks.TaskOperationFailure> taskFailures = response.getTaskFailures(); // <2>
         // end::cancel-tasks-response-failures
 
         assertThat(response.getNodeFailures(), equalTo(emptyList()));

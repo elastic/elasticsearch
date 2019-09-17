@@ -58,9 +58,6 @@ public class TestFixturesPlugin implements Plugin<Project> {
         ext.set("testFixturesDir", testfixturesDir);
 
         if (project.file(DOCKER_COMPOSE_YML).exists()) {
-            // the project that defined a test fixture can also use it
-            extension.fixtures.add(project);
-
             Task buildFixture = project.getTasks().create("buildFixture");
             Task pullFixture = project.getTasks().create("pullFixture");
             Task preProcessFixture = project.getTasks().create("preProcessFixture");

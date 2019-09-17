@@ -54,6 +54,8 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=default_operator]
 include::{docdir}/rest-api/common-parms.asciidoc[tag=df]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 

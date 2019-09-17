@@ -816,3 +816,7 @@ See <<getting-started-next-steps>>.
 [role="exclude",id="ccs-reduction"]
 === {ccs-cap} reduction
 See <<ccs-works>>.
+
+[role="exclude",id="administer-elasticsearch"]
+=== Administering {es}
+See <<high-availability>>.

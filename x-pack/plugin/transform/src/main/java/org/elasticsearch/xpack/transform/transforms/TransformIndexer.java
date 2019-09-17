@@ -70,7 +70,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     public static final int MINIMUM_PAGE_SIZE = 10;
-    public static final String COMPOSITE_AGGREGATION_NAME = "_data_frame";
+    public static final String COMPOSITE_AGGREGATION_NAME = "_transform";
     private static final Logger logger = LogManager.getLogger(TransformIndexer.class);
 
     protected final TransformAuditor auditor;

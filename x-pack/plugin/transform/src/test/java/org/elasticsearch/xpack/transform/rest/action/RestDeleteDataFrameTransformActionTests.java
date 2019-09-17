@@ -36,7 +36,7 @@ public class RestDeleteDataFrameTransformActionTests extends ESTestCase {
             IllegalArgumentException e = expectThrows(
                     IllegalArgumentException.class,
                     () -> handler.prepareRequest(request, mock(NodeClient.class)));
-            assertThat(e.getMessage(), equalTo("delete data frame transforms requests can not have a request body"));
+            assertThat(e.getMessage(), equalTo("delete transform requests can not have a request body"));
         }
     }
 

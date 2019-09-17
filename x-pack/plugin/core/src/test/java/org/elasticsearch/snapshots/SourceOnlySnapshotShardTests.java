@@ -65,7 +65,7 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 
@@ -200,14 +200,15 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         repository.start();
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing();
+            final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
             runAsSnapshot(shard.getThreadPool(), () -> {
-                repository.initializeSnapshot(snapshotId, Arrays.asList(indexId),
-                    MetaData.builder().put(shard.indexSettings()
-                    .getIndexMetaData(), false).build());
-                final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
                 repository.snapshotShard(shard.store(), shard.mapperService(), snapshotId, indexId, snapshotRef.getIndexCommit(),
                     indexShardSnapshotStatus, future);
                 future.actionGet();
+                repository.finalizeSnapshot(snapshotId, Collections.singletonList(indexId),
+                    indexShardSnapshotStatus.asCopy().getStartTime(), null, 1, Collections.emptyList(),
+                    repository.getRepositoryData().getGenId(), true,
+                    MetaData.builder().put(shard.indexSettings().getIndexMetaData(), false).build(), Collections.emptyMap());
             });
             IndexShardSnapshotStatus.Copy copy = indexShardSnapshotStatus.asCopy();
             assertEquals(copy.getTotalFileCount(), copy.getIncrementalFileCount());

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.repositories.hdfs;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.AbstractFileSystem;
 import org.apache.hadoop.fs.FileContext;
@@ -47,6 +48,8 @@ import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Locale;
@@ -56,6 +59,7 @@ public final class HdfsRepository extends BlobStoreRepository {
     private static final Logger logger = LogManager.getLogger(HdfsRepository.class);
 
     private static final String CONF_SECURITY_PRINCIPAL = "security.principal";
+    private static final String CONF_SECURITY_KEYTAB= "security.keytab";
 
     private final Environment environment;
     private final ByteSizeValue chunkSize;
@@ -96,7 +100,7 @@ public final class HdfsRepository extends BlobStoreRepository {
         }
     }
 
-    private HdfsBlobStore createBlobstore(URI uri, String path, Settings repositorySettings)  {
+    private HdfsBlobStore createBlobstore(URI uri, String path, Settings repositorySettings) {
         Configuration hadoopConfiguration = new Configuration(repositorySettings.getAsBoolean("load_defaults", true));
         hadoopConfiguration.setClassLoader(HdfsRepository.class.getClassLoader());
         hadoopConfiguration.reloadConfiguration();
@@ -151,7 +155,7 @@ public final class HdfsRepository extends BlobStoreRepository {
         AuthenticationMethod authMethod = SecurityUtil.getAuthenticationMethod(hadoopConfiguration);
         if (authMethod.equals(AuthenticationMethod.SIMPLE) == false
             && authMethod.equals(AuthenticationMethod.KERBEROS) == false) {
-            throw new RuntimeException("Unsupported authorization mode ["+authMethod+"]");
+            throw new RuntimeException("Unsupported authorization mode [" + authMethod + "]");
         }
 
         // Check if the user added a principal to use, and that there is a keytab file provided
@@ -179,7 +183,19 @@ public final class HdfsRepository extends BlobStoreRepository {
         try {
             if (UserGroupInformation.isSecurityEnabled()) {
                 String principal = preparePrincipal(kerberosPrincipal);
-                String keytab = HdfsSecurityContext.locateKeytabFile(environment).toString();
+                String keytab = repositorySettings.get(CONF_SECURITY_KEYTAB);
+                // locate keytab file from user's configuration
+                if (!StringUtils.isEmpty(keytab)) {
+                    try {
+                        if (Files.exists(Path.of(keytab)) == false) {
+                            throw new RuntimeException("Could not locate keytab at [" + keytab + "].");
+                        }
+                    } catch (SecurityException e) {
+                        throw e;
+                    }
+                } else {
+                    keytab = HdfsSecurityContext.locateKeytabFile(environment).toString();
+                }
                 logger.debug("Using kerberos principal [{}] and keytab located at [{}]", principal, keytab);
                 return UserGroupInformation.loginUserFromKeytabAndReturnUGI(principal, keytab);
             }

@@ -230,7 +230,7 @@ public class RestIndicesAction extends AbstractCatAction {
                 // Temporary logging to help debug https://github.com/elastic/elasticsearch/issues/45652
                 // TODO: remove this when we understand why _cat/indices sometimes returns a 404
                 if (e instanceof IndexNotFoundException) {
-                    logger.info("_cat/indices returning index_not_found_exception", e);
+                    logger.debug("_cat/indices returning index_not_found_exception", e);
                 }
                 listener.onFailure(e);
             }

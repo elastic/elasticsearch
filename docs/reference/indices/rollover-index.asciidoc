@@ -261,7 +261,7 @@ POST /my_alias/_rollover/my_new_index_name
 // TEST[s/^/PUT my_old_index_name\nPUT my_old_index_name\/_alias\/my_alias\n/]
 
 
-[[rollover-index-date-math-ex]]
+[[_using_date_math_with_the_rollover_api]]
 ===== Use date math with a rollover
 
 It can be useful to use <<date-math-index-names,date math>> to name the

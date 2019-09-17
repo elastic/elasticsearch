@@ -96,11 +96,6 @@ public class TestFixtureExtension {
     }
 
     boolean isServiceInUse(String serviceName, String fixtureProject) {
-        if (this.project.getPath().equals(fixtureProject)) {
-            // The fixture project is allowed to access all properties this is sometimes needed to generate additional
-            // resources in post process
-            return true;
-        }
         if (serviceUseByProject.containsKey(fixtureProject)) {
             return true;
         }

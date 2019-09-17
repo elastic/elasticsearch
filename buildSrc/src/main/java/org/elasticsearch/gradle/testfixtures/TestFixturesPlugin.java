@@ -104,6 +104,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 configureServiceInfoForTask(
                     postProcessFixture,
                     project,
+                    false,
                     (name, port) -> postProcessFixture.getExtensions()
                         .getByType(ExtraPropertiesExtension.class).set(name, port)
                 );
@@ -142,6 +143,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 configureServiceInfoForTask(
                     task,
                     fixtureProject,
+                    true,
                     (name, host) ->
                         task.getExtensions().getByType(SystemPropertyCommandLineArgumentProvider.class).systemProperty(name, host)
                 );
@@ -163,7 +165,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
         );
     }
 
-    private void configureServiceInfoForTask(Task task, Project fixtureProject, BiConsumer<String, Integer> consumer) {
+    private void configureServiceInfoForTask(Task task, Project fixtureProject, boolean enableFilter, BiConsumer<String, Integer> consumer) {
         // Configure ports for the tests as system properties.
         // We only know these at execution time so we need to do it in doFirst
         TestFixtureExtension extension = task.getProject().getExtensions().getByType(TestFixtureExtension.class);
@@ -172,7 +174,9 @@ public class TestFixturesPlugin implements Plugin<Project> {
                          public void execute(Task theTask) {
                              fixtureProject.getExtensions().getByType(ComposeExtension.class).getServicesInfos()
                                  .entrySet().stream()
-                                 .filter(entry -> extension.isServiceInUse(entry.getKey(), fixtureProject.getPath()))
+                                 .filter(entry -> enableFilter == false||
+                                     extension.isServiceInUse(entry.getKey(), fixtureProject.getPath())
+                                 )
                                  .forEach(entry -> {
                                      String service = entry.getKey();
                                      ServiceInfo infos = entry.getValue();

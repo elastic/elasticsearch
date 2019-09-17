@@ -1,7 +1,5 @@
 = Elasticsearch Plugins and Integrations
 
-include::{asciidoc-dir}/../../shared/versions/stack/{source_branch}.asciidoc[]
-
 include::../Versions.asciidoc[]
 
 [[intro]]

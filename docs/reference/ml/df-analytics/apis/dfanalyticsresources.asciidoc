@@ -145,98 +145,99 @@ An `outlier_detection` configuration object has the following properties:
 [[regression-resources]]
 ==== {regression-cap} configuration objects
 
-A `{regression}` configuration object has the following properties:
-
-`dependent_variable`::
-  (Required, string) Defines which field of the {dataframe} is to be predicted. 
-  This parameter is supplied by field name and must match one of the fields in 
-  the index being used to train. If this field is missing from a document that 
-  row will not be used for training, but a prediction with the trained model 
-  will be generated for it. The data type of the field must be numeric. It is 
-  also known as continuous target variable.  
-
-`eta`::
-  (Optional, double) The shrinkage applied to the weights. Smaller values result 
-  in larger forests which have better generalization error. However, the smaller 
-  the value the longer the training will take. As a result the model will be 
-  larger and the inference slower. If this parameter is not supplied, its value 
-  is automatically tuned to give minimum validation error. For more information, 
-  see 
-  https://en.wikipedia.org/wiki/Gradient_boosting#Shrinkage[this wiki article] 
-  about shrinkage.
-
-`feature_bag_fraction`::
-  (Optional, double) Defines the fraction of features which will be used when 
-  selecting a random bag for each candidate split. If this parameter is not 
-  supplied, its value is automatically tuned to give minimum validation error.
-  
-`maximum_number_trees`::
-  (Optional, integer) Defines the maximum number of trees the forest is 
-  allowed to contain. The maximum value is 2000.
-    
-`prediction_field_name`::
-  (Optional, string) Defines the name of the prediction field in the results. 
-  Defaults to `<dependent_variable>_prediction`.
-    
-`training_percent`::
-  (Optional, integer) Defines what percentage of the data rows that are 
-  eligible for training. Defaults to `100`.
-
-
-===== {regression-cap} regularization parameters
-
-Regularization parameters are constant multipliers of a regularization term 
-added to the optimization objective. They aim to prevent overfitting on the 
-training data set and improve generalization performance. These parameters are 
-set automatically by 
-<<ml-hyperparameter-optimization,hyperparameter optimization>> to give minimum 
-validation error if you don't supply their values manually. For more information 
-about regularization parameters and optimization, read the 
-https://arxiv.org/pdf/1603.02754.pdf[**XGBoost: A Scalable Tree Boosting System**] 
-paper.
-
-`gamma`::
-  (Optional, double) Multiplies a linear penalty associated with the size of 
-  individual trees in the forest. The higher the value the more training will 
-  prefer smaller trees. This will reduce the number of distinct values the 
-  prediction function can take. To have an effect, `gamma` value must be 
-  comparable to the reduction in the expected loss for splitting the data. The 
-  smaller this parameter the larger individual trees will be. The smaller this 
-  parameter the longer train will take. It will also produce larger models for 
-  which inference is slower.
-
-`lambda`::
-  (Optional, double) Multiplies an L2 regularisation term which applies to leaf 
-  weights of the individual trees in the forest. The higher the value the more 
-  training will attempt to keep leaf weights small. This makes the prediction 
-  function smoother at the expense of potentially not being able to capture 
-  relevant relationships between the features and the {depvar}. To have an 
-  effect, `lambda` value must be comparable to the reduction in the expected 
-  loss for splitting the training data. The smaller this parameter the larger 
-  individual trees will be. This results in slower train time and larger models 
-  for which inference is slower.
-  
-
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ml/data_frame/analytics/house_price_regression_analysis
 {
   "source": {
-    "index": "houses_sold_last_10_yrs"
+    "index": "houses_sold_last_10_yrs" [1]
   },
   "dest": {
-    "index": "house_price_predictions"
+    "index": "house_price_predictions" [2]
   },
   "analysis": 
     {
-      "regression": {
-        "dependent_variable": "price"
+      "regression": { [3]
+        "dependent_variable": "price" [4]
       }
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:setup_houses_sold_last_10_yrs]
+
+[1] Training data is taken from source index `houses_sold_last_10_yrs`.
+[2] Analysis results will be output to destination index 
+`house_price_predictions`.
+[3] The regression analysis configuration object.
+[4] Regression analysis will use field `price` to train on. As no other 
+parameters have been specified it will train on 100% of eligible data, store its 
+prediction in destination index field `price_prediction` and use in-built 
+hyperparameter optimization to give minimum validation errors.
+
+[float]
+[[regression-resources-standard]]
+===== Standard parameters
+
+`dependent_variable`::
+  (Required, string) Defines which field of the {dataframe} is to be predicted. 
+  This parameter is supplied by field name and must match one of the fields in 
+  the index being used to train. If this field is missing from a document, then 
+  that document will not be used for training, but a prediction with the trained 
+  model will be generated for it. The data type of the field must be numeric. It 
+  is also known as continuous target variable.
+
+`prediction_field_name`::
+ (Optional, string) Defines the name of the prediction field in the results. 
+ Defaults to `<dependent_variable>_prediction`.
+ 
+`training_percent`::
+ (Optional, integer) Defines what percentage of the eligible documents that will 
+ be used for training. Documents that are ignored by the analysis (for example 
+ those that contain arrays) won’t be included in the calculation for used 
+ percentage. Defaults to `100`.
+
+
+[float]
+[[regression-resources-advanced]]
+===== Advanced parameters
+
+Advanced parameters are for fine-tuning {reganalysis}. They are set 
+automatically by <<ml-hyperparameter-optimization,hyperparameter optimization>> 
+to give minimum validation error. It is highly recommended to use the default 
+values unless you fully understand the function of these parameters. If these 
+parameters are not supplied, their values are automatically tuned to give 
+minimum validation error.
+
+`eta`::
+ (Optional, double) The shrinkage applied to the weights. Smaller values result 
+ in larger forests which have better generalization error. However, the smaller 
+ the value the longer the training will take. For more information, see 
+ https://en.wikipedia.org/wiki/Gradient_boosting#Shrinkage[this wiki article] 
+ about shrinkage.
+ 
+`feature_bag_fraction`::
+ (Optional, double) Defines the fraction of features that will be used when 
+ selecting a random bag for each candidate split. 
+ 
+`maximum_number_trees`::
+ (Optional, integer) Defines the maximum number of trees the forest is allowed 
+ to contain. The maximum value is 2000.
+
+`gamma`::
+ (Optional, double) Regularization parameter to prevent overfitting on the 
+ training dataset. Multiplies a linear penalty associated with the size of 
+ individual trees in the forest. The higher the value the more training will 
+ prefer smaller trees. The smaller this parameter the larger individual trees 
+ will be and the longer train will take.
+ 
+`lambda`::
+ (Optional, double) Regularization parameter to prevent overfitting on the 
+ training dataset. Multiplies an L2 regularisation term which applies to leaf 
+ weights of the individual trees in the forest. The higher the value the more 
+ training will attempt to keep leaf weights small. This makes the prediction 
+ function smoother at the expense of potentially not being able to capture 
+ relevant relationships between the features and the {depvar}. The smaller this 
+ parameter the larger individual trees will be and the longer train will take.
 
 
 [[ml-hyperparameter-optimization]]

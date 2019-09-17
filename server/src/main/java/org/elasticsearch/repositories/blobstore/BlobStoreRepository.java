@@ -706,7 +706,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     /**
-     *
      * Note: This is a bwc method to be used as long as there are nodes older than {@link SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION}
      * that removes a snapshot from all the given indices in the repository.
      *

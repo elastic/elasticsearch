@@ -17,7 +17,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
+import org.elasticsearch.xpack.core.transform.TransformField;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -43,10 +43,10 @@ public class TimeSyncConfig  implements SyncConfig {
                 TimeValue delay = (TimeValue) args[1];
                 return new TimeSyncConfig(field, delay);
             });
-        parser.declareString(constructorArg(), DataFrameField.FIELD);
+        parser.declareString(constructorArg(), TransformField.FIELD);
         parser.declareField(optionalConstructorArg(),
-            (p, c) -> TimeValue.parseTimeValue(p.text(), DEFAULT_DELAY, DataFrameField.DELAY.getPreferredName()),
-            DataFrameField.DELAY,
+            (p, c) -> TimeValue.parseTimeValue(p.text(), DEFAULT_DELAY, TransformField.DELAY.getPreferredName()),
+            TransformField.DELAY,
             ObjectParser.ValueType.STRING);
         return parser;
     }
@@ -56,7 +56,7 @@ public class TimeSyncConfig  implements SyncConfig {
     }
 
     public TimeSyncConfig(final String field, final TimeValue delay) {
-        this.field = ExceptionsHelper.requireNonNull(field, DataFrameField.FIELD.getPreferredName());
+        this.field = ExceptionsHelper.requireNonNull(field, TransformField.FIELD.getPreferredName());
         this.delay = delay == null ? DEFAULT_DELAY : delay;
     }
 
@@ -87,8 +87,8 @@ public class TimeSyncConfig  implements SyncConfig {
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
-        builder.field(DataFrameField.FIELD.getPreferredName(), field);
-        builder.field(DataFrameField.DELAY.getPreferredName(), delay.getStringRep());
+        builder.field(TransformField.FIELD.getPreferredName(), field);
+        builder.field(TransformField.DELAY.getPreferredName(), delay.getStringRep());
         builder.endObject();
         return builder;
     }
@@ -129,16 +129,16 @@ public class TimeSyncConfig  implements SyncConfig {
 
     @Override
     public String getWriteableName() {
-        return DataFrameField.TIME_BASED_SYNC.getPreferredName();
+        return TransformField.TIME_BASED_SYNC.getPreferredName();
     }
 
     @Override
-    public QueryBuilder getRangeQuery(DataFrameTransformCheckpoint newCheckpoint) {
+    public QueryBuilder getRangeQuery(TransformCheckpoint newCheckpoint) {
         return new RangeQueryBuilder(field).lt(newCheckpoint.getTimeUpperBound()).format("epoch_millis");
     }
 
     @Override
-    public QueryBuilder getRangeQuery(DataFrameTransformCheckpoint oldCheckpoint, DataFrameTransformCheckpoint newCheckpoint) {
+    public QueryBuilder getRangeQuery(TransformCheckpoint oldCheckpoint, TransformCheckpoint newCheckpoint) {
         return new RangeQueryBuilder(field).gte(oldCheckpoint.getTimeUpperBound()).lt(newCheckpoint.getTimeUpperBound())
                 .format("epoch_millis");
     }

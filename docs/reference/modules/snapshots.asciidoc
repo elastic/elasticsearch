@@ -46,12 +46,15 @@ A snapshot contains a copy of the on-disk data structures that make up an
 index. This means that snapshots can only be restored to versions of
 Elasticsearch that can read the indices:
 
+* A snapshot of an index created in 6.x can be restored to 7.x.
 * A snapshot of an index created in 5.x can be restored to 6.x.
 * A snapshot of an index created in 2.x can be restored to 5.x.
 * A snapshot of an index created in 1.x can be restored to 2.x.
 
 Conversely, snapshots of indices created in 1.x **cannot** be restored to 5.x
-or 6.x, and snapshots of indices created in 2.x **cannot** be restored to 6.x.
+or 6.x, snapshots of indices created in 2.x **cannot** be restored to 6.x
+or 7.x, and snapshots of indices created in 5.x **cannot** be restored to 7.x
+or 8.x.
 
 Each snapshot can contain indices created in various versions of Elasticsearch,
 and when restoring a snapshot it must be possible to restore all of the indices

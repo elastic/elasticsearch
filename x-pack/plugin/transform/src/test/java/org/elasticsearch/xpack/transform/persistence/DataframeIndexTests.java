@@ -13,7 +13,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
@@ -54,7 +54,7 @@ public class DataframeIndexTests extends ESTestCase {
         DataframeIndex.createDestinationIndex(
             client,
             clock,
-            DataFrameTransformConfigTests.randomDataFrameTransformConfig(TRANSFORM_ID),
+            TransformConfigTests.randomDataFrameTransformConfig(TRANSFORM_ID),
             new HashMap<>(),
             ActionListener.wrap(
                 value -> assertTrue(value),

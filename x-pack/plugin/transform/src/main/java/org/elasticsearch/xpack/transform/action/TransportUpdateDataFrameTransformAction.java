@@ -40,12 +40,12 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
-import org.elasticsearch.xpack.core.transform.DataFrameMessages;
-import org.elasticsearch.xpack.core.transform.action.UpdateDataFrameTransformAction;
-import org.elasticsearch.xpack.core.transform.action.UpdateDataFrameTransformAction.Request;
-import org.elasticsearch.xpack.core.transform.action.UpdateDataFrameTransformAction.Response;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfigUpdate;
+import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
+import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Request;
+import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Response;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.transform.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.transform.persistence.DataframeIndex;
@@ -76,7 +76,7 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
                                                    ClusterService clusterService, XPackLicenseState licenseState,
                                                    DataFrameTransformsConfigManager dataFrameTransformsConfigManager, Client client,
                                                    DataFrameAuditor auditor) {
-        super(UpdateDataFrameTransformAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(UpdateTransformAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 Request::new, indexNameExpressionResolver);
         this.licenseState = licenseState;
         this.client = client;
@@ -100,7 +100,7 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
     protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<Response> listener) {
 
         if (!licenseState.isDataFrameAllowed()) {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.DATA_FRAME));
+            listener.onFailure(LicenseUtils.newComplianceException(XPackField.Transform));
             return;
         }
 
@@ -111,20 +111,20 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
                     .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-        DataFrameTransformConfigUpdate update = request.getUpdate();
+        TransformConfigUpdate update = request.getUpdate();
         update.setHeaders(filteredHeaders);
 
         // GET transform and attempt to update
         // We don't want the update to complete if the config changed between GET and INDEX
         dataFrameTransformsConfigManager.getTransformConfigurationForUpdate(request.getId(), ActionListener.wrap(
             configAndVersion -> {
-                final DataFrameTransformConfig config = configAndVersion.v1();
+                final TransformConfig config = configAndVersion.v1();
                 // If it is a noop don't bother even writing the doc, save the cycles, just return here.
                 if (update.isNoop(config)) {
                     listener.onResponse(new Response(config));
                     return;
                 }
-                DataFrameTransformConfig updatedConfig = update.apply(config);
+                TransformConfig updatedConfig = update.apply(config);
                 validateAndUpdateDataFrame(request, clusterState, updatedConfig, configAndVersion.v2(), listener);
             },
             listener::onFailure
@@ -138,7 +138,7 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
 
     private void handlePrivsResponse(String username,
                                      Request request,
-                                     DataFrameTransformConfig config,
+                                     TransformConfig config,
                                      SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
                                      ClusterState clusterState,
                                      HasPrivilegesResponse privilegesResponse,
@@ -161,7 +161,7 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
 
     private void validateAndUpdateDataFrame(Request request,
                                             ClusterState clusterState,
-                                            DataFrameTransformConfig config,
+                                            TransformConfig config,
                                             SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
                                             ActionListener<Response> listener) {
         try {
@@ -186,7 +186,7 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
         }
     }
     private void updateDataFrame(Request request,
-                                 DataFrameTransformConfig config,
+                                 TransformConfig config,
                                  SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
                                  ClusterState clusterState,
                                  ActionListener<Response> listener) {
@@ -247,12 +247,12 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
             validationException -> {
                 if (validationException instanceof ElasticsearchStatusException) {
                     listener.onFailure(new ElasticsearchStatusException(
-                        DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
+                        TransformMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
                         ((ElasticsearchStatusException)validationException).status(),
                         validationException));
                 } else {
                     listener.onFailure(new ElasticsearchStatusException(
-                        DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
+                        TransformMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
                         RestStatus.INTERNAL_SERVER_ERROR,
                         validationException));
                 }
@@ -263,13 +263,13 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
             pivot.validateConfig();
         } catch (ElasticsearchStatusException e) {
             listener.onFailure(new ElasticsearchStatusException(
-                DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
+                TransformMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
                 e.status(),
                 e));
             return;
         } catch (Exception e) {
             listener.onFailure(new ElasticsearchStatusException(
-                DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION, RestStatus.INTERNAL_SERVER_ERROR, e));
+                TransformMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION, RestStatus.INTERNAL_SERVER_ERROR, e));
             return;
         }
 
@@ -281,7 +281,7 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
         }
     }
 
-    private void createDestination(Pivot pivot, DataFrameTransformConfig config, ActionListener<Void> listener) {
+    private void createDestination(Pivot pivot, TransformConfig config, ActionListener<Void> listener) {
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(
             mappings -> DataframeIndex.createDestinationIndex(
                 client,
@@ -290,7 +290,7 @@ public class TransportUpdateDataFrameTransformAction extends TransportMasterNode
                 mappings,
                 ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure)),
             deduceTargetMappingsException -> listener.onFailure(
-                new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_DEDUCE_DEST_MAPPINGS,
+                new RuntimeException(TransformMessages.REST_PUT_DATA_FRAME_FAILED_TO_DEDUCE_DEST_MAPPINGS,
                     deduceTargetMappingsException))
         );
 

@@ -30,12 +30,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 import java.util.regex.Pattern;
 
 public class Jdk implements Buildable, Iterable<File> {
 
-    private static final Set<String> ALLOWED_VENDORS = Set.of("adoptopenjdk", "openjdk");
+    private static final List<String> ALLOWED_VENDORS = List.of("adoptopenjdk", "openjdk");
     static final Pattern VERSION_PATTERN =
         Pattern.compile("(\\d+)(\\.\\d+\\.\\d+)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?");
     private static final List<String> ALLOWED_PLATFORMS = Collections.unmodifiableList(Arrays.asList("darwin", "linux", "windows"));

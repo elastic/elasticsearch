@@ -221,7 +221,7 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
         Task bwcTask = createRunBwcGradleTask(buildBwcTaskName(projectName)) {
             inputs.file("${project.buildDir}/refspec")
             outputs.files(projectArtifact)
-            outputs.cacheIf {
+            outputs.cacheIf("BWC distribution caching is disabled on 'master' branch") {
                 // Don't bother caching in 'master' since the BWC branches move too quickly to make this cost worthwhile
                 project.ext.isCi && System.getenv('GIT_BRANCH')?.endsWith("master") == false
             }

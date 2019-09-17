@@ -403,8 +403,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         private ShardId shardId;
         private ShardSnapshotStatus status;
 
-        public UpdateIndexShardSnapshotStatusRequest() {}
-
         public UpdateIndexShardSnapshotStatusRequest(StreamInput in) throws IOException {
             super(in);
             snapshot = new Snapshot(in);

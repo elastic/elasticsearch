@@ -30,7 +30,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransform;
+import org.elasticsearch.xpack.core.transform.transforms.Transform;
 import org.elasticsearch.xpack.transform.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndex;
@@ -54,16 +54,16 @@ public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
         addIndices(metaData, routingTable);
         PersistentTasksCustomMetaData.Builder pTasksBuilder = PersistentTasksCustomMetaData.builder()
             .addTask("data-frame-task-1",
-                DataFrameTransform.NAME,
-                new DataFrameTransform("data-frame-task-1", Version.CURRENT, null),
+                Transform.NAME,
+                new Transform("data-frame-task-1", Version.CURRENT, null),
                 new PersistentTasksCustomMetaData.Assignment("current-data-node-with-1-tasks", ""))
             .addTask("data-frame-task-2",
-                DataFrameTransform.NAME,
-                new DataFrameTransform("data-frame-task-2", Version.CURRENT, null),
+                Transform.NAME,
+                new Transform("data-frame-task-2", Version.CURRENT, null),
                 new PersistentTasksCustomMetaData.Assignment("current-data-node-with-2-tasks", ""))
             .addTask("data-frame-task-3",
-                DataFrameTransform.NAME,
-                new DataFrameTransform("data-frame-task-3", Version.CURRENT, null),
+                Transform.NAME,
+                new Transform("data-frame-task-3", Version.CURRENT, null),
                 new PersistentTasksCustomMetaData.Assignment("current-data-node-with-2-tasks", ""));
 
         PersistentTasksCustomMetaData pTasks = pTasksBuilder.build();
@@ -116,9 +116,9 @@ public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
             clusterService,
             Settings.EMPTY);
 
-        assertThat(executor.getAssignment(new DataFrameTransform("new-task-id", Version.CURRENT, null), cs).getExecutorNode(),
+        assertThat(executor.getAssignment(new Transform("new-task-id", Version.CURRENT, null), cs).getExecutorNode(),
             equalTo("current-data-node-with-1-tasks"));
-        assertThat(executor.getAssignment(new DataFrameTransform("new-old-task-id", Version.V_7_2_0, null), cs).getExecutorNode(),
+        assertThat(executor.getAssignment(new Transform("new-old-task-id", Version.V_7_2_0, null), cs).getExecutorNode(),
             equalTo("past-data-node-1"));
     }
 

@@ -135,7 +135,6 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         // for named expressions nothing is recorded as these are resolved last
                         // otherwise 'intermediate' projects might pollute the
                         // output
-
                         if (pj instanceof ScalarFunction) {
                             ScalarFunction f = (ScalarFunction) pj;
                             processors.put(f.toAttribute(), Expressions.pipe(f));
@@ -348,6 +347,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, child.dataType().isDateBased()),
                                         ((GroupingFunction) child).toAttribute());
                             }
+                            else if (child.foldable()) {
+                                queryC = queryC.addColumn(ne.toAttribute());
+                            }
                             // fallback to regular agg functions
                             else {
                                 // the only thing left is agg function
@@ -368,6 +370,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                             queryC = queryC.addColumn(
                                 new GroupByRef(matchingGroup.id(), null, ne.dataType().isDateBased()), ne.toAttribute());
+                        }
+                        else if (ne.foldable()) {
+                            queryC = queryC.addColumn(ne.toAttribute());
                         }
                     }
                 }

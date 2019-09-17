@@ -1016,7 +1016,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 final Repository repository = repositoriesService.repository(snapshot.getRepository());
                 final String failure = entry.failure();
                 logger.trace("[{}] finalizing snapshot in repository, state: [{}], failure[{}]", snapshot, entry.state(), failure);
-                List<SnapshotShardFailure> shardFailures = extractFailure(entry.shards());
+                ArrayList<SnapshotShardFailure> shardFailures = new ArrayList<>();
+                for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardStatus : entry.shards()) {
+                    ShardId shardId = shardStatus.key;
+                    ShardSnapshotStatus status = shardStatus.value;
+                    if (status.state().failed()) {
+                        shardFailures.add(new SnapshotShardFailure(status.nodeId(), shardId, status.reason()));
+                    }
+                }
                 SnapshotInfo snapshotInfo = repository.finalizeSnapshot(
                     snapshot.getSnapshotId(),
                     buildGenerations(entry),
@@ -1040,18 +1047,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 removeSnapshotFromClusterState(snapshot, null, e);
             }
         });
-    }
-
-    private static List<SnapshotShardFailure> extractFailure(ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
-        ArrayList<SnapshotShardFailure> shardFailures = new ArrayList<>();
-        for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardStatus : shards) {
-            ShardId shardId = shardStatus.key;
-            ShardSnapshotStatus status = shardStatus.value;
-            if (status.state().failed()) {
-                shardFailures.add(new SnapshotShardFailure(status.nodeId(), shardId, status.reason()));
-            }
-        }
-        return shardFailures;
     }
 
     /**

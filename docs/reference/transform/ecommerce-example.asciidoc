@@ -38,6 +38,10 @@ might want to derive from this eCommerce data.
 . Play with various options for grouping and aggregating the data. 
 +
 --
+_Pivoting_ your data involves using at least one field to group it and applying
+at least one aggregation. You can preview what the transformed data will look
+like, so go ahead and play with it!
+
 For example, you might want to group the data by product ID and calculate the
 total number of sales for each product and its average price. Alternatively, you
 might want to look at the behavior of individual customers and calculate how
@@ -46,12 +50,8 @@ they purchased. Or you might want to take the currencies or geographies into
 consideration. What are the most interesting ways you can transform and
 interpret this data?
 
-_Pivoting_ your data involves using at least one field to group it and applying
-at least one aggregation. You can preview what the transformed data will look
-like, so go ahead and play with it!
-
-For example, go to *Machine Learning* > *Data Frames* in {kib} and use the
-wizard to create a {dataframe}:
+Go to *Machine Learning* > *Data Frames* in {kib} and use the
+wizard to create a {transform}:
 
 [role="screenshot"]
 image::images/ecommerce-pivot1.jpg["Creating a simple {dataframe} in {kib}"]
@@ -138,7 +138,8 @@ POST _data_frame/transforms/_preview
 {dataframe-transform}. 
 +
 --
-Supply a job ID and the name of the target (or _destination_) index. In {kib},
+Supply a job ID and the name of the target (or _destination_) index. If the
+target index does not exist, it will be created automatically. In {kib},
 you can choose to create and start the job, create it, or copy it to the
 clipboard.
 

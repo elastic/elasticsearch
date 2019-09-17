@@ -14,7 +14,9 @@ policies, a way to retrieve policies, and a way to delete unwanted policies, as
 well as a separate API for immediately invoking a snapshot based on a policy.
 
 Since SLM falls under the same category as ILM, it is stopped and started by
-using the <<start-stop-ilm,start and stop>> ILM APIs.
+using the <<start-stop-ilm,start and stop>> ILM APIs. It is, however, managed
+by a different enable setting. To disable SLM's functionality, set the cluster
+setting `xpack.slm.enabled` to `false` in elasticsearch.yml.
 
 [[slm-api-put]]
 === Put Snapshot Lifecycle Policy API

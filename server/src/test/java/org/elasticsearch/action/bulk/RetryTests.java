@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class RetryTests extends ESTestCase {
-    // no need to wait fof a long time in tests
+    // no need to wait for a long time in tests
     private static final TimeValue DELAY = TimeValue.timeValueMillis(1L);
     private static final int CALLS_TO_FAIL = 5;
 

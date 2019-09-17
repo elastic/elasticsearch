@@ -39,6 +39,14 @@ public class TestProcessor implements Processor {
         this(null, "test-processor", ingestDocumentConsumer);
     }
 
+    public TestProcessor(RuntimeException e) {
+        this(null, "test-processor", e);
+    }
+
+    public TestProcessor(String tag, String type, RuntimeException e) {
+        this(tag, type, (Consumer<IngestDocument>) i -> { throw e; });
+    }
+
     public TestProcessor(String tag, String type, Consumer<IngestDocument> ingestDocumentConsumer) {
         this(tag, type, id -> {
             ingestDocumentConsumer.accept(id);

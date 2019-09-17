@@ -181,6 +181,12 @@ tag::if_seq_no[]
 sequence number. See <<optimistic-concurrency-control-index>>.
 end::if_seq_no[]
 
+tag::ignore_throttled[]
+`ignore_throttled`::
+(Optional, boolean) If `true`, concrete, expanded or aliased indices are 
+ignored when throttled.
+end::ignore_throttled[]
+
 tag::index-ignore-unavailable[]
 `ignore_unavailable`::
 (Optional, boolean) If `true`, missing or closed indices are not included in the
@@ -382,6 +388,12 @@ tag::search-q[]
 `q`::
 (Optional, string) Query in the Lucene query string syntax.
 end::search-q[]
+
+tag::query[]
+`query`::
+(Optional, <<query-dsl,query object>>) Defines the search definition using the 
+<<query-dsl,Query DSL>>.
+end::query[]
 
 tag::refresh[]
 `refresh`::

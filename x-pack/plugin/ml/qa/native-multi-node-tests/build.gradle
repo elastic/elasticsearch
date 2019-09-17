@@ -55,6 +55,8 @@ testClusters.integTest {
     setting 'xpack.security.audit.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'xpack.ml.min_disk_space_off_heap', '200mb'
+    // TODO: remove when the cause of https://github.com/elastic/elasticsearch/issues/45652 is understood
+    setting 'logger.org.elasticsearch.rest.action.cat', 'DEBUG'
 
     keystore 'bootstrap.password', 'x-pack-test-password'
     keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'

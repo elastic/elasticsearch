@@ -23,7 +23,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.core.transform.DataFrameMessages;
+import org.elasticsearch.xpack.core.transform.TransformMessages;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -85,7 +85,7 @@ public class QueryConfig extends AbstractDiffable<QueryConfig> implements Writea
             query = AbstractQueryBuilder.parseInnerQueryBuilder(sourceParser);
         } catch (Exception e) {
             if (lenient) {
-                logger.warn(DataFrameMessages.LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_QUERY, e);
+                logger.warn(TransformMessages.LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_QUERY, e);
             } else {
                 throw e;
             }

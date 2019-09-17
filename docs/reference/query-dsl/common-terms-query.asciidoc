@@ -70,7 +70,7 @@ as stopwords without the need to maintain a manual list.
 In this example, words that have a document frequency greater than 0.1%
 (eg `"this"` and `"is"`) will be treated as _common terms_.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -84,7 +84,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[warning:Deprecated field [common] used, replaced by [[match] query which can efficiently skip blocks of documents if the total number of hits is not tracked]]
 
 The number of terms which should match can be controlled with the
@@ -95,7 +94,7 @@ The number of terms which should match can be controlled with the
 For low frequency terms, set the `low_freq_operator` to `"and"` to make
 all terms required:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -110,12 +109,11 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[warning:Deprecated field [common] used, replaced by [[match] query which can efficiently skip blocks of documents if the total number of hits is not tracked]]
 
 which is roughly equivalent to:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -135,14 +133,13 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 Alternatively use
 <<query-dsl-minimum-should-match,`minimum_should_match`>>
 to specify a minimum number or percentage of low frequency terms which
 must be present, for instance:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -157,12 +154,11 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[warning:Deprecated field [common] used, replaced by [[match] query which can efficiently skip blocks of documents if the total number of hits is not tracked]]
 
 which is roughly equivalent to:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -187,7 +183,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 A different
 <<query-dsl-minimum-should-match,`minimum_should_match`>>
@@ -195,7 +190,7 @@ can be applied for low and high frequency terms with the additional
 `low_freq` and `high_freq` parameters. Here is an example when providing
 additional parameters (note the change in structure):
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -213,12 +208,11 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[warning:Deprecated field [common] used, replaced by [[match] query which can efficiently skip blocks of documents if the total number of hits is not tracked]]
 
 which is roughly equivalent to:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -249,7 +243,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 In this case it means the high frequency terms have only an impact on
 relevance when there are at least three of them. But the most
@@ -257,7 +250,7 @@ interesting use of the
 <<query-dsl-minimum-should-match,`minimum_should_match`>>
 for high frequency terms is when there are only high frequency terms:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -275,12 +268,11 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[warning:Deprecated field [common] used, replaced by [[match] query which can efficiently skip blocks of documents if the total number of hits is not tracked]]
 
 which is roughly equivalent to:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -297,7 +289,6 @@ GET /_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 The high frequency generated query is then slightly less restrictive
 than with an `AND`.

@@ -21,7 +21,7 @@ With the default settings, the `edge_ngram` tokenizer treats the initial text as
 single token and produces N-grams with minimum length `1` and maximum length
 `2`:
 
-[source,js]
+[source,console]
 ---------------------------
 POST _analyze
 {
@@ -29,7 +29,6 @@ POST _analyze
   "text": "Quick Fox"
 }
 ---------------------------
-// CONSOLE
 
 /////////////////////
 
@@ -101,7 +100,7 @@ In this example, we configure the `edge_ngram` tokenizer to treat letters and
 digits as tokens, and to produce grams with minimum length `2` and maximum
 length `10`:
 
-[source,js]
+[source,console]
 ----------------------------
 PUT my_index
 {
@@ -133,7 +132,6 @@ POST my_index/_analyze
   "text": "2 Quick Foxes."
 }
 ----------------------------
-// CONSOLE
 
 /////////////////////
 
@@ -218,7 +216,7 @@ just search for the terms the user has typed in, for instance: `Quick Fo`.
 
 Below is an example of how to set up a field for _search-as-you-type_:
 
-[source,js]
+[source,console]
 -----------------------------------
 PUT my_index
 {
@@ -277,7 +275,6 @@ GET my_index/_search
   }
 }
 -----------------------------------
-// CONSOLE
 
 <1> The `autocomplete` analyzer indexes the terms `[qu, qui, quic, quick, fo, fox, foxe, foxes]`.
 <2> The `autocomplete_search` analyzer searches for the terms `[quick, fo]`, both of which appear in the index.

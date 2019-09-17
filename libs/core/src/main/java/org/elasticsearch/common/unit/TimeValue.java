@@ -71,6 +71,14 @@ public class TimeValue implements Comparable<TimeValue> {
         return new TimeValue(hours, TimeUnit.HOURS);
     }
 
+    public static TimeValue timeValueDays(long days) {
+        // 106751.9 days is Long.MAX_VALUE nanoseconds, so we cannot store 106752 days
+        if (days > 106751) {
+            throw new IllegalArgumentException("time value cannot store values greater than 106751 days");
+        }
+        return new TimeValue(days, TimeUnit.DAYS);
+    }
+
     /**
      * @return the unit used for the this time value, see {@link #duration()}
      */

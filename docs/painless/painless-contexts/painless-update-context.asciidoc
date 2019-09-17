@@ -62,7 +62,7 @@ To run this example, first follow the steps in
 The following query updates a document to be sold, and sets the cost
 to the actual price paid after discounts:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /seats/_update/3
 {
@@ -75,5 +75,4 @@ POST /seats/_update/3
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:seats]

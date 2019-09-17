@@ -111,6 +111,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 new ResolveFunctions(),
                 new ResolveAliases(),
                 new ProjectedAggregations(),
+                new HavingOverProject(),
                 new ResolveAggsInHaving(),
                 new ResolveAggsInOrderBy()
                 //new ImplicitCasting()
@@ -995,6 +996,45 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 return new Aggregate(p.source(), p.child(), emptyList(), p.projections());
             }
             return p;
+        }
+    }
+
+    //
+    // Detect implicit grouping with filtering and convert them into aggregates.
+    // SELECT 1 FROM x HAVING COUNT(*) > 0
+    // is a filter followed by projection and fails as the engine does not
+    // understand it is an implicit grouping.
+    //
+    private static class HavingOverProject extends AnalyzeRule<Filter> {
+
+        @Override
+        protected LogicalPlan rule(Filter f) {
+            if (f.child() instanceof Project) {
+                Project p = (Project) f.child();
+
+                for (Expression n : p.projections()) {
+                    if (n instanceof Alias) {
+                        n = ((Alias) n).child();
+                    }
+                    // no literal or aggregates - it's a 'regular' projection
+                    if (n.foldable() == false && Functions.isAggregate(n) == false
+                            // folding might not work (it might wait for the optimizer)
+                            // so check whether any column is referenced
+                            && n.anyMatch(e -> e instanceof FieldAttribute) == true) {
+                        return f;
+                    }
+                }
+
+                if (containsAggregate(f.condition())) {
+                    return new Filter(f.source(), new Aggregate(p.source(), p.child(), emptyList(), p.projections()), f.condition());
+                }
+            }
+            return f;
+        }
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
         }
     }
 

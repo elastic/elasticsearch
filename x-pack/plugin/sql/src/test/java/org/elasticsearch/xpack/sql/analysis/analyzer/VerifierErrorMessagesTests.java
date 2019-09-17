@@ -203,6 +203,32 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:8: Invalid datetime field [ABS]. Use any datetime function.", error("SELECT EXTRACT(ABS FROM date) FROM test"));
     }
 
+    public void testDateTruncInvalidArgs() {
+        assertEquals("1:8: first argument of [DATE_TRUNC(int, date)] must be [string], found value [int] type [integer]",
+            error("SELECT DATE_TRUNC(int, date) FROM test"));
+        assertEquals("1:8: second argument of [DATE_TRUNC(keyword, keyword)] must be [date or datetime], found value [keyword] " +
+                "type [keyword]", error("SELECT DATE_TRUNC(keyword, keyword) FROM test"));
+        assertEquals("1:8: first argument of [DATE_TRUNC('invalid', keyword)] must be one of [MILLENNIUM, CENTURY, DECADE, " + "" +
+                "YEAR, QUARTER, MONTH, WEEK, DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND] " +
+                "or their aliases, found value ['invalid']",
+            error("SELECT DATE_TRUNC('invalid', keyword) FROM test"));
+        assertEquals("1:8: Unknown value ['millenioum'] for first argument of [DATE_TRUNC('millenioum', keyword)]; " +
+                "did you mean [millennium, millennia]?",
+            error("SELECT DATE_TRUNC('millenioum', keyword) FROM test"));
+        assertEquals("1:8: Unknown value ['yyyz'] for first argument of [DATE_TRUNC('yyyz', keyword)]; " +
+                "did you mean [yyyy, yy]?",
+            error("SELECT DATE_TRUNC('yyyz', keyword) FROM test"));
+    }
+
+    public void testDateTruncValidArgs() {
+        accept("SELECT DATE_TRUNC('decade', date) FROM test");
+        accept("SELECT DATE_TRUNC('decades', date) FROM test");
+        accept("SELECT DATE_TRUNC('day', date) FROM test");
+        accept("SELECT DATE_TRUNC('days', date) FROM test");
+        accept("SELECT DATE_TRUNC('dd', date) FROM test");
+        accept("SELECT DATE_TRUNC('d', date) FROM test");
+    }
+
     public void testValidDateTimeFunctionsOnTime() {
         accept("SELECT HOUR_OF_DAY(CAST(date AS TIME)) FROM test");
         accept("SELECT MINUTE_OF_HOUR(CAST(date AS TIME)) FROM test");

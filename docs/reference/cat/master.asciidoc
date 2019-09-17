@@ -35,11 +35,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 [[cat-master-api-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/master?v
 --------------------------------------------------
-// CONSOLE
 
 The API returns the following response:
 

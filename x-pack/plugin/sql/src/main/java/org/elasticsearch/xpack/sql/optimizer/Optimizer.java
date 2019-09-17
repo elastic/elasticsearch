@@ -1216,7 +1216,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     return Literal.of(in, null);
                 }
 
-            } else if (e.nullable() == Nullability.TRUE && Expressions.anyMatch(e.children(), Expressions::isNull)) {
+            } else if (e instanceof Alias == false 
+                    && e.nullable() == Nullability.TRUE
+                    && Expressions.anyMatch(e.children(), Expressions::isNull)) {
                 return Literal.of(e, null);
             }
 
@@ -1232,11 +1234,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected Expression rule(Expression e) {
-            //            if (e instanceof Alias) {
-            //                Alias a = (Alias) e;
-            //                return a.child().foldable() ? Literal.of(a.name(), a.child()) : a;
-            //            }
-
             return e.foldable() ? Literal.of(e) : e;
         }
     }
@@ -2021,8 +2018,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     else {
                         return values;
                     }
-                }
-                else if (n.foldable()) {
+                } else if (n.foldable()) {
                     values.add(n.fold());
                 }
                 else {

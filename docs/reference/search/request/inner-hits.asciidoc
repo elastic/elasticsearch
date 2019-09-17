@@ -83,7 +83,7 @@ Inner hits also supports the following per document features:
 
 The nested `inner_hits` can be used to include nested inner objects as inner hits to a search hit.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT test
 {
@@ -124,7 +124,6 @@ POST test/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> The inner hit definition in the nested query. No other options need to be defined.
 
@@ -207,7 +206,7 @@ has an impact on the time it takes to execute the entire search request, especia
 are set higher than the default. To avoid the relatively expensive source extraction for nested inner hits, one can disable
 including the source and solely rely on doc values fields. Like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT test
 {
@@ -253,7 +252,6 @@ POST test/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 ////
 
@@ -321,7 +319,7 @@ If a mapping has multiple levels of hierarchical nested object fields each level
 For example if there is a `comments` nested field that contains a `votes` nested field and votes should directly be returned
 with the root hits then the following path can be defined:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT test
 {
@@ -374,7 +372,6 @@ POST test/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Which would look like:
 
@@ -441,7 +438,7 @@ This indirect referencing is only supported for nested inner hits.
 
 The parent/child `inner_hits` can be used to include parent or child:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT test
 {
@@ -487,7 +484,6 @@ POST test/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> The inner hit definition like in the nested example.
 

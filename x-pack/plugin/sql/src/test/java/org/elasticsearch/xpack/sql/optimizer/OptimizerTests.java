@@ -9,6 +9,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer.PruneSubqueryAliases;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expression.TypeResolution;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Foldables;
@@ -114,7 +115,6 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.sql.expression.Expression.TypeResolution;
 import static org.elasticsearch.xpack.sql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.sql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.sql.expression.Literal.TRUE;
@@ -294,7 +294,7 @@ public class OptimizerTests extends ESTestCase {
         // check now with an alias
         result = new ConstantFolding().rule(new Alias(EMPTY, "a", exp));
         assertEquals("a", Expressions.name(result));
-        //assertEquals(5, ((Literal) result).value());
+        assertEquals(Alias.class, result.getClass());
     }
 
     public void testConstantFoldingBinaryComparison() {

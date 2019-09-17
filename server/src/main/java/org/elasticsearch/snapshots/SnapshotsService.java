@@ -121,7 +121,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * Minimum node version which does not use {@link Repository#initializeSnapshot(SnapshotId, List, MetaData)} to write snapshot metadata
      * when starting a snapshot.
      */
-    public static final Version NO_REPO_INITIALIZE_VERSION = Version.V_8_0_0;
+    public static final Version NO_REPO_INITIALIZE_VERSION = Version.V_7_5_0;
 
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
 

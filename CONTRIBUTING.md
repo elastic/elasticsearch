@@ -160,20 +160,22 @@ Java files in the Elasticsearch codebase are formatted with
 enforces the [Google Java
 Style](https://google.github.io/styleguide/javaguide.html). There are
 plugins available for Eclipse, JetBrains IDEs such as IntelliJ IDEA, and a
-CLI interface. Formatting checks are also integrated into the build - check
-the code with:
+CLI interface. Formatting checks are also integrated into the build, in the
+`precommit` task. The formatting check can be run explicitly with:
 
-    ./gradlew verifyGoogleJavaFormat
+    ./gradlew spotlessJavaCheck
 
-Format the code with:
+The code can be formatted with:
 
-    ./gradlew googleJavaFormat
+    ./gradlew spotlessApply
+
+These tasks can also be run for specific subprojects, e.g.
+
+    ./gradlew server:spotlessJavaCheck
 
 Code is formatted with the `--aosp` option (Android Open Source Project),
 which indents with 4 spaces instead of 2. There are no other formatting
-options available.
-
-These tasks can also be run for specific subprojects.
+options available by design.
 
 Please follow these formatting guidelines:
 
@@ -190,12 +192,13 @@ Please follow these formatting guidelines:
      '*'` and `Names count to use static import with '*'`. Set their values
      to 99999 or some other absurdly high value.
 
-If a file compiles successfully but fails to format, the Gradle plugin does
-not give much help. Instead, download the `google-java-format` JAR
-directly, ensuring to fetch the one with all dependencies included, and
-check the files like so:
+#### Editor / IDE Support
 
-    java -jar path/to/google-java-format-1.7-all-deps.jar --aosp path/to/File.java
+See the `google-java-format` repository for details on installing the
+[plugins for Jetbrains IDEs] and [Eclipse plugins].
+
+For editors that support formatting via a CLI command, see the
+[google-java-format CLI instructions].
 
 ### License Headers
 
@@ -419,3 +422,6 @@ repeating in this section because it has come up in this context.
 [eclipse]: http://www.eclipse.org/community/eclipse_newsletter/2017/june/
 [intellij]: https://blog.jetbrains.com/idea/2017/07/intellij-idea-2017-2-is-here-smart-sleek-and-snappy/
 [shadow-plugin]: https://github.com/johnrengelman/shadow
+[plugins for Jetbrains IDEs]: https://github.com/google/google-java-format#intellij-android-studio-and-other-jetbrains-ides
+[Eclipse plugins]: https://github.com/google/google-java-format#eclipse
+[google-java-format CLI instructions]: https://github.com/google/google-java-format#from-the-command-line

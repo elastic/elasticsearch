@@ -35,7 +35,7 @@ plugins {
     id 'com.gradle.build-scan' version '2.4'
     id 'lifecycle-base'
     id 'elasticsearch.global-build-info'
-    id 'com.github.sherter.google-java-format' version '0.8'
+    id "com.diffplug.gradle.spotless" version "3.24.2" apply false
 }
 
 apply plugin: 'nebula.info-scm'
@@ -100,13 +100,21 @@ subprojects {
     project.licenseFile = project.rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
     project.noticeFile = project.rootProject.file('NOTICE.txt')
 
-    // Although the plugin is applied at the top-level, that doesn't make
-    // it available on subprojects.
-    project.apply plugin: 'com.github.sherter.google-java-format'
-    check.dependsOn 'verifyGoogleJavaFormat'
+    // This plugin complains if the java plugin hasn't been applied yet, so
+    // we don't have this task at the top-level.
+    project.apply plugin: "com.diffplug.gradle.spotless"
 
-    googleJavaFormat {
-      options style: 'AOSP'
+    spotless {
+      java {
+        googleJavaFormat().aosp()
+        // Required for :modules:lang-painless: - avoids a rule failing to
+        // make up its mind about formatting.
+        paddedCell()
+      }
+    }
+
+    project.afterEvaluate {
+      precommit.dependsOn 'spotlessJavaCheck'
     }
   }
 }
@@ -539,8 +547,4 @@ allprojects {
           checkPart1.configure { dependsOn 'check' }
       }
   }
-}
-
-googleJavaFormat {
-  options style: 'AOSP'
 }

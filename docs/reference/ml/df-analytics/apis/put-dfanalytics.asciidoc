@@ -200,7 +200,6 @@ PUT _ml/data_frame/analytics/house_price_regression_analysis
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:setup_houses_sold_last_10_yrs]
 
 

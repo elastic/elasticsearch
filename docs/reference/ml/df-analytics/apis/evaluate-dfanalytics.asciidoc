@@ -162,7 +162,6 @@ POST _ml/data_frame/_evaluate
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:TBD]
 
 [1] The output destination index from a {dfanalytics} {reganalysis}.

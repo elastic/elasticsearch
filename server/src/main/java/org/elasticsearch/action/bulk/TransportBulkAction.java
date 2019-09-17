@@ -672,11 +672,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         void markCurrentItemAsDropped() {
             IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(currentSlot));
             failedSlots.set(currentSlot);
+            final String id = indexRequest.id() == null ? "auto-generated" : indexRequest.id();
             itemResponses.add(
                 new BulkItemResponse(currentSlot, indexRequest.opType(),
                     new UpdateResponse(
                         new ShardId(indexRequest.index(), IndexMetaData.INDEX_UUID_NA_VALUE, 0),
-                        indexRequest.type(), indexRequest.id(), SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+                        indexRequest.type(), id, SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
                         indexRequest.version(), DocWriteResponse.Result.NOOP
                     )
                 )

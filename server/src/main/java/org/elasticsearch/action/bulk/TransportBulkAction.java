@@ -100,6 +100,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final IngestActionForwarder ingestForwarder;
     private final NodeClient client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private static final String DROPPED_ITEM_WITH_AUTO_GENERATED_ID = "auto-generated";
 
     @Inject
     public TransportBulkAction(ThreadPool threadPool, TransportService transportService,
@@ -672,7 +673,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         void markCurrentItemAsDropped() {
             IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(currentSlot));
             failedSlots.set(currentSlot);
-            final String id = indexRequest.id() == null ? "auto-generated" : indexRequest.id();
+            final String id = indexRequest.id() == null ? DROPPED_ITEM_WITH_AUTO_GENERATED_ID : indexRequest.id();
             itemResponses.add(
                 new BulkItemResponse(currentSlot, indexRequest.opType(),
                     new UpdateResponse(

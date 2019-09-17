@@ -165,7 +165,9 @@ public class TestFixturesPlugin implements Plugin<Project> {
         );
     }
 
-    private void configureServiceInfoForTask(Task task, Project fixtureProject, boolean enableFilter, BiConsumer<String, Integer> consumer) {
+    private void configureServiceInfoForTask(
+        Task task, Project fixtureProject, boolean enableFilter, BiConsumer<String, Integer> consumer
+    ) {
         // Configure ports for the tests as system properties.
         // We only know these at execution time so we need to do it in doFirst
         TestFixtureExtension extension = task.getProject().getExtensions().getByType(TestFixtureExtension.class);

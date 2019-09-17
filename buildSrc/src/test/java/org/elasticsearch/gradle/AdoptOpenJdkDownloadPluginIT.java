@@ -43,9 +43,9 @@ public class AdoptOpenJdkDownloadPluginIT extends JdkDownloadPluginIT {
     protected String urlPath(final boolean isOld, final String platform, final String extension) {
         final String module = platform.equals("osx") ? "mac" : platform;
         if (isOld) {
-            return "/artifactory/oss-jdk-local/adoptopenjdk/OpenJDK1U-jdk_x64_" + module + "_hotspot_1_99." + extension;
+            return "/adoptopenjdk/OpenJDK1U-jdk_x64_" + module + "_hotspot_1_99." + extension;
         } else {
-            return "/artifactory/oss-jdk-local/adoptopenjdk/OpenJDK12U-jdk_x64_" + module + "_hotspot_12.0.2_10." + extension;
+            return "/adoptopenjdk/OpenJDK12U-jdk_x64_" + module + "_hotspot_12.0.2_10." + extension;
         }
     }
 

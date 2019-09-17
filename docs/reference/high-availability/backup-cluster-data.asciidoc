@@ -4,14 +4,6 @@
 <titleabbrev>Back up the data</titleabbrev>
 ++++
 
-As with any software that stores data, it is important to routinely back up your
-data. {es} replicas provide high availability during runtime; they enable you to
-tolerate sporadic node loss without an interruption of service.
-
-Replicas do not provide protection from catastrophic failure, however. For that,
-you need a real backup of your cluster—a complete copy in case something goes
-wrong.
-
 To back up your cluster's data, you can use the <<modules-snapshots,snapshot API>>.
 
 include::{es-repo-dir}/modules/snapshots.asciidoc[tag=snapshot-intro]

@@ -20,6 +20,7 @@ package org.elasticsearch.gradle.testfixtures;
 
 import com.avast.gradle.dockercompose.ComposeExtension;
 import com.avast.gradle.dockercompose.DockerComposePlugin;
+import com.avast.gradle.dockercompose.ServiceInfo;
 import com.avast.gradle.dockercompose.tasks.ComposeUp;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.SystemPropertyCommandLineArgumentProvider;
@@ -165,11 +166,16 @@ public class TestFixturesPlugin implements Plugin<Project> {
     private void configureServiceInfoForTask(Task task, Project fixtureProject, BiConsumer<String, Integer> consumer) {
         // Configure ports for the tests as system properties.
         // We only know these at execution time so we need to do it in doFirst
+        TestFixtureExtension extension = task.getProject().getExtensions().getByType(TestFixtureExtension.class);
         task.doFirst(new Action<Task>() {
                          @Override
                          public void execute(Task theTask) {
                              fixtureProject.getExtensions().getByType(ComposeExtension.class).getServicesInfos()
-                                 .forEach((service, infos) -> {
+                                 .entrySet().stream()
+                                 .filter(entry -> extension.isServiceInUse(entry.getKey(), fixtureProject.getPath()))
+                                 .forEach(entry -> {
+                                     String service = entry.getKey();
+                                     ServiceInfo infos = entry.getValue();
                                      infos.getTcpPorts()
                                          .forEach((container, host) -> {
                                              String name = "test.fixtures." + service + ".tcp." + container;

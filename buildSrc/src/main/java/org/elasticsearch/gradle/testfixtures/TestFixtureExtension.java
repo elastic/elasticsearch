@@ -49,7 +49,7 @@ public class TestFixtureExtension {
     public void useFixture(String path, String serviceName) {
         Map<String, String> globalMap = globalServiceUsedByProject();
         addFixtureProject(path, globalMap);
-        String key = path + "::" + serviceName;
+        String key = getServiceNameKey(path, serviceName);
         serviceUseByProject.put(key, this.project.getPath());
 
         if (globalMap.containsKey(key)) {
@@ -59,6 +59,10 @@ public class TestFixtureExtension {
                     "running in parallel. Configure dedicated services for each project and use those instead."
             );
         }
+    }
+
+    private String getServiceNameKey(String fixtureProjectPath, String serviceName) {
+        return fixtureProjectPath + "::" + serviceName;
     }
 
     private Map<String, String> globalServiceUsedByProject() {
@@ -91,5 +95,10 @@ public class TestFixtureExtension {
         }
     }
 
-
+    boolean isServiceInUse(String serviceName, String fixtureProject) {
+        if (serviceUseByProject.containsKey(fixtureProject)) {
+            return true;
+        }
+        return serviceUseByProject.containsKey(getServiceNameKey(fixtureProject, serviceName));
+    }
 }

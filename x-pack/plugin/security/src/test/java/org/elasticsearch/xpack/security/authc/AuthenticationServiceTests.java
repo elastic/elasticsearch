@@ -183,8 +183,11 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(licenseState.isAuthAllowed()).thenReturn(true);
         when(licenseState.isApiKeyServiceAllowed()).thenReturn(true);
         when(licenseState.isTokenServiceAllowed()).thenReturn(true);
+        ReservedRealm reservedRealm = mock(ReservedRealm.class);
+        when(reservedRealm.type()).thenReturn("reserved");
+        when(reservedRealm.name()).thenReturn("reserved_realm");
         realms = spy(new TestRealms(Settings.EMPTY, TestEnvironment.newEnvironment(settings), Collections.<String, Realm.Factory>emptyMap(),
-                licenseState, threadContext, mock(ReservedRealm.class), Arrays.asList(firstRealm, secondRealm),
+                licenseState, threadContext, reservedRealm, Arrays.asList(firstRealm, secondRealm),
                 Collections.singletonList(firstRealm)));
 
         auditTrail = mock(AuditTrailService.class);

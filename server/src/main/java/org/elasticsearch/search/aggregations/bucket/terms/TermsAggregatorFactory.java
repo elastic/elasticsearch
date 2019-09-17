@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -66,11 +67,11 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                                   SubAggCollectionMode collectMode,
                                   TermsAggregator.BucketCountThresholds bucketCountThresholds,
                                   boolean showTermDocCountError,
-                                  SearchContext context,
+                                  QueryShardContext queryShardContext,
                                   AggregatorFactory parent,
                                   AggregatorFactories.Builder subFactoriesBuilder,
                                   Map<String, Object> metaData) throws IOException {
-        super(name, config, context, parent, subFactoriesBuilder, metaData);
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
         this.order = order;
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;
@@ -80,11 +81,13 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     }
 
     @Override
-    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException {
+    protected Aggregator createUnmapped(SearchContext searchContext,
+                                            Aggregator parent,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
         final InternalAggregation aggregation = new UnmappedTerms(name, order, bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(), pipelineAggregators, metaData);
-        return new NonCollectingAggregator(name, context, parent, factories, pipelineAggregators, metaData) {
+        return new NonCollectingAggregator(name, searchContext, parent, factories, pipelineAggregators, metaData) {
             {
                 // even in the case of an unmapped aggregator, validate the
                 // order
@@ -110,10 +113,14 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
+                                            SearchContext searchContext,
+                                            Aggregator parent,
+                                            boolean collectsFromSingleBucket,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
         if (collectsFromSingleBucket == false) {
-            return asMultiBucketAggregator(this, context, parent);
+            return asMultiBucketAggregator(this, searchContext, parent);
         }
         BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
         if (InternalOrder.isKeyOrder(order) == false
@@ -133,7 +140,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
             if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals == false) {
                 execution = ExecutionMode.MAP;
             }
-            final long maxOrd = execution == ExecutionMode.GLOBAL_ORDINALS ? getMaxOrd(valuesSource, context.searcher()) : -1;
+            final long maxOrd = execution == ExecutionMode.GLOBAL_ORDINALS ? getMaxOrd(valuesSource, searchContext.searcher()) : -1;
             if (execution == null) {
                 execution = ExecutionMode.GLOBAL_ORDINALS;
             }
@@ -152,8 +159,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                         + "include/exclude clauses");
             }
 
-            return execution.create(name, factories, valuesSource, order, format, bucketCountThresholds, includeExclude, context, parent,
-                    cm, showTermDocCountError, pipelineAggregators, metaData);
+            return execution.create(name, factories, valuesSource, order, format,
+                bucketCountThresholds, includeExclude, searchContext, parent, cm, showTermDocCountError, pipelineAggregators, metaData);
         }
 
         if ((includeExclude != null) && (includeExclude.isRegexBased())) {
@@ -177,14 +184,14 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                     longFilter = includeExclude.convertToDoubleFilter();
                 }
                 return new DoubleTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(), order,
-                        bucketCountThresholds, context, parent, cm, showTermDocCountError, longFilter,
+                        bucketCountThresholds, searchContext, parent, cm, showTermDocCountError, longFilter,
                         pipelineAggregators, metaData);
             }
             if (includeExclude != null) {
                 longFilter = includeExclude.convertToLongFilter(config.format());
             }
             return new LongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(), order,
-                    bucketCountThresholds, context, parent, cm, showTermDocCountError, longFilter, pipelineAggregators,
+                    bucketCountThresholds, searchContext, parent, cm, showTermDocCountError, longFilter, pipelineAggregators,
                     metaData);
         }
 

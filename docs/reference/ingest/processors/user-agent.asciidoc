@@ -84,3 +84,14 @@ In practice, it will make most sense for any custom regex file to be a variant o
 or a customised version.
 
 The default file included in `ingest-user-agent` is the `regexes.yaml` from uap-core: https://github.com/ua-parser/uap-core/blob/master/regexes.yaml
+
+[[ingest-user-agent-settings]]
+===== Node Settings
+
+The `user_agent` processor supports the following setting:
+
+`ingest.user_agent.cache_size`::
+
+    The maximum number of results that should be cached. Defaults to `1000`.
+
+Note that these settings are node settings and apply to all `user_agent` processors, i.e. there is one cache for all defined `user_agent` processors.

@@ -106,7 +106,7 @@ class S3Service implements Closeable {
      * @param repositoryMetaData Repository Metadata
      * @return S3ClientSettings
      */
-    private S3ClientSettings settings(RepositoryMetaData repositoryMetaData) {
+    S3ClientSettings settings(RepositoryMetaData repositoryMetaData) {
         final String clientName = S3Repository.CLIENT_NAME.get(repositoryMetaData.settings());
         final S3ClientSettings staticSettings = staticClientSettings.get(clientName);
         if (staticSettings != null) {

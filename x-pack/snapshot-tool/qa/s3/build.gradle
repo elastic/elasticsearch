@@ -48,6 +48,10 @@ task thirdPartyTest (type: Test) {
 }
 
 if (useS3Fixture) {
+    /*
+
+    See: https://github.com/elastic/elasticsearch/issues/46813 Fails with --parallel
+
     apply plugin: 'elasticsearch.test.fixtures'
 
     task writeDockerFile {
@@ -83,7 +87,7 @@ if (useS3Fixture) {
             throw new IllegalStateException("Tried to run third party tests but not all of the necessary environment variables 'amazon_s3_access_key', " +
                     "'amazon_s3_secret_key', 'amazon_s3_bucket', and 'amazon_s3_base_path' are set.");
         }
-    }
+    }*/
 }
 
 check.dependsOn(thirdPartyTest)

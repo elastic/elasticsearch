@@ -52,7 +52,12 @@ task thirdPartyTest (type: Test) {
 }
 
 if (useGCSFixture) {
+    /*
+
+    See: https://github.com/elastic/elasticsearch/issues/46813 Fails with --parallel
+
     thirdPartyTest.dependsOn(':plugins:repository-gcs:qa:google-cloud-storage:createServiceAccountFile',
+
             ':plugins:repository-gcs:qa:google-cloud-storage:googleCloudStorageFixture')
     thirdPartyTest.finalizedBy(':plugins:repository-gcs:qa:google-cloud-storage:googleCloudStorageFixture#stop')
 
@@ -75,6 +80,7 @@ if (useGCSFixture) {
                     "'google_storage_bucket', 'google_storage_base_path' are set.")
         }
     }
+    */
 }
 
 check.dependsOn(thirdPartyTest)

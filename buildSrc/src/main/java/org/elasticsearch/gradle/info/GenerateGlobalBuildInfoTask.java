@@ -1,5 +1,18 @@
 package org.elasticsearch.gradle.info;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
+import java.io.BufferedWriter;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.io.Writer;
+import java.nio.file.Files;
+import java.util.Arrays;
+import java.util.List;
+import javax.inject.Inject;
 import org.elasticsearch.gradle.OS;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
@@ -16,20 +29,6 @@ import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.internal.jvm.Jvm;
 import org.gradle.process.ExecResult;
-
-import javax.inject.Inject;
-import java.io.BufferedWriter;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.io.Writer;
-import java.nio.file.Files;
-import java.util.Arrays;
-import java.util.List;
-
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 @CacheableTask
 public class GenerateGlobalBuildInfoTask extends DefaultTask {
@@ -120,10 +119,18 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
 
     @TaskAction
     public void generate() {
-        String javaVendorVersion = System.getProperty("java.vendor.version", System.getProperty("java.vendor"));
+        String javaVendorVersion =
+                System.getProperty("java.vendor.version", System.getProperty("java.vendor"));
         String gradleJavaVersion = System.getProperty("java.version");
-        String gradleJavaVersionDetails = javaVendorVersion + " " + gradleJavaVersion + " [" + System.getProperty("java.vm.name")
-            + " " + System.getProperty("java.vm.version") + "]";
+        String gradleJavaVersionDetails =
+                javaVendorVersion
+                        + " "
+                        + gradleJavaVersion
+                        + " ["
+                        + System.getProperty("java.vm.name")
+                        + " "
+                        + System.getProperty("java.vm.version")
+                        + "]";
 
         String compilerJavaVersionDetails = gradleJavaVersionDetails;
         JavaVersion compilerJavaVersionEnum = JavaVersion.current();
@@ -136,44 +143,78 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
             if (Files.isSameFile(compilerJavaHome.toPath(), gradleJavaHome.toPath()) == false) {
                 if (compilerJavaHome.exists()) {
                     compilerJavaVersionDetails = findJavaVersionDetails(compilerJavaHome);
-                    compilerJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(compilerJavaHome));
+                    compilerJavaVersionEnum =
+                            JavaVersion.toVersion(findJavaSpecificationVersion(compilerJavaHome));
                 } else {
-                    throw new RuntimeException("Compiler Java home path of '" + compilerJavaHome + "' does not exist");
+                    throw new RuntimeException(
+                            "Compiler Java home path of '" + compilerJavaHome + "' does not exist");
                 }
             }
 
             if (Files.isSameFile(runtimeJavaHome.toPath(), gradleJavaHome.toPath()) == false) {
                 if (runtimeJavaHome.exists()) {
                     runtimeJavaVersionDetails = findJavaVersionDetails(runtimeJavaHome);
-                    runtimeJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(runtimeJavaHome));
+                    runtimeJavaVersionEnum =
+                            JavaVersion.toVersion(findJavaSpecificationVersion(runtimeJavaHome));
 
                     // We don't expect Gradle to be running in a FIPS JVM
-                    String inFipsJvmScript = "print(java.security.Security.getProviders()[0].name.toLowerCase().contains(\"fips\"));";
-                    inFipsJvm = Boolean.parseBoolean(runJavaAsScript(runtimeJavaHome, inFipsJvmScript));
+                    String inFipsJvmScript =
+                            "print(java.security.Security.getProviders()[0].name.toLowerCase().contains(\"fips\"));";
+                    inFipsJvm =
+                            Boolean.parseBoolean(runJavaAsScript(runtimeJavaHome, inFipsJvmScript));
                 } else {
-                    throw new RuntimeException("Runtime Java home path of '" + compilerJavaHome + "' does not exist");
+                    throw new RuntimeException(
+                            "Runtime Java home path of '" + compilerJavaHome + "' does not exist");
                 }
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
 
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile.getAsFile().get()))) {
-            writer.write("  Gradle Version        : " + getProject().getGradle().getGradleVersion() + "\n");
-            writer.write("  OS Info               : " + System.getProperty("os.name") + " " + System.getProperty("os.version")
-                + " (" + System.getProperty("os.arch") + ")\n");
+        try (BufferedWriter writer =
+                new BufferedWriter(new FileWriter(outputFile.getAsFile().get()))) {
+            writer.write(
+                    "  Gradle Version        : "
+                            + getProject().getGradle().getGradleVersion()
+                            + "\n");
+            writer.write(
+                    "  OS Info               : "
+                            + System.getProperty("os.name")
+                            + " "
+                            + System.getProperty("os.version")
+                            + " ("
+                            + System.getProperty("os.arch")
+                            + ")\n");
             if (gradleJavaVersionDetails.equals(compilerJavaVersionDetails) == false
-                || gradleJavaVersionDetails.equals(runtimeJavaVersionDetails) == false) {
-                writer.write("  Compiler JDK Version  : " + compilerJavaVersionEnum + " (" + compilerJavaVersionDetails + ")\n");
+                    || gradleJavaVersionDetails.equals(runtimeJavaVersionDetails) == false) {
+                writer.write(
+                        "  Compiler JDK Version  : "
+                                + compilerJavaVersionEnum
+                                + " ("
+                                + compilerJavaVersionDetails
+                                + ")\n");
                 writer.write("  Compiler java.home    : " + compilerJavaHome + "\n");
-                writer.write("  Runtime JDK Version   : " + runtimeJavaVersionEnum + " (" + runtimeJavaVersionDetails + ")\n");
+                writer.write(
+                        "  Runtime JDK Version   : "
+                                + runtimeJavaVersionEnum
+                                + " ("
+                                + runtimeJavaVersionDetails
+                                + ")\n");
                 writer.write("  Runtime java.home     : " + runtimeJavaHome + "\n");
-                writer.write("  Gradle JDK Version    : " + JavaVersion.toVersion(gradleJavaVersion)
-                    + " (" + gradleJavaVersionDetails + ")\n");
+                writer.write(
+                        "  Gradle JDK Version    : "
+                                + JavaVersion.toVersion(gradleJavaVersion)
+                                + " ("
+                                + gradleJavaVersionDetails
+                                + ")\n");
                 writer.write("  Gradle java.home      : " + gradleJavaHome);
             } else {
-                writer.write("  JDK Version           : " + JavaVersion.toVersion(gradleJavaVersion)
-                    + " (" + gradleJavaVersionDetails + ")\n");
+                writer.write(
+                        "  JDK Version           : "
+                                + JavaVersion.toVersion(gradleJavaVersion)
+                                + " ("
+                                + gradleJavaVersionDetails
+                                + ")\n");
                 writer.write("  JAVA_HOME             : " + gradleJavaHome);
             }
         } catch (IOException e) {
@@ -182,14 +223,26 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
 
         // enforce Java version
         if (compilerJavaVersionEnum.compareTo(minimumCompilerVersion) < 0) {
-            String message = "The compiler java.home must be set to a JDK installation directory for Java " + minimumCompilerVersion +
-                " but is [" + compilerJavaHome + "] corresponding to [" + compilerJavaVersionEnum + "]";
+            String message =
+                    "The compiler java.home must be set to a JDK installation directory for Java "
+                            + minimumCompilerVersion
+                            + " but is ["
+                            + compilerJavaHome
+                            + "] corresponding to ["
+                            + compilerJavaVersionEnum
+                            + "]";
             throw new GradleException(message);
         }
 
         if (runtimeJavaVersionEnum.compareTo(minimumRuntimeVersion) < 0) {
-            String message = "The runtime java.home must be set to a JDK installation directory for Java " + minimumRuntimeVersion +
-                " but is [" + runtimeJavaHome + "] corresponding to [" + runtimeJavaVersionEnum + "]";
+            String message =
+                    "The runtime java.home must be set to a JDK installation directory for Java "
+                            + minimumRuntimeVersion
+                            + " but is ["
+                            + runtimeJavaHome
+                            + "] corresponding to ["
+                            + runtimeJavaVersionEnum
+                            + "]";
             throw new GradleException(message);
         }
 
@@ -198,7 +251,8 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
             if (javaHome == null) {
                 continue;
             }
-            JavaVersion javaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(javaHome));
+            JavaVersion javaVersionEnum =
+                    JavaVersion.toVersion(findJavaSpecificationVersion(javaHome));
             JavaVersion expectedJavaVersionEnum;
             int version = javaVersion.getVersion();
             if (version < 9) {
@@ -207,8 +261,16 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
                 expectedJavaVersionEnum = JavaVersion.toVersion(Integer.toString(version));
             }
             if (javaVersionEnum != expectedJavaVersionEnum) {
-                String message = "The environment variable JAVA" + version + "_HOME must be set to a JDK installation directory for Java " +
-                    expectedJavaVersionEnum + " but is [" + javaHome + "] corresponding to [" + javaVersionEnum + "]";
+                String message =
+                        "The environment variable JAVA"
+                                + version
+                                + "_HOME must be set to a JDK installation directory for Java "
+                                + expectedJavaVersionEnum
+                                + " but is ["
+                                + javaHome
+                                + "] corresponding to ["
+                                + javaVersionEnum
+                                + "]";
                 throw new GradleException(message);
             }
         }
@@ -226,29 +288,25 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
         }
     }
 
-    /**
-     * Finds printable java version of the given JAVA_HOME
-     */
+    /** Finds printable java version of the given JAVA_HOME */
     private String findJavaVersionDetails(File javaHome) {
-        String versionInfoScript = "print(" +
-            "java.lang.System.getProperty(\"java.vendor.version\", java.lang.System.getProperty(\"java.vendor\")) + \" \" + " +
-            "java.lang.System.getProperty(\"java.version\") + \" [\" + " +
-            "java.lang.System.getProperty(\"java.vm.name\") + \" \" + " +
-            "java.lang.System.getProperty(\"java.vm.version\") + \"]\");";
+        String versionInfoScript =
+                "print("
+                        + "java.lang.System.getProperty(\"java.vendor.version\", java.lang.System.getProperty(\"java.vendor\")) + \" \" + "
+                        + "java.lang.System.getProperty(\"java.version\") + \" [\" + "
+                        + "java.lang.System.getProperty(\"java.vm.name\") + \" \" + "
+                        + "java.lang.System.getProperty(\"java.vm.version\") + \"]\");";
         return runJavaAsScript(javaHome, versionInfoScript).trim();
     }
 
-    /**
-     * Finds the parsable java specification version
-     */
+    /** Finds the parsable java specification version */
     private String findJavaSpecificationVersion(File javaHome) {
-        String versionScript = "print(java.lang.System.getProperty(\"java.specification.version\"));";
+        String versionScript =
+                "print(java.lang.System.getProperty(\"java.specification.version\"));";
         return runJavaAsScript(javaHome, versionScript);
     }
 
-    /**
-     * Runs the given javascript using jjs from the jdk, and returns the output
-     */
+    /** Runs the given javascript using jjs from the jdk, and returns the output */
     private String runJavaAsScript(File javaHome, String script) {
         ByteArrayOutputStream stdout = new ByteArrayOutputStream();
         ByteArrayOutputStream stderr = new ByteArrayOutputStream();
@@ -258,22 +316,26 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
         }
         File jrunscriptPath = new File(javaHome, "bin/jrunscript");
         String finalScript = script;
-        ExecResult result = getProject().exec(spec -> {
-            spec.setExecutable(jrunscriptPath);
-            spec.args("-e", finalScript);
-            spec.setStandardOutput(stdout);
-            spec.setErrorOutput(stderr);
-            spec.setIgnoreExitValue(true);
-        });
+        ExecResult result =
+                getProject()
+                        .exec(
+                                spec -> {
+                                    spec.setExecutable(jrunscriptPath);
+                                    spec.args("-e", finalScript);
+                                    spec.setStandardOutput(stdout);
+                                    spec.setErrorOutput(stderr);
+                                    spec.setIgnoreExitValue(true);
+                                });
 
         if (result.getExitValue() != 0) {
             getLogger().error("STDOUT:");
-            Arrays.stream(stdout.toString(UTF_8).split(System.getProperty("line.separator"))).forEach(getLogger()::error);
+            Arrays.stream(stdout.toString(UTF_8).split(System.getProperty("line.separator")))
+                    .forEach(getLogger()::error);
             getLogger().error("STDERR:");
-            Arrays.stream(stderr.toString(UTF_8).split(System.getProperty("line.separator"))).forEach(getLogger()::error);
+            Arrays.stream(stderr.toString(UTF_8).split(System.getProperty("line.separator")))
+                    .forEach(getLogger()::error);
             result.rethrowFailure();
         }
         return stdout.toString(UTF_8).trim();
     }
-
 }

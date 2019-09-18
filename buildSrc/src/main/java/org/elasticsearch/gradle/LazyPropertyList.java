@@ -1,8 +1,5 @@
 package org.elasticsearch.gradle;
 
-import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.Nested;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
@@ -10,6 +7,8 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.Nested;
 
 public class LazyPropertyList<T> extends AbstractLazyPropertyCollection implements List<T> {
 
@@ -50,7 +49,11 @@ public class LazyPropertyList<T> extends AbstractLazyPropertyCollection implemen
 
     @Override
     public <T1> T1[] toArray(T1[] a) {
-        return delegate.stream().peek(this::validate).map(PropertyListEntry::getValue).collect(Collectors.toList()).toArray(a);
+        return delegate.stream()
+                .peek(this::validate)
+                .map(PropertyListEntry::getValue)
+                .collect(Collectors.toList())
+                .toArray(a);
     }
 
     @Override
@@ -68,12 +71,16 @@ public class LazyPropertyList<T> extends AbstractLazyPropertyCollection implemen
 
     @Override
     public boolean remove(Object o) {
-        throw new UnsupportedOperationException(this.getClass().getName() + " does not support remove()");
+        throw new UnsupportedOperationException(
+                this.getClass().getName() + " does not support remove()");
     }
 
     @Override
     public boolean containsAll(Collection<?> c) {
-        return delegate.stream().map(PropertyListEntry::getValue).collect(Collectors.toList()).containsAll(c);
+        return delegate.stream()
+                .map(PropertyListEntry::getValue)
+                .collect(Collectors.toList())
+                .containsAll(c);
     }
 
     @Override
@@ -93,12 +100,14 @@ public class LazyPropertyList<T> extends AbstractLazyPropertyCollection implemen
 
     @Override
     public boolean removeAll(Collection<?> c) {
-        throw new UnsupportedOperationException(this.getClass().getName() + " does not support removeAll()");
+        throw new UnsupportedOperationException(
+                this.getClass().getName() + " does not support removeAll()");
     }
 
     @Override
     public boolean retainAll(Collection<?> c) {
-        throw new UnsupportedOperationException(this.getClass().getName() + " does not support retainAll()");
+        throw new UnsupportedOperationException(
+                this.getClass().getName() + " does not support retainAll()");
     }
 
     @Override
@@ -115,7 +124,10 @@ public class LazyPropertyList<T> extends AbstractLazyPropertyCollection implemen
 
     @Override
     public T set(int index, T element) {
-        return delegate.set(index, new PropertyListEntry<>(() -> element, PropertyNormalization.DEFAULT)).getValue();
+        return delegate.set(
+                        index,
+                        new PropertyListEntry<>(() -> element, PropertyNormalization.DEFAULT))
+                .getValue();
     }
 
     @Override
@@ -153,30 +165,37 @@ public class LazyPropertyList<T> extends AbstractLazyPropertyCollection implemen
 
     @Override
     public ListIterator<T> listIterator() {
-        return delegate.stream().map(PropertyListEntry::getValue).collect(Collectors.toList()).listIterator();
+        return delegate.stream()
+                .map(PropertyListEntry::getValue)
+                .collect(Collectors.toList())
+                .listIterator();
     }
 
     @Override
     public ListIterator<T> listIterator(int index) {
-        return delegate.stream().peek(this::validate).map(PropertyListEntry::getValue).collect(Collectors.toList()).listIterator(index);
+        return delegate.stream()
+                .peek(this::validate)
+                .map(PropertyListEntry::getValue)
+                .collect(Collectors.toList())
+                .listIterator(index);
     }
 
     @Override
     public List<T> subList(int fromIndex, int toIndex) {
         return delegate.stream()
-            .peek(this::validate)
-            .map(PropertyListEntry::getValue)
-            .collect(Collectors.toList())
-            .subList(fromIndex, toIndex);
+                .peek(this::validate)
+                .map(PropertyListEntry::getValue)
+                .collect(Collectors.toList())
+                .subList(fromIndex, toIndex);
     }
 
     @Override
     @Nested
     List<? extends Object> getNormalizedCollection() {
         return delegate.stream()
-            .peek(this::validate)
-            .filter(entry -> entry.getNormalization() != PropertyNormalization.IGNORE_VALUE)
-            .collect(Collectors.toList());
+                .peek(this::validate)
+                .filter(entry -> entry.getNormalization() != PropertyNormalization.IGNORE_VALUE)
+                .collect(Collectors.toList());
     }
 
     private void validate(PropertyListEntry<T> entry) {

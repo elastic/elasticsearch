@@ -19,20 +19,17 @@
 
 package org.elasticsearch.gradle.test;
 
-import org.elasticsearch.gradle.vagrant.VagrantShellTask;
-import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.options.Option;
+import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertLinuxPath;
+import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertWindowsPath;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import org.elasticsearch.gradle.vagrant.VagrantShellTask;
+import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.options.Option;
 
-import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertLinuxPath;
-import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertWindowsPath;
-
-/**
- * Run a gradle task of the current build, within the configured vagrant VM.
- */
+/** Run a gradle task of the current build, within the configured vagrant VM. */
 public class GradleDistroTestTask extends VagrantShellTask {
 
     private String taskName;
@@ -48,7 +45,9 @@ public class GradleDistroTestTask extends VagrantShellTask {
         return taskName;
     }
 
-    @Option(option = "tests", description = "Sets test class or method name to be included, '*' is supported.")
+    @Option(
+            option = "tests",
+            description = "Sets test class or method name to be included, '*' is supported.")
     public void setTestClass(String testClass) {
         this.testClass = testClass;
     }
@@ -78,9 +77,14 @@ public class GradleDistroTestTask extends VagrantShellTask {
         line.append(isWindows ? "& .\\gradlew " : "./gradlew ");
         line.append(taskName);
         line.append(" --project-cache-dir ");
-        line.append(isWindows ? convertWindowsPath(getProject(), cacheDir) : convertLinuxPath(getProject(), cacheDir));
+        line.append(
+                isWindows
+                        ? convertWindowsPath(getProject(), cacheDir)
+                        : convertLinuxPath(getProject(), cacheDir));
         line.append(" -S");
-        line.append(" -D'org.gradle.logging.level'=" + getProject().getGradle().getStartParameter().getLogLevel());
+        line.append(
+                " -D'org.gradle.logging.level'="
+                        + getProject().getGradle().getStartParameter().getLogLevel());
         if (testClass != null) {
             line.append(" --tests=");
             line.append(testClass);

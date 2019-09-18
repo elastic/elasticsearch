@@ -18,10 +18,9 @@
  */
 package org.elasticsearch.gradle;
 
+import com.carrotsearch.randomizedtesting.RandomizedTest;
 import java.io.File;
 import java.io.IOException;
-
-import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.tools.ant.taskdefs.condition.Os;
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
 import org.gradle.api.Project;
@@ -51,7 +50,8 @@ public class EmptyDirTaskTests extends GradleUnitTestCase {
     }
 
     public void testCreateEmptyDirNoPermissions() throws Exception {
-        RandomizedTest.assumeFalse("Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
+        RandomizedTest.assumeFalse(
+                "Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
 
         Project project = ProjectBuilder.builder().build();
         EmptyDirTask emptyDirTask = project.getTasks().create("emptyDirTask", EmptyDirTask.class);
@@ -78,5 +78,4 @@ public class EmptyDirTaskTests extends GradleUnitTestCase {
         assertFalse(newEmptyFolder.exists());
         return newEmptyFolder;
     }
-
 }

@@ -38,10 +38,11 @@ public class TestFixtureExtension {
         }
         if (fixtureProject.file(TestFixturesPlugin.DOCKER_COMPOSE_YML).exists() == false) {
             throw new IllegalArgumentException(
-                "Project " + path + " is not a valid test fixture: missing " + TestFixturesPlugin.DOCKER_COMPOSE_YML
-            );
+                    "Project "
+                            + path
+                            + " is not a valid test fixture: missing "
+                            + TestFixturesPlugin.DOCKER_COMPOSE_YML);
         }
         fixtures.add(fixtureProject);
     }
-
 }

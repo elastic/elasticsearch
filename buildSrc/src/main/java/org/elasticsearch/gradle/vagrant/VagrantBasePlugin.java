@@ -19,6 +19,14 @@
 
 package org.elasticsearch.gradle.vagrant;
 
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.elasticsearch.gradle.ReaperPlugin;
 import org.elasticsearch.gradle.ReaperService;
 import org.gradle.api.Plugin;
@@ -28,15 +36,6 @@ import org.gradle.api.execution.TaskActionListener;
 import org.gradle.api.execution.TaskExecutionListener;
 import org.gradle.api.tasks.TaskState;
 
-import java.io.ByteArrayOutputStream;
-import java.nio.charset.StandardCharsets;
-import java.util.List;
-import java.util.function.Consumer;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
 public class VagrantBasePlugin implements Plugin<Project> {
 
     @Override
@@ -45,93 +44,127 @@ public class VagrantBasePlugin implements Plugin<Project> {
         project.getRootProject().getPluginManager().apply(VagrantManagerPlugin.class);
         project.getRootProject().getPluginManager().apply(ReaperPlugin.class);
 
-        ReaperService reaper = project.getRootProject().getExtensions().getByType(ReaperService.class);
-        VagrantExtension extension = project.getExtensions().create("vagrant", VagrantExtension.class, project);
-        VagrantMachine service = project.getExtensions().create("vagrantService", VagrantMachine.class, project, extension, reaper);
+        ReaperService reaper =
+                project.getRootProject().getExtensions().getByType(ReaperService.class);
+        VagrantExtension extension =
+                project.getExtensions().create("vagrant", VagrantExtension.class, project);
+        VagrantMachine service =
+                project.getExtensions()
+                        .create("vagrantService", VagrantMachine.class, project, extension, reaper);
 
-        project.getGradle().getTaskGraph().whenReady(graph ->
-            service.refs = graph.getAllTasks().stream()
-                .filter(t -> t instanceof VagrantShellTask)
-                .filter(t -> t.getProject() == project)
-                .count());
+        project.getGradle()
+                .getTaskGraph()
+                .whenReady(
+                        graph ->
+                                service.refs =
+                                        graph.getAllTasks().stream()
+                                                .filter(t -> t instanceof VagrantShellTask)
+                                                .filter(t -> t.getProject() == project)
+                                                .count());
     }
 
-
-    /**
-     * Check vagrant and virtualbox versions, if any vagrant test tasks will be run.
-     */
+    /** Check vagrant and virtualbox versions, if any vagrant test tasks will be run. */
     static class VagrantSetupCheckerPlugin implements Plugin<Project> {
 
-        private static final Pattern VAGRANT_VERSION = Pattern.compile("Vagrant (\\d+\\.\\d+\\.\\d+)");
+        private static final Pattern VAGRANT_VERSION =
+                Pattern.compile("Vagrant (\\d+\\.\\d+\\.\\d+)");
         private static final Pattern VIRTUAL_BOX_VERSION = Pattern.compile("(\\d+\\.\\d+)");
 
         @Override
         public void apply(Project project) {
             if (project != project.getRootProject()) {
-                throw new IllegalArgumentException("VagrantSetupCheckerPlugin can only be applied to the root project of a build");
+                throw new IllegalArgumentException(
+                        "VagrantSetupCheckerPlugin can only be applied to the root project of a build");
             }
 
-            project.getGradle().getTaskGraph().whenReady(graph -> {
-                boolean needsVagrant = graph.getAllTasks().stream().anyMatch(t -> t instanceof VagrantShellTask);
-                if (needsVagrant) {
-                    checkVersion(project, "vagrant", VAGRANT_VERSION, 1, 8, 6);
-                    checkVersion(project, "vboxmanage", VIRTUAL_BOX_VERSION, 5, 1);
-                }
-            });
+            project.getGradle()
+                    .getTaskGraph()
+                    .whenReady(
+                            graph -> {
+                                boolean needsVagrant =
+                                        graph.getAllTasks().stream()
+                                                .anyMatch(t -> t instanceof VagrantShellTask);
+                                if (needsVagrant) {
+                                    checkVersion(project, "vagrant", VAGRANT_VERSION, 1, 8, 6);
+                                    checkVersion(project, "vboxmanage", VIRTUAL_BOX_VERSION, 5, 1);
+                                }
+                            });
         }
 
         void checkVersion(Project project, String tool, Pattern versionRegex, int... minVersion) {
             ByteArrayOutputStream pipe = new ByteArrayOutputStream();
-            project.exec(spec -> {
-                spec.setCommandLine(tool, "--version");
-                spec.setStandardOutput(pipe);
-            });
+            project.exec(
+                    spec -> {
+                        spec.setCommandLine(tool, "--version");
+                        spec.setStandardOutput(pipe);
+                    });
             String output = pipe.toString(StandardCharsets.UTF_8).trim();
             Matcher matcher = versionRegex.matcher(output);
             if (matcher.find() == false) {
-                throw new IllegalStateException(tool +
-                    " version output [" + output + "] did not match regex [" + versionRegex.pattern() + "]");
+                throw new IllegalStateException(
+                        tool
+                                + " version output ["
+                                + output
+                                + "] did not match regex ["
+                                + versionRegex.pattern()
+                                + "]");
             }
 
             String version = matcher.group(1);
-            List<Integer> versionParts = Stream.of(version.split("\\.")).map(Integer::parseInt).collect(Collectors.toList());
+            List<Integer> versionParts =
+                    Stream.of(version.split("\\."))
+                            .map(Integer::parseInt)
+                            .collect(Collectors.toList());
             for (int i = 0; i < minVersion.length; ++i) {
                 int found = versionParts.get(i);
                 if (found > minVersion[i]) {
                     break; // most significant version is good
                 } else if (found < minVersion[i]) {
-                    throw new IllegalStateException("Unsupported version of " + tool + ". Found [" + version + "], expected [" +
-                        Stream.of(minVersion).map(String::valueOf).collect(Collectors.joining(".")) + "+");
+                    throw new IllegalStateException(
+                            "Unsupported version of "
+                                    + tool
+                                    + ". Found ["
+                                    + version
+                                    + "], expected ["
+                                    + Stream.of(minVersion)
+                                            .map(String::valueOf)
+                                            .collect(Collectors.joining("."))
+                                    + "+");
                 } // else equal, so check next element
             }
         }
     }
 
-    /**
-     * Adds global hooks to manage destroying, starting and updating VMs.
-     */
-    static class VagrantManagerPlugin implements Plugin<Project>, TaskActionListener, TaskExecutionListener {
+    /** Adds global hooks to manage destroying, starting and updating VMs. */
+    static class VagrantManagerPlugin
+            implements Plugin<Project>, TaskActionListener, TaskExecutionListener {
 
         @Override
         public void apply(Project project) {
             if (project != project.getRootProject()) {
-                throw new IllegalArgumentException("VagrantManagerPlugin can only be applied to the root project of a build");
+                throw new IllegalArgumentException(
+                        "VagrantManagerPlugin can only be applied to the root project of a build");
             }
             project.getGradle().addListener(this);
         }
 
         private void callIfVagrantTask(Task task, Consumer<VagrantMachine> method) {
             if (task instanceof VagrantShellTask) {
-                VagrantMachine service = task.getProject().getExtensions().getByType(VagrantMachine.class);
+                VagrantMachine service =
+                        task.getProject().getExtensions().getByType(VagrantMachine.class);
                 method.accept(service);
             }
         }
 
         @Override
-        public void beforeExecute(Task task) { /* nothing to do */}
+        public void beforeExecute(Task task) {
+            /* nothing to do */
+        }
 
         @Override
-        public void afterActions(Task task) { /* nothing to do */ }
+        public void afterActions(Task task) {
+            /* nothing to do */
+        }
 
         @Override
         public void beforeActions(Task task) {
@@ -143,5 +176,4 @@ public class VagrantBasePlugin implements Plugin<Project> {
             callIfVagrantTask(task, service -> service.maybeStopVM(state.getFailure() != null));
         }
     }
-
 }

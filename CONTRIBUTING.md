@@ -214,6 +214,7 @@ and infer what is the problem. Ther are two common problems:
       multiple lines during one formatting interation, and then change
       indentation in another iteration. The solution is to identify the
       comment and move it so that it is consistently formatted.
+      Multiline-style comments are not affected.
    2. Sometimes `<p>` tags are inserted within `<code>` tags in JavaDoc.
       The solution is to wrap with `<pre>` tags. See:
 

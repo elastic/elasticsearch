@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.tool;
 
+import java.util.Optional;
 import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.PolymorphicDomainObjectContainer;
@@ -29,8 +30,6 @@ import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.TaskProvider;
 
-import java.util.Optional;
-
 public abstract class Boilerplate {
 
     public static SourceSetContainer getJavaSourceSets(Project project) {
@@ -38,32 +37,36 @@ public abstract class Boilerplate {
     }
 
     public static <T> T maybeCreate(NamedDomainObjectContainer<T> collection, String name) {
-        return Optional.ofNullable(collection.findByName(name))
-            .orElse(collection.create(name));
-
+        return Optional.ofNullable(collection.findByName(name)).orElse(collection.create(name));
     }
 
-    public static <T> T maybeCreate(NamedDomainObjectContainer<T> collection, String name, Action<T> action) {
+    public static <T> T maybeCreate(
+            NamedDomainObjectContainer<T> collection, String name, Action<T> action) {
         return Optional.ofNullable(collection.findByName(name))
-            .orElseGet(() -> {
-                T result = collection.create(name);
-                action.execute(result);
-                return result;
-            });
-
+                .orElseGet(
+                        () -> {
+                            T result = collection.create(name);
+                            action.execute(result);
+                            return result;
+                        });
     }
 
-    public static <T> T maybeCreate(PolymorphicDomainObjectContainer<T> collection, String name, Class<T> type, Action<T> action) {
+    public static <T> T maybeCreate(
+            PolymorphicDomainObjectContainer<T> collection,
+            String name,
+            Class<T> type,
+            Action<T> action) {
         return Optional.ofNullable(collection.findByName(name))
-            .orElseGet(() -> {
-                T result = collection.create(name, type);
-                action.execute(result);
-                return result;
-            });
-
+                .orElseGet(
+                        () -> {
+                            T result = collection.create(name, type);
+                            action.execute(result);
+                            return result;
+                        });
     }
 
-    public static <T extends Task> TaskProvider<T> maybeRegister(TaskContainer tasks, String name, Class<T> clazz, Action<T> action) {
+    public static <T extends Task> TaskProvider<T> maybeRegister(
+            TaskContainer tasks, String name, Class<T> clazz, Action<T> action) {
         try {
             return tasks.named(name, clazz);
         } catch (UnknownTaskException e) {
@@ -71,7 +74,8 @@ public abstract class Boilerplate {
         }
     }
 
-    public static void maybeConfigure(TaskContainer tasks, String name, Action<? super Task> config) {
+    public static void maybeConfigure(
+            TaskContainer tasks, String name, Action<? super Task> config) {
         TaskProvider<?> task;
         try {
             task = tasks.named(name);
@@ -83,15 +87,14 @@ public abstract class Boilerplate {
     }
 
     public static <T extends Task> void maybeConfigure(
-        TaskContainer tasks, String name,
-        Class<? extends T> type,
-        Action<? super T> config
-    ) {
-        tasks.withType(type).configureEach(task -> {
-            if (task.getName().equals(name)) {
-                config.execute(task);
-            }
-        });
+            TaskContainer tasks, String name, Class<? extends T> type, Action<? super T> config) {
+        tasks.withType(type)
+                .configureEach(
+                        task -> {
+                            if (task.getName().equals(name)) {
+                                config.execute(task);
+                            }
+                        });
     }
 
     public static TaskProvider<?> findByName(TaskContainer tasks, String name) {

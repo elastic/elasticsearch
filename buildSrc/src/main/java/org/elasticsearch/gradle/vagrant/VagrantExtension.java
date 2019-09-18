@@ -19,14 +19,13 @@
 
 package org.elasticsearch.gradle.vagrant;
 
+import java.io.File;
+import java.util.Map;
 import org.gradle.api.Project;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
-
-import java.io.File;
-import java.util.Map;
 
 public class VagrantExtension {
 
@@ -41,7 +40,8 @@ public class VagrantExtension {
         this.hostEnv = project.getObjects().mapProperty(String.class, Object.class);
         this.vmEnv = project.getObjects().mapProperty(String.class, Object.class);
         this.vagrantfile = project.getObjects().fileProperty();
-        this.vagrantfile.convention(project.getRootProject().getLayout().getProjectDirectory().file("Vagrantfile"));
+        this.vagrantfile.convention(
+                project.getRootProject().getLayout().getProjectDirectory().file("Vagrantfile"));
         this.isWindowsVM = false;
     }
 
@@ -51,7 +51,8 @@ public class VagrantExtension {
     }
 
     public void setBox(String box) {
-        // TODO: should verify this against the Vagrantfile, but would need to do so in afterEvaluate once vagrantfile is unmodifiable
+        // TODO: should verify this against the Vagrantfile, but would need to do so in
+        // afterEvaluate once vagrantfile is unmodifiable
         this.box.set(box);
     }
 

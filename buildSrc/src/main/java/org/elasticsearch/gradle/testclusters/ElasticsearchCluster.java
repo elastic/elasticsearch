@@ -18,17 +18,6 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
-import org.elasticsearch.gradle.FileSupplier;
-import org.elasticsearch.gradle.PropertyNormalization;
-import org.elasticsearch.gradle.ReaperService;
-import org.elasticsearch.gradle.http.WaitForHttpResource;
-import org.gradle.api.Named;
-import org.gradle.api.NamedDomainObjectContainer;
-import org.gradle.api.Project;
-import org.gradle.api.logging.Logger;
-import org.gradle.api.logging.Logging;
-import org.gradle.api.tasks.Nested;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -46,6 +35,16 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import org.elasticsearch.gradle.FileSupplier;
+import org.elasticsearch.gradle.PropertyNormalization;
+import org.elasticsearch.gradle.ReaperService;
+import org.elasticsearch.gradle.http.WaitForHttpResource;
+import org.gradle.api.Named;
+import org.gradle.api.NamedDomainObjectContainer;
+import org.gradle.api.Project;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
+import org.gradle.api.tasks.Nested;
 
 public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
@@ -58,13 +57,18 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     private final String clusterName;
     private final NamedDomainObjectContainer<ElasticsearchNode> nodes;
     private final File workingDirBase;
-    private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
+    private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions =
+            new LinkedHashMap<>();
     private final Project project;
     private final ReaperService reaper;
-    private int nodeIndex  = 0;
+    private int nodeIndex = 0;
 
-    public ElasticsearchCluster(String path, String clusterName, Project project,
-                                ReaperService reaper, File workingDirBase) {
+    public ElasticsearchCluster(
+            String path,
+            String clusterName,
+            Project project,
+            ReaperService reaper,
+            File workingDirBase) {
         this.path = path;
         this.clusterName = clusterName;
         this.project = project;
@@ -72,11 +76,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         this.workingDirBase = workingDirBase;
         this.nodes = project.container(ElasticsearchNode.class);
         this.nodes.add(
-            new ElasticsearchNode(
-                path, clusterName + "-0",
-                project, reaper, workingDirBase
-                )
-        );
+                new ElasticsearchNode(path, clusterName + "-0", project, reaper, workingDirBase));
         // configure the cluster name eagerly so nodes know about it
         this.nodes.all((node) -> node.defaultConfig.put("cluster.name", safeName(clusterName)));
 
@@ -87,19 +87,24 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         checkFrozen();
 
         if (numberOfNodes < 1) {
-            throw new IllegalArgumentException("Number of nodes should be >= 1 but was " + numberOfNodes + " for " + this);
+            throw new IllegalArgumentException(
+                    "Number of nodes should be >= 1 but was " + numberOfNodes + " for " + this);
         }
 
         if (numberOfNodes <= nodes.size()) {
             throw new IllegalArgumentException(
-                "Cannot shrink " + this + " to have " + numberOfNodes + " nodes as it already has " + getNumberOfNodes()
-            );
+                    "Cannot shrink "
+                            + this
+                            + " to have "
+                            + numberOfNodes
+                            + " nodes as it already has "
+                            + getNumberOfNodes());
         }
 
-        for (int i = nodes.size() ; i < numberOfNodes; i++) {
-            this.nodes.add(new ElasticsearchNode(
-                path, clusterName + "-" + i, project, reaper, workingDirBase
-                ));
+        for (int i = nodes.size(); i < numberOfNodes; i++) {
+            this.nodes.add(
+                    new ElasticsearchNode(
+                            path, clusterName + "-" + i, project, reaper, workingDirBase));
         }
     }
 
@@ -190,7 +195,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
-    public void setting(String key, Supplier<CharSequence> valueSupplier, PropertyNormalization normalization) {
+    public void setting(
+            String key, Supplier<CharSequence> valueSupplier, PropertyNormalization normalization) {
         nodes.all(each -> each.setting(key, valueSupplier, normalization));
     }
 
@@ -205,7 +211,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
-    public void systemProperty(String key, Supplier<CharSequence> valueSupplier, PropertyNormalization normalization) {
+    public void systemProperty(
+            String key, Supplier<CharSequence> valueSupplier, PropertyNormalization normalization) {
         nodes.all(each -> each.systemProperty(key, valueSupplier, normalization));
     }
 
@@ -220,7 +227,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
-    public void environment(String key, Supplier<CharSequence> valueSupplier, PropertyNormalization normalization) {
+    public void environment(
+            String key, Supplier<CharSequence> valueSupplier, PropertyNormalization normalization) {
         nodes.all(each -> each.environment(key, valueSupplier, normalization));
     }
 
@@ -237,7 +245,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
     private void checkFrozen() {
         if (configurationFrozen.get()) {
-            throw new IllegalStateException("Configuration for " + this + " can not be altered, already locked");
+            throw new IllegalStateException(
+                    "Configuration for " + this + " can not be altered, already locked");
         }
     }
 
@@ -249,10 +258,14 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     @Override
     public void start() {
         final String nodeNames;
-        if (nodes.stream().map(ElasticsearchNode::getName).anyMatch( name -> name == null)) {
+        if (nodes.stream().map(ElasticsearchNode::getName).anyMatch(name -> name == null)) {
             nodeNames = null;
         } else {
-            nodeNames = nodes.stream().map(ElasticsearchNode::getName).map(this::safeName).collect(Collectors.joining(","));
+            nodeNames =
+                    nodes.stream()
+                            .map(ElasticsearchNode::getName)
+                            .map(this::safeName)
+                            .collect(Collectors.joining(","));
         }
         for (ElasticsearchNode node : nodes) {
             if (nodeNames != null) {
@@ -291,7 +304,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
-    public void extraConfigFile(String destination, File from, PropertyNormalization normalization) {
+    public void extraConfigFile(
+            String destination, File from, PropertyNormalization normalization) {
         nodes.all(node -> node.extraConfigFile(destination, from, normalization));
     }
 
@@ -301,14 +315,21 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     private void writeUnicastHostsFiles() {
-        String unicastUris = nodes.stream().flatMap(node -> node.getAllTransportPortURI().stream()).collect(Collectors.joining("\n"));
-        nodes.forEach(node -> {
-            try {
-                Files.write(node.getConfigDir().resolve("unicast_hosts.txt"), unicastUris.getBytes(StandardCharsets.UTF_8));
-            } catch (IOException e) {
-                throw new UncheckedIOException("Failed to write unicast_hosts for " + this, e);
-            }
-        });
+        String unicastUris =
+                nodes.stream()
+                        .flatMap(node -> node.getAllTransportPortURI().stream())
+                        .collect(Collectors.joining("\n"));
+        nodes.forEach(
+                node -> {
+                    try {
+                        Files.write(
+                                node.getConfigDir().resolve("unicast_hosts.txt"),
+                                unicastUris.getBytes(StandardCharsets.UTF_8));
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(
+                                "Failed to write unicast_hosts for " + this, e);
+                    }
+                });
     }
 
     @Override
@@ -326,13 +347,17 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     @Override
     public List<String> getAllHttpSocketURI() {
         waitForAllConditions();
-        return nodes.stream().flatMap(each -> each.getAllHttpSocketURI().stream()).collect(Collectors.toList());
+        return nodes.stream()
+                .flatMap(each -> each.getAllHttpSocketURI().stream())
+                .collect(Collectors.toList());
     }
 
     @Override
     public List<String> getAllTransportPortURI() {
         waitForAllConditions();
-        return nodes.stream().flatMap(each -> each.getAllTransportPortURI().stream()).collect(Collectors.toList());
+        return nodes.stream()
+                .flatMap(each -> each.getAllTransportPortURI().stream())
+                .collect(Collectors.toList());
     }
 
     public void waitForAllConditions() {
@@ -342,7 +367,12 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         writeUnicastHostsFiles();
 
         LOGGER.info("Starting to wait for cluster to form");
-        waitForConditions(waitConditions, System.currentTimeMillis(), CLUSTER_UP_TIMEOUT, CLUSTER_UP_TIMEOUT_UNIT, this);
+        waitForConditions(
+                waitConditions,
+                System.currentTimeMillis(),
+                CLUSTER_UP_TIMEOUT,
+                CLUSTER_UP_TIMEOUT_UNIT,
+                this);
     }
 
     @Override
@@ -363,39 +393,40 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     public ElasticsearchNode singleNode() {
         if (nodes.size() != 1) {
             throw new IllegalStateException(
-                "Can't treat " + this + " as single node as it has " + nodes.size() + " nodes"
-            );
+                    "Can't treat " + this + " as single node as it has " + nodes.size() + " nodes");
         }
         return getFirstNode();
     }
 
     private void addWaitForClusterHealth() {
-        waitConditions.put("cluster health yellow", (node) -> {
-            try {
-                boolean httpSslEnabled = getFirstNode().isHttpSslEnabled();
-                WaitForHttpResource wait = new WaitForHttpResource(
-                    httpSslEnabled ? "https" : "http",
-                    getFirstNode().getHttpSocketURI(),
-                    nodes.size()
-                );
-                if (httpSslEnabled) {
-                    getFirstNode().configureHttpWait(wait);
-                }
-                List<Map<String, String>> credentials = getFirstNode().getCredentials();
-                if (getFirstNode().getCredentials().isEmpty() == false) {
-                    wait.setUsername(credentials.get(0).get("useradd"));
-                    wait.setPassword(credentials.get(0).get("-p"));
-                }
-                return wait.wait(500);
-            } catch (IOException e) {
-                throw new UncheckedIOException("IO error while waiting cluster", e);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new TestClustersException("Interrupted while waiting for " + this, e);
-            } catch (GeneralSecurityException e) {
-                throw new RuntimeException("security exception", e);
-            }
-        });
+        waitConditions.put(
+                "cluster health yellow",
+                (node) -> {
+                    try {
+                        boolean httpSslEnabled = getFirstNode().isHttpSslEnabled();
+                        WaitForHttpResource wait =
+                                new WaitForHttpResource(
+                                        httpSslEnabled ? "https" : "http",
+                                        getFirstNode().getHttpSocketURI(),
+                                        nodes.size());
+                        if (httpSslEnabled) {
+                            getFirstNode().configureHttpWait(wait);
+                        }
+                        List<Map<String, String>> credentials = getFirstNode().getCredentials();
+                        if (getFirstNode().getCredentials().isEmpty() == false) {
+                            wait.setUsername(credentials.get(0).get("useradd"));
+                            wait.setPassword(credentials.get(0).get("-p"));
+                        }
+                        return wait.wait(500);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException("IO error while waiting cluster", e);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new TestClustersException("Interrupted while waiting for " + this, e);
+                    } catch (GeneralSecurityException e) {
+                        throw new RuntimeException("security exception", e);
+                    }
+                });
     }
 
     @Nested
@@ -408,8 +439,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ElasticsearchCluster that = (ElasticsearchCluster) o;
-        return Objects.equals(clusterName, that.clusterName) &&
-            Objects.equals(path, that.path);
+        return Objects.equals(clusterName, that.clusterName) && Objects.equals(path, that.path);
     }
 
     @Override

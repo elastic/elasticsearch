@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gradle.precommit;
 
+import java.io.File;
 import org.elasticsearch.gradle.LoggedExec;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPluginConvention;
@@ -31,11 +32,7 @@ import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskAction;
 
-import java.io.File;
-
-/**
- * Runs LoggerUsageCheck on a set of directories.
- */
+/** Runs LoggerUsageCheck on a set of directories. */
 @CacheableTask
 public class LoggerUsageTask extends PrecommitTask {
 
@@ -47,11 +44,13 @@ public class LoggerUsageTask extends PrecommitTask {
 
     @TaskAction
     public void runLoggerUsageTask() {
-        LoggedExec.javaexec(getProject(), spec -> {
-            spec.setMain("org.elasticsearch.test.loggerusage.ESLoggerUsageChecker");
-            spec.classpath(getClasspath());
-            getClassDirectories().forEach(spec::args);
-        });
+        LoggedExec.javaexec(
+                getProject(),
+                spec -> {
+                    spec.setMain("org.elasticsearch.test.loggerusage.ESLoggerUsageChecker");
+                    spec.classpath(getClasspath());
+                    getClassDirectories().forEach(spec::args);
+                });
     }
 
     @Classpath
@@ -67,14 +66,19 @@ public class LoggerUsageTask extends PrecommitTask {
     @PathSensitive(PathSensitivity.RELATIVE)
     @SkipWhenEmpty
     public FileCollection getClassDirectories() {
-        return getProject().getConvention().getPlugin(JavaPluginConvention.class).getSourceSets().stream()
-            // Don't pick up all source sets like the java9 ones as logger-check doesn't support the class format
-            .filter(sourceSet -> sourceSet.getName().equals(SourceSet.MAIN_SOURCE_SET_NAME)
-                || sourceSet.getName().equals(SourceSet.TEST_SOURCE_SET_NAME))
-            .map(sourceSet -> sourceSet.getOutput().getClassesDirs())
-            .reduce(FileCollection::plus)
-            .orElse(getProject().files())
-            .filter(File::exists);
+        return getProject().getConvention().getPlugin(JavaPluginConvention.class).getSourceSets()
+                .stream()
+                // Don't pick up all source sets like the java9 ones as logger-check doesn't support
+                // the class format
+                .filter(
+                        sourceSet ->
+                                sourceSet.getName().equals(SourceSet.MAIN_SOURCE_SET_NAME)
+                                        || sourceSet
+                                                .getName()
+                                                .equals(SourceSet.TEST_SOURCE_SET_NAME))
+                .map(sourceSet -> sourceSet.getOutput().getClassesDirs())
+                .reduce(FileCollection::plus)
+                .orElse(getProject().files())
+                .filter(File::exists);
     }
-
 }

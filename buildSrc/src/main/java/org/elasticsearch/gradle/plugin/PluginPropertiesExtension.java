@@ -19,11 +19,10 @@
 
 package org.elasticsearch.gradle.plugin;
 
-import org.gradle.api.Project;
-
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import org.gradle.api.Project;
 
 /**
  * A container for plugin properties that will be written to the plugin descriptor, for easy
@@ -50,8 +49,8 @@ public class PluginPropertiesExtension {
     private File licenseFile;
 
     /**
-     * A notice file that should be included in the built plugin zip. This will be
-     * extended with notices from the {@code licenses/} directory.
+     * A notice file that should be included in the built plugin zip. This will be extended with
+     * notices from the {@code licenses/} directory.
      */
     private File noticeFile;
 

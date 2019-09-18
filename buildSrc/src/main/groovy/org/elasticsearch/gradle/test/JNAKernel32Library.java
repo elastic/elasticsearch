@@ -21,5 +21,4 @@ public class JNAKernel32Library {
     }
 
     native int GetShortPathNameW(WString lpszLongPath, char[] lpszShortPath, int cchBuffer);
-
 }

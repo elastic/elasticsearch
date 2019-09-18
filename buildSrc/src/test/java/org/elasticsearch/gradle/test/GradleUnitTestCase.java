@@ -6,9 +6,5 @@ import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
 import org.junit.runner.RunWith;
 
 @RunWith(RandomizedRunner.class)
-@TestMethodProviders({
-    JUnit4MethodProvider.class,
-    JUnit3MethodProvider.class
-})
-public abstract class GradleUnitTestCase extends BaseTestCase  {
-}
+@TestMethodProviders({JUnit4MethodProvider.class, JUnit3MethodProvider.class})
+public abstract class GradleUnitTestCase extends BaseTestCase {}

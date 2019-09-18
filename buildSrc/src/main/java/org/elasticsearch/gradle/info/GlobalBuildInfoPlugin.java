@@ -1,13 +1,5 @@
 package org.elasticsearch.gradle.info;
 
-import org.elasticsearch.gradle.OS;
-import org.gradle.api.GradleException;
-import org.gradle.api.JavaVersion;
-import org.gradle.api.Plugin;
-import org.gradle.api.Project;
-import org.gradle.api.plugins.ExtraPropertiesExtension;
-import org.gradle.internal.jvm.Jvm;
-
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -27,6 +19,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.elasticsearch.gradle.OS;
+import org.gradle.api.GradleException;
+import org.gradle.api.JavaVersion;
+import org.gradle.api.Plugin;
+import org.gradle.api.Project;
+import org.gradle.api.plugins.ExtraPropertiesExtension;
+import org.gradle.internal.jvm.Jvm;
 
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final String GLOBAL_INFO_EXTENSION_NAME = "globalInfo";
@@ -35,67 +34,107 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         if (project != project.getRootProject()) {
-            throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
+            throw new IllegalStateException(
+                    this.getClass().getName() + " can only be applied to the root project.");
         }
 
-        GlobalInfoExtension extension = project.getExtensions().create(GLOBAL_INFO_EXTENSION_NAME, GlobalInfoExtension.class);
+        GlobalInfoExtension extension =
+                project.getExtensions()
+                        .create(GLOBAL_INFO_EXTENSION_NAME, GlobalInfoExtension.class);
 
-        JavaVersion minimumCompilerVersion = JavaVersion.toVersion(getResourceContents("/minimumCompilerVersion"));
-        JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(getResourceContents("/minimumRuntimeVersion"));
+        JavaVersion minimumCompilerVersion =
+                JavaVersion.toVersion(getResourceContents("/minimumCompilerVersion"));
+        JavaVersion minimumRuntimeVersion =
+                JavaVersion.toVersion(getResourceContents("/minimumRuntimeVersion"));
 
         File compilerJavaHome = findCompilerJavaHome();
         File runtimeJavaHome = findRuntimeJavaHome(compilerJavaHome);
 
         final List<JavaHome> javaVersions = new ArrayList<>();
-        for (int version = 8; version <= Integer.parseInt(minimumCompilerVersion.getMajorVersion()); version++) {
+        for (int version = 8;
+                version <= Integer.parseInt(minimumCompilerVersion.getMajorVersion());
+                version++) {
             if (System.getenv(getJavaHomeEnvVarName(Integer.toString(version))) != null) {
-                javaVersions.add(JavaHome.of(version, new File(findJavaHome(Integer.toString(version)))));
+                javaVersions.add(
+                        JavaHome.of(version, new File(findJavaHome(Integer.toString(version)))));
             }
         }
 
-        GenerateGlobalBuildInfoTask generateTask = project.getTasks().create("generateGlobalBuildInfo",
-            GenerateGlobalBuildInfoTask.class, task -> {
-                task.setJavaVersions(javaVersions);
-                task.setMinimumCompilerVersion(minimumCompilerVersion);
-                task.setMinimumRuntimeVersion(minimumRuntimeVersion);
-                task.setCompilerJavaHome(compilerJavaHome);
-                task.setRuntimeJavaHome(runtimeJavaHome);
-                task.getOutputFile().set(new File(project.getBuildDir(), "global-build-info"));
-                task.getCompilerVersionFile().set(new File(project.getBuildDir(), "java-compiler-version"));
-                task.getRuntimeVersionFile().set(new File(project.getBuildDir(), "java-runtime-version"));
-                task.getFipsJvmFile().set(new File(project.getBuildDir(), "in-fips-jvm"));
-            });
+        GenerateGlobalBuildInfoTask generateTask =
+                project.getTasks()
+                        .create(
+                                "generateGlobalBuildInfo",
+                                GenerateGlobalBuildInfoTask.class,
+                                task -> {
+                                    task.setJavaVersions(javaVersions);
+                                    task.setMinimumCompilerVersion(minimumCompilerVersion);
+                                    task.setMinimumRuntimeVersion(minimumRuntimeVersion);
+                                    task.setCompilerJavaHome(compilerJavaHome);
+                                    task.setRuntimeJavaHome(runtimeJavaHome);
+                                    task.getOutputFile()
+                                            .set(
+                                                    new File(
+                                                            project.getBuildDir(),
+                                                            "global-build-info"));
+                                    task.getCompilerVersionFile()
+                                            .set(
+                                                    new File(
+                                                            project.getBuildDir(),
+                                                            "java-compiler-version"));
+                                    task.getRuntimeVersionFile()
+                                            .set(
+                                                    new File(
+                                                            project.getBuildDir(),
+                                                            "java-runtime-version"));
+                                    task.getFipsJvmFile()
+                                            .set(new File(project.getBuildDir(), "in-fips-jvm"));
+                                });
 
-        PrintGlobalBuildInfoTask printTask = project.getTasks().create("printGlobalBuildInfo", PrintGlobalBuildInfoTask.class, task -> {
-            task.getBuildInfoFile().set(generateTask.getOutputFile());
-            task.getCompilerVersionFile().set(generateTask.getCompilerVersionFile());
-            task.getRuntimeVersionFile().set(generateTask.getRuntimeVersionFile());
-            task.getFipsJvmFile().set(generateTask.getFipsJvmFile());
-            task.setGlobalInfoListeners(extension.listeners);
-        });
+        PrintGlobalBuildInfoTask printTask =
+                project.getTasks()
+                        .create(
+                                "printGlobalBuildInfo",
+                                PrintGlobalBuildInfoTask.class,
+                                task -> {
+                                    task.getBuildInfoFile().set(generateTask.getOutputFile());
+                                    task.getCompilerVersionFile()
+                                            .set(generateTask.getCompilerVersionFile());
+                                    task.getRuntimeVersionFile()
+                                            .set(generateTask.getRuntimeVersionFile());
+                                    task.getFipsJvmFile().set(generateTask.getFipsJvmFile());
+                                    task.setGlobalInfoListeners(extension.listeners);
+                                });
 
-        project.getExtensions().getByType(ExtraPropertiesExtension.class).set("defaultParallel", findDefaultParallel(project));
+        project.getExtensions()
+                .getByType(ExtraPropertiesExtension.class)
+                .set("defaultParallel", findDefaultParallel(project));
 
-        project.allprojects(p -> {
-            // Make sure than any task execution generates and prints build info
-            p.getTasks().configureEach(task -> {
-                if (task != generateTask && task != printTask) {
-                    task.dependsOn(printTask);
-                }
-            });
+        project.allprojects(
+                p -> {
+                    // Make sure than any task execution generates and prints build info
+                    p.getTasks()
+                            .configureEach(
+                                    task -> {
+                                        if (task != generateTask && task != printTask) {
+                                            task.dependsOn(printTask);
+                                        }
+                                    });
 
-            ExtraPropertiesExtension ext = p.getExtensions().getByType(ExtraPropertiesExtension.class);
+                    ExtraPropertiesExtension ext =
+                            p.getExtensions().getByType(ExtraPropertiesExtension.class);
 
-            ext.set("compilerJavaHome", compilerJavaHome);
-            ext.set("runtimeJavaHome", runtimeJavaHome);
-            ext.set("isRuntimeJavaHomeSet", compilerJavaHome.equals(runtimeJavaHome) == false);
-            ext.set("javaVersions", javaVersions);
-            ext.set("minimumCompilerVersion", minimumCompilerVersion);
-            ext.set("minimumRuntimeVersion", minimumRuntimeVersion);
-            ext.set("gradleJavaVersion", Jvm.current().getJavaVersion());
-            ext.set("gitRevision", gitRevision(project.getRootProject().getRootDir()));
-            ext.set("buildDate", ZonedDateTime.now(ZoneOffset.UTC));
-        });
+                    ext.set("compilerJavaHome", compilerJavaHome);
+                    ext.set("runtimeJavaHome", runtimeJavaHome);
+                    ext.set(
+                            "isRuntimeJavaHomeSet",
+                            compilerJavaHome.equals(runtimeJavaHome) == false);
+                    ext.set("javaVersions", javaVersions);
+                    ext.set("minimumCompilerVersion", minimumCompilerVersion);
+                    ext.set("minimumRuntimeVersion", minimumRuntimeVersion);
+                    ext.set("gradleJavaVersion", Jvm.current().getJavaVersion());
+                    ext.set("gitRevision", gitRevision(project.getRootProject().getRootDir()));
+                    ext.set("buildDate", ZonedDateTime.now(ZoneOffset.UTC));
+                });
     }
 
     private static File findCompilerJavaHome() {
@@ -117,17 +156,20 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             return new File(findJavaHome(runtimeJavaProperty));
         }
 
-        return System.getenv("RUNTIME_JAVA_HOME") == null ? compilerJavaHome : new File(System.getenv("RUNTIME_JAVA_HOME"));
+        return System.getenv("RUNTIME_JAVA_HOME") == null
+                ? compilerJavaHome
+                : new File(System.getenv("RUNTIME_JAVA_HOME"));
     }
 
     private static String findJavaHome(String version) {
         String versionedJavaHome = System.getenv(getJavaHomeEnvVarName(version));
         if (versionedJavaHome == null) {
             throw new GradleException(
-                "$" + getJavaHomeEnvVarName(version) + " must be set to build Elasticsearch. " +
-                    "Note that if the variable was just set you might have to run `./gradlew --stop` for " +
-                    "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details."
-            );
+                    "$"
+                            + getJavaHomeEnvVarName(version)
+                            + " must be set to build Elasticsearch. "
+                            + "Note that if the variable was just set you might have to run `./gradlew --stop` for "
+                            + "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details.");
         }
         return versionedJavaHome;
     }
@@ -137,9 +179,10 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private static String getResourceContents(String resourcePath) {
-        try (BufferedReader reader = new BufferedReader(
-            new InputStreamReader(GlobalBuildInfoPlugin.class.getResourceAsStream(resourcePath))
-        )) {
+        try (BufferedReader reader =
+                new BufferedReader(
+                        new InputStreamReader(
+                                GlobalBuildInfoPlugin.class.getResourceAsStream(resourcePath)))) {
             StringBuilder b = new StringBuilder();
             for (String line = reader.readLine(); line != null; line = reader.readLine()) {
                 if (b.length() != 0) {
@@ -150,13 +193,16 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
             return b.toString();
         } catch (IOException e) {
-            throw new UncheckedIOException("Error trying to read classpath resource: " + resourcePath, e);
+            throw new UncheckedIOException(
+                    "Error trying to read classpath resource: " + resourcePath, e);
         }
     }
 
     private static int findDefaultParallel(Project project) {
-        // Since it costs IO to compute this, and is done at configuration time we want to cache this if possible
-        // It's safe to store this in a static variable since it's just a primitive so leaking memory isn't an issue
+        // Since it costs IO to compute this, and is done at configuration time we want to cache
+        // this if possible
+        // It's safe to store this in a static variable since it's just a primitive so leaking
+        // memory isn't an issue
         if (_defaultParallel == null) {
             File cpuInfoFile = new File("/proc/cpuinfo");
             if (cpuInfoFile.exists()) {
@@ -167,7 +213,10 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 try (BufferedReader reader = new BufferedReader(new FileReader(cpuInfoFile))) {
                     for (String line = reader.readLine(); line != null; line = reader.readLine()) {
                         if (line.contains(":")) {
-                            List<String> parts = Arrays.stream(line.split(":", 2)).map(String::trim).collect(Collectors.toList());
+                            List<String> parts =
+                                    Arrays.stream(line.split(":", 2))
+                                            .map(String::trim)
+                                            .collect(Collectors.toList());
                             String name = parts.get(0);
                             String value = parts.get(1);
                             // the ID of the CPU socket
@@ -189,11 +238,12 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             } else if (OS.current() == OS.MAC) {
                 // Ask macOS to count physical CPUs for us
                 ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-                project.exec(spec -> {
-                    spec.setExecutable("sysctl");
-                    spec.args("-n", "hw.physicalcpu");
-                    spec.setStandardOutput(stdout);
-                });
+                project.exec(
+                        spec -> {
+                            spec.setExecutable("sysctl");
+                            spec.args("-n", "hw.physicalcpu");
+                            spec.setStandardOutput(stdout);
+                        });
 
                 _defaultParallel = Integer.parseInt(stdout.toString().trim());
             }
@@ -235,7 +285,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                 gitDir = dotGit;
             } else {
                 // this is a git worktree, follow the pointer to the repository
-                final Path workTree = Paths.get(readFirstLine(dotGit).substring("gitdir:".length()).trim());
+                final Path workTree =
+                        Paths.get(readFirstLine(dotGit).substring("gitdir:".length()).trim());
                 head = workTree.resolve("HEAD");
                 final Path commonDir = Paths.get(readFirstLine(workTree.resolve("commondir")));
                 if (commonDir.isAbsolute()) {
@@ -254,15 +305,15 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             }
             return revision;
         } catch (final IOException e) {
-            // for now, do not be lenient until we have better understanding of real-world scenarios where this happens
+            // for now, do not be lenient until we have better understanding of real-world scenarios
+            // where this happens
             throw new GradleException("unable to read the git revision", e);
         }
     }
 
     private static String readFirstLine(final Path path) throws IOException {
         return Files.lines(path, StandardCharsets.UTF_8)
-            .findFirst()
-            .orElseThrow(() -> new IOException("file [" + path + "] is empty"));
+                .findFirst()
+                .orElseThrow(() -> new IOException("file [" + path + "] is empty"));
     }
-
 }

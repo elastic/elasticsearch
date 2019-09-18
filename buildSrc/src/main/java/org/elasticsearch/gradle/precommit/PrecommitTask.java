@@ -18,14 +18,13 @@
  */
 package org.elasticsearch.gradle.precommit;
 
-import org.gradle.api.DefaultTask;
-import org.gradle.api.tasks.OutputFile;
-import org.gradle.api.tasks.TaskAction;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
+import org.gradle.api.DefaultTask;
+import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.TaskAction;
 
 public class PrecommitTask extends DefaultTask {
 
@@ -36,7 +35,6 @@ public class PrecommitTask extends DefaultTask {
 
     @TaskAction
     public void writeMarker() throws IOException {
-        Files.write(getSuccessMarker().toPath(), new byte[]{}, StandardOpenOption.CREATE);
+        Files.write(getSuccessMarker().toPath(), new byte[] {}, StandardOpenOption.CREATE);
     }
-
 }

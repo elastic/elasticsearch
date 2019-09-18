@@ -19,6 +19,14 @@
 
 package org.elasticsearch.gradle;
 
+import java.io.File;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.function.Supplier;
+import java.util.regex.Matcher;
 import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -36,15 +44,6 @@ import org.gradle.api.file.RelativePath;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.TaskProvider;
 
-import java.io.File;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-import java.util.concurrent.Callable;
-import java.util.function.Supplier;
-import java.util.regex.Matcher;
-
 public class JdkDownloadPlugin implements Plugin<Project> {
 
     private static final String REPO_NAME_PREFIX = "jdk_repo_";
@@ -52,35 +51,40 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        NamedDomainObjectContainer<Jdk> jdksContainer = project.container(Jdk.class, name ->
-            new Jdk(name, project)
-        );
+        NamedDomainObjectContainer<Jdk> jdksContainer =
+                project.container(Jdk.class, name -> new Jdk(name, project));
         project.getExtensions().add(CONTAINER_NAME, jdksContainer);
 
-        project.afterEvaluate(p -> {
-            for (Jdk jdk : jdksContainer) {
-                jdk.finalizeValues();
-                String version = jdk.getVersion();
-                String platform = jdk.getPlatform();
+        project.afterEvaluate(
+                p -> {
+                    for (Jdk jdk : jdksContainer) {
+                        jdk.finalizeValues();
+                        String version = jdk.getVersion();
+                        String platform = jdk.getPlatform();
 
-                // depend on the jdk directory "artifact" from the root project
-                DependencyHandler dependencies = project.getDependencies();
-                Map<String, Object> depConfig = new HashMap<>();
-                depConfig.put("path", ":"); // root project
-                depConfig.put("configuration", configName("extracted_jdk", version, platform));
-                dependencies.add(jdk.getConfiguration().getName(), dependencies.project(depConfig));
+                        // depend on the jdk directory "artifact" from the root project
+                        DependencyHandler dependencies = project.getDependencies();
+                        Map<String, Object> depConfig = new HashMap<>();
+                        depConfig.put("path", ":"); // root project
+                        depConfig.put(
+                                "configuration", configName("extracted_jdk", version, platform));
+                        dependencies.add(
+                                jdk.getConfiguration().getName(), dependencies.project(depConfig));
 
-                // ensure a root level jdk download task exists
-                setupRootJdkDownload(project.getRootProject(), platform, version);
-            }
-        });
+                        // ensure a root level jdk download task exists
+                        setupRootJdkDownload(project.getRootProject(), platform, version);
+                    }
+                });
 
         // all other repos should ignore the special jdk artifacts
-        project.getRootProject().getRepositories().all(repo -> {
-            if (repo.getName().startsWith(REPO_NAME_PREFIX) == false) {
-                repo.content(content -> content.excludeGroup("jdk"));
-            }
-        });
+        project.getRootProject()
+                .getRepositories()
+                .all(
+                        repo -> {
+                            if (repo.getName().startsWith(REPO_NAME_PREFIX) == false) {
+                                repo.content(content -> content.excludeGroup("jdk"));
+                            }
+                        });
     }
 
     @SuppressWarnings("unchecked")
@@ -90,7 +94,8 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
     private static void setupRootJdkDownload(Project rootProject, String platform, String version) {
         String extractTaskName = "extract" + capitalize(platform) + "Jdk" + version;
-        // NOTE: this is *horrendous*, but seems to be the only way to check for the existence of a registered task
+        // NOTE: this is *horrendous*, but seems to be the only way to check for the existence of a
+        // registered task
         try {
             rootProject.getTasks().named(extractTaskName);
             // already setup this version
@@ -99,13 +104,16 @@ public class JdkDownloadPlugin implements Plugin<Project> {
             // fall through: register the task
         }
 
-        // decompose the bundled jdk version, broken into elements as: [feature, interim, update, build]
+        // decompose the bundled jdk version, broken into elements as: [feature, interim, update,
+        // build]
         // Note the "patch" version is not yet handled here, as it has not yet been used by java.
         Matcher jdkVersionMatcher = Jdk.VERSION_PATTERN.matcher(version);
         if (jdkVersionMatcher.matches() == false) {
             throw new IllegalArgumentException("Malformed jdk version [" + version + "]");
         }
-        String jdkVersion = jdkVersionMatcher.group(1) + (jdkVersionMatcher.group(2) != null ? (jdkVersionMatcher.group(2)) : "");
+        String jdkVersion =
+                jdkVersionMatcher.group(1)
+                        + (jdkVersionMatcher.group(2) != null ? (jdkVersionMatcher.group(2)) : "");
         String jdkMajor = jdkVersionMatcher.group(1);
         String jdkBuild = jdkVersionMatcher.group(3);
         String hash = jdkVersionMatcher.group(5);
@@ -116,24 +124,43 @@ public class JdkDownloadPlugin implements Plugin<Project> {
         if (rootProject.getRepositories().findByName(repoName) == null) {
             if (hash != null) {
                 // current pattern since 12.0.1
-                repositories.ivy(ivyRepo -> {
-                    ivyRepo.setName(repoName);
-                    ivyRepo.setUrl("https://download.oracle.com");
-                    ivyRepo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
-                    ivyRepo.patternLayout(layout -> layout.artifact(
-                        "java/GA/jdk" + jdkVersion + "/" + hash + "/" + jdkBuild + "/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"));
-                    ivyRepo.content(content -> content.includeGroup("jdk"));
-                });
+                repositories.ivy(
+                        ivyRepo -> {
+                            ivyRepo.setName(repoName);
+                            ivyRepo.setUrl("https://download.oracle.com");
+                            ivyRepo.metadataSources(
+                                    IvyArtifactRepository.MetadataSources::artifact);
+                            ivyRepo.patternLayout(
+                                    layout ->
+                                            layout.artifact(
+                                                    "java/GA/jdk"
+                                                            + jdkVersion
+                                                            + "/"
+                                                            + hash
+                                                            + "/"
+                                                            + jdkBuild
+                                                            + "/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"));
+                            ivyRepo.content(content -> content.includeGroup("jdk"));
+                        });
             } else {
-                // simpler legacy pattern from JDK 9 to JDK 12 that we are advocating to Oracle to bring back
-                repositories.ivy(ivyRepo -> {
-                    ivyRepo.setName(repoName);
-                    ivyRepo.setUrl("https://download.oracle.com");
-                    ivyRepo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
-                    ivyRepo.patternLayout(layout ->
-                        layout.artifact("java/GA/jdk" + jdkMajor + "/" + jdkBuild + "/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"));
-                    ivyRepo.content(content -> content.includeGroup("jdk"));
-                });
+                // simpler legacy pattern from JDK 9 to JDK 12 that we are advocating to Oracle to
+                // bring back
+                repositories.ivy(
+                        ivyRepo -> {
+                            ivyRepo.setName(repoName);
+                            ivyRepo.setUrl("https://download.oracle.com");
+                            ivyRepo.metadataSources(
+                                    IvyArtifactRepository.MetadataSources::artifact);
+                            ivyRepo.patternLayout(
+                                    layout ->
+                                            layout.artifact(
+                                                    "java/GA/jdk"
+                                                            + jdkMajor
+                                                            + "/"
+                                                            + jdkBuild
+                                                            + "/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"));
+                            ivyRepo.content(content -> content.includeGroup("jdk"));
+                        });
             }
         }
 
@@ -147,43 +174,72 @@ public class JdkDownloadPlugin implements Plugin<Project> {
             configurations.create(localConfigName);
         }
         String extension = platform.equals("windows") ? "zip" : "tar.gz";
-        String jdkDep = "jdk:" + (platform.equals("darwin") ? "osx" : platform) + ":" + jdkVersion + "@" + extension;
+        String jdkDep =
+                "jdk:"
+                        + (platform.equals("darwin") ? "osx" : platform)
+                        + ":"
+                        + jdkVersion
+                        + "@"
+                        + extension;
         rootProject.getDependencies().add(configName("openjdk", version, platform), jdkDep);
 
         // add task for extraction
-        // TODO: look into doing this as an artifact transform, which are cacheable starting in gradle 5.3
+        // TODO: look into doing this as an artifact transform, which are cacheable starting in
+        // gradle 5.3
         int rootNdx = platform.equals("darwin") ? 2 : 1;
-        Action<CopySpec> removeRootDir = copy -> {
-            // remove extra unnecessary directory levels
-            copy.eachFile(details -> {
-                String[] pathSegments = details.getRelativePath().getSegments();
-                String[] newPathSegments = Arrays.copyOfRange(pathSegments, rootNdx, pathSegments.length);
-                details.setRelativePath(new RelativePath(true, newPathSegments));
-            });
-            copy.setIncludeEmptyDirs(false);
-        };
+        Action<CopySpec> removeRootDir =
+                copy -> {
+                    // remove extra unnecessary directory levels
+                    copy.eachFile(
+                            details -> {
+                                String[] pathSegments = details.getRelativePath().getSegments();
+                                String[] newPathSegments =
+                                        Arrays.copyOfRange(
+                                                pathSegments, rootNdx, pathSegments.length);
+                                details.setRelativePath(new RelativePath(true, newPathSegments));
+                            });
+                    copy.setIncludeEmptyDirs(false);
+                };
         // delay resolving jdkConfig until runtime
         Supplier<File> jdkArchiveGetter = jdkConfig::getSingleFile;
         final Callable<FileTree> fileGetter;
         if (extension.equals("zip")) {
             fileGetter = () -> rootProject.zipTree(jdkArchiveGetter.get());
         } else {
-            fileGetter = () -> rootProject.tarTree(rootProject.getResources().gzip(jdkArchiveGetter.get()));
+            fileGetter =
+                    () ->
+                            rootProject.tarTree(
+                                    rootProject.getResources().gzip(jdkArchiveGetter.get()));
         }
-        String extractDir = rootProject.getBuildDir().toPath().resolve("jdks/openjdk-" + jdkVersion + "_" + platform).toString();
-        TaskProvider<Copy> extractTask = rootProject.getTasks().register(extractTaskName, Copy.class, copyTask -> {
-            copyTask.doFirst(new Action<Task>() {
-                @Override
-                public void execute(Task t) {
-                    rootProject.delete(extractDir);
-                }
-            });
-            copyTask.into(extractDir);
-            copyTask.from(fileGetter, removeRootDir);
-        });
-        rootProject.getArtifacts().add(localConfigName,
-            rootProject.getLayout().getProjectDirectory().dir(extractDir),
-            artifact -> artifact.builtBy(extractTask));
+        String extractDir =
+                rootProject
+                        .getBuildDir()
+                        .toPath()
+                        .resolve("jdks/openjdk-" + jdkVersion + "_" + platform)
+                        .toString();
+        TaskProvider<Copy> extractTask =
+                rootProject
+                        .getTasks()
+                        .register(
+                                extractTaskName,
+                                Copy.class,
+                                copyTask -> {
+                                    copyTask.doFirst(
+                                            new Action<Task>() {
+                                                @Override
+                                                public void execute(Task t) {
+                                                    rootProject.delete(extractDir);
+                                                }
+                                            });
+                                    copyTask.into(extractDir);
+                                    copyTask.from(fileGetter, removeRootDir);
+                                });
+        rootProject
+                .getArtifacts()
+                .add(
+                        localConfigName,
+                        rootProject.getLayout().getProjectDirectory().dir(extractDir),
+                        artifact -> artifact.builtBy(extractTask));
     }
 
     private static String configName(String prefix, String version, String platform) {

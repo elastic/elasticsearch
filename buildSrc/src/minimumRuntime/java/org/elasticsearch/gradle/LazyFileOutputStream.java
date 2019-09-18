@@ -24,30 +24,31 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 
-/**
- * An outputstream to a File that is lazily opened on the first write.
- */
+/** An outputstream to a File that is lazily opened on the first write. */
 class LazyFileOutputStream extends OutputStream {
     private OutputStream delegate;
 
     LazyFileOutputStream(File file) {
         // use an initial dummy delegate to avoid doing a conditional on every write
-        this.delegate = new OutputStream() {
-            private void bootstrap() throws IOException {
-                file.getParentFile().mkdirs();
-                delegate = new FileOutputStream(file);
-            }
-            @Override
-            public void write(int b) throws IOException {
-                bootstrap();
-                delegate.write(b);
-            }
-            @Override
-            public void write(byte b[], int off, int len) throws IOException {
-                bootstrap();
-                delegate.write(b, off, len);
-            }
-        };
+        this.delegate =
+                new OutputStream() {
+                    private void bootstrap() throws IOException {
+                        file.getParentFile().mkdirs();
+                        delegate = new FileOutputStream(file);
+                    }
+
+                    @Override
+                    public void write(int b) throws IOException {
+                        bootstrap();
+                        delegate.write(b);
+                    }
+
+                    @Override
+                    public void write(byte b[], int off, int len) throws IOException {
+                        bootstrap();
+                        delegate.write(b, off, len);
+                    }
+                };
     }
 
     @Override

@@ -1,9 +1,5 @@
 package org.elasticsearch.gradle;
 
-import org.gradle.api.Named;
-import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.Nested;
-
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -12,6 +8,9 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import org.gradle.api.Named;
+import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.Nested;
 
 public class LazyPropertyMap<K, V> extends AbstractLazyPropertyCollection implements Map<K, V> {
 
@@ -48,7 +47,9 @@ public class LazyPropertyMap<K, V> extends AbstractLazyPropertyCollection implem
 
     @Override
     public boolean containsValue(Object value) {
-        return delegate.values().stream().map(PropertyMapEntry::getValue).anyMatch(v -> v.equals(value));
+        return delegate.values().stream()
+                .map(PropertyMapEntry::getValue)
+                .anyMatch(v -> v.equals(value));
     }
 
     @Override
@@ -79,7 +80,8 @@ public class LazyPropertyMap<K, V> extends AbstractLazyPropertyCollection implem
 
     public V put(K key, Supplier<V> supplier, PropertyNormalization normalization) {
         assertNotNull(supplier, "supplier for key '" + key + "'");
-        PropertyMapEntry<K, V> previous = delegate.put(key, new PropertyMapEntry<>(key, supplier, normalization));
+        PropertyMapEntry<K, V> previous =
+                delegate.put(key, new PropertyMapEntry<>(key, supplier, normalization));
         return previous == null ? null : previous.getValue();
     }
 
@@ -91,7 +93,8 @@ public class LazyPropertyMap<K, V> extends AbstractLazyPropertyCollection implem
 
     @Override
     public void putAll(Map<? extends K, ? extends V> m) {
-        throw new UnsupportedOperationException(this.getClass().getName() + " does not support putAll()");
+        throw new UnsupportedOperationException(
+                this.getClass().getName() + " does not support putAll()");
     }
 
     @Override
@@ -106,24 +109,33 @@ public class LazyPropertyMap<K, V> extends AbstractLazyPropertyCollection implem
 
     @Override
     public Collection<V> values() {
-        return delegate.values().stream().peek(this::validate).map(PropertyMapEntry::getValue).collect(Collectors.toList());
+        return delegate.values().stream()
+                .peek(this::validate)
+                .map(PropertyMapEntry::getValue)
+                .collect(Collectors.toList());
     }
 
     @Override
     public Set<Entry<K, V>> entrySet() {
         return delegate.entrySet().stream()
-            .peek(this::validate)
-            .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().getValue())).entrySet();
+                .peek(this::validate)
+                .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().getValue()))
+                .entrySet();
     }
 
     @Override
     @Nested
     List<? extends Object> getNormalizedCollection() {
         return delegate.values().stream()
-            .peek(this::validate)
-            .filter(entry -> entry.getNormalization() != PropertyNormalization.IGNORE_VALUE)
-            .map(entry -> normalizationMapper == null ? entry : normalizationMapper.apply(entry.getKey(), entry.getValue()))
-            .collect(Collectors.toList());
+                .peek(this::validate)
+                .filter(entry -> entry.getNormalization() != PropertyNormalization.IGNORE_VALUE)
+                .map(
+                        entry ->
+                                normalizationMapper == null
+                                        ? entry
+                                        : normalizationMapper.apply(
+                                                entry.getKey(), entry.getValue()))
+                .collect(Collectors.toList());
     }
 
     private void validate(Map.Entry<K, PropertyMapEntry<K, V>> entry) {

@@ -19,30 +19,29 @@
 
 package org.elasticsearch.gradle.vagrant;
 
-import org.gradle.api.logging.Logger;
-
 import java.util.Formatter;
 import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.gradle.api.logging.Logger;
 
 /**
  * Adapts an OutputStream containing TAP output from bats into a ProgressLogger and a Logger.
  *
- * TAP (Test Anything Protocol, https://testanything.org) is used by BATS for its output format.
+ * <p>TAP (Test Anything Protocol, https://testanything.org) is used by BATS for its output format.
  *
- * Every test output goes to the ProgressLogger and all failures
- * and non-test output goes to the Logger. That means you can always glance
- * at the result of the last test and the cumulative pass/fail/skip stats and
- * the failures are all logged.
+ * <p>Every test output goes to the ProgressLogger and all failures and non-test output goes to the
+ * Logger. That means you can always glance at the result of the last test and the cumulative
+ * pass/fail/skip stats and the failures are all logged.
  *
- * There is a Tap4j project but we can't use it because it wants to parse the
- * entire TAP stream at once and won't parse it stream-wise.
+ * <p>There is a Tap4j project but we can't use it because it wants to parse the entire TAP stream
+ * at once and won't parse it stream-wise.
  */
 public class BatsProgressLogger implements UnaryOperator<String> {
 
     private static final Pattern lineRegex =
-        Pattern.compile("(?<status>ok|not ok) \\d+(?<skip> # skip (?<skipReason>\\(.+\\))?)? \\[(?<suite>.+)\\] (?<test>.+)");
+            Pattern.compile(
+                    "(?<status>ok|not ok) \\d+(?<skip> # skip (?<skipReason>\\(.+\\))?)? \\[(?<suite>.+)\\] (?<test>.+)");
     private static final Pattern startRegex = Pattern.compile("1..(\\d+)");
 
     private final Logger logger;
@@ -67,13 +66,13 @@ public class BatsProgressLogger implements UnaryOperator<String> {
             testCount = Integer.parseInt(m.group(1));
             int length = String.valueOf(testCount).length();
             String count = "%0" + length + "d";
-            countsFormat = "[" + count +"|" + count + "|" + count + "/" + count + "]";
+            countsFormat = "[" + count + "|" + count + "|" + count + "/" + count + "]";
             return null;
         }
         Matcher m = lineRegex.matcher(line);
         if (m.matches() == false) {
             /* These might be failure report lines or comments or whatever. Its hard
-              to tell and it doesn't matter. */
+            to tell and it doesn't matter. */
             logger.warn(line);
             return null;
         }
@@ -95,7 +94,11 @@ public class BatsProgressLogger implements UnaryOperator<String> {
             testsFailed++;
         }
 
-        String counts = new Formatter().format(countsFormat, testsCompleted, testsFailed, testsSkipped, testCount).out().toString();
+        String counts =
+                new Formatter()
+                        .format(countsFormat, testsCompleted, testsFailed, testsSkipped, testCount)
+                        .out()
+                        .toString();
         if (success == false) {
             logger.warn(line);
         }

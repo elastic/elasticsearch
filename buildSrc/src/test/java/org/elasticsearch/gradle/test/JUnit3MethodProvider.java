@@ -21,7 +21,6 @@ package org.elasticsearch.gradle.test;
 import com.carrotsearch.randomizedtesting.ClassModel;
 import com.carrotsearch.randomizedtesting.ClassModel.MethodModel;
 import com.carrotsearch.randomizedtesting.TestMethodProvider;
-
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -31,22 +30,23 @@ import java.util.Map;
 /**
  * Backwards compatible test* method provider (public, non-static).
  *
- * copy of org.apache.lucene.util.LuceneJUnit3MethodProvider to avoid a dependency between build and test fw.
+ * <p>copy of org.apache.lucene.util.LuceneJUnit3MethodProvider to avoid a dependency between build
+ * and test fw.
  */
 public final class JUnit3MethodProvider implements TestMethodProvider {
     @Override
     public Collection<Method> getTestMethods(Class<?> suiteClass, ClassModel classModel) {
-        Map<Method,MethodModel> methods = classModel.getMethods();
+        Map<Method, MethodModel> methods = classModel.getMethods();
         ArrayList<Method> result = new ArrayList<>();
         for (MethodModel mm : methods.values()) {
             // Skip any methods that have overrieds/ shadows.
             if (mm.getDown() != null) continue;
 
             Method m = mm.element;
-            if (m.getName().startsWith("test") &&
-                Modifier.isPublic(m.getModifiers()) &&
-                !Modifier.isStatic(m.getModifiers()) &&
-                m.getParameterTypes().length == 0) {
+            if (m.getName().startsWith("test")
+                    && Modifier.isPublic(m.getModifiers())
+                    && !Modifier.isStatic(m.getModifiers())
+                    && m.getParameterTypes().length == 0) {
                 result.add(m);
             }
         }

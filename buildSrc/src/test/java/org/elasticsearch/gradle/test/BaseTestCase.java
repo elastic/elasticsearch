@@ -27,10 +27,7 @@ import org.junit.Assert;
 import org.junit.runner.RunWith;
 
 @RunWith(RandomizedRunner.class)
-@TestMethodProviders({
-    JUnit4MethodProvider.class,
-    JUnit3MethodProvider.class
-})
+@TestMethodProviders({JUnit4MethodProvider.class, JUnit3MethodProvider.class})
 @ThreadLeakLingering(linger = 5000) // wait for "Connection worker" to die
 public abstract class BaseTestCase extends Assert {
 
@@ -39,7 +36,9 @@ public abstract class BaseTestCase extends Assert {
     public interface ThrowingRunnable {
         void run() throws Throwable;
     }
-    public static <T extends Throwable> T expectThrows(Class<T> expectedType, ThrowingRunnable runnable) {
+
+    public static <T extends Throwable> T expectThrows(
+            Class<T> expectedType, ThrowingRunnable runnable) {
         try {
             runnable.run();
         } catch (Throwable e) {
@@ -47,10 +46,17 @@ public abstract class BaseTestCase extends Assert {
                 return expectedType.cast(e);
             }
             AssertionFailedError assertion =
-                new AssertionFailedError("Unexpected exception type, expected " + expectedType.getSimpleName() + " but got " + e);
+                    new AssertionFailedError(
+                            "Unexpected exception type, expected "
+                                    + expectedType.getSimpleName()
+                                    + " but got "
+                                    + e);
             assertion.initCause(e);
             throw assertion;
         }
-        throw new AssertionFailedError("Expected exception "+ expectedType.getSimpleName() + " but no exception was thrown");
+        throw new AssertionFailedError(
+                "Expected exception "
+                        + expectedType.getSimpleName()
+                        + " but no exception was thrown");
     }
 }

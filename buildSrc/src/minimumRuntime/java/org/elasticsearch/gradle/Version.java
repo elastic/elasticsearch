@@ -4,9 +4,7 @@ import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Encapsulates comparison and printing logic for an x.y.z version.
- */
+/** Encapsulates comparison and printing logic for an x.y.z version. */
 public final class Version implements Comparable<Version> {
     private final int major;
     private final int minor;
@@ -40,20 +38,24 @@ public final class Version implements Comparable<Version> {
         Matcher matcher = pattern.matcher(s);
         if (matcher.matches() == false) {
             throw new IllegalArgumentException(
-                "Invalid version format: '" + s + "'. Should be major.minor.revision[-(alpha|beta|rc)Number][-SNAPSHOT]"
-            );
+                    "Invalid version format: '"
+                            + s
+                            + "'. Should be major.minor.revision[-(alpha|beta|rc)Number][-SNAPSHOT]");
         }
 
         return new Version(
                 Integer.parseInt(matcher.group(1)),
                 parseSuffixNumber(matcher.group(2)),
-                parseSuffixNumber(matcher.group(3))
-        );
+                parseSuffixNumber(matcher.group(3)));
     }
 
     @Override
     public String toString() {
-        return String.valueOf(getMajor()) + "." + String.valueOf(getMinor()) + "." + String.valueOf(getRevision());
+        return String.valueOf(getMajor())
+                + "."
+                + String.valueOf(getMinor())
+                + "."
+                + String.valueOf(getRevision());
     }
 
     public boolean before(Version compareTo) {
@@ -93,9 +95,7 @@ public final class Version implements Comparable<Version> {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Version version = (Version) o;
-        return major == version.major &&
-                minor == version.minor &&
-                revision == version.revision;
+        return major == version.major && minor == version.minor && revision == version.revision;
     }
 
     @Override
@@ -123,5 +123,4 @@ public final class Version implements Comparable<Version> {
     public int compareTo(Version other) {
         return Integer.compare(getId(), other.getId());
     }
-
 }

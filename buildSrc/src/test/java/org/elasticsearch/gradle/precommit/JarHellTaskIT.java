@@ -24,16 +24,19 @@ import org.gradle.testkit.runner.BuildResult;
 public class JarHellTaskIT extends GradleIntegrationTestCase {
 
     public void testJarHellDetected() {
-        BuildResult result = getGradleRunner("jarHell")
-            .withArguments("clean", "precommit", "-s", "-Dlocal.repo.path=" + getLocalTestRepoPath())
-            .buildAndFail();
+        BuildResult result =
+                getGradleRunner("jarHell")
+                        .withArguments(
+                                "clean",
+                                "precommit",
+                                "-s",
+                                "-Dlocal.repo.path=" + getLocalTestRepoPath())
+                        .buildAndFail();
 
         assertTaskFailed(result, ":jarHell");
         assertOutputContains(
-            result.getOutput(),
-            "java.lang.IllegalStateException: jar hell!",
-            "class: org.apache.logging.log4j.Logger"
-        );
+                result.getOutput(),
+                "java.lang.IllegalStateException: jar hell!",
+                "class: org.apache.logging.log4j.Logger");
     }
-
 }

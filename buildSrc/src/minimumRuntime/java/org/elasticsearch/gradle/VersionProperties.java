@@ -7,7 +7,8 @@ import java.util.Map;
 import java.util.Properties;
 
 /**
- * Accessor for shared dependency versions used by elasticsearch, namely the elasticsearch and lucene versions.
+ * Accessor for shared dependency versions used by elasticsearch, namely the elasticsearch and
+ * lucene versions.
  */
 public class VersionProperties {
 
@@ -15,7 +16,7 @@ public class VersionProperties {
         return elasticsearch;
     }
 
-    public static Version getElasticsearchVersion()  {
+    public static Version getElasticsearchVersion() {
         return Version.fromString(elasticsearch);
     }
 
@@ -49,7 +50,8 @@ public class VersionProperties {
 
     private static Properties getVersionProperties() {
         Properties props = new Properties();
-        InputStream propsStream = VersionProperties.class.getResourceAsStream("/version.properties");
+        InputStream propsStream =
+                VersionProperties.class.getResourceAsStream("/version.properties");
         if (propsStream == null) {
             throw new IllegalStateException("/version.properties resource missing");
         }

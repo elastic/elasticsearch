@@ -19,12 +19,6 @@
 
 package org.elasticsearch.gradle.precommit;
 
-import org.gradle.api.DefaultTask;
-import org.gradle.api.logging.Logger;
-import org.gradle.api.logging.Logging;
-import org.gradle.api.tasks.TaskAction;
-import org.gradle.api.tasks.TaskProvider;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -32,10 +26,13 @@ import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.security.NoSuchAlgorithmException;
 import java.util.Set;
+import org.gradle.api.DefaultTask;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
+import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.TaskProvider;
 
-/**
- * A task to update shas used by {@code DependencyLicensesCheck}
- */
+/** A task to update shas used by {@code DependencyLicensesCheck} */
 public class UpdateShasTask extends DefaultTask {
 
     private final Logger logger = Logging.getLogger(getClass());
@@ -69,12 +66,14 @@ public class UpdateShasTask extends DefaultTask {
         }
     }
 
-    private void createSha(File dependency, String jarName, File shaFile) throws IOException, NoSuchAlgorithmException {
+    private void createSha(File dependency, String jarName, File shaFile)
+            throws IOException, NoSuchAlgorithmException {
         logger.lifecycle("Adding sha for " + jarName);
 
         String sha = parentTask.get().getSha1(dependency);
 
-        Files.write(shaFile.toPath(), sha.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE);
+        Files.write(
+                shaFile.toPath(), sha.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE);
     }
 
     public DependencyLicensesTask getParentTask() {

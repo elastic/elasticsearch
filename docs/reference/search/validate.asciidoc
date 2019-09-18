@@ -7,6 +7,7 @@ Validates a potentially expensive query without executing it.
 --------------------------------------------------
 GET twitter/_validate/query?q=user:foo
 --------------------------------------------------
+// CONSOLE
 // TEST[setup:twitter]
 
 
@@ -77,7 +78,8 @@ PUT twitter/_bulk?refresh
 {"index":{"_id":2}}
 {"user" : "kimchi", "post_date" : "2009-11-15T14:12:13", "message" : "My username is similar to @kimchy!"}
 --------------------------------------------------
-
+// CONSOLE
+// TEST[continued]
 
 When sent a valid query:
 
@@ -253,6 +255,8 @@ PUT twitter/_bulk?refresh
 {"index":{"_id":2}}
 {"user" : "kimchi", "post_date" : "2009-11-15T14:12:13", "message" : "My username is similar to @kimchy!"}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 ////
 
 [source,js]
@@ -269,6 +273,7 @@ GET twitter/_validate/query?rewrite=true&all_shards=true
   }
 }
 --------------------------------------------------
+// CONSOLE
 // TEST[continued]
 
 The API returns the following response:

@@ -21,23 +21,32 @@ import java.util.Objects;
 /**
  * PreProcessor for one hot encoding a set of categorical values for a given field.
  */
-public class OneHotEncoding implements PreProcessor {
+public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyParsedPreProcessor {
 
     public static final ParseField NAME = new ParseField("one_hot_encoding");
     public static final ParseField FIELD = new ParseField("field");
     public static final ParseField HOT_MAP = new ParseField("hot_map");
 
+    public static final ConstructingObjectParser<OneHotEncoding, Void> STRICT_PARSER = createParser(false);
+    public static final ConstructingObjectParser<OneHotEncoding, Void> LENIENT_PARSER = createParser(true);
+
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<OneHotEncoding, Void> PARSER = new ConstructingObjectParser<>(
-        NAME.getPreferredName(),
-        a -> new OneHotEncoding((String)a[0], (Map<String, String>)a[1]));
-    static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), HOT_MAP);
+    private static ConstructingObjectParser<OneHotEncoding, Void> createParser(boolean lenient) {
+        ConstructingObjectParser<OneHotEncoding, Void> parser = new ConstructingObjectParser<>(
+            NAME.getPreferredName(),
+            lenient,
+            a -> new OneHotEncoding((String)a[0], (Map<String, String>)a[1]));
+        parser.declareString(ConstructingObjectParser.constructorArg(), FIELD);
+        parser.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), HOT_MAP);
+        return parser;
     }
 
-    public static OneHotEncoding fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+    public static OneHotEncoding fromXContentStrict(XContentParser parser) {
+        return STRICT_PARSER.apply(parser, null);
+    }
+
+    public static OneHotEncoding fromXContentLenient(XContentParser parser) {
+        return LENIENT_PARSER.apply(parser, null);
     }
 
     private final String field;

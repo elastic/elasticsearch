@@ -16,9 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml.preprocessing;
+package org.elasticsearch.client.ml.inference.preprocessing;
 
-import org.elasticsearch.client.ml.inference.preprocessing.TargetMeanEncoding;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
@@ -28,11 +27,11 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 
-public class TargetMeanEncodingTests extends AbstractXContentTestCase<TargetMeanEncoding> {
+public class FrequencyEncodingTests extends AbstractXContentTestCase<FrequencyEncoding> {
 
     @Override
-    protected TargetMeanEncoding doParseInstance(XContentParser parser) throws IOException {
-        return TargetMeanEncoding.fromXContent(parser);
+    protected FrequencyEncoding doParseInstance(XContentParser parser) throws IOException {
+        return FrequencyEncoding.fromXContent(parser);
     }
 
     @Override
@@ -46,20 +45,16 @@ public class TargetMeanEncodingTests extends AbstractXContentTestCase<TargetMean
     }
 
     @Override
-    protected TargetMeanEncoding createTestInstance() {
+    protected FrequencyEncoding createTestInstance() {
         return createRandom();
     }
 
-    public static TargetMeanEncoding createRandom() {
+    public static FrequencyEncoding createRandom() {
         int valuesSize = randomIntBetween(1, 10);
         Map<String, Double> valueMap = new HashMap<>();
         for (int i = 0; i < valuesSize; i++) {
             valueMap.put(randomAlphaOfLength(10), randomDoubleBetween(0.0, 1.0, false));
         }
-        return new TargetMeanEncoding(randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            valueMap,
-            randomDoubleBetween(0.0, 1.0, false));
+        return new FrequencyEncoding(randomAlphaOfLength(10), randomAlphaOfLength(10), valueMap);
     }
-
 }

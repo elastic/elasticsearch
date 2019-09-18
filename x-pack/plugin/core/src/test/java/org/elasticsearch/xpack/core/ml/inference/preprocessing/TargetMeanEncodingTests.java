@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -15,15 +16,33 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class TargetMeanEncodingTests extends AbstractSerializingTestCase<TargetMeanEncoding> {
 
+    private boolean lenient;
+
+    @Before
+    public void chooseStrictOrLenient() {
+        lenient = randomBoolean();
+    }
+
     @Override
     protected TargetMeanEncoding doParseInstance(XContentParser parser) throws IOException {
-        return TargetMeanEncoding.fromXContent(parser);
+        return lenient ? TargetMeanEncoding.fromXContentLenient(parser) : TargetMeanEncoding.fromXContentStrict(parser);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return lenient;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> !field.isEmpty();
     }
 
     @Override

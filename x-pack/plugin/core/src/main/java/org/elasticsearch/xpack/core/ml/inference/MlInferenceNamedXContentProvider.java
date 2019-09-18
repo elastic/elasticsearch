@@ -9,8 +9,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncoding;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.LenientlyParsedPreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.StrictlyParsedPreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.TargetMeanEncoding;
 
 import java.util.ArrayList;
@@ -22,13 +24,22 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
     public List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
 
-        // PreProcessing
-        namedXContent.add(new NamedXContentRegistry.Entry(PreProcessor.class, OneHotEncoding.NAME,
-            OneHotEncoding::fromXContent));
-        namedXContent.add(new NamedXContentRegistry.Entry(PreProcessor.class, TargetMeanEncoding.NAME,
-            TargetMeanEncoding::fromXContent));
-        namedXContent.add(new NamedXContentRegistry.Entry(PreProcessor.class, FrequencyEncoding.NAME,
-            FrequencyEncoding::fromXContent));
+        // PreProcessing Lenient
+        namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedPreProcessor.class, OneHotEncoding.NAME,
+            OneHotEncoding::fromXContentLenient));
+        namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedPreProcessor.class, TargetMeanEncoding.NAME,
+            TargetMeanEncoding::fromXContentLenient));
+        namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedPreProcessor.class, FrequencyEncoding.NAME,
+            FrequencyEncoding::fromXContentLenient));
+
+        // PreProcessing Strict
+        namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedPreProcessor.class, OneHotEncoding.NAME,
+            OneHotEncoding::fromXContentStrict));
+        namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedPreProcessor.class, TargetMeanEncoding.NAME,
+            TargetMeanEncoding::fromXContentStrict));
+        namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedPreProcessor.class, FrequencyEncoding.NAME,
+            FrequencyEncoding::fromXContentStrict));
+
         return namedXContent;
     }
 

@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
 import java.util.Map;
 
@@ -14,12 +14,7 @@ import java.util.Map;
  * Describes a pre-processor for a defined machine learning model
  * This processor should take a set of fields and return the modified set of fields.
  */
-public interface PreProcessor extends ToXContentObject, NamedWriteable {
-
-    /**
-     * @return The name of the pre-processor
-     */
-    String getName();
+public interface PreProcessor extends NamedXContentObject, NamedWriteable {
 
     /**
      * Process the give fields and their values and return the modified map.

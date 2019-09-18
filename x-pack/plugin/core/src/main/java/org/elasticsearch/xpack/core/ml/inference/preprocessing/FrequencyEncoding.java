@@ -23,27 +23,36 @@ import java.util.Objects;
 /**
  * PreProcessor for frequency encoding a set of categorical values for a given field.
  */
-public class FrequencyEncoding implements PreProcessor {
+public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyParsedPreProcessor {
 
     public static final ParseField NAME = new ParseField("frequency_encoding");
     public static final ParseField FIELD = new ParseField("field");
     public static final ParseField FEATURE_NAME = new ParseField("feature_name");
     public static final ParseField FREQUENCY_MAP = new ParseField("frequency_map");
 
+    public static final ConstructingObjectParser<FrequencyEncoding, Void> STRICT_PARSER = createParser(false);
+    public static final ConstructingObjectParser<FrequencyEncoding, Void> LENIENT_PARSER = createParser(true);
+
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<FrequencyEncoding, Void> PARSER = new ConstructingObjectParser<>(
-        NAME.getPreferredName(),
-        a -> new FrequencyEncoding((String)a[0], (String)a[1], (Map<String, Double>)a[2]));
-    static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), FEATURE_NAME);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(),
+    private static ConstructingObjectParser<FrequencyEncoding, Void> createParser(boolean lenient) {
+        ConstructingObjectParser<FrequencyEncoding, Void> parser = new ConstructingObjectParser<>(
+            NAME.getPreferredName(),
+            lenient,
+            a -> new FrequencyEncoding((String)a[0], (String)a[1], (Map<String, Double>)a[2]));
+        parser.declareString(ConstructingObjectParser.constructorArg(), FIELD);
+        parser.declareString(ConstructingObjectParser.constructorArg(), FEATURE_NAME);
+        parser.declareObject(ConstructingObjectParser.constructorArg(),
             (p, c) -> p.map(HashMap::new, XContentParser::doubleValue),
             FREQUENCY_MAP);
+        return parser;
     }
 
-    public static FrequencyEncoding fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+    public static FrequencyEncoding fromXContentStrict(XContentParser parser) {
+        return STRICT_PARSER.apply(parser, null);
+    }
+
+    public static FrequencyEncoding fromXContentLenient(XContentParser parser) {
+        return LENIENT_PARSER.apply(parser, null);
     }
 
     private final String field;

@@ -23,7 +23,7 @@ import java.util.Objects;
 /**
  * PreProcessor for target mean encoding a set of categorical values for a given field.
  */
-public class TargetMeanEncoding implements PreProcessor {
+public class TargetMeanEncoding implements LenientlyParsedPreProcessor, StrictlyParsedPreProcessor {
 
     public static final ParseField NAME = new ParseField("target_mean_encoding");
     public static final ParseField FIELD = new ParseField("field");
@@ -31,21 +31,30 @@ public class TargetMeanEncoding implements PreProcessor {
     public static final ParseField TARGET_MEANS = new ParseField("target_means");
     public static final ParseField DEFAULT_VALUE = new ParseField("default_value");
 
+    public static final ConstructingObjectParser<TargetMeanEncoding, Void> STRICT_PARSER = createParser(false);
+    public static final ConstructingObjectParser<TargetMeanEncoding, Void> LENIENT_PARSER = createParser(true);
+
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<TargetMeanEncoding, Void> PARSER = new ConstructingObjectParser<>(
-        NAME.getPreferredName(),
-        a -> new TargetMeanEncoding((String)a[0], (String)a[1], (Map<String, Double>)a[2], (Double)a[3]));
-    static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), FEATURE_NAME);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(),
+    private static ConstructingObjectParser<TargetMeanEncoding, Void> createParser(boolean lenient) {
+        ConstructingObjectParser<TargetMeanEncoding, Void> parser = new ConstructingObjectParser<>(
+            NAME.getPreferredName(),
+            lenient,
+            a -> new TargetMeanEncoding((String)a[0], (String)a[1], (Map<String, Double>)a[2], (Double)a[3]));
+        parser.declareString(ConstructingObjectParser.constructorArg(), FIELD);
+        parser.declareString(ConstructingObjectParser.constructorArg(), FEATURE_NAME);
+        parser.declareObject(ConstructingObjectParser.constructorArg(),
             (p, c) -> p.map(HashMap::new, XContentParser::doubleValue),
             TARGET_MEANS);
-        PARSER.declareDouble(ConstructingObjectParser.constructorArg(), DEFAULT_VALUE);
+        parser.declareDouble(ConstructingObjectParser.constructorArg(), DEFAULT_VALUE);
+        return parser;
     }
 
-    public static TargetMeanEncoding fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+    public static TargetMeanEncoding fromXContentStrict(XContentParser parser) {
+        return STRICT_PARSER.apply(parser, null);
+    }
+
+    public static TargetMeanEncoding fromXContentLenient(XContentParser parser) {
+        return LENIENT_PARSER.apply(parser, null);
     }
 
     private final String field;

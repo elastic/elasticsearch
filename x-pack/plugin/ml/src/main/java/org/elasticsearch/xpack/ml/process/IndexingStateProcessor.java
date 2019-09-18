@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.job.process.autodetect.output;
+package org.elasticsearch.xpack.ml.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -15,7 +15,6 @@ import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.ml.process.StateProcessor;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -25,18 +24,18 @@ import java.util.List;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 /**
- * Reads the autodetect state and persists via a bulk request
+ * Reads state documents of a stream, splits them and persists to an index via a bulk request
  */
-public class AutodetectStateProcessor implements StateProcessor {
+public class IndexingStateProcessor implements StateProcessor {
 
-    private static final Logger LOGGER = LogManager.getLogger(AutodetectStateProcessor.class);
+    private static final Logger LOGGER = LogManager.getLogger(IndexingStateProcessor.class);
 
     private static final int READ_BUF_SIZE = 8192;
 
     private final Client client;
     private final String jobId;
 
-    public AutodetectStateProcessor(Client client, String jobId) {
+    public IndexingStateProcessor(Client client, String jobId) {
         this.client = client;
         this.jobId = jobId;
     }

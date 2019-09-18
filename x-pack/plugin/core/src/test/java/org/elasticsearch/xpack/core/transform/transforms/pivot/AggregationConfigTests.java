@@ -19,7 +19,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.xpack.core.transform.transforms.AbstractSerializingDataFrameTestCase;
+import org.elasticsearch.xpack.core.transform.transforms.AbstractSerializingTransformTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.MockDeprecatedAggregationBuilder;
 import org.junit.Before;
 
@@ -29,7 +29,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
-public class AggregationConfigTests extends AbstractSerializingDataFrameTestCase<AggregationConfig> {
+public class AggregationConfigTests extends AbstractSerializingTransformTestCase<AggregationConfig> {
 
     private boolean lenient;
 

@@ -397,7 +397,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         List<BroadcastShardOperationFailedException> exceptions = nodeResponse.getExceptions();
         for (BroadcastShardOperationFailedException exception : exceptions) {
             assertThat(exception.getMessage(), is("operation indices:admin/test failed"));
-            assertThat(exception, hasToString(containsString("operation failed")));
+            assertThat(exception.getCause(), hasToString(containsString("operation failed")));
         }
     }
 

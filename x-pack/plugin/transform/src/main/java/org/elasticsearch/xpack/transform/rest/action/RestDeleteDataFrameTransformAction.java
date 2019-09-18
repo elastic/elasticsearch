@@ -11,13 +11,13 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.core.transform.action.DeleteDataFrameTransformAction;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
 
 public class RestDeleteDataFrameTransformAction extends BaseRestHandler {
 
     public RestDeleteDataFrameTransformAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.DELETE,  DataFrameField.REST_BASE_PATH_TRANSFORMS_BY_ID, this);
+        controller.registerHandler(RestRequest.Method.DELETE,  TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID, this);
     }
 
     @Override
@@ -26,11 +26,11 @@ public class RestDeleteDataFrameTransformAction extends BaseRestHandler {
             throw new IllegalArgumentException("delete data frame transforms requests can not have a request body");
         }
 
-        String id = restRequest.param(DataFrameField.ID.getPreferredName());
-        boolean force = restRequest.paramAsBoolean(DataFrameField.FORCE.getPreferredName(), false);
-        DeleteDataFrameTransformAction.Request request = new DeleteDataFrameTransformAction.Request(id, force);
+        String id = restRequest.param(TransformField.ID.getPreferredName());
+        boolean force = restRequest.paramAsBoolean(TransformField.FORCE.getPreferredName(), false);
+        DeleteTransformAction.Request request = new DeleteTransformAction.Request(id, force);
 
-        return channel -> client.execute(DeleteDataFrameTransformAction.INSTANCE, request,
+        return channel -> client.execute(DeleteTransformAction.INSTANCE, request,
                 new RestToXContentListener<>(channel));
     }
 

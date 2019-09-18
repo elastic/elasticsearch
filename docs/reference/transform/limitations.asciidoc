@@ -1,6 +1,6 @@
 [role="xpack"]
 [[dataframe-limitations]]
-== {dataframe-transform-cap} limitations
+== {transform-cap} limitations
 [subs="attributes"]
 ++++
 <titleabbrev>Limitations</titleabbrev>
@@ -13,14 +13,14 @@ the Elastic {dataframe} feature:
 
 [float]
 [[df-compatibility-limitations]]
-=== Beta {dataframe-transforms} do not have guaranteed backwards or forwards compatibility
+=== Beta {transforms} do not have guaranteed backwards or forwards compatibility
 
-Whilst {dataframe-transforms} are beta, it is not guaranteed that a 
-{dataframe-transform} created in a previous version of the {stack} will be able 
+Whilst {transforms} are beta, it is not guaranteed that a 
+{transform} created in a previous version of the {stack} will be able 
 to start and operate in a future version. Neither can support be provided for 
-{dataframe-transform} tasks to be able to operate in a cluster with mixed node 
+{transform} tasks to be able to operate in a cluster with mixed node 
 versions. 
-Please note that the output of a {dataframe-transform} is persisted to a 
+Please note that the output of a {transform} is persisted to a 
 destination index. This is a normal {es} index and is not affected by the beta 
 status. 
 
@@ -29,7 +29,7 @@ status.
 === {dataframe-cap} UI will not work during a rolling upgrade from 7.2
 
 If your cluster contains mixed version nodes, for example during a rolling 
-upgrade from 7.2 to a newer version, and {dataframe-transforms} have been 
+upgrade from 7.2 to a newer version, and {transforms} have been 
 created in 7.2, the {dataframe} UI will not work. Please wait until all nodes 
 have been upgraded to the newer version before using the {dataframe} UI.
 
@@ -46,23 +46,23 @@ table.
 [[df-ccs-limitations]]
 === {ccs-cap} is not supported
 
-{ccs-cap} is not supported for {dataframe-transforms}.
+{ccs-cap} is not supported for {transforms}.
 
 [float]
 [[df-kibana-limitations]]
-=== Up to 1,000 {dataframe-transforms} are supported
+=== Up to 1,000 {transforms} are supported
 
-A single cluster will support up to 1,000 {dataframe-transforms}.
+A single cluster will support up to 1,000 {transforms}.
 When using the 
-{ref}/get-data-frame-transform.html[GET {dataframe-transforms} API] a total 
-`count` of transforms is returned. Use the `size` and `from` parameters to 
+{ref}/get-data-frame-transform.html[GET {transforms} API] a total 
+`count` of {transforms} is returned. Use the `size` and `from` parameters to 
 enumerate through the full list.
 
 [float]
 [[df-aggresponse-limitations]]
 === Aggregation responses may be incompatible with destination index mappings
 
-When a {dataframe-transform} is first started, it will deduce the mappings 
+When a {transform} is first started, it will deduce the mappings 
 required for the destination index. This process is based on the field types of 
 the source index and the aggregations used. If the fields are derived from 
 {ref}/search-aggregations-metrics-scripted-metric-aggregation.html[`scripted_metrics`] 
@@ -72,15 +72,15 @@ deduced mappings may be incompatible with the actual data. For example, numeric
 overflows might occur or dynamically mapped fields might contain both numbers 
 and strings. Please check {es} logs if you think this may have occurred. As a 
 workaround, you may define custom mappings prior to starting the 
-{dataframe-transform}. For example, 
+{transform}. For example, 
 {ref}/indices-create-index.html[create a custom destination index] or 
 {ref}/indices-templates.html[define an index template].
 
 [float]
 [[df-batch-limitations]]
-=== Batch {dataframe-transforms} may not account for changed documents
+=== Batch {transforms} may not account for changed documents
 
-A batch {dataframe-transform} uses a 
+A batch {transform} uses a 
 {ref}/search-aggregations-bucket-composite-aggregation.html[composite aggregation]
 which allows efficient pagination through all buckets. Composite aggregations 
 do not yet support a search context, therefore if the source data is changed 
@@ -91,8 +91,8 @@ results may not include these changes.
 [[df-consistency-limitations]]
 === {cdataframe-cap} consistency does not account for deleted or updated documents
 
-While the process for {cdataframe-transforms} allows the continual recalculation 
-of the {dataframe-transform} as new data is being ingested, it does also have 
+While the process for {transforms} allows the continual recalculation 
+of the {transform} as new data is being ingested, it does also have 
 some limitations.
 
 Changed entities will only be identified if their time field 
@@ -106,7 +106,7 @@ composite aggregation performed in consecutive checkpoint processing will search
 over different source data, and entities that only existed in the deleted index 
 will not be removed from the {dataframe} destination index.
 
-Depending on your use case, you may wish to recreate the {dataframe-transform} 
+Depending on your use case, you may wish to recreate the {transform} 
 entirely after deletions. Alternatively, if your use case is tolerant to 
 historical archiving, you may wish to include a max ingest timestamp in your 
 aggregation. This will allow you to exclude results that have not been recently 
@@ -115,9 +115,9 @@ updated when viewing the {dataframe} destination index.
 
 [float]
 [[df-deletion-limitations]]
-=== Deleting a {dataframe-transform} does not delete the {dataframe} destination index or {kib} index pattern
+=== Deleting a {transform} does not delete the {dataframe} destination index or {kib} index pattern
 
-When deleting a {dataframe-transform} using `DELETE _data_frame/transforms/index` 
+When deleting a {transform} using `DELETE _data_frame/transforms/index` 
 neither the {dataframe} destination index nor the {kib} index pattern, should 
 one have been created, are deleted. These objects must be deleted separately.
 
@@ -125,9 +125,9 @@ one have been created, are deleted. These objects must be deleted separately.
 [[df-aggregation-page-limitations]]
 === Handling dynamic adjustment of aggregation page size
 
-During the development of {dataframe-transforms}, control was favoured over 
+During the development of {transforms}, control was favoured over 
 performance. In the design considerations, it is preferred for the 
-{dataframe-transform} to take longer to complete quietly in the background 
+{transform} to take longer to complete quietly in the background 
 rather than to finish quickly and take precedence in resource consumption.
 
 Composite aggregations are well suited for high cardinality data enabling 
@@ -135,21 +135,21 @@ pagination through results. If a {ref}/circuit-breaker.html[circuit breaker]
 memory exception occurs when performing the composite aggregated search then we 
 try again reducing the number of buckets requested. This circuit breaker is 
 calculated based upon all activity within the cluster, not just activity from 
-{dataframe-transforms}, so it therefore may only be a temporary resource 
+{transforms}, so it therefore may only be a temporary resource 
 availability issue.
 
-For a batch {dataframe-transform}, the number of buckets requested is only ever 
+For a batch {transform}, the number of buckets requested is only ever 
 adjusted downwards. The lowering of value may result in a longer duration for the 
-transform checkpoint to complete. For {cdataframes}, the number of 
+{transform} checkpoint to complete. For {cdataframes}, the number of 
 buckets requested is reset back to its default at the start of every checkpoint 
 and it is possible for circuit breaker exceptions to occur repeatedly in the 
 {es} logs. 
 
-The {dataframe-transform} retrieves data in batches which means it calculates 
+The {transform} retrieves data in batches which means it calculates 
 several buckets at once. Per default this is 500 buckets per search/index 
 operation. The default can be changed using `max_page_search_size` and the 
 minimum value is 10. If failures still occur once the number of buckets 
-requested has been reduced to its minimum, then the {dataframe-transform} will 
+requested has been reduced to its minimum, then the {transform} will 
 be set to a failed state.
 
 [float]
@@ -158,7 +158,7 @@ be set to a failed state.
 
 For each checkpoint, entities are identified that have changed since the last 
 time the check was performed. This list of changed entities is supplied as a 
-{ref}/query-dsl-terms-query.html[terms query] to the {dataframe-transform} 
+{ref}/query-dsl-terms-query.html[terms query] to the {transform} 
 composite aggregation, one page at a time. Then updates are applied to the 
 destination index for each page of entities.
 
@@ -170,10 +170,10 @@ The index setting
 {ref}/index-modules.html#dynamic-index-settings[`index.max_terms_count`] defines 
 the maximum number of terms that can be used in a terms query. The default value 
 is 65536. If `max_page_search_size` exceeds `index.max_terms_count` the 
-transform will fail. 
+{transform} will fail. 
 
 Using smaller values for `max_page_search_size` may result in a longer duration 
-for the transform checkpoint to complete.
+for the {transform} checkpoint to complete.
 
 [float]
 [[df-scheduling-limitations]]
@@ -183,22 +183,22 @@ A {cdataframe} periodically checks for changes to source data. The functionality
 of the scheduler is currently limited to a basic periodic timer which can be 
 within the `frequency` range from 1s to 1h. The default is 1m. This is designed 
 to run little and often. When choosing a `frequency` for this timer consider 
-your ingest rate along with the impact that the {dataframe-transform} 
+your ingest rate along with the impact that the {transform} 
 search/index operations has other users in your cluster. Also note that retries 
 occur at `frequency` interval.
 
 [float]
 [[df-failed-limitations]]
-=== Handling of failed {dataframe-transforms}
+=== Handling of failed {transforms}
 
-Failed {dataframe-transforms} remain as a persistent task and should be handled 
+Failed {transforms} remain as a persistent task and should be handled 
 appropriately, either by deleting it or by resolving the root cause of the 
 failure and re-starting.
 
-When using the API to delete a failed {dataframe-transform}, first stop it using 
+When using the API to delete a failed {transform}, first stop it using 
 `_stop?force=true`, then delete it.
 
-If starting a failed {dataframe-transform}, after the root cause has been 
+If starting a failed {transform}, after the root cause has been 
 resolved, the `_start?force=true` parameter must be specified.
 
 [float]
@@ -208,7 +208,7 @@ resolved, the `_start?force=true` parameter must be specified.
 After a document is indexed, there is a very small delay until it is available 
 to search.
 
-A {cdataframe-transform} periodically checks for changed entities between the 
+A {ctransform} periodically checks for changed entities between the 
 time since it last checked and `now` minus `sync.time.delay`. This time window 
 moves without overlapping. If the timestamp of a recently indexed document falls 
 within this time window but this document is not yet available to search then 

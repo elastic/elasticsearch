@@ -681,7 +681,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             }
             builder.append(' ');
         }
-        return builder.append(ExceptionsHelper.detailedMessage(this).trim()).toString();
+        return builder.append(super.toString().trim()).toString();
     }
 
     /**
@@ -1032,7 +1032,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException.class,
                 org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException::new,
                 156,
-                Version.V_8_0_0);
+                Version.V_7_5_0);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

@@ -17,7 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
@@ -64,12 +64,12 @@ public class SourceDestValidatorTests extends ESTestCase {
     }
 
     public void testCheck_GivenSimpleSourceIndexAndValidDestIndex() {
-        DataFrameTransformConfig config = createDataFrameTransform(new SourceConfig(SOURCE_1), new DestConfig("dest", null));
+        TransformConfig config = createDataFrameTransform(new SourceConfig(SOURCE_1), new DestConfig("dest", null));
         SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), false);
     }
 
     public void testCheck_GivenMissingConcreteSourceIndex() {
-        DataFrameTransformConfig config = createDataFrameTransform(new SourceConfig("missing"), new DestConfig("dest", null));
+        TransformConfig config = createDataFrameTransform(new SourceConfig("missing"), new DestConfig("dest", null));
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
             () -> SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), false));
@@ -79,7 +79,7 @@ public class SourceDestValidatorTests extends ESTestCase {
     }
 
     public void testCheck_GivenMissingWildcardSourceIndex() {
-        DataFrameTransformConfig config = createDataFrameTransform(new SourceConfig("missing*"), new DestConfig("dest", null));
+        TransformConfig config = createDataFrameTransform(new SourceConfig("missing*"), new DestConfig("dest", null));
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
             () -> SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), false));
@@ -89,7 +89,7 @@ public class SourceDestValidatorTests extends ESTestCase {
     }
 
     public void testCheck_GivenDestIndexSameAsSourceIndex() {
-        DataFrameTransformConfig config = createDataFrameTransform(new SourceConfig(SOURCE_1), new DestConfig("source-1", null));
+        TransformConfig config = createDataFrameTransform(new SourceConfig(SOURCE_1), new DestConfig("source-1", null));
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
             () -> SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), false));
@@ -99,7 +99,7 @@ public class SourceDestValidatorTests extends ESTestCase {
     }
 
     public void testCheck_GivenDestIndexMatchesSourceIndex() {
-        DataFrameTransformConfig config = createDataFrameTransform(new SourceConfig("source-*"), new DestConfig(SOURCE_2, null));
+        TransformConfig config = createDataFrameTransform(new SourceConfig("source-*"), new DestConfig(SOURCE_2, null));
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
             () -> SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), false));
@@ -109,7 +109,7 @@ public class SourceDestValidatorTests extends ESTestCase {
     }
 
     public void testCheck_GivenDestIndexMatchesOneOfSourceIndices() {
-        DataFrameTransformConfig config = createDataFrameTransform(new SourceConfig("source-1", "source-*"),
+        TransformConfig config = createDataFrameTransform(new SourceConfig("source-1", "source-*"),
             new DestConfig(SOURCE_2, null));
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
@@ -120,7 +120,7 @@ public class SourceDestValidatorTests extends ESTestCase {
     }
 
     public void testCheck_GivenDestIndexIsAliasThatMatchesMultipleIndices() {
-        DataFrameTransformConfig config = createDataFrameTransform(new SourceConfig(SOURCE_1), new DestConfig("dest-alias", null));
+        TransformConfig config = createDataFrameTransform(new SourceConfig(SOURCE_1), new DestConfig("dest-alias", null));
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
             () -> SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), false));
@@ -136,7 +136,7 @@ public class SourceDestValidatorTests extends ESTestCase {
     }
 
     public void testCheck_GivenDestIndexIsAliasThatIsIncludedInSource() {
-        DataFrameTransformConfig config = createDataFrameTransform(new SourceConfig(SOURCE_1), new DestConfig("source-1-alias", null));
+        TransformConfig config = createDataFrameTransform(new SourceConfig(SOURCE_1), new DestConfig("source-1-alias", null));
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
             () -> SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), false));
@@ -147,8 +147,8 @@ public class SourceDestValidatorTests extends ESTestCase {
         SourceDestValidator.validate(config, CLUSTER_STATE, new IndexNameExpressionResolver(), true);
     }
 
-    private static DataFrameTransformConfig createDataFrameTransform(SourceConfig sourceConfig, DestConfig destConfig) {
-        return new DataFrameTransformConfig("test",
+    private static TransformConfig createDataFrameTransform(SourceConfig sourceConfig, DestConfig destConfig) {
+        return new TransformConfig("test",
             sourceConfig,
             destConfig,
             TimeValue.timeValueSeconds(60),

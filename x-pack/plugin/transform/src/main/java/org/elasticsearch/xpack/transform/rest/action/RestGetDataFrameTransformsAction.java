@@ -12,23 +12,23 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.core.transform.action.GetDataFrameTransformsAction;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.action.GetTransformsAction;
 
-import static org.elasticsearch.xpack.core.transform.DataFrameField.ALLOW_NO_MATCH;
+import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MATCH;
 
 public class RestGetDataFrameTransformsAction extends BaseRestHandler {
 
     public RestGetDataFrameTransformsAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.GET, DataFrameField.REST_BASE_PATH_TRANSFORMS, this);
-        controller.registerHandler(RestRequest.Method.GET, DataFrameField.REST_BASE_PATH_TRANSFORMS_BY_ID, this);
+        controller.registerHandler(RestRequest.Method.GET, TransformField.REST_BASE_PATH_TRANSFORMS, this);
+        controller.registerHandler(RestRequest.Method.GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID, this);
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        GetDataFrameTransformsAction.Request request = new GetDataFrameTransformsAction.Request();
+        GetTransformsAction.Request request = new GetTransformsAction.Request();
 
-        String id = restRequest.param(DataFrameField.ID.getPreferredName());
+        String id = restRequest.param(TransformField.ID.getPreferredName());
         request.setResourceId(id);
         request.setAllowNoResources(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), true));
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
@@ -36,7 +36,7 @@ public class RestGetDataFrameTransformsAction extends BaseRestHandler {
                 new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                     restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
         }
-        return channel -> client.execute(GetDataFrameTransformsAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(GetTransformsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
     @Override

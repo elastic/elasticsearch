@@ -154,7 +154,10 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             if ((previousSnapshots == null && currentSnapshots != null)
                 || (previousSnapshots != null && previousSnapshots.equals(currentSnapshots) == false)) {
                 synchronized (shardSnapshots) {
-                    processIndexShardSnapshots(currentSnapshots);
+                    cancelRemoved(currentSnapshots);
+                    if (currentSnapshots != null) {
+                        startNewSnapshots(currentSnapshots);
+                    }
                 }
             }
 
@@ -197,18 +200,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         synchronized (shardSnapshots) {
             final Map<ShardId, IndexShardSnapshotStatus> current = shardSnapshots.get(snapshot);
             return current == null ? null : new HashMap<>(current);
-        }
-    }
-
-    /**
-     * Checks if any new shards should be snapshotted on this node
-     *
-     * @param snapshotsInProgress Current snapshots in progress in cluster state
-     */
-    private void processIndexShardSnapshots(SnapshotsInProgress snapshotsInProgress) {
-        cancelRemoved(snapshotsInProgress);
-        if (snapshotsInProgress != null) {
-            startNewSnapshots(snapshotsInProgress);
         }
     }
 
@@ -317,7 +308,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     @Override
                     public void onFailure(Exception e) {
                         logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to snapshot shard", shardId, snapshot), e);
-                        notifyFailedSnapshotShard(snapshot, shardId, ExceptionsHelper.detailedMessage(e));
+                        notifyFailedSnapshotShard(snapshot, shardId, ExceptionsHelper.stackTrace(e));
                     }
                 });
             }
@@ -411,8 +402,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         private Snapshot snapshot;
         private ShardId shardId;
         private ShardSnapshotStatus status;
-
-        public UpdateIndexShardSnapshotStatusRequest() {}
 
         public UpdateIndexShardSnapshotStatusRequest(StreamInput in) throws IOException {
             super(in);

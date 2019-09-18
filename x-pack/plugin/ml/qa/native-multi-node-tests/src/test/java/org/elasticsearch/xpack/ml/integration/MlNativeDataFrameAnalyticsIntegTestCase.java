@@ -57,6 +57,8 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     private void cleanUpAnalytics() {
+        stopAnalyticsAndForceStopOnError();
+
         for (DataFrameAnalyticsConfig config : analytics) {
             try {
                 assertThat(deleteAnalytics(config.getId()).isAcknowledged(), is(true));
@@ -64,6 +66,20 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
             } catch (Exception e) {
                 // ignore
             }
+        }
+    }
+
+    private void stopAnalyticsAndForceStopOnError() {
+        try {
+            assertThat(stopAnalytics("*").isStopped(), is(true));
+        } catch (Exception e) {
+            logger.error("Failed to stop data frame analytics jobs; trying force", e);
+            try {
+                assertThat(forceStopAnalytics("*").isStopped(), is(true));
+            } catch (Exception e2) {
+                logger.error("Force-stopping data frame analytics jobs failed", e2);
+            }
+            throw new RuntimeException("Had to resort to force-stopping jobs, something went wrong?", e);
         }
     }
 
@@ -90,6 +106,12 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
 
     protected StopDataFrameAnalyticsAction.Response stopAnalytics(String id) {
         StopDataFrameAnalyticsAction.Request request = new StopDataFrameAnalyticsAction.Request(id);
+        return client().execute(StopDataFrameAnalyticsAction.INSTANCE, request).actionGet();
+    }
+
+    protected StopDataFrameAnalyticsAction.Response forceStopAnalytics(String id) {
+        StopDataFrameAnalyticsAction.Request request = new StopDataFrameAnalyticsAction.Request(id);
+        request.setForce(true);
         return client().execute(StopDataFrameAnalyticsAction.INSTANCE, request).actionGet();
     }
 

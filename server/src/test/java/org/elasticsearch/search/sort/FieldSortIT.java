@@ -1487,20 +1487,20 @@ public class FieldSortIT extends ESIntegTestCase {
         assertThat(hits[0].getSortValues()[0], is("bar"));
         assertThat(hits[1].getSortValues()[0], is("abc"));
 
-        try {
-            client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .addSort(SortBuilders
-                    .fieldSort("nested.bar.foo")
-                    .setNestedSort(new NestedSortBuilder("nested")
-                        .setNestedSort(new NestedSortBuilder("nested.bar")
-                            .setMaxChildren(1)))
-                    .order(SortOrder.DESC))
-                .get();
-        } catch (SearchPhaseExecutionException e) {
-            for (ShardSearchFailure shardSearchFailure : e.shardFailures()) {
-                assertThat(shardSearchFailure.toString(), containsString("[max_children is only supported on top level of nested sort]"));
-            }
+        {
+            SearchPhaseExecutionException exc = expectThrows(SearchPhaseExecutionException.class,
+                () -> client().prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addSort(SortBuilders
+                        .fieldSort("nested.bar.foo")
+                        .setNestedSort(new NestedSortBuilder("nested")
+                            .setNestedSort(new NestedSortBuilder("nested.bar")
+                                .setMaxChildren(1)))
+                        .order(SortOrder.DESC))
+                    .get()
+            );
+            assertThat(exc.toString(),
+                containsString("max_children is only supported on top level of nested sort"));
         }
 
         // We sort on nested sub field

@@ -158,10 +158,8 @@ For Eclipse, go to `Preferences->Java->Installed JREs` and add `-ea` to
 Java files in the Elasticsearch codebase are formatted with
 [google-java-format](https://github.com/google/google-java-format), which
 enforces the [Google Java
-Style](https://google.github.io/styleguide/javaguide.html). There are
-plugins available for Eclipse, JetBrains IDEs such as IntelliJ IDEA, and a
-CLI interface. Formatting checks are also integrated into the build, in the
-`precommit` task. The formatting check can be run explicitly with:
+Style](https://google.github.io/styleguide/javaguide.html). The formatting
+check can be run explicitly with:
 
     ./gradlew spotlessJavaCheck
 
@@ -179,6 +177,8 @@ options available by design.
 
 Please follow these formatting guidelines:
 
+* Java indent is 4 spaces
+* Line width is 100 characters
 * Lines of code surrounded by `// tag` and `// end` comments are included
   in the documentation and should only be 76 characters wide not counting
   leading indentation
@@ -199,6 +199,28 @@ See the `google-java-format` repository for details on installing the
 
 For editors that support formatting via a CLI command, see the
 [google-java-format CLI instructions].
+
+#### Formatting failures
+
+Sometimes Spotless will report a "misbehaving rule which can't make up its
+mind" and will recommend enabling the `paddedCell()` setting. If you
+enabled this settings and run the format check again,
+Spotless will write files to
+`$PROJECT/build/spotless-diagnose-java/` to aid diagnosis. It writes
+different copies of formatted files, so that you can see how they differ
+and infer what is the problem. Ther are two common problems:
+
+   1. Single-line comments at the end of a line of code can be wrapped onto
+      multiple lines during one formatting interation, and then change
+      indentation in another iteration. The solution is to identify the
+      comment and move it so that it is consistently formatted.
+   2. Sometimes `<p>` tags are inserted within `<code>` tags in JavaDoc.
+      The solution is to wrap with `<pre>` tags. See:
+
+      https://github.com/google/google-java-format/issues/254
+
+The `paddedCell() option is disabled for normal operation in order to
+detect any misbehaviour.
 
 ### License Headers
 

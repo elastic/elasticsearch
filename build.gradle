@@ -100,20 +100,27 @@ subprojects {
     project.licenseFile = project.rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
     project.noticeFile = project.rootProject.file('NOTICE.txt')
 
-    // This plugin complains if the java plugin hasn't been applied yet, so
-    // we don't have this task at the top-level.
-    project.apply plugin: "com.diffplug.gradle.spotless"
+    // Projects that should be formatted with Spotless are listed here, by
+    // project path. Once the number of formatted projects is greater than
+    // the number of unformatted projects, this can be switched to an
+    // exclude list, and eventualy removed completely.
+    def projectPathsToFormat = [
+      ':build-tools'
+    ]
 
-    spotless {
-      java {
-        googleJavaFormat().aosp()
-        // Required for :modules:lang-painless: - avoids a rule failing to
-        // make up its mind about formatting.
-        paddedCell()
+    if (projectPathsToFormat.contains(project.path)) {
+      project.apply plugin: "com.diffplug.gradle.spotless"
+
+      spotless {
+        java {
+          // Use Android Open Source Project settings (i.e. 4 space indents)
+          googleJavaFormat().aosp()
+
+          // See CONTRIBUTING.md for details of when to enabled this.
+          // paddedCell()
+        }
       }
-    }
 
-    project.afterEvaluate {
       precommit.dependsOn 'spotlessJavaCheck'
     }
   }

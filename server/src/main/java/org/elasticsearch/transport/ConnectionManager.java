@@ -20,22 +20,18 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.concurrent.CompletableContext;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
@@ -53,8 +49,7 @@ public class ConnectionManager implements Closeable {
     private static final Logger logger = LogManager.getLogger(ConnectionManager.class);
 
     private final ConcurrentMap<DiscoveryNode, Transport.Connection> connectedNodes = ConcurrentCollections.newConcurrentMap();
-    private final KeyedLock<String> connectionLock = new KeyedLock<>(); // protects concurrent access to connectingNodes
-    private final Map<DiscoveryNode, List<ActionListener<Void>>> connectingNodes = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<DiscoveryNode, CompletableContext<Void>> pendingConnections = ConcurrentCollections.newConcurrentMap();
     private final AbstractRefCounted connectingRefCounter = new AbstractRefCounted("connection manager") {
         @Override
         protected void closeInternal() {
@@ -122,40 +117,34 @@ public class ConnectionManager implements Closeable {
             return;
         }
 
-        try (Releasable lock = connectionLock.acquire(node.getId())) {
-            Transport.Connection connection = connectedNodes.get(node);
-            if (connection != null) {
-                assert connectingNodes.containsKey(node) == false;
-                lock.close();
-                connectingRefCounter.decRef();
-                listener.onResponse(null);
-                return;
-            }
-
-            final List<ActionListener<Void>> connectionListeners = connectingNodes.computeIfAbsent(node, n -> new ArrayList<>());
-            connectionListeners.add(listener);
-            if (connectionListeners.size() > 1) {
-                // wait on previous entry to complete connection attempt
-                connectingRefCounter.decRef();
-                return;
-            }
+        if (pendingConnections.containsKey(node)) {
+            connectingRefCounter.decRef();
+            listener.onResponse(null);
+            return;
         }
 
-        final RunOnce releaseOnce = new RunOnce(connectingRefCounter::decRef);
+        final CompletableContext<Void> currentAttemptContext = new CompletableContext<>();
+        final CompletableContext<Void> existingContext = pendingConnections.putIfAbsent(node, currentAttemptContext);
+        if (existingContext != null) {
+            existingContext.addListener(ActionListener.toBiConsumer(listener));
+            // wait on previous entry to complete connection attempt
+            connectingRefCounter.decRef();
+            return;
+        }
 
+        currentAttemptContext.addListener(ActionListener.toBiConsumer(listener));
+
+        final RunOnce releaseOnce = new RunOnce(connectingRefCounter::decRef);
         internalOpenConnection(node, resolvedProfile, ActionListener.wrap(conn -> {
             connectionValidator.validate(conn, resolvedProfile, ActionListener.wrap(
                 ignored -> {
                     assert Transports.assertNotTransportThread("connection validator success");
-                    boolean success = false;
-                    List<ActionListener<Void>> listeners = null;
                     try {
-                        // we acquire a connection lock, so no way there is an existing connection
-                        try (Releasable ignored2 = connectionLock.acquire(node.getId())) {
-                            connectedNodes.put(node, conn);
-                            if (logger.isDebugEnabled()) {
-                                logger.debug("connected to node [{}]", node);
-                            }
+                        if (connectedNodes.putIfAbsent(node, conn) != null) {
+                            logger.debug("existing connection to node [{}], closing new redundant connection", node);
+                            IOUtils.closeWhileHandlingException(conn);
+                        } else {
+                            logger.debug("connected to node [{}]", node);
                             try {
                                 connectionListener.onNodeConnected(node);
                             } finally {
@@ -166,44 +155,28 @@ public class ConnectionManager implements Closeable {
                                     connectionListener.onNodeDisconnected(node);
                                 }));
                             }
-                            if (conn.isClosed()) {
-                                throw new NodeNotConnectedException(node, "connection concurrently closed");
-                            }
-                            success = true;
-                            listeners = connectingNodes.remove(node);
                         }
-                    } catch (ConnectTransportException e) {
-                        throw e;
-                    } catch (Exception e) {
-                        throw new ConnectTransportException(node, "general node connection failure", e);
                     } finally {
-                        if (success == false) { // close the connection if there is a failure
-                            logger.trace(() -> new ParameterizedMessage("failed to connect to [{}], cleaning dangling connections", node));
-                            IOUtils.closeWhileHandlingException(conn);
-                        } else {
-                            releaseOnce.run();
-                            ActionListener.onResponse(listeners, null);
-                        }
+                        CompletableContext<Void> completableContext = pendingConnections.remove(node);
+                        releaseOnce.run();
+                        completableContext.complete(null);
                     }
                 }, e -> {
                     assert Transports.assertNotTransportThread("connection validator failure");
-                    IOUtils.closeWhileHandlingException(conn);
-                    final List<ActionListener<Void>> listeners;
-                    try (Releasable ignored = connectionLock.acquire(node.getId())) {
-                        listeners = connectingNodes.remove(node);
+                    try {
+                        IOUtils.closeWhileHandlingException(conn);
+                    } finally {
+                        CompletableContext<Void> completableContext = pendingConnections.remove(node);
+                        releaseOnce.run();
+                        completableContext.completeExceptionally(e);
                     }
-                    releaseOnce.run();
-                    ActionListener.onFailure(listeners, e);
                 }));
         }, e -> {
             assert Transports.assertNotTransportThread("internalOpenConnection failure");
-            final List<ActionListener<Void>> listeners;
-            try (Releasable ignored = connectionLock.acquire(node.getId())) {
-                listeners = connectingNodes.remove(node);
-            }
+            CompletableContext<Void> completableContext = pendingConnections.remove(node);
             releaseOnce.run();
-            if (listeners != null) {
-                ActionListener.onFailure(listeners, e);
+            if (completableContext != null) {
+                completableContext.completeExceptionally(e);
             }
         }));
     }

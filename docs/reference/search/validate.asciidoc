@@ -8,7 +8,6 @@ Validates a potentially expensive query without executing it.
 GET twitter/_validate/query?q=user:foo
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:twitter]
 
 
 [[search-validate-api-request]]
@@ -87,7 +86,6 @@ When sent a valid query:
 GET twitter/_validate/query?q=user:foo
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
 
 
 The response contains `valid:true`:
@@ -119,7 +117,6 @@ GET twitter/_validate/query
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
 
 NOTE: The query being sent in the body must be nested in a `query` key, same as
 the <<search-search,search api>> works
@@ -141,7 +138,6 @@ GET twitter/_validate/query
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
 
 [source,js]
 --------------------------------------------------
@@ -167,7 +163,6 @@ GET twitter/_validate/query?explain=true
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
 
 
 The API returns the following response:
@@ -271,7 +266,6 @@ GET twitter/_validate/query?rewrite=true&all_shards=true
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
 
 The API returns the following response:
 

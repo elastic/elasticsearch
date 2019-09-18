@@ -3,7 +3,7 @@
 
 Validates a potentially expensive query without executing it.
 
-[source,console]
+[source,js]
 --------------------------------------------------
 GET twitter/_validate/query?q=user:foo
 --------------------------------------------------
@@ -85,6 +85,7 @@ When sent a valid query:
 --------------------------------------------------
 GET twitter/_validate/query?q=user:foo
 --------------------------------------------------
+// CONSOLE
 // TEST[continued]
 
 
@@ -116,6 +117,7 @@ GET twitter/_validate/query
   }
 }
 --------------------------------------------------
+// CONSOLE
 // TEST[continued]
 
 NOTE: The query being sent in the body must be nested in a `query` key, same as
@@ -137,6 +139,7 @@ GET twitter/_validate/query
   }
 }
 --------------------------------------------------
+// CONSOLE
 // TEST[continued]
 
 [source,js]
@@ -162,6 +165,7 @@ GET twitter/_validate/query?explain=true
   }
 }
 --------------------------------------------------
+// CONSOLE
 // TEST[continued]
 
 
@@ -241,7 +245,7 @@ query rewrite the `all_shards` parameter should be used to get response from
 all available shards.
 
 ////
-[source,console]
+[source,js]
 --------------------------------------------------
 PUT twitter/_bulk?refresh
 {"index":{"_id":1}}

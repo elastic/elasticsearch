@@ -12,6 +12,7 @@ Stops one or more {transforms}.
 
 beta[]
 
+
 [[stop-data-frame-transform-request]]
 ==== {api-request-title}
 
@@ -20,6 +21,7 @@ beta[]
 `POST _data_frame/transforms/<data_frame_transform_id1>,<data_frame_transform_id2>/_stop` +
 
 `POST _data_frame/transforms/_all/_stop`
+
 
 [[stop-data-frame-transform-prereq]]
 ==== {api-prereq-title}
@@ -30,6 +32,7 @@ beta[]
 see {stack-ov}/security-privileges.html[Security privileges] and
 {stack-ov}/built-in-roles.html[Built-in roles].
 
+
 [[stop-data-frame-transform-desc]]
 ==== {api-description-title}
 
@@ -38,6 +41,7 @@ comma-separated list of {transforms} or a wildcard expression.
 All {transforms} can be stopped by using `_all` or `*` as the
 `<data_frame_transform_id>`.
 
+
 [[stop-data-frame-transform-path-parms]]
 ==== {api-path-parms-title}
 
@@ -45,6 +49,7 @@ All {transforms} can be stopped by using `_all` or `*` as the
   (Required, string) Identifier for the {transform}. This identifier
   can contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
   underscores. It must start and end with alphanumeric characters.
+
 
 [[stop-data-frame-transform-query-parms]]
 ==== {api-query-parms-title}
@@ -68,6 +73,11 @@ If this parameter is `false`, the request returns a `404` status code when there
 are no matches or only partial matches.
 --
 
+`force`::
+  (Optional, boolean) Set to `true` to stop a failed {transform} or to 
+  forcefully stop a {transform} that did not respond to the initial stop 
+  request.
+
 `timeout`::
   (Optional, time value) If `wait_for_completion=true`, the API blocks for (at
   maximum) the specified duration while waiting for the {transform} to stop. If
@@ -81,12 +91,14 @@ are no matches or only partial matches.
   state completely stops. If set to `false`, the API returns immediately and the
   indexer will be stopped asynchronously in the background. Defaults to `false`.
 
+
 [[stop-data-frame-transform-response-codes]]
 ==== {api-response-codes-title}
 
 `404` (Missing resources)::
   If `allow_no_match` is `false`, this code indicates that there are no
   resources that match the request or only partial matches for the request. 
+
 
 [[stop-data-frame-transform-example]]
 ==== {api-examples-title}

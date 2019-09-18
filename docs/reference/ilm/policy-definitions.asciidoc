@@ -367,7 +367,7 @@ index "my_index" must be the write index for the alias. For more information, re
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my_index-000001
 {
   "settings": {
     "index.lifecycle.name": "my_policy",

@@ -142,18 +142,18 @@ The API returns the following results:
 --------------------------------------------------
 POST _ml/data_frame/_evaluate
 {
-  "index": "house_price_predictions", [1]
+  "index": "house_price_predictions", <1>
   "query": {
       "bool": {
         "filter": [
-          { "term":  { "ml.is_training": false } } [2]
+          { "term":  { "ml.is_training": false } } <2>
         ]
       }
   },
   "evaluation": {
     "regression": { 
-      "actual_field": "price", [3]
-      "predicted_field": "ml.price_prediction", [4]
+      "actual_field": "price", <3>
+      "predicted_field": "ml.price_prediction", <4>
       "metrics": {  
         "r_squared": {},
         "mean_squared_error": {}                             
@@ -164,10 +164,10 @@ POST _ml/data_frame/_evaluate
 --------------------------------------------------
 // TEST[skip:TBD]
 
-[1] The output destination index from a {dfanalytics} {reganalysis}.
-[2] In this example, a test/train split (`training_percent`) was defined for the 
+<1> The output destination index from a {dfanalytics} {reganalysis}.
+<2> In this example, a test/train split (`training_percent`) was defined for the 
 {reganalysis}. This query limits evaluation to be performed on the test split 
 only. 
-[3] The ground truth value for the actual house price. This is required in order 
+<3> The ground truth value for the actual house price. This is required in order 
 to evaluate results.
-[4] The predicted value for house price calculated by the {reganalysis}.
+<4> The predicted value for house price calculated by the {reganalysis}.

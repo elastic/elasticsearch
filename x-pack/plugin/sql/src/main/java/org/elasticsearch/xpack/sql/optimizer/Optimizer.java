@@ -193,7 +193,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 // TODO: this should be removed when refactoring NamedExpression
                 else if (namedExpression instanceof Literal) {
                     rawValues.add(namedExpression);
-                } else {
+                }
+                // TODO: NamedExpression refactoring should remove this
+                else if (namedExpression.foldable()) {
+                    rawValues.add(Literal.of(namedExpression.name(), namedExpression));
+                }
+                // TOOD: same as above
+                else {
                     UnresolvedAttribute attr = new UnresolvedAttribute(namedExpression.source(), namedExpression.name(), null,
                             "Unexpected alias");
                     return new Pivot(plan.source(), plan.child(), plan.column(), singletonList(attr), plan.aggregates());

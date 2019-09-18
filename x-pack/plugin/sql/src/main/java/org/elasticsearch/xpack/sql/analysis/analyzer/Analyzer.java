@@ -1273,20 +1273,20 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         protected LogicalPlan rule(LogicalPlan plan) {
             if (plan instanceof Project) {
                 Project p = (Project) plan;
-                return new Project(p.source(), p.child(), cleanSecondaryAliases(p.projections()));
+                return new Project(p.source(), p.child(), cleanChildrenAliases(p.projections()));
             }
 
             if (plan instanceof Aggregate) {
                 Aggregate a = (Aggregate) plan;
                 // aliases inside GROUP BY are irellevant so remove all of them
                 // however aggregations are important (ultimately a projection)
-                return new Aggregate(a.source(), a.child(), cleanAllAliases(a.groupings()), cleanSecondaryAliases(a.aggregates()));
+                return new Aggregate(a.source(), a.child(), cleanAllAliases(a.groupings()), cleanChildrenAliases(a.aggregates()));
             }
 
             if (plan instanceof Pivot) {
                 Pivot p = (Pivot) plan;
-                return new Pivot(p.source(), p.child(), trimAliases(p.column()), cleanSecondaryAliases(p.values()),
-                        cleanSecondaryAliases(p.aggregates()));
+                return new Pivot(p.source(), p.child(), trimAliases(p.column()), cleanChildrenAliases(p.values()),
+                        cleanChildrenAliases(p.aggregates()));
             }
 
             return plan.transformExpressionsOnly(e -> {
@@ -1297,7 +1297,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             });
         }
 
-        private List<NamedExpression> cleanSecondaryAliases(List<? extends NamedExpression> args) {
+        private List<NamedExpression> cleanChildrenAliases(List<? extends NamedExpression> args) {
             List<NamedExpression> cleaned = new ArrayList<>(args.size());
             for (NamedExpression ne : args) {
                 cleaned.add((NamedExpression) trimNonTopLevelAliases(ne));

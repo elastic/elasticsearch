@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.sql.expression.Exists;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
+import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Function;
@@ -482,12 +483,24 @@ public final class Verifier {
         expressions.forEach(e -> e.forEachUp(c -> {
             EsField.Exact exact = c.getExactInfo();
             if (exact.hasExact() == false) {
-                localFailures.add(fail(c, format(null, "Field [{}] of data type [{}] cannot be used for grouping; {}",
-                        c.sourceText(), c.dataType().typeName, exact.errorMsg())));
+                localFailures.add(fail(c, "Field [{}] of data type [{}] cannot be used for grouping; {}", c.sourceText(),
+                        c.dataType().typeName, exact.errorMsg()));
                 onlyExact.set(Boolean.FALSE);
             }
         }, FieldAttribute.class));
 
+        return onlyExact.get();
+    }
+
+    private static boolean onlyRawFields(Iterable<? extends Expression> expressions, Set<Failure> localFailures) {
+        Holder<Boolean> onlyExact = new Holder<>(Boolean.TRUE);
+
+        expressions.forEach(e -> e.forEachDown(c -> {
+            if (c instanceof Function || c instanceof FunctionAttribute) {
+                localFailures.add(fail(c, "No functions allowed (yet); encountered [{}]", c.sourceText()));
+                onlyExact.set(Boolean.FALSE);
+            }
+        }));
         return onlyExact.get();
     }
 
@@ -767,7 +780,8 @@ public final class Verifier {
     private static void checkPivot(LogicalPlan p, Set<Failure> localFailures) {
         p.forEachDown(pv -> {
             // check only exact fields are used inside PIVOTing
-            if (onlyExactFields(combine(pv.groupingSet(), pv.column()), localFailures) == false) {
+            if (onlyExactFields(combine(pv.groupingSet(), pv.column()), localFailures) == false
+                    || onlyRawFields(pv.groupingSet(), localFailures) == false) {
                 // if that is not the case, no need to do further validation since the declaration is fundamentally wrong
                 return;
             }
@@ -777,8 +791,11 @@ public final class Verifier {
             for (NamedExpression v : pv.values()) {
                 // check all values are foldable
                 Expression ex = v instanceof Alias ? ((Alias) v).child() : v;
-                if (ex.foldable() == false) {
+                if (ex instanceof Literal == false) {
                     localFailures.add(fail(v, "Non-literal [{}] found inside PIVOT values", v.name()));
+                }
+                else if (ex.foldable() && ex.fold() == null) {
+                    localFailures.add(fail(v, "Null not allowed as a PIVOT value", v.name()));
                 }
                 // and that their type is compatible with that of the column
                 else if (DataTypes.areTypesCompatible(colType, v.dataType()) == false) {

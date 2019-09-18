@@ -62,7 +62,7 @@ teardown:
   - match: { acknowledged: true }
 
   - do:
-      catch: /Unable to start data frame transform \[airline-transform-start-stop\] as it is in state \[STARTED\]/
+      catch: /Cannot start transform \[airline-transform-start-stop\] as it is already started/
       data_frame.start_data_frame_transform:
         transform_id: "airline-transform-start-stop"
 

@@ -1368,9 +1368,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             throw new IndexShardSnapshotException(snapshotShardId, "Failed to list content of shard directory", e);
         }
 
-        Tuple<BlobStoreIndexShardSnapshots, String> tuple = buildBlobStoreIndexShardSnapshots(blobs, shardContainer, null);
+        Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(blobs, shardContainer);
         BlobStoreIndexShardSnapshots snapshots = tuple.v1();
-        long fileListGeneration = Long.parseLong(tuple.v2());
+        long fileListGeneration = tuple.v2();
 
         // Build a list of snapshots that should be preserved
         List<SnapshotFiles> newSnapshotsList = new ArrayList<>();
@@ -1434,16 +1434,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             } catch (IOException e) {
                 throw new IndexShardSnapshotException(snapshotShardId, "Failed to list content of shard directory", e);
             }
-            // Fall back to listing out index-N blobs in the shard directory if no shard generation is tracked in the repository data
-            // for this shard yet.
-            Tuple<BlobStoreIndexShardSnapshots, String> tuple;
-            if (shardGen == null) {
-                tuple = buildBlobStoreIndexShardSnapshots(blobs, shardContainer, null);
-            } else {
-                tuple = buildBlobStoreIndexShardSnapshots(Collections.emptySet(), shardContainer, shardGen);
-            }
-            final BlobStoreIndexShardSnapshots snapshots = tuple.v1();
 
+            final BlobStoreIndexShardSnapshots snapshots = buildBlobStoreIndexShardSnapshots(blobs, shardContainer, shardGen).v1();
             // Build a list of snapshots that should be preserved
             final Set<String> survivingSnapshotNames = repositoryData.getSnapshots(indexId)
                 .stream()
@@ -1489,28 +1481,41 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     /**
-     * Loads all available snapshots in the repository
+     * Loads all available snapshots in the repository using the given {@code generation} or falling back to trying to determine it from
+     * the given list of blobs in the shard container.
      *
-     * @param blobs list of blobs in repository
+     * @param blobs      list of blobs in repository
+     * @param generation shard generation or {@code null} in case there was no shard generation tracked in the {@link RepositoryData} for
+     *                   this shard
      * @return tuple of BlobStoreIndexShardSnapshots and the last snapshot index generation
      */
     private Tuple<BlobStoreIndexShardSnapshots, String> buildBlobStoreIndexShardSnapshots(Set<String> blobs,
                                                                                           BlobContainer shardContainer,
                                                                                           @Nullable String generation) {
-        final String latest;
-        if (generation == null) {
-            final long latestGen = latestGeneration(blobs);
-            if (latestGen < 0) {
-                latest = null;
-            } else {
-                latest = Long.toString(latestGen);
-            }
-        } else {
-            latest = generation;
-        }
-        if (latest != null) {
+        if (generation != null) {
             try {
-                final BlobStoreIndexShardSnapshots shardSnapshots = indexShardSnapshotsFormat.read(shardContainer,latest);
+                return new Tuple<>(indexShardSnapshotsFormat.read(shardContainer, generation), generation);
+            } catch (IOException e) {
+                final String file = SNAPSHOT_INDEX_PREFIX + generation;
+                logger.warn(() -> new ParameterizedMessage("failed to read index file [{}]", file), e);
+            }
+        }
+        final Tuple<BlobStoreIndexShardSnapshots, Long> legacyIndex = buildBlobStoreIndexShardSnapshots(blobs, shardContainer);
+        return new Tuple<>(legacyIndex.v1(), String.valueOf(legacyIndex.v2()));
+    }
+
+    /**
+     * Loads all available snapshots in the repository
+     *
+     * @param blobs list of blobs in repository
+     * @return tuple of BlobStoreIndexShardSnapshots and the last snapshot index generation
+     */
+    private Tuple<BlobStoreIndexShardSnapshots, Long> buildBlobStoreIndexShardSnapshots(Set<String> blobs, BlobContainer shardContainer) {
+        long latest = latestGeneration(blobs);
+        if (latest >= 0) {
+            try {
+                final BlobStoreIndexShardSnapshots shardSnapshots =
+                    indexShardSnapshotsFormat.read(shardContainer, Long.toString(latest));
                 return new Tuple<>(shardSnapshots, latest);
             } catch (IOException e) {
                 final String file = SNAPSHOT_INDEX_PREFIX + latest;
@@ -1519,9 +1524,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } else if (blobs.isEmpty() == false) {
             logger.warn("Could not find a readable index-N file in a non-empty shard snapshot directory [{}]", shardContainer.path());
         }
-        // TODO: Stop defaulting to "-1" and use UUID here once there is no more need for BwC with versions prior to
-        //       SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION
-        return new Tuple<>(BlobStoreIndexShardSnapshots.EMPTY, latest == null ? "-1" : latest);
+        return new Tuple<>(BlobStoreIndexShardSnapshots.EMPTY, latest);
     }
 
     /**

@@ -262,7 +262,7 @@ GET twitter/_validate/query?rewrite=true&all_shards=true
   }
 }
 --------------------------------------------------
-
+// TEST[continued]
 
 The API returns the following response:
 

@@ -204,3 +204,17 @@ null           |31070.0
 4              |24646.0        
 5              |23353.0        
 ;
+
+innerAggPivot
+schema::languages:bt|'F':d
+SELECT * FROM (SELECT gender, salary, languages FROM test_emp) PIVOT (SUM_OF_SQUARES(salary) FOR gender IN ('M', 'F'));
+
+   languages   |      'F'      
+---------------+---------------
+null           |31070.0        
+1              |23537.0        
+2              |25342.0        
+3              |26830.0        
+4              |24646.0        
+5              |23353.0        
+;

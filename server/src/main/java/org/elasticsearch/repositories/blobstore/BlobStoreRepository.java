@@ -407,7 +407,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 Arrays.asList(snapshotFormat.blobName(snapshotId.getUUID()), globalMetaDataFormat.blobName(snapshotId.getUUID()));
             try {
                 blobContainer().deleteBlobsIgnoringIfNotExists(snapMetaFilesToDelete);
-            } catch (Exception e) {
+            } catch (IOException e) {
                 logger.warn(() -> new ParameterizedMessage("[{}] Unable to delete global metadata files", snapshotId), e);
             }
             final var survivingIndices = updatedRepositoryData.getIndices();

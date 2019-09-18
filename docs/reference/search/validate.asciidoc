@@ -79,7 +79,6 @@ PUT twitter/_bulk?refresh
 {"user" : "kimchi", "post_date" : "2009-11-15T14:12:13", "message" : "My username is similar to @kimchy!"}
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
 
 When sent a valid query:
 

@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerPosition;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpoint;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformProgress;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
@@ -27,16 +27,16 @@ class ClientDataFrameIndexerBuilder {
     private DataFrameTransformsCheckpointService transformsCheckpointService;
     private DataFrameAuditor auditor;
     private Map<String, String> fieldMappings;
-    private DataFrameTransformConfig transformConfig;
-    private DataFrameIndexerTransformStats initialStats;
+    private TransformConfig transformConfig;
+    private TransformIndexerStats initialStats;
     private IndexerState indexerState = IndexerState.STOPPED;
-    private DataFrameIndexerPosition initialPosition;
-    private DataFrameTransformProgress progress;
-    private DataFrameTransformCheckpoint lastCheckpoint;
-    private DataFrameTransformCheckpoint nextCheckpoint;
+    private TransformIndexerPosition initialPosition;
+    private TransformProgress progress;
+    private TransformCheckpoint lastCheckpoint;
+    private TransformCheckpoint nextCheckpoint;
 
     ClientDataFrameIndexerBuilder() {
-        this.initialStats = new DataFrameIndexerTransformStats();
+        this.initialStats = new TransformIndexerStats();
     }
 
     ClientDataFrameIndexer build(DataFrameTransformTask parentTask) {
@@ -82,16 +82,16 @@ class ClientDataFrameIndexerBuilder {
         return this;
     }
 
-    ClientDataFrameIndexerBuilder setTransformConfig(DataFrameTransformConfig transformConfig) {
+    ClientDataFrameIndexerBuilder setTransformConfig(TransformConfig transformConfig) {
         this.transformConfig = transformConfig;
         return this;
     }
 
-    DataFrameTransformConfig getTransformConfig() {
+    TransformConfig getTransformConfig() {
         return this.transformConfig;
     }
 
-    ClientDataFrameIndexerBuilder setInitialStats(DataFrameIndexerTransformStats initialStats) {
+    ClientDataFrameIndexerBuilder setInitialStats(TransformIndexerStats initialStats) {
         this.initialStats = initialStats;
         return this;
     }
@@ -101,22 +101,22 @@ class ClientDataFrameIndexerBuilder {
         return this;
     }
 
-    ClientDataFrameIndexerBuilder setInitialPosition(DataFrameIndexerPosition initialPosition) {
+    ClientDataFrameIndexerBuilder setInitialPosition(TransformIndexerPosition initialPosition) {
         this.initialPosition = initialPosition;
         return this;
     }
 
-    ClientDataFrameIndexerBuilder setProgress(DataFrameTransformProgress progress) {
+    ClientDataFrameIndexerBuilder setProgress(TransformProgress progress) {
         this.progress = progress;
         return this;
     }
 
-    ClientDataFrameIndexerBuilder setLastCheckpoint(DataFrameTransformCheckpoint lastCheckpoint) {
+    ClientDataFrameIndexerBuilder setLastCheckpoint(TransformCheckpoint lastCheckpoint) {
         this.lastCheckpoint = lastCheckpoint;
         return this;
     }
 
-    ClientDataFrameIndexerBuilder setNextCheckpoint(DataFrameTransformCheckpoint nextCheckpoint) {
+    ClientDataFrameIndexerBuilder setNextCheckpoint(TransformCheckpoint nextCheckpoint) {
         this.nextCheckpoint = nextCheckpoint;
         return this;
     }

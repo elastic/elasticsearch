@@ -28,6 +28,4 @@ You can use {ccr} to recover from the failure of a primary cluster
 or serve data locally based on geo-proximity.
 --
 
-:leveloffset: +1
 include::ccr/index.asciidoc[]
-:leveloffset: -1

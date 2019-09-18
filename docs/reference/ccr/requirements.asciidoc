@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-requirements]]
-== Requirements for leader indices
+=== Requirements for leader indices
 
 {ccr-cap} works by replaying the history of individual write
 operations that were performed on the shards of the leader index. This means that the
@@ -24,9 +24,9 @@ existing data that you want to replicate from another cluster, you must
 {ref}/docs-reindex.html[reindex] your data into a new index with soft deletes 
 enabled.
 
-[float]
+
 [[ccr-overview-soft-deletes]]
-=== Soft delete settings
+==== Soft delete settings
 
 `index.soft_deletes.enabled`::
 
@@ -44,9 +44,9 @@ The default value is `12h`.
 
 For more information about index settings, see {ref}/index-modules.html[Index modules].
 
-[float]
+
 [[ccr-overview-beats]]
-=== Setting soft deletes on indices created by APM Server or Beats
+==== Setting soft deletes on indices created by APM Server or Beats
 
 If you want to replicate indices created by APM Server or Beats, and are
 allowing APM Server or Beats to manage index templates, you need to enable
@@ -66,9 +66,9 @@ For additional information on controlling the index templates managed by APM
 Server or Beats, see the relevant documentation on loading the Elasticsearch
 index template.
 
-[float]
+
 [[ccr-overview-logstash]]
-=== Setting soft deletes on indices created by Logstash
+==== Setting soft deletes on indices created by Logstash
 
 If you want to replicate indices created by Logstash, and are using Logstash to
 manage index templates, you need to configure soft deletes on a custom Logstash

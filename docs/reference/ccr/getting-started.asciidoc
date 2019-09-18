@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-getting-started]]
-== Getting started with {ccr}
+=== Getting started with {ccr}
 
 This getting-started guide for {ccr} shows you how to:
 
@@ -12,9 +12,9 @@ This getting-started guide for {ccr} shows you how to:
   a leader index
 * <<ccr-getting-started-auto-follow,Automatically create follower indices>>
 
-[float]
+
 [[ccr-getting-started-before-you-begin]]
-=== Before you begin
+==== Before you begin
 . {stack-gs}/get-started-elastic-stack.html#install-elasticsearch[Install {es}]
   on your local and remote clusters.
 
@@ -81,9 +81,9 @@ cluster update settings API, you will also need a user with the `all` cluster
 privilege.
 --
 
-[float]
+
 [[ccr-getting-started-remote-cluster]]
-=== Connecting to a remote cluster
+==== Connecting to a remote cluster
 
 The {ccr} features require that you
 {ref}/modules-remote-clusters.html[connect your local cluster to a remote
@@ -161,9 +161,9 @@ Alternatively, you can manage remote clusters on the
 image::images/remote-clusters.jpg["The Remote Clusters page in {kib}"]
 
 
-[float]
+
 [[ccr-getting-started-leader-index]]
-=== Creating a leader index
+==== Creating a leader index
 
 Leader indices require a special index setting to ensure that the operations
 that need to be replicated are available when the follower requests them from
@@ -219,9 +219,9 @@ PUT /server-metrics
 // TEST[continued]
 <1> Enables soft deletes on the leader index.
 
-[float]
+
 [[ccr-getting-started-follower-index]]
-=== Creating a follower index
+==== Creating a follower index
 
 Follower indices are created with the {ref}/ccr-put-follow.html[create follower
 API]. When you create a follower index, you must reference the
@@ -279,9 +279,9 @@ POST /server-metrics-copy/_ccr/unfollow
 
 //////////////////////////
 
-[float]
+
 [[ccr-getting-started-auto-follow]]
-=== Automatically create follower indices
+==== Automatically create follower indices
 
 The <<ccr-auto-follow,auto-follow>> feature in {ccr} helps for time series use
 cases where you want to follow new indices that are periodically created in the

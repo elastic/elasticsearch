@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-overview]]
-== Overview
+=== Overview
 
 
 {ccr-cap} is done on an index-by-index basis. Replication is
@@ -19,8 +19,7 @@ that {ccr} does not interfere with indexing on the leader index.
 
 IMPORTANT: {ccr-cap} requires {ref}/modules-remote-clusters.html[remote clusters].
 
-[float]
-=== Configuring replication
+==== Configuring replication
 
 Replication can be configured in two ways:
 
@@ -69,8 +68,8 @@ POST /follower_index/_ccr/pause_follow
 
 //////////////////////////
 
-[float]
-=== The mechanics of replication
+
+==== The mechanics of replication
 
 While replication is managed at the index level, replication is performed at the
 shard level. When a follower index is created, it is automatically
@@ -127,8 +126,8 @@ closing itself, applying the settings update, and then re-opening itself. The
 follower index will be unavailable for reads and not replicating writes
 during this cycle.
 
-[float]
-=== Inspecting the progress of replication
+
+==== Inspecting the progress of replication
 
 You can inspect the progress of replication at the shard level with the
 {ref}/ccr-get-follow-stats.html[get follower stats API]. This API gives you
@@ -136,8 +135,8 @@ insight into the read and writes managed by the follower shard task. It also
 reports read exceptions that can be retried and fatal exceptions that require
 user intervention.
 
-[float]
-=== Pausing and resuming replication
+
+==== Pausing and resuming replication
 
 You can pause replication with the
 {ref}/ccr-post-pause-follow.html[pause follower API] and then later resume
@@ -146,8 +145,8 @@ Using these APIs in tandem enables you to adjust the read and write parameters
 on the follower shard task if your initial configuration is not suitable for
 your use case.
 
-[float]
-=== Leader index retaining operations for replication
+
+==== Leader index retaining operations for replication
 
 If the follower is unable to replicate operations from a leader for a period of
 time, the following process can fail due to the leader lacking a complete history
@@ -177,8 +176,8 @@ the lease expires. It is valuable to have monitoring in place to detect a follow
 replication issue prior to the lease expiring so that the problem can be remedied
 before the follower falls fatally behind.
 
-[float]
-=== Remedying a follower that has fallen behind
+
+==== Remedying a follower that has fallen behind
 
 If a follower falls sufficiently behind a leader that it can no longer replicate
 operations this can be detected in {kib} or by using the
@@ -208,8 +207,8 @@ segment files are deleted on the follower cluster. The
 files from the leader again. After the follower index initializes, the
 following process starts again.
 
-[float]
-=== Terminating replication
+
+==== Terminating replication
 
 You can terminate replication with the
 {ref}/ccr-post-unfollow.html[unfollow API]. This API converts a follower index

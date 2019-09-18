@@ -50,7 +50,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         createReviewsIndex();
         indicesCreated = true;
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
-        setupUser(TEST_USER_NAME, Arrays.asList("transform_admin", DATA_ACCESS_ROLE));
+        setupUser(TEST_USER_NAME, Arrays.asList("data_frame_transforms_admin", DATA_ACCESS_ROLE));
     }
 
     public void testSimplePivot() throws Exception {

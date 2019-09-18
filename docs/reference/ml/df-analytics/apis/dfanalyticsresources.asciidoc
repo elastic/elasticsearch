@@ -150,29 +150,30 @@ An `outlier_detection` configuration object has the following properties:
 PUT _ml/data_frame/analytics/house_price_regression_analysis
 {
   "source": {
-    "index": "houses_sold_last_10_yrs" [1]
+    "index": "houses_sold_last_10_yrs" <1>
   },
   "dest": {
-    "index": "house_price_predictions" [2]
+    "index": "house_price_predictions" <2>
   },
   "analysis": 
     {
-      "regression": { [3]
-        "dependent_variable": "price" [4]
+      "regression": { <3>
+        "dependent_variable": "price" <4>
       }
     }
 }
 --------------------------------------------------
 // TEST[skip:TBD]
 
-[1] Training data is taken from source index `houses_sold_last_10_yrs`.
-[2] Analysis results will be output to destination index 
+<1> Training data is taken from source index `houses_sold_last_10_yrs`.
+<2> Analysis results will be output to destination index 
 `house_price_predictions`.
-[3] The regression analysis configuration object.
-[4] Regression analysis will use field `price` to train on. As no other 
+<3> The regression analysis configuration object.
+<4> Regression analysis will use field `price` to train on. As no other 
 parameters have been specified it will train on 100% of eligible data, store its 
 prediction in destination index field `price_prediction` and use in-built 
 hyperparameter optimization to give minimum validation errors.
+
 
 [float]
 [[regression-resources-standard]]

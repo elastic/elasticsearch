@@ -176,8 +176,8 @@ public class TestFixturesPlugin implements Plugin<Project> {
                          public void execute(Task theTask) {
                              fixtureProject.getExtensions().getByType(ComposeExtension.class).getServicesInfos()
                                  .entrySet().stream()
-                                 .filter(entry -> enableFilter == false||
-                                     extension.isServiceInUse(entry.getKey(), fixtureProject.getPath())
+                                 .filter(entry -> enableFilter == false ||
+                                     extension.isServiceRequired(entry.getKey(), fixtureProject.getPath())
                                  )
                                  .forEach(entry -> {
                                      String service = entry.getKey();

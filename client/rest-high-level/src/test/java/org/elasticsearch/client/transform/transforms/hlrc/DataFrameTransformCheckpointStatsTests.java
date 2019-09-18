@@ -22,34 +22,34 @@ package org.elasticsearch.client.transform.transforms.hlrc;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpointStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointStats;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataFrameTransformCheckpointStatsTests extends AbstractResponseTestCase<
-        DataFrameTransformCheckpointStats,
+        TransformCheckpointStats,
         org.elasticsearch.client.transform.transforms.DataFrameTransformCheckpointStats> {
 
-    public static DataFrameTransformCheckpointStats fromHlrc(
+    public static TransformCheckpointStats fromHlrc(
             org.elasticsearch.client.transform.transforms.DataFrameTransformCheckpointStats instance) {
-        return new DataFrameTransformCheckpointStats(instance.getCheckpoint(),
+        return new TransformCheckpointStats(instance.getCheckpoint(),
             DataFrameIndexerPositionTests.fromHlrc(instance.getPosition()),
             DataFrameTransformProgressTests.fromHlrc(instance.getCheckpointProgress()),
             instance.getTimestampMillis(),
             instance.getTimeUpperBoundMillis());
     }
 
-    public static DataFrameTransformCheckpointStats randomDataFrameTransformCheckpointStats() {
-        return new DataFrameTransformCheckpointStats(randomLongBetween(1, 1_000_000),
+    public static TransformCheckpointStats randomDataFrameTransformCheckpointStats() {
+        return new TransformCheckpointStats(randomLongBetween(1, 1_000_000),
             DataFrameIndexerPositionTests.randomDataFrameIndexerPosition(),
             randomBoolean() ? null : DataFrameTransformProgressTests.randomDataFrameTransformProgress(),
             randomLongBetween(1, 1_000_000), randomLongBetween(0, 1_000_000));
     }
 
     @Override
-    protected DataFrameTransformCheckpointStats createServerTestInstance(XContentType xContentType) {
+    protected TransformCheckpointStats createServerTestInstance(XContentType xContentType) {
         return randomDataFrameTransformCheckpointStats();
     }
 
@@ -60,7 +60,7 @@ public class DataFrameTransformCheckpointStatsTests extends AbstractResponseTest
     }
 
     @Override
-    protected void assertInstances(DataFrameTransformCheckpointStats serverTestInstance,
+    protected void assertInstances(TransformCheckpointStats serverTestInstance,
                                    org.elasticsearch.client.transform.transforms.DataFrameTransformCheckpointStats clientInstance) {
         assertThat(serverTestInstance.getCheckpoint(), equalTo(clientInstance.getCheckpoint()));
         assertThat(serverTestInstance.getPosition().getBucketsPosition(), equalTo(clientInstance.getPosition().getBucketsPosition()));

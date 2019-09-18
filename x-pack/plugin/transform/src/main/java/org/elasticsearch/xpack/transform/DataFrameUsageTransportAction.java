@@ -30,13 +30,13 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
-import org.elasticsearch.xpack.core.transform.DataFrameFeatureSetUsage;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStats;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransform;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformState;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformTaskState;
+import org.elasticsearch.xpack.core.transform.TransformFeatureSetUsage;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.Transform;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformState;
+import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndex;
 
 import java.util.Arrays;
@@ -69,7 +69,7 @@ public class DataFrameUsageTransportAction extends XPackUsageFeatureTransportAct
                                    ActionListener<XPackUsageFeatureResponse> listener) {
         boolean available = licenseState.isDataFrameAllowed();
         if (enabled == false) {
-            var usage = new DataFrameFeatureSetUsage(available, enabled, Collections.emptyMap(), new DataFrameIndexerTransformStats());
+            var usage = new TransformFeatureSetUsage(available, enabled, Collections.emptyMap(), new TransformIndexerStats());
             listener.onResponse(new XPackUsageFeatureResponse(usage));
             return;
         }
@@ -77,17 +77,17 @@ public class DataFrameUsageTransportAction extends XPackUsageFeatureTransportAct
         PersistentTasksCustomMetaData taskMetadata = PersistentTasksCustomMetaData.getPersistentTasksCustomMetaData(state);
         Collection<PersistentTasksCustomMetaData.PersistentTask<?>> dataFrameTasks = taskMetadata == null ?
             Collections.emptyList() :
-            taskMetadata.findTasks(DataFrameTransform.NAME, (t) -> true);
+            taskMetadata.findTasks(Transform.NAME, (t) -> true);
         final int taskCount = dataFrameTasks.size();
         final Map<String, Long> transformsCountByState = new HashMap<>();
         for(PersistentTasksCustomMetaData.PersistentTask<?> dataFrameTask : dataFrameTasks) {
-            DataFrameTransformState transformState = (DataFrameTransformState)dataFrameTask.getState();
+            TransformState transformState = (TransformState)dataFrameTask.getState();
             transformsCountByState.merge(transformState.getTaskState().value(), 1L, Long::sum);
         }
 
-        ActionListener<DataFrameIndexerTransformStats> totalStatsListener = ActionListener.wrap(
+        ActionListener<TransformIndexerStats> totalStatsListener = ActionListener.wrap(
             statSummations -> {
-                var usage = new DataFrameFeatureSetUsage(available, enabled, transformsCountByState, statSummations);
+                var usage = new TransformFeatureSetUsage(available, enabled, transformsCountByState, statSummations);
                 listener.onResponse(new XPackUsageFeatureResponse(usage));
             },
             listener::onFailure
@@ -101,12 +101,12 @@ public class DataFrameUsageTransportAction extends XPackUsageFeatureTransportAct
                 }
                 long totalTransforms = transformCountSuccess.getHits().getTotalHits().value;
                 if (totalTransforms == 0) {
-                    var usage = new DataFrameFeatureSetUsage(available, enabled, transformsCountByState,
-                        new DataFrameIndexerTransformStats());
+                    var usage = new TransformFeatureSetUsage(available, enabled, transformsCountByState,
+                        new TransformIndexerStats());
                     listener.onResponse(new XPackUsageFeatureResponse(usage));
                     return;
                 }
-                transformsCountByState.merge(DataFrameTransformTaskState.STOPPED.value(), totalTransforms - taskCount, Long::sum);
+                transformsCountByState.merge(TransformTaskState.STOPPED.value(), totalTransforms - taskCount, Long::sum);
                 DataFrameInfoTransportAction.getStatisticSummations(client, totalStatsListener);
             },
             transformCountFailure -> {
@@ -121,7 +121,7 @@ public class DataFrameUsageTransportAction extends XPackUsageFeatureTransportAct
         SearchRequest totalTransformCount = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME_PATTERN)
             .setTrackTotalHits(true)
             .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termQuery(DataFrameField.INDEX_DOC_TYPE.getPreferredName(), DataFrameTransformConfig.NAME))))
+                .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(), TransformConfig.NAME))))
             .request();
 
         ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(),

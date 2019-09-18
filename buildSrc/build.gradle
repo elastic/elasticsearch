@@ -107,6 +107,7 @@ dependencies {
   compile localGroovy()
   
   compile 'commons-codec:commons-codec:1.12'
+  compile 'org.apache.commons:commons-compress:1.19'
 
   compile 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
   compile 'com.netflix.nebula:nebula-publishing-plugin:4.4.4'

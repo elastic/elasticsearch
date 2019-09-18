@@ -41,7 +41,7 @@ import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class DataFrameInfoTransportActionTests extends ESTestCase {
+public class TransformInfoTransportActionTests extends ESTestCase {
     private XPackLicenseState licenseState;
 
     @Before
@@ -60,7 +60,7 @@ public class DataFrameInfoTransportActionTests extends ESTestCase {
     public void testEnabledSetting() {
         boolean enabled = randomBoolean();
         Settings.Builder settings = Settings.builder();
-        settings.put("xpack.data_frame.enabled", enabled);
+        settings.put("xpack.transform.enabled", enabled);
         TransformInfoTransportAction featureSet = new TransformInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
         assertThat(featureSet.enabled(), is(enabled));
@@ -114,7 +114,7 @@ public class DataFrameInfoTransportActionTests extends ESTestCase {
     public void testUsageDisabled() throws IOException, InterruptedException, ExecutionException {
         when(licenseState.isTransformAllowed()).thenReturn(true);
         Settings.Builder settings = Settings.builder();
-        settings.put("xpack.data_frame.enabled", false);
+        settings.put("xpack.transform.enabled", false);
         var usageAction = new TransformUsageTransportAction(mock(TransportService.class), null, null,
             mock(ActionFilters.class), null, settings.build(), licenseState, mock(Client.class));
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();

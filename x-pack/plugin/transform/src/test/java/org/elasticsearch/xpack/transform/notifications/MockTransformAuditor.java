@@ -24,11 +24,11 @@ import static org.mockito.Mockito.mock;
  *
  * TODO: ideally this would be a generalized  MockAuditor, but the current inheritance doesn't let us
  */
-public class MockDataFrameAuditor extends TransformAuditor {
+public class MockTransformAuditor extends TransformAuditor {
 
     private List<AuditExpectation> expectations;
 
-    public MockDataFrameAuditor() {
+    public MockTransformAuditor() {
         super(mock(Client.class), "mock_node_name");
         expectations = new CopyOnWriteArrayList<>();
     }

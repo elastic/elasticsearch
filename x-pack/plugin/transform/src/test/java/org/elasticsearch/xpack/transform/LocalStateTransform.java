@@ -11,12 +11,12 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 import java.nio.file.Path;
 
-public class LocalStateDataFrame extends LocalStateCompositeXPackPlugin {
+public class LocalStateTransform extends LocalStateCompositeXPackPlugin {
 
-    public LocalStateDataFrame(final Settings settings, final Path configPath) throws Exception {
+    public LocalStateTransform(final Settings settings, final Path configPath) throws Exception {
         super(settings, configPath);
         @SuppressWarnings("resource")
-        LocalStateDataFrame thisVar = this;
+        LocalStateTransform thisVar = this;
 
         plugins.add(new Transform(settings) {
             @Override

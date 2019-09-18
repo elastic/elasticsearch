@@ -25,13 +25,13 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class DataFrameSingleNodeTestCase extends ESSingleNodeTestCase {
+public abstract class TransformSingleNodeTestCase extends ESSingleNodeTestCase {
 
     @Before
     public void waitForTemplates() throws Exception {
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
-            assertTrue("Timed out waiting for the data frame templates to be installed", TemplateUtils
+            assertTrue("Timed out waiting for the transform templates to be installed", TemplateUtils
                 .checkTemplateExistsAndVersionIsGTECurrentVersion(TransformInternalIndex.LATEST_INDEX_VERSIONED_NAME, state));
         });
     }
@@ -46,7 +46,7 @@ public abstract class DataFrameSingleNodeTestCase extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(LocalStateDataFrame.class, ReindexPlugin.class);
+        return pluginList(LocalStateTransform.class, ReindexPlugin.class);
     }
 
     protected <T> void assertAsync(Consumer<ActionListener<T>> function, T expected, CheckedConsumer<T, ? extends Exception> onAnswer,

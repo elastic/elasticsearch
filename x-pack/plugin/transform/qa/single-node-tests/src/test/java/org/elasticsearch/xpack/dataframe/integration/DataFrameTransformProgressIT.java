@@ -39,7 +39,7 @@ import java.util.Base64;
 import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.dataframe.integration.DataFrameRestTestCase.REVIEWS_INDEX_NAME;
+import static org.elasticsearch.xpack.dataframe.integration.TransformRestTestCase.REVIEWS_INDEX_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 

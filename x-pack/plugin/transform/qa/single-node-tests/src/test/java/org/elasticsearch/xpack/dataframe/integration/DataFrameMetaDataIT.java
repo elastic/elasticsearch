@@ -15,7 +15,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Map;
 
-public class DataFrameMetaDataIT extends DataFrameRestTestCase {
+public class DataFrameMetaDataIT extends TransformRestTestCase {
 
     private boolean indicesCreated = false;
 
@@ -46,14 +46,14 @@ public class DataFrameMetaDataIT extends DataFrameRestTestCase {
 
         Map<?, ?> mappingAsMap = entityAsMap(mappingResponse);
         assertEquals(Version.CURRENT.toString(),
-                XContentMapValues.extractValue("pivot_reviews.mappings._meta._data_frame.version.created", mappingAsMap));
-        assertTrue((Long) XContentMapValues.extractValue("pivot_reviews.mappings._meta._data_frame.creation_date_in_millis",
+                XContentMapValues.extractValue("pivot_reviews.mappings._meta._transform.version.created", mappingAsMap));
+        assertTrue((Long) XContentMapValues.extractValue("pivot_reviews.mappings._meta._transform.creation_date_in_millis",
                 mappingAsMap) < System.currentTimeMillis());
-        assertTrue((Long) XContentMapValues.extractValue("pivot_reviews.mappings._meta._data_frame.creation_date_in_millis",
+        assertTrue((Long) XContentMapValues.extractValue("pivot_reviews.mappings._meta._transform.creation_date_in_millis",
                 mappingAsMap) > testStarted);
         assertEquals("test_meta",
-                XContentMapValues.extractValue("pivot_reviews.mappings._meta._data_frame.transform", mappingAsMap));
-        assertEquals("data-frame-transform",
+                XContentMapValues.extractValue("pivot_reviews.mappings._meta._transform.transform", mappingAsMap));
+        assertEquals("transform",
                 XContentMapValues.extractValue("pivot_reviews.mappings._meta.created_by", mappingAsMap));
     }
 

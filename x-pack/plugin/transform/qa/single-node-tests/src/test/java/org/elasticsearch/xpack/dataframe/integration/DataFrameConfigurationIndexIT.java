@@ -22,13 +22,13 @@ import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
-public class DataFrameConfigurationIndexIT extends DataFrameRestTestCase {
+public class DataFrameConfigurationIndexIT extends TransformRestTestCase {
 
     /**
      * Tests the corner case that for some reason a transform configuration still exists in the index but
      * the persistent task disappeared
      *
-     * test note: {@link DataFrameRestTestCase} checks for an empty index as part of the test case cleanup,
+     * test note: {@link TransformRestTestCase} checks for an empty index as part of the test case cleanup,
      * so we do not need to check that the document has been deleted in this place
      */
     public void testDeleteConfigurationLeftOver() throws IOException {

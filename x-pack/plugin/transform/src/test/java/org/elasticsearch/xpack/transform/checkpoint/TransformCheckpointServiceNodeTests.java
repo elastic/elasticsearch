@@ -47,7 +47,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingI
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgressTests;
-import org.elasticsearch.xpack.transform.DataFrameSingleNodeTestCase;
+import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.junit.AfterClass;
@@ -65,7 +65,7 @@ import java.util.Set;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingleNodeTestCase {
+public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTestCase {
 
     // re-use the mock client for the whole test suite as the underlying thread pool and the
     // corresponding context if recreated cause unreliable test execution
@@ -127,7 +127,7 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
     public void createComponents() {
         // it's not possible to run it as @BeforeClass as clients aren't initialized
         if (mockClientForCheckpointing == null) {
-            mockClientForCheckpointing = new MockClientForCheckpointing("DataFrameTransformCheckpointServiceNodeTests");
+            mockClientForCheckpointing = new MockClientForCheckpointing("TransformCheckpointServiceNodeTests");
         }
 
         transformsConfigManager = new TransformConfigManager(client(), xContentRegistry());
@@ -155,7 +155,7 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
         // create transform
         assertAsync(
                 listener -> transformsConfigManager
-                        .putTransformConfiguration(TransformConfigTests.randomDataFrameTransformConfig(transformId), listener),
+                        .putTransformConfiguration(TransformConfigTests.randomTransformConfig(transformId), listener),
                 true, null, null);
 
         // by design no exception is thrown but an empty checkpoint is returned
@@ -190,13 +190,13 @@ public class DataFrameTransformCheckpointServiceNodeTests extends DataFrameSingl
     public void testGetCheckpointStats() throws InterruptedException {
         String transformId = randomAlphaOfLengthBetween(3, 10);
         long timestamp = 1000;
-        TransformIndexerPosition position = TransformIndexerPositionTests.randomDataFrameIndexerPosition();
-        TransformProgress progress = TransformProgressTests.randomDataFrameTransformProgress();
+        TransformIndexerPosition position = TransformIndexerPositionTests.randomTransformIndexerPosition();
+        TransformProgress progress = TransformProgressTests.randomTransformProgress();
 
         // create transform
         assertAsync(
                 listener -> transformsConfigManager
-                        .putTransformConfiguration(TransformConfigTests.randomDataFrameTransformConfig(transformId), listener),
+                        .putTransformConfiguration(TransformConfigTests.randomTransformConfig(transformId), listener),
                 true, null, null);
 
         TransformCheckpoint checkpoint = new TransformCheckpoint(transformId, timestamp, 1L,

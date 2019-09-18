@@ -19,7 +19,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-public class RestDeleteDataFrameTransformActionTests extends ESTestCase {
+public class RestDeleteTransformActionTests extends ESTestCase {
 
     public void testBodyRejection() throws Exception {
         final RestDeleteTransformAction handler = new RestDeleteTransformAction(

@@ -55,7 +55,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
     private volatile int numFailureRetries = DEFAULT_FAILURE_RETRIES;
     // How many times the transform task can retry on an non-critical failure
     public static final Setting<Integer> NUM_FAILURE_RETRIES_SETTING = Setting.intSetting(
-        "xpack.data_frame.num_transform_failure_retries",
+        "xpack.transform.num_transform_failure_retries",
         DEFAULT_FAILURE_RETRIES,
         0,
         100,

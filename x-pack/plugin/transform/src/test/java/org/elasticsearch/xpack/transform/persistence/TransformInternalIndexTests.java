@@ -34,7 +34,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class DataFrameInternalIndexTests extends ESTestCase {
+public class TransformInternalIndexTests extends ESTestCase {
 
     public static ClusterState STATE_WITH_LATEST_VERSIONED_INDEX_TEMPLATE;
 
@@ -61,7 +61,7 @@ public class DataFrameInternalIndexTests extends ESTestCase {
     public void testInstallLatestVersionedIndexTemplateIfRequired_GivenNotRequired() {
 
         ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(DataFrameInternalIndexTests.STATE_WITH_LATEST_VERSIONED_INDEX_TEMPLATE);
+        when(clusterService.state()).thenReturn(TransformInternalIndexTests.STATE_WITH_LATEST_VERSIONED_INDEX_TEMPLATE);
 
         Client client = mock(Client.class);
 

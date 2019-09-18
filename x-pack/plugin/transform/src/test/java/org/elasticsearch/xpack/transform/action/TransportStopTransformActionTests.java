@@ -24,7 +24,7 @@ import java.util.Collections;
 import static org.elasticsearch.rest.RestStatus.CONFLICT;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TransportStopDataFrameTransformActionTests extends ESTestCase {
+public class TransportStopTransformActionTests extends ESTestCase {
 
     private MetaData.Builder buildMetadata(PersistentTasksCustomMetaData ptasks) {
         return MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE, ptasks);
@@ -40,12 +40,12 @@ public class TransportStopDataFrameTransformActionTests extends ESTestCase {
         TransportStopTransformAction.validateTaskState(csBuilder.build(), Collections.singletonList("non-failed-task"), false);
     }
 
-    public void testTaskStateValidationWithDataFrameTasks() {
+    public void testTaskStateValidationWithTransformTasks() {
         // Test with the task state being null
         PersistentTasksCustomMetaData.Builder pTasksBuilder = PersistentTasksCustomMetaData.builder()
             .addTask("non-failed-task",
                 TransformTaskParams.NAME,
-                new TransformTaskParams("data-frame-task-1", Version.CURRENT, null),
+                new TransformTaskParams("transform-task-1", Version.CURRENT, null),
                 new PersistentTasksCustomMetaData.Assignment("current-data-node-with-1-tasks", ""));
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name")).metaData(buildMetadata(pTasksBuilder.build()));
 
@@ -64,7 +64,7 @@ public class TransportStopDataFrameTransformActionTests extends ESTestCase {
 
         pTasksBuilder.addTask("failed-task",
             TransformTaskParams.NAME,
-            new TransformTaskParams("data-frame-task-1", Version.CURRENT, null),
+            new TransformTaskParams("transform-task-1", Version.CURRENT, null),
             new PersistentTasksCustomMetaData.Assignment("current-data-node-with-1-tasks", ""))
             .updateTaskState("failed-task", new TransformState(TransformTaskState.FAILED,
                 IndexerState.STOPPED,

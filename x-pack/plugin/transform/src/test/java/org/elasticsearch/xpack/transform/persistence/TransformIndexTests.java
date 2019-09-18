@@ -32,11 +32,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-public class DataframeIndexTests extends ESTestCase {
+public class TransformIndexTests extends ESTestCase {
 
     private static final String TRANSFORM_ID = "some-random-transform-id";
     private static final int CURRENT_TIME_MILLIS = 123456789;
-    private static final String CREATED_BY = "data-frame-transform";
+    private static final String CREATED_BY = "transform";
 
     private Client client = mock(Client.class);
     private Clock clock = Clock.fixed(Instant.ofEpochMilli(CURRENT_TIME_MILLIS), ZoneId.systemDefault());
@@ -54,7 +54,7 @@ public class DataframeIndexTests extends ESTestCase {
         TransformIndex.createDestinationIndex(
             client,
             clock,
-            TransformConfigTests.randomDataFrameTransformConfig(TRANSFORM_ID),
+            TransformConfigTests.randomTransformConfig(TRANSFORM_ID),
             new HashMap<>(),
             ActionListener.wrap(
                 value -> assertTrue(value),
@@ -67,8 +67,8 @@ public class DataframeIndexTests extends ESTestCase {
         CreateIndexRequest createIndexRequest = createIndexRequestCaptor.getValue();
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, createIndexRequest.mappings().get("_doc"))) {
             Map<String, Object> map = parser.map();
-            assertThat(extractValue("_doc._meta._data_frame.transform", map), equalTo(TRANSFORM_ID));
-            assertThat(extractValue("_doc._meta._data_frame.creation_date_in_millis", map), equalTo(CURRENT_TIME_MILLIS));
+            assertThat(extractValue("_doc._meta._transform.transform", map), equalTo(TRANSFORM_ID));
+            assertThat(extractValue("_doc._meta._transform.creation_date_in_millis", map), equalTo(CURRENT_TIME_MILLIS));
             assertThat(extractValue("_doc._meta.created_by", map), equalTo(CREATED_BY));
         }
     }

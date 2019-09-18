@@ -475,12 +475,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         int newPageSize = (int) Math.round(reducingFactor * pageSize);
 
         if (newPageSize < MINIMUM_PAGE_SIZE) {
-            String message = TransformMessages.getMessage(TransformMessages.LOG_DATA_FRAME_TRANSFORM_PIVOT_LOW_PAGE_SIZE_FAILURE, pageSize);
+            String message = TransformMessages.getMessage(TransformMessages.LOG_TRANSFORM_PIVOT_LOW_PAGE_SIZE_FAILURE, pageSize);
             failIndexer(message);
             return true;
         }
 
-        String message = TransformMessages.getMessage(TransformMessages.LOG_DATA_FRAME_TRANSFORM_PIVOT_REDUCE_PAGE_SIZE, pageSize,
+        String message = TransformMessages.getMessage(TransformMessages.LOG_TRANSFORM_PIVOT_REDUCE_PAGE_SIZE, pageSize,
                 newPageSize);
         auditor.info(getJobId(), message);
         logger.info("Data frame transform [" + getJobId() + "]:" + message);

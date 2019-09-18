@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
-import org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndexTests;
+import org.elasticsearch.xpack.transform.persistence.TransformInternalIndexTests;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 import java.util.ArrayList;
@@ -46,24 +46,24 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
+public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
     public void testNodeVersionAssignment() {
         MetaData.Builder metaData = MetaData.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
         addIndices(metaData, routingTable);
         PersistentTasksCustomMetaData.Builder pTasksBuilder = PersistentTasksCustomMetaData.builder()
-            .addTask("data-frame-task-1",
+            .addTask("transform-task-1",
                 TransformTaskParams.NAME,
-                new TransformTaskParams("data-frame-task-1", Version.CURRENT, null),
+                new TransformTaskParams("transform-task-1", Version.CURRENT, null),
                 new PersistentTasksCustomMetaData.Assignment("current-data-node-with-1-tasks", ""))
-            .addTask("data-frame-task-2",
+            .addTask("transform-task-2",
                 TransformTaskParams.NAME,
-                new TransformTaskParams("data-frame-task-2", Version.CURRENT, null),
+                new TransformTaskParams("transform-task-2", Version.CURRENT, null),
                 new PersistentTasksCustomMetaData.Assignment("current-data-node-with-2-tasks", ""))
-            .addTask("data-frame-task-3",
+            .addTask("transform-task-3",
                 TransformTaskParams.NAME,
-                new TransformTaskParams("data-frame-task-3", Version.CURRENT, null),
+                new TransformTaskParams("transform-task-3", Version.CURRENT, null),
                 new PersistentTasksCustomMetaData.Assignment("current-data-node-with-2-tasks", ""));
 
         PersistentTasksCustomMetaData pTasks = pTasksBuilder.build();
@@ -101,16 +101,16 @@ public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
         Client client = mock(Client.class);
         TransformAuditor mockAuditor = mock(TransformAuditor.class);
         TransformConfigManager transformsConfigManager = new TransformConfigManager(client, xContentRegistry());
-        TransformCheckpointService dataFrameTransformsCheckpointService = new TransformCheckpointService(client,
+        TransformCheckpointService transformCheckpointService = new TransformCheckpointService(client,
             transformsConfigManager, mockAuditor);
         ClusterSettings cSettings = new ClusterSettings(Settings.EMPTY,
             Collections.singleton(TransformTask.NUM_FAILURE_RETRIES_SETTING));
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(cSettings);
-        when(clusterService.state()).thenReturn(DataFrameInternalIndexTests.STATE_WITH_LATEST_VERSIONED_INDEX_TEMPLATE);
+        when(clusterService.state()).thenReturn(TransformInternalIndexTests.STATE_WITH_LATEST_VERSIONED_INDEX_TEMPLATE);
         TransformPersistentTasksExecutor executor = new TransformPersistentTasksExecutor(client,
             transformsConfigManager,
-            dataFrameTransformsCheckpointService, mock(SchedulerEngine.class),
+            transformCheckpointService, mock(SchedulerEngine.class),
             new TransformAuditor(client, ""),
             mock(ThreadPool.class),
             clusterService,

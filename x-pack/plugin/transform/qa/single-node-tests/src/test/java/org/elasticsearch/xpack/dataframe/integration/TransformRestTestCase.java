@@ -36,7 +36,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class DataFrameRestTestCase extends ESRestTestCase {
+public abstract class TransformRestTestCase extends ESRestTestCase {
 
     protected static final String TEST_PASSWORD = "x-pack-test-password";
     protected static final SecureString TEST_PASSWORD_SECURE_STRING = new SecureString(TEST_PASSWORD.toCharArray());
@@ -238,7 +238,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         assertThat(startTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
     }
 
-    protected void stopDataFrameTransform(String transformId, boolean force) throws Exception {
+    protected void stopTransform(String transformId, boolean force) throws Exception {
         // start the transform
         final Request stopTransformRequest = createRequestWithAuth("POST", DATAFRAME_ENDPOINT + transformId + "/_stop", null);
         stopTransformRequest.addParameter(TransformField.FORCE.getPreferredName(), Boolean.toString(force));
@@ -338,7 +338,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         return (Map<?, ?>) transforms.get(0);
     }
 
-    protected static void deleteDataFrameTransform(String transformId) throws IOException {
+    protected static void deleteTransform(String transformId) throws IOException {
         Request request = new Request("DELETE", DATAFRAME_ENDPOINT + transformId);
         request.addParameter("ignore", "404"); // Ignore 404s because they imply someone was racing us to delete this
         adminClient().performRequest(request);
@@ -376,7 +376,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
 
         for (Map<String, Object> transformConfig : transformConfigs) {
             String transformId = (String) transformConfig.get("id");
-            deleteDataFrameTransform(transformId);
+            deleteTransform(transformId);
         }
 
         // transforms should be all gone

@@ -65,11 +65,11 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class DataFrameIndexerTests extends ESTestCase {
+public class TransformIndexerTests extends ESTestCase {
 
     private Client client;
 
-    class MockedDataFrameIndexer extends TransformIndexer {
+    class MockedTransformIndexer extends TransformIndexer {
 
         private final Function<SearchRequest, SearchResponse> searchFunction;
         private final Function<BulkRequest, BulkResponse> bulkFunction;
@@ -78,7 +78,7 @@ public class DataFrameIndexerTests extends ESTestCase {
         // used for synchronizing with the test
         private CountDownLatch latch;
 
-        MockedDataFrameIndexer(
+        MockedTransformIndexer(
                 Executor executor,
                 TransformConfig transformConfig,
                 Map<String, String> fieldMappings,
@@ -90,7 +90,7 @@ public class DataFrameIndexerTests extends ESTestCase {
                 Function<BulkRequest, BulkResponse> bulkFunction,
                 Consumer<Exception> failureConsumer) {
             super(executor, auditor, transformConfig, fieldMappings, initialState, initialPosition, jobStats,
-                    /* DataFrameTransformProgress */ null, TransformCheckpoint.EMPTY, TransformCheckpoint.EMPTY);
+                    /* TransformProgress */ null, TransformCheckpoint.EMPTY, TransformCheckpoint.EMPTY);
             this.searchFunction = searchFunction;
             this.bulkFunction = bulkFunction;
             this.failureConsumer = failureConsumer;
@@ -153,7 +153,7 @@ public class DataFrameIndexerTests extends ESTestCase {
         @Override
         protected void onFailure(Exception exc) {
             try {
-                // mimic same behavior as {@link DataFrameTransformTask}
+                // mimic same behavior as {@link TransformTask}
                 if (handleCircuitBreakingException(exc)) {
                     return;
                 }
@@ -225,7 +225,7 @@ public class DataFrameIndexerTests extends ESTestCase {
         try {
             TransformAuditor auditor = new TransformAuditor(client, "node_1");
 
-            MockedDataFrameIndexer indexer = new MockedDataFrameIndexer(executor, config, Collections.emptyMap(), auditor, state, null,
+            MockedTransformIndexer indexer = new MockedTransformIndexer(executor, config, Collections.emptyMap(), auditor, state, null,
                     new TransformIndexerStats(), searchFunction, bulkFunction, failureConsumer);
             final CountDownLatch latch = indexer.newLatch(1);
             indexer.start();
@@ -290,7 +290,7 @@ public class DataFrameIndexerTests extends ESTestCase {
         try {
             TransformAuditor auditor = mock(TransformAuditor.class);
 
-            MockedDataFrameIndexer indexer = new MockedDataFrameIndexer(executor, config, Collections.emptyMap(), auditor, state, null,
+            MockedTransformIndexer indexer = new MockedTransformIndexer(executor, config, Collections.emptyMap(), auditor, state, null,
                 new TransformIndexerStats(), searchFunction, bulkFunction, failureConsumer);
 
             IterationResult<TransformIndexerPosition> newPosition = indexer.doProcess(searchResponse);

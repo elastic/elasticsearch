@@ -31,15 +31,15 @@ import java.util.stream.IntStream;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ClientDataFrameIndexerTests extends ESTestCase {
+public class ClientTransformIndexerTests extends ESTestCase {
 
     public void testAudiOnFinishFrequency() {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
         TransformTask parentTask = new TransformTask(1,
-            "dataframe",
+            "transform",
             "ptask",
-            new TaskId("dataframe:1"),
+            new TaskId("transform:1"),
             mock(TransformTaskParams.class),
             null,
             mock(SchedulerEngine.class),

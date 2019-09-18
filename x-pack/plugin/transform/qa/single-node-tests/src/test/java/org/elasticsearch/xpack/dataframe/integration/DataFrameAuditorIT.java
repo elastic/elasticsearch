@@ -22,7 +22,7 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
-public class DataFrameAuditorIT extends DataFrameRestTestCase {
+public class DataFrameAuditorIT extends TransformRestTestCase {
 
     private static final String TEST_USER_NAME = "df_admin_plus_data";
     private static final String DATA_ACCESS_ROLE = "test_data_access";

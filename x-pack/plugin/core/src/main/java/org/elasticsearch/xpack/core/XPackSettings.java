@@ -41,7 +41,7 @@ public class XPackSettings {
     public static final Setting<Boolean> CCR_ENABLED_SETTING = Setting.boolSetting("xpack.ccr.enabled", true, Property.NodeScope);
 
     /** Setting for enabling or disabling data frame. Defaults to true. */
-    public static final Setting<Boolean> TRANSFORM_ENABLED = Setting.boolSetting("xpack.data_frame.enabled", true,
+    public static final Setting<Boolean> TRANSFORM_ENABLED = Setting.boolSetting("xpack.transform.enabled", true,
             Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling security. Defaults to true. */

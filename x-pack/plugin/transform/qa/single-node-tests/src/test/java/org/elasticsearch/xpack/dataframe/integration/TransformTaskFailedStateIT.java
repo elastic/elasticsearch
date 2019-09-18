@@ -29,7 +29,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
+public class TransformTaskFailedStateIT extends TransformRestTestCase {
 
     private final List<String> failureTransforms = new ArrayList<>();
     @Before
@@ -39,10 +39,10 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         // see: https://github.com/elastic/elasticsearch/issues/45562
         Request addFailureRetrySetting = new Request("PUT", "/_cluster/settings");
         addFailureRetrySetting.setJsonEntity(
-            "{\"transient\": {\"xpack.data_frame.num_transform_failure_retries\": \"" + 0 + "\"," +
+            "{\"transient\": {\"xpack.transform.num_transform_failure_retries\": \"" + 0 + "\"," +
                 "\"logger.org.elasticsearch.action.bulk\": \"info\"," + // reduces bulk failure spam
                 "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"trace\"," +
-                "\"logger.org.elasticsearch.xpack.dataframe\": \"trace\"}}");
+                "\"logger.org.elasticsearch.xpack.transform\": \"trace\"}}");
         client().performRequest(addFailureRetrySetting);
     }
 
@@ -51,17 +51,17 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         // If the tests failed in the middle, we should force stop it. This prevents other transform tests from failing due
         // to this left over transform
         for (String transformId : failureTransforms) {
-            stopDataFrameTransform(transformId, true);
-            deleteDataFrameTransform(transformId);
+            stopTransform(transformId, true);
+            deleteTransform(transformId);
         }
     }
 
     public void testForceStopFailedTransform() throws Exception {
         String transformId = "test-force-stop-failed-transform";
         createReviewsIndex(REVIEWS_INDEX_NAME, 10);
-        String dataFrameIndex = "failure_pivot_reviews";
-        createDestinationIndexWithBadMapping(dataFrameIndex);
-        createContinuousPivotReviewsTransform(transformId, dataFrameIndex, null);
+        String transformIndex = "failure_pivot_reviews";
+        createDestinationIndexWithBadMapping(transformIndex);
+        createContinuousPivotReviewsTransform(transformId, transformIndex, null);
         failureTransforms.add(transformId);
         startDataframeTransform(transformId);
         awaitState(transformId, TransformStats.State.FAILED);
@@ -72,15 +72,15 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         assertThat(XContentMapValues.extractValue("reason", fullState), equalTo(failureReason));
 
         // verify that we cannot stop a failed transform
-        ResponseException ex = expectThrows(ResponseException.class, () -> stopDataFrameTransform(transformId, false));
+        ResponseException ex = expectThrows(ResponseException.class, () -> stopTransform(transformId, false));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.CONFLICT.getStatus()));
         assertThat(XContentMapValues.extractValue("error.reason", entityAsMap(ex.getResponse())),
-            equalTo("Unable to stop data frame transform [test-force-stop-failed-transform] as it is in a failed state with reason [" +
+            equalTo("Unable to stop transform [test-force-stop-failed-transform] as it is in a failed state with reason [" +
                 failureReason +
-                "]. Use force stop to stop the data frame transform."));
+                "]. Use force stop to stop the transform."));
 
         // Verify that we can force stop a failed transform
-        stopDataFrameTransform(transformId, true);
+        stopTransform(transformId, true);
 
         awaitState(transformId, TransformStats.State.STOPPED);
         fullState = getDataFrameState(transformId);
@@ -102,9 +102,9 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         // Verify we have failed for the expected reason
         assertThat(XContentMapValues.extractValue("reason", fullState), equalTo(failureReason));
 
-        final String expectedFailure = "Unable to start data frame transform [test-force-start-failed-transform] " +
+        final String expectedFailure = "Unable to start transform [test-force-start-failed-transform] " +
             "as it is in a failed state with failure: [" + failureReason +
-            "]. Use force stop and then restart the data frame transform once error is resolved.";
+            "]. Use force stop and then restart the transform once error is resolved.";
         // Verify that we cannot start the transform when the task is in a failed state
         assertBusy(() -> {
             ResponseException ex = expectThrows(ResponseException.class, () -> startDataframeTransform(transformId));
@@ -113,7 +113,7 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
                 equalTo(expectedFailure));
         }, 60, TimeUnit.SECONDS);
 
-        stopDataFrameTransform(transformId, true);
+        stopTransform(transformId, true);
     }
 
     private void awaitState(String transformId, TransformStats.State state) throws Exception {

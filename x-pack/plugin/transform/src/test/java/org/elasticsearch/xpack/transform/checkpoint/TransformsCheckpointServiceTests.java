@@ -45,7 +45,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class DataFrameTransformsCheckpointServiceTests extends ESTestCase {
+public class TransformsCheckpointServiceTests extends ESTestCase {
 
     public void testExtractIndexCheckpoints() {
         Map<String, long[]> expectedCheckpoints = new HashMap<>();

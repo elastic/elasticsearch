@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
-public class DataFramePivotRestIT extends DataFrameRestTestCase {
+public class DataFramePivotRestIT extends TransformRestTestCase {
 
     private static final String TEST_USER_NAME = "df_admin_plus_data";
     private static final String DATA_ACCESS_ROLE = "test_data_access";
@@ -264,7 +264,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
 
         waitForDataFrameCheckpoint(transformId, 2);
 
-        stopDataFrameTransform(transformId, false);
+        stopTransform(transformId, false);
         refreshIndex(dataFrameIndex);
 
         // assert that other users are unchanged

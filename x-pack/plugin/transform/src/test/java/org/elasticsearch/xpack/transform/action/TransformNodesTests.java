@@ -23,18 +23,18 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.hasItemInArray;
 
-public class DataFrameNodesTests extends ESTestCase {
+public class TransformNodesTests extends ESTestCase {
 
-    public void testDataframeNodes() {
-        String dataFrameIdFoo = "df-id-foo";
-        String dataFrameIdBar = "df-id-bar";
+    public void testTransformNodes() {
+        String transformIdFoo = "df-id-foo";
+        String transformIdBar = "df-id-bar";
 
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
-        tasksBuilder.addTask(dataFrameIdFoo,
-                TransformField.TASK_NAME, new TransformTaskParams(dataFrameIdFoo, Version.CURRENT, null),
+        tasksBuilder.addTask(transformIdFoo,
+                TransformField.TASK_NAME, new TransformTaskParams(transformIdFoo, Version.CURRENT, null),
                 new PersistentTasksCustomMetaData.Assignment("node-1", "test assignment"));
-        tasksBuilder.addTask(dataFrameIdBar,
-                TransformField.TASK_NAME, new TransformTaskParams(dataFrameIdBar, Version.CURRENT, null),
+        tasksBuilder.addTask(transformIdBar,
+                TransformField.TASK_NAME, new TransformTaskParams(transformIdBar, Version.CURRENT, null),
                 new PersistentTasksCustomMetaData.Assignment("node-2", "test assignment"));
         tasksBuilder.addTask("test-task1", "testTasks", new PersistentTaskParams() {
                 @Override
@@ -63,13 +63,13 @@ public class DataFrameNodesTests extends ESTestCase {
                 .metaData(MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()))
                 .build();
 
-        String[] nodes = TransformNodes.transformTaskNodes(Arrays.asList(dataFrameIdFoo, dataFrameIdBar), cs);
+        String[] nodes = TransformNodes.transformTaskNodes(Arrays.asList(transformIdFoo, transformIdBar), cs);
         assertEquals(2, nodes.length);
         assertThat(nodes, hasItemInArray("node-1"));
         assertThat(nodes, hasItemInArray("node-2"));
     }
 
-    public void testDataframeNodes_NoTasks() {
+    public void testTransformNodes_NoTasks() {
         ClusterState emptyState = ClusterState.builder(new ClusterName("_name")).build();
         String[] nodes = TransformNodes.transformTaskNodes(Collections.singletonList("df-id"), emptyState);
         assertEquals(0, nodes.length);

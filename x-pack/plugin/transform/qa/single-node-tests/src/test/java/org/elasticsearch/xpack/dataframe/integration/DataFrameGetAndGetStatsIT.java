@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
 
-public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
+public class DataFrameGetAndGetStatsIT extends TransformRestTestCase {
 
     private static final String TEST_USER_NAME = "df_user";
     private static final String BASIC_AUTH_VALUE_DATA_FRAME_USER =
@@ -71,8 +71,8 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         startAndWaitForTransform("pivot_1", "pivot_reviews_1");
         startAndWaitForTransform("pivot_2", "pivot_reviews_2");
         startAndWaitForContinuousTransform("pivot_continuous", "pivot_reviews_continuous", null);
-        stopDataFrameTransform("pivot_1", false);
-        stopDataFrameTransform("pivot_2", false);
+        stopTransform("pivot_1", false);
+        stopTransform("pivot_2", false);
 
         // Alternate testing between admin and lowly user, as both should be able to get the configs and stats
         String authHeader = randomFrom(BASIC_AUTH_VALUE_DATA_FRAME_USER, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN);
@@ -148,14 +148,14 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         transforms = entityAsMap(client().performRequest(getRequest));
         assertEquals(1, XContentMapValues.extractValue("count", transforms));
 
-        stopDataFrameTransform("pivot_continuous", false);
+        stopTransform("pivot_continuous", false);
     }
 
     @SuppressWarnings("unchecked")
     public void testGetPersistedStatsWithoutTask() throws Exception {
         createPivotReviewsTransform("pivot_stats_1", "pivot_reviews_stats_1", null);
         startAndWaitForTransform("pivot_stats_1", "pivot_reviews_stats_1");
-        stopDataFrameTransform("pivot_stats_1", false);
+        stopTransform("pivot_stats_1", false);
 
         // Get rid of the first transform task, but keep the configuration
         client().performRequest(new Request("POST", "_tasks/_cancel?actions="+TransformField.TASK_NAME+"*"));

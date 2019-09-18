@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.core.transform.TransformField.INDEX_DOC_TYPE;
 import static org.elasticsearch.xpack.transform.TransformInfoTransportAction.PROVIDED_STATS;
 
-public class DataFrameUsageIT extends DataFrameRestTestCase {
+public class DataFrameUsageIT extends TransformRestTestCase {
 
     @Before
     public void createIndexes() throws IOException {
@@ -50,7 +50,7 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
         assertEquals(3, XContentMapValues.extractValue("transform.transforms.stopped", usageAsMap));
 
         startAndWaitForTransform("test_usage", "pivot_reviews");
-        stopDataFrameTransform("test_usage", false);
+        stopTransform("test_usage", false);
 
         Request statsExistsRequest = new Request("GET",
             TransformInternalIndex.LATEST_INDEX_NAME+"/_search?q=" +
@@ -99,7 +99,7 @@ public class DataFrameUsageIT extends DataFrameRestTestCase {
         }, 60, TimeUnit.SECONDS);
 
 
-        stopDataFrameTransform("test_usage_continuous", false);
+        stopTransform("test_usage_continuous", false);
 
         usageResponse = client().performRequest(new Request("GET", "_xpack/usage"));
         usageAsMap = entityAsMap(usageResponse);

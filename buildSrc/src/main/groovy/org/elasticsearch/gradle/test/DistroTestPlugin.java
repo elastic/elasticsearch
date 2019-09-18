@@ -132,7 +132,8 @@ public class DistroTestPlugin implements Plugin<Project> {
             batsTests.forEach((desc, task) -> {
                 configureVMWrapperTask(vmProject, desc, task.getName(), vmDependencies).configure(t -> {
                     t.setProgressHandler(new BatsProgressLogger(project.getLogger()));
-                    t.onlyIf(spec -> isWindows(vmProject) == false); // bats doesn't run on windows
+                    // bats doesn't run on windows
+                    t.onlyIf(spec -> isWindows(vmProject) == false);
                     t.dependsOn(copyDistributionsTask);
                 });
             });
@@ -172,7 +173,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         String box = project.getName();
 
         // setup jdks used by the distro tests, and by gradle executing
-        
+
         NamedDomainObjectContainer<Jdk> jdksContainer = JdkDownloadPlugin.getContainer(project);
         String platform = box.contains("windows") ? "windows" : "linux";
         Jdk systemJdk = createJdk(jdksContainer, "system", SYSTEM_JDK_VERSION, platform);
@@ -309,7 +310,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                 }
             });
     }
-    
+
     private List<ElasticsearchDistribution> configureDistributions(Project project, Version upgradeVersion) {
         NamedDomainObjectContainer<ElasticsearchDistribution> distributions = DistributionDownloadPlugin.getContainer(project);
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();

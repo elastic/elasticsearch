@@ -117,8 +117,11 @@ public class ReaperService {
                 // start the reaper
                 ProcessBuilder builder = new ProcessBuilder(
                     Jvm.current().getJavaExecutable().toString(), // same jvm as gradle
-                    "-Xms4m", "-Xmx16m", // no need for a big heap, just need to read some files and execute
-                    "-jar", jarPath.toString(),
+                    // no need for a big heap, just need to read some files and execute
+                    "-Xms4m",
+                    "-Xmx16m",
+                    "-jar",
+                    jarPath.toString(),
                     inputDir.toString());
                 logger.info("Launching reaper: " + String.join(" ", builder.command()));
                 // be explicit for stdin, we use closing of the pipe to signal shutdown to the reaper

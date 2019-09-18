@@ -28,6 +28,25 @@ POST /twitter/_flush/synced
 [[synced-flush-api-desc]]
 ==== {api-description-title}
 
+[[synced-flush-using-api]]
+===== Use the synced flush API
+
+Use the synced flush API to manually initiate a synced flush.
+This can be useful for a planned cluster restart where
+you can stop indexing but don't want to wait for 5 minutes until all indices
+are marked as inactive and automatically sync-flushed.
+
+You can request a synced flush even if there is ongoing indexing activity, and
+{es} will perform the synced flush on a "best-effort" basis: shards that do not
+have any ongoing indexing activity will be successfully sync-flushed, and other
+shards will fail to sync-flush. The successfully sync-flushed shards will have
+faster recovery times as long as the `sync_id` marker is not removed by a
+subsequent flush.
+
+
+[[synced-flush-overview]]
+===== Synced flush overview
+
 {es} keeps track of which shards have received indexing activity recently, and
 considers shards that have not received any indexing operations for 5 minutes to
 be inactive.
@@ -108,22 +127,6 @@ NOTE: The `sync_id` marker is removed as soon as the shard is flushed again, and
 unflushed operations in the shard's translog. In practice this means that one
 should consider any indexing operation on an index as having removed its
 `sync_id` markers.
-
-
-[[synced-flush-using-api]]
-===== Use the synced flush API
-
-Use the synced flush API to manually initiate a synced flush.
-This can be useful for a planned cluster restart where
-you can stop indexing but don't want to wait for 5 minutes until all indices
-are marked as inactive and automatically sync-flushed.
-
-You can request a synced flush even if there is ongoing indexing activity, and
-{es} will perform the synced flush on a "best-effort" basis: shards that do not
-have any ongoing indexing activity will be successfully sync-flushed, and other
-shards will fail to sync-flush. The successfully sync-flushed shards will have
-faster recovery times as long as the `sync_id` marker is not removed by a
-subsequent flush.
 
 
 [[synced-flush-api-path-params]]

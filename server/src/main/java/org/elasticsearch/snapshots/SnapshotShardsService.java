@@ -308,7 +308,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     @Override
                     public void onFailure(Exception e) {
                         logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to snapshot shard", shardId, snapshot), e);
-                        notifyFailedSnapshotShard(snapshot, shardId, ExceptionsHelper.detailedMessage(e));
+                        notifyFailedSnapshotShard(snapshot, shardId, ExceptionsHelper.stackTrace(e));
                     }
                 });
             }
@@ -402,8 +402,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         private Snapshot snapshot;
         private ShardId shardId;
         private ShardSnapshotStatus status;
-
-        public UpdateIndexShardSnapshotStatusRequest() {}
 
         public UpdateIndexShardSnapshotStatusRequest(StreamInput in) throws IOException {
             super(in);

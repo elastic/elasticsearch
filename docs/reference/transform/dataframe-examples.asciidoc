@@ -1,14 +1,14 @@
 [role="xpack"]
 [testenv="basic"]
 [[dataframe-examples]]
-== {dataframe-transform-cap} examples
+== {transform-cap} examples
 ++++
 <titleabbrev>Examples</titleabbrev>
 ++++
 
 beta[]
 
-These examples demonstrate how to use {dataframe-transforms} to derive useful 
+These examples demonstrate how to use {transforms} to derive useful 
 insights from your data. All the examples use one of the 
 {kibana-ref}/add-sample-data.html[{kib} sample datasets]. For a more detailed, 
 step-by-step example, see 
@@ -67,7 +67,7 @@ gives more context to the final results.
 NOTE: In the example above, condensed JSON formatting has been used for easier 
 readability of the pivot object.
 
-The preview {dataframe-transforms} API enables you to see the layout of the 
+The preview {transforms} API enables you to see the layout of the 
 {dataframe} in advance, populated with some sample values. For example:
 
 [source,js]
@@ -195,7 +195,7 @@ or flight stats for any of the featured destination or origin airports.
 [[example-clientips]]
 === Finding suspicious client IPs by using scripted metrics
 
-With {dataframe-transforms}, you can use 
+With {transforms}, you can use 
 {ref}/search-aggregations-metrics-scripted-metric-aggregation.html[scripted 
 metric aggregations] on your data. These aggregations are flexible and make 
 it possible to perform very complex processing. Let's use scripted metrics to 
@@ -278,8 +278,8 @@ POST _data_frame/transforms/_preview
 ----------------------------------
 // TEST[skip:setup kibana sample data]
 
-<1> This range query limits the transform to documents that are within the last 
-30 days at the point in time the {dataframe-transform} checkpoint is processed. 
+<1> This range query limits the {transform} to documents that are within the last 
+30 days at the point in time the {transform} checkpoint is processed. 
 For batch {dataframes} this occurs once.
 <2> This is the destination index for the {dataframe}. It is ignored by 
 `_preview`.

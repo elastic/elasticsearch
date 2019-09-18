@@ -56,8 +56,8 @@ import org.elasticsearch.search.aggregations.pipeline.ParsedSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.ParsedStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 
 import java.io.IOException;
@@ -717,7 +717,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
                                           "value", 122.55),
                                   DOC_COUNT, 44)
                     ));
-        DataFrameIndexerTransformStats stats = new DataFrameIndexerTransformStats();
+        TransformIndexerStats stats = new TransformIndexerStats();
 
         Map<String, String> fieldTypeMap = asStringMap(
                 aggName, "double",
@@ -734,14 +734,14 @@ public class AggregationResultUtilsTests extends ESTestCase {
 
         Set<String> documentIdsFirstRun = new HashSet<>();
         resultFirstRun.forEach(m -> {
-            documentIdsFirstRun.add((String) m.get(DataFrameField.DOCUMENT_ID_FIELD));
+            documentIdsFirstRun.add((String) m.get(TransformField.DOCUMENT_ID_FIELD));
         });
 
         assertEquals(4, documentIdsFirstRun.size());
 
         Set<String> documentIdsSecondRun = new HashSet<>();
         resultSecondRun.forEach(m -> {
-            documentIdsSecondRun.add((String) m.get(DataFrameField.DOCUMENT_ID_FIELD));
+            documentIdsSecondRun.add((String) m.get(TransformField.DOCUMENT_ID_FIELD));
         });
 
         assertEquals(4, documentIdsSecondRun.size());
@@ -945,7 +945,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
                              Map<String, String> fieldTypeMap,
                              List<Map<String, Object>> expected,
                              long expectedDocCounts) throws IOException {
-        DataFrameIndexerTransformStats stats = new DataFrameIndexerTransformStats();
+        TransformIndexerStats stats = new TransformIndexerStats();
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.map(input);
 
@@ -959,7 +959,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         // remove the document ids and test uniqueness
         Set<String> documentIds = new HashSet<>();
         result.forEach(m -> {
-            documentIds.add((String) m.remove(DataFrameField.DOCUMENT_ID_FIELD));
+            documentIds.add((String) m.remove(TransformField.DOCUMENT_ID_FIELD));
         });
 
         assertEquals(result.size(), documentIds.size());
@@ -973,7 +973,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
                                                     Collection<PipelineAggregationBuilder> pipelineAggregationBuilders,
                                                     Map<String, Object> input,
                                                     Map<String, String> fieldTypeMap,
-                                                    DataFrameIndexerTransformStats stats) throws IOException {
+                                                    TransformIndexerStats stats) throws IOException {
 
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.map(input);

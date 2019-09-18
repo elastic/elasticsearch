@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ccr-requirements]]
-=== Requirements for leader indices
+== Requirements for leader indices
 
 {ccr-cap} works by replaying the history of individual write
 operations that were performed on the shards of the leader index. This means that the
@@ -24,7 +24,7 @@ enabled.
 
 [float]
 [[ccr-overview-soft-deletes]]
-==== Soft delete settings
+=== Soft delete settings
 
 `index.soft_deletes.enabled`::
 
@@ -44,7 +44,7 @@ For more information about index settings, see {ref}/index-modules.html[Index mo
 
 [float]
 [[ccr-overview-beats]]
-==== Setting soft deletes on indices created by APM Server or Beats
+=== Setting soft deletes on indices created by APM Server or Beats
 
 If you want to replicate indices created by APM Server or Beats, and are
 allowing APM Server or Beats to manage index templates, you need to configure
@@ -65,7 +65,7 @@ index template.
 
 [float]
 [[ccr-overview-logstash]]
-==== Setting soft deletes on indices created by Logstash
+=== Setting soft deletes on indices created by Logstash
 
 If you want to replicate indices created by Logstash, and are using Logstash to
 manage index templates, you need to configure soft deletes on a custom Logstash

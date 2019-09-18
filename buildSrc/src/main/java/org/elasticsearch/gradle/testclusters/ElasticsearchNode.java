@@ -143,7 +143,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Path esStdoutFile;
     private final Path esStderrFile;
     private final Path tmpDir;
-    private final Path distroDir;
 
     private int currentDistro = 0;
     private TestDistribution testDistribution;
@@ -160,7 +159,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         this.project = project;
         this.reaper = reaper;
         workingDir = workingDirBase.toPath().resolve(safeName(name)).toAbsolutePath();
-        distroDir = workingDir.resolve("distro");
         confPathRepo = workingDir.resolve("repo");
         configFile = workingDir.resolve("config/elasticsearch.yml");
         confPathData = workingDir.resolve("data");
@@ -183,6 +181,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     @Internal
     public Version getVersion() {
         return distributions.get(currentDistro).getVersion();
+    }
+
+    public Path getDistroDir() {
+        return workingDir.resolve("distro").resolve(getVersion() + "-" + testDistribution);
     }
 
     @Override
@@ -564,17 +566,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         if (testDistribution == TestDistribution.INTEG_TEST) {
             logToProcessStdout("Installing " + modules.size() + "modules");
             for (File module : modules) {
-                Path destination =
-                        distroDir
-                                .resolve("modules")
-                                .resolve(
-                                        module.getName()
-                                                .replace(".zip", "")
-                                                .replace("-" + getVersion(), "")
-                                                .replace("-SNAPSHOT", ""));
+                Path destination = getDistroDir().resolve("modules").resolve(module.getName().replace(".zip", "")
+                    .replace("-" + getVersion(), "")
+                    .replace("-SNAPSHOT", ""));
 
-                // only install modules that are not already bundled with the integ-test
-                // distribution
+                // only install modules that are not already bundled with the integ-test distribution
                 if (Files.exists(destination) == false) {
                     project.copy(
                             spec -> {
@@ -644,42 +640,40 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void runElaticsearchBinScriptWithInput(String input, String tool, String... args) {
-        if (Files.exists(distroDir.resolve("bin").resolve(tool)) == false
-                && Files.exists(distroDir.resolve("bin").resolve(tool + ".bat")) == false) {
-            throw new TestClustersException(
-                    "Can't run bin script: `"
-                            + tool
-                            + "` does not exist. "
-                            + "Is this the distribution you expect it to be ?");
+        if (
+            Files.exists(getDistroDir().resolve("bin").resolve(tool)) == false &&
+                Files.exists(getDistroDir().resolve("bin").resolve(tool + ".bat")) == false
+        ) {
+            throw new TestClustersException("Can't run bin script: `" + tool + "` does not exist. " +
+                "Is this the distribution you expect it to be ?");
         }
-        try (InputStream byteArrayInputStream =
-                new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8))) {
-            LoggedExec.exec(
-                    project,
-                    spec -> {
-                        spec.setEnvironment(getESEnvironment());
-                        spec.workingDir(distroDir);
-                        spec.executable(
-                                OS.conditionalString()
-                                        .onUnix(() -> "./bin/" + tool)
-                                        .onWindows(() -> "cmd")
-                                        .supply());
-                        spec.args(
-                                OS.<List<String>>conditional()
-                                        .onWindows(
-                                                () -> {
-                                                    ArrayList<String> result = new ArrayList<>();
-                                                    result.add("/c");
-                                                    result.add("bin\\" + tool + ".bat");
-                                                    for (String arg : args) {
-                                                        result.add(arg);
-                                                    }
-                                                    return result;
-                                                })
-                                        .onUnix(() -> Arrays.asList(args))
-                                        .supply());
-                        spec.setStandardInput(byteArrayInputStream);
-                    });
+        try (InputStream byteArrayInputStream = new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8))) {
+            LoggedExec.exec(project, spec -> {
+                spec.setEnvironment(getESEnvironment());
+                spec.workingDir(getDistroDir());
+                spec.executable(
+                    OS.conditionalString()
+                        .onUnix(() -> "./bin/" + tool)
+                        .onWindows(() -> "cmd")
+                        .supply()
+                );
+                spec.args(
+                    OS.<List<String>>conditional()
+                        .onWindows(() -> {
+                            ArrayList<String> result = new ArrayList<>();
+                            result.add("/c");
+                            result.add("bin\\" + tool + ".bat");
+                            for (String arg : args) {
+                                result.add(arg);
+                            }
+                            return result;
+                        })
+                        .onUnix(() -> Arrays.asList(args))
+                        .supply()
+                );
+                spec.setStandardInput(byteArrayInputStream);
+
+            });
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to run " + tool + " for " + this, e);
         }
@@ -753,25 +747,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private void startElasticsearchProcess() {
         final ProcessBuilder processBuilder = new ProcessBuilder();
 
-        List<String> command =
-                OS.<List<String>>conditional()
-                        .onUnix(
-                                () ->
-                                        Arrays.asList(
-                                                distroDir
-                                                        .getFileName()
-                                                        .resolve("./bin/elasticsearch")
-                                                        .toString()))
-                        .onWindows(
-                                () ->
-                                        Arrays.asList(
-                                                "cmd",
-                                                "/c",
-                                                distroDir
-                                                        .getFileName()
-                                                        .resolve("bin\\elasticsearch.bat")
-                                                        .toString()))
-                        .supply();
+        List<String> command = OS.<List<String>>conditional()
+            .onUnix(() -> Arrays.asList(workingDir.relativize(getDistroDir()).resolve("./bin/elasticsearch").toString()))
+            .onWindows(() -> Arrays.asList("cmd", "/c", workingDir.relativize(getDistroDir()).resolve("bin\\elasticsearch.bat").toString()))
+            .supply();
         processBuilder.command(command);
         processBuilder.directory(workingDir.toFile());
         Map<String, String> environment = processBuilder.environment();
@@ -1000,7 +979,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void createWorkingDir(Path distroExtractDir) throws IOException {
-        syncWithLinks(distroExtractDir, distroDir);
+        if (Files.exists(getDistroDir()) == false) {
+            syncWithLinks(distroExtractDir, getDistroDir());
+        }
         // Start configuration from scratch in case of a restart
         project.delete(configFile.getParent());
         Files.createDirectories(configFile.getParent());
@@ -1020,10 +1001,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
      * @param destinationRoot destination to link to
      */
     private void syncWithLinks(Path sourceRoot, Path destinationRoot) {
-        if (Files.exists(destinationRoot)) {
-            project.delete(destinationRoot);
-        }
-
+        assert Files.exists(destinationRoot) == false;
         try (Stream<Path> stream = Files.walk(sourceRoot)) {
             stream.forEach(
                     source -> {
@@ -1148,7 +1126,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                     StandardOpenOption.CREATE);
 
             final List<Path> configFiles;
-            try (Stream<Path> stream = Files.list(distroDir.resolve("config"))) {
+            try (Stream<Path> stream = Files.list(getDistroDir().resolve("config"))) {
                 configFiles = stream.collect(Collectors.toList());
             }
             logToProcessStdout("Copying additional config files from distro " + configFiles);

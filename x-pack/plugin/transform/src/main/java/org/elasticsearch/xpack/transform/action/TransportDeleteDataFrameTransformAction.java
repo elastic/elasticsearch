@@ -23,9 +23,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.transform.action.DeleteDataFrameTransformAction;
-import org.elasticsearch.xpack.core.transform.action.StopDataFrameTransformAction;
-import org.elasticsearch.xpack.core.transform.action.DeleteDataFrameTransformAction.Request;
+import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
+import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
+import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction.Request;
 import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.transform.persistence.DataFrameTransformsConfigManager;
 
@@ -45,7 +45,7 @@ public class TransportDeleteDataFrameTransformAction extends TransportMasterNode
                                                    ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
                                                    DataFrameTransformsConfigManager transformsConfigManager, DataFrameAuditor auditor,
                                                    Client client) {
-        super(DeleteDataFrameTransformAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(DeleteTransformAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 Request::new, indexNameExpressionResolver);
         this.transformsConfigManager = transformsConfigManager;
         this.auditor = auditor;
@@ -84,8 +84,8 @@ public class TransportDeleteDataFrameTransformAction extends TransportMasterNode
             if (pTasksMeta != null && pTasksMeta.getTask(request.getId()) != null) {
                 executeAsyncWithOrigin(client,
                     DATA_FRAME_ORIGIN,
-                    StopDataFrameTransformAction.INSTANCE,
-                    new StopDataFrameTransformAction.Request(request.getId(), true, true, null, true),
+                    StopTransformAction.INSTANCE,
+                    new StopTransformAction.Request(request.getId(), true, true, null, true),
                     ActionListener.wrap(
                         r -> stopTransformActionListener.onResponse(null),
                         stopTransformActionListener::onFailure));

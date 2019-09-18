@@ -25,6 +25,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
@@ -53,6 +54,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -105,8 +107,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasScore;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class SearchQueryIT extends ESIntegTestCase {
 
@@ -626,9 +630,23 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         builder = multiMatchQuery("value1", "field1", "field2", "field4");
 
-        assertFailures(client().prepareSearch().setQuery(builder),
-                RestStatus.BAD_REQUEST,
-                containsString("NumberFormatException[For input string: \"value1\"]"));
+        //when the number for shards is randomized and we expect failures
+        //we can either run into partial or total failures depending on the current number of shards
+        Matcher<String> reasonMatcher = containsString("NumberFormatException: For input string: \"value1\"");
+        ShardSearchFailure[] shardFailures;
+        try {
+            client().prepareSearch().setQuery(builder).get();
+            shardFailures = searchResponse.getShardFailures();
+            assertThat("Expected shard failures, got none", shardFailures, not(emptyArray()));
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+            shardFailures = e.shardFailures();
+        }
+
+        for (ShardSearchFailure shardSearchFailure : shardFailures) {
+            assertThat(shardSearchFailure.status(), equalTo(RestStatus.BAD_REQUEST));
+            assertThat(shardSearchFailure.reason(), reasonMatcher);
+        }
 
         builder.lenient(true);
         searchResponse = client().prepareSearch().setQuery(builder).get();

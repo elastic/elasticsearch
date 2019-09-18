@@ -13,10 +13,10 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
-import org.elasticsearch.xpack.core.transform.DataFrameMessages;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransform;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformState;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformTaskState;
+import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.transforms.Transform;
+import org.elasticsearch.xpack.core.transform.transforms.TransformState;
+import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -44,15 +44,15 @@ public class TransportStopDataFrameTransformActionTests extends ESTestCase {
         // Test with the task state being null
         PersistentTasksCustomMetaData.Builder pTasksBuilder = PersistentTasksCustomMetaData.builder()
             .addTask("non-failed-task",
-                DataFrameTransform.NAME,
-                new DataFrameTransform("data-frame-task-1", Version.CURRENT, null),
+                Transform.NAME,
+                new Transform("data-frame-task-1", Version.CURRENT, null),
                 new PersistentTasksCustomMetaData.Assignment("current-data-node-with-1-tasks", ""));
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name")).metaData(buildMetadata(pTasksBuilder.build()));
 
         TransportStopDataFrameTransformAction.validateTaskState(csBuilder.build(), Collections.singletonList("non-failed-task"), false);
 
         // test again with a non failed task but this time it has internal state
-        pTasksBuilder.updateTaskState("non-failed-task", new DataFrameTransformState(DataFrameTransformTaskState.STOPPED,
+        pTasksBuilder.updateTaskState("non-failed-task", new TransformState(TransformTaskState.STOPPED,
             IndexerState.STOPPED,
             null,
             0L,
@@ -63,10 +63,10 @@ public class TransportStopDataFrameTransformActionTests extends ESTestCase {
         TransportStopDataFrameTransformAction.validateTaskState(csBuilder.build(), Collections.singletonList("non-failed-task"), false);
 
         pTasksBuilder.addTask("failed-task",
-            DataFrameTransform.NAME,
-            new DataFrameTransform("data-frame-task-1", Version.CURRENT, null),
+            Transform.NAME,
+            new Transform("data-frame-task-1", Version.CURRENT, null),
             new PersistentTasksCustomMetaData.Assignment("current-data-node-with-1-tasks", ""))
-            .updateTaskState("failed-task", new DataFrameTransformState(DataFrameTransformTaskState.FAILED,
+            .updateTaskState("failed-task", new TransformState(TransformTaskState.FAILED,
                 IndexerState.STOPPED,
                 null,
                 0L,
@@ -86,7 +86,7 @@ public class TransportStopDataFrameTransformActionTests extends ESTestCase {
 
         assertThat(ex.status(), equalTo(CONFLICT));
         assertThat(ex.getMessage(),
-            equalTo(DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_CANNOT_STOP_FAILED_TRANSFORM,
+            equalTo(TransformMessages.getMessage(TransformMessages.DATA_FRAME_CANNOT_STOP_FAILED_TRANSFORM,
                 "failed-task",
                 "task has failed")));
     }

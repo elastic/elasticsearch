@@ -35,8 +35,9 @@ public class Jdk implements Buildable, Iterable<File> {
 
     private static final List<String> ALLOWED_VENDORS = List.of("adoptopenjdk", "openjdk");
     static final Pattern VERSION_PATTERN =
-        Pattern.compile("(\\d+)(\\.\\d+\\.\\d+)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?");
-    private static final List<String> ALLOWED_PLATFORMS = Collections.unmodifiableList(Arrays.asList("darwin", "linux", "windows"));
+            Pattern.compile("(\\d+)(\\.\\d+\\.\\d+)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?");
+    private static final List<String> ALLOWED_PLATFORMS =
+            Collections.unmodifiableList(Arrays.asList("darwin", "linux", "windows"));
 
     private final String name;
     private final Configuration configuration;
@@ -63,7 +64,13 @@ public class Jdk implements Buildable, Iterable<File> {
 
     public void setVendor(final String vendor) {
         if (ALLOWED_VENDORS.contains(vendor) == false) {
-            throw new IllegalArgumentException("unknown vendor [" + vendor + "] for jdk [" + name + "], must be one of " + ALLOWED_VENDORS);
+            throw new IllegalArgumentException(
+                    "unknown vendor ["
+                            + vendor
+                            + "] for jdk ["
+                            + name
+                            + "], must be one of "
+                            + ALLOWED_VENDORS);
         }
         this.vendor.set(vendor);
     }
@@ -129,12 +136,12 @@ public class Jdk implements Buildable, Iterable<File> {
         }
         version.finalizeValue();
         platform.finalizeValue();
-        vendor.finalizeValue();;
+        vendor.finalizeValue();
+        ;
     }
 
     @Override
     public Iterator<File> iterator() {
         return configuration.iterator();
     }
-
 }

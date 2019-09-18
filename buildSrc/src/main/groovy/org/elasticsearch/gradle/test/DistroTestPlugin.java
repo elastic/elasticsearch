@@ -177,7 +177,11 @@ public class DistroTestPlugin implements Plugin<Project> {
     }
 
     private static Jdk createJdk(
-        NamedDomainObjectContainer<Jdk> jdksContainer, String name, String vendor, String version, String platform) {
+            NamedDomainObjectContainer<Jdk> jdksContainer,
+            String name,
+            String vendor,
+            String version,
+            String platform) {
         Jdk jdk = jdksContainer.create(name);
         jdk.setVendor(vendor);
         jdk.setVersion(version);
@@ -217,8 +221,10 @@ public class DistroTestPlugin implements Plugin<Project> {
 
         NamedDomainObjectContainer<Jdk> jdksContainer = JdkDownloadPlugin.getContainer(project);
         String platform = box.contains("windows") ? "windows" : "linux";
-        Jdk systemJdk = createJdk(jdksContainer, "system", SYSTEM_JDK_VENDOR, SYSTEM_JDK_VERSION, platform);
-        Jdk gradleJdk = createJdk(jdksContainer, "gradle", GRADLE_JDK_VENDOR, GRADLE_JDK_VERSION, platform);
+        Jdk systemJdk =
+                createJdk(jdksContainer, "system", SYSTEM_JDK_VENDOR, SYSTEM_JDK_VERSION, platform);
+        Jdk gradleJdk =
+                createJdk(jdksContainer, "gradle", GRADLE_JDK_VENDOR, GRADLE_JDK_VERSION, platform);
 
         // setup VM used by these tests
         VagrantExtension vagrant = project.getExtensions().getByType(VagrantExtension.class);
@@ -395,8 +401,10 @@ public class DistroTestPlugin implements Plugin<Project> {
                         });
     }
 
-    private List<ElasticsearchDistribution> configureDistributions(Project project, Version upgradeVersion) {
-        NamedDomainObjectContainer<ElasticsearchDistribution> distributions = DistributionDownloadPlugin.getContainer(project);
+    private List<ElasticsearchDistribution> configureDistributions(
+            Project project, Version upgradeVersion) {
+        NamedDomainObjectContainer<ElasticsearchDistribution> distributions =
+                DistributionDownloadPlugin.getContainer(project);
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
         List<ElasticsearchDistribution> upgradeDistros = new ArrayList<>();
 

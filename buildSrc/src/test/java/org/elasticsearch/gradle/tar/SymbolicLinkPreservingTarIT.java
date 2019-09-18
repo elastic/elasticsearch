@@ -1,5 +1,14 @@
 package org.elasticsearch.gradle.tar;
 
+import static org.hamcrest.CoreMatchers.equalTo;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
@@ -11,20 +20,9 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-
-import static org.hamcrest.CoreMatchers.equalTo;
-
 public class SymbolicLinkPreservingTarIT extends GradleIntegrationTestCase {
 
-    @Rule
-    public final TemporaryFolder temporaryFolder = new TemporaryFolder();
+    @Rule public final TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     @Before
     public void before() throws IOException {
@@ -34,8 +32,10 @@ public class SymbolicLinkPreservingTarIT extends GradleIntegrationTestCase {
         Files.createSymbolicLink(realFolder.resolve("link-to-file"), Paths.get("./file"));
         final Path linkInFolder = temporaryFolder.getRoot().toPath().resolve("link-in-folder");
         Files.createDirectory(linkInFolder);
-        Files.createSymbolicLink(linkInFolder.resolve("link-to-file"), Paths.get("../real-folder/file"));
-        final Path linkToRealFolder = temporaryFolder.getRoot().toPath().resolve("link-to-real-folder");
+        Files.createSymbolicLink(
+                linkInFolder.resolve("link-to-file"), Paths.get("../real-folder/file"));
+        final Path linkToRealFolder =
+                temporaryFolder.getRoot().toPath().resolve("link-to-real-folder");
         Files.createSymbolicLink(linkToRealFolder, Paths.get("./real-folder"));
     }
 
@@ -74,8 +74,13 @@ public class SymbolicLinkPreservingTarIT extends GradleIntegrationTestCase {
     }
 
     private void assertTar(
-        final String extension, final FileInputStreamWrapper wrapper, boolean preserveFileTimestamps) throws IOException {
-        try (TarArchiveInputStream tar = new TarArchiveInputStream(wrapper.apply(new FileInputStream(getOutputFile(extension))))) {
+            final String extension,
+            final FileInputStreamWrapper wrapper,
+            boolean preserveFileTimestamps)
+            throws IOException {
+        try (TarArchiveInputStream tar =
+                new TarArchiveInputStream(
+                        wrapper.apply(new FileInputStream(getOutputFile(extension))))) {
             TarArchiveEntry entry = tar.getNextTarEntry();
             boolean realFolderEntry = false;
             boolean fileEntry = false;
@@ -125,13 +130,17 @@ public class SymbolicLinkPreservingTarIT extends GradleIntegrationTestCase {
     }
 
     private void runBuild(final String task, final boolean preserveFileTimestamps) {
-        final GradleRunner runner = GradleRunner.create().withProjectDir(getProjectDir())
-            .withArguments(
-                task,
-                "-Dtests.symbolic_link_preserving_tar_source=" + temporaryFolder.getRoot().toString(),
-                "-Dtests.symbolic_link_preserving_tar_preserve_file_timestamps=" + preserveFileTimestamps,
-                "-i")
-            .withPluginClasspath();
+        final GradleRunner runner =
+                GradleRunner.create()
+                        .withProjectDir(getProjectDir())
+                        .withArguments(
+                                task,
+                                "-Dtests.symbolic_link_preserving_tar_source="
+                                        + temporaryFolder.getRoot().toString(),
+                                "-Dtests.symbolic_link_preserving_tar_preserve_file_timestamps="
+                                        + preserveFileTimestamps,
+                                "-i")
+                        .withPluginClasspath();
 
         runner.build();
     }
@@ -141,7 +150,9 @@ public class SymbolicLinkPreservingTarIT extends GradleIntegrationTestCase {
     }
 
     private File getOutputFile(final String extension) {
-        return getProjectDir().toPath().resolve("build/distributions/symbolic-link-preserving-tar.tar" + extension).toFile();
+        return getProjectDir()
+                .toPath()
+                .resolve("build/distributions/symbolic-link-preserving-tar.tar" + extension)
+                .toFile();
     }
-
 }

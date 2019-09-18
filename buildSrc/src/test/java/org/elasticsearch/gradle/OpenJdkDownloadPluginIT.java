@@ -41,16 +41,19 @@ public class OpenJdkDownloadPluginIT extends JdkDownloadPluginIT {
 
     @Override
     protected String urlPath(final boolean isOld, final String platform, final String extension) {
-        final String versionPath = isOld ? "jdk1/99" : "jdk12.0.1/123456789123456789123456789abcde/99";
-        final String filename = "openjdk-" + (isOld ? "1" : "12.0.1") + "_" + platform + "-x64_bin." + extension;
+        final String versionPath =
+                isOld ? "jdk1/99" : "jdk12.0.1/123456789123456789123456789abcde/99";
+        final String filename =
+                "openjdk-" + (isOld ? "1" : "12.0.1") + "_" + platform + "-x64_bin." + extension;
         return "/java/GA/" + versionPath + "/GPL/" + filename;
     }
 
     @Override
     protected byte[] filebytes(final String platform, final String extension) throws IOException {
-        try (InputStream stream = JdkDownloadPluginIT.class.getResourceAsStream("fake_openjdk_" + platform + "." + extension)) {
+        try (InputStream stream =
+                JdkDownloadPluginIT.class.getResourceAsStream(
+                        "fake_openjdk_" + platform + "." + extension)) {
             return stream.readAllBytes();
         }
     }
-
 }

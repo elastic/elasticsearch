@@ -566,11 +566,17 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         if (testDistribution == TestDistribution.INTEG_TEST) {
             logToProcessStdout("Installing " + modules.size() + "modules");
             for (File module : modules) {
-                Path destination = getDistroDir().resolve("modules").resolve(module.getName().replace(".zip", "")
-                    .replace("-" + getVersion(), "")
-                    .replace("-SNAPSHOT", ""));
+                Path destination =
+                        getDistroDir()
+                                .resolve("modules")
+                                .resolve(
+                                        module.getName()
+                                                .replace(".zip", "")
+                                                .replace("-" + getVersion(), "")
+                                                .replace("-SNAPSHOT", ""));
 
-                // only install modules that are not already bundled with the integ-test distribution
+                // only install modules that are not already bundled with the integ-test
+                // distribution
                 if (Files.exists(destination) == false) {
                     project.copy(
                             spec -> {
@@ -640,40 +646,42 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void runElaticsearchBinScriptWithInput(String input, String tool, String... args) {
-        if (
-            Files.exists(getDistroDir().resolve("bin").resolve(tool)) == false &&
-                Files.exists(getDistroDir().resolve("bin").resolve(tool + ".bat")) == false
-        ) {
-            throw new TestClustersException("Can't run bin script: `" + tool + "` does not exist. " +
-                "Is this the distribution you expect it to be ?");
+        if (Files.exists(getDistroDir().resolve("bin").resolve(tool)) == false
+                && Files.exists(getDistroDir().resolve("bin").resolve(tool + ".bat")) == false) {
+            throw new TestClustersException(
+                    "Can't run bin script: `"
+                            + tool
+                            + "` does not exist. "
+                            + "Is this the distribution you expect it to be ?");
         }
-        try (InputStream byteArrayInputStream = new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8))) {
-            LoggedExec.exec(project, spec -> {
-                spec.setEnvironment(getESEnvironment());
-                spec.workingDir(getDistroDir());
-                spec.executable(
-                    OS.conditionalString()
-                        .onUnix(() -> "./bin/" + tool)
-                        .onWindows(() -> "cmd")
-                        .supply()
-                );
-                spec.args(
-                    OS.<List<String>>conditional()
-                        .onWindows(() -> {
-                            ArrayList<String> result = new ArrayList<>();
-                            result.add("/c");
-                            result.add("bin\\" + tool + ".bat");
-                            for (String arg : args) {
-                                result.add(arg);
-                            }
-                            return result;
-                        })
-                        .onUnix(() -> Arrays.asList(args))
-                        .supply()
-                );
-                spec.setStandardInput(byteArrayInputStream);
-
-            });
+        try (InputStream byteArrayInputStream =
+                new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8))) {
+            LoggedExec.exec(
+                    project,
+                    spec -> {
+                        spec.setEnvironment(getESEnvironment());
+                        spec.workingDir(getDistroDir());
+                        spec.executable(
+                                OS.conditionalString()
+                                        .onUnix(() -> "./bin/" + tool)
+                                        .onWindows(() -> "cmd")
+                                        .supply());
+                        spec.args(
+                                OS.<List<String>>conditional()
+                                        .onWindows(
+                                                () -> {
+                                                    ArrayList<String> result = new ArrayList<>();
+                                                    result.add("/c");
+                                                    result.add("bin\\" + tool + ".bat");
+                                                    for (String arg : args) {
+                                                        result.add(arg);
+                                                    }
+                                                    return result;
+                                                })
+                                        .onUnix(() -> Arrays.asList(args))
+                                        .supply());
+                        spec.setStandardInput(byteArrayInputStream);
+                    });
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to run " + tool + " for " + this, e);
         }
@@ -747,10 +755,25 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private void startElasticsearchProcess() {
         final ProcessBuilder processBuilder = new ProcessBuilder();
 
-        List<String> command = OS.<List<String>>conditional()
-            .onUnix(() -> Arrays.asList(workingDir.relativize(getDistroDir()).resolve("./bin/elasticsearch").toString()))
-            .onWindows(() -> Arrays.asList("cmd", "/c", workingDir.relativize(getDistroDir()).resolve("bin\\elasticsearch.bat").toString()))
-            .supply();
+        List<String> command =
+                OS.<List<String>>conditional()
+                        .onUnix(
+                                () ->
+                                        Arrays.asList(
+                                                workingDir
+                                                        .relativize(getDistroDir())
+                                                        .resolve("./bin/elasticsearch")
+                                                        .toString()))
+                        .onWindows(
+                                () ->
+                                        Arrays.asList(
+                                                "cmd",
+                                                "/c",
+                                                workingDir
+                                                        .relativize(getDistroDir())
+                                                        .resolve("bin\\elasticsearch.bat")
+                                                        .toString()))
+                        .supply();
         processBuilder.command(command);
         processBuilder.directory(workingDir.toFile());
         Map<String, String> environment = processBuilder.environment();

@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.dataframe.integration;
+package org.elasticsearch.xpack.transform.integration;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
@@ -22,11 +22,11 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
-public class DataFrameAuditorIT extends TransformRestTestCase {
+public class TransformAuditorIT extends TransformRestTestCase {
 
-    private static final String TEST_USER_NAME = "df_admin_plus_data";
+    private static final String TEST_USER_NAME = "transform_admin_plus_data";
     private static final String DATA_ACCESS_ROLE = "test_data_access";
-    private static final String BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS =
+    private static final String BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS =
         basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING);
 
     private static boolean indicesCreated = false;
@@ -48,19 +48,19 @@ public class DataFrameAuditorIT extends TransformRestTestCase {
         createReviewsIndex();
         indicesCreated = true;
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
-        setupUser(TEST_USER_NAME, Arrays.asList("data_frame_transforms_admin", DATA_ACCESS_ROLE));
+        setupUser(TEST_USER_NAME, Arrays.asList("transform_admin", DATA_ACCESS_ROLE));
     }
 
     @SuppressWarnings("unchecked")
     public void testAuditorWritesAudits() throws Exception {
         String transformId = "simple_pivot_for_audit";
-        String dataFrameIndex = "pivot_reviews_user_id_above_20";
-        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
+        String transformIndex = "pivot_reviews_user_id_above_20";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
         String query = "\"match\": {\"user_id\": \"user_26\"}";
 
-        createPivotReviewsTransform(transformId, dataFrameIndex, query, null, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        createPivotReviewsTransform(transformId, transformIndex, query, null, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
 
-        startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        startAndWaitForTransform(transformId, transformIndex, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
 
         // Make sure we wrote to the audit
         final Request request = new Request("GET", TransformInternalIndex.AUDIT_INDEX + "/_search");

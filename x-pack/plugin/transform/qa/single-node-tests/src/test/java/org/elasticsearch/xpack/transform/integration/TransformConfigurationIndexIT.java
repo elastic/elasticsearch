@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.dataframe.integration;
+package org.elasticsearch.xpack.transform.integration;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -22,7 +22,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
-public class DataFrameConfigurationIndexIT extends TransformRestTestCase {
+public class TransformConfigurationIndexIT extends TransformRestTestCase {
 
     /**
      * Tests the corner case that for some reason a transform configuration still exists in the index but
@@ -50,7 +50,7 @@ public class DataFrameConfigurationIndexIT extends TransformRestTestCase {
         // refresh the index
         assertOK(client().performRequest(new Request("POST", TransformInternalIndex.LATEST_INDEX_NAME + "/_refresh")));
 
-        Request deleteRequest = new Request("DELETE", DATAFRAME_ENDPOINT + fakeTransformName);
+        Request deleteRequest = new Request("DELETE", TRANSFORM_ENDPOINT + fakeTransformName);
         Response deleteResponse = client().performRequest(deleteRequest);
         assertOK(deleteResponse);
         assertTrue((boolean)XContentMapValues.extractValue("acknowledged", entityAsMap(deleteResponse)));

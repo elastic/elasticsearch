@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.dataframe.integration;
+package org.elasticsearch.xpack.transform.integration;
 
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -68,7 +68,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.core.Is.is;
 
-abstract class DataFrameIntegTestCase extends ESRestTestCase {
+abstract class TransformIntegTestCase extends ESRestTestCase {
 
     private Map<String, DataFrameTransformConfig> transformConfigs = new HashMap<>();
 
@@ -79,23 +79,23 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
 
     protected void cleanUpTransforms() throws IOException {
         for (DataFrameTransformConfig config : transformConfigs.values()) {
-            stopDataFrameTransform(config.getId());
-            deleteDataFrameTransform(config.getId());
+            stopTransform(config.getId());
+            deleteTransform(config.getId());
         }
         transformConfigs.clear();
     }
 
-    protected StopDataFrameTransformResponse stopDataFrameTransform(String id) throws IOException {
+    protected StopDataFrameTransformResponse stopTransform(String id) throws IOException {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
         return restClient.dataFrame().stopDataFrameTransform(new StopDataFrameTransformRequest(id, true, null), RequestOptions.DEFAULT);
     }
 
-    protected StartDataFrameTransformResponse startDataFrameTransform(String id, RequestOptions options) throws IOException {
+    protected StartDataFrameTransformResponse startTransform(String id, RequestOptions options) throws IOException {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
         return restClient.dataFrame().startDataFrameTransform(new StartDataFrameTransformRequest(id), options);
     }
 
-    protected AcknowledgedResponse deleteDataFrameTransform(String id) throws IOException {
+    protected AcknowledgedResponse deleteTransform(String id) throws IOException {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
         AcknowledgedResponse response =
             restClient.dataFrame().deleteDataFrameTransform(new DeleteDataFrameTransformRequest(id), RequestOptions.DEFAULT);
@@ -105,9 +105,9 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
         return response;
     }
 
-    protected AcknowledgedResponse putDataFrameTransform(DataFrameTransformConfig config, RequestOptions options) throws IOException {
+    protected AcknowledgedResponse putTransform(DataFrameTransformConfig config, RequestOptions options) throws IOException {
         if (transformConfigs.keySet().contains(config.getId())) {
-            throw new IllegalArgumentException("data frame transform [" + config.getId() + "] is already registered");
+            throw new IllegalArgumentException("transform [" + config.getId() + "] is already registered");
         }
         RestHighLevelClient restClient = new TestRestHighLevelClient();
         AcknowledgedResponse response =
@@ -118,12 +118,12 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
         return response;
     }
 
-    protected GetDataFrameTransformStatsResponse getDataFrameTransformStats(String id) throws IOException {
+    protected GetDataFrameTransformStatsResponse getTransformStats(String id) throws IOException {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
         return restClient.dataFrame().getDataFrameTransformStats(new GetDataFrameTransformStatsRequest(id), RequestOptions.DEFAULT);
     }
 
-    protected GetDataFrameTransformResponse getDataFrameTransform(String id) throws IOException {
+    protected GetDataFrameTransformResponse getTransform(String id) throws IOException {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
         return restClient.dataFrame().getDataFrameTransform(new GetDataFrameTransformRequest(id), RequestOptions.DEFAULT);
     }
@@ -134,7 +134,7 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
 
     protected void waitUntilCheckpoint(String id, long checkpoint, TimeValue waitTime) throws Exception {
         assertBusy(() ->
-            assertEquals(checkpoint, getDataFrameTransformStats(id)
+            assertEquals(checkpoint, getTransformStats(id)
                 .getTransformsStats()
                 .get(0)
                 .getCheckpointingInfo()
@@ -215,7 +215,7 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
             .setDest(DestConfig.builder().setIndex(destinationIndex).build())
             .setFrequency(TimeValue.timeValueSeconds(10))
             .setPivotConfig(createPivotConfig(groups, aggregations))
-            .setDescription("Test data frame transform config id: " + id);
+            .setDescription("Test transform config id: " + id);
     }
 
     protected DataFrameTransformConfig createTransformConfig(String id,

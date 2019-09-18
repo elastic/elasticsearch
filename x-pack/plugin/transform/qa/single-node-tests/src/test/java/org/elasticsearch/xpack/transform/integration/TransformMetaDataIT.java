@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.dataframe.integration;
+package org.elasticsearch.xpack.transform.integration;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
@@ -15,7 +15,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Map;
 
-public class DataFrameMetaDataIT extends TransformRestTestCase {
+public class TransformMetaDataIT extends TransformRestTestCase {
 
     private boolean indicesCreated = false;
 

@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.dataframe.integration;
+package org.elasticsearch.xpack.transform.integration;
 
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -39,7 +39,7 @@ import static org.elasticsearch.xpack.transform.persistence.TransformInternalInd
 import static org.hamcrest.Matchers.equalTo;
 
 
-public class DataFrameTransformInternalIndexIT extends ESRestTestCase {
+public class TransformInternalIndexIT extends ESRestTestCase {
 
 
     private static final String CURRENT_INDEX = TransformInternalIndex.LATEST_INDEX_NAME;

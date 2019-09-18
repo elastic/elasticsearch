@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.dataframe.integration;
+package org.elasticsearch.xpack.transform.integration;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.core.transform.TransformField.INDEX_DOC_TYPE;
 import static org.elasticsearch.xpack.transform.TransformInfoTransportAction.PROVIDED_STATS;
 
-public class DataFrameUsageIT extends TransformRestTestCase {
+public class TransformUsageIT extends TransformRestTestCase {
 
     @Before
     public void createIndexes() throws IOException {
@@ -64,7 +64,7 @@ public class DataFrameUsageIT extends TransformRestTestCase {
 
         startAndWaitForContinuousTransform("test_usage_continuous", "pivot_reviews_continuous", null);
 
-        Request getRequest = new Request("GET", DATAFRAME_ENDPOINT + "test_usage/_stats");
+        Request getRequest = new Request("GET", TRANSFORM_ENDPOINT + "test_usage/_stats");
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
         Map<String, Integer> expectedStats = new HashMap<>();
         for(String statName : PROVIDED_STATS) {

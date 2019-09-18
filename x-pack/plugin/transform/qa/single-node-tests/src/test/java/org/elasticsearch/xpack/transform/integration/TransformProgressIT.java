@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.dataframe.integration;
+package org.elasticsearch.xpack.transform.integration;
 
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -39,11 +39,11 @@ import java.util.Base64;
 import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.dataframe.integration.TransformRestTestCase.REVIEWS_INDEX_NAME;
+import static org.elasticsearch.xpack.transform.integration.TransformRestTestCase.REVIEWS_INDEX_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class DataFrameTransformProgressIT extends ESRestTestCase {
+public class TransformProgressIT extends ESRestTestCase {
     protected void createReviewsIndex() throws Exception {
         final int numDocs = 1000;
         final RestHighLevelClient restClient = new TestRestHighLevelClient();

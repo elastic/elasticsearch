@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.dataframe.integration;
+package org.elasticsearch.xpack.transform.integration;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -45,14 +45,14 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.oneOf;
 
-public class DataFrameTransformIT extends DataFrameIntegTestCase {
+public class TransformIT extends TransformIntegTestCase {
 
     @After
     public void cleanTransforms() throws IOException {
         cleanUp();
     }
 
-    public void testDataFrameTransformCrud() throws Exception {
+    public void testTransformCrud() throws Exception {
         String indexName = "basic-crud-reviews";
         createReviewsIndex(indexName, 100);
 
@@ -65,27 +65,27 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
             .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
-        DataFrameTransformConfig config = createTransformConfig("data-frame-transform-crud",
+        DataFrameTransformConfig config = createTransformConfig("transform-crud",
             groups,
             aggs,
             "reviews-by-user-business-day",
             indexName);
 
-        assertTrue(putDataFrameTransform(config, RequestOptions.DEFAULT).isAcknowledged());
-        assertTrue(startDataFrameTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
+        assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
+        assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
 
         waitUntilCheckpoint(config.getId(), 1L);
 
-        stopDataFrameTransform(config.getId());
+        stopTransform(config.getId());
 
-        DataFrameTransformConfig storedConfig = getDataFrameTransform(config.getId()).getTransformConfigurations().get(0);
+        DataFrameTransformConfig storedConfig = getTransform(config.getId()).getTransformConfigurations().get(0);
         assertThat(storedConfig.getVersion(), equalTo(Version.CURRENT));
         Instant now = Instant.now();
         assertTrue("[create_time] is not before current time", storedConfig.getCreateTime().isBefore(now));
-        deleteDataFrameTransform(config.getId());
+        deleteTransform(config.getId());
     }
 
-    public void testContinuousDataFrameTransformCrud() throws Exception {
+    public void testContinuousTransformCrud() throws Exception {
         String indexName = "continuous-crud-reviews";
         createReviewsIndex(indexName, 100);
 
@@ -98,7 +98,7 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
             .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
-        DataFrameTransformConfig config = createTransformConfigBuilder("data-frame-transform-crud",
+        DataFrameTransformConfig config = createTransformConfigBuilder("transform-crud",
             groups,
             aggs,
             "reviews-by-user-business-day",
@@ -107,20 +107,20 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
             .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
             .build();
 
-        assertTrue(putDataFrameTransform(config, RequestOptions.DEFAULT).isAcknowledged());
-        assertTrue(startDataFrameTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
+        assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
+        assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
 
         waitUntilCheckpoint(config.getId(), 1L);
-        assertThat(getDataFrameTransformStats(config.getId()).getTransformsStats().get(0).getState(),
+        assertThat(getTransformStats(config.getId()).getTransformsStats().get(0).getState(),
                 equalTo(DataFrameTransformStats.State.STARTED));
 
-        long docsIndexed = getDataFrameTransformStats(config.getId())
+        long docsIndexed = getTransformStats(config.getId())
             .getTransformsStats()
             .get(0)
             .getIndexerStats()
             .getNumDocuments();
 
-        DataFrameTransformConfig storedConfig = getDataFrameTransform(config.getId()).getTransformConfigurations().get(0);
+        DataFrameTransformConfig storedConfig = getTransform(config.getId()).getTransformConfigurations().get(0);
         assertThat(storedConfig.getVersion(), equalTo(Version.CURRENT));
         Instant now = Instant.now();
         assertTrue("[create_time] is not before current time", storedConfig.getCreateTime().isBefore(now));
@@ -132,17 +132,17 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
         waitUntilCheckpoint(config.getId(), 2L);
 
         // Assert that we wrote the new docs
-        assertThat(getDataFrameTransformStats(config.getId())
+        assertThat(getTransformStats(config.getId())
             .getTransformsStats()
             .get(0)
             .getIndexerStats()
             .getNumDocuments(), greaterThan(docsIndexed));
 
-        stopDataFrameTransform(config.getId());
-        deleteDataFrameTransform(config.getId());
+        stopTransform(config.getId());
+        deleteTransform(config.getId());
     }
 
-    public void testContinuousDataFrameTransformUpdate() throws Exception {
+    public void testContinuousTransformUpdate() throws Exception {
         String indexName = "continuous-reviews-update";
         createReviewsIndex(indexName, 10);
 
@@ -153,7 +153,7 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
             .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
-        String id = "data-frame-transform-to-update";
+        String id = "transform-to-update";
         String dest = "reviews-by-user-business-day-to-update";
         DataFrameTransformConfig config = createTransformConfigBuilder(id,
             groups,
@@ -164,20 +164,20 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
             .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
             .build();
 
-        assertTrue(putDataFrameTransform(config, RequestOptions.DEFAULT).isAcknowledged());
-        assertTrue(startDataFrameTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
+        assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
+        assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
 
         waitUntilCheckpoint(config.getId(), 1L);
-        assertThat(getDataFrameTransformStats(config.getId()).getTransformsStats().get(0).getState(),
+        assertThat(getTransformStats(config.getId()).getTransformsStats().get(0).getState(),
             oneOf(DataFrameTransformStats.State.STARTED, DataFrameTransformStats.State.INDEXING));
 
-        long docsIndexed = getDataFrameTransformStats(config.getId())
+        long docsIndexed = getTransformStats(config.getId())
             .getTransformsStats()
             .get(0)
             .getIndexerStats()
             .getNumDocuments();
 
-        DataFrameTransformConfig storedConfig = getDataFrameTransform(config.getId()).getTransformConfigurations().get(0);
+        DataFrameTransformConfig storedConfig = getTransform(config.getId()).getTransformConfigurations().get(0);
         assertThat(storedConfig.getVersion(), equalTo(Version.CURRENT));
         Instant now = Instant.now();
         assertTrue("[create_time] is not before current time", storedConfig.getCreateTime().isBefore(now));
@@ -212,7 +212,7 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
 
         // Since updates are loaded on checkpoint start, we should see the updated config on this next run
         waitUntilCheckpoint(config.getId(), 2L);
-        long numDocsAfterCp2 = getDataFrameTransformStats(config.getId())
+        long numDocsAfterCp2 = getTransformStats(config.getId())
             .getTransformsStats()
             .get(0)
             .getIndexerStats()
@@ -231,8 +231,8 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
             hlrc.indices().refresh(new RefreshRequest(dest), RequestOptions.DEFAULT);
         }, 30, TimeUnit.SECONDS);
 
-        stopDataFrameTransform(config.getId());
-        deleteDataFrameTransform(config.getId());
+        stopTransform(config.getId());
+        deleteTransform(config.getId());
     }
 
     private void indexMoreDocs(long timestamp, long userId, String index) throws Exception {

@@ -49,8 +49,15 @@ include::put-enrich-policy.asciidoc[tag=enrich-policy-api-prereqs]
 ==== {api-path-parms-title}
 
 `<enrich-policy>`::
++
+--
 (Optional, string)
-include::{docdir}/rest-api/common-parms.asciidoc[tag=enrich-policy]
+Comma-separated list of enrich policy names
+used to limit the request.
+
+To return information for all enrich policies,
+omit this parameter.
+--
 
 
 [[get-enrich-policy-api-example]]

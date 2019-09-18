@@ -88,13 +88,18 @@ class S3BlobContainer extends AbstractBlobContainer {
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         assert inputStream.markSupported() : "No mark support on inputStream breaks the S3 SDK's ability to retry requests";
         SocketAccess.doPrivilegedIOException(() -> {
-            if (blobSize <= blobStore.bufferSizeInBytes()) {
+            if (blobSize <= getLargeBlobThresholdInBytes()) {
                 executeSingleUpload(blobStore, buildKey(blobName), inputStream, blobSize);
             } else {
                 executeMultipartUpload(blobStore, buildKey(blobName), inputStream, blobSize);
             }
             return null;
         });
+    }
+
+    // package private for testing
+    long getLargeBlobThresholdInBytes() {
+        return blobStore.bufferSizeInBytes();
     }
 
     @Override
@@ -333,15 +338,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                                 final InputStream input,
                                 final long blobSize) throws IOException {
 
-        if (blobSize > MAX_FILE_SIZE_USING_MULTIPART.getBytes()) {
-            throw new IllegalArgumentException("Multipart upload request size [" + blobSize
-                                                + "] can't be larger than " + MAX_FILE_SIZE_USING_MULTIPART);
-        }
-        if (blobSize < MIN_PART_SIZE_USING_MULTIPART.getBytes()) {
-            throw new IllegalArgumentException("Multipart upload request size [" + blobSize
-                                               + "] can't be smaller than " + MIN_PART_SIZE_USING_MULTIPART);
-        }
-
+        ensureMultiPartUploadSize(blobSize);
         final long partSize = blobStore.bufferSizeInBytes();
         final Tuple<Long, Long> multiparts = numberOfMultiparts(blobSize, partSize);
 
@@ -415,6 +412,18 @@ class S3BlobContainer extends AbstractBlobContainer {
                     SocketAccess.doPrivilegedVoid(() -> clientReference.client().abortMultipartUpload(abortRequest));
                 }
             }
+        }
+    }
+
+    // non-static, package private for testing
+    void ensureMultiPartUploadSize(final long blobSize) {
+        if (blobSize > MAX_FILE_SIZE_USING_MULTIPART.getBytes()) {
+            throw new IllegalArgumentException("Multipart upload request size [" + blobSize
+                + "] can't be larger than " + MAX_FILE_SIZE_USING_MULTIPART);
+        }
+        if (blobSize < MIN_PART_SIZE_USING_MULTIPART.getBytes()) {
+            throw new IllegalArgumentException("Multipart upload request size [" + blobSize
+                + "] can't be smaller than " + MIN_PART_SIZE_USING_MULTIPART);
         }
     }
 

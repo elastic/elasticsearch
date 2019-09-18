@@ -1102,7 +1102,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final long startTime = threadPool.absoluteTimeInMillis();
         final StepListener<String> snapshotDoneListener = new StepListener<>();
         snapshotDoneListener.whenComplete(listener::onResponse, e -> {
-            snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), ExceptionsHelper.detailedMessage(e));
+            snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), ExceptionsHelper.stackTrace(e));
             listener.onFailure(e instanceof IndexShardSnapshotFailedException ? (IndexShardSnapshotFailedException) e
                 : new IndexShardSnapshotFailedException(store.shardId(), e));
         });

@@ -124,7 +124,6 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setFile(CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace("test").getKey(), serviceAccount);
         settings.setSecureSettings(secureSettings);
-
         return settings.build();
     }
 

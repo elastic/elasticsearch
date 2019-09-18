@@ -28,8 +28,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
@@ -63,13 +61,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
     protected abstract String repositoryType();
 
     protected Settings repositorySettings() {
-        final Settings.Builder settings = Settings.builder();
-        settings.put("compress", randomBoolean());
-        if (randomBoolean()) {
-            long size = 1 << randomInt(10);
-            settings.put("chunk_size", new ByteSizeValue(size, ByteSizeUnit.KB));
-        }
-        return settings.build();
+        return Settings.builder().put("compress", randomBoolean()).build();
     }
 
     protected final String createRepository(final String name) {

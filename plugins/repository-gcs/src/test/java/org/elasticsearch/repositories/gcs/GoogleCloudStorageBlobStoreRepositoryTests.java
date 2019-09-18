@@ -20,7 +20,6 @@
 package org.elasticsearch.repositories.gcs;
 
 import com.google.api.gax.retrying.RetrySettings;
-import com.google.cloud.BaseWriteChannel;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.StorageOptions;
 import com.sun.net.httpserver.HttpExchange;
@@ -169,20 +168,6 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repoMetaData);
         });
         assertEquals("failed to parse value [101mb] for setting [chunk_size], must be <= [100mb]", e.getMessage());
-    }
-
-    /**
-     * Test the snapshot and restore of an index which has large segments files (2Mb+).
-     * <p>
-     * The value of 2Mb is chosen according to the default chunk size configured in Google SDK client
-     * (see {@link BaseWriteChannel} chunk size).
-     */
-    public void testSnapshotWithLargeSegmentFiles() throws Exception {
-        final String repository = createRepository("repository", Settings.builder()
-            .put(BUCKET.getKey(), "bucket")
-            .put(CLIENT_NAME.getKey(), "test")
-            .build());
-        runSnapshotWithLargeSegmentFilesTest(repository, randomLongBetween(10_000L, 20_000L));
     }
 
     public static class TestGoogleCloudStoragePlugin extends GoogleCloudStoragePlugin {

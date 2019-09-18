@@ -94,18 +94,15 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     /**
      * Test the snapshot and restore of an index which has large segments files.
      */
-    public void testSnapshotWithLargeSegmentFiles() throws Exception {
-        final long nbDocs = randomLongBetween(10_000L, 20_000L);
-        runSnapshotWithLargeSegmentFilesTest(createRepository(randomName()), nbDocs);
-    }
-
-    protected void runSnapshotWithLargeSegmentFilesTest(final String repository, final long nbDocs) throws Exception {
+    public final void testSnapshotWithLargeSegmentFiles() throws Exception {
+        final String repository = createRepository(randomName());
         final String index = "index-no-merges";
         createIndex(index, Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .build());
 
+        final long nbDocs = randomLongBetween(10_000L, 20_000L);
         try (BackgroundIndexer indexer = new BackgroundIndexer(index, "_doc", client(), (int) nbDocs)) {
             waitForDocs(nbDocs, indexer);
         }

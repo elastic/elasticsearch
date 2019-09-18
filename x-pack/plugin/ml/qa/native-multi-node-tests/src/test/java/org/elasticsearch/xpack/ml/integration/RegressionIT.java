@@ -102,6 +102,13 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertThatAuditMessagesMatch(jobId,
+            "Created analytics with analysis type [regression]",
+            "Estimated memory usage for this analytics to be",
+            "Started analytics",
+            "Creating destination index [regression_single_numeric_feature_and_mixed_data_set_source_index_results]",
+            "Finished reindexing to destination index [regression_single_numeric_feature_and_mixed_data_set_source_index_results]",
+            "Finished analysis");
     }
 
     public void testWithOnlyTrainingRowsAndTrainingPercentIsHundred() throws Exception {
@@ -161,6 +168,13 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertThatAuditMessagesMatch(jobId,
+            "Created analytics with analysis type [regression]",
+            "Estimated memory usage for this analytics to be",
+            "Started analytics",
+            "Creating destination index [regression_only_training_data_and_training_percent_is_hundred_source_index_results]",
+            "Finished reindexing to destination index [regression_only_training_data_and_training_percent_is_hundred_source_index_results]",
+            "Finished analysis");
     }
 
     public void testWithOnlyTrainingRowsAndTrainingPercentIsFifty() throws Exception {
@@ -230,5 +244,12 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         assertProgress(jobId, 100, 100, 100, 100);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
+        assertThatAuditMessagesMatch(jobId,
+            "Created analytics with analysis type [regression]",
+            "Estimated memory usage for this analytics to be",
+            "Started analytics",
+            "Creating destination index [regression_only_training_data_and_training_percent_is_fifty_source_index_results]",
+            "Finished reindexing to destination index [regression_only_training_data_and_training_percent_is_fifty_source_index_results]",
+            "Finished analysis");
     }
 }

@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.transform.notifications;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
-import org.elasticsearch.xpack.core.transform.notifications.DataFrameAuditMessage;
+import org.elasticsearch.xpack.core.transform.notifications.TransformAuditMessage;
 import org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndex;
 
 import static org.elasticsearch.xpack.core.ClientHelper.DATA_FRAME_ORIGIN;
@@ -15,9 +15,9 @@ import static org.elasticsearch.xpack.core.ClientHelper.DATA_FRAME_ORIGIN;
 /**
  * DataFrameAuditor class that abstracts away generic templating for easier injection
  */
-public class DataFrameAuditor extends AbstractAuditor<DataFrameAuditMessage> {
+public class DataFrameAuditor extends AbstractAuditor<TransformAuditMessage> {
 
     public DataFrameAuditor(Client client, String nodeName) {
-        super(client, nodeName, DataFrameInternalIndex.AUDIT_INDEX, DATA_FRAME_ORIGIN, DataFrameAuditMessage::new);
+        super(client, nodeName, DataFrameInternalIndex.AUDIT_INDEX, DATA_FRAME_ORIGIN, TransformAuditMessage::new);
     }
 }

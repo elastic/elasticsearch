@@ -1858,7 +1858,8 @@ public class DateFormatters {
             if (accessor.isSupported(MONTH_OF_YEAR)) {
                 return getFirstOfMonth(accessor).atStartOfDay(zoneId);
             } else {
-                return Year.of(accessor.get(ChronoField.YEAR)).atDay(1).atStartOfDay(zoneId);
+                int year = getYear(accessor);
+                return Year.of(year).atDay(1).atStartOfDay(zoneId);
             }
         } else if (accessor.isSupported(MONTH_OF_YEAR)) {
             // missing year, falling back to the epoch and then filling

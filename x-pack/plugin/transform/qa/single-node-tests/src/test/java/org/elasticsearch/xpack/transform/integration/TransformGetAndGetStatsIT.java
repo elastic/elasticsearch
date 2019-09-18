@@ -53,8 +53,8 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
 
         createReviewsIndex();
         indicesCreated = true;
-        setupUser(TEST_USER_NAME, Collections.singletonList("transform_user"));
-        setupUser(TEST_ADMIN_USER_NAME, Collections.singletonList("transform_admin"));
+        setupUser(TEST_USER_NAME, Collections.singletonList("data_frame_transforms_user"));
+        setupUser(TEST_ADMIN_USER_NAME, Collections.singletonList("data_frame_transforms_admin"));
     }
 
     @After

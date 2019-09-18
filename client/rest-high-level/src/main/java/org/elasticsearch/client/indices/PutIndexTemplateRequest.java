@@ -20,15 +20,14 @@ package org.elasticsearch.client.indices;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.client.Validatable;
+import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -47,16 +46,16 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * A request to create an index template.
  */
-public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateRequest> implements IndicesRequest, ToXContentFragment {
+public class PutIndexTemplateRequest implements Validatable, ToXContentFragment {
 
     private String name;
 
@@ -76,6 +75,8 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     private Integer version;
 
+    private TimeValue masterNodeTimeout = TimeValue.timeValueSeconds(30);
+
     /**
      * Constructs a new put index template request with the provided name.
      */
@@ -84,12 +85,11 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     }
 
     @Override
-    public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
+    public Optional<ValidationException> validate() {
         if (indexPatterns == null || indexPatterns.size() == 0) {
-            validationException = addValidationError("index patterns are missing", validationException);
+            return Optional.of(ValidationException.withError("index patterns are missing"));
         }
-        return validationException;
+        return Optional.empty();
     }
 
     /**
@@ -412,14 +412,17 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         return this;
     }
 
-    @Override
-    public String[] indices() {
-        return indexPatterns.toArray(new String[indexPatterns.size()]);
+    public final TimeValue masterNodeTimeout() {
+        return this.masterNodeTimeout;
     }
 
-    @Override
-    public IndicesOptions indicesOptions() {
-        return IndicesOptions.strictExpand();
+    public final PutIndexTemplateRequest masterNodeTimeout(TimeValue timeout) {
+        this.masterNodeTimeout = timeout;
+        return this;
+    }
+
+    public final PutIndexTemplateRequest masterNodeTimeout(String timeout) {
+        return masterNodeTimeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".masterNodeTimeout"));
     }
 
     @Override

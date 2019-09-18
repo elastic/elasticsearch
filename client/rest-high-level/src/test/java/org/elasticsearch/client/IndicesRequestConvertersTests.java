@@ -1116,7 +1116,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
             putTemplateRequest.cause(cause);
             expectedParams.put("cause", cause);
         }
-        RequestConvertersTests.setRandomMasterTimeout(putTemplateRequest, expectedParams);
+        RequestConvertersTests.setRandomMasterTimeout(putTemplateRequest::masterNodeTimeout, expectedParams);
 
         Request request = IndicesRequestConverters.putTemplate(putTemplateRequest);
         Assert.assertThat(request.getEndpoint(), equalTo("/_template/" + names.get(putTemplateRequest.name())));

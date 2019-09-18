@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -29,11 +29,11 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
 public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIndexTemplateRequest> {
@@ -41,17 +41,17 @@ public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIn
         expectThrows(IllegalArgumentException.class, () -> new PutIndexTemplateRequest(null));
         expectThrows(IllegalArgumentException.class, () -> new PutIndexTemplateRequest("test").name(null));
         PutIndexTemplateRequest request = new PutIndexTemplateRequest("test");
-        ActionRequestValidationException withoutPattern = request.validate();
-        assertThat(withoutPattern.getMessage(), containsString("index patterns are missing"));
+        Optional<ValidationException> withoutPattern = request.validate();
+        assertThat(withoutPattern.get().getMessage(), containsString("index patterns are missing"));
 
         request.name("foo");
-        ActionRequestValidationException withoutIndexPatterns = request.validate();
-        assertThat(withoutIndexPatterns.validationErrors(), hasSize(1));
-        assertThat(withoutIndexPatterns.getMessage(), containsString("index patterns are missing"));
+        Optional<ValidationException> withoutIndexPatterns = request.validate();
+        assertThat(withoutIndexPatterns.get().validationErrors(), hasSize(1));
+        assertThat(withoutIndexPatterns.get().getMessage(), containsString("index patterns are missing"));
 
         request.patterns(Collections.singletonList("test-*"));
-        ActionRequestValidationException noError = request.validate();
-        assertThat(noError, is(nullValue()));
+        Optional<ValidationException> noError = request.validate();
+        assertThat(noError.isPresent(), is(false));
     }
 
     @Override

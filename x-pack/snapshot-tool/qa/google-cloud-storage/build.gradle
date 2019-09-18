@@ -53,6 +53,7 @@ task thirdPartyTest (type: Test) {
 
 if (useGCSFixture) {
     thirdPartyTest.enabled = false;
+    testingConventions.enabled = false;
     /*
 
     See: https://github.com/elastic/elasticsearch/issues/46813 Fails with --parallel

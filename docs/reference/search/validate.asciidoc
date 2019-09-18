@@ -69,7 +69,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=search-q]
 [[search-validate-api-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT twitter/_bulk?refresh
 {"index":{"_id":1}}
@@ -81,7 +81,7 @@ PUT twitter/_bulk?refresh
 
 When sent a valid query:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_validate/query?q=user:foo
 --------------------------------------------------
@@ -90,15 +90,14 @@ GET twitter/_validate/query?q=user:foo
 
 The response contains `valid:true`:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {"valid":true,"_shards":{"total":1,"successful":1,"failed":0}}
 --------------------------------------------------
-// TESTRESPONSE
 
 The query may also be sent in the request body:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_validate/query
 {
@@ -125,7 +124,7 @@ If the query is invalid, `valid` will be `false`. Here the query is invalid
 because {es} knows the `post_date` field should be a date due to dynamic 
 mapping, and 'foo' does not correctly parse into a date:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_validate/query
 {
@@ -139,18 +138,18 @@ GET twitter/_validate/query
 --------------------------------------------------
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {"valid":false,"_shards":{"total":1,"successful":1,"failed":0}}
 --------------------------------------------------
-// TESTRESPONSE
+
 
 ===== The explain parameter
 
 An `explain` parameter can be specified to get more detailed information about 
 why a query failed:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_validate/query?explain=true
 {
@@ -167,7 +166,7 @@ GET twitter/_validate/query?explain=true
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "valid" : false,
@@ -191,7 +190,7 @@ When the query is valid, the explanation defaults to the string representation
 of that query. With `rewrite` set to `true`, the explanation is more detailed 
 showing the actual Lucene query that will be executed.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_validate/query?rewrite=true
 {
@@ -205,13 +204,12 @@ GET twitter/_validate/query?rewrite=true
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:the output is randomized depending on which shard we hit]
 
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "valid": true,
@@ -229,7 +227,6 @@ The API returns the following response:
    ]
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 
 ===== Rewrite and all_shards parameters
@@ -251,7 +248,7 @@ PUT twitter/_bulk?refresh
 --------------------------------------------------
 ////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET twitter/_validate/query?rewrite=true&all_shards=true
 {
@@ -269,7 +266,7 @@ GET twitter/_validate/query?rewrite=true&all_shards=true
 
 The API returns the following response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "valid": true,
@@ -288,4 +285,3 @@ The API returns the following response:
   ]
 }
 --------------------------------------------------
-// TESTRESPONSE

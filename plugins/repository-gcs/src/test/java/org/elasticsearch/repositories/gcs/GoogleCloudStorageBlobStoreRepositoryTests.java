@@ -20,15 +20,12 @@
 package org.elasticsearch.repositories.gcs;
 
 import com.google.api.gax.retrying.RetrySettings;
-import com.google.cloud.BaseWriteChannel;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.StorageOptions;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import org.apache.http.HttpStatus;
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
@@ -49,7 +46,6 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
-import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.threeten.bp.Duration;
 
@@ -81,9 +77,6 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSetting
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.TOKEN_URI_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BUCKET;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.CLIENT_NAME;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.equalTo;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a Google Cloud Storage endpoint")
 public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
@@ -175,44 +168,6 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repoMetaData);
         });
         assertEquals("failed to parse value [101mb] for setting [chunk_size], must be <= [100mb]", e.getMessage());
-    }
-
-    /**
-     * Test the snapshot and restore of an index which has large segments files (2Mb+).
-     *
-     * The value of 2Mb is chosen according to the default chunk size configured in Google SDK client
-     * (see {@link BaseWriteChannel} chunk size).
-     */
-    public void testSnapshotWithLargeSegmentFiles() throws Exception {
-        final String repository = createRepository("repository", Settings.builder()
-            .put(BUCKET.getKey(), "bucket")
-            .put(CLIENT_NAME.getKey(), "test")
-            .build());
-
-        final String index = "index-no-merges";
-        createIndex(index, Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build());
-
-        final int nbDocs = 10_000;
-        try (BackgroundIndexer indexer = new BackgroundIndexer(index, "_doc", client(), nbDocs)) {
-            waitForDocs(nbDocs, indexer);
-        }
-
-        flushAndRefresh(index);
-        ForceMergeResponse forceMerge = client().admin().indices().prepareForceMerge(index).setMaxNumSegments(1).get();
-        assertThat(forceMerge.getSuccessfulShards(), equalTo(1));
-        assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
-
-        assertSuccessfulSnapshot(client().admin().cluster().prepareCreateSnapshot(repository, "snapshot")
-            .setWaitForCompletion(true).setIndices(index));
-
-        assertAcked(client().admin().indices().prepareDelete(index));
-
-        assertSuccessfulRestore(client().admin().cluster().prepareRestoreSnapshot(repository, "snapshot").setWaitForCompletion(true));
-        ensureGreen(index);
-        assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
     }
 
     public static class TestGoogleCloudStoragePlugin extends GoogleCloudStoragePlugin {

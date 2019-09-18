@@ -23,8 +23,6 @@ import com.amazonaws.services.s3.internal.MD5DigestCalculatingInputStream;
 import com.amazonaws.util.Base16;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
@@ -45,7 +43,6 @@ import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTes
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.snapshots.mockstore.BlobStoreWrapper;
-import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayOutputStream;
@@ -63,9 +60,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
@@ -79,6 +73,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     @Override
     protected Settings repositorySettings() {
         return Settings.builder()
+            .put(super.repositorySettings())
             .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
             .put(S3Repository.CLIENT_NAME.getKey(), "test")
             .build();
@@ -114,34 +109,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             .put(super.nodeSettings(nodeOrdinal))
             .setSecureSettings(secureSettings)
             .build();
-    }
-
-    public void testSnapshotWithLargeSegmentFiles() throws Exception {
-        final String repository = createRepository(randomName());
-        final String index = "index-no-merges";
-        createIndex(index, Settings.builder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build());
-
-        final long nbDocs = randomLongBetween(10_000L, 20_000L);
-        try (BackgroundIndexer indexer = new BackgroundIndexer(index, "_doc", client(), (int) nbDocs)) {
-            waitForDocs(nbDocs, indexer);
-        }
-
-        flushAndRefresh(index);
-        ForceMergeResponse forceMerge = client().admin().indices().prepareForceMerge(index).setFlush(true).setMaxNumSegments(1).get();
-        assertThat(forceMerge.getSuccessfulShards(), equalTo(1));
-        assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
-
-        assertSuccessfulSnapshot(client().admin().cluster().prepareCreateSnapshot(repository, "snapshot")
-            .setWaitForCompletion(true).setIndices(index));
-
-        assertAcked(client().admin().indices().prepareDelete(index));
-
-        assertSuccessfulRestore(client().admin().cluster().prepareRestoreSnapshot(repository, "snapshot").setWaitForCompletion(true));
-        ensureGreen(index);
-        assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
     }
 
     /**

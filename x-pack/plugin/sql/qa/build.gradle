@@ -57,6 +57,10 @@ subprojects {
   configurations.testRuntimeClasspath {
     resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
   }
+  configurations.testRuntime {
+    // This is also required to make resolveAllDependencies work
+    resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
+  }
   dependencies {
     
     /* Since we're a standalone rest test we actually get transitive

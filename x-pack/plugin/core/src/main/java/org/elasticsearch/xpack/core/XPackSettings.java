@@ -87,6 +87,12 @@ public class XPackSettings {
     public static final Setting<Boolean> INDEX_LIFECYCLE_ENABLED = Setting.boolSetting("xpack.ilm.enabled", true,
         Setting.Property.NodeScope);
 
+    /**
+     * Setting for enabling or disabling the snapshot lifecycle extension. Defaults to true.
+     */
+    public static final Setting<Boolean> SNAPSHOT_LIFECYCLE_ENABLED = Setting.boolSetting("xpack.slm.enabled", true,
+        Setting.Property.NodeScope);
+
     /** Setting for enabling or disabling TLS. Defaults to false. */
     public static final Setting<Boolean> TRANSPORT_SSL_ENABLED = Setting.boolSetting("xpack.security.transport.ssl.enabled", false,
             Property.NodeScope);
@@ -210,6 +216,7 @@ public class XPackSettings {
         settings.add(ROLLUP_ENABLED);
         settings.add(PASSWORD_HASHING_ALGORITHM);
         settings.add(INDEX_LIFECYCLE_ENABLED);
+        settings.add(SNAPSHOT_LIFECYCLE_ENABLED);
         settings.add(DATA_FRAME_ENABLED);
         settings.add(FLATTENED_ENABLED);
         settings.add(VECTORS_ENABLED);

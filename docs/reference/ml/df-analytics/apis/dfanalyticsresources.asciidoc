@@ -163,7 +163,7 @@ PUT _ml/data_frame/analytics/house_price_regression_analysis
     }
 }
 --------------------------------------------------
-// TEST[setup:setup_houses_sold_last_10_yrs]
+// TEST[skip:TBD]
 
 [1] Training data is taken from source index `houses_sold_last_10_yrs`.
 [2] Analysis results will be output to destination index 

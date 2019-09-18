@@ -223,7 +223,7 @@ The API returns the following result:
   },
   "analysis" : {
     "regression" : {
-      "dependent_variable" : "price"
+      "dependent_variable" : "price",
       "training_percent" : 100
     }
   },

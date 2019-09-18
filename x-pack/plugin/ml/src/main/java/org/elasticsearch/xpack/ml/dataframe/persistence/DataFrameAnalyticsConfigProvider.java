@@ -55,7 +55,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class DataFrameAnalyticsConfigProvider {
 
-    private static final Logger LOGGER = LogManager.getLogger(DataFrameAnalyticsConfigProvider.class);
+    private static final Logger logger = LogManager.getLogger(DataFrameAnalyticsConfigProvider.class);
 
     private static final int MAX_CONFIGS_SIZE = 10000;
 
@@ -113,7 +113,6 @@ public class DataFrameAnalyticsConfigProvider {
     }
 
     public void get(String id, ActionListener<DataFrameAnalyticsConfig> listener) {
-        LOGGER.info("Getting analytics [{}]", id);
         GetDataFrameAnalyticsAction.Request request = new GetDataFrameAnalyticsAction.Request();
         request.setResourceId(id);
         executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsAction.INSTANCE, request, ActionListener.wrap(
@@ -134,7 +133,6 @@ public class DataFrameAnalyticsConfigProvider {
      * @param ids a comma separated list of single IDs and/or wildcards
      */
     public void getMultiple(String ids, boolean allowNoMatch, ActionListener<List<DataFrameAnalyticsConfig>> listener) {
-        LOGGER.info("Getting multiple analytics [{}]", ids);
         GetDataFrameAnalyticsAction.Request request = new GetDataFrameAnalyticsAction.Request();
         request.setPageParams(new PageParams(0, MAX_CONFIGS_SIZE));
         request.setResourceId(ids);
@@ -180,7 +178,7 @@ public class DataFrameAnalyticsConfigProvider {
                     Set<String> tasksWithoutConfigs = new HashSet<>(jobsWithTask);
                     tasksWithoutConfigs.removeAll(configs.stream().map(DataFrameAnalyticsConfig::getId).collect(Collectors.toList()));
                     if (tasksWithoutConfigs.isEmpty() == false) {
-                        LOGGER.warn("Data frame analytics tasks {} have no configs", tasksWithoutConfigs);
+                        logger.warn("Data frame analytics tasks {} have no configs", tasksWithoutConfigs);
                     }
                     listener.onResponse(configs);
                 }

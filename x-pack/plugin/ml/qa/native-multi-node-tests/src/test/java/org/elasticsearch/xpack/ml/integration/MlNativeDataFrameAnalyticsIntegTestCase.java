@@ -77,7 +77,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
             try {
                 assertThat(forceStopAnalytics("*").isStopped(), is(true));
             } catch (Exception e2) {
-                logger.error("Force-stopping data frame analytics jobs failed", e);
+                logger.error("Force-stopping data frame analytics jobs failed", e2);
             }
             throw new RuntimeException("Had to resort to force-stopping jobs, something went wrong?", e);
         }

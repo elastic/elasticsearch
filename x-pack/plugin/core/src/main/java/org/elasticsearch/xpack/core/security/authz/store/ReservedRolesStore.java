@@ -123,6 +123,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 // .code_internal-* is for Code's internal worker queue index creation.
                                 RoleDescriptor.IndicesPrivileges.builder()
                                         .indices(".code-*", ".code_internal-*").privileges("all").build(),
+                                // .apm-* is for APM's agent configuration index creation
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                        .indices(".apm-agent-configuration").privileges("all").build(),
                         },
                         null,
                         new ConfigurableClusterPrivilege[] { new ManageApplicationPrivileges(Collections.singleton("kibana-*")) },

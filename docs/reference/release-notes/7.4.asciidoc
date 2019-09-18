@@ -35,7 +35,6 @@ Snapshot/Restore::
 === Breaking Java changes
 
 Geo::
-* Geo: Change order of parameter in Geometries to lon, lat 7.x {pull}45618[#45618] (issues: {issue}45048[#45048], {issue}45332[#45332])
 * Geo: Change order of parameter in Geometries to lon, lat {pull}45332[#45332] (issue: {issue}45048[#45048])
 
 Network::
@@ -216,6 +215,7 @@ Infra/Scripting::
 * Remove stale permissions from untrusted policy {pull}44783[#44783]
 
 Infra/Settings::
+* Add more meaningful keystore version mismatch errors {pull}46291[#46291] (issue: {issue}44624[#44624])
 * Lift the restrictions that uppercase is not allowed in Setting Name. {pull}45222[#45222] (issue: {issue}43835[#43835])
 * Normalize environment paths {pull}45179[#45179] (issue: {issue}45176[#45176])
 
@@ -325,6 +325,7 @@ Cluster Coordination::
 * Avoid counting votes from master-ineligible nodes {pull}43688[#43688]
 
 Data Frame::
+* [ML][Transform] Use field_caps API for mapping deduction {pull}46703[#46703] (issue: {issue}46694[#46694])
 * [ML-DataFrame] Fix off-by-one error in checkpoint operations_behind {pull}46235[#46235]
 * [ML][Data Frame] moves failure state transition for MT safety {pull}45676[#45676] (issue: {issue}45664[#45664])
 * [ML][Data Frame] fixing _start?force=true bug {pull}45660[#45660]
@@ -340,6 +341,7 @@ Data Frame::
 * [ML-DataFrame] audit message missing for autostop {pull}43984[#43984] (issue: {issue}43977[#43977])
 
 Distributed::
+* Fix false positive out of sync warning in synced-flush {pull}46576[#46576] (issues: {issue}28464[#28464], {issue}30244[#30244])
 * Suppress warning logs from background sync on relocated primary {pull}46247[#46247] (issues: {issue}40800[#40800], {issue}42241[#42241])
 * Ensure AsyncTask#isScheduled remain false after close {pull}45687[#45687] (issue: {issue}45576[#45576])
 * Update translog checkpoint after marking operations as persisted {pull}45634[#45634] (issue: {issue}29161[#29161])
@@ -355,6 +357,8 @@ Engine::
 * Fail engine if hit document failure on replicas {pull}43523[#43523] (issues: {issue}40435[#40435], {issue}43228[#43228])
 
 Features/ILM::
+* Handle partial failure retrieving segments in SegmentCountStep {pull}46556[#46556]
+* Fixes for API specification {pull}46522[#46522]
 * Fix SnapshotLifecycleMetadata xcontent serialization {pull}46500[#46500] (issue: {issue}46499[#46499])
 * Updated slm API spec parameters and URL {pull}44797[#44797]
 * Fix swapped variables in error message {pull}44300[#44300]
@@ -446,6 +450,9 @@ Rollup::
 * Fix Rollup job creation to work with templates {pull}43943[#43943]
 
 SQL::
+* SQL: improve ResultSet behavior when no rows are available {pull}46753[#46753] (issue: {issue}46750[#46750])
+* SQL: use the correct data type for types conversion {pull}46574[#46574] (issue: {issue}46090[#46090])
+* SQL: Fix issue with common type resolution {pull}46565[#46565] (issue: {issue}46551[#46551])
 * SQL: fix scripting for grouped by datetime functions {pull}46421[#46421] (issue: {issue}40241[#40241])
 * SQL: Use null schema response {pull}46386[#46386] (issue: {issue}46381[#46381])
 * SQL: Fix issue with IIF function when condition folds {pull}46290[#46290] (issue: {issue}46268[#46268])

@@ -627,7 +627,7 @@ final class RequestConverters {
     }
 
     static Request deleteByQuery(DeleteByQueryRequest deleteByQueryRequest) throws IOException {
-        return prepareDeleteByQueryRequest(deleteByQueryRequest, false);
+        return prepareDeleteByQueryRequest(deleteByQueryRequest, true);
     }
 
     static Request rethrottleReindex(RethrottleRequest rethrottleRequest) {

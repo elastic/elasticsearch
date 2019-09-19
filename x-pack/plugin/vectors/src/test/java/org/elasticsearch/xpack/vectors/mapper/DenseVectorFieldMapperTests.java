@@ -61,7 +61,7 @@ public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject());
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> parser.parse("_doc", new CompressedXContent(mapping)));
-        assertEquals(e.getMessage(), "The number of dimensions for field [my-dense-vector] should be in the range [1, 1024]");
+        assertEquals(e.getMessage(), "The number of dimensions for field [my-dense-vector] should be in the range [1, 2048]");
     }
 
     public void testDefaults() throws Exception {

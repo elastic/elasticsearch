@@ -39,7 +39,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 public class SparseVectorFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "sparse_vector";
-    public static short MAX_DIMS_COUNT = 1024; //maximum allowed number of dimensions
+    public static short MAX_DIMS_COUNT = 2048; //maximum allowed number of dimensions
     public static int MAX_DIMS_NUMBER = 65535; //maximum allowed dimension's number
 
     public static class Defaults {

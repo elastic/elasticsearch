@@ -797,25 +797,6 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::slm-put-snapshot-lifecycle-policy-response
         assertTrue(putAcknowledged);
 
-        // tag::slm-put-snapshot-lifecycle-policy-execute-listener
-        ActionListener<AcknowledgedResponse> putListener =
-                new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse resp) {
-                boolean acknowledged = resp.isAcknowledged(); // <1>
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                // <2>
-            }
-        };
-        // end::slm-put-snapshot-lifecycle-policy-execute-listener
-
-        // tag::slm-put-snapshot-lifecycle-policy-execute-async
-        client.indexLifecycle().putSnapshotLifecyclePolicyAsync(request,
-            RequestOptions.DEFAULT, putListener);
-        // end::slm-put-snapshot-lifecycle-policy-execute-async
 
         //////// GET
         // tag::slm-get-snapshot-lifecycle-policy

@@ -7,13 +7,13 @@
 [id="{upid}-{api}"]
 === Estimate memory usage API
 
-The Estimate memory usage API is used to estimate memory usage of {dfanalytics}.
+Estimates memory usage of {dfanalytics}.
 Estimation results can be used when deciding the appropriate value for `model_memory_limit` setting later on.
 
 The API accepts an +{request}+ object and returns an +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Estimate memory usage Request
+==== Estimate memory usage request
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

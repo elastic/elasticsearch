@@ -169,6 +169,11 @@ public class OutlierDetection implements DataFrameAnalysis {
         return false;
     }
 
+    @Override
+    public boolean persistsState() {
+        return false;
+    }
+
     public enum Method {
         LOF, LDOF, DISTANCE_KTH_NN, DISTANCE_KNN;
 

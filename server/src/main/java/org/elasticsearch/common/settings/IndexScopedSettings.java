@@ -162,6 +162,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             EngineConfig.INDEX_CODEC_SETTING,
             IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS,
             IndexSettings.DEFAULT_PIPELINE,
+            IndexSettings.REQUIRED_PIPELINE,
             MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING,
 
             // validate that built-in similarities don't get redefined

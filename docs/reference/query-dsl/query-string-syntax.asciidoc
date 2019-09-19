@@ -278,6 +278,9 @@ The reserved characters are:  `+ - = && || > < ! ( ) { } [ ] ^ " ~ * ? : \ /`
 Failing to escape these special characters correctly could lead to a syntax
 error which prevents your query from running.
 
+NOTE: Since \ (backslash) is a special character in JSON strings, it needs 
+to be escaped, hence two backslashes should be used.
+
 NOTE: `<` and `>` can't be escaped at all. The only way to prevent them from
 attempting to create a range query is to remove them from the query string
 entirely.

@@ -192,7 +192,7 @@ def deb_common(config, name, extra: '')
 end
 
 def deb_docker(config)
-  config.vm.provision 'install Docker', run: 'always', type: 'shell', inline: <<-SHELL
+  config.vm.provision 'install Docker using apt', run: 'always', type: 'shell', inline: <<-SHELL
     # Install packages to allow apt to use a repository over HTTPS
     apt-get install -y \
       apt-transport-https \
@@ -230,7 +230,7 @@ def rpm_common(config, name)
 end
 
 def rpm_docker(config)
-  config.vm.provision 'install Docker', run: 'always', type: 'shell', inline: <<-SHELL
+  config.vm.provision 'install Docker using yum', run: 'always', type: 'shell', inline: <<-SHELL
     # Install prerequisites
     yum install -y yum-utils device-mapper-persistent-data lvm2
 
@@ -265,7 +265,7 @@ def dnf_common(config, name)
 end
 
 def dnf_docker(config)
-  config.vm.provision 'install Docker', run: 'always', type: 'shell', inline: <<-SHELL
+  config.vm.provision 'install Docker using dnf', run: 'always', type: 'shell', inline: <<-SHELL
     # Install prerequisites
     dnf -y install dnf-plugins-core
 

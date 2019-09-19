@@ -1091,6 +1091,7 @@ public class ExecutionServiceTests extends ESTestCase {
 
         when(executor.tasks()).thenReturn(tasks.stream());
 
+
         List<QueuedWatch> queuedWatches = executionService.queuedWatches();
         assertThat(queuedWatches, hasSize(queuedWatchCount));
         assertThat(queuedWatches.get(0).watchId(), is("_id" + (queuedWatchCount - 1)));

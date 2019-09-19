@@ -47,6 +47,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -144,7 +145,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     IndexRequest indexRequest = (IndexRequest) request;
                     indexRequests.add(indexRequest);
                     final IndexResponse response = new IndexResponse(
-                        indexRequest.shardId(), indexRequest.type(), indexRequest.id(), 1, 1, 1, true);
+                        new ShardId("test", "test", 0), indexRequest.type(), indexRequest.id(), 1, 1, 1, true);
                     listener.onResponse((Response) response);
                 } else if (BulkAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(BulkRequest.class));

@@ -139,7 +139,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
     }
 
     public void testGeoShapeWithSeveralDocs() throws IOException {
-        int precision = randomPrecision();
+        int precision = randomIntBetween(1, 4);
         int numShapes = randomIntBetween(8, 128);
         Map<String, Integer> expectedCountPerGeoHash = new HashMap<>();
         testCase(new MatchAllDocsQuery(), FIELD_NAME, precision, iw -> {

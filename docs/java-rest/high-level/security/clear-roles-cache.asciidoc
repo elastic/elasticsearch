@@ -4,7 +4,7 @@
 :request: ClearRolesCacheRequest
 :response: ClearRolesCacheResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Clear Roles Cache API
 

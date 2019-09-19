@@ -389,7 +389,6 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
             IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING,
             IndexSettings.MAX_TOKEN_COUNT_SETTING,
             IndexSettings.MAX_SLICES_PER_SCROLL,
-            IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING,
             IndexSettings.DEFAULT_PIPELINE,
             IndexSettings.INDEX_SEARCH_THROTTLED,
             IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING,

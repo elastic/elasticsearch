@@ -262,6 +262,7 @@ Distributed::
 * Improve Close Index Response {pull}39687[#39687] (issue: {issue}33888[#33888])
 
 Engine::
+* Use reader attributes to control term dict memory useage {pull}42838[#42838] (issue: {issue}38390[#38390])
 * Remove sort by primary term when reading soft-deletes {pull}43845[#43845]
 * Refresh translog stats after translog trimming in NoOpEngine {pull}43825[#43825] (issue: {issue}43156[#43156])
 * Expose translog stats in ReadOnlyEngine {pull}43752[#43752]

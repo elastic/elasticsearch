@@ -25,9 +25,11 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
+import static org.hamcrest.Matchers.equalTo;
+
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
-    public void testBulkProcessorAutoCreateRestrictions() throws Exception {
+    public void testBulkProcessorAutoCreateRestrictions() {
         // See issue #8125
         Settings settings = Settings.builder().put("action.auto_create_index", false).build();
 
@@ -45,7 +47,9 @@ public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
         assertEquals(3, responses.length);
         assertFalse("Operation on existing index should succeed", responses[0].isFailed());
         assertTrue("Missing index should have been flagged", responses[1].isFailed());
-        assertEquals("[wontwork] IndexNotFoundException[no such index [wontwork]]", responses[1].getFailureMessage());
+        assertThat(
+            responses[1].getFailureMessage(),
+            equalTo("[wontwork] org.elasticsearch.index.IndexNotFoundException: no such index [wontwork]"));
         assertFalse("Operation on existing index should succeed", responses[2].isFailed());
     }
 }

@@ -20,7 +20,7 @@ public final class Aggregations {
     private Aggregations() {}
 
     /**
-     * Supported aggregation by dataframe and corresponding meta information.
+     * Supported aggregation by transform and corresponding meta information.
      *
      * aggregationType - the name of the aggregation as returned by
      * {@link org.elasticsearch.search.aggregations.BaseAggregationBuilder#getType()}}
@@ -62,7 +62,7 @@ public final class Aggregations {
     private static Set<String> aggregationSupported = Stream.of(AggregationType.values()).map(AggregationType::name)
             .collect(Collectors.toSet());
 
-    public static boolean isSupportedByDataframe(String aggregationType) {
+    public static boolean isSupportedByTransform(String aggregationType) {
         return aggregationSupported.contains(aggregationType.toUpperCase(Locale.ROOT));
     }
 

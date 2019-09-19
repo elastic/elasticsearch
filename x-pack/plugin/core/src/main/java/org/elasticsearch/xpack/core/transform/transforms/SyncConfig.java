@@ -19,7 +19,7 @@ public interface SyncConfig extends ToXContentObject, NamedWriteable {
      */
     boolean isValid();
 
-    QueryBuilder getRangeQuery(DataFrameTransformCheckpoint newCheckpoint);
+    QueryBuilder getRangeQuery(TransformCheckpoint newCheckpoint);
 
-    QueryBuilder getRangeQuery(DataFrameTransformCheckpoint oldCheckpoint, DataFrameTransformCheckpoint newCheckpoint);
+    QueryBuilder getRangeQuery(TransformCheckpoint oldCheckpoint, TransformCheckpoint newCheckpoint);
 }

@@ -277,7 +277,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
             assertReturnedIndices(multiSearchResponse.getResponses()[0].getResponse(), "test1", "test2", "test3");
             assertTrue(multiSearchResponse.getResponses()[1].isFailure());
             assertThat(multiSearchResponse.getResponses()[1].getFailure().toString(),
-                    equalTo("[test4] IndexNotFoundException[no such index [test4]]"));
+                    equalTo("[test4] org.elasticsearch.index.IndexNotFoundException: no such index [test4]"));
         }
         {
             //we set ignore_unavailable and allow_no_indices to true, no errors returned, second item doesn't have hits.

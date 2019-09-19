@@ -198,9 +198,6 @@ failure and re-starting.
 When using the API to delete a failed {transform}, first stop it using 
 `_stop?force=true`, then delete it.
 
-If starting a failed {transform}, after the root cause has been 
-resolved, the `_start?force=true` parameter must be specified.
-
 [float]
 [[df-availability-limitations]]
 === {cdataframes-cap} may give incorrect results if documents are not yet available to search

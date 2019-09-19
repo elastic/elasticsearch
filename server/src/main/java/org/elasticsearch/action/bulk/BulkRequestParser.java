@@ -20,6 +20,9 @@
 package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -50,6 +53,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
 public final class BulkRequestParser {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(BulkRequestParser.class));
+    private static final Logger logger = LogManager.getLogger(BulkRequestParser.class);
 
     private static final ParseField INDEX = new ParseField("_index");
     private static final ParseField TYPE = new ParseField("_type");
@@ -199,7 +203,7 @@ public final class BulkRequestParser {
                                     throw new IllegalArgumentException("explicit index in bulk is not allowed");
                                 }
                                 index = parser.text();
-                            } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {   
+                            } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                                 if (warnOnTypeUsage && typesDeprecationLogged == false) {
                                     deprecationLogger.deprecatedAndMaybeLog("bulk_with_types", RestBulkAction.TYPES_DEPRECATION_MESSAGE);
                                     typesDeprecationLogged = true;
@@ -288,6 +292,13 @@ public final class BulkRequestParser {
                                 XContentParser sliceParser = xContent.createParser(NamedXContentRegistry.EMPTY,
                                         LoggingDeprecationHandler.INSTANCE, dataStream)) {
                             updateRequest.fromXContent(sliceParser);
+                        } catch (Exception ex) {
+                            final String tmpType = type;
+                            final String tmpId = id;
+
+                            final MessageSupplier messageSupplier = () -> new ParameterizedMessage(
+                                "ID [{}] failed to execute bulk item ({}) for type ({})", tmpId, action, tmpType);
+                            logger.debug(messageSupplier, ex);
                         }
                         if (fetchSourceContext != null) {
                             updateRequest.fetchSource(fetchSourceContext);

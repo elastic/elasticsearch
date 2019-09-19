@@ -124,11 +124,13 @@ An index is a logical namespace which maps to one or more
 +
 --
 // tag::index-alias-def[]
+// tag::index-alias-desc[]
 An index alias is a secondary name
 used to refer to one or more existing indices.
 
 Most {es} APIs accept an index alias
 in place of an index name.
+// end::index-alias-desc[]
 
 See {ref}/indices-add-alias.html[Add index alias].
 // end::index-alias-def[]

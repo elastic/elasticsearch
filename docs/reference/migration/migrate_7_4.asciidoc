@@ -40,6 +40,12 @@ or sparse_vector) on which a vector function is executed, an error will
 be thrown.
 
 [discrete]
+==== Use float instead of double for query vectors
+Previously, vector functions like `cosineSimilarity` represented the query
+vector as an list of doubles. Now vector functions use floats, which matches
+how the stored document vectors are represented.
+
+[discrete]
 [[breaking_74_snapshots_changes]]
 === Snapshot and Restore changes
 

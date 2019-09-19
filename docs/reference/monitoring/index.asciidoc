@@ -5,29 +5,29 @@
 
 [partintro]
 --
-{stack-monitor-features} give you insight into the operation of {es}, {ls},
-{kib}, and Beats. All of the monitoring metrics are stored in {es}, which
-enables you to easily visualize the data from {kib}. From the {kib} Stack
-Monitoring UI, you can spot issues at a glance and delve into the system
-behavior over time to diagnose operational issues. In addition to the built-in
-status warnings, you can set up custom alerts based on the data in the
-monitoring indices.
+The {stack} {monitor-features} provide a way to keep a pulse on the health and
+performance of your cluster. 
 
-* <<configuring-monitoring>>
-* <<es-monitoring,Monitoring {es}>>
-* {kibana-ref}/xpack-monitoring.html[Monitoring {kib}]
-* {logstash-ref}/monitoring-logstash.html[Monitoring {ls}]
-* Monitoring Beats:
-** {auditbeat-ref}/monitoring.html[{auditbeat}]
-** {filebeat-ref}/monitoring.html[{filebeat}]
-** {functionbeat-ref}/monitoring.html[{functionbeat}] 
-** {heartbeat-ref}/monitoring.html[{heartbeat}]
-** {metricbeat-ref}/monitoring.html[{metricbeat}]
-** {packetbeat-ref}/monitoring.html[{packetbeat}]
-** {winlogbeat-ref}/monitoring.html[{winlogbeat}]
+* <<monitoring-overview>>
+* <<es-monitoring>>
 
 --
 
-include::configuring-monitoring.asciidoc[]
-include::monitor-es.asciidoc[]
+include::overview.asciidoc[]
 
+include::how-it-works.asciidoc[]
+
+include::collecting-monitoring-data.asciidoc[]
+include::pause-export.asciidoc[]
+
+include::configuring-metricbeat.asciidoc[]
+
+include::configuring-filebeat.asciidoc[]
+
+include::indices.asciidoc[]
+
+include::collectors.asciidoc[]
+
+include::exporters.asciidoc[]
+include::local-export.asciidoc[]
+include::http-export.asciidoc[]

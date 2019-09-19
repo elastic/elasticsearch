@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[es-monitoring-collectors]]
-=== Collectors
+== Collectors
 
 Collectors, as their name implies, collect things. Each collector runs once for
 each collection interval to obtain data from the public APIs in {es} and {xpack}

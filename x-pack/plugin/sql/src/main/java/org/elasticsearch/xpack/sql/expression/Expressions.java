@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -135,8 +136,8 @@ public final class Expressions {
     }
 
     public static Pipe pipe(Expression e) {
-        if (e instanceof NamedExpression) {
-            return ((NamedExpression) e).asPipe();
+        if (e instanceof Function) {
+            return ((Function) e).asPipe();
         }
         throw new SqlIllegalArgumentException("Cannot create pipe for {}", e);
     }

@@ -188,6 +188,10 @@ public class OptimizerTests extends ESTestCase {
         return of(EMPTY, value);
     }
 
+    private static Alias a(String name, Expression e) {
+        return new Alias(e.source(), name, e);
+    }
+
     private static FieldAttribute getFieldAttribute() {
         return getFieldAttribute("a");
     }
@@ -207,14 +211,16 @@ public class OptimizerTests extends ESTestCase {
         AggregateFunction f1 = new Count(EMPTY, TRUE, false);
         AggregateFunction f2 = new Count(EMPTY, TRUE, false);
 
-        assertTrue(f1.functionEquals(f2));
+        assertTrue(f1.equals(f2));
 
-        Project p = new Project(EMPTY, FROM(), Arrays.asList(f1, f2));
+        Project p = new Project(EMPTY, FROM(), Arrays.asList(a("f1", f1), a("f2", f2)));
         LogicalPlan result = new PruneDuplicateFunctions().apply(p);
         assertTrue(result instanceof Project);
         List<? extends NamedExpression> projections = ((Project) result).projections();
         assertEquals(2, projections.size());
-        assertSame(projections.get(0), projections.get(1));
+        Alias as1 = (Alias) projections.get(0);
+        Alias as2 = (Alias) projections.get(1);
+        assertSame(as1.child(), as2.child());
     }
 
     public void testCombineProjections() {
@@ -371,13 +377,15 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testConstantFoldingIn_LeftValueNotFoldable() {
-        Project p = new Project(EMPTY, FROM(), Collections.singletonList(
-        new In(EMPTY, getFieldAttribute(),
-            Arrays.asList(ONE, TWO, ONE, THREE, new Sub(EMPTY, THREE, ONE), ONE, FOUR, new Abs(EMPTY, new Sub(EMPTY, TWO, FIVE))))));
+        In in = new In(EMPTY, getFieldAttribute(),
+                Arrays.asList(ONE, TWO, ONE, THREE, new Sub(EMPTY, THREE, ONE), ONE, FOUR, new Abs(EMPTY, new Sub(EMPTY, TWO, FIVE))));
+        Alias as = new Alias(in.source(), in.sourceText(), in);
+        Project p = new Project(EMPTY, FROM(), Collections.singletonList(as));
         p = (Project) new ConstantFolding().apply(p);
         assertEquals(1, p.projections().size());
-        In in = (In) p.projections().get(0);
-        assertThat(Foldables.valuesOf(in.list(), DataType.INTEGER), contains(1 ,2 ,3 ,4));
+        Alias a = (Alias) p.projections().get(0);
+        In i = (In) a.child();
+        assertThat(Foldables.valuesOf(i.list(), DataType.INTEGER), contains(1 ,2 ,3 ,4));
     }
 
     public void testConstantFoldingIn_RightValueIsNull() {
@@ -746,13 +754,11 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(IsNull.class, e.getClass());
         IsNull isNull = (IsNull) e;
         assertEquals(source, isNull.source());
-        assertEquals("IS_NULL(a)", isNull.name());
 
         e = bcSimpl.rule(swapLiteralsToRight.rule(new NullEquals(source, NULL, fa)));
         assertEquals(IsNull.class, e.getClass());
         isNull = (IsNull) e;
         assertEquals(source, isNull.source());
-        assertEquals("IS_NULL(a)", isNull.name());
     }
 
     public void testLiteralsOnTheRight() {
@@ -1392,7 +1398,8 @@ public class OptimizerTests extends ESTestCase {
         Min min1 =  new Min(EMPTY, new FieldAttribute(EMPTY, "str", new EsField("str", DataType.KEYWORD, emptyMap(), true)));
         Min min2 =  new Min(EMPTY, getFieldAttribute());
 
-        OrderBy plan = new OrderBy(EMPTY, new Aggregate(EMPTY, FROM(), emptyList(), Arrays.asList(min1, min2)),
+        OrderBy plan = new OrderBy(EMPTY, new Aggregate(EMPTY, FROM(), emptyList(),
+                Arrays.asList(a("min1", min1), a("min2", min2))),
             Arrays.asList(
                 new Order(EMPTY, min1, OrderDirection.ASC, Order.NullsPosition.LAST),
                 new Order(EMPTY, min2, OrderDirection.ASC, Order.NullsPosition.LAST)));
@@ -1416,7 +1423,7 @@ public class OptimizerTests extends ESTestCase {
         Max max1 =  new Max(EMPTY, new FieldAttribute(EMPTY, "str", new EsField("str", DataType.KEYWORD, emptyMap(), true)));
         Max max2 =  new Max(EMPTY, getFieldAttribute());
 
-        OrderBy plan = new OrderBy(EMPTY, new Aggregate(EMPTY, FROM(), emptyList(), Arrays.asList(max1, max2)),
+        OrderBy plan = new OrderBy(EMPTY, new Aggregate(EMPTY, FROM(), emptyList(), Arrays.asList(a("max1", max1), a("max2", max2))),
             Arrays.asList(
                 new Order(EMPTY, max1, OrderDirection.ASC, Order.NullsPosition.LAST),
                 new Order(EMPTY, max2, OrderDirection.ASC, Order.NullsPosition.LAST)));

@@ -6,33 +6,27 @@
 package org.elasticsearch.xpack.sql.expression.function;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.ExpressionId;
 import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Nullability;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.ConstantInput;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Any SQL expression with parentheses, like {@code MAX()}, or {@code ABS()}. A
  * function is always a {@code NamedExpression}.
  */
-public abstract class Function extends NamedExpression {
+public abstract class Function extends Expression {
 
-    private final String functionName, name;
-
-    protected Function(Source source, List<Expression> children) {
-        this(source, children, null, false);
-    }
+    private Pipe lazyPipe = null;
 
     // TODO: Functions supporting distinct should add a dedicated constructor Location, List<Expression>, boolean
-    protected Function(Source source, List<Expression> children, ExpressionId id, boolean synthetic) {
-        // cannot detect name yet so override the name
-        super(source, null, children, id, synthetic);
-        functionName = StringUtils.camelCaseToUnderscore(getClass().getSimpleName());
-        name = source.text();
+    protected Function(Source source, List<Expression> children) {
+        super(source, children);
     }
 
     public final List<Expression> arguments() {
@@ -40,25 +34,39 @@ public abstract class Function extends NamedExpression {
     }
 
     @Override
-    public String name() {
-        return name;
-    }
-
-    @Override
     public Nullability nullable() {
         return Expressions.nullable(children());
     }
 
-    public String functionName() {
-        return functionName;
+    @Override
+    public int hashCode() {
+        return Objects.hash(children());
     }
 
-    // TODO: ExpressionId might be converted into an Int which could make the String an int as well
-    public String functionId() {
-        return id().toString();
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+
+        Function other = (Function) obj;
+        return Objects.equals(children(), other.children());
     }
 
-    public boolean functionEquals(Function f) {
-        return f != null && getClass() == f.getClass() && arguments().equals(f.arguments());
+    public Pipe asPipe() {
+        if (lazyPipe == null) {
+            lazyPipe = foldable() ? new ConstantInput(source(), this, fold()) : makePipe();
+        }
+        return lazyPipe;
     }
+
+    protected Pipe makePipe() {
+        throw new UnsupportedOperationException();
+    }
+
+    public abstract ScriptTemplate asScript();
 }

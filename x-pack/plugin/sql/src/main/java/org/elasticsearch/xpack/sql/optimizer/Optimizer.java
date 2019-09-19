@@ -1008,7 +1008,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             if (e instanceof Function) {
                 Function f = (Function) e;
                 for (Function seenFunction : seen) {
-                    if (seenFunction != f && f.functionEquals(seenFunction)) {
+                    if (seenFunction != f && f.equals(seenFunction)) {
                         return seenFunction;
                     }
                 }
@@ -1172,7 +1172,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     return Literal.of(in, null);
                 }
 
-            } else if (e instanceof Alias == false 
+            } else if (e instanceof Alias == false
                     && e.nullable() == Nullability.TRUE
                     && Expressions.anyMatch(e.children(), Expressions::isNull)) {
                 return Literal.of(e, null);

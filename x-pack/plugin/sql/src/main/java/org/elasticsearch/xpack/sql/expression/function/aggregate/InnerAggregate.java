@@ -73,12 +73,12 @@ public class InnerAggregate extends AggregateFunction {
         return outer.id().toString();
     }
 
-    @Override
-    public AggregateFunctionAttribute toAttribute() {
-        // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
-        return new AggregateFunctionAttribute(source(), name(), dataType(), outer.id(), functionId(),
-                inner.id(), aggMetricValue(functionId(), innerName));
-    }
+    //    @Override
+    //    public AggregateFunctionAttribute toAttribute() {
+    //        // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
+    //        return new AggregateFunctionAttribute(source(), name(), dataType(), outer.id(), functionId(),
+    //                inner.id(), aggMetricValue(functionId(), innerName));
+    //    }
 
     private static String aggMetricValue(String aggPath, String valueName) {
         // handle aggPath inconsistency (for percentiles and percentileRanks) percentile[99.9] (valid) vs percentile.99.9 (invalid)

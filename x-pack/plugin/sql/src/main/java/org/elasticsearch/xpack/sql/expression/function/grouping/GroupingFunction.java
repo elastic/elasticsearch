@@ -48,19 +48,19 @@ public abstract class GroupingFunction extends Function {
         return parameters;
     }
 
-    @Override
-    public GroupingFunctionAttribute toAttribute() {
-        if (lazyAttribute == null) {
-            // this is highly correlated with QueryFolder$FoldAggregate#addAggFunction (regarding the function name within the querydsl)
-            lazyAttribute = new GroupingFunctionAttribute(source(), name(), dataType(), id(), functionId());
-        }
-        return lazyAttribute;
-    }
+    //    @Override
+    //    public GroupingFunctionAttribute toAttribute() {
+    //        if (lazyAttribute == null) {
+    //            // this is highly correlated with QueryFolder$FoldAggregate#addAggFunction (regarding the function name within the querydsl)
+    //            lazyAttribute = new GroupingFunctionAttribute(source(), name(), dataType(), id(), functionId());
+    //        }
+    //        return lazyAttribute;
+    //    }
 
     @Override
     protected Pipe makePipe() {
         // unresolved AggNameInput (should always get replaced by the folder)
-        return new AggNameInput(source(), this, name());
+        return new AggNameInput(source(), this, sourceText());
     }
 
     @Override

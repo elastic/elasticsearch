@@ -113,13 +113,7 @@ public class UnresolvedFunction extends Function implements Unresolvable {
         return false;
     }
 
-    @Override
     public String name() {
-        return name;
-    }
-
-    @Override
-    public String functionName() {
         return name;
     }
 

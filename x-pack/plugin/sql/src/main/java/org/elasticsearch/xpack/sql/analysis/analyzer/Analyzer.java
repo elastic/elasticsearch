@@ -845,7 +845,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         private Expression collectResolvedAndReplace(Expression e, Map<String, List<Function>> seen) {
             if (e instanceof Function && e.resolved()) {
                 Function f = (Function) e;
-                String fName = f.functionName();
+                String fName = f.sourceText();
                 // the function is resolved and its name normalized already
                 List<Function> list = getList(seen, fName);
                 for (Function seenFunction : list) {

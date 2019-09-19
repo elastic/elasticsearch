@@ -5,14 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.EsField;
 
-import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
@@ -97,25 +93,9 @@ public class Alias extends NamedExpression {
         return lazyAttribute;
     }
 
-    @Override
-    public ScriptTemplate asScript() {
-        throw new SqlIllegalArgumentException("Encountered a bug; an alias should never be scripted");
-    }
-
     private Attribute createAttribute() {
         if (resolved()) {
-            Expression c = child();
-
-            Attribute attr = Expressions.attribute(c);
-            if (attr != null) {
-                return attr.clone(source(), name(), qualifier, child.nullable(), id(), synthetic());
-            }
-            else {
-                // TODO: WE need to fix this fake Field
-                return new FieldAttribute(source(), null, name(),
-                        new EsField(name(), child.dataType(), Collections.emptyMap(), true),
-                        qualifier, child.nullable(), id(), synthetic());
-            }
+            return new ReferenceAttribute(source(), name(), dataType(), qualifier, nullable(), id(), synthetic());
         }
 
         return new UnresolvedAttribute(source(), name(), qualifier);

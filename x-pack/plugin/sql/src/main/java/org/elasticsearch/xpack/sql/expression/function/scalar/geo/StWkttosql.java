@@ -36,7 +36,7 @@ public class StWkttosql extends UnaryScalarFunction {
         if (field().dataType().isString()) {
             return TypeResolution.TYPE_RESOLVED;
         }
-        return isString(field(), functionName(), Expressions.ParamOrdinal.DEFAULT);
+        return isString(field(), sourceText(), Expressions.ParamOrdinal.DEFAULT);
     }
 
     @Override

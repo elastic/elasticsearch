@@ -15,6 +15,7 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
+import org.elasticsearch.xpack.sql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.querydsl.agg.AvgAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByValue;
@@ -79,7 +80,9 @@ public class SourceGeneratorTests extends ESTestCase {
     }
 
     public void testSelectScoreForcesTrackingScore() {
-        QueryContainer container = new QueryContainer().addColumn(new Score(Source.EMPTY).toAttribute());
+        Score score = new Score(Source.EMPTY);
+        ReferenceAttribute attr = new ReferenceAttribute(score.source(), "score", score.dataType());
+        QueryContainer container = new QueryContainer().addColumn(attr);
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
         assertTrue(sourceBuilder.trackScores());
     }

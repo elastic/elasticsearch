@@ -110,7 +110,7 @@ public class In extends ScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        TypeResolution resolution = TypeResolutions.isExact(value, functionName(), Expressions.ParamOrdinal.DEFAULT);
+        TypeResolution resolution = TypeResolutions.isExact(value, sourceText(), Expressions.ParamOrdinal.DEFAULT);
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -119,7 +119,7 @@ public class In extends ScalarFunction {
             if (ex.foldable() == false) {
                 return new TypeResolution(format(null, "Comparisons against variables are not (currently) supported; offender [{}] in [{}]",
                     Expressions.name(ex),
-                    name()));
+                    sourceText()));
             }
         }
 

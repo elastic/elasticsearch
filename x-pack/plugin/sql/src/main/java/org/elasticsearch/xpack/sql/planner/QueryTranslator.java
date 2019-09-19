@@ -493,7 +493,7 @@ final class QueryTranslator {
             if (e.field() instanceof FieldAttribute) {
                 targetFieldName = nameOf(((FieldAttribute) e.field()).exactAttribute());
             } else {
-                throw new SqlIllegalArgumentException("Scalar function [{}] not allowed (yet) as argument for " + e.functionName(),
+                throw new SqlIllegalArgumentException("Scalar function [{}] not allowed (yet) as argument for " + e.sourceText(),
                         Expressions.name(e.field()));
             }
 

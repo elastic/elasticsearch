@@ -30,8 +30,6 @@ public abstract class AggregateFunction extends Function {
     private final Expression field;
     private final List<Expression> parameters;
 
-    private AggregateFunctionAttribute lazyAttribute;
-
     protected AggregateFunction(Source source, Expression field) {
         this(source, field, emptyList());
     }
@@ -51,18 +49,9 @@ public abstract class AggregateFunction extends Function {
     }
 
     @Override
-    public AggregateFunctionAttribute toAttribute() {
-        if (lazyAttribute == null) {
-            // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
-            lazyAttribute = new AggregateFunctionAttribute(source(), name(), dataType(), id(), functionId());
-        }
-        return lazyAttribute;
-    }
-
-    @Override
     protected Pipe makePipe() {
         // unresolved AggNameInput (should always get replaced by the folder)
-        return new AggNameInput(source(), this, name());
+        return new AggNameInput(source(), this, sourceText());
     }
 
     @Override
@@ -71,22 +60,22 @@ public abstract class AggregateFunction extends Function {
     }
 
     @Override
+    public int hashCode() {
+        return Objects.hash(field(), parameters());
+    }
+
+    @Override
     public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
-            return false;
+        if (super.equals(obj) == true) {
+            AggregateFunction other = (AggregateFunction) obj;
+            return Objects.equals(other.field(), field()) 
+                    && Objects.equals(other.parameters(), parameters());
         }
-        AggregateFunction other = (AggregateFunction) obj;
-        return Objects.equals(other.field(), field())
-            && Objects.equals(other.parameters(), parameters());
+        return false;
     }
 
     @Override
     protected TypeResolution resolveType() {
         return TypeResolutions.isExact(field, sourceText(), Expressions.ParamOrdinal.DEFAULT);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(field(), parameters());
     }
 }

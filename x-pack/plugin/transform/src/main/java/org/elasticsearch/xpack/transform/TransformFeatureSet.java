@@ -48,14 +48,14 @@ import java.util.Map;
 import java.util.Objects;
 
 
-public class DataFrameFeatureSet implements XPackFeatureSet {
+public class TransformFeatureSet implements XPackFeatureSet {
 
     private final boolean enabled;
     private final Client client;
     private final XPackLicenseState licenseState;
     private final ClusterService clusterService;
 
-    private static final Logger logger = LogManager.getLogger(DataFrameFeatureSet.class);
+    private static final Logger logger = LogManager.getLogger(TransformFeatureSet.class);
 
     public static final String[] PROVIDED_STATS = new String[] {
         TransformIndexerStats.NUM_PAGES.getPreferredName(),
@@ -71,7 +71,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
     };
 
     @Inject
-    public DataFrameFeatureSet(Settings settings, ClusterService clusterService, Client client, @Nullable XPackLicenseState licenseState) {
+    public TransformFeatureSet(Settings settings, ClusterService clusterService, Client client, @Nullable XPackLicenseState licenseState) {
         this.enabled = XPackSettings.TRANSFORM_ENABLED.get(settings);
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);

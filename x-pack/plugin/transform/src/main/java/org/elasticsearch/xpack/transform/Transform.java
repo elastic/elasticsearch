@@ -117,7 +117,7 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
             return modules;
         }
 
-        modules.add(b -> XPackPlugin.bindFeatureSet(b, DataFrameFeatureSet.class));
+        modules.add(b -> XPackPlugin.bindFeatureSet(b, TransformFeatureSet.class));
         return modules;
     }
 

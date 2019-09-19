@@ -33,13 +33,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.xpack.transform.DataFrameFeatureSet.PROVIDED_STATS;
+import static org.elasticsearch.xpack.transform.TransformFeatureSet.PROVIDED_STATS;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class DataFrameFeatureSetTests extends ESTestCase {
+public class TransformFeatureSetTests extends ESTestCase {
     private XPackLicenseState licenseState;
 
     @Before
@@ -48,7 +48,7 @@ public class DataFrameFeatureSetTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        DataFrameFeatureSet featureSet = new DataFrameFeatureSet(Settings.EMPTY,
+        TransformFeatureSet featureSet = new TransformFeatureSet(Settings.EMPTY,
             mock(ClusterService.class),
             mock(Client.class),
             licenseState);
@@ -61,7 +61,7 @@ public class DataFrameFeatureSetTests extends ESTestCase {
         boolean enabled = randomBoolean();
         Settings.Builder settings = Settings.builder();
         settings.put("xpack.data_frame.enabled", enabled);
-        DataFrameFeatureSet featureSet = new DataFrameFeatureSet(settings.build(),
+        TransformFeatureSet featureSet = new TransformFeatureSet(settings.build(),
             mock(ClusterService.class),
             mock(Client.class),
             licenseState);
@@ -69,7 +69,7 @@ public class DataFrameFeatureSetTests extends ESTestCase {
     }
 
     public void testEnabledDefault() {
-        DataFrameFeatureSet featureSet = new DataFrameFeatureSet(Settings.EMPTY,
+        TransformFeatureSet featureSet = new TransformFeatureSet(Settings.EMPTY,
             mock(ClusterService.class),
             mock(Client.class),
             licenseState);
@@ -81,7 +81,7 @@ public class DataFrameFeatureSetTests extends ESTestCase {
         SearchResponse withEmptyAggs = mock(SearchResponse.class);
         when(withEmptyAggs.getAggregations()).thenReturn(emptyAggs);
 
-        assertThat(DataFrameFeatureSet.parseSearchAggs(withEmptyAggs), equalTo(new TransformIndexerStats()));
+        assertThat(TransformFeatureSet.parseSearchAggs(withEmptyAggs), equalTo(new TransformIndexerStats()));
 
         TransformIndexerStats expectedStats = new TransformIndexerStats(
             1,  // numPages
@@ -104,7 +104,7 @@ public class DataFrameFeatureSetTests extends ESTestCase {
         SearchResponse withAggs = mock(SearchResponse.class);
         when(withAggs.getAggregations()).thenReturn(aggregations);
 
-        assertThat(DataFrameFeatureSet.parseSearchAggs(withAggs), equalTo(expectedStats));
+        assertThat(TransformFeatureSet.parseSearchAggs(withAggs), equalTo(expectedStats));
     }
 
     private static Aggregation buildAgg(String name, double value) {
@@ -117,8 +117,8 @@ public class DataFrameFeatureSetTests extends ESTestCase {
     public void testUsageDisabled() throws IOException, InterruptedException, ExecutionException {
         when(licenseState.isTransformAllowed()).thenReturn(true);
         Settings.Builder settings = Settings.builder();
-        settings.put("xpack.data_frame.enabled", false);
-        DataFrameFeatureSet featureSet = new DataFrameFeatureSet(settings.build(),
+        settings.put("xpack.transform.enabled", false);
+        TransformFeatureSet featureSet = new TransformFeatureSet(settings.build(),
             mock(ClusterService.class),
             mock(Client.class),
             licenseState);

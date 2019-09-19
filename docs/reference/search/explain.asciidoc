@@ -7,6 +7,11 @@ query.
 [source,console]
 --------------------------------------------------
 GET /twitter/_explain/0
+{
+      "query" : {
+        "match" : { "message" : "elasticsearch" }
+      }
+}
 --------------------------------------------------
 // TEST[setup:twitter]
 

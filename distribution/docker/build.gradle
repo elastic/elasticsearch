@@ -23,8 +23,8 @@ ext.expansions = { oss, local ->
     'build_date'          : project.buildDate,
     'elasticsearch'       : elasticsearch,
     'git_revision'        : project.gitRevision,
-    'jdkUrl'              : 'https://download.java.net/java/GA/jdk13/5b8a42f3905b406298b72d750b6919f6/33/GPL/openjdk-13_linux-x64_bin.tar.gz',
-    'jdkVersion'          : '13',
+    'jdkUrl'              : 'https://github.com/AdoptOpenJDK/openjdk13-binaries/releases/download/jdk-13%2B33/OpenJDK13U-jdk_x64_linux_hotspot_13_33.tar.gz',
+    'jdkVersion'          : '13+33',
     'license'             : oss ? 'Apache-2.0' : 'Elastic-License',
     'source_elasticsearch': local ? "COPY $elasticsearch /opt/" : "RUN cd /opt && curl --retry 8 -s -L -O https://artifacts.elastic.co/downloads/elasticsearch/${elasticsearch} && cd -",
     'version'             : VersionProperties.elasticsearch

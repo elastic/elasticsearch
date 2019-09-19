@@ -60,12 +60,40 @@ public class TransformFeatureSetTests extends ESTestCase {
     public void testEnabledSetting() {
         boolean enabled = randomBoolean();
         Settings.Builder settings = Settings.builder();
+        settings.put("xpack.transform.enabled", enabled);
+        TransformFeatureSet featureSet = new TransformFeatureSet(settings.build(),
+            mock(ClusterService.class),
+            mock(Client.class),
+            licenseState);
+        assertThat(featureSet.enabled(), is(enabled));
+    }
+
+    public void testEnabledSettingFallback() {
+        boolean enabled = randomBoolean();
+        Settings.Builder settings = Settings.builder();
+        // use the deprecated setting
         settings.put("xpack.data_frame.enabled", enabled);
         TransformFeatureSet featureSet = new TransformFeatureSet(settings.build(),
             mock(ClusterService.class),
             mock(Client.class),
             licenseState);
         assertThat(featureSet.enabled(), is(enabled));
+        assertWarnings("[xpack.data_frame.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                + "See the breaking changes documentation for the next major version.");
+    }
+
+    public void testEnabledSettingFallbackMix() {
+        Settings.Builder settings = Settings.builder();
+        // use the deprecated setting
+        settings.put("xpack.data_frame.enabled", false);
+        settings.put("xpack.transform.enabled", true);
+        TransformFeatureSet featureSet = new TransformFeatureSet(settings.build(),
+            mock(ClusterService.class),
+            mock(Client.class),
+            licenseState);
+        assertThat(featureSet.enabled(), is(true));
+        assertWarnings("[xpack.data_frame.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                + "See the breaking changes documentation for the next major version.");
     }
 
     public void testEnabledDefault() {

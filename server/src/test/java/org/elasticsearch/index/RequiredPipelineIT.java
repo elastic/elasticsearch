@@ -25,7 +25,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;

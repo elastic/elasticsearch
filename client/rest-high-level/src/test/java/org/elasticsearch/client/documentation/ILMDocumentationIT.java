@@ -800,8 +800,10 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
         //////// GET
         // tag::slm-get-snapshot-lifecycle-policy
+        GetSnapshotLifecyclePolicyRequest getAllRequest =
+            new GetSnapshotLifecyclePolicyRequest(); // <1>
         GetSnapshotLifecyclePolicyRequest getRequest =
-            new GetSnapshotLifecyclePolicyRequest("policy_id");
+            new GetSnapshotLifecyclePolicyRequest("policy_id"); // <2>
         // end::slm-get-snapshot-lifecycle-policy
 
         // tag::slm-get-snapshot-lifecycle-policy-execute
@@ -818,7 +820,6 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             public void onResponse(GetSnapshotLifecyclePolicyResponse resp) {
                 Map<String, SnapshotLifecyclePolicyMetadata> policies =
                     resp.getPolicies(); // <1>
-                assertThat(policies.size(), equalTo(1));
             }
 
             @Override
@@ -838,7 +839,18 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         SnapshotLifecyclePolicyMetadata policyMeta =
             getResponse.getPolicies().get("policy_id"); // <1>
         long policyVersion = policyMeta.getVersion();
+        long policyModificationDate = policyMeta.getModifiedDate();
+        long nextPolicyExecutionDate = policyMeta.getNextExecution();
+        SnapshotInvocationRecord lastSuccess = policyMeta.getLastSuccess();
+        SnapshotInvocationRecord lastFailure = policyMeta.getLastFailure();
+        SnapshotLifecyclePolicyMetadata.SnapshotInProgress inProgress =
+            policyMeta.getSnapshotInProgress();
         SnapshotLifecyclePolicy retrievedPolicy = policyMeta.getPolicy(); // <2>
+        String id = retrievedPolicy.getId();
+        String snapshotNameFormat = retrievedPolicy.getName();
+        String repositoryName = retrievedPolicy.getRepository();
+        String schedule = retrievedPolicy.getSchedule();
+        Map<String, Object> snapshotConfiguration = retrievedPolicy.getConfig();
         // end::slm-get-snapshot-lifecycle-policy-response
 
         assertNotNull(policyMeta);

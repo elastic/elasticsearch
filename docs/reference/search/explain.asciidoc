@@ -19,7 +19,7 @@ GET /twitter/_explain/0
 [[sample-api-request]]
 ==== {api-request-title}
 
-`GET /<index>/_explain/<id>` +
+`GET /<index>/_explain/<id>`
 `POST /<index>/_explain/<id>`
 
 [[sample-api-desc]]

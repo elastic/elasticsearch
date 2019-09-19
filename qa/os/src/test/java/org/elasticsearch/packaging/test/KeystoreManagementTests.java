@@ -198,11 +198,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
     public void test50KeystorePasswordFromFile() throws Exception {
         String password = "keystorepass";
         Path esKeystorePassphraseFile = installation.config.resolve("eks");
-        boolean isWindows = distribution.platform.equals(Distribution.Platform.WINDOWS);
-        Path esEnv = isWindows
-            ? installation.bin.resolve("elasticsearch-env.bat")
-            : installation.bin.resolve("elasticsearch-env");
-        byte[] originalEnvFile = Files.readAllBytes(esEnv);
 
         rmKeystoreIfExists();
         createKeystore();
@@ -210,78 +205,45 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         assertPasswordProtectedKeystore();
 
-        try {
-            if (isWindows) {
-                Files.write(esEnv,
-                    (LINE_SEP + "set ES_KEYSTORE_PASSPHRASE_FILE=C:" + esKeystorePassphraseFile.toString() + LINE_SEP)
-                        .getBytes(StandardCharsets.UTF_8),
-                    StandardOpenOption.APPEND);
-            } else {
-                assert distribution.platform == Distribution.Platform.LINUX || distribution.platform == Distribution.Platform.DARWIN;
-                Files.write(esEnv,
-                    ("ES_KEYSTORE_PASSPHRASE_FILE=" + esKeystorePassphraseFile.toString() + LINE_SEP)
-                        .getBytes(StandardCharsets.UTF_8),
-                    StandardOpenOption.APPEND);
-            }
-
-            Files.createFile(esKeystorePassphraseFile);
-            Files.write(esKeystorePassphraseFile,
-                (password + LINE_SEP).getBytes(StandardCharsets.UTF_8),
-                StandardOpenOption.WRITE);
-
-            startElasticsearch();
-            ServerUtils.runElasticsearchTests();
-            stopElasticsearch();
-        } finally {
-            Files.write(esEnv, originalEnvFile);
-            rm(esKeystorePassphraseFile);
+        sh.getEnv().put("ES_KEYSTORE_PASSPHRASE_FILE", esKeystorePassphraseFile.toString());
+        if (distribution.isPackage()) {
+            sh.run("sudo systemctl set-environment ES_KEYSTORE_PASSPHRASE_FILE=$ES_KEYSTORE_PASSPHRASE_FILE");
         }
+
+        Files.createFile(esKeystorePassphraseFile);
+        Files.write(esKeystorePassphraseFile,
+            (password + LINE_SEP).getBytes(StandardCharsets.UTF_8),
+            StandardOpenOption.WRITE);
+
+        startElasticsearch();
+        ServerUtils.runElasticsearchTests();
+        stopElasticsearch();
     }
 
     public void test51WrongKeystorePasswordFromFile() throws Exception {
         Path esKeystorePassphraseFile = installation.config.resolve("eks");
-        boolean isWindows = distribution.platform.equals(Distribution.Platform.WINDOWS);
-        Path esEnv = isWindows
-            ? installation.bin.resolve("elasticsearch-env.bat")
-            : installation.bin.resolve("elasticsearch-env");
-        byte[] originalEnvFile = Files.readAllBytes(esEnv);
 
         assertPasswordProtectedKeystore();
 
-        try {
-            if (isWindows) {
-                Files.write(esEnv,
-                    (LINE_SEP + "set ES_KEYSTORE_PASSPHRASE_FILE=C:" + esKeystorePassphraseFile.toString() + LINE_SEP)
-                        .getBytes(StandardCharsets.UTF_8),
-                    StandardOpenOption.APPEND);
-            } else {
-                assert distribution.platform == Distribution.Platform.LINUX || distribution.platform == Distribution.Platform.DARWIN;
-                Files.write(esEnv,
-                    ("ES_KEYSTORE_PASSPHRASE_FILE=" + esKeystorePassphraseFile.toString() + LINE_SEP)
-                        .getBytes(StandardCharsets.UTF_8),
-                    StandardOpenOption.APPEND);
-            }
+        sh.getEnv().put("ES_KEYSTORE_PASSPHRASE_FILE", esKeystorePassphraseFile.toString());
+        if (distribution.isPackage()) {
+            sh.run("sudo systemctl set-environment ES_KEYSTORE_PASSPHRASE_FILE=$ES_KEYSTORE_PASSPHRASE_FILE");
+        }
 
-            Files.createFile(esKeystorePassphraseFile);
-            Files.write(esKeystorePassphraseFile,
-                ("wrongpassword" + LINE_SEP).getBytes(StandardCharsets.UTF_8),
-                StandardOpenOption.WRITE);
-
-            assertElasticsearchFailsToStart();
-        } finally {
-            Files.write(esEnv, originalEnvFile);
+        if (Files.exists(esKeystorePassphraseFile)) {
             rm(esKeystorePassphraseFile);
         }
+        Files.createFile(esKeystorePassphraseFile);
+        Files.write(esKeystorePassphraseFile,
+            ("wrongpassword" + LINE_SEP).getBytes(StandardCharsets.UTF_8),
+            StandardOpenOption.WRITE);
+
+        assertElasticsearchFailsToStart();
     }
 
     public void test52KeystorePasswordFromFileWithSpecialCharacters() throws Exception {
         String password = "!@#$%^&*()|\\<>/?";
         Path esKeystorePassphraseFile = installation.config.resolve("eks");
-        boolean isWindows = distribution.platform.equals(Distribution.Platform.WINDOWS);
-        Path esEnv = isWindows
-            ? installation.bin.resolve("elasticsearch-env.bat")
-            : installation.bin.resolve("elasticsearch-env");
-        byte[] originalEnvFile = Files.readAllBytes(esEnv);
 
         rmKeystoreIfExists();
         createKeystore();
@@ -289,33 +251,24 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         assertPasswordProtectedKeystore();
 
-        try {
-            if (isWindows) {
-                Files.write(esEnv,
-                    (LINE_SEP + "set ES_KEYSTORE_PASSPHRASE_FILE=C:" + esKeystorePassphraseFile.toString() + LINE_SEP)
-                        .getBytes(StandardCharsets.UTF_8),
-                    StandardOpenOption.APPEND);
-            } else {
-                assert distribution.platform == Distribution.Platform.LINUX || distribution.platform == Distribution.Platform.DARWIN;
-                Files.write(esEnv,
-                    ("ES_KEYSTORE_PASSPHRASE_FILE=" + esKeystorePassphraseFile.toString() + LINE_SEP)
-                        .getBytes(StandardCharsets.UTF_8),
-                    StandardOpenOption.APPEND);
-            }
+        sh.getEnv().put("ES_KEYSTORE_PASSPHRASE_FILE", esKeystorePassphraseFile.toString());
+        if (distribution.isPackage()) {
+            sh.run("sudo systemctl set-environment ES_KEYSTORE_PASSPHRASE_FILE=$ES_KEYSTORE_PASSPHRASE_FILE");
+        }
 
-            Files.createFile(esKeystorePassphraseFile);
-            Files.write(esKeystorePassphraseFile,
-                (password + LINE_SEP).getBytes(StandardCharsets.UTF_8),
-                StandardOpenOption.WRITE);
-
-            startElasticsearch();
-            ServerUtils.runElasticsearchTests();
-            stopElasticsearch();
-        } finally {
-            Files.write(esEnv, originalEnvFile);
+        if (Files.exists(esKeystorePassphraseFile)) {
             rm(esKeystorePassphraseFile);
         }
+        Files.createFile(esKeystorePassphraseFile);
+        Files.write(esKeystorePassphraseFile,
+            (password + LINE_SEP).getBytes(StandardCharsets.UTF_8),
+            StandardOpenOption.WRITE);
+
+        startElasticsearch();
+        ServerUtils.runElasticsearchTests();
+        stopElasticsearch();
     }
+
     private void createKeystore() throws Exception {
         Path keystore = installation.config("elasticsearch.keystore");
         final Installation.Executables bin = installation.executables();

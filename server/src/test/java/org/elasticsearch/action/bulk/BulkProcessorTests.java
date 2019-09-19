@@ -36,6 +36,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
 import java.util.concurrent.CountDownLatch;
@@ -55,6 +56,9 @@ public class BulkProcessorTests extends ESTestCase {
     private ExecutorService userExec = Executors.newFixedThreadPool(1);
     private ScheduledThreadPoolExecutor scheduleThreadPoolExecutor = Scheduler.initScheduler(Settings.EMPTY);
 
+    @Rule
+    public ExpectedException exception = ExpectedException.none();
+    
     @Before
     public void startThreadPool() {
         threadPool = new TestThreadPool("BulkProcessorTests");
@@ -69,17 +73,14 @@ public class BulkProcessorTests extends ESTestCase {
     }
 
     public void testBulkProcessorThreadBlocked() throws Exception {
+        exception.expect(TimeoutException.class);
         Future<?> future = buildAndExecuteBulkProcessor(initScheduler(1));
-        try {
-            future.get(8, TimeUnit.SECONDS);// thread has been blocked, the IndexRequest cannot be successfully executed.
-        } catch (Exception e) {
-            ExpectedException.none().expect(TimeoutException.class);
-        }
+        future.get(8, TimeUnit.SECONDS);// thread has been blocked, the IndexRequest cannot be successfully executed.
     }
 
     public void testBulkProcessorThread() throws Exception {
         Future<?> future = buildAndExecuteBulkProcessor(initScheduler(2));
-         assertNull(future.get(8, TimeUnit.SECONDS));//the IndexRequest executed successfully.
+         assertNull(future.get(4, TimeUnit.SECONDS));//the IndexRequest executed successfully.
     }
 
     private Scheduler initScheduler(int corePoolSize) {
@@ -92,7 +93,7 @@ public class BulkProcessorTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         final int concurrentRequests = 0;
         final int bulkActions = 3;
-        final TimeValue flushInterval = TimeValue.timeValueMillis(1500L);
+        final TimeValue flushInterval = TimeValue.timeValueMillis(1000L);
         final BackoffPolicy backoff = BackoffPolicy.constantBackoff(TimeValue.timeValueMillis(100L), 1);
         final ByteSizeValue bulkSize = new ByteSizeValue(5, ByteSizeUnit.MB);
         BulkProcessor bulkProcessor = new BulkProcessor(bulkAsync(latch), backoff, emptyListener(),
@@ -103,7 +104,7 @@ public class BulkProcessorTests extends ESTestCase {
                 bulkProcessor.add(new IndexRequest());
                 bulkProcessor.add(new IndexRequest());// Step-1: execute `BulkRequestHandler` and locked 'BulkProcessor'
             });
-        Thread.sleep(3000L);// Step-2: wait and ensure IntervalFlush is called
+        Thread.sleep(2000L);// Step-2: wait and ensure IntervalFlush is called
         latch.countDown();  // Due to step-1, the scheduling thread state is BLOCKED (on object monitor)
         return future;
     }

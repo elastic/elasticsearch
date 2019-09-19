@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
+import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 
@@ -109,13 +110,13 @@ public class TransformFeatureSet implements XPackFeatureSet {
         }
 
         PersistentTasksCustomMetaData taskMetadata = PersistentTasksCustomMetaData.getPersistentTasksCustomMetaData(clusterService.state());
-        Collection<PersistentTasksCustomMetaData.PersistentTask<?>> dataFrameTasks = taskMetadata == null ?
+        Collection<PersistentTasksCustomMetaData.PersistentTask<?>> transformTasks = taskMetadata == null ?
             Collections.emptyList() :
-            taskMetadata.findTasks(Transform.NAME, (t) -> true);
-        final int taskCount = dataFrameTasks.size();
+            taskMetadata.findTasks(TransformTaskParams.NAME, (t) -> true);
+        final int taskCount = transformTasks.size();
         final Map<String, Long> transformsCountByState = new HashMap<>();
-        for(PersistentTasksCustomMetaData.PersistentTask<?> dataFrameTask : dataFrameTasks) {
-            TransformState state = (TransformState)dataFrameTask.getState();
+        for(PersistentTasksCustomMetaData.PersistentTask<?> transformTask : transformTasks) {
+            TransformState state = (TransformState)transformTask.getState();
             transformsCountByState.merge(state.getTaskState().value(), 1L, Long::sum);
         }
 

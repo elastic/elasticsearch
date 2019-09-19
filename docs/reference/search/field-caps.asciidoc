@@ -9,32 +9,33 @@ GET _field_caps?fields=rating
 --------------------------------------------------
 
 
-[[sample-api-request]]
+[[search-field-caps-api-request]]
 ==== {api-request-title}
 
 `GET /_field_caps` 
+
 `POST /_field_caps` 
+
 `GET /<index>/_field_caps` 
+
 `POST /<index>/_field_caps`
 
 
-[[sample-api-desc]]
+[[search-field-caps-api-desc]]
 ==== {api-description-title}
 
 
-The Field Capabilities API returns the information about the capabilities of 
+The field capabilities API returns the information about the capabilities of 
 fields among multiple indices.
 
-This API executes on all indices by default.
 
-
-[[sample-api-path-params]]
+[[search-field-caps-api-path-params]]
 ==== {api-path-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
 
 
-[[sample-api-query-params]]
+[[search-field-caps-api-query-params]]
 ==== {api-query-parms-title}
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
@@ -54,7 +55,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
   Defaults to `false`.
 
 
-[[sample-api-response-body]]
+[[search-field-caps-api-response-body]]
 ==== {api-response-body-title}
   
 The field capabilities API returns the following information per field:
@@ -79,7 +80,7 @@ The field capabilities API returns the following information per field:
   indices have the same definition for the field.
 
 
-[[sample-api-example]]
+[[search-field-caps-api-example]]
 ==== {api-examples-title}
 
 
@@ -147,8 +148,8 @@ adding a parameter called `include_unmapped` in the request:
 GET _field_caps?fields=rating,title&include_unmapped
 --------------------------------------------------
 
-In which case the response will contain an entry for each field that is present in
-some indices but not all:
+In which case the response will contain an entry for each field that is present 
+in some indices but not all:
 
 [source,console-result]
 --------------------------------------------------

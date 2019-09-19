@@ -958,8 +958,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                 barrier.await();
                                 for (int j = 0; j < numGetCalls; j++) {
                                     try {
-                                        DiscoveryNode node = connection.getAnyConnectedNode();
-                                        assertNotNull(node);
+                                        Transport.Connection lowLevelConnection = connection.getConnection();
+                                        assertNotNull(lowLevelConnection);
                                     } catch (NoSuchRemoteClusterException e) {
                                         // ignore, this is an expected exception
                                     }
@@ -1118,13 +1118,13 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     for (int i = 0; i < 10; i++) {
                         // we don't use the transport service connection manager so we will get a proxy connection for the local node
                         Transport.Connection remoteConnection = connection.getConnection(service.getLocalNode());
-                        assertThat(remoteConnection, instanceOf(RemoteClusterConnection.ProxyConnection.class));
+                        assertThat(remoteConnection, instanceOf(RemoteConnectionManager.ProxyConnection.class));
                         assertThat(remoteConnection.getNode(), equalTo(service.getLocalNode()));
                     }
                     for (int i = 0; i < 10; i++) {
                         //always a proxy connection as the target node is not connected
                         Transport.Connection remoteConnection = connection.getConnection(disconnectedNode);
-                        assertThat(remoteConnection, instanceOf(RemoteClusterConnection.ProxyConnection.class));
+                        assertThat(remoteConnection, instanceOf(RemoteConnectionManager.ProxyConnection.class));
                         assertThat(remoteConnection.getNode(), sameInstance(disconnectedNode));
                     }
                 }

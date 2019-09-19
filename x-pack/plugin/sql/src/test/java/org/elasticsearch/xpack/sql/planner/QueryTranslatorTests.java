@@ -1271,8 +1271,8 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testGroupByConstantScalar() {
-        // FIXME: same query with order by PI() * int still fails
-        PhysicalPlan p = optimizeAndPlan("SELECT PI() * int FROM test GROUP BY PI() * int LIMIT 10");
+        PhysicalPlan p = optimizeAndPlan("SELECT PI() * int FROM test WHERE PI() * int > 5.0 GROUP BY PI() * int " +
+            "ORDER BY PI() * int LIMIT 10");
         assertEquals(EsQueryExec.class, p.getClass());
         assertEquals(1, p.output().size());
         assertEquals("PI() * int", p.output().get(0).qualifiedName());
@@ -1365,6 +1365,22 @@ public class QueryTranslatorTests extends ESTestCase {
                     "\"missing_bucket\":true,\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}")
             );
         }
+    }
+
+    public void testOrderByWithCastWithMissingRefs() {
+        PhysicalPlan p = optimizeAndPlan("SELECT keyword FROM test ORDER BY date::TIME, int LIMIT 5");
+        assertEquals(EsQueryExec.class, p.getClass());
+        assertEquals(1, p.output().size());
+        assertEquals("test.keyword", p.output().get(0).qualifiedName());
+        assertEquals(DataType.KEYWORD, p.output().get(0).dataType());
+        assertThat(
+            ((EsQueryExec) p).queryContainer().toString()
+                .replaceAll("\\s+", ""),
+            endsWith("\"sort\":[{\"_script\":{\"script\":{\"source\":\"InternalSqlScriptUtils.nullSafeSortString(InternalSqlScriptUtils" +
+                ".cast(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1))\",\"lang\":\"painless\"," +
+                "\"params\":{\"v0\":\"date\",\"v1\":\"TIME\"}},\"type\":\"string\",\"order\":\"asc\"}},{\"int\":{\"order\":\"asc\"," +
+                "\"missing\":\"_last\",\"unmapped_type\":\"integer\"}}]}")
+        );
     }
 
     public void testTopHitsAggregationWithOneArg() {

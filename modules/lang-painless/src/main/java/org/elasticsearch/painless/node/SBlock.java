@@ -36,7 +36,7 @@ import static java.util.Collections.emptyList;
  */
 public final class SBlock extends AStatement {
 
-    private final List<AStatement> statements;
+    final List<AStatement> statements;
 
     public SBlock(Location location, List<AStatement> statements) {
         super(location);

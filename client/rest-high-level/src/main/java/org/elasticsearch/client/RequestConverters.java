@@ -484,6 +484,7 @@ final class RequestConverters {
         if (multiSearchTemplateRequest.maxConcurrentSearchRequests() != MultiSearchRequest.MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT) {
             params.putParam("max_concurrent_searches", Integer.toString(multiSearchTemplateRequest.maxConcurrentSearchRequests()));
         }
+        request.addParameters(params.asMap());
 
         XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
         byte[] source = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, xContent);
@@ -497,6 +498,9 @@ final class RequestConverters {
         params.withRouting(countRequest.routing());
         params.withPreference(countRequest.preference());
         params.withIndicesOptions(countRequest.indicesOptions());
+        if (countRequest.terminateAfter() != 0){
+            params.withTerminateAfter(countRequest.terminateAfter());
+        }
         request.addParameters(params.asMap());
         request.setEntity(createEntity(countRequest.source(), REQUEST_BODY_CONTENT_TYPE));
         return request;
@@ -907,6 +911,10 @@ final class RequestConverters {
                 return putParam("stored_fields", String.join(",", storedFields));
             }
             return this;
+        }
+
+        Params withTerminateAfter(int terminateAfter){
+            return putParam("terminate_after", String.valueOf(terminateAfter));
         }
 
         Params withTimeout(TimeValue timeout) {

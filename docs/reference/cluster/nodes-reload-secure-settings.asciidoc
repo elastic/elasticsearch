@@ -3,12 +3,11 @@
 
 The cluster nodes reload secure settings API is used to re-load the keystore on each node.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _nodes/reload_secure_settings
 POST _nodes/nodeId1,nodeId2/reload_secure_settings
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:node]
 // TEST[s/nodeId1,nodeId2/*/]
 

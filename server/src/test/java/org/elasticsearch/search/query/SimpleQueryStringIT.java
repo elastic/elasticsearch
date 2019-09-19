@@ -567,7 +567,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () ->
                 client().prepareSearch("test").setQuery(
                         simpleQueryStringQuery("foo123").lenient(false)).get());
-        assertThat(e.getDetailedMessage(), containsString("NumberFormatException[For input string: \"foo123\"]"));
+        assertThat(e.getDetailedMessage(), containsString("NumberFormatException: For input string: \"foo123\""));
     }
 
     public void testLimitOnExpandedFields() throws Exception {

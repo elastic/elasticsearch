@@ -70,6 +70,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -1115,6 +1116,44 @@ public class IngestServiceTests extends ESTestCase {
         verify(failureHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(null);
         verify(dropHandler, times(1)).accept(indexRequest);
+    }
+
+    public void testIngestClusterStateListeners_orderOfExecution() {
+        final AtomicInteger counter = new AtomicInteger(0);
+
+        // Ingest cluster state listener state should be invoked first:
+        Consumer<ClusterState> ingestClusterStateListener = clusterState -> {
+            assertThat(counter.compareAndSet(0, 1), is(true));
+        };
+
+        // Processor factory should be invoked secondly after ingest cluster state listener:
+        IngestPlugin testPlugin = new IngestPlugin() {
+            @Override
+            public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+                return Collections.singletonMap("test", (factories, tag, config) -> {
+                    assertThat(counter.compareAndSet(1, 2), is(true));
+                    return new FakeProcessor("test", tag, ingestDocument -> {});
+                });
+            }
+        };
+
+        // Create ingest service:
+        ThreadPool tp = mock(ThreadPool.class);
+        Client client = mock(Client.class);
+        IngestService ingestService =
+            new IngestService(mock(ClusterService.class), tp, null, null, null, List.of(testPlugin), client);
+        ingestService.addIngestClusterStateListener(ingestClusterStateListener);
+
+        // Create pipeline and apply the resulting cluster state, which should update the counter in the right order:
+        PutPipelineRequest putRequest = new PutPipelineRequest("_id",
+            new BytesArray("{\"processors\": [{\"test\" : {}}]}"), XContentType.JSON);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        ClusterState previousClusterState = clusterState;
+        clusterState = IngestService.innerPut(putRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+        // Sanity check that counter has been updated twice:
+        assertThat(counter.get(), equalTo(2));
     }
 
     private IngestDocument eqIndexTypeId(final Map<String, Object> source) {

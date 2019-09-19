@@ -34,11 +34,10 @@ For more information, see {stack-ov}/security-privileges.html[Security Privilege
 
 The following example gets the {ilm-init} plugin status.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ilm/status
 --------------------------------------------------
-// CONSOLE
 
 If the request succeeds, the body of the response shows the operation mode:
 

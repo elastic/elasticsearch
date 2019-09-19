@@ -27,6 +27,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -34,7 +35,6 @@ import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -239,28 +239,28 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
     }
 
     @Override
-    protected final ArrayValuesSourceAggregatorFactory<VS> doBuild(SearchContext context, AggregatorFactory parent,
-                                                                      AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        Map<String, ValuesSourceConfig<VS>> configs = resolveConfig(context);
-        ArrayValuesSourceAggregatorFactory<VS> factory = innerBuild(context, configs, parent, subFactoriesBuilder);
+    protected final ArrayValuesSourceAggregatorFactory<VS> doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
+                                                                   Builder subFactoriesBuilder) throws IOException {
+        Map<String, ValuesSourceConfig<VS>> configs = resolveConfig(queryShardContext);
+        ArrayValuesSourceAggregatorFactory<VS> factory = innerBuild(queryShardContext, configs, parent, subFactoriesBuilder);
         return factory;
     }
 
-    protected Map<String, ValuesSourceConfig<VS>> resolveConfig(SearchContext context) {
+    protected Map<String, ValuesSourceConfig<VS>> resolveConfig(QueryShardContext queryShardContext) {
         HashMap<String, ValuesSourceConfig<VS>> configs = new HashMap<>();
         for (String field : fields) {
-            ValuesSourceConfig<VS> config = config(context, field, null);
+            ValuesSourceConfig<VS> config = config(queryShardContext, field, null);
             configs.put(field, config);
         }
         return configs;
     }
 
-    protected abstract ArrayValuesSourceAggregatorFactory<VS> innerBuild(SearchContext context,
+    protected abstract ArrayValuesSourceAggregatorFactory<VS> innerBuild(QueryShardContext queryShardContext,
                                                                 Map<String, ValuesSourceConfig<VS>> configs,
                                                                 AggregatorFactory parent,
                                                                 AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
 
-    public ValuesSourceConfig<VS> config(SearchContext context, String field, Script script) {
+    public ValuesSourceConfig<VS> config(QueryShardContext queryShardContext, String field, Script script) {
 
         ValueType valueType = this.valueType != null ? this.valueType : targetValueType;
 
@@ -282,7 +282,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
             return config.format(resolveFormat(format, valueType));
         }
 
-        MappedFieldType fieldType = context.smartNameFieldType(field);
+        MappedFieldType fieldType = queryShardContext.getMapperService().fullName(field);
         if (fieldType == null) {
             ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : this.valuesSourceType;
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
@@ -291,7 +291,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<VS extends ValuesSourc
             return config.unmapped(true);
         }
 
-        IndexFieldData<?> indexFieldData = context.getForField(fieldType);
+        IndexFieldData<?> indexFieldData = queryShardContext.getForField(fieldType);
 
         ValuesSourceConfig<VS> config;
         if (valuesSourceType == ValuesSourceType.ANY) {

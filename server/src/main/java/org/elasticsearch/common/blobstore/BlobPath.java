@@ -22,9 +22,11 @@ package org.elasticsearch.common.blobstore;
 import org.elasticsearch.common.Nullable;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * The list of paths where a blob can reside.  The contents of the paths are dependent upon the implementation of {@link BlobContainer}.
@@ -58,7 +60,7 @@ public class BlobPath implements Iterable<String> {
 
     public BlobPath add(String path) {
         List<String> paths = new ArrayList<>(this.paths);
-        paths.add(path);
+        paths.addAll(normalizePath(path));
         return new BlobPath(Collections.unmodifiableList(paths));
     }
 
@@ -91,5 +93,18 @@ public class BlobPath implements Iterable<String> {
             sb.append('[').append(path).append(']');
         }
         return sb.toString();
+    }
+
+    private static List<String> normalizePath(String path) {
+        final String[] res =
+            Arrays.stream(path.split(SEPARATOR)).filter(Predicate.not(String::isEmpty)).toArray(String[]::new);
+        if (path.startsWith(SEPARATOR)) {
+            if (res.length == 0) {
+                return Collections.singletonList(SEPARATOR);
+            } else {
+                res[0] = SEPARATOR + res[0];
+            }
+        }
+        return Arrays.asList(res);
     }
 }

@@ -38,4 +38,23 @@ public class BlobPathTests extends ESTestCase {
         path = path.add("d/");
         assertThat(path.buildAsString(), is("a/b/c/d/"));
     }
+
+    public void testNormalizesPath() {
+        BlobPath path = new BlobPath();
+        path = path.add("foo/");
+        path = path.add("bar");
+        assertThat(path.buildAsString(), is("foo/bar/"));
+
+        path = new BlobPath();
+        path = path.add("/");
+        assertThat(path.buildAsString(), is("/"));
+
+        path = new BlobPath();
+        path = path.add("foo//bar");
+        assertThat(path.buildAsString(), is("foo/bar/"));
+
+        path = new BlobPath();
+        path = path.add("/foo");
+        assertThat(path.buildAsString(), is("/foo/"));
+    }
 }

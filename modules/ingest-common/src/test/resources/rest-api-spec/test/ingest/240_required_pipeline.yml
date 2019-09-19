@@ -6,7 +6,7 @@ teardown:
         ignore: 404
 
 ---
-"Test index with default pipeline":
+"Test index with required pipeline":
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"
@@ -165,25 +165,11 @@ teardown:
   - match: { docs.5._source.bytes_target_field: 3072 }
   - match: { docs.5._source.ran_script: true }
 
-  # explicit no required pipeline
+  # bad request, request pipeline can not be specified
   - do:
+      catch: /illegal_argument_exception.*request pipeline \[pipeline\] can not override required pipeline \[my_pipeline\]/
       index:
         index: test
         id: 9
-        pipeline: "_none"
-        body: {bytes_source_field: "1kb"}
-
-  - do:
-      get:
-        index: test
-        id: 9
-  - match: { _source.bytes_source_field: "1kb" }
-  - is_false: _source.bytes_target_field
-  # bad request
-  - do:
-      catch:  bad_request
-      index:
-        index: test
-        id: 10
-        pipeline: ""
+        pipeline: "pipeline"
         body: {bytes_source_field: "1kb"}

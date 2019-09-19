@@ -49,7 +49,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
                 .get();
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
 
             ValuesSourceConfig<ValuesSource.Bytes> config = ValuesSourceConfig.resolve(
                     context, null, "bytes", null, null, null, null);
@@ -71,7 +71,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
                 .get();
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
 
             ValuesSourceConfig<ValuesSource.Bytes> config = ValuesSourceConfig.resolve(
                     context, null, "bytes", null, null, null, null);
@@ -98,7 +98,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
                 .get();
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
             ValuesSourceConfig<ValuesSource.Bytes> config = ValuesSourceConfig.resolve(
                     context, ValueType.STRING, "bytes", null, null, null, null);
             ValuesSource.Bytes valuesSource = config.toValuesSource(context);
@@ -124,7 +124,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
                 .get();
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
 
             ValuesSourceConfig<ValuesSource.Numeric> config = ValuesSourceConfig.resolve(
                     context, null, "long", null, null, null, null);
@@ -146,7 +146,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
                 .get();
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
 
             ValuesSourceConfig<ValuesSource.Numeric> config = ValuesSourceConfig.resolve(
                     context, null, "long", null, null, null, null);
@@ -173,7 +173,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
                 .get();
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
 
             ValuesSourceConfig<ValuesSource.Numeric> config = ValuesSourceConfig.resolve(
                     context, ValueType.NUMBER, "long", null, null, null, null);
@@ -200,7 +200,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
                 .get();
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
 
             ValuesSourceConfig<ValuesSource.Numeric> config = ValuesSourceConfig.resolve(
                     context, null, "bool", null, null, null, null);
@@ -222,7 +222,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
                 .get();
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
 
             ValuesSourceConfig<ValuesSource.Numeric> config = ValuesSourceConfig.resolve(
                     context, null, "bool", null, null, null, null);
@@ -249,7 +249,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
                 .get();
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
 
             ValuesSourceConfig<ValuesSource.Numeric> config = ValuesSourceConfig.resolve(
                     context, ValueType.BOOLEAN, "bool", null, null, null, null);
@@ -276,7 +276,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
             .get();
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
 
             ValuesSourceConfig<ValuesSource.GeoPoint> config = ValuesSourceConfig.resolve(
                 context, null, "geo_point", null, null, null, null);
@@ -300,7 +300,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
             .get();
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
 
             ValuesSourceConfig<ValuesSource.GeoPoint> config = ValuesSourceConfig.resolve(
                 context, null, "geo_point", null, null, null, null);
@@ -330,7 +330,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
             .get();
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
 
             ValuesSourceConfig<ValuesSource.GeoPoint> config = ValuesSourceConfig.resolve(
                 context, ValueType.GEOPOINT, "geo_point", null, null, null, null);
@@ -359,7 +359,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
             .get();
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
 
             ValuesSourceConfig<ValuesSource.GeoShape> config = ValuesSourceConfig.resolve(
                 context, null, "geo_shape", null, null, null, null);
@@ -384,7 +384,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
             .get();
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
 
             ValuesSourceConfig<ValuesSource.GeoShape> config = ValuesSourceConfig.resolve(
                 context, null, "geo_shape", null, null, null, null);
@@ -420,7 +420,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
             .get();
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
 
             ValuesSourceConfig<ValuesSource.GeoShape> config = ValuesSourceConfig.resolve(
                 context, ValueType.GEOSHAPE, "geo_shape", null, null, null, null);
@@ -444,7 +444,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
     public void testTypeFieldDeprecation() {
         IndexService indexService = createIndex("index", Settings.EMPTY, "type");
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
 
             ValuesSourceConfig<ValuesSource.Bytes> config = ValuesSourceConfig.resolve(
                 context, null, TypeFieldMapper.NAME, null, null, null, null);
@@ -461,7 +461,7 @@ public class ValuesSourceConfigTests extends ESSingleNodeTestCase {
             .get();
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
-            QueryShardContext context = indexService.newQueryShardContext(0, searcher.getIndexReader(), () -> 42L, null);
+            QueryShardContext context = indexService.newQueryShardContext(0, searcher, () -> 42L, null);
             ValuesSourceConfig<ValuesSource.Bytes> config = ValuesSourceConfig.resolve(
                 context, ValueType.STRING, "alias", null, null, null, null);
             ValuesSource.Bytes valuesSource = config.toValuesSource(context);

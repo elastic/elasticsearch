@@ -28,6 +28,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.SpanMatchNoDocsQuery;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -264,7 +265,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
                         QueryBuilder queryBuilder = new SpanMultiTermQueryBuilder(
                             QueryBuilders.prefixQuery("body", "bar")
                         );
-                        Query query = queryBuilder.toQuery(createShardContext(reader));
+                        Query query = queryBuilder.toQuery(createShardContext(new IndexSearcher(reader)));
                         RuntimeException exc = expectThrows(RuntimeException.class, () -> query.rewrite(reader));
                         assertThat(exc.getMessage(), containsString("maxClauseCount"));
                     } finally {

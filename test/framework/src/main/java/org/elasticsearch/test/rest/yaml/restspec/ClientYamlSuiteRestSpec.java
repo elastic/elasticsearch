@@ -18,6 +18,13 @@
  */
 package org.elasticsearch.test.rest.yaml.restspec;
 
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -29,12 +36,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
-
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 /**
  * Holds the specification used to turn {@code do} actions in the YAML suite into REST api calls.
@@ -103,20 +104,25 @@ public class ClientYamlSuiteRestSpec {
                     while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                         if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
-                        } else if (parser.currentToken() == XContentParser.Token.START_OBJECT
-                            && "params".equals(currentFieldName)) {
-                            while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
-                                String param = parser.currentName();
-                                if (restSpec.globalParameters.contains(param)) {
-                                    throw new IllegalArgumentException("Found duplicate global param [" + param + "]");
+                        } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+                            if ("params".equals(currentFieldName)) {
+                                while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
+                                    String param = parser.currentName();
+                                    if (restSpec.globalParameters.contains(param)) {
+                                        throw new IllegalArgumentException("Found duplicate global param [" + param + "]");
+                                    }
+                                    restSpec.globalParameters.add(param);
+                                    parser.nextToken();
+                                    if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+                                        throw new IllegalArgumentException("Expected params field in rest api definition to " +
+                                            "contain an object");
+                                    }
+                                    parser.skipChildren();
                                 }
-                                restSpec.globalParameters.add(param);
-                                parser.nextToken();
-                                if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-                                    throw new IllegalArgumentException("Expected params field in rest api definition to " +
-                                        "contain an object");
-                                }
+                            } else  if ("documentation".equals(currentFieldName)) {
                                 parser.skipChildren();
+                            } else {
+                                throw new ParsingException(parser.getTokenLocation(), "unsupported field [" + currentFieldName + "]");
                             }
                         }
                     }

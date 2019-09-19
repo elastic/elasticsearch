@@ -30,6 +30,4 @@ or serve data locally based on geo-proximity.
 
 include::high-availability/backup-cluster.asciidoc[]
 
-:leveloffset: +1
 include::ccr/index.asciidoc[]
-:leveloffset: -1

@@ -597,7 +597,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * </ul>
      * @param repositoryStateId Current repository state id
      * @param version           Minimum ES version the repo should be readable by
-     * @param listener          Lister to complete when done
+     * @param listener          Listener to complete when done
      */
     public void cleanup(long repositoryStateId, Version version, ActionListener<RepositoryCleanupResult> listener) {
         try {

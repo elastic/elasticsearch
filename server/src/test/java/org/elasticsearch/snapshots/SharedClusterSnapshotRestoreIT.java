@@ -47,12 +47,8 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.SnapshotsInProgress.Entry;
-import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
-import org.elasticsearch.cluster.SnapshotsInProgress.ShardState;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -2731,81 +2727,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> wait for restore to finish");
         restoreFut.get();
-    }
-
-    public void testDeleteOrphanSnapshot() throws Exception {
-        Client client = client();
-
-        logger.info("-->  creating repository");
-        final String repositoryName = "test-repo";
-        assertAcked(client.admin().cluster().preparePutRepository(repositoryName)
-                .setType("mock").setSettings(Settings.builder()
-                                .put("location", randomRepoPath())
-                                .put("compress", randomBoolean())
-                                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                ));
-
-        logger.info("--> create the index");
-        final String idxName = "test-idx";
-        createIndex(idxName);
-        ensureGreen();
-
-        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
-
-        final CountDownLatch countDownLatch = new CountDownLatch(1);
-
-        logger.info("--> snapshot");
-        final String snapshotName = "test-snap";
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot(repositoryName, snapshotName)
-            .setWaitForCompletion(true).setIndices(idxName).get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
-
-        logger.info("--> emulate an orphan snapshot");
-        RepositoriesService repositoriesService = internalCluster().getInstance(RepositoriesService.class,
-            internalCluster().getMasterName());
-        final RepositoryData repositoryData = getRepositoryData(repositoriesService.repository(repositoryName));
-        final IndexId indexId = repositoryData.resolveIndexId(idxName);
-
-        clusterService.submitStateUpdateTask("orphan snapshot test", new ClusterStateUpdateTask() {
-
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                // Simulate orphan snapshot
-                ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> shards = ImmutableOpenMap.builder();
-                shards.put(new ShardId(idxName, "_na_", 0), new ShardSnapshotStatus("unknown-node", ShardState.ABORTED, "aborted"));
-                shards.put(new ShardId(idxName, "_na_", 1), new ShardSnapshotStatus("unknown-node", ShardState.ABORTED, "aborted"));
-                shards.put(new ShardId(idxName, "_na_", 2), new ShardSnapshotStatus("unknown-node", ShardState.ABORTED, "aborted"));
-                return ClusterState.builder(currentState)
-                        .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(List.of(new Entry(
-                                new Snapshot(repositoryName, createSnapshotResponse.getSnapshotInfo().snapshotId()),
-                                true,
-                                false,
-                                State.ABORTED,
-                                Collections.singletonList(indexId),
-                                System.currentTimeMillis(),
-                                repositoryData.getGenId(),
-                                shards.build(),
-                                SnapshotInfoTests.randomUserMetadata()))))
-                        .build();
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                fail();
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, final ClusterState newState) {
-                countDownLatch.countDown();
-            }
-        });
-
-        countDownLatch.await();
-        logger.info("--> try deleting the orphan snapshot");
-
-        assertAcked(client.admin().cluster().prepareDeleteSnapshot(repositoryName, snapshotName).get("10s"));
     }
 
     private boolean waitForIndex(final String index, TimeValue timeout) throws InterruptedException {

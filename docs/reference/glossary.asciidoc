@@ -7,26 +7,26 @@
 +
 --
 // tag::analysis-def[]
-Analysis is the process of converting link:#glossary-text[full text] to
-link:#glossary-term[terms]. Depending on which analyzer is used, these phrases:
+Analysis is the process of converting <<glossary-text,full text>> to
+<<glossary-term,terms>>. Depending on which analyzer is used, these phrases:
 `FOO BAR`, `Foo-Bar`, `foo,bar` will probably all result in the
 terms `foo` and `bar`. These terms are what is actually stored in
 the index.
 
-A full text query (not a link:#glossary-term[term] query) for `FoO:bAR` will
+A full text query (not a <<glossary-term,term>> query) for `FoO:bAR` will
 also be analyzed to the terms `foo`,`bar` and will thus match the
 terms stored in the index.
 
 It is this process of analysis (both at index time and at search time)
 that allows Elasticsearch to perform full text queries.
 
-Also see link:#glossary-text[text] and link:#glossary-term[term].
+Also see <<glossary-text,text>> and <<glossary-term,term>>.
 // end::analysis-def[]
 --
 
 [[glossary-cluster]] cluster ::
 // tag::cluster-def[]
-A cluster consists of one or more link:#glossary-node[nodes] which share the
+A cluster consists of one or more <<glossary-node,nodes>> which share the
 same cluster name. Each cluster has a single master node which is
 chosen automatically by the cluster and which can be replaced if the
 current master node fails.
@@ -52,15 +52,15 @@ See {ref}/modules-cross-cluster-search.html[Search across clusters].
 // tag::document-def[]
 A document is a JSON document which is stored in Elasticsearch. It is
 like a row in a table in a relational database. Each document is
-stored in an link:#glossary-index[index] and has a link:#glossary-type[type]
-and an link:#glossary-id[id].
+stored in an <<glossary-index,index>> and has a <<glossary-type,type>>
+and an <<glossary-id,id>>.
 
 A document is a JSON object (also known in other languages as a hash /
 hashmap / associative array) which contains zero or more
-link:#glossary-field[fields], or key-value pairs.
+<<glossary-field,fields>>, or key-value pairs.
 
 The original JSON document that is indexed will be stored in the
-link:#glossary-source_field[`_source` field], which is returned by default when
+<<glossary-source_field,`_source` field>>, which is returned by default when
 getting or searching for a document.
 // end::document-def[]
 --
@@ -69,13 +69,13 @@ getting or searching for a document.
 +
 --
 // tag::field-def[]
-A link:#glossary-document[document] contains a list of fields, or key-value
+A <<glossary-document,document>> contains a list of fields, or key-value
 pairs. The value can be a simple (scalar) value (eg a string, integer,
 date), or a nested structure like an array or an object. A field is
 similar to a column in a table in a relational database.
 
-The link:#glossary-mapping[mapping] for each field has a field _type_ (not to
-be confused with document link:#glossary-type[type]) which indicates the type
+The <<glossary-mapping,mapping>> for each field has a field _type_ (not to
+be confused with document <<glossary-type,type>>) which indicates the type
 of data that can be stored in that field, eg `integer`, `string`,
 `object`. The mapping also allows you to define (amongst other things)
 how the value for a field should be analyzed.
@@ -84,7 +84,7 @@ how the value for a field should be analyzed.
 
 [[glossary-filter]] filter ::
 // tag::filter-def[]
-A filter is a non-scoring link:#glossary-query[query],
+A filter is a non-scoring <<glossary-query,query>>,
 meaning that it does not score documents.
 It is only concerned about answering the question - "Does this document match?". 
 The answer is always a simple, binary yes or no. This kind of query is said to be made 
@@ -95,15 +95,15 @@ In most cases, the goal of filtering is to reduce the number of documents that h
 
 [[glossary-follower-index]] follower index ::  
 // tag::follower-index-def[]
-Follower indices are the target indices for link:#glossary-ccr[{ccr}]. They exist
-in your local cluster and replicate link:#glossary-leader-index[leader indices].
+Follower indices are the target indices for <<glossary-ccr,{ccr}>>. They exist
+in your local cluster and replicate <<glossary-leader-index,leader indices>>.
 // end::follower-index-def[]
 
 [[glossary-id]] id ::
 // tag::id-def[]
-The ID of a link:#glossary-document[document] identifies a document. The
+The ID of a <<glossary-document,document>> identifies a document. The
 `index/id` of a document must be unique. If no ID is provided,
-then it will be auto-generated. (also see link:#glossary-routing[routing])
+then it will be auto-generated. (also see <<glossary-routing,routing>>)
 // end::id-def[]
 
 [[glossary-index]] index ::
@@ -111,12 +111,12 @@ then it will be auto-generated. (also see link:#glossary-routing[routing])
 --
 // tag::index-def[]
 An index is like a _table_ in a relational database. It has a
-link:#glossary-mapping[mapping] which contains a link:#glossary-type[type],
-which contains the link:#glossary-field[field] in the index.
+<<glossary-mapping,mapping>> which contains a <<glossary-type,type>>,
+which contains the <<glossary-field,field>> in the index.
 
 An index is a logical namespace which maps to one or more
-link:#glossary-primary-shard[primary shards] and can have zero or more
-link:#glossary-replica-shard[replica shards].
+<<glossary-primary-shard,primary shards>> and can have zero or more
+<<glossary-replica-shard,replica shards>>.
 // end::index-def[]
 --
 
@@ -136,9 +136,9 @@ See {ref}/indices-add-alias.html[Add index alias].
 
 [[glossary-leader-index]] leader index ::  
 // tag::leader-index-def[]
-Leader indices are the source indices for link:#glossary-ccr[{ccr}]. They exist
+Leader indices are the source indices for <<glossary-ccr,{ccr}>>. They exist
 on remote clusters and are replicated to 
-link:#glossary-follower-index[follower indices].
+<<glossary-follower-index,follower indices>>.
 // end::leader-index-def[]
 
 [[glossary-mapping]] mapping ::
@@ -146,8 +146,8 @@ link:#glossary-follower-index[follower indices].
 --
 // tag::mapping-def[]
 A mapping is like a _schema definition_ in a relational database. Each
-link:#glossary-index[index] has a mapping,
-which defines a link:#glossary-type[type],
+<<glossary-index,index>> has a mapping,
+which defines a <<glossary-type,type>>,
 plus a number of index-wide settings.
 
 A mapping can either be defined explicitly, or it will be generated
@@ -160,7 +160,7 @@ automatically when a document is indexed.
 --
 // tag::node-def[]
 A node is a running instance of Elasticsearch which belongs to a
-link:#glossary-cluster[cluster]. Multiple nodes can be started on a single
+<<glossary-cluster,cluster>>. Multiple nodes can be started on a single
 server for testing purposes, but usually you should have one node per
 server.
 
@@ -173,19 +173,19 @@ the same cluster name and will try to join that cluster.
 +
 --
 // tag::primary-shard-def[]
-Each document is stored in a single primary link:#glossary-shard[shard]. When
+Each document is stored in a single primary <<glossary-shard,shard>>. When
 you index a document, it is indexed first on the primary shard, then
-on all link:#glossary-replica-shard[replicas] of the primary shard.
+on all <<glossary-replica-shard,replicas>> of the primary shard.
 
-By default, an link:#glossary-index[index] has one primary shard. You can specify
-more primary shards to scale the number of link:#glossary-document[documents]
+By default, an <<glossary-index,index>> has one primary shard. You can specify
+more primary shards to scale the number of <<glossary-document,documents>>
 that your index can handle.
 
 You cannot change the number of primary shards in an index, once the index is
 created. However, an index can be split into a new index using the
 {ref}/indices-split-index.html[split index API].
 
-See also link:#glossary-routing[routing].
+See also <<glossary-routing,routing>>.
 // end::primary-shard-def[]
 --
 
@@ -228,7 +228,7 @@ To cycle through some or all documents in one or more indices, re-writing them i
 +
 --
 // tag::replica-shard-def[]
-Each link:#glossary-primary-shard[primary shard] can have zero or more
+Each <<glossary-primary-shard,primary shard>> can have zero or more
 replicas. A replica is a copy of the primary shard, and has two
 purposes:
 
@@ -248,15 +248,15 @@ shard will never be started on the same node as its primary shard.
 --
 // tag::routing-def[]
 When you index a document, it is stored on a single
-link:#glossary-primary-shard[primary shard]. That shard is chosen by hashing
+<<glossary-primary-shard,primary shard>>. That shard is chosen by hashing
 the `routing` value. By default, the `routing` value is derived from
 the ID of the document or, if the document has a specified parent
 document, from the ID of the parent document (to ensure that child and
 parent documents are stored on the same shard).
 
 This value can be overridden by specifying a `routing` value at index
-time, or a link:#glossary-routing-field[routing field]
-in the link:#glossary-mapping[mapping].
+time, or a {ref}/mapping-routing-field.html[routing field]
+in the <<glossary-mapping,mapping>>.
 // end::routing-def[]
 --
 
@@ -266,15 +266,15 @@ in the link:#glossary-mapping[mapping].
 // tag::shard-def[]
 A shard is a single Lucene instance. It is a low-level “worker” unit
 which is managed automatically by Elasticsearch. An index is a logical
-namespace which points to link:#glossary-primary-shard[primary] and
-link:#glossary-replica-shard[replica] shards.
+namespace which points to <<glossary-primary-shard,primary>> and
+<<glossary-replica-shard,replica>> shards.
 
 Other than defining the number of primary and replica shards that an
 index should have, you never need to refer to shards directly.
 Instead, your code should deal only with an index.
 
-Elasticsearch distributes shards amongst all link:#glossary-node[nodes] in the
-link:#glossary-cluster[cluster], and can move shards automatically from one
+Elasticsearch distributes shards amongst all <<glossary-node,nodes>> in the
+<<glossary-cluster,cluster>>, and can move shards automatically from one
 node to another in the case of node failure, or the addition of new
 nodes.
 // end::shard-def[]
@@ -309,7 +309,7 @@ A term is an exact value that is indexed in Elasticsearch. The terms
 `foo`, `Foo`, `FOO` are NOT equivalent. Terms (i.e. exact values) can
 be searched for using _term_ queries.
 
-See also link:#glossary-text[text] and link:#glossary-analysis[analysis].
+See also <<glossary-text,text>> and <<glossary-analysis,analysis>>.
 // end::term-def[]
 --
 
@@ -318,15 +318,15 @@ See also link:#glossary-text[text] and link:#glossary-analysis[analysis].
 --
 // tag::text-def[]
 Text (or full text) is ordinary unstructured text, such as this
-paragraph. By default, text will be link:#glossary-analysis[analyzed] into
-link:#glossary-term[terms], which is what is actually stored in the index.
+paragraph. By default, text will be <<glossary-analysis,analyzed>> into
+<<glossary-term,terms>>, which is what is actually stored in the index.
 
-Text link:#glossary-field[fields] need to be analyzed at index time in order to
+Text <<glossary-field,fields>> need to be analyzed at index time in order to
 be searchable as full text, and keywords in full text queries must be
 analyzed at search time to produce (and search for) the same terms
 that were generated at index time.
 
-See also link:#glossary-term[term] and link:#glossary-analysis[analysis].
+See also <<glossary-term,term>> and <<glossary-analysis,analysis>>.
 // end::text-def[]
 --
 

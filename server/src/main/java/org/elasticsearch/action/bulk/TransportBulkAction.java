@@ -21,6 +21,7 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SparseFixedBitSet;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -246,7 +247,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     if (IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getPipeline()) == false) {
                         hasIndexRequestsWithPipelines = true;
                     }
-                    if (clusterService.localNode().isIngestNode()) {
+                    if (clusterService.localNode().isIngestNode() == false) {
                         /*
                          * We have to track whether or not the pipeline for this request has already been derived. It can happen that the
                          * pipeline for this request has already been derived yet we execute this loop again. That occurs if the bulk
@@ -274,6 +275,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (clusterService.localNode().isIngestNode()) {
                     processBulkIndexIngestRequest(task, bulkRequest, listener);
                 } else {
+                    if (Assertions.ENABLED) {
+                        final boolean allAreForwardedRequests = bulkRequest.requests()
+                            .stream()
+                            .map(TransportBulkAction::getIndexWriteRequest)
+                            .filter(Objects::nonNull)
+                            .allMatch(IndexRequest::isForwardedRequest);
+                        assert allAreForwardedRequests : bulkRequest;
+                    }
                     ingestForwarder.forwardIngestRequest(BulkAction.INSTANCE, bulkRequest, listener);
                 }
             } catch (Exception e) {

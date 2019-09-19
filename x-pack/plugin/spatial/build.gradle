@@ -1,0 +1,28 @@
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.esplugin'
+
+esplugin {
+    name 'spatial'
+    description 'A plugin for Basic Spatial features'
+    classname 'org.elasticsearch.xpack.spatial.SpatialPlugin'
+    extendedPlugins = ['x-pack-core']
+}
+
+dependencies {
+    compileOnly project(path: xpackModule('core'), configuration: 'default')
+    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    if (isEclipse) {
+        testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
+    }
+}
+
+licenseHeaders {
+    // This class was sourced from apache lucene's sandbox module tests
+    excludes << 'org/apache/lucene/geo/XShapeTestUtil.java'
+}
+
+// xpack modules are installed in real clusters as the meta plugin, so
+// installing them as individual plugins for integ tests doesn't make sense,
+// so we disable integ tests
+integTest.enabled = false

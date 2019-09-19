@@ -46,6 +46,24 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     private boolean adaptiveSelection;
 
     public NodesStatsRequest() {
+        super((String[]) null);
+    }
+
+    public NodesStatsRequest(StreamInput in) throws IOException {
+        super(in);
+        indices = new CommonStatsFlags(in);
+        os = in.readBoolean();
+        process = in.readBoolean();
+        jvm = in.readBoolean();
+        threadPool = in.readBoolean();
+        fs = in.readBoolean();
+        transport = in.readBoolean();
+        http = in.readBoolean();
+        breaker = in.readBoolean();
+        script = in.readBoolean();
+        discovery = in.readBoolean();
+        ingest = in.readBoolean();
+        adaptiveSelection = in.readBoolean();
     }
 
     /**
@@ -278,24 +296,6 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     public NodesStatsRequest adaptiveSelection(boolean adaptiveSelection) {
         this.adaptiveSelection = adaptiveSelection;
         return this;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        indices = new CommonStatsFlags(in);
-        os = in.readBoolean();
-        process = in.readBoolean();
-        jvm = in.readBoolean();
-        threadPool = in.readBoolean();
-        fs = in.readBoolean();
-        transport = in.readBoolean();
-        http = in.readBoolean();
-        breaker = in.readBoolean();
-        script = in.readBoolean();
-        discovery = in.readBoolean();
-        ingest = in.readBoolean();
-        adaptiveSelection = in.readBoolean();
     }
 
     @Override

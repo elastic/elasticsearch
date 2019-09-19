@@ -24,6 +24,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
@@ -63,6 +64,13 @@ public final class IndexAnalyzers implements Closeable {
     }
 
     /**
+     * Returns an (unmodifiable) map of containing the index analyzers
+     */
+    public Map<String, NamedAnalyzer> getAnalyzers() {
+        return analyzers;
+    }
+
+    /**
      * Returns a normalizer mapped to the given name or <code>null</code> if not present
      */
     public NamedAnalyzer getNormalizer(String name) {
@@ -99,8 +107,9 @@ public final class IndexAnalyzers implements Closeable {
 
     @Override
     public void close() throws IOException {
-       IOUtils.close(() -> Stream.concat(analyzers.values().stream(), normalizers.values().stream())
-           .filter(a -> a.scope() == AnalyzerScope.INDEX)
-           .iterator());
+        IOUtils.close(Stream.of(analyzers.values().stream(), normalizers.values().stream(), whitespaceNormalizers.values().stream())
+            .flatMap(s -> s)
+            .filter(a -> a.scope() == AnalyzerScope.INDEX)
+            .collect(Collectors.toList()));
     }
 }

@@ -466,7 +466,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         ShardRouting relocationTarget = clusterService.state().getRoutingTable().shardRoutingTable(shardId)
             .shardsWithState(ShardRoutingState.INITIALIZING).get(0);
         AllocationService allocationService = ESAllocationTestCase.createAllocationService();
-        ClusterState updatedState = allocationService.applyStartedShards(state, Collections.singletonList(relocationTarget));
+        ClusterState updatedState = ESAllocationTestCase.startShardsAndReroute(allocationService, state, relocationTarget);
 
         setState(clusterService, updatedState);
         logger.debug("--> relocation complete state:\n{}", clusterService.state());
@@ -1211,11 +1211,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void onRetry() {
             super.onRetry();
             isRetrySet.set(true);
@@ -1228,6 +1223,10 @@ public class TransportReplicationActionTests extends ESTestCase {
     }
 
     static class TestResponse extends ReplicationResponse {
+        TestResponse(StreamInput in) throws IOException {
+            super(in);
+        }
+
         TestResponse() {
             setShardInfo(new ShardInfo());
         }
@@ -1251,8 +1250,8 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         @Override
-        protected TestResponse newResponseInstance() {
-            return new TestResponse();
+        protected TestResponse newResponseInstance(StreamInput in) throws IOException {
+            return new TestResponse(in);
         }
 
         @Override

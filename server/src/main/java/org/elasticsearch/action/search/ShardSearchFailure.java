@@ -54,7 +54,15 @@ public class ShardSearchFailure extends ShardOperationFailedException {
 
     private SearchShardTarget shardTarget;
 
-    ShardSearchFailure() {
+    ShardSearchFailure(StreamInput in) throws IOException {
+        shardTarget = in.readOptionalWriteable(SearchShardTarget::new);
+        if (shardTarget != null) {
+            index = shardTarget.getFullyQualifiedIndexName();
+            shardId = shardTarget.getShardId().getId();
+        }
+        reason = in.readString();
+        status = RestStatus.readFrom(in);
+        cause = in.readException();
     }
 
     public ShardSearchFailure(Exception e) {
@@ -64,7 +72,7 @@ public class ShardSearchFailure extends ShardOperationFailedException {
     public ShardSearchFailure(Exception e, @Nullable SearchShardTarget shardTarget) {
         super(shardTarget == null ? null : shardTarget.getFullyQualifiedIndexName(),
             shardTarget == null ? -1 : shardTarget.getShardId().getId(),
-            ExceptionsHelper.detailedMessage(e),
+            ExceptionsHelper.stackTrace(e),
             ExceptionsHelper.status(ExceptionsHelper.unwrapCause(e)),
             ExceptionsHelper.unwrapCause(e));
 
@@ -91,21 +99,8 @@ public class ShardSearchFailure extends ShardOperationFailedException {
     }
 
     public static ShardSearchFailure readShardSearchFailure(StreamInput in) throws IOException {
-        ShardSearchFailure shardSearchFailure = new ShardSearchFailure();
-        shardSearchFailure.readFrom(in);
-        return shardSearchFailure;
-    }
+        return new ShardSearchFailure(in);
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        shardTarget = in.readOptionalWriteable(SearchShardTarget::new);
-        if (shardTarget != null) {
-            index = shardTarget.getFullyQualifiedIndexName();
-            shardId = shardTarget.getShardId().getId();
-        }
-        reason = in.readString();
-        status = RestStatus.readFrom(in);
-        cause = in.readException();
     }
 
     @Override

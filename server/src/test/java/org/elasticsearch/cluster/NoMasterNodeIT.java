@@ -163,9 +163,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         bulkRequestBuilder.setTimeout(timeout);
         checkWriteAction(bulkRequestBuilder);
 
-        disruptionScheme.stopDisrupting();
-
-        client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("3").execute().actionGet();
+        internalCluster().clearDisruptionScheme(true);
     }
 
     void checkUpdateAction(boolean autoCreateIndex, TimeValue timeout, ActionRequestBuilder<?, ?> builder) {

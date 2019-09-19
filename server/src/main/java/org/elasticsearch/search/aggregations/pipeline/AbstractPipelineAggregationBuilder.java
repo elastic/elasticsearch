@@ -84,7 +84,7 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
      * configured)
      */
     @Override
-    public final void validate(AggregatorFactory<?> parent, Collection<AggregationBuilder> factories,
+    public final void validate(AggregatorFactory parent, Collection<AggregationBuilder> factories,
             Collection<PipelineAggregationBuilder> pipelineAggregatorFactories) {
         doValidate(parent, factories, pipelineAggregatorFactories);
     }
@@ -102,14 +102,14 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
         return aggregator;
     }
 
-    public void doValidate(AggregatorFactory<?> parent, Collection<AggregationBuilder> factories,
+    public void doValidate(AggregatorFactory parent, Collection<AggregationBuilder> factories,
             Collection<PipelineAggregationBuilder> pipelineAggregatorFactories) {
     }
     
     /**
      * Validates pipeline aggregations that need sequentially ordered data.
      */
-    public static void validateSequentiallyOrderedParentAggs(AggregatorFactory<?> parent, String type, String name) {
+    public static void validateSequentiallyOrderedParentAggs(AggregatorFactory parent, String type, String name) {
         if ((parent instanceof HistogramAggregatorFactory || parent instanceof DateHistogramAggregatorFactory
                 || parent instanceof AutoDateHistogramAggregatorFactory) == false) {
             throw new IllegalStateException(
@@ -171,31 +171,19 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
 
     @Override
     public int hashCode() {
-        return Objects.hash(Arrays.hashCode(bucketsPaths), metaData, name, type, doHashCode());
+        return Objects.hash(Arrays.hashCode(bucketsPaths), metaData, name, type);
     }
-
-    protected abstract int doHashCode();
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null)
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
-        @SuppressWarnings("unchecked")
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
         AbstractPipelineAggregationBuilder<PAB> other = (AbstractPipelineAggregationBuilder<PAB>) obj;
-        if (!Objects.equals(name, other.name))
-            return false;
-        if (!Objects.equals(type, other.type))
-            return false;
-        if (!Objects.deepEquals(bucketsPaths, other.bucketsPaths))
-            return false;
-        if (!Objects.equals(metaData, other.metaData))
-            return false;
-        return doEquals(obj);
+        return Objects.equals(type, other.type)
+            && Objects.equals(name, other.name)
+            && Objects.equals(metaData, other.metaData)
+            && Objects.deepEquals(bucketsPaths, other.bucketsPaths);
     }
-
-    protected abstract boolean doEquals(Object obj);
 
     @Override
     public String getType() {

@@ -39,4 +39,13 @@ public class StWkttosqlProcessorTests extends ESTestCase {
         siae = expectThrows(SqlIllegalArgumentException.class, () -> procPoint.process("point (10 10"));
         assertEquals("Cannot parse [point (10 10] as a geo_shape value", siae.getMessage());
     }
+
+    public void testCoerce() {
+        StWkttosqlProcessor proc = new StWkttosqlProcessor();
+        assertNull(proc.process(null));
+        Object result = proc.process("POLYGON ((3 1 5, 4 2 4, 5 3 3))");
+        assertThat(result, instanceOf(GeoShape.class));
+        GeoShape geoShape = (GeoShape) result;
+        assertEquals("polygon ((3.0 1.0 5.0, 4.0 2.0 4.0, 5.0 3.0 3.0, 3.0 1.0 5.0))", geoShape.toString());
+    }
 }

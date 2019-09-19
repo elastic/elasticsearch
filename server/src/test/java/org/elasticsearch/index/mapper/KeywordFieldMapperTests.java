@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.MockLowerCaseFilter;
 import org.apache.lucene.analysis.MockTokenizer;
-import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -69,16 +68,8 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
 
         @Override
         public Map<String, AnalysisModule.AnalysisProvider<TokenizerFactory>> getTokenizers() {
-            return singletonMap("keyword", (indexSettings, environment, name, settings) -> {
-                class Factory implements TokenizerFactory {
-
-                    @Override
-                    public Tokenizer create() {
-                        return new MockTokenizer(MockTokenizer.KEYWORD, false);
-                    }
-                }
-                return new Factory();
-            });
+            return singletonMap("keyword", (indexSettings, environment, name, settings) ->
+                TokenizerFactory.newFactory(name, () -> new MockTokenizer(MockTokenizer.KEYWORD, false)));
         }
 
     }
@@ -384,6 +375,85 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
         fieldType = fields[1].fieldType();
         assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
         assertEquals(DocValuesType.SORTED_SET, fieldType.docValuesType());
+    }
+
+    public void testParsesKeywordNestedEmptyObjectStrict() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", "keyword")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject());
+        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("field")
+                .endObject()
+            .endObject());
+        MapperParsingException ex = expectThrows(MapperParsingException.class,
+                () -> defaultMapper.parse(new SourceToParse("test", "type", "1", source, XContentType.JSON)));
+        assertEquals("failed to parse field [field] of type [keyword] in document with id '1'. " +
+            "Preview of field's value: '{}'", ex.getMessage());
+    }
+
+    public void testParsesKeywordNestedListStrict() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", "keyword")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject());
+        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder()
+            .startObject()
+                .startArray("field")
+                    .startObject()
+                        .startArray("array_name")
+                            .value("inner_field_first")
+                            .value("inner_field_second")
+                        .endArray()
+                    .endObject()
+                .endArray()
+            .endObject());
+        MapperParsingException ex = expectThrows(MapperParsingException.class,
+                () -> defaultMapper.parse(new SourceToParse("test", "type", "1", source, XContentType.JSON)));
+        assertEquals("failed to parse field [field] of type [keyword] in document with id '1'. " +
+            "Preview of field's value: '{array_name=[inner_field_first, inner_field_second]}'", ex.getMessage());
+    }
+
+    public void testParsesKeywordNullStrict() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", "keyword")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject());
+        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("field")
+                    .nullField("field_name")
+                .endObject()
+            .endObject());
+        MapperParsingException ex = expectThrows(MapperParsingException.class,
+                () -> defaultMapper.parse(new SourceToParse("test", "type", "1", source, XContentType.JSON)));
+        assertEquals("failed to parse field [field] of type [keyword] in document with id '1'. " +
+            "Preview of field's value: '{field_name=null}'", ex.getMessage());
     }
 
     public void testUpdateNormalizer() throws IOException {

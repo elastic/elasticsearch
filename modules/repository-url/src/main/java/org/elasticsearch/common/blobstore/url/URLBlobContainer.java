@@ -23,6 +23,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 
 import java.io.BufferedInputStream;
@@ -96,12 +97,9 @@ public class URLBlobContainer extends AbstractBlobContainer {
         throw new UnsupportedOperationException("URL repository is read only");
     }
 
-    /**
-     * This operation is not supported by URLBlobContainer
-     */
     @Override
-    public boolean blobExists(String blobName) {
-        throw new UnsupportedOperationException("URL repository doesn't support this operation");
+    public DeleteResult delete() {
+        throw new UnsupportedOperationException("URL repository is read only");
     }
 
     @Override

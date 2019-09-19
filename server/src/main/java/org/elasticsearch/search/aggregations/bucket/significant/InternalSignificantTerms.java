@@ -119,21 +119,6 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             return aggregations;
         }
 
-        public B reduce(List<B> buckets, ReduceContext context) {
-            long subsetDf = 0;
-            long supersetDf = 0;
-            List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
-            for (B bucket : buckets) {
-                subsetDf += bucket.subsetDf;
-                supersetDf += bucket.supersetDf;
-                aggregationsList.add(bucket.aggregations);
-            }
-            InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
-            return newBucket(subsetDf, subsetSize, supersetDf, supersetSize, aggs);
-        }
-
-        abstract B newBucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, InternalAggregations aggregations);
-
         @Override
         public double getSignificanceScore() {
             return score;
@@ -229,8 +214,8 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
                 }
                 // Adjust the buckets with the global stats representing the
                 // total size of the pots from which the stats are drawn
-                existingBuckets.add(bucket.newBucket(bucket.getSubsetDf(), globalSubsetSize, bucket.getSupersetDf(), globalSupersetSize,
-                        bucket.aggregations));
+                existingBuckets.add(createBucket(bucket.getSubsetDf(), globalSubsetSize, bucket.getSupersetDf(), globalSupersetSize,
+                        bucket.aggregations, bucket));
             }
         }
         SignificanceHeuristic heuristic = getSignificanceHeuristic().rewrite(reduceContext);
@@ -238,7 +223,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         BucketSignificancePriorityQueue<B> ordered = new BucketSignificancePriorityQueue<>(size);
         for (Map.Entry<String, List<B>> entry : buckets.entrySet()) {
             List<B> sameTermBuckets = entry.getValue();
-            final B b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext);
+            final B b = reduceBucket(sameTermBuckets, reduceContext);
             b.updateScore(heuristic);
             if (((b.score > 0) && (b.subsetDf >= minDocCount)) || reduceContext.isFinalReduce() == false) {
                 B removed = ordered.insertWithOverflow(b);
@@ -258,6 +243,24 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         return create(globalSubsetSize, globalSupersetSize, Arrays.asList(list));
     }
 
+    @Override
+    protected B reduceBucket(List<B> buckets, ReduceContext context) {
+        assert buckets.size() > 0;
+        long subsetDf = 0;
+        long supersetDf = 0;
+        List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
+        for (B bucket : buckets) {
+            subsetDf += bucket.subsetDf;
+            supersetDf += bucket.supersetDf;
+            aggregationsList.add(bucket.aggregations);
+        }
+        InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
+        return createBucket(subsetDf, buckets.get(0).subsetSize, supersetDf, buckets.get(0).supersetSize, aggs, buckets.get(0));
+    }
+
+    abstract B createBucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize,
+                            InternalAggregations aggregations, B prototype);
+
     protected abstract A create(long subsetSize, long supersetSize, List<B> buckets);
 
     /**
@@ -272,12 +275,16 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     protected abstract SignificanceHeuristic getSignificanceHeuristic();
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(minDocCount, requiredSize);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), minDocCount, requiredSize);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalSignificantTerms<?, ?> that = (InternalSignificantTerms<?, ?>) obj;
         return Objects.equals(minDocCount, that.minDocCount)
                 && Objects.equals(requiredSize, that.requiredSize);

@@ -36,3 +36,11 @@ corresponding node to use this location for its data path. If your nodes each
 have more than one data path in their `path.data` settings then you should move
 all the corresponding subfolders in parallel. Each node uses the same subfolder
 (e.g. `nodes/2`) across all its data paths.
+
+[float]
+==== Rejection of ancient closed indices
+
+In earlier versions a node would start up even if it had data from indices
+created in a version before the previous major version, as long as those
+indices were closed. {es} now ensures that it is compatible with every index,
+open or closed, at startup time.

@@ -39,7 +39,7 @@ import java.io.IOException;
 import java.util.Collection;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.geo.utils.Geohash.stringEncode;
+import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
 import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.NULL_VALUE;
@@ -71,6 +71,23 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                         .field("point", stringEncode(1.3, 1.2))
                         .endObject()),
                 XContentType.JSON));
+
+        assertThat(doc.rootDoc().getField("point"), notNullValue());
+    }
+
+    public void testWKT() throws Exception {
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("point").field("type", "geo_point");
+        String mapping = Strings.toString(xContentBuilder.endObject().endObject().endObject().endObject());
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser()
+            .parse("type", new CompressedXContent(mapping));
+
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .field("point", "POINT (2 3)")
+                .endObject()),
+            XContentType.JSON));
 
         assertThat(doc.rootDoc().getField("point"), notNullValue());
     }

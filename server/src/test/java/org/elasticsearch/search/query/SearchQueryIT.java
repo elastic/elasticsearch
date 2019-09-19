@@ -25,6 +25,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
@@ -52,6 +53,8 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -104,8 +107,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasScore;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class SearchQueryIT extends ESIntegTestCase {
 
@@ -625,9 +630,23 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         builder = multiMatchQuery("value1", "field1", "field2", "field4");
 
-        assertFailures(client().prepareSearch().setQuery(builder),
-                RestStatus.BAD_REQUEST,
-                containsString("NumberFormatException[For input string: \"value1\"]"));
+        //when the number for shards is randomized and we expect failures
+        //we can either run into partial or total failures depending on the current number of shards
+        Matcher<String> reasonMatcher = containsString("NumberFormatException: For input string: \"value1\"");
+        ShardSearchFailure[] shardFailures;
+        try {
+            client().prepareSearch().setQuery(builder).get();
+            shardFailures = searchResponse.getShardFailures();
+            assertThat("Expected shard failures, got none", shardFailures, not(emptyArray()));
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+            shardFailures = e.shardFailures();
+        }
+
+        for (ShardSearchFailure shardSearchFailure : shardFailures) {
+            assertThat(shardSearchFailure.status(), equalTo(RestStatus.BAD_REQUEST));
+            assertThat(shardSearchFailure.reason(), reasonMatcher);
+        }
 
         builder.lenient(true);
         searchResponse = client().prepareSearch().setQuery(builder).get();
@@ -793,23 +812,18 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("1"));
     }
 
-    public void testQuotedQueryStringWithBoost() throws InterruptedException, ExecutionException {
+    @TestIssueLogging(value = "org.elasticsearch.search.query.SearchQueryIT:DEBUG",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/43144")
+    public void testQuotedQueryStringWithBoost() throws InterruptedException {
         float boost = 10.0f;
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1)));
-        indexRandom(true,
-                client().prepareIndex("test", "type1", "1").setSource("important", "phrase match", "less_important", "nothing important"),
-                client().prepareIndex("test", "type1", "2").setSource("important", "nothing important", "less_important", "phrase match")
+
+        indexRandom(true, false,
+            client().prepareIndex("test", "type1", "1").setSource("important", "phrase match", "less_important", "nothing important"),
+            client().prepareIndex("test", "type1", "2").setSource("important", "nothing important", "less_important", "phrase match")
         );
 
-
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(queryStringQuery("\"phrase match\"").field("important", boost).field("less_important")).get();
-        assertHitCount(searchResponse, 2L);
-        assertFirstHit(searchResponse, hasId("1"));
-        assertSecondHit(searchResponse, hasId("2"));
-        assertThat((double)searchResponse.getHits().getAt(0).getScore(), closeTo(boost * searchResponse.getHits().getAt(1).getScore(), .1));
-
-        searchResponse = client().prepareSearch()
                 .setQuery(queryStringQuery("\"phrase match\"").field("important", boost).field("less_important")).get();
         assertHitCount(searchResponse, 2L);
         assertFirstHit(searchResponse, hasId("1"));

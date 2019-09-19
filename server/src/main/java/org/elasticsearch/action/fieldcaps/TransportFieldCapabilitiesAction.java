@@ -24,6 +24,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -47,21 +48,20 @@ import java.util.Set;
 
 public class TransportFieldCapabilitiesAction extends HandledTransportAction<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
     private final ThreadPool threadPool;
+    private final NodeClient client;
     private final ClusterService clusterService;
-    private final TransportFieldCapabilitiesIndexAction shardAction;
     private final RemoteClusterService remoteClusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
-    public TransportFieldCapabilitiesAction(TransportService transportService,
-                                            ClusterService clusterService, ThreadPool threadPool,
-                                            TransportFieldCapabilitiesIndexAction shardAction,
-                                            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+    public TransportFieldCapabilitiesAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                                            NodeClient client, ActionFilters actionFilters,
+                                            IndexNameExpressionResolver indexNameExpressionResolver) {
         super(FieldCapabilitiesAction.NAME, transportService, actionFilters, FieldCapabilitiesRequest::new);
         this.threadPool = threadPool;
+        this.client = client;
         this.clusterService = clusterService;
         this.remoteClusterService = transportService.getRemoteClusterService();
-        this.shardAction = shardAction;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
@@ -108,7 +108,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 }
             };
             for (String index : concreteIndices) {
-                shardAction.execute(new FieldCapabilitiesIndexRequest(request.fields(), index, localIndices), innerListener);
+                client.executeLocally(TransportFieldCapabilitiesIndexAction.TYPE,
+                    new FieldCapabilitiesIndexRequest(request.fields(), index, localIndices), innerListener);
             }
 
             // this is the cross cluster part of this API - we force the other cluster to not merge the results but instead

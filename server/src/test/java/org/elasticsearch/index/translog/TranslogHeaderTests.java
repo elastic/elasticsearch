@@ -57,7 +57,7 @@ public class TranslogHeaderTests extends ESTestCase {
         assertThat(mismatchUUID.getMessage(), containsString("this translog file belongs to a different translog"));
         int corruptions = between(1, 10);
         for (int i = 0; i < corruptions && Files.size(translogFile) > 0; i++) {
-            TestTranslog.corruptFile(logger, random(), translogFile);
+            TestTranslog.corruptFile(logger, random(), translogFile, false);
         }
         expectThrows(TranslogCorruptedException.class, () -> {
             try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {

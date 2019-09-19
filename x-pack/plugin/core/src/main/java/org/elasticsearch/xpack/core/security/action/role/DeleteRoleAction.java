@@ -5,23 +5,18 @@
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
 /**
- * Action for deleting a role from the security index
+ * ActionType for deleting a role from the security index
  */
-public class DeleteRoleAction extends Action<DeleteRoleResponse> {
+public class DeleteRoleAction extends ActionType<DeleteRoleResponse> {
 
     public static final DeleteRoleAction INSTANCE = new DeleteRoleAction();
     public static final String NAME = "cluster:admin/xpack/security/role/delete";
 
 
     protected DeleteRoleAction() {
-        super(NAME);
-    }
-
-    @Override
-    public DeleteRoleResponse newResponse() {
-        return new DeleteRoleResponse();
+        super(NAME, DeleteRoleResponse::new);
     }
 }

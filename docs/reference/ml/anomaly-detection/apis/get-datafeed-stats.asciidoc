@@ -1,0 +1,132 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-get-datafeed-stats]]
+=== Get {dfeed} statistics API
+
+[subs="attributes"]
+++++
+<titleabbrev>Get {dfeed} statistics</titleabbrev>
+++++
+
+Retrieves usage information for {dfeeds}.
+
+[[ml-get-datafeed-stats-request]]
+==== {api-request-title}
+
+`GET _ml/datafeeds/<feed_id>/_stats` +
+
+`GET _ml/datafeeds/<feed_id>,<feed_id>/_stats` +
+
+`GET _ml/datafeeds/_stats`  +
+
+`GET _ml/datafeeds/_all/_stats` 
+
+[[ml-get-datafeed-stats-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `monitor_ml`,
+`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
+[[ml-get-datafeed-stats-desc]]
+==== {api-description-title}
+
+You can get statistics for multiple {dfeeds} in a single API request by using a
+comma-separated list of {dfeeds} or a wildcard expression. You can get
+statistics for all {dfeeds} by using `_all`, by specifying `*` as the
+`<feed_id>`, or by omitting the `<feed_id>`.
+
+If the {dfeed} is stopped, the only information you receive is the
+`datafeed_id` and the `state`.
+
+IMPORTANT: This API returns a maximum of 10,000 {dfeeds}.
+
+[[ml-get-datafeed-stats-path-parms]]
+==== {api-path-parms-title}
+
+`<feed_id>`::
+  (Optional, string) Identifier for the {dfeed}. It can be a {dfeed} identifier
+  or a wildcard expression. If you do not specify one of these options, the API
+  returns statistics for all {dfeeds}.
+
+[[ml-get-datafeed-stats-query-parms]]
+==== {api-query-parms-title}
+
+`allow_no_datafeeds`::
+  (Optional, boolean) Specifies what to do when the request:
++
+--
+* Contains wildcard expressions and there are no {datafeeds} that match.
+* Contains the `_all` string or no identifiers and there are no matches.
+* Contains wildcard expressions and there are only partial matches. 
+
+The default value is `true`, which returns an empty `datafeeds` array when
+there are no matches and the subset of results when there are partial matches.
+If this parameter is `false`, the request returns a `404` status code when there
+are no matches or only partial matches.
+--
+
+
+[[ml-get-datafeed-stats-results]]
+==== {api-response-body-title}
+
+The API returns the following information:
+
+`datafeeds`::
+  (array) An array of {dfeed} count objects.
+  For more information, see <<ml-datafeed-counts>>.
+
+[[ml-get-datafeed-stats-response-codes]]
+==== {api-response-codes-title}
+
+`404` (Missing resources)::
+  If `allow_no_datafeeds` is `false`, this code indicates that there are no
+  resources that match the request or only partial matches for the request. 
+
+[[ml-get-datafeed-stats-example]]
+==== {api-examples-title}
+
+The following example gets usage information for the
+`datafeed-total-requests` {dfeed}:
+
+[source,console]
+--------------------------------------------------
+GET _ml/datafeeds/datafeed-total-requests/_stats
+--------------------------------------------------
+// TEST[skip:setup:server_metrics_startdf]
+
+The API returns the following results:
+
+[source,console-result]
+----
+{
+  "count": 1,
+  "datafeeds": [
+    {
+      "datafeed_id": "datafeed-total-requests",
+      "state": "started",
+      "node": {
+        "id": "2spCyo1pRi2Ajo-j-_dnPX",
+        "name": "node-0",
+        "ephemeral_id": "hoXMLZB0RWKfR9UPPUCxXX",
+        "transport_address": "127.0.0.1:9300",
+        "attributes": {
+          "ml.machine_memory": "17179869184",
+          "ml.max_open_jobs": "20"
+        }
+      },
+      "assignment_explanation": "",
+      "timing_stats": {
+        "job_id": "job-total-requests",
+        "search_count": 20,
+        "total_search_time_ms": 120.5
+      }
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/"2spCyo1pRi2Ajo-j-_dnPX"/$body.$_path/]
+// TESTRESPONSE[s/"node-0"/$body.$_path/]
+// TESTRESPONSE[s/"hoXMLZB0RWKfR9UPPUCxXX"/$body.$_path/]
+// TESTRESPONSE[s/"127.0.0.1:9300"/$body.$_path/]
+// TESTRESPONSE[s/"17179869184"/$body.datafeeds.0.node.attributes.ml\\.machine_memory/]

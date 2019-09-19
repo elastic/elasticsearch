@@ -26,7 +26,8 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.test.RunTask
 
 import java.nio.file.Files
-import java.nio.file.Path 
+import java.nio.file.Path
+
 /*****************************************************************************
  *                  Third party dependencies report                          *
  *****************************************************************************/
@@ -68,6 +69,7 @@ task buildOssNoJdkNotice(type: NoticeTask) {
  *****************************************************************************/
 String ossOutputs = 'build/outputs/oss'
 String defaultOutputs = 'build/outputs/default'
+String systemdOutputs = 'build/outputs/systemd'
 String transportOutputs = 'build/outputs/transport-only'
 
 task processOssOutputs(type: Sync) {
@@ -77,6 +79,10 @@ task processOssOutputs(type: Sync) {
 task processDefaultOutputs(type: Sync) {
   into defaultOutputs
   from processOssOutputs
+}
+
+task processSystemdOutputs(type: Sync) {
+  into systemdOutputs
 }
 
 // Integ tests work over the rest http layer, so we need a transport included with the integ test zip.
@@ -110,6 +116,10 @@ task buildDefaultConfig {
   dependsOn processDefaultOutputs
   outputs.dir "${defaultOutputs}/config"
 }
+task buildSystemdModule {
+  dependsOn processSystemdOutputs
+  outputs.dir "${systemdOutputs}/modules"
+}
 task buildTransportModules {
   dependsOn processTransportOutputs
   outputs.dir "${transportOutputs}/modules"
@@ -117,7 +127,7 @@ task buildTransportModules {
 
 void copyModule(Sync copyTask, Project module) {
   copyTask.configure {
-    dependsOn { module.bundlePlugin }
+    dependsOn "${module.path}:bundlePlugin"
     from({ zipTree(module.bundlePlugin.outputs.files.singleFile) }) {
       includeEmptyDirs false
 
@@ -167,6 +177,7 @@ buildDefaultLog4jConfig.doLast(writeLog4jProperties)
 
 // copy log4j2.properties from modules that have it
 void copyLog4jProperties(Task buildTask, Project module) {
+  buildTask.dependsOn "${module.path}:bundlePlugin"
   buildTask.doFirst {
     FileTree tree = zipTree(module.bundlePlugin.outputs.files.singleFile)
     FileTree filtered = tree.matching {
@@ -185,6 +196,10 @@ ext.restTestExpansions = [
 // we create the buildOssModules task above but fill it here so we can do a single
 // loop over modules to also setup cross task dependencies and increment our modules counter
 project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { Project module ->
+  if (module.name == 'systemd') {
+    // the systemd module is only included in the package distributions
+    return
+  }
   File licenses = new File(module.projectDir, 'licenses')
   if (licenses.exists()) {
     buildDefaultNotice.licensesDir licenses
@@ -216,6 +231,8 @@ xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
   copyModule(processDefaultOutputs, xpackModule)
   copyLog4jProperties(buildDefaultLog4jConfig, xpackModule)
 }
+
+copyModule(processSystemdOutputs, project(':modules:systemd'))
 
 // make sure we have a clean task since we aren't a java project, but we have tasks that
 // put stuff in the build dir
@@ -286,6 +303,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           for (String excludePlatform : excludePlatforms) {
             exclude "**/platform/${excludePlatform}-x86_64/**"
           }
+        }
+        if (project.path.startsWith(':distribution:packages')) {
+          from(project(':distribution').buildSystemdModule)
         }
       }
     }
@@ -368,11 +388,12 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    jdkFiles = { project, platform ->
+    jdkFiles = { Project project, String platform ->
       project.jdks {
         "bundled_${platform}" {
           it.platform = platform
           it.version = VersionProperties.bundledJdk
+          it.vendor = VersionProperties.bundledJdkVendor
         }
       }
       return copySpec {

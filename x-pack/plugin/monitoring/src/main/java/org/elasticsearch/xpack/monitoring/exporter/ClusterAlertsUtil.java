@@ -7,14 +7,11 @@ package org.elasticsearch.xpack.monitoring.exporter;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.core.internal.io.Streams;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -124,13 +121,7 @@ public class ClusterAlertsUtil {
     }
 
     private static BytesReference loadResource(final String resource) throws IOException {
-        try (InputStream is = ClusterAlertsUtil.class.getResourceAsStream(resource)) {
-            try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-                Streams.copy(is, out);
-
-                return new BytesArray(out.toByteArray());
-            }
-        }
+        return Streams.readFully(ClusterAlertsUtil.class.getResourceAsStream(resource));
     }
 
     /**

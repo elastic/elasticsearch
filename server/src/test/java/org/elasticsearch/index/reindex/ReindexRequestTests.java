@@ -22,12 +22,19 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.slice.SliceBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -41,12 +48,101 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
  */
 public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<ReindexRequest> {
 
+    private final BytesReference matchAll = new BytesArray("{ \"foo\" : \"bar\" }");
+
+    @Override
+    protected NamedWriteableRegistry writableRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        return new NamedWriteableRegistry(searchModule.getNamedWriteables());
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        return new NamedXContentRegistry(searchModule.getNamedXContents());
+    }
+
+    @Override
+    protected boolean enableWarningsCheck() {
+        // There sometimes will be a warning about specifying types in reindex requests being deprecated.
+        return false;
+    }
+
+    @Override
+    protected ReindexRequest createTestInstance() {
+        ReindexRequest reindexRequest = new ReindexRequest();
+        reindexRequest.setSourceIndices("source");
+        reindexRequest.setDestIndex("destination");
+
+        if (randomBoolean()) {
+            try (XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint()) {
+                BytesReference query = BytesReference.bytes(matchAllQuery().toXContent(builder, ToXContent.EMPTY_PARAMS));
+                reindexRequest.setRemoteInfo(new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, Integer.MAX_VALUE),
+                    null, query, "user", "pass", emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        }
+
+        if (randomBoolean()) {
+            reindexRequest.setSourceBatchSize(randomInt(100));
+        }
+        if (randomBoolean()) {
+            reindexRequest.setDestDocType("type");
+        }
+        if (randomBoolean()) {
+            reindexRequest.setDestOpType("create");
+        }
+        if (randomBoolean()) {
+            reindexRequest.setDestPipeline("my_pipeline");
+        }
+        if (randomBoolean()) {
+            reindexRequest.setDestRouting("=cat");
+        }
+        if (randomBoolean()) {
+            reindexRequest.setMaxDocs(randomIntBetween(100, 1000));
+        }
+        if (randomBoolean()) {
+            reindexRequest.setAbortOnVersionConflict(false);
+        }
+
+        if (reindexRequest.getRemoteInfo() == null && randomBoolean()) {
+            reindexRequest.setSourceQuery(new TermQueryBuilder("foo", "fooval"));
+        }
+
+        return reindexRequest;
+    }
+
+    @Override
+    protected ReindexRequest doParseInstance(XContentParser parser) throws IOException {
+        return ReindexRequest.fromXContent(parser);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
+
+    @Override
+    protected void assertEqualInstances(ReindexRequest expectedInstance, ReindexRequest newInstance) {
+        assertNotSame(newInstance, expectedInstance);
+        assertArrayEquals(expectedInstance.getSearchRequest().indices(), newInstance.getSearchRequest().indices());
+        assertEquals(expectedInstance.getSearchRequest(), newInstance.getSearchRequest());
+        assertEquals(expectedInstance.getMaxDocs(), newInstance.getMaxDocs());
+        assertEquals(expectedInstance.getSlices(), newInstance.getSlices());
+        assertEquals(expectedInstance.isAbortOnVersionConflict(), newInstance.isAbortOnVersionConflict());
+        assertEquals(expectedInstance.getRemoteInfo(), newInstance.getRemoteInfo());
+        assertEquals(expectedInstance.getDestination().getPipeline(), newInstance.getDestination().getPipeline());
+        assertEquals(expectedInstance.getDestination().routing(), newInstance.getDestination().routing());
+        assertEquals(expectedInstance.getDestination().opType(), newInstance.getDestination().opType());
+        assertEquals(expectedInstance.getDestination().type(), newInstance.getDestination().type());
+    }
+
     public void testReindexFromRemoteDoesNotSupportSearchQuery() {
         ReindexRequest reindex = newRequest();
         reindex.setRemoteInfo(
                 new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, Integer.MAX_VALUE), null,
-                    new BytesArray("real_query"), null, null, emptyMap(),
-                    RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
+                    matchAll, null, null, emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
         reindex.getSearchRequest().source().query(matchAllQuery()); // Unsupported place to put query
         ActionRequestValidationException e = reindex.validate();
         assertEquals("Validation Failed: 1: reindex from remote sources should use RemoteInfo's query instead of source's query;",
@@ -57,8 +153,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         ReindexRequest reindex = newRequest();
         reindex.setRemoteInfo(
                 new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, Integer.MAX_VALUE), null,
-                    new BytesArray("real_query"), null, null, emptyMap(),
-                    RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
+                    matchAll, null, null, emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
         reindex.setSlices(between(2, Integer.MAX_VALUE));
         ActionRequestValidationException e = reindex.validate();
         assertEquals(
@@ -80,10 +175,9 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
             original.setScript(mockScript(randomAlphaOfLength(5)));
         }
         if (randomBoolean()) {
-            original.setRemoteInfo(new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, 10000),
-                    null, new BytesArray(randomAlphaOfLength(5)), null, null, emptyMap(),
-                    parseTimeValue(randomPositiveTimeValue(), "socket_timeout"),
-                    parseTimeValue(randomPositiveTimeValue(), "connect_timeout")));
+            original.setRemoteInfo(new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, 10000), null, matchAll, null,
+                null, emptyMap(), parseTimeValue(randomPositiveTimeValue(), "socket_timeout"),
+                parseTimeValue(randomPositiveTimeValue(), "connect_timeout")));
         }
     }
 
@@ -230,5 +324,4 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
 
         return ReindexRequest.buildRemoteInfo(source);
     }
-
 }

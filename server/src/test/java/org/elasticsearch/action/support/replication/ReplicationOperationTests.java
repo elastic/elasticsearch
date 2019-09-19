@@ -137,6 +137,7 @@ public class ReplicationOperationTests extends ESTestCase {
 
         assertThat(primary.knownLocalCheckpoints.remove(primaryShard.allocationId().getId()), equalTo(primary.localCheckpoint));
         assertThat(primary.knownLocalCheckpoints, equalTo(replicasProxy.generatedLocalCheckpoints));
+        assertThat(primary.knownGlobalCheckpoints.remove(primaryShard.allocationId().getId()), equalTo(primary.globalCheckpoint));
         assertThat(primary.knownGlobalCheckpoints, equalTo(replicasProxy.generatedGlobalCheckpoints));
     }
 
@@ -530,6 +531,11 @@ public class ReplicationOperationTests extends ESTestCase {
 
         @Override
         public long globalCheckpoint() {
+            return globalCheckpoint;
+        }
+
+        @Override
+        public long computedGlobalCheckpoint() {
             return globalCheckpoint;
         }
 

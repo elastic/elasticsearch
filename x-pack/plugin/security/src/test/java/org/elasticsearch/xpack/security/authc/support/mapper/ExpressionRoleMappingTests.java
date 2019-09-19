@@ -43,6 +43,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -76,7 +77,7 @@ public class ExpressionRoleMappingTests extends ESTestCase {
 
         final UserRoleMapper.UserData user1a = new UserRoleMapper.UserData(
             "john.smith", "cn=john.smith,ou=sales,dc=example,dc=com",
-            Collections.emptyList(), Collections.singletonMap("active", true), realm
+            List.of(), Map.of("active", true), realm
         );
         final UserRoleMapper.UserData user1b = new UserRoleMapper.UserData(
             user1a.getUsername(), user1a.getDn().toUpperCase(Locale.US), user1a.getGroups(), user1a.getMetadata(), user1a.getRealm()
@@ -89,16 +90,16 @@ public class ExpressionRoleMappingTests extends ESTestCase {
         );
         final UserRoleMapper.UserData user2 = new UserRoleMapper.UserData(
             "jamie.perez", "cn=jamie.perez,ou=sales,dc=example,dc=com",
-            Collections.emptyList(), Collections.singletonMap("active", false), realm
+            List.of(), Map.of("active", false), realm
         );
 
         final UserRoleMapper.UserData user3 = new UserRoleMapper.UserData(
             "simone.ng", "cn=simone.ng,ou=finance,dc=example,dc=com",
-            Collections.emptyList(), Collections.singletonMap("active", true), realm
+            List.of(), Map.of("active", true), realm
         );
 
         final UserRoleMapper.UserData user4 = new UserRoleMapper.UserData(
-                "peter.null", null, Collections.emptyList(), Collections.singletonMap("active", true), realm
+                "peter.null", null, List.of(), Map.of("active", true), realm
         );
 
         assertThat(mapping.getExpression().match(user1a.asModel()), equalTo(true));
@@ -124,21 +125,17 @@ public class ExpressionRoleMappingTests extends ESTestCase {
             assertThat(mapping.getExpression(), instanceOf(AnyExpression.class));
 
         final UserRoleMapper.UserData userTony = new UserRoleMapper.UserData(
-                "tony.stark", null, Collections.singletonList("Audi R8 owners"), Collections.singletonMap("boss", true), realm
+                "tony.stark", null, List.of("Audi R8 owners"), Map.of("boss", true), realm
         );
         final UserRoleMapper.UserData userPepper = new UserRoleMapper.UserData(
-                "pepper.potts", null, Arrays.asList("marvel", "cn=admins,dc=stark-enterprises,dc=com"), null, realm
+                "pepper.potts", null, List.of("marvel", "cn=admins,dc=stark-enterprises,dc=com"), Map.of(), realm
         );
         final UserRoleMapper.UserData userMax = new UserRoleMapper.UserData(
-                "max.rockatansky", null, Collections.singletonList("bronze"), Collections.singletonMap("mad", true), realm
-        );
-        final UserRoleMapper.UserData userFinn = new UserRoleMapper.UserData(
-                "finn.hackleberry", null, Arrays.asList("hacker", null), null, realm
+                "max.rockatansky", null, List.of("bronze"), Map.of("mad", true), realm
         );
         assertThat(mapping.getExpression().match(userTony.asModel()), equalTo(true));
         assertThat(mapping.getExpression().match(userPepper.asModel()), equalTo(true));
         assertThat(mapping.getExpression().match(userMax.asModel()), equalTo(false));
-        assertThat(mapping.getExpression().match(userFinn.asModel()), equalTo(false));
     }
 
     public void testParseValidJsonWithTemplatedRoleNames() throws Exception {

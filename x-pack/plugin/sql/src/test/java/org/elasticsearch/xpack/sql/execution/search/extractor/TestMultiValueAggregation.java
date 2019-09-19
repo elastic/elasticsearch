@@ -50,14 +50,4 @@ class TestMultiValueAggregation extends InternalNumericMetricsAggregation.MultiV
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         throw new UnsupportedOperationException();
     }
-
-    @Override
-    protected int doHashCode() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    protected boolean doEquals(Object obj) {
-        throw new UnsupportedOperationException();
-    }
 }

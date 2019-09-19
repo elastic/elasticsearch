@@ -17,14 +17,23 @@
  * under the License.
  */
 
+
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.test.AntFixture
 
+import java.nio.file.Files
 import java.security.KeyPair
 import java.security.KeyPairGenerator
 
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+
+// TODO think about flattening qa:google-cloud-storage project into parent
+dependencies {
+    testCompile project(path: ':plugins:repository-gcs')
+}
 
 boolean useFixture = false
 
@@ -38,11 +47,14 @@ if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
     gcsBucket = 'bucket_test'
     gcsBasePath = 'integration_test'
     useFixture = true
+} else if (!gcsServiceAccount || !gcsBucket || !gcsBasePath) {
+    throw new IllegalArgumentException("not all options specified to run tests against external GCS service are present")
 } else {
     serviceAccountFile = new File(gcsServiceAccount)
-    if (serviceAccountFile.exists() == false || serviceAccountFile.canRead() == false) {
-        throw new FileNotFoundException(gcsServiceAccount, "Google Storage service account file does not exist or is not readable")
-    }
+}
+
+def encodedCredentials = {
+    Base64.encoder.encodeToString(Files.readAllBytes(serviceAccountFile.toPath()))
 }
 
 /** A task to start the GoogleCloudStorageFixture which emulates a Google Cloud Storage service **/
@@ -73,6 +85,47 @@ task createServiceAccountFile() {
     }
 }
 
+task thirdPartyTest (type: Test) {
+    include '**/GoogleCloudStorageThirdPartyTests.class'
+    systemProperty 'tests.security.manager', false
+    systemProperty 'test.google.bucket', gcsBucket
+    systemProperty 'test.google.base', gcsBasePath
+    nonInputProperties.systemProperty 'test.google.account', "${ -> encodedCredentials.call() }"
+}
+
+task gcsThirdPartyTests {
+    dependsOn check
+}
+
+if (useFixture) {
+    // TODO think about running the fixture in the same JVM as tests
+    thirdPartyTest.dependsOn createServiceAccountFile, googleCloudStorageFixture
+    thirdPartyTest.finalizedBy googleCloudStorageFixture.getStopTask()
+
+    def fixtureEndpoint = {
+        "http://${googleCloudStorageFixture.addressAndPort}"
+    }
+
+    def tokenURI = {
+        "http://${googleCloudStorageFixture.addressAndPort}/o/oauth2/token"
+    }
+
+    thirdPartyTest {
+        nonInputProperties.systemProperty 'test.google.endpoint', "${ -> fixtureEndpoint.call() }"
+        nonInputProperties.systemProperty 'test.google.tokenURI', "${ -> tokenURI.call() }"
+    }
+
+    gradle.taskGraph.whenReady {
+        if (it.hasTask(gcsThirdPartyTests)) {
+            throw new IllegalStateException("Tried to run third party tests but not all of the necessary environment variables 'google_storage_service_account', " +
+                    "'google_storage_bucket', 'google_storage_base_path' are set.")
+        }
+    }
+}
+
+integTest.mustRunAfter(thirdPartyTest)
+check.dependsOn thirdPartyTest
+
 Map<String, Object> expansions = [
         'bucket': gcsBucket,
         'base_path': gcsBasePath
@@ -90,13 +143,13 @@ integTest {
 testClusters.integTest {
     plugin file(project(':plugins:repository-gcs').bundlePlugin.archiveFile)
 
-    keystore 'gcs.client.integration_test.credentials_file', serviceAccountFile
+    keystore 'gcs.client.integration_test.credentials_file', serviceAccountFile, IGNORE_VALUE
 
     if (useFixture) {
         tasks.integTest.dependsOn createServiceAccountFile, googleCloudStorageFixture
         /* Use a closure on the string to delay evaluation until tests are executed */
-        setting 'gcs.client.integration_test.endpoint', { "http://${googleCloudStorageFixture.addressAndPort}" }
-        setting 'gcs.client.integration_test.token_uri', { "http://${googleCloudStorageFixture.addressAndPort}/o/oauth2/token" }
+        setting 'gcs.client.integration_test.endpoint', { "http://${googleCloudStorageFixture.addressAndPort}" }, IGNORE_VALUE
+        setting 'gcs.client.integration_test.token_uri', { "http://${googleCloudStorageFixture.addressAndPort}/o/oauth2/token" }, IGNORE_VALUE
     } else {
         println "Using an external service to test the repository-gcs plugin"
     }

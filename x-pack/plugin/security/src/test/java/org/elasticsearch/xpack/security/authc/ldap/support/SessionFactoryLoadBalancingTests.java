@@ -20,7 +20,6 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.mocksocket.MockSocket;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
@@ -53,7 +52,6 @@ import static org.hamcrest.Matchers.not;
 /**
  * Tests that the server sets properly load balance connections without throwing exceptions
  */
-@TestLogging("org.elasticsearch.xpack.security.authc.ldap.support:DEBUG")
 public class SessionFactoryLoadBalancingTests extends LdapTestCase {
 
     private ThreadPool threadPool;

@@ -277,7 +277,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
             assertReturnedIndices(multiSearchResponse.getResponses()[0].getResponse(), "test1", "test2", "test3");
             assertTrue(multiSearchResponse.getResponses()[1].isFailure());
             assertThat(multiSearchResponse.getResponses()[1].getFailure().toString(),
-                    equalTo("[test4] IndexNotFoundException[no such index [test4]]"));
+                    equalTo("[test4] org.elasticsearch.index.IndexNotFoundException: no such index [test4]"));
         }
         {
             //we set ignore_unavailable and allow_no_indices to true, no errors returned, second item doesn't have hits.
@@ -315,22 +315,6 @@ public class ReadActionsTests extends SecurityIntegTestCase {
             Exception exception = multiSearchResponse.getResponses()[1].getFailure();
             assertThat(exception, instanceOf(IndexNotFoundException.class));
         }
-    }
-
-    public void testIndicesExists() {
-        createIndicesWithRandomAliases("test1", "test2", "test3");
-
-        assertEquals(true, client().admin().indices().prepareExists("*").get().isExists());
-
-        assertEquals(true, client().admin().indices().prepareExists("_all").get().isExists());
-
-        assertEquals(true, client().admin().indices().prepareExists("test1", "test2").get().isExists());
-
-        assertEquals(true, client().admin().indices().prepareExists("test*").get().isExists());
-
-        assertEquals(false, client().admin().indices().prepareExists("does_not_exist").get().isExists());
-
-        assertEquals(false, client().admin().indices().prepareExists("does_not_exist*").get().isExists());
     }
 
     public void testGet() {

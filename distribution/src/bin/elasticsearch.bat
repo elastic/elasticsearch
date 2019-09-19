@@ -54,7 +54,7 @@ if "%MAYBE_JVM_OPTIONS_PARSER_FAILED%" == "jvm_options_parser_failed" (
   exit /b 1
 )
 
-%JAVA% %ES_JAVA_OPTS% -Delasticsearch -Des.path.home="%ES_HOME%" -Des.path.conf="%ES_PATH_CONF%" -Des.distribution.flavor="%ES_DISTRIBUTION_FLAVOR%" -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" -Des.bundled_jd="%ES_BUNDLED_JDK%" -cp "%ES_CLASSPATH%" "org.elasticsearch.bootstrap.Elasticsearch" !newparams!
+%JAVA% %ES_JAVA_OPTS% -Delasticsearch -Des.path.home="%ES_HOME%" -Des.path.conf="%ES_PATH_CONF%" -Des.distribution.flavor="%ES_DISTRIBUTION_FLAVOR%" -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" -Des.bundled_jdk="%ES_BUNDLED_JDK%" -cp "%ES_CLASSPATH%" "org.elasticsearch.bootstrap.Elasticsearch" !newparams!
 
 endlocal
 endlocal

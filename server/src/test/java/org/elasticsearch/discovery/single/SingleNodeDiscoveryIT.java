@@ -59,7 +59,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                 .builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("discovery.type", "single-node")
-                .put("transport.port", "0")
+                .put("transport.port", getPortRange())
                 .build();
     }
 
@@ -189,7 +189,6 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
     public void testStatePersistence() throws Exception {
         createIndex("test");
         internalCluster().fullRestart();
-        assertTrue(client().admin().indices().prepareExists("test").get().isExists());
+        assertTrue(indexExists("test"));
     }
-
 }

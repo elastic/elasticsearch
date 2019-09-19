@@ -1,0 +1,117 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-get-record]]
+=== Get records API
+++++
+<titleabbrev>Get records</titleabbrev>
+++++
+
+Retrieves anomaly records for an {anomaly-job}.
+
+[[ml-get-record-request]]
+==== {api-request-title}
+
+`GET _ml/anomaly_detectors/<job_id>/results/records`
+
+[[ml-get-record-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `monitor_ml`,
+`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. You also
+need `read` index privilege on the index that stores the results. The
+`machine_learning_admin` and `machine_learning_user` roles provide these
+privileges. See {stack-ov}/security-privileges.html[Security privileges] and
+{stack-ov}/built-in-roles.html[Built-in roles].
+
+[[ml-get-record-path-parms]]
+==== {api-path-parms-title}
+
+`<job_id>`::
+  (Required, string) Identifier for the {anomaly-job}.
+
+[[ml-get-record-request-body]]
+==== {api-request-body-title}
+
+`desc`::
+  (Optional, boolean) If true, the results are sorted in descending order.
+
+`end`::
+  (Optional, string) Returns records with timestamps earlier than this time.
+
+`exclude_interim`::
+  (Optional, boolean) If true, the output excludes interim results. By default,
+  interim results are included.
+
+`page`::
+`from`:::
+  (Optional, integer) Skips the specified number of records.
+`size`:::
+  (Optional, integer) Specifies the maximum number of records to obtain.
+
+`record_score`::
+  (Optional, double) Returns records with anomaly scores greater or equal than
+  this value.
+
+`sort`::
+  (Optional, string) Specifies the sort field for the requested records. By
+  default, the records are sorted by the `anomaly_score` value.
+
+`start`::
+  (Optional, string) Returns records with timestamps after this time.
+
+[[ml-get-record-results]]
+==== {api-response-body-title}
+
+The API returns the following information:
+
+`records`::
+  (array) An array of record objects. For more information, see
+  <<ml-results-records>>.
+
+[[ml-get-record-example]]
+==== {api-examples-title}
+
+The following example gets record information for the `it-ops-kpi` job:
+
+[source,console]
+--------------------------------------------------
+GET _ml/anomaly_detectors/it-ops-kpi/results/records
+{
+  "sort": "record_score",
+  "desc": true,
+  "start": "1454944100000"
+}
+--------------------------------------------------
+// TEST[skip:todo]
+
+In this example, the API returns twelve results for the specified
+time constraints:
+[source,js]
+----
+{
+  "count": 12,
+  "records": [
+    {
+      "job_id": "it-ops-kpi",
+      "result_type": "record",
+      "probability": 0.00000332668,
+      "record_score": 72.9929,
+      "initial_record_score": 65.7923,
+      "bucket_span": 300,
+      "detector_index": 0,
+      "is_interim": false,
+      "timestamp": 1454944200000,
+      "function": "low_sum",
+      "function_description": "sum",
+      "typical": [
+        1806.48
+      ],
+      "actual": [
+        288
+      ],
+      "field_name": "events_per_min"
+    },
+  ...
+  ]
+}
+----

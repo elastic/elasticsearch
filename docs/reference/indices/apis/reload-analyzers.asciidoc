@@ -1,0 +1,103 @@
+[role="xpack"]
+[testenv="basic"]
+[[indices-reload-analyzers]]
+== Reload Search Analyzers
+
+experimental[]
+
+Reloads search analyzers and its resources.
+
+Synonym filters (both `synonym` and `synonym_graph`) can be declared as
+updateable if they are only used in <<search-analyzer,search analyzers>> 
+with the `updateable` flag:
+
+[source,console]
+--------------------------------------------------
+PUT /my_index
+{
+    "settings": {
+        "index" : {
+            "analysis" : {
+                "analyzer" : {
+                    "my_synonyms" : {
+                        "tokenizer" : "whitespace",
+                        "filter" : ["synonym"]
+                    }
+                },
+                "filter" : {
+                    "synonym" : {
+                        "type" : "synonym",
+                        "synonyms_path" : "analysis/synonym.txt",
+                        "updateable" : true <1>
+                    }
+                }
+            }
+        }
+    },
+    "mappings": {
+        "properties": {
+            "text": {
+                "type": "text",
+                "analyzer" : "standard",
+                "search_analyzer": "my_synonyms" <2>
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+<1> Mark the synonym filter as updateable.
+<2> Synonym analyzer is usable as a search_analyzer.
+
+NOTE: Trying to use the above analyzer as an index analyzer will result in an error.
+
+Using the <<indices-reload-analyzers,analyzer reload API>>, you can trigger reloading of the
+synonym definition. The contents of the configured synonyms file will be reloaded and the
+synonyms definition the filter uses will be updated. 
+
+The `_reload_search_analyzers` API can be run on one or more indices and will trigger 
+reloading of the synonyms from the configured file.
+
+NOTE: Reloading will happen on every node the index has shards, so its important
+to update the synonym file contents on every data node (even the ones that don't currently
+hold shard copies; shards might be relocated there in the future) before calling
+reload to ensure the new state of the file is reflected everywhere in the cluster.
+
+[source,console]
+--------------------------------------------------
+POST /my_index/_reload_search_analyzers
+--------------------------------------------------
+// TEST[continued]
+
+The reload request returns information about the nodes it was executed on and the
+analyzers that were reloaded:
+
+[source,console-result]
+--------------------------------------------------
+{
+    "_shards" : {
+        "total" : 2,
+        "successful" : 2,
+        "failed" : 0
+    },
+    "reload_details" : [
+        {
+            "index" : "my_index",
+            "reloaded_analyzers" : [
+                "my_synonyms" 
+            ],
+            "reloaded_node_ids" : [
+                "mfdqTXn_T7SGr2Ho2KT8uw"
+            ]
+        }
+    ]
+}
+--------------------------------------------------
+// TEST[continued]
+// TESTRESPONSE[s/"total" : 2/"total" : $body._shards.total/]
+// TESTRESPONSE[s/"successful" : 2/"successful" : $body._shards.successful/]
+// TESTRESPONSE[s/mfdqTXn_T7SGr2Ho2KT8uw/$body.reload_details.0.reloaded_node_ids.0/]
+
+NOTE: Reloading does not happen on each shard of an index, but once on each node
+the index has shards on. The total shard count can therefore differ from the number
+of index shards.

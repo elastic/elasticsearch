@@ -15,3 +15,10 @@
 
 The setting `indices.lifecycle.poll_interval`, if set too low, can cause
 excessive load on a cluster. This setting must now be set to 1 second or higher.
+
+[float]
+[[ilm-hlrc-rename]]
+==== `indexlifecycle` packages renamed to `ilm`
+
+In the high level REST client, the `indexlifecycle` package has been
+renamed to `ilm` to match the package rename inside the Elasticsearch code.

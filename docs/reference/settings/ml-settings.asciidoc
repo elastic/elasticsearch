@@ -109,3 +109,11 @@ cluster and the job is assigned to run on that node.
 IMPORTANT: This setting assumes some external process is capable of adding ML nodes
 to the cluster. This setting is only useful when used in conjunction with
 such an external process.
+
+`xpack.ml.process_connect_timeout` (<<cluster-update-settings,Dynamic>>)::
+The connection timeout for {ml} processes that run separately from the {es} JVM.
+Defaults to `10s`. Some {ml} processing is done by processes that run separately
+to the {es} JVM. When such processes are started they must connect to the {es}
+JVM. If such a process does not connect within the time period specified by this
+setting then the process is assumed to have failed. Defaults to `10s`. The minimum
+value for this setting is `5s`.

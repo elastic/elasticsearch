@@ -1,0 +1,109 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-get-snapshot]]
+=== Get model snapshots API
+++++
+<titleabbrev>Get model snapshots</titleabbrev>
+++++
+
+Retrieves information about model snapshots.
+
+[[ml-get-snapshot-request]]
+==== {api-request-title}
+
+`GET _ml/anomaly_detectors/<job_id>/model_snapshots` +
+
+`GET _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>`
+
+[[ml-get-snapshot-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `monitor_ml`,
+`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
+[[ml-get-snapshot-path-parms]]
+==== {api-path-parms-title}
+
+`<job_id>`::
+  (Required, string) Identifier for the {anomaly-job}.
+
+`<snapshot_id>`::
+  (Optional, string) Identifier for the model snapshot. If you do not specify
+  this optional parameter, the API returns information about all model snapshots.
+
+[[ml-get-snapshot-request-body]]
+==== {api-request-body-title}
+
+`desc`::
+  (Optional, boolean) If true, the results are sorted in descending order.
+
+`end`::
+  (Optional, date) Returns snapshots with timestamps earlier than this time.
+
+`from`::
+  (Optional, integer) Skips the specified number of snapshots.
+
+`size`::
+  (Optional, integer) Specifies the maximum number of snapshots to obtain.
+
+`sort`::
+  (Optional, string) Specifies the sort field for the requested snapshots. By
+  default, the snapshots are sorted by their timestamp.
+
+`start`::
+  (Optional, string) Returns snapshots with timestamps after this time.
+
+[[ml-get-snapshot-results]]
+==== {api-response-body-title}
+
+The API returns the following information:
+
+`model_snapshots`::
+  (array) An array of model snapshot objects. For more information, see
+  <<ml-snapshot-resource>>.
+
+[[ml-get-snapshot-example]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+GET _ml/anomaly_detectors/farequote/model_snapshots
+{
+  "start": "1491852977000"
+}
+--------------------------------------------------
+// TEST[skip:todo]
+
+In this example, the API provides a single result:
+[source,js]
+----
+{
+  "count": 1,
+  "model_snapshots": [
+    {
+      "job_id": "farequote",
+      "min_version": "6.3.0",
+      "timestamp": 1491948163000,
+      "description": "State persisted due to job close at 2017-04-11T15:02:43-0700",
+      "snapshot_id": "1491948163",
+      "snapshot_doc_count": 1,
+      "model_size_stats": {
+        "job_id": "farequote",
+        "result_type": "model_size_stats",
+        "model_bytes": 387594,
+        "total_by_field_count": 21,
+        "total_over_field_count": 0,
+        "total_partition_field_count": 20,
+        "bucket_allocation_failures_count": 0,
+        "memory_status": "ok",
+        "log_time": 1491948163000,
+        "timestamp": 1455234600000
+      },
+      "latest_record_time_stamp": 1455235196000,
+      "latest_result_time_stamp": 1455234900000,
+      "retain": false
+    }
+  ]
+}
+----

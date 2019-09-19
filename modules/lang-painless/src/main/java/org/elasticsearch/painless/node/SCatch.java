@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
@@ -51,6 +52,13 @@ public final class SCatch extends AStatement {
         this.type = Objects.requireNonNull(type);
         this.name = Objects.requireNonNull(name);
         this.block = block;
+    }
+
+    @Override
+    void storeSettings(CompilerSettings settings) {
+        if (block != null) {
+            block.storeSettings(settings);
+        }
     }
 
     @Override
@@ -109,7 +117,7 @@ public final class SCatch extends AStatement {
 
         writer.visitTryCatchBlock(begin, end, jump, MethodWriter.getType(variable.clazz).getInternalName());
 
-        if (exception != null && !block.allEscape) {
+        if (exception != null && (block == null || !block.allEscape)) {
             writer.goTo(exception);
         }
     }

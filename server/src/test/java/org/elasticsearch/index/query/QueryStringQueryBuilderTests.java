@@ -58,6 +58,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.QueryStringQueryParser;
 import org.elasticsearch.search.internal.SearchContext;
@@ -765,47 +766,29 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertThat(e.getMessage(), containsString("would result in more than 10 states"));
     }
 
-    /**
-     * Validates that {@code max_determinized_states} can be parsed and lowers the allowed number of determinized states.
-     */
-    public void testEnabledPositionIncrements() throws Exception {
-
-        XContentBuilder builder = JsonXContent.contentBuilder();
-        builder.startObject(); {
-            builder.startObject("query_string"); {
-                builder.field("query", "text");
-                builder.field("default_field", STRING_FIELD_NAME);
-                builder.field("enable_position_increments", false);
-            }
-            builder.endObject();
-        }
-        builder.endObject();
-
-        QueryStringQueryBuilder queryBuilder = (QueryStringQueryBuilder) parseInnerQueryBuilder(createParser(builder));
-        assertFalse(queryBuilder.enablePositionIncrements());
-    }
-
     public void testToQueryFuzzyQueryAutoFuziness() throws Exception {
         for (int i = 0; i < 3; i++) {
+            final int len;
             final int expectedEdits;
-            String queryString;
             switch (i) {
                 case 0:
-                    queryString = randomAlphaOfLengthBetween(1, 2);
+                    len = randomIntBetween(1, 2);
                     expectedEdits = 0;
                     break;
 
                 case 1:
-                    queryString = randomAlphaOfLengthBetween(3, 5);
+                    len = randomIntBetween(3, 5);
                     expectedEdits = 1;
                     break;
 
                 default:
-                    queryString = randomAlphaOfLengthBetween(6, 20);
+                    len = randomIntBetween(6, 20);
                     expectedEdits = 2;
                     break;
             }
-
+            char[] bytes = new char[len];
+            Arrays.fill(bytes, 'a');
+            String queryString = new String(bytes);
             for (int j = 0; j < 2; j++) {
                 Query query = queryStringQuery(queryString + (j == 0 ? "~" : "~auto"))
                     .defaultField(STRING_FIELD_NAME)
@@ -817,7 +800,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             }
         }
     }
-
     public void testFuzzyNumeric() throws Exception {
         QueryStringQueryBuilder query = queryStringQuery("12~1.0").defaultField(INT_FIELD_NAME);
         QueryShardContext context = createShardContext();
@@ -1074,11 +1056,14 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     public void testDisabledFieldNamesField() throws Exception {
         QueryShardContext context = createShardContext();
         context.getMapperService().merge("_doc",
-            new CompressedXContent(
-                Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
-                    "foo", "type=text",
-                    "_field_names", "enabled=false"))),
-            MapperService.MergeReason.MAPPING_UPDATE);
+                new CompressedXContent(Strings
+                        .toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
+                                "foo",
+                                "type=text",
+                                "_field_names",
+                                "enabled=false"))),
+                MapperService.MergeReason.MAPPING_UPDATE);
+
         try {
             QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder("foo:*");
             Query query = queryBuilder.toQuery(context);
@@ -1087,15 +1072,16 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         } finally {
             // restore mappings as they were before
             context.getMapperService().merge("_doc",
-                new CompressedXContent(
-                    Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
-                        "foo", "type=text",
-                        "_field_names", "enabled=true"))),
-                MapperService.MergeReason.MAPPING_UPDATE);
+                    new CompressedXContent(Strings.toString(
+                            PutMappingRequest.buildFromSimplifiedDef("_doc",
+                                    "foo",
+                                    "type=text",
+                                    "_field_names",
+                                    "enabled=true"))),
+                    MapperService.MergeReason.MAPPING_UPDATE);
         }
+        assertWarnings(FieldNamesFieldMapper.TypeParser.ENABLED_DEPRECATION_MESSAGE.replace("{}",  context.index().getName()));
     }
-
-
 
     public void testFromJson() throws IOException {
         String json =
@@ -1434,6 +1420,19 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                     .analyzer("stop")
             )
             .toQuery(createShardContext());
+        assertEquals(expected, query);
+    }
+
+    public void testEnablePositionIncrement() throws Exception {
+        Query query = new QueryStringQueryBuilder("\"quick the fox\"")
+            .field(STRING_FIELD_NAME)
+            .analyzer("stop")
+            .enablePositionIncrements(false)
+            .toQuery(createShardContext());
+        PhraseQuery expected = new PhraseQuery.Builder()
+            .add(new Term(STRING_FIELD_NAME, "quick"))
+            .add(new Term(STRING_FIELD_NAME, "fox"))
+            .build();
         assertEquals(expected, query);
     }
 

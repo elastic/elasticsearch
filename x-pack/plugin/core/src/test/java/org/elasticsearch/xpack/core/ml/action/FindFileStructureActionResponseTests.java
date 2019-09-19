@@ -5,10 +5,11 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructureTests;
 
-public class FindFileStructureActionResponseTests extends AbstractStreamableTestCase<FindFileStructureAction.Response> {
+public class FindFileStructureActionResponseTests extends AbstractWireSerializingTestCase<FindFileStructureAction.Response> {
 
     @Override
     protected FindFileStructureAction.Response createTestInstance() {
@@ -16,7 +17,7 @@ public class FindFileStructureActionResponseTests extends AbstractStreamableTest
     }
 
     @Override
-    protected FindFileStructureAction.Response createBlankInstance() {
-        return new FindFileStructureAction.Response();
+    protected Writeable.Reader<FindFileStructureAction.Response> instanceReader() {
+        return FindFileStructureAction.Response::new;
     }
 }

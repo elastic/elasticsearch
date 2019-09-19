@@ -1,26 +1,24 @@
 [[docs-termvectors]]
-== Term Vectors
+=== Term Vectors
 
 Returns information and statistics on terms in the fields of a particular
 document. The document could be stored in the index or artificially provided
 by the user. Term vectors are <<realtime,realtime>> by default, not near
 realtime. This can be changed by setting `realtime` parameter to `false`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_termvectors/1
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 Optionally, you can specify the fields for which the information is
 retrieved either with a parameter in the url
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_termvectors/1?fields=message
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 or by adding the requested fields in the request body (see
@@ -28,14 +26,14 @@ example below). Fields can also be specified with wildcards
 in similar way to the <<query-dsl-multi-match-query,multi match query>>
 
 [float]
-=== Return values
+==== Return values
 
 Three types of values can be requested: _term information_, _term statistics_
 and _field statistics_. By default, all term information and field
 statistics are returned for all fields but no term statistics.
 
 [float]
-==== Term information
+===== Term information
 
  * term frequency in the field (always returned)
  * term positions (`positions` : true)
@@ -55,7 +53,7 @@ using UTF-16.
 ======
 
 [float]
-==== Term statistics
+===== Term statistics
 
 Setting `term_statistics` to `true` (default is `false`) will
 return
@@ -68,7 +66,7 @@ By default these values are not returned since term statistics can
 have a serious performance impact.
 
 [float]
-==== Field statistics
+===== Field statistics
 
 Setting `field_statistics` to `false` (default is `true`) will
 omit :
@@ -80,7 +78,7 @@ omit :
    each term in this field)
 
 [float]
-==== Terms Filtering
+===== Terms Filtering
 
 With the parameter `filter`, the terms returned could also be filtered based
 on their tf-idf scores. This could be useful in order find out a good
@@ -108,7 +106,7 @@ The following sub-parameters are supported:
   The maximum word length above which words will be ignored. Defaults to unbounded (`0`).
 
 [float]
-=== Behaviour
+==== Behaviour
 
 The term and field statistics are not accurate. Deleted documents
 are not taken into account. The information is only retrieved for the
@@ -119,11 +117,11 @@ when requesting term vectors of artificial documents, a shard to get the statist
 from is randomly selected. Use `routing` only to hit a particular shard.
 
 [float]
-==== Example: Returning stored term vectors
+===== Example: Returning stored term vectors
 
 First, we create an index that stores term vectors, payloads etc. :
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /twitter
 { "mappings": {
@@ -161,11 +159,10 @@ PUT /twitter
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Second, we add some documents:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /twitter/_doc/1
 {
@@ -179,13 +176,12 @@ PUT /twitter/_doc/2
   "text" : "Another twitter test ..."
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The following request returns all information and statistics for field
 `text` in document `1` (John Doe):
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_termvectors/1
 {
@@ -197,12 +193,11 @@ GET /twitter/_termvectors/1
   "field_statistics" : true
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "_id": "1",
@@ -265,14 +260,14 @@ Response:
 // TESTRESPONSE[s/"took": 6/"took": "$body.took"/]
 
 [float]
-==== Example: Generating term vectors on the fly
+===== Example: Generating term vectors on the fly
 
 Term vectors which are not explicitly stored in the index are automatically
 computed on the fly. The following request returns all information and statistics for the
 fields in document `1`, even though the terms haven't been explicitly stored in the index.
 Note that for the field `text`, the terms are not re-generated.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_termvectors/1
 {
@@ -283,12 +278,11 @@ GET /twitter/_termvectors/1
   "field_statistics" : true
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [[docs-termvectors-artificial-doc]]
 [float]
-==== Example: Artificial documents
+===== Example: Artificial documents
 
 Term vectors can also be generated for artificial documents,
 that is for documents not present in the index.  For example, the following request would
@@ -297,7 +291,7 @@ return the same results as in example 1. The mapping used is determined by the `
 *If dynamic mapping is turned on (default), the document fields not in the original
 mapping will be dynamically created.*
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_termvectors
 {
@@ -307,12 +301,11 @@ GET /twitter/_termvectors
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [[docs-termvectors-per-field-analyzer]]
 [float]
-===== Per-field analyzer
+====== Per-field analyzer
 
 Additionally, a different analyzer than the one at the field may be provided
 by using the `per_field_analyzer` parameter. This is useful in order to
@@ -320,7 +313,7 @@ generate term vectors in any fashion, especially when using artificial
 documents. When providing an analyzer for a field that already stores term
 vectors, the term vectors will be re-generated.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter/_termvectors
 {
@@ -334,12 +327,11 @@ GET /twitter/_termvectors
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index": "twitter",
@@ -378,7 +370,7 @@ Response:
 
 [[docs-termvectors-terms-filtering]]
 [float]
-==== Example: Terms filtering
+===== Example: Terms filtering
 
 Finally, the terms returned could be filtered based on their tf-idf scores. In
 the example below we obtain the three most "interesting" keywords from the
@@ -386,7 +378,7 @@ artificial document having the given "plot" field value. Notice
 that the keyword "Tony" or any stop words are not part of the response, as
 their tf-idf must be too low.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /imdb/_termvectors
 {
@@ -404,12 +396,11 @@ GET /imdb/_termvectors
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:no imdb test index]
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "_index": "imdb",
@@ -446,4 +437,3 @@ Response:
    }
 }
 --------------------------------------------------
-// TESTRESPONSE

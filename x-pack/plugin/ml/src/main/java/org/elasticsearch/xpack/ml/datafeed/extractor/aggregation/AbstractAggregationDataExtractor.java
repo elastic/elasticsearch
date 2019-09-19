@@ -18,6 +18,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -50,17 +51,20 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
 
     protected final Client client;
     protected final AggregationDataExtractorContext context;
+    private final DatafeedTimingStatsReporter timingStatsReporter;
     private boolean hasNext;
     private boolean isCancelled;
     private AggregationToJsonProcessor aggregationToJsonProcessor;
     private ByteArrayOutputStream outputStream;
 
-    AbstractAggregationDataExtractor(Client client, AggregationDataExtractorContext dataExtractorContext) {
+    AbstractAggregationDataExtractor(
+            Client client, AggregationDataExtractorContext dataExtractorContext, DatafeedTimingStatsReporter timingStatsReporter) {
         this.client = Objects.requireNonNull(client);
-        context = Objects.requireNonNull(dataExtractorContext);
-        hasNext = true;
-        isCancelled = false;
-        outputStream = new ByteArrayOutputStream();
+        this.context = Objects.requireNonNull(dataExtractorContext);
+        this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
+        this.hasNext = true;
+        this.isCancelled = false;
+        this.outputStream = new ByteArrayOutputStream();
     }
 
     @Override
@@ -107,6 +111,7 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
         LOGGER.debug("[{}] Executing aggregated search", context.jobId);
         SearchResponse searchResponse = executeSearchRequest(buildSearchRequest(buildBaseSearchSource()));
         LOGGER.debug("[{}] Search response was obtained", context.jobId);
+        timingStatsReporter.reportSearchDuration(searchResponse.getTook());
         ExtractorUtils.checkSearchWasSuccessful(context.jobId, searchResponse);
         return validateAggs(searchResponse.getAggregations());
     }

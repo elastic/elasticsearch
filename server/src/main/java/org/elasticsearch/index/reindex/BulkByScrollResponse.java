@@ -78,7 +78,13 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         Status.declareFields(PARSER);
     }
 
-    public BulkByScrollResponse() {
+    public BulkByScrollResponse(StreamInput in) throws IOException {
+        super(in);
+        took = in.readTimeValue();
+        status = new BulkByScrollTask.Status(in);
+        bulkFailures = in.readList(Failure::new);
+        searchFailures = in.readList(ScrollableHitSource.SearchFailure::new);
+        timedOut = in.readBoolean();
     }
 
     public BulkByScrollResponse(TimeValue took, BulkByScrollTask.Status status, List<Failure> bulkFailures,
@@ -186,22 +192,11 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeTimeValue(took);
         status.writeTo(out);
         out.writeList(bulkFailures);
         out.writeList(searchFailures);
         out.writeBoolean(timedOut);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        took = in.readTimeValue();
-        status = new BulkByScrollTask.Status(in);
-        bulkFailures = in.readList(Failure::new);
-        searchFailures = in.readList(ScrollableHitSource.SearchFailure::new);
-        timedOut = in.readBoolean();
     }
 
     @Override
@@ -246,10 +241,10 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
            } else if (token == Token.START_OBJECT) {
                switch (name) {
                    case SearchFailure.REASON_FIELD:
-                       bulkExc = ElasticsearchException.fromXContent(parser);
+                       searchExc = ElasticsearchException.fromXContent(parser);
                        break;
                    case Failure.CAUSE_FIELD:
-                       searchExc = ElasticsearchException.fromXContent(parser);
+                       bulkExc = ElasticsearchException.fromXContent(parser);
                        break;
                    default:
                        parser.skipChildren();
@@ -290,7 +285,11 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
        if (bulkExc != null) {
            return new Failure(index, type, id, bulkExc, RestStatus.fromCode(status));
        } else if (searchExc != null) {
-           return new SearchFailure(searchExc, index, shardId, nodeId);
+           if (status == null) {
+               return new SearchFailure(searchExc, index, shardId, nodeId);
+           } else {
+               return new SearchFailure(searchExc, index, shardId, nodeId, RestStatus.fromCode(status));
+           }
        } else {
            throw new ElasticsearchParseException("failed to parse failures array. At least one of {reason,cause} must be present");
        }

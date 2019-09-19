@@ -22,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -100,17 +102,8 @@ public final class ThreadContext implements Writeable {
      * @param settings the settings to read the default request headers from
      */
     public ThreadContext(Settings settings) {
-        Settings headers = DEFAULT_HEADERS_SETTING.get(settings);
-        if (headers == null) {
-            this.defaultHeader = Collections.emptyMap();
-        } else {
-            Map<String, String> defaultHeader = new HashMap<>();
-            for (String key : headers.names()) {
-                defaultHeader.put(key, headers.get(key));
-            }
-            this.defaultHeader = Collections.unmodifiableMap(defaultHeader);
-        }
-        threadLocal = ThreadLocal.withInitial(() -> DEFAULT_CONTEXT);
+        this.defaultHeader = buildDefaultHeaders(settings);
+        this.threadLocal = ThreadLocal.withInitial(() -> DEFAULT_CONTEXT);
         this.maxWarningHeaderCount = SETTING_HTTP_MAX_WARNING_HEADER_COUNT.get(settings);
         this.maxWarningHeaderSize = SETTING_HTTP_MAX_WARNING_HEADER_SIZE.get(settings).getBytes();
     }
@@ -121,7 +114,18 @@ public final class ThreadContext implements Writeable {
      */
     public StoredContext stashContext() {
         final ThreadContextStruct context = threadLocal.get();
-        threadLocal.set(DEFAULT_CONTEXT);
+        /**
+         * X-Opaque-ID should be preserved in a threadContext in order to propagate this across threads.
+         * This is needed so the DeprecationLogger in another thread can see the value of X-Opaque-ID provided by a user.
+         * Otherwise when context is stash, it should be empty.
+         */
+        if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
+            ThreadContextStruct threadContextStruct =
+                DEFAULT_CONTEXT.putHeaders(Map.of(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID)));
+            threadLocal.set(threadContextStruct);
+        } else {
+            threadLocal.set(DEFAULT_CONTEXT);
+        }
         return () -> {
             // If the node and thus the threadLocal get closed while this task
             // is still executing, we don't want this runnable to fail with an
@@ -229,7 +233,38 @@ public final class ThreadContext implements Writeable {
      * Reads the headers from the stream into the current context
      */
     public void readHeaders(StreamInput in) throws IOException {
-        threadLocal.set(new ThreadContext.ThreadContextStruct(in));
+        final Tuple<Map<String, String>, Map<String, Set<String>>> streamTuple = readHeadersFromStream(in);
+        final Map<String, String>  requestHeaders = streamTuple.v1();
+        final Map<String, Set<String>> responseHeaders = streamTuple.v2();
+        final ThreadContextStruct struct;
+        if (requestHeaders.isEmpty() && responseHeaders.isEmpty()) {
+            struct = ThreadContextStruct.EMPTY;
+        } else {
+            struct = new ThreadContextStruct(requestHeaders, responseHeaders, Collections.emptyMap(), false);
+        }
+        threadLocal.set(struct);
+    }
+
+    public static Tuple<Map<String, String>, Map<String, Set<String>>> readHeadersFromStream(StreamInput in) throws IOException {
+        final Map<String, String> requestHeaders = in.readMap(StreamInput::readString, StreamInput::readString);
+        final Map<String, Set<String>> responseHeaders = in.readMap(StreamInput::readString, input -> {
+            final int size = input.readVInt();
+            if (size == 0) {
+                return Collections.emptySet();
+            } else if (size == 1) {
+                return Collections.singleton(input.readString());
+            } else {
+                // use a linked hash set to preserve order
+                final LinkedHashSet<String> values = new LinkedHashSet<>(size);
+                for (int i = 0; i < size; i++) {
+                    final String value = input.readString();
+                    final boolean added = values.add(value);
+                    assert added : value;
+                }
+                return values;
+            }
+        });
+        return new Tuple<>(requestHeaders, responseHeaders);
     }
 
     /**
@@ -395,41 +430,30 @@ public final class ThreadContext implements Writeable {
         }
     }
 
+    public static Map<String, String> buildDefaultHeaders(Settings settings) {
+        Settings headers = DEFAULT_HEADERS_SETTING.get(settings);
+        if (headers == null) {
+            return Collections.emptyMap();
+        } else {
+            Map<String, String> defaultHeader = new HashMap<>();
+            for (String key : headers.names()) {
+                defaultHeader.put(key, headers.get(key));
+            }
+            return Collections.unmodifiableMap(defaultHeader);
+        }
+    }
+
     private static final class ThreadContextStruct {
+
+        private static final ThreadContextStruct EMPTY =
+            new ThreadContextStruct(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), false);
+
         private final Map<String, String> requestHeaders;
         private final Map<String, Object> transientHeaders;
         private final Map<String, Set<String>> responseHeaders;
         private final boolean isSystemContext;
-        private long warningHeadersSize; //saving current warning headers' size not to recalculate the size with every new warning header
-        private ThreadContextStruct(StreamInput in) throws IOException {
-            final int numRequest = in.readVInt();
-            Map<String, String> requestHeaders = numRequest == 0 ? Collections.emptyMap() : new HashMap<>(numRequest);
-            for (int i = 0; i < numRequest; i++) {
-                requestHeaders.put(in.readString(), in.readString());
-            }
-
-            this.requestHeaders = requestHeaders;
-            this.responseHeaders = in.readMap(StreamInput::readString, input -> {
-                final int size = input.readVInt();
-                if (size == 0) {
-                    return Collections.emptySet();
-                } else if (size == 1) {
-                    return Collections.singleton(input.readString());
-                } else {
-                    // use a linked hash set to preserve order
-                    final LinkedHashSet<String> values = new LinkedHashSet<>(size);
-                    for (int i = 0; i < size; i++) {
-                        final String value = input.readString();
-                        final boolean added = values.add(value);
-                        assert added : value;
-                    }
-                    return values;
-                }
-            });
-            this.transientHeaders = Collections.emptyMap();
-            isSystemContext = false; // we never serialize this it's a transient flag
-            this.warningHeadersSize = 0L;
-        }
+        //saving current warning headers' size not to recalculate the size with every new warning header
+        private final long warningHeadersSize;
 
         private ThreadContextStruct setSystemContext() {
             if (isSystemContext) {

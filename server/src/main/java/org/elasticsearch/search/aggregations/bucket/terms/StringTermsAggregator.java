@@ -114,8 +114,9 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
 
-        if (bucketCountThresholds.getMinDocCount() == 0 && (InternalOrder.isCountDesc(order) == false ||
-                bucketOrds.size() < bucketCountThresholds.getRequiredSize())) {
+        if (bucketCountThresholds.getMinDocCount() == 0
+            && (InternalOrder.isCountDesc(order) == false
+                    || bucketOrds.size() < bucketCountThresholds.getRequiredSize())) {
             // we need to fill-in the blanks
             for (LeafReaderContext ctx : context.searcher().getTopReaderContext().leaves()) {
                 final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
@@ -168,11 +169,10 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
         runDeferredCollections(survivingBucketOrds);
 
         // Now build the aggs
-        for (int i = 0; i < list.length; i++) {
-          final StringTerms.Bucket bucket = list[i];
-          bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);
-          bucket.aggregations = bucketAggregations(bucket.bucketOrd);
-          bucket.docCountError = 0;
+        for (final StringTerms.Bucket bucket : list) {
+            bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);
+            bucket.aggregations = bucketAggregations(bucket.bucketOrd);
+            bucket.docCountError = 0;
         }
 
         return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),

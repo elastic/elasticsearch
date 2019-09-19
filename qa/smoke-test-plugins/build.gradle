@@ -19,15 +19,18 @@
 
 import org.elasticsearch.gradle.MavenFilteringHack
 
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
-ext.pluginsCount = 0
-project(':plugins').getChildProjects().each { pluginName, pluginProject ->
-  integTestCluster {
-    plugin pluginProject.path
+int pluginsCount = 0
+
+testClusters.integTest {
+  project(':plugins').getChildProjects().each { pluginName, pluginProject ->
+    plugin file(pluginProject.tasks.bundlePlugin.archiveFile)
+    tasks.integTest.dependsOn pluginProject.tasks.bundlePlugin
+    pluginsCount += 1
   }
-  pluginsCount += 1
 }
 assert pluginsCount > 0
 

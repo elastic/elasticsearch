@@ -1,0 +1,209 @@
+---
+"Test put batch data frame transforms on old cluster":
+  - do:
+      indices.create:
+        index: dataframe-transform-airline-data
+        body:
+          mappings:
+            properties:
+              time:
+                type: date
+              airline:
+                type: keyword
+              responsetime:
+                type: float
+              event_rate:
+                type: integer
+  - do:
+      cluster.health:
+        index: "dataframe-transform-airline-data"
+        wait_for_status: green
+        timeout: 70s
+
+  - do:
+      ingest.put_pipeline:
+        id: "data_frame_simple_pipeline"
+        body:  >
+          {
+            "processors": [
+             {
+               "set" : {
+                 "field" : "my_field",
+                 "value": 42
+               }
+              }
+            ]
+          }
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "old-simple-transform"
+        body: >
+          {
+            "source": { "index": "dataframe-transform-airline-data" },
+            "dest": { "index": "old-simple-transform-idx" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.get_data_frame_transform:
+        transform_id: "old-simple-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-transform" }
+  - is_true: transforms.0.version
+  - is_true: transforms.0.create_time
+
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "old-simple-transform"
+  - match: { acknowledged: true }
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "old-simple-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-transform" }
+
+  - do:
+      data_frame.stop_data_frame_transform:
+        transform_id: "old-simple-transform"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "old-simple-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-transform" }
+
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "old-complex-transform"
+        body: >
+          {
+            "source": {
+              "index": "dataframe-transform-airline-data",
+              "query": {
+                "bool": {
+                  "filter": {"term": {"airline": "ElasticAir"}}
+                }
+              }
+            },
+            "dest": {
+              "index": "old-complex-transform-idx",
+              "pipeline": "data_frame_simple_pipeline"
+            },
+            "pivot": {
+              "group_by": {
+                "airline": {"terms": {"field": "airline"}},
+                "day": {"date_histogram": {"field": "timestamp", "calendar_interval": "1d"}},
+                "every_50": {"histogram": {"field": "responsetime", "interval": 50}}
+              },
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.get_data_frame_transform:
+        transform_id: "old-complex-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-complex-transform" }
+
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "old-complex-transform"
+  - match: { acknowledged: true }
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "old-complex-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-complex-transform" }
+
+  - do:
+      data_frame.stop_data_frame_transform:
+        transform_id: "old-complex-transform"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "old-complex-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-complex-transform" }
+
+---
+"Test put continuous data frame transform on old cluster":
+  - do:
+      indices.create:
+        index: dataframe-transform-airline-data-cont
+        body:
+          mappings:
+            properties:
+              time:
+                type: date
+              airline:
+                type: keyword
+              responsetime:
+                type: float
+              event_rate:
+                type: integer
+  - do:
+      cluster.health:
+        index: "dataframe-transform-airline-data-cont"
+        wait_for_status: green
+        timeout: 70s
+
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "old-simple-continuous-transform"
+        body: >
+          {
+            "source": { "index": "dataframe-transform-airline-data-cont" },
+            "dest": { "index": "old-simple-continuous-transform-idx" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "sync": {
+              "time": {
+                "field": "time",
+                "delay": "90m"
+              }
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.get_data_frame_transform:
+        transform_id: "old-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-continuous-transform" }
+  - match: { transforms.0.sync.time.field: "time" }
+  - match: { transforms.0.sync.time.delay: "90m" }
+  - is_true: transforms.0.version
+  - is_true: transforms.0.create_time
+
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "old-simple-continuous-transform"
+  - match: { acknowledged: true }
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "old-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-continuous-transform" }
+
+  - do:
+      data_frame.stop_data_frame_transform:
+        transform_id: "old-simple-continuous-transform"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "old-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-continuous-transform" }

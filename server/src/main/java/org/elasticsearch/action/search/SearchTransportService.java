@@ -220,11 +220,7 @@ public class SearchTransportService {
             return this.id;
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
-    }
 
     static class SearchFreeContextRequest extends ScrollFreeContextRequest implements IndicesRequest {
         private OriginalIndices originalIndices;
@@ -264,18 +260,11 @@ public class SearchTransportService {
             return originalIndices.indicesOptions();
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
-    }
 
     public static class SearchFreeContextResponse extends TransportResponse {
 
         private boolean freed;
-
-        SearchFreeContextResponse() {
-        }
 
         SearchFreeContextResponse(StreamInput in) throws IOException {
             freed = in.readBoolean();
@@ -290,14 +279,7 @@ public class SearchTransportService {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            freed = in.readBoolean();
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeBoolean(freed);
         }
     }
@@ -315,8 +297,9 @@ public class SearchTransportService {
                 channel.sendResponse(new SearchFreeContextResponse(freed));
         });
         TransportActionProxy.registerProxyAction(transportService, FREE_CONTEXT_ACTION_NAME, SearchFreeContextResponse::new);
-        transportService.registerRequestHandler(CLEAR_SCROLL_CONTEXTS_ACTION_NAME, () -> TransportRequest.Empty.INSTANCE,
-            ThreadPool.Names.SAME, (request, channel, task) -> {
+        transportService.registerRequestHandler(CLEAR_SCROLL_CONTEXTS_ACTION_NAME, ThreadPool.Names.SAME,
+            TransportRequest.Empty::new,
+            (request, channel, task) -> {
                 searchService.freeAllScrollContexts();
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
         });

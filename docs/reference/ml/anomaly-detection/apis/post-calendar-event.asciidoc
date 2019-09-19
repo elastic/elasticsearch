@@ -1,0 +1,102 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-post-calendar-event]]
+=== Add events to calendar API
+++++
+<titleabbrev>Add events to calendar</titleabbrev>
+++++
+
+Posts scheduled events in a calendar.
+
+[[ml-post-calendar-event-request]]
+==== {api-request-title}
+
+`POST _ml/calendars/<calendar_id>/events`
+
+[[ml-post-calendar-event-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
+[[ml-post-calendar-event-desc]]
+==== {api-description-title}
+
+This API accepts a list of {stack-ov}/ml-calendars.html[scheduled events], each
+of which must have a start time, end time, and description.
+
+[[ml-post-calendar-event-path-parms]]
+==== {api-path-parms-title}
+
+`<calendar_id>`::
+		(Required, string) Identifier for the calendar.
+
+[[ml-post-calendar-event-request-body]]
+==== {api-request-body-title}
+
+`events`::
+  (Required, array) A list of one of more scheduled events. The event's start
+	and end times may be specified as integer milliseconds since the epoch or as a
+	string in ISO 8601 format. An event resource has the following properties:
+
+	`calendar_id`:::
+	  (Optional, string) An identifier for the calendar that contains the scheduled
+	  event.
+
+	`description`:::
+	  (Optional, string) A description of the scheduled event.
+
+	`end_time`:::
+	  (Required, date) The timestamp for the end of the scheduled event
+	  in milliseconds since the epoch or ISO 8601 format.
+
+	`start_time`:::
+	 (Required, date) The timestamp for the beginning of the scheduled event
+	 in milliseconds since the epoch or ISO 8601 format.
+
+[[ml-post-calendar-event-example]]
+==== {api-examples-title}
+
+You can add scheduled events to the `planned-outages` calendar as follows:
+
+[source,console]
+--------------------------------------------------
+POST _ml/calendars/planned-outages/events
+{
+  "events" : [
+    {"description": "event 1", "start_time": 1513641600000, "end_time": 1513728000000},
+    {"description": "event 2", "start_time": 1513814400000, "end_time": 1513900800000},
+    {"description": "event 3", "start_time": 1514160000000, "end_time": 1514246400000}
+  ]
+}
+--------------------------------------------------
+// TEST[skip:setup:calendar_outages_addjob]
+
+The API returns the following results:
+
+[source,console-result]
+----
+{
+  "events": [
+    {
+      "description": "event 1",
+      "start_time": 1513641600000,
+      "end_time": 1513728000000,
+      "calendar_id": "planned-outages"
+    },
+    {
+      "description": "event 2",
+      "start_time": 1513814400000,
+      "end_time": 1513900800000,
+      "calendar_id": "planned-outages"
+    },
+    {
+      "description": "event 3",
+      "start_time": 1514160000000,
+      "end_time": 1514246400000,
+      "calendar_id": "planned-outages"
+    }
+  ]
+}
+----

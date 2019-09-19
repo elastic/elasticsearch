@@ -5,10 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
-public class SqlClearCursorResponseTests extends AbstractStreamableXContentTestCase<SqlClearCursorResponse> {
+public class SqlClearCursorResponseTests extends AbstractSerializingTestCase<SqlClearCursorResponse> {
 
     @Override
     protected SqlClearCursorResponse createTestInstance() {
@@ -16,8 +17,8 @@ public class SqlClearCursorResponseTests extends AbstractStreamableXContentTestC
     }
 
     @Override
-    protected SqlClearCursorResponse createBlankInstance() {
-        return new SqlClearCursorResponse();
+    protected Writeable.Reader<SqlClearCursorResponse> instanceReader() {
+        return SqlClearCursorResponse::new;
     }
 
     @Override

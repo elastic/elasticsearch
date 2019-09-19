@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -37,7 +38,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -240,14 +240,14 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
-            AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory<Numeric> innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<Numeric> config,
+                                                                AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         switch (method) {
         case TDIGEST:
-            return new TDigestPercentileRanksAggregatorFactory(name, config, values, compression, keyed, context, parent,
+            return new TDigestPercentileRanksAggregatorFactory(name, config, values, compression, keyed, queryShardContext, parent,
                     subFactoriesBuilder, metaData);
         case HDR:
-            return new HDRPercentileRanksAggregatorFactory(name, config, values, numberOfSignificantValueDigits, keyed, context,
+            return new HDRPercentileRanksAggregatorFactory(name, config, values, numberOfSignificantValueDigits, keyed, queryShardContext,
                     parent, subFactoriesBuilder, metaData);
         default:
             throw new IllegalStateException("Illegal method [" + method + "]");
@@ -269,37 +269,40 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
     }
 
     @Override
-    protected boolean innerEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
         PercentileRanksAggregationBuilder other = (PercentileRanksAggregationBuilder) obj;
-        if (!Objects.equals(method, other.method)) {
+        if (Objects.equals(method, other.method) == false) {
             return false;
         }
         boolean equalSettings = false;
         switch (method) {
-        case HDR:
-            equalSettings = Objects.equals(numberOfSignificantValueDigits, other.numberOfSignificantValueDigits);
-            break;
-        case TDIGEST:
-            equalSettings = Objects.equals(compression, other.compression);
-            break;
-        default:
-            throw new IllegalStateException("Illegal method [" + method + "]");
+            case HDR:
+                equalSettings = Objects.equals(numberOfSignificantValueDigits, other.numberOfSignificantValueDigits);
+                break;
+            case TDIGEST:
+                equalSettings = Objects.equals(compression, other.compression);
+                break;
+            default:
+                throw new IllegalStateException("Illegal method [" + method + "]");
         }
         return equalSettings
-                && Objects.deepEquals(values, other.values)
-                && Objects.equals(keyed, other.keyed)
-                && Objects.equals(method, other.method);
+            && Objects.deepEquals(values, other.values)
+            && Objects.equals(keyed, other.keyed)
+            && Objects.equals(method, other.method);
     }
 
     @Override
-    protected int innerHashCode() {
+    public int hashCode() {
         switch (method) {
-        case HDR:
-            return Objects.hash(Arrays.hashCode(values), keyed, numberOfSignificantValueDigits, method);
-        case TDIGEST:
-            return Objects.hash(Arrays.hashCode(values), keyed, compression, method);
-        default:
-            throw new IllegalStateException("Illegal method [" + method + "]");
+            case HDR:
+                return Objects.hash(super.hashCode(), Arrays.hashCode(values), keyed, numberOfSignificantValueDigits, method);
+            case TDIGEST:
+                return Objects.hash(super.hashCode(), Arrays.hashCode(values), keyed, compression, method);
+            default:
+                throw new IllegalStateException("Illegal method [" + method + "]");
         }
     }
 

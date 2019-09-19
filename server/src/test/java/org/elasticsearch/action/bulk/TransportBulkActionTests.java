@@ -25,6 +25,7 @@ import org.elasticsearch.action.bulk.TransportBulkActionTookTests.Resolver;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -59,7 +60,7 @@ public class TransportBulkActionTests extends ESTestCase {
         boolean indexCreated = false; // set when the "real" index is created
 
         TestTransportBulkAction() {
-            super(TransportBulkActionTests.this.threadPool, transportService, clusterService, null, null,
+            super(TransportBulkActionTests.this.threadPool, transportService, clusterService, null,
                     null, new ActionFilters(Collections.emptySet()), new Resolver(),
                     new AutoCreateIndex(Settings.EMPTY, clusterService.getClusterSettings(), new Resolver()));
         }
@@ -101,7 +102,7 @@ public class TransportBulkActionTests extends ESTestCase {
     public void testDeleteNonExistingDocDoesNotCreateIndex() throws Exception {
         BulkRequest bulkRequest = new BulkRequest().add(new DeleteRequest("index", "type", "id"));
 
-        bulkAction.execute(null, bulkRequest, ActionListener.wrap(response -> {
+        ActionTestUtils.execute(bulkAction, null, bulkRequest, ActionListener.wrap(response -> {
             assertFalse(bulkAction.indexCreated);
             BulkItemResponse[] bulkResponses = ((BulkResponse) response).getItems();
             assertEquals(bulkResponses.length, 1);
@@ -117,7 +118,7 @@ public class TransportBulkActionTests extends ESTestCase {
         BulkRequest bulkRequest = new BulkRequest()
                 .add(new DeleteRequest("index", "type", "id").versionType(VersionType.EXTERNAL).version(0));
 
-        bulkAction.execute(null, bulkRequest, ActionListener.wrap(response -> {
+        ActionTestUtils.execute(bulkAction, null, bulkRequest, ActionListener.wrap(response -> {
             assertTrue(bulkAction.indexCreated);
         }, exception -> {
             throw new AssertionError(exception);
@@ -128,7 +129,7 @@ public class TransportBulkActionTests extends ESTestCase {
         BulkRequest bulkRequest = new BulkRequest()
                 .add(new DeleteRequest("index2", "type", "id").versionType(VersionType.EXTERNAL_GTE).version(0));
 
-        bulkAction.execute(null, bulkRequest, ActionListener.wrap(response -> {
+        ActionTestUtils.execute(bulkAction, null, bulkRequest, ActionListener.wrap(response -> {
             assertTrue(bulkAction.indexCreated);
         }, exception -> {
             throw new AssertionError(exception);

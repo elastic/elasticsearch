@@ -1,0 +1,142 @@
+---
+"Test start given missing config":
+  - do:
+      catch: missing
+      ml.start_data_frame_analytics:
+        id: "missing_config"
+
+---
+"Test start given missing source index":
+
+  - do:
+      indices.create:
+        index: missing
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "missing_index"
+        body: >
+          {
+            "source": {
+              "index": "missing"
+            },
+            "dest": {
+              "index": "missing-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+  - do:
+      indices.delete:
+        index: missing
+
+  - do:
+      catch: /No index matches source index \[missing]/
+      ml.start_data_frame_analytics:
+        id: "missing_index"
+
+---
+"Test start given source index has no compatible fields":
+
+  - do:
+      indices.create:
+        index: empty-index
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "foo"
+        body: >
+          {
+            "source": {
+              "index": "empty-index"
+            },
+            "dest": {
+              "index": "empty-index-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+  - do:
+      catch: /No compatible fields could be detected in index \[empty-index\]/
+      ml.start_data_frame_analytics:
+        id: "foo"
+
+---
+"Test start with compatible fields but no data":
+  - do:
+      indices.create:
+        index: empty-index-with-compatible-fields
+        body:
+          mappings:
+            properties:
+              long_field: { "type": "long" }
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "empty-with-compatible-fields"
+        body: >
+          {
+            "source": {
+              "index": "empty-index-with-compatible-fields"
+            },
+            "dest": {
+              "index": "empty-index-with-compatible-fields-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+  - do:
+      catch: /Unable to start empty-with-compatible-fields as there are no analyzable data in source indices \[empty-index-with-compatible-fields\]/
+      ml.start_data_frame_analytics:
+        id: "empty-with-compatible-fields"
+---
+"Test start with inconsistent body/param ids":
+
+  - do:
+      catch: /Inconsistent id; 'body_id' specified in the body differs from 'url_id' specified as a URL argument/
+      ml.start_data_frame_analytics:
+        id: "url_id"
+        body: >
+          {
+            "id": "body_id"
+          }
+
+---
+"Test start given dest index is not empty":
+
+  - do:
+      index:
+        index: non-empty-source
+        refresh: ""
+        body:  >
+          {
+            "numeric": 42.0
+          }
+
+  - do:
+      index:
+        index: non-empty-dest
+        refresh: ""
+        body:  >
+          {
+            "numeric": 42.0
+          }
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "start_given_empty_dest_index"
+        body: >
+          {
+            "source": {
+              "index": "non-empty-source"
+            },
+            "dest": {
+              "index": "non-empty-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+  - do:
+      catch: /dest index \[non-empty-dest\] must be empty/
+      ml.start_data_frame_analytics:
+        id: "start_given_empty_dest_index"

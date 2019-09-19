@@ -1,0 +1,131 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-get-job]]
+=== Get {anomaly-jobs} API
+++++
+<titleabbrev>Get jobs</titleabbrev>
+++++
+
+Retrieves configuration information for {anomaly-jobs}.
+
+[[ml-get-job-request]]
+==== {api-request-title}
+
+`GET _ml/anomaly_detectors/<job_id>` +
+
+`GET _ml/anomaly_detectors/<job_id>,<job_id>` +
+
+`GET _ml/anomaly_detectors/` +
+
+`GET _ml/anomaly_detectors/_all`
+
+[[ml-get-job-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `monitor_ml`,
+`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
+[[ml-get-job-desc]]
+==== {api-description-title}
+
+You can get information for multiple {anomaly-jobs} in a single API request by
+using a group name, a comma-separated list of jobs, or a wildcard expression.
+You can get information for all {anomaly-jobs} by using `_all`, by specifying
+`*` as the `<job_id>`, or by omitting the `<job_id>`.
+
+IMPORTANT: This API returns a maximum of 10,000 jobs. 
+
+[[ml-get-job-path-parms]]
+==== {api-path-parms-title}
+
+`<job_id>`::
+  (Optional, string) Identifier for the {anomaly-job}. It can be a job
+  identifier, a group name, or a wildcard expression. If you do not specify one
+  of these options, the API returns information for all {anomaly-jobs}.
+
+[[ml-get-job-query-parms]]
+==== {api-query-parms-title}
+
+`allow_no_jobs`::
+  (Optional, boolean) Specifies what to do when the request:
++
+--
+* Contains wildcard expressions and there are no jobs that match.
+* Contains the `_all` string or no identifiers and there are no matches.
+* Contains wildcard expressions and there are only partial matches.
+
+The default value is `true`, which returns an empty `jobs` array 
+when there are no matches and the subset of results when there are partial 
+matches. If this parameter is `false`, the request returns a `404` status code
+when there are no matches or only partial matches.
+--
+
+[[ml-get-job-results]]
+==== {api-response-body-title}
+
+The API returns the following information:
+
+`jobs`::
+  (array) An array of {anomaly-job} resources.
+  For more information, see <<ml-job-resource>>.
+
+[[ml-get-job-response-codes]]
+==== {api-response-codes-title}
+
+`404` (Missing resources)::
+  If `allow_no_jobs` is `false`, this code indicates that there are no 
+  resources that match the request or only partial matches for the request.
+
+[[ml-get-job-example]]
+==== {api-examples-title}
+
+The following example gets configuration information for the `total-requests` job:
+
+[source,console]
+--------------------------------------------------
+GET _ml/anomaly_detectors/total-requests
+--------------------------------------------------
+// TEST[skip:setup:server_metrics_job]
+
+The API returns the following results:
+
+[source,console-result]
+----
+{
+  "count": 1,
+  "jobs": [
+    {
+      "job_id": "total-requests",
+      "job_type": "anomaly_detector",
+      "job_version": "7.0.0-alpha1",
+      "description": "Total sum of requests",
+      "create_time": 1517011406091,
+      "analysis_config": {
+        "bucket_span": "10m",
+        "detectors": [
+          {
+            "detector_description": "Sum of total",
+            "function": "sum",
+            "field_name": "total",
+            "detector_index": 0
+          }
+        ],
+        "influencers": [ ]
+      },
+      "analysis_limits": {
+        "model_memory_limit": "1024mb",
+        "categorization_examples_limit": 4
+      },
+      "data_description": {
+        "time_field": "timestamp",
+        "time_format": "epoch_ms"
+      },
+      "model_snapshot_retention_days": 1,
+      "results_index_name": "shared"
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/"7.0.0-alpha1"/$body.$_path/]
+// TESTRESPONSE[s/1517011406091/$body.$_path/]

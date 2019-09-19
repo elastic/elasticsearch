@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -23,17 +23,12 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class UpdateJobAction extends Action<PutJobAction.Response> {
+public class UpdateJobAction extends ActionType<PutJobAction.Response> {
     public static final UpdateJobAction INSTANCE = new UpdateJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/update";
 
     private UpdateJobAction() {
-        super(NAME);
-    }
-
-    @Override
-    public PutJobAction.Response newResponse() {
-        return new PutJobAction.Response();
+        super(NAME, PutJobAction.Response::new);
     }
 
     public static class Request extends AcknowledgedRequest<UpdateJobAction.Request> implements ToXContentObject {
@@ -65,6 +60,13 @@ public class UpdateJobAction extends Action<PutJobAction.Response> {
         public Request() {
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobId = in.readString();
+            update = new JobUpdate(in);
+            isInternal = in.readBoolean();
+        }
+
         public static Request internal(String jobId, JobUpdate update) {
             return new Request(jobId, update, true);
         }
@@ -84,14 +86,6 @@ public class UpdateJobAction extends Action<PutJobAction.Response> {
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-            update = new JobUpdate(in);
-            isInternal = in.readBoolean();
         }
 
         @Override

@@ -73,15 +73,12 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
         FeatureSet graph = info.getFeatureSetsInfo().getFeatureSets().get("graph");
         assertTrue(graph.available());
         assertTrue(graph.enabled());
-        assertNull(graph.nativeCodeInfo());
         FeatureSet monitoring = info.getFeatureSetsInfo().getFeatureSets().get("monitoring");
         assertTrue(monitoring.available());
         assertTrue(monitoring.enabled());
-        assertNull(monitoring.nativeCodeInfo());
         FeatureSet ml = info.getFeatureSetsInfo().getFeatureSets().get("ml");
         assertTrue(ml.available());
         assertTrue(ml.enabled());
-        assertEquals(mainResponse.getVersion().getNumber(), ml.nativeCodeInfo().get("version").toString());
     }
 
     public void testXPackInfoEmptyRequest() throws IOException {

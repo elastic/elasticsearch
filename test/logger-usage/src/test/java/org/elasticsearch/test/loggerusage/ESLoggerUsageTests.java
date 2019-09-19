@@ -116,6 +116,20 @@ public class ESLoggerUsageTests extends ESTestCase {
 
         assertEquals(5, ParameterizedMessage.class.getConstructors().length);
     }
+    public void checkForSubclasses() {
+        logger.debug(new TestMessage("message", "x-opaque-id"));
+    }
+
+    public void checkArraySizeForSubclasses() {
+        logger.debug(new TestMessage("message {}", "x-opaque-id", 1));
+    }
+    public void checkFailArraySizeForSubclasses(Object... arr) {
+        logger.debug(new TestMessage("message {}", "x-opaque-id", arr));
+    }
+
+    public void checkFailArraySize(String... arr) {
+        logger.debug(new ParameterizedMessage("text {}", (Object[])arr));
+    }
 
     public void checkNumberOfArguments1() {
         logger.info("Hello {}", "world");

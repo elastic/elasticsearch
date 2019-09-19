@@ -144,13 +144,13 @@ public final class Settings implements ToXContentFragment {
             if (existingValue == null) {
                 Map<String, Object> newMap = new HashMap<>(2);
                 processSetting(newMap, "", rest, value);
-                map.put(key, newMap);
+                map.put(prefix + key, newMap);
             } else {
                 if (existingValue instanceof Map) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> innerMap = (Map<String, Object>) existingValue;
                     processSetting(innerMap, "", rest, value);
-                    map.put(key, innerMap);
+                    map.put(prefix + key, innerMap);
                 } else {
                     // It supposed to be a map, but we already have a value stored, which is not a map
                     // fall back to "." notation
@@ -1324,13 +1324,18 @@ public final class Settings implements ToXContentFragment {
         }
 
         @Override
-        public SecureString getString(String setting) throws GeneralSecurityException{
+        public SecureString getString(String setting) throws GeneralSecurityException {
             return delegate.getString(addPrefix.apply(setting));
         }
 
         @Override
-        public InputStream getFile(String setting) throws GeneralSecurityException{
+        public InputStream getFile(String setting) throws GeneralSecurityException {
             return delegate.getFile(addPrefix.apply(setting));
+        }
+
+        @Override
+        public byte[] getSHA256Digest(String setting) throws GeneralSecurityException {
+            return delegate.getSHA256Digest(addPrefix.apply(setting));
         }
 
         @Override

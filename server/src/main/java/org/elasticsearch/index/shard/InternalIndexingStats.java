@@ -176,10 +176,5 @@ final class InternalIndexingStats implements IndexingOperationListener {
                 deleteMetric.count(), TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()), deleteCurrent.count(),
                 noopUpdates.count(), isThrottled, TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis));
         }
-
-        void clear() {
-            indexMetric.clear();
-            deleteMetric.clear();
-        }
     }
 }

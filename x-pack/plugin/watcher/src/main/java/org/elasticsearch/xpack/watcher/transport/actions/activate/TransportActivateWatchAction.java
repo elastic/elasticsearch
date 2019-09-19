@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateW
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
+import org.elasticsearch.xpack.watcher.ClockHolder;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 
@@ -50,9 +51,9 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
 
     @Inject
     public TransportActivateWatchAction(TransportService transportService, ActionFilters actionFilters,
-                                        Clock clock, XPackLicenseState licenseState, WatchParser parser, Client client) {
+                                        ClockHolder clockHolder, XPackLicenseState licenseState, WatchParser parser, Client client) {
         super(ActivateWatchAction.NAME, transportService, actionFilters, licenseState, ActivateWatchRequest::new);
-        this.clock = clock;
+        this.clock = clockHolder.clock;
         this.parser = parser;
         this.client = client;
     }

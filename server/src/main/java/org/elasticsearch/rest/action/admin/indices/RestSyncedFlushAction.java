@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -39,8 +38,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSyncedFlushAction extends BaseRestHandler {
-    public RestSyncedFlushAction(Settings settings, RestController controller) {
-        super(settings);
+
+    public RestSyncedFlushAction(RestController controller) {
         controller.registerHandler(POST, "/_flush/synced", this);
         controller.registerHandler(POST, "/{index}/_flush/synced", this);
 

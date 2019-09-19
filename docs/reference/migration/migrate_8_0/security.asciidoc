@@ -33,3 +33,11 @@ The `elasticsearch-migrate` tool provided a way to convert file
 realm users and roles into the native realm. It has been deprecated
 since 7.2.0. Users and roles should now be created in the native
 realm directly.
+
+[float]
+[[separating-node-and-client-traffic]]
+==== The `transport.profiles.*.xpack.security.type` setting has been removed
+
+The `transport.profiles.*.xpack.security.type` setting has been removed since
+the Transport Client has been removed and therefore all client traffic now uses
+the HTTP transport. Transport profiles using this setting should be removed.

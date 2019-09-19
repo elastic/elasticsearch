@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile
     command: "bash /fixture/src/main/resources/provision/peppa.sh"
     volumes:
-      - ./build/shared/peppa:/fixture/build
+      - ./testfixtures_shared/shared/peppa:/fixture/build
       # containers have bad entropy so mount /dev/urandom. Less secure but this is a test fixture.
       - /dev/urandom:/dev/random
     ports:
@@ -20,7 +20,7 @@ services:
       dockerfile: Dockerfile
     command: "bash /fixture/src/main/resources/provision/hdfs.sh"
     volumes:
-      - ./build/shared/hdfs:/fixture/build
+      - ./testfixtures_shared/shared/hdfs:/fixture/build
       # containers have bad entropy so mount /dev/urandom. Less secure but this is a test fixture.
       - /dev/urandom:/dev/random
     ports:

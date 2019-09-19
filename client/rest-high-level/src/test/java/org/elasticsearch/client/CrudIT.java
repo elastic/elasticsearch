@@ -1020,6 +1020,24 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testGetIdWithPlusSign() throws Exception {
+        String id = "id+id";
+        {
+            IndexRequest indexRequest = new IndexRequest("index").id(id);
+            indexRequest.source("field", "value");
+            IndexResponse indexResponse = highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
+            assertEquals("index", indexResponse.getIndex());
+            assertEquals(id, indexResponse.getId());
+        }
+        {
+            GetRequest getRequest = new GetRequest("index").id(id);
+            GetResponse getResponse = highLevelClient().get(getRequest, RequestOptions.DEFAULT);
+            assertTrue(getResponse.isExists());
+            assertEquals("index", getResponse.getIndex());
+            assertEquals(id, getResponse.getId());
+        }
+    }
+
     // Not entirely sure if _termvectors belongs to CRUD, and in the absence of a better place, will have it here
     public void testTermvectors() throws IOException {
         final String sourceIndex = "index1";

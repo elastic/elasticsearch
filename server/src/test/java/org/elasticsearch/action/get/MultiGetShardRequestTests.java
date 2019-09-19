@@ -71,9 +71,7 @@ public class MultiGetShardRequestTests extends ESTestCase {
 
         StreamInput in = out.bytes().streamInput();
         in.setVersion(out.getVersion());
-        MultiGetShardRequest multiGetShardRequest2 = new MultiGetShardRequest();
-        multiGetShardRequest2.readFrom(in);
-
+        MultiGetShardRequest multiGetShardRequest2 = new MultiGetShardRequest(in);
         assertThat(multiGetShardRequest2.index(), equalTo(multiGetShardRequest.index()));
         assertThat(multiGetShardRequest2.preference(), equalTo(multiGetShardRequest.preference()));
         assertThat(multiGetShardRequest2.realtime(), equalTo(multiGetShardRequest.realtime()));

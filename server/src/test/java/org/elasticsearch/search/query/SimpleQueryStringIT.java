@@ -83,7 +83,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
     @BeforeClass
     public static void createRandomClusterSetting() {
-        CLUSTER_MAX_CLAUSE_COUNT = randomIntBetween(50, 100);
+        CLUSTER_MAX_CLAUSE_COUNT = randomIntBetween(60, 100);
     }
 
     @Override
@@ -567,7 +567,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () ->
                 client().prepareSearch("test").setQuery(
                         simpleQueryStringQuery("foo123").lenient(false)).get());
-        assertThat(e.getDetailedMessage(), containsString("NumberFormatException[For input string: \"foo123\"]"));
+        assertThat(e.getDetailedMessage(), containsString("NumberFormatException: For input string: \"foo123\""));
     }
 
     public void testLimitOnExpandedFields() throws Exception {
@@ -641,7 +641,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHitCount(response, 2);
         assertHits(response.getHits(), "2", "3");
     }
-
 
     public void testFieldAliasOnDisallowedFieldType() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");

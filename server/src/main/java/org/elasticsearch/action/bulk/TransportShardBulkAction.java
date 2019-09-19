@@ -26,6 +26,7 @@ import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -49,6 +50,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -68,6 +70,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
@@ -77,6 +80,7 @@ import java.util.function.LongSupplier;
 public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
 
     public static final String ACTION_NAME = BulkAction.NAME + "[s]";
+    public static final ActionType<BulkShardResponse> TYPE = new ActionType<>(ACTION_NAME, BulkShardResponse::new);
 
     private static final Logger logger = LogManager.getLogger(TransportShardBulkAction.class);
 
@@ -100,8 +104,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected BulkShardResponse newResponseInstance() {
-        return new BulkShardResponse();
+    protected BulkShardResponse newResponseInstance(StreamInput in) throws IOException {
+        return new BulkShardResponse(in);
     }
 
     @Override
@@ -113,7 +117,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     protected void shardOperationOnPrimary(BulkShardRequest request, IndexShard primary,
             ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener) {
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
-        performOnPrimary(request, primary, updateHelper, threadPool::relativeTimeInMillis,
+        performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis,
             (update, shardId, type, mappingListener) -> {
                 assert update != null;
                 assert shardId != null;
@@ -210,7 +214,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 // we may fail translating a update to index or delete operation
                 // we use index result to communicate failure while translating update request
                 final Engine.Result result =
-                    new Engine.IndexResult(failure, updateRequest.version(), SequenceNumbers.UNASSIGNED_SEQ_NO);
+                    new Engine.IndexResult(failure, updateRequest.version());
                 context.setRequestToExecute(updateRequest);
                 context.markOperationAsExecuted(result);
                 context.markAsCompleted(context.getExecutionResult());
@@ -389,22 +393,20 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     public static Translog.Location performOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
         Translog.Location location = null;
         for (int i = 0; i < request.items().length; i++) {
-            BulkItemRequest item = request.items()[i];
-            final Engine.Result operationResult;
-            DocWriteRequest<?> docWriteRequest = item.request();
+            final BulkItemRequest item = request.items()[i];
             final BulkItemResponse response = item.getPrimaryResponse();
-            final BulkItemResponse.Failure failure = response.getFailure();
-            final DocWriteResponse writeResponse = response.getResponse();
-            final long seqNum = failure == null ? writeResponse.getSeqNo() : failure.getSeqNo();
-            if (seqNum == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                assert failure != null || writeResponse.getResult() == DocWriteResponse.Result.NOOP
-                    || writeResponse.getResult() == DocWriteResponse.Result.NOT_FOUND;
-                continue;
-            }
-            if (failure == null) {
-                operationResult = performOpOnReplica(writeResponse, docWriteRequest, replica);
+            final Engine.Result operationResult;
+            if (item.getPrimaryResponse().isFailed()) {
+                if (response.getFailure().getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                    continue; // ignore replication as we didn't generate a sequence number for this request.
+                }
+                operationResult = replica.markSeqNoAsNoop(response.getFailure().getSeqNo(), response.getFailure().getMessage());
             } else {
-                operationResult = replica.markSeqNoAsNoop(seqNum, failure.getMessage());
+                if (response.getResponse().getResult() == DocWriteResponse.Result.NOOP) {
+                    continue; // ignore replication as it's a noop
+                }
+                assert response.getResponse().getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
+                operationResult = performOpOnReplica(response.getResponse(), item.request(), replica);
             }
             assert operationResult != null : "operation result must never be null when primary response has no failure";
             location = syncOperationResultOrThrow(operationResult, location);
@@ -431,8 +433,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     deleteRequest.type(), deleteRequest.id());
                 break;
             default:
-                throw new IllegalStateException("Unexpected request operation type on replica: "
-                    + docWriteRequest.opType().getLowercase());
+                assert false : "Unexpected request operation type on replica: " + docWriteRequest + ";primary result: " + primaryResponse;
+                throw new IllegalStateException("Unexpected request operation type on replica: " + docWriteRequest.opType().getLowercase());
         }
         if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
             // Even though the primary waits on all nodes to ack the mapping changes to the master

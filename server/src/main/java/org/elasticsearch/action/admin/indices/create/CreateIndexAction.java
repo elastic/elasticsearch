@@ -19,19 +19,15 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 
-public class CreateIndexAction extends Action<CreateIndexResponse> {
+public class CreateIndexAction extends ActionType<CreateIndexResponse> {
 
     public static final CreateIndexAction INSTANCE = new CreateIndexAction();
     public static final String NAME = "indices:admin/create";
 
     private CreateIndexAction() {
-        super(NAME);
+        super(NAME, CreateIndexResponse::new);
     }
 
-    @Override
-    public CreateIndexResponse newResponse() {
-        return new CreateIndexResponse();
-    }
 }

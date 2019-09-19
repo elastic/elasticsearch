@@ -38,12 +38,6 @@ public class NetworkDisruptionIT extends BaseMlIntegTestCase {
         return plugins;
     }
 
-    // Remove this once the AwaitsFix below has been resolved
-    public void testDummy() {
-        assertTrue(true);
-    }
-
-    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/39858")
     public void testJobRelocation() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(5);
         ensureStableCluster(5);

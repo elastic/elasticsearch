@@ -17,8 +17,12 @@
  * under the License.
  */
 
+
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.test.AntFixture
+
+import static org.elasticsearch.gradle.PropertyNormalization.DEFAULT
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
@@ -66,11 +70,9 @@ testClusters.integTest {
     plugin file(project(':plugins:repository-azure').bundlePlugin.archiveFile)
     keystore 'azure.client.integration_test.account', azureAccount
     if (azureKey != null && azureKey.isEmpty() == false) {
-        println "Using access key in external service tests."
         keystore 'azure.client.integration_test.key', azureKey
     }
     if (azureSasToken != null && azureSasToken.isEmpty() == false) {
-        println "Using SAS token in external service tests."
         keystore 'azure.client.integration_test.sas_token', azureSasToken
     }
 
@@ -79,10 +81,8 @@ testClusters.integTest {
         // Use a closure on the string to delay evaluation until tests are executed. The endpoint_suffix is used
         // in a hacky way to change the protocol and endpoint. We must fix that.
         setting 'azure.client.integration_test.endpoint_suffix',
-                { "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://${azureStorageFixture.addressAndPort }" }
+                { "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://${azureStorageFixture.addressAndPort }" }, IGNORE_VALUE
         String firstPartOfSeed = project.rootProject.testSeed.tokenize(':').get(0)
-        setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString()
-    } else {
-        println "Using an external service to test the repository-azure plugin"
+        setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString(), System.getProperty('ignore.tests.seed') == null ? DEFAULT : IGNORE_VALUE
     }
 }

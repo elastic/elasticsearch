@@ -21,7 +21,6 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -34,7 +33,6 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.hasSize;
 
-@TestLogging("org.elasticsearch.index.reindex:TRACE,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.search.SearchService:TRACE")
 public class UpdateByQueryBasicTests extends ReindexTestCase {
     public void testBasics() throws Exception {
         indexRandom(true, client().prepareIndex("test", "test", "1").setSource("foo", "a"),

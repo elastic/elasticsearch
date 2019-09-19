@@ -19,6 +19,7 @@
 package org.elasticsearch.test.engine;
 
 import org.apache.lucene.index.FilterDirectoryReader;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -76,8 +77,8 @@ final class MockInternalEngine extends InternalEngine {
     }
 
     @Override
-    public Searcher acquireSearcher(String source, SearcherScope scope) {
-        final Searcher engineSearcher = super.acquireSearcher(source, scope);
+    public Engine.Searcher acquireSearcher(String source, SearcherScope scope) {
+        final Engine.Searcher engineSearcher = super.acquireSearcher(source, scope);
         return support().wrapSearcher(engineSearcher);
     }
 }

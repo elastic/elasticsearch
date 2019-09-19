@@ -64,7 +64,7 @@ public class PrimaryNotRelocatedWhileBeingRecoveredTests extends ESAllocationTes
 
         logger.info("Start the primary shard (on node1)");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        clusterState = strategy.applyStartedShards(clusterState, routingNodes.node("node1").shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(strategy, clusterState, routingNodes.node("node1"));
 
         assertThat(clusterState.routingTable().shardsWithState(STARTED).size(), equalTo(5));
 

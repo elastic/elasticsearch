@@ -42,18 +42,7 @@ public final class PutWatchRequest extends ActionRequest {
     public PutWatchRequest() {}
 
     public PutWatchRequest(StreamInput in) throws IOException {
-        readFrom(in);
-    }
-
-    public PutWatchRequest(String id, BytesReference source, XContentType xContentType) {
-        this.id = id;
-        this.source = source;
-        this.xContentType = xContentType;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+        super(in);
         id = in.readString();
         source = in.readBytesReference();
         active = in.readBoolean();
@@ -61,6 +50,12 @@ public final class PutWatchRequest extends ActionRequest {
         version = in.readZLong();
         ifSeqNo = in.readZLong();
         ifPrimaryTerm = in.readVLong();
+    }
+
+    public PutWatchRequest(String id, BytesReference source, XContentType xContentType) {
+        this.id = id;
+        this.source = source;
+        this.xContentType = xContentType;
     }
 
     @Override

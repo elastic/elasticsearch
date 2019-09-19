@@ -88,14 +88,9 @@ public class ActionModuleTests extends ESTestCase {
             protected void doExecute(Task task, FakeRequest request, ActionListener<ActionResponse> listener) {
             }
         }
-        class FakeAction extends Action<ActionResponse> {
+        class FakeAction extends ActionType<ActionResponse> {
             protected FakeAction() {
-                super("fake");
-            }
-
-            @Override
-            public ActionResponse newResponse() {
-                return null;
+                super("fake", null);
             }
         }
         FakeAction action = new FakeAction();
@@ -128,7 +123,7 @@ public class ActionModuleTests extends ESTestCase {
             public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
                     IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                     IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes> nodesInCluster) {
-                return singletonList(new RestMainAction(settings, restController));
+                return singletonList(new RestMainAction(restController));
             }
         };
         SettingsModule settings = new SettingsModule(Settings.EMPTY);

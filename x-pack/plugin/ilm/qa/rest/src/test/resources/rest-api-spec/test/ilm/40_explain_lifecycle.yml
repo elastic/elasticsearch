@@ -60,6 +60,12 @@ setup:
   - do:
       indices.create:
         index: my_index_no_policy
+  - do:
+      indices.create:
+        index: index_with_policy_that_doesnt_exist
+        body:
+          settings:
+            index.lifecycle.name: "a_policy_that_doesnt_exist"
 
 ---
 teardown:
@@ -80,6 +86,10 @@ teardown:
   - do:
       indices.delete:
         index: my_index_no_policy
+
+  - do:
+      indices.delete:
+        index: index_with_policy_that_doesnt_exist
 
   - do:
       ilm.delete_lifecycle:
@@ -104,6 +114,7 @@ teardown:
   - match: { indices.my_index.action: "complete" }
   - match: { indices.my_index.step: "complete" }
   - is_true: indices.my_index.phase_time_millis
+  - is_true: indices.my_index.age
   - is_false: indices.my_index.failed_step
   - is_false: indices.my_index.step_info
   - is_false: indices.my_index.phase_execution
@@ -111,6 +122,7 @@ teardown:
   - is_false: indices.my_index2
   - is_false: indices.another_index
   - is_false: indices.unmanaged_index
+  - is_false: indices.index_with_policy_that_doesnt_exist
 
 ---
 "Test Wildcard Index Lifecycle Explain":
@@ -126,6 +138,7 @@ teardown:
   - match: { indices.my_index.action: "complete" }
   - match: { indices.my_index.step: "complete" }
   - is_true: indices.my_index.phase_time_millis
+  - is_true: indices.my_index.age
   - is_false: indices.my_index.failed_step
   - is_false: indices.my_index.step_info
   - is_false: indices.my_index.phase_execution
@@ -137,12 +150,14 @@ teardown:
   - match: { indices.my_index2.action: "complete" }
   - match: { indices.my_index2.step: "complete" }
   - is_true: indices.my_index2.phase_time_millis
+  - is_true: indices.my_index2.age
   - is_false: indices.my_index2.failed_step
   - is_false: indices.my_index2.step_info
   - is_false: indices.my_index2.phase_execution
 
   - is_false: indices.another_index
   - is_false: indices.unmanaged_index
+  - is_false: indices.index_with_policy_that_doesnt_exist
 
 
 ---
@@ -159,6 +174,7 @@ teardown:
   - match: { indices.my_index.action: "complete" }
   - match: { indices.my_index.step: "complete" }
   - is_true: indices.my_index.phase_time_millis
+  - is_true: indices.my_index.age
   - is_false: indices.my_index.failed_step
   - is_false: indices.my_index.step_info
   - is_false: indices.my_index.phase_execution
@@ -170,6 +186,7 @@ teardown:
   - match: { indices.my_index2.action: "complete" }
   - match: { indices.my_index2.step: "complete" }
   - is_true: indices.my_index2.phase_time_millis
+  - is_true: indices.my_index2.age
   - is_false: indices.my_index2.failed_step
   - is_false: indices.my_index2.step_info
   - is_false: indices.my_index2.phase_execution
@@ -181,6 +198,7 @@ teardown:
   - match: { indices.another_index.action: "complete" }
   - match: { indices.another_index.step: "complete" }
   - is_true: indices.another_index.phase_time_millis
+  - is_true: indices.another_index.age
   - is_false: indices.another_index.failed_step
   - is_false: indices.another_index.step_info
   - is_false: indices.another_index.phase_execution
@@ -191,8 +209,19 @@ teardown:
   - is_false: indices.unmanaged_index.phase
   - is_false: indices.unmanaged_index.action
   - is_false: indices.unmanaged_index.step
+  - is_false: indices.unmanaged.age
   - is_false: indices.another_index.failed_step
   - is_false: indices.another_index.step_info
+
+  - match: { indices.index_with_policy_that_doesnt_exist.index: "index_with_policy_that_doesnt_exist" }
+  - match: { indices.index_with_policy_that_doesnt_exist.policy: "a_policy_that_doesnt_exist" }
+  - match: { indices.index_with_policy_that_doesnt_exist.step_info.reason: "policy [a_policy_that_doesnt_exist] does not exist" }
+  - is_true: indices.index_with_policy_that_doesnt_exist.managed
+  - is_false: indices.index_with_policy_that_doesnt_exist.phase
+  - is_false: indices.index_with_policy_that_doesnt_exist.action
+  - is_false: indices.index_with_policy_that_doesnt_exist.step
+  - is_false: indices.index_with_policy_that_doesnt_exist.age
+  - is_false: indices.index_with_policy_that_doesnt_exist.failed_step
 
 ---
 "Test Unmanaged Index Lifecycle Explain":
@@ -208,8 +237,40 @@ teardown:
   - is_false: indices.unmanaged_index.action
   - is_false: indices.unmanaged_index.step
   - is_false: indices.unmanaged_index.phase_execution
+  - is_false: indices.unmanaged.age
   - is_false: indices.another_index.failed_step
   - is_false: indices.another_index.step_info
+  - is_false: indices.my_index
+  - is_false: indices.my_index2
+  - is_false: indices.another_index
+  - is_false: indices.index_with_policy_that_doesnt_exist
+
+---
+"Test filter for only managed indices":
+
+  - do:
+      ilm.explain_lifecycle:
+        index: "*"
+        only_managed: true
+
+  - match: { indices.my_index.index: "my_index" }
+  - match: { indices.my_index2.index: "my_index2" }
+  - match: { indices.another_index.index: "another_index" }
+  - match: { indices.index_with_policy_that_doesnt_exist.index: "index_with_policy_that_doesnt_exist" }
+  - is_false: indices.unmanaged_index
+  - is_false: indices.my_index_no_policy
+
+---
+"Test filter for only error indices":
+
+  - do:
+      ilm.explain_lifecycle:
+        index: "*"
+        only_errors: true
+
+  - match: { indices.index_with_policy_that_doesnt_exist.index: "index_with_policy_that_doesnt_exist" }
+  - is_false: indices.unmanaged_index
+  - is_false: indices.my_index_no_policy
   - is_false: indices.my_index
   - is_false: indices.my_index2
   - is_false: indices.another_index

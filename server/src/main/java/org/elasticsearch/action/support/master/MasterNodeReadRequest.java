@@ -59,9 +59,4 @@ public abstract class MasterNodeReadRequest<Request extends MasterNodeReadReques
     public final boolean local() {
         return local;
     }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
 }

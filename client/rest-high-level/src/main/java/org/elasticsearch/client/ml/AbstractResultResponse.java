@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -32,7 +31,7 @@ import java.util.Objects;
 /**
  * Abstract class that provides a list of results and their count.
  */
-public abstract class AbstractResultResponse<T extends ToXContent> extends ActionResponse implements ToXContentObject {
+public abstract class AbstractResultResponse<T extends ToXContent> implements ToXContentObject {
 
     public static final ParseField COUNT = new ParseField("count");
 

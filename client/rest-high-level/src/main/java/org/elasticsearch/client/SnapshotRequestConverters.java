@@ -23,6 +23,7 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -60,7 +61,9 @@ final class SnapshotRequestConverters {
         RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withMasterTimeout(putRepositoryRequest.masterNodeTimeout());
         parameters.withTimeout(putRepositoryRequest.timeout());
-        parameters.withVerify(putRepositoryRequest.verify());
+        if (putRepositoryRequest.verify() == false) {
+            parameters.putParam("verify", "false");
+        }
         request.addParameters(parameters.asMap());
         request.setEntity(RequestConverters.createEntity(putRepositoryRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;
@@ -92,6 +95,20 @@ final class SnapshotRequestConverters {
         return request;
     }
 
+    static Request cleanupRepository(CleanupRepositoryRequest cleanupRepositoryRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_snapshot")
+            .addPathPart(cleanupRepositoryRequest.name())
+            .addPathPartAsIs("_cleanup")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+
+        RequestConverters.Params parameters = new RequestConverters.Params();
+        parameters.withMasterTimeout(cleanupRepositoryRequest.masterNodeTimeout());
+        parameters.withTimeout(cleanupRepositoryRequest.timeout());
+        request.addParameters(parameters.asMap());
+        return request;
+    }
+
     static Request createSnapshot(CreateSnapshotRequest createSnapshotRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPart("_snapshot")
             .addPathPart(createSnapshotRequest.repository())
@@ -108,7 +125,7 @@ final class SnapshotRequestConverters {
 
     static Request getSnapshots(GetSnapshotsRequest getSnapshotsRequest) {
         RequestConverters.EndpointBuilder endpointBuilder = new RequestConverters.EndpointBuilder().addPathPartAsIs("_snapshot")
-            .addPathPart(getSnapshotsRequest.repository());
+            .addCommaSeparatedPathParts(getSnapshotsRequest.repositories());
         String endpoint;
         if (getSnapshotsRequest.snapshots().length == 0) {
             endpoint = endpointBuilder.addPathPart("_all").build();

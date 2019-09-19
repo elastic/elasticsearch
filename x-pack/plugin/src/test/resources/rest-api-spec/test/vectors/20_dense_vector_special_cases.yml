@@ -1,0 +1,215 @@
+setup:
+  - skip:
+      features: headers
+      version: " - 7.3.99"
+      reason: "dense_vector functions check on empty values was added from 7.4"
+
+  - do:
+      indices.create:
+        include_type_name: false
+        index: test-index
+        body:
+          settings:
+            number_of_replicas: 0
+            # we need to have 1 shard to get request failure in test "Dense vectors should error with sparse vector functions"
+            number_of_shards: 1
+          mappings:
+            properties:
+              my_dense_vector:
+                 type: dense_vector
+                 dims: 3
+
+
+---
+"Indexing of Dense vectors should error when dims don't match defined in the mapping":
+
+  - do:
+      catch: bad_request
+      index:
+        index: test-index
+        id: 1
+        body:
+          my_dense_vector: [10, 2]
+  - match: { error.type: "mapper_parsing_exception" }
+
+---
+"Vectors of mixed integers and floats":
+  - do:
+      index:
+        index: test-index
+        id: 1
+        body:
+          my_dense_vector: [10, 10, 10]
+
+  - do:
+      index:
+        index: test-index
+        id: 2
+        body:
+          my_dense_vector: [10.5, 10.9, 10.4]
+
+  - do:
+      indices.refresh: {}
+
+# query vector of type integer
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "cosineSimilarity(params.query_vector, doc['my_dense_vector'])"
+                params:
+                  query_vector: [10, 10, 10]
+
+  - match: {hits.total: 2}
+  - match: {hits.hits.0._id: "1"}
+  - match: {hits.hits.1._id: "2"}
+
+# query vector of type float
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "cosineSimilarity(params.query_vector, doc['my_dense_vector'])"
+                params:
+                  query_vector: [10.0, 10.0, 10.0]
+
+  - match: {hits.total: 2}
+  - match: {hits.hits.0._id: "1"}
+  - match: {hits.hits.1._id: "2"}
+
+
+---
+"Functions with query vectors with dims different from docs vectors should error":
+  - do:
+      index:
+        index: test-index
+        id: 1
+        body:
+          my_dense_vector: [1, 2, 3]
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "cosineSimilarity(params.query_vector, doc['my_dense_vector'])"
+                params:
+                  query_vector: [1, 2, 3, 4]
+  - match: { error.root_cause.0.type: "script_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            script_score:
+              query: {match_all: {} }
+              script:
+                source: "dotProduct(params.query_vector, doc['my_dense_vector'])"
+                params:
+                  query_vector: [1, 2, 3, 4]
+  - match: { error.root_cause.0.type: "script_exception" }
+
+---
+"Documents missing a vector field":
+- do:
+    index:
+      index: test-index
+      id: 1
+      body:
+        my_dense_vector: [10, 10, 10]
+
+- do:
+    index:
+      index: test-index
+      id: 2
+      body:
+        some_other_field: "random_value"
+
+- do:
+    indices.refresh: {}
+
+# expect an error when documents miss a vector field
+- do:
+    catch: bad_request
+    headers:
+      Content-Type: application/json
+    search:
+      rest_total_hits_as_int: true
+      body:
+        query:
+          script_score:
+            query: {match_all: {} }
+            script:
+              source: "cosineSimilarity(params.query_vector, doc['my_dense_vector'])"
+              params:
+                query_vector: [10.0, 10.0, 10.0]
+- match: { error.root_cause.0.type: "script_exception" }
+
+# guard against missing values by checking size()
+- do:
+    headers:
+      Content-Type: application/json
+    search:
+      rest_total_hits_as_int: true
+      body:
+        query:
+          script_score:
+            query: {match_all: {} }
+            script:
+              source: "doc['my_dense_vector'].size() == 0 ? 0 : cosineSimilarity(params.query_vector, doc['my_dense_vector'])"
+              params:
+                query_vector: [10.0, 10.0, 10.0]
+
+- match: {hits.total: 2}
+- match: {hits.hits.0._id: "1"}
+- match: {hits.hits.1._id: "2"}
+- match: {hits.hits.1._score: 0.0}
+
+---
+"Dense vectors should error with sparse vector functions":
+
+- do:
+    index:
+      index: test-index
+      id: 1
+      body:
+        my_dense_vector: [10, 2, 0.15]
+
+- do:
+    indices.refresh: {}
+
+- do:
+    catch: bad_request
+    headers:
+      Content-Type: application/json
+    search:
+      body:
+        query:
+          script_score:
+            query: {match_all: {} }
+            script:
+              source: "dotProductSparse(params.query_vector, doc['my_dense_vector'])"
+              params:
+                query_vector: {"2": 0.5, "10" : 111.3, "3": 44}
+- match: { error.root_cause.0.type: "script_exception" }

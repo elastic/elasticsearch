@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.util.Set;
 
@@ -75,4 +76,25 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
         assertThat(e, hasToString(containsString("Duplicate key")));
     }
 
+    public void testDiscoveryNodeRoleEqualsHashCode() {
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(new DiscoveryNodeRole.UnknownRole(randomAlphaOfLength(10), randomAlphaOfLength(1)),
+            r -> new DiscoveryNodeRole.UnknownRole(r.roleName(), r.roleNameAbbreviation()),
+            r -> {
+                if (randomBoolean()) {
+                    return new DiscoveryNodeRole.UnknownRole(randomAlphaOfLength(21 - r.roleName().length()), r.roleNameAbbreviation());
+                } else {
+                    return new DiscoveryNodeRole.UnknownRole(r.roleName(), randomAlphaOfLength(3 - r.roleNameAbbreviation().length()));
+                }
+            });
+
+    }
+
+    public void testUnknownRoleIsDistinctFromKnownRoles() {
+        for (DiscoveryNodeRole buildInRole : DiscoveryNodeRole.BUILT_IN_ROLES) {
+            final DiscoveryNodeRole.UnknownRole unknownDataRole
+                = new DiscoveryNodeRole.UnknownRole(buildInRole.roleName(), buildInRole.roleNameAbbreviation());
+            assertNotEquals(buildInRole, unknownDataRole);
+            assertNotEquals(buildInRole.toString(), unknownDataRole.toString());
+        }
+    }
 }

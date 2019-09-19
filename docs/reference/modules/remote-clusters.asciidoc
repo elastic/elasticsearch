@@ -39,7 +39,7 @@ node, while 6.7 can only communicate with 7.0. Version compatibility  is
 symmetric, meaning that if 6.7 can communicate with 7.0, 7.0 can also
 communicate with 6.7. The matrix below summarizes compatibility as described above.
 
-[cols="^,^,^,^,^,^"]
+[cols="^,^,^,^,^,^,^,^"]
 |====
 | Compatibility | 5.0->5.5 | 5.6 | 6.0->6.6 | 6.7 | 6.8 | 7.0 | 7.1->7.x
 | 5.0->5.5      |    Yes   | Yes |    No    | No  | No  | No  |    No
@@ -75,20 +75,22 @@ nodes. For example:
 cluster:
     remote:
         cluster_one: <1>
-            seeds: 127.0.0.1:9300
-            transport.ping_schedule: 30s <2>
+            seeds: 127.0.0.1:9300 <2>
+            transport.ping_schedule: 30s <3>
         cluster_two: 
             seeds: 127.0.0.1:9301
-            transport.compress: true <3>
-            skip_unavailable: true <4>
+            transport.compress: true <4>
+            skip_unavailable: true <5>
 
 --------------------------------
 <1> `cluster_one` and `cluster_two` are arbitrary _cluster aliases_ representing
 the connection to each cluster. These names are subsequently used to distinguish
 between local and remote indices.
-<2> A keep-alive ping is configured for `cluster_one`.
-<3> Compression is explicitly enabled for requests to `cluster_two`.
-<4> Disconnected remote clusters are optional for `cluster_two`.
+<2> The hostname and <<modules-transport,transport>> port (default: 9300) of a
+seed node in the remote cluster.
+<3> A keep-alive ping is configured for `cluster_one`.
+<4> Compression is explicitly enabled for requests to `cluster_two`.
+<5> Disconnected remote clusters are optional for `cluster_two`.
 
 For more information about the optional transport settings, see
 <<modules-transport>>. 
@@ -97,7 +99,7 @@ For more information about the optional transport settings, see
 If you use <<cluster-update-settings,cluster settings>>, the remote clusters
 are available on every node in the cluster. For example:
 
-[source,js]
+[source,console]
 --------------------------------
 PUT _cluster/settings
 {
@@ -127,14 +129,13 @@ PUT _cluster/settings
   }
 }
 --------------------------------
-// CONSOLE
 // TEST[setup:host]
 // TEST[s/127.0.0.1:9300/\${transport_host}/]
 
 You can dynamically update the compression and ping schedule settings. However,
 you must re-include seeds in the settings update request. For example:
 
-[source,js]
+[source,console]
 --------------------------------
 PUT _cluster/settings
 {
@@ -158,7 +159,6 @@ PUT _cluster/settings
   }
 }
 --------------------------------
-// CONSOLE
 // TEST[continued]
 
 NOTE: When the compression or ping schedule settings change, all the existing
@@ -167,7 +167,7 @@ fail.
 
 A remote cluster can be deleted from the cluster settings by setting its seeds and optional settings to `null` :
 
-[source,js]
+[source,console]
 --------------------------------
 PUT _cluster/settings
 {
@@ -186,8 +186,8 @@ PUT _cluster/settings
   }
 }
 --------------------------------
-// CONSOLE
 // TEST[continued]
+
 <1> `cluster_two` would be removed from the cluster settings, leaving
 `cluster_one` and `cluster_three` intact.
 
@@ -244,14 +244,6 @@ PUT _cluster/settings
   sent to the remote cluster. If the inbound request is compressed,
   Elasticsearch compresses the response. If unset, the global
   `transport.compress` is used as the fallback setting.
-
-`cluster.remote.${cluster_alias}.proxy`::
-
-  Sets a proxy address for the specified remote cluster. By default this is not
-  set, meaning that Elasticsearch will connect directly to the nodes in the
-  remote cluster using their <<advanced-network-settings,publish addresses>>.
-  If this setting is set to an IP address or hostname then Elasticsearch will
-  connect to the nodes in the remote cluster using this address instead.
 
 [float]
 [[retrieve-remote-clusters-info]]

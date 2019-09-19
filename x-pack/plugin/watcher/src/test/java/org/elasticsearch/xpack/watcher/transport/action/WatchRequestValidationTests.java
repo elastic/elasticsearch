@@ -63,7 +63,7 @@ public class WatchRequestValidationTests extends ESTestCase {
     }
 
     public void testDeleteWatchNullId() {
-        ActionRequestValidationException e = new DeleteWatchRequest(null).validate();
+        ActionRequestValidationException e = new DeleteWatchRequest().validate();
         assertThat(e, is(notNullValue()));
         assertThat(e.validationErrors(), hasItem("watch id is missing"));
     }

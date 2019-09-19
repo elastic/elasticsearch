@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.range;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -29,7 +30,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.time.ZonedDateTime;
@@ -288,8 +288,8 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
     }
 
     @Override
-    protected DateRangeAggregatorFactory innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
-            AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
+    protected DateRangeAggregatorFactory innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<Numeric> config,
+                                                    AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         // We need to call processRanges here so they are parsed and we know whether `now` has been used before we make
         // the decision of whether to cache the request
         RangeAggregator.Range[] ranges = processRanges(range -> {
@@ -300,23 +300,23 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
             String fromAsString = range.getFromAsString();
             String toAsString = range.getToAsString();
             if (fromAsString != null) {
-                from = parser.parseDouble(fromAsString, false, context.getQueryShardContext()::nowInMillis);
+                from = parser.parseDouble(fromAsString, false, queryShardContext::nowInMillis);
             } else if (Double.isFinite(from)) {
                 // from/to provided as double should be converted to string and parsed regardless to support
                 // different formats like `epoch_millis` vs. `epoch_second` with numeric input
-                from = parser.parseDouble(Long.toString((long) from), false, context.getQueryShardContext()::nowInMillis);
+                from = parser.parseDouble(Long.toString((long) from), false, queryShardContext::nowInMillis);
             }
             if (toAsString != null) {
-                to = parser.parseDouble(toAsString, false, context.getQueryShardContext()::nowInMillis);
+                to = parser.parseDouble(toAsString, false, queryShardContext::nowInMillis);
             } else if (Double.isFinite(to)) {
-                to = parser.parseDouble(Long.toString((long) to), false, context.getQueryShardContext()::nowInMillis);
+                to = parser.parseDouble(Long.toString((long) to), false, queryShardContext::nowInMillis);
             }
             return new RangeAggregator.Range(range.getKey(), from, fromAsString, to, toAsString);
         });
         if (ranges.length == 0) {
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
         }
-        return new DateRangeAggregatorFactory(name, config, ranges, keyed, rangeFactory, context, parent, subFactoriesBuilder,
+        return new DateRangeAggregatorFactory(name, config, ranges, keyed, rangeFactory, queryShardContext, parent, subFactoriesBuilder,
                 metaData);
     }
 }

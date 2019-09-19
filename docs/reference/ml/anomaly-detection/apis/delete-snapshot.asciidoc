@@ -1,0 +1,57 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-delete-snapshot]]
+=== Delete model snapshots API
+++++
+<titleabbrev>Delete model snapshots</titleabbrev>
+++++
+
+Deletes an existing model snapshot.
+
+[[ml-delete-snapshot-request]]
+==== {api-request-title}
+
+`DELETE _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>`
+
+[[ml-delete-snapshot-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have `manage_ml` or
+`manage` cluster privileges to use this API. See
+{stack-ov}/security-privileges.html[Security privileges].
+
+[[ml-delete-snapshot-desc]]
+==== {api-description-title}
+
+IMPORTANT: You cannot delete the active model snapshot. To delete that snapshot,
+first revert to a different one. To identify the active model snapshot, refer to
+the `model_snapshot_id` in the results from the get jobs API.
+
+[[ml-delete-snapshot-path-parms]]
+==== {api-path-parms-title}
+
+`<job_id>`::
+  (Required, string) Identifier for the job.
+
+`<snapshot_id>`::
+  (Required, string) Identifier for the model snapshot.
+
+[[ml-delete-snapshot-example]]
+==== {api-examples-title}
+
+The following example deletes the `1491948163` snapshot:
+
+[source,console]
+--------------------------------------------------
+DELETE _ml/anomaly_detectors/farequote/model_snapshots/1491948163
+--------------------------------------------------
+// TEST[skip:todo]
+
+When the snapshot is deleted, you receive the following results:
+
+[source,console-result]
+----
+{
+  "acknowledged": true
+}
+----

@@ -18,8 +18,9 @@
  */
 package org.elasticsearch.client.license;
 
+import org.elasticsearch.client.AbstractHlrcWriteableXContentTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.client.AbstractHlrcStreamableXContentTestCase;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 
 import java.io.IOException;
@@ -29,8 +30,8 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-public class PutLicenseResponseTests extends AbstractHlrcStreamableXContentTestCase<
-    org.elasticsearch.protocol.xpack.license.PutLicenseResponse, org.elasticsearch.client.license.PutLicenseResponse> {
+public class PutLicenseResponseTests extends AbstractHlrcWriteableXContentTestCase<
+    org.elasticsearch.protocol.xpack.license.PutLicenseResponse, PutLicenseResponse> {
 
     @Override
     public org.elasticsearch.client.license.PutLicenseResponse doHlrcParseInstance(XContentParser parser) throws IOException {
@@ -96,8 +97,8 @@ public class PutLicenseResponseTests extends AbstractHlrcStreamableXContentTestC
     }
 
     @Override
-    protected org.elasticsearch.protocol.xpack.license.PutLicenseResponse createBlankInstance() {
-        return new org.elasticsearch.protocol.xpack.license.PutLicenseResponse();
+    protected Writeable.Reader<org.elasticsearch.protocol.xpack.license.PutLicenseResponse> instanceReader() {
+        return org.elasticsearch.protocol.xpack.license.PutLicenseResponse::new;
     }
 
     @Override

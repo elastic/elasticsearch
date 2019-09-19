@@ -33,7 +33,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -45,6 +49,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -57,6 +62,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
@@ -285,4 +291,47 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         }
     }
 
+    /**
+     * Waits until mappings for the provided fields exist on all nodes. Note, this waits for the current
+     * started shards and checks for concrete mappings.
+     */
+    private void assertConcreteMappingsOnAll(final String index, final String type, final String... fieldNames) {
+        Set<String> nodes = internalCluster().nodesInclude(index);
+        assertThat(nodes, Matchers.not(Matchers.emptyIterable()));
+        for (String node : nodes) {
+            IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
+            IndexService indexService = indicesService.indexService(resolveIndex(index));
+            assertThat("index service doesn't exists on " + node, indexService, notNullValue());
+            MapperService mapperService = indexService.mapperService();
+            for (String fieldName : fieldNames) {
+                MappedFieldType fieldType = mapperService.fullName(fieldName);
+                assertNotNull("field " + fieldName + " doesn't exists on " + node, fieldType);
+            }
+        }
+        assertMappingOnMaster(index, type, fieldNames);
+    }
+
+    /**
+     * Waits for the given mapping type to exists on the master node.
+     */
+    private void assertMappingOnMaster(final String index, final String type, final String... fieldNames) {
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings(index).setTypes(type).get();
+        ImmutableOpenMap<String, MappingMetaData> mappings = response.getMappings().get(index);
+        assertThat(mappings, notNullValue());
+        MappingMetaData mappingMetaData = mappings.get(type);
+        assertThat(mappingMetaData, notNullValue());
+
+        Map<String, Object> mappingSource = mappingMetaData.getSourceAsMap();
+        assertFalse(mappingSource.isEmpty());
+        assertTrue(mappingSource.containsKey("properties"));
+
+        for (String fieldName : fieldNames) {
+            Map<String, Object> mappingProperties = (Map<String, Object>) mappingSource.get("properties");
+            if (fieldName.indexOf('.') != -1) {
+                fieldName = fieldName.replace(".", ".properties.");
+            }
+            assertThat("field " + fieldName + " doesn't exists in mapping " + mappingMetaData.source().string(),
+                XContentMapValues.extractValue(fieldName, mappingProperties), notNullValue());
+        }
+    }
 }

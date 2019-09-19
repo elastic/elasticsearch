@@ -212,17 +212,25 @@ setup:
             "indexes":["index-foo"],
             "scroll_size": 2000
           }
+  - match: { job_id: "datafeeds-crud-1" }
 
   - do:
       ml.update_datafeed:
         datafeed_id: test-datafeed-1
         body:  >
           {
+            "job_id": "datafeeds-crud-1"
+          }
+  - match: { job_id: "datafeeds-crud-1" }
+
+  - do:
+      catch: /Datafeed's job_id cannot be changed/
+      ml.update_datafeed:
+        datafeed_id: test-datafeed-1
+        body:  >
+          {
             "job_id": "datafeeds-crud-2"
           }
-  - match: { datafeed_id: "test-datafeed-1" }
-  - match: { job_id: "datafeeds-crud-2" }
-  - match: { indices: ["index-foo"] }
 
 ---
 "Test update datafeed with missing id":
@@ -247,7 +255,7 @@ setup:
           }
 
   - do:
-      catch: /resource_not_found_exception/
+      catch: /Datafeed's job_id cannot be changed/
       ml.update_datafeed:
         datafeed_id: test-datafeed-1
         body:  >
@@ -276,7 +284,7 @@ setup:
           }
 
   - do:
-      catch: /A datafeed \[test-datafeed-2\] already exists for job \[datafeeds-crud-2\]/
+      catch: /Datafeed's job_id cannot be changed/
       ml.update_datafeed:
         datafeed_id: test-datafeed-1
         body:  >

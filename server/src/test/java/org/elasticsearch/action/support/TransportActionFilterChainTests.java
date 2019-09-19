@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
@@ -34,6 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -107,7 +109,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
 
         PlainActionFuture<TestResponse> future = PlainActionFuture.newFuture();
 
-        transportAction.execute(new TestRequest(), future);
+        ActionTestUtils.execute(transportAction, null, new TestRequest(), future);
         try {
             assertThat(future.get(), notNullValue());
             assertThat("shouldn't get here if an error is expected", errorExpected, equalTo(false));
@@ -170,7 +172,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         final AtomicInteger responses = new AtomicInteger();
         final List<Throwable> failures = new CopyOnWriteArrayList<>();
 
-        transportAction.execute(new TestRequest(), new LatchedActionListener<>(new ActionListener<TestResponse>() {
+        ActionTestUtils.execute(transportAction, null, new TestRequest(), new LatchedActionListener<>(new ActionListener<>() {
             @Override
             public void onResponse(TestResponse testResponse) {
                 responses.incrementAndGet();
@@ -261,6 +263,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
     }
 
     private static class TestResponse extends ActionResponse {
-
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 }

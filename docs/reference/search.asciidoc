@@ -126,13 +126,10 @@ Setting this value to `-1` resets the global search timeout to no timeout.
 === Search Cancellation
 
 Searches can be cancelled using standard <<task-cancellation,task cancellation>>
-mechanism. By default, a running search only checks if it is cancelled or
-not on segment boundaries, therefore the cancellation can be delayed by large
-segments. The search cancellation responsiveness can be improved by setting
-the dynamic cluster-level setting `search.low_level_cancellation` to `true`.
-However, it comes with an additional overhead of more frequent cancellation
-checks that can be noticeable on large fast running search queries. Changing this
-setting only affects the searches that start after the change is made.
+mechanism and are also automatically cancelled when the http connection used to
+perform the request is closed by the client. It is fundamental that the http
+client sending requests closes connections whenever requests time out or are
+aborted.
 
 [float]
 [[search-concurrency-and-parallelism]]

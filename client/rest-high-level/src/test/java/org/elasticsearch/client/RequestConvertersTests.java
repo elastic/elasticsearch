@@ -1191,6 +1191,10 @@ public class RequestConvertersTests extends ESTestCase {
             countRequest.preference(randomAlphaOfLengthBetween(3, 10));
             expectedParams.put("preference", countRequest.preference());
         }
+        if (randomBoolean()){
+            countRequest.terminateAfter(randomIntBetween(0, Integer.MAX_VALUE));
+            expectedParams.put("terminate_after", String.valueOf(countRequest.terminateAfter()));
+        }
     }
 
     public void testMultiSearch() throws IOException {

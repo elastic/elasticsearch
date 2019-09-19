@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.symbol.FunctionTable;
 
 import java.util.Set;
 
@@ -58,7 +59,7 @@ final class PSubShortcut extends AStoreable {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(FunctionTable functions, Locals locals) {
         if (getter != null && (getter.returnType == void.class || !getter.typeParameters.isEmpty())) {
             throw createError(new IllegalArgumentException(
                 "Illegal get shortcut on field [" + value + "] for type [" + type + "]."));

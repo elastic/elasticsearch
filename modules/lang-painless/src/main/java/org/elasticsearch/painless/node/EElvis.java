@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.symbol.FunctionTable;
 import org.objectweb.asm.Label;
 
 import java.util.Set;
@@ -59,7 +60,7 @@ public class EElvis extends AExpression {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(FunctionTable functions, Locals locals) {
         if (expected != null && expected.isPrimitive()) {
             throw createError(new IllegalArgumentException("Elvis operator cannot return primitives"));
         }
@@ -70,8 +71,8 @@ public class EElvis extends AExpression {
         rhs.explicit = explicit;
         rhs.internal = internal;
         actual = expected;
-        lhs.analyze(locals);
-        rhs.analyze(locals);
+        lhs.analyze(functions, locals);
+        rhs.analyze(functions, locals);
 
         if (lhs.isNull) {
             throw createError(new IllegalArgumentException("Extraneous elvis operator. LHS is null."));
@@ -94,8 +95,8 @@ public class EElvis extends AExpression {
             actual = promote;
         }
 
-        lhs = lhs.cast(locals);
-        rhs = rhs.cast(locals);
+        lhs = lhs.cast(functions, locals);
+        rhs = rhs.cast(functions, locals);
     }
 
     @Override

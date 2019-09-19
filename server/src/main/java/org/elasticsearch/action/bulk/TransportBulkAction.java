@@ -159,7 +159,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
 
             if (indexRequest != null) {
-                if (indexRequest.isForwardedRequest() == false) {
+                if (indexRequest.isPipelineResolved() == false) {
                     final String requestPipeline = indexRequest.getPipeline();
                     indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME);
                     boolean requestCanOverridePipeline = true;
@@ -247,19 +247,17 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     if (IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getPipeline()) == false) {
                         hasIndexRequestsWithPipelines = true;
                     }
-                    if (clusterService.localNode().isIngestNode() == false) {
-                        /*
-                         * We have to track whether or not the pipeline for this request has already been derived. It can happen that the
-                         * pipeline for this request has already been derived yet we execute this loop again. That occurs if the bulk
-                         * request has been forwarded by a non-ingest coordinating node to an ingest node. In this case, the coordinating
-                         * node will have already derived the pipeline for this request. It is important that we are able to distinguish
-                         * this situation as we can not double-derive the pipeline because we will not be able to distinguish the case of
-                         * the pipeline having been set from a request pipeline parameter versus having been set by the derivation. We need
-                         * to be able to distinguish these cases as we need to reject the request if the pipeline was set by a required
-                         * pipeline and there is a request pipeline parameter too.
-                         */
-                        indexRequest.isForwardedRequest(true);
-                    }
+                    /*
+                     * We have to track whether or not the pipeline for this request has already been resolved. It can happen that the
+                     * pipeline for this request has already been derived yet we execute this loop again. That occurs if the bulk request
+                     * has been forwarded by a non-ingest coordinating node to an ingest node. In this case, the coordinating node will have
+                     * already resolved the pipeline for this request. It is important that we are able to distinguish this situation as we
+                     * can not double-resolve the pipeline because we will not be able to distinguish the case of the pipeline having been
+                     * set from a request pipeline parameter versus having been set by the resolution. We need to be able to distinguish
+                     * these cases as we need to reject the request if the pipeline was set by a required pipeline and there is a request
+                     * pipeline parameter too.
+                     */
+                    indexRequest.isPipelineResolved(true);
                 } else if (IngestService.NOOP_PIPELINE_NAME.equals(indexRequest.getPipeline()) == false) {
                     hasIndexRequestsWithPipelines = true;
                 }
@@ -280,7 +278,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             .stream()
                             .map(TransportBulkAction::getIndexWriteRequest)
                             .filter(Objects::nonNull)
-                            .allMatch(IndexRequest::isForwardedRequest);
+                            .allMatch(IndexRequest::isPipelineResolved);
                         assert allAreForwardedRequests : bulkRequest;
                     }
                     ingestForwarder.forwardIngestRequest(BulkAction.INSTANCE, bulkRequest, listener);

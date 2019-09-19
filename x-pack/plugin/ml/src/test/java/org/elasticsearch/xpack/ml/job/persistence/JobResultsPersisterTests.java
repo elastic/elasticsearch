@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
@@ -249,7 +250,7 @@ public class JobResultsPersisterTests extends ESTestCase {
                 // Take the listener passed to client::index as 2nd argument
                 ActionListener listener = (ActionListener) invocationOnMock.getArguments()[1];
                 // Handle the response on the listener
-                listener.onResponse(new IndexResponse(null, null, null, 0, 0, 0, false));
+                listener.onResponse(new IndexResponse(new ShardId("test", "test", 0), "_doc", "test", 0, 0, 0, false));
                 return null;
             })
             .when(client).index(any(), any(ActionListener.class));

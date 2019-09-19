@@ -598,7 +598,7 @@ public class XPackLicenseState {
      *
      * @return true if the license is active
      */
-    public synchronized boolean isDataFrameAllowed() {
+    public synchronized boolean isTransformAllowed() {
         return status.active;
     }
 

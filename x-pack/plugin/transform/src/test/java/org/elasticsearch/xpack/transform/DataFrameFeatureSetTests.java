@@ -53,7 +53,7 @@ public class DataFrameFeatureSetTests extends ESTestCase {
             mock(Client.class),
             licenseState);
         boolean available = randomBoolean();
-        when(licenseState.isDataFrameAllowed()).thenReturn(available);
+        when(licenseState.isTransformAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 
@@ -115,7 +115,7 @@ public class DataFrameFeatureSetTests extends ESTestCase {
     }
 
     public void testUsageDisabled() throws IOException, InterruptedException, ExecutionException {
-        when(licenseState.isDataFrameAllowed()).thenReturn(true);
+        when(licenseState.isTransformAllowed()).thenReturn(true);
         Settings.Builder settings = Settings.builder();
         settings.put("xpack.data_frame.enabled", false);
         DataFrameFeatureSet featureSet = new DataFrameFeatureSet(settings.build(),

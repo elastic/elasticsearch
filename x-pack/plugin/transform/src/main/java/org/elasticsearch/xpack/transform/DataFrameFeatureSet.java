@@ -31,13 +31,12 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.transform.TransformFeatureSetUsage;
 import org.elasticsearch.xpack.core.transform.TransformField;
-import org.elasticsearch.xpack.core.transform.transforms.Transform;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
-import org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndex;
+import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -73,7 +72,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
 
     @Inject
     public DataFrameFeatureSet(Settings settings, ClusterService clusterService, Client client, @Nullable XPackLicenseState licenseState) {
-        this.enabled = XPackSettings.DATA_FRAME_ENABLED.get(settings);
+        this.enabled = XPackSettings.TRANSFORM_ENABLED.get(settings);
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.licenseState = licenseState;
@@ -81,12 +80,12 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
 
     @Override
     public String name() {
-        return XPackField.Transform;
+        return XPackField.TRANSFORM;
     }
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isDataFrameAllowed();
+        return licenseState != null && licenseState.isTransformAllowed();
     }
 
     @Override
@@ -154,14 +153,14 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
             }
         );
 
-        SearchRequest totalTransformCount = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME_PATTERN)
+        SearchRequest totalTransformCount = client.prepareSearch(TransformInternalIndex.INDEX_NAME_PATTERN)
             .setTrackTotalHits(true)
             .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(), TransformConfig.NAME))))
             .request();
 
         ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(),
-            ClientHelper.DATA_FRAME_ORIGIN,
+            ClientHelper.TRANSFORM_ORIGIN,
             totalTransformCount,
             totalTransformCountListener,
             client::search);
@@ -196,7 +195,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
             .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(),
                     TransformStoredDoc.NAME)));
 
-        SearchRequestBuilder requestBuilder = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME_PATTERN)
+        SearchRequestBuilder requestBuilder = client.prepareSearch(TransformInternalIndex.INDEX_NAME_PATTERN)
             .setSize(0)
             .setQuery(queryBuilder);
 
@@ -223,7 +222,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
             }
         );
         ClientHelper.executeAsyncWithOrigin(client.threadPool().getThreadContext(),
-            ClientHelper.DATA_FRAME_ORIGIN,
+            ClientHelper.TRANSFORM_ORIGIN,
             requestBuilder.request(),
             getStatisticSummationsListener,
             client::search);

@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.core.indexing.IndexerState;
 import java.io.IOException;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.core.transform.transforms.TransformProgressTests.randomDataFrameTransformProgress;
+import static org.elasticsearch.xpack.core.transform.transforms.TransformProgressTests.randomTransformProgress;
 import static org.elasticsearch.xpack.core.transform.transforms.NodeAttributeTests.randomNodeAttributes;
 
 public class TransformStateTests extends AbstractSerializingTestCase<TransformState> {
@@ -22,10 +22,10 @@ public class TransformStateTests extends AbstractSerializingTestCase<TransformSt
     public static TransformState randomDataFrameTransformState() {
         return new TransformState(randomFrom(TransformTaskState.values()),
             randomFrom(IndexerState.values()),
-            TransformIndexerPositionTests.randomDataFrameIndexerPosition(),
+            TransformIndexerPositionTests.randomTransformIndexerPosition(),
             randomLongBetween(0,10),
             randomBoolean() ? null : randomAlphaOfLength(10),
-            randomBoolean() ? null : randomDataFrameTransformProgress(),
+            randomBoolean() ? null : randomTransformProgress(),
             randomBoolean() ? null : randomNodeAttributes());
     }
 

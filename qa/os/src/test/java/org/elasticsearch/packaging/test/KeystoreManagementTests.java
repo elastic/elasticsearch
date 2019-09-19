@@ -118,7 +118,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             distribution.isArchive());
         assumeThat(installation, is(notNullValue()));
 
-        String password = "keystorepass";
+        String password = "^|<>\\&exit"; // code insertion on Windows
 
         rmKeystoreIfExists();
         createKeystore();
@@ -143,25 +143,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Archives.runElasticsearch(installation, sh, "wrong");
     }
 
-    public void test42KeystorePasswordWithSpecialChars() throws Exception {
-        assumeTrue("packages will use systemd, which doesn't handle stdin",
-            distribution.isArchive());
-        assumeThat(installation, is(notNullValue()));
-
-        String password = "^|<>\\&exit"; // code insertion on Windows
-
-        rmKeystoreIfExists();
-        createKeystore();
-        setKeystorePassword(password);
-
-        assertPasswordProtectedKeystore();
-
-        Archives.runElasticsearch(installation, sh, password);
-        ServerUtils.runElasticsearchTests();
-        Archives.stopElasticsearch(installation);
-    }
-
-    public void test43KeystorePasswordOnTty() throws Exception {
+    public void test42KeystorePasswordOnTty() throws Exception {
         assumeTrue("expect command isn't on Windows",
             distribution.platform != Distribution.Platform.WINDOWS);
         assumeTrue("packages will use systemd, which doesn't handle stdin",
@@ -181,7 +163,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Archives.stopElasticsearch(installation);
     }
 
-    public void test44WrongKeystorePasswordOnTty() throws Exception {
+    public void test43WrongKeystorePasswordOnTty() throws Exception {
         assumeTrue("expect command isn't on Windows",
             distribution.platform != Distribution.Platform.WINDOWS);
         assumeTrue("packages will use systemd, which doesn't handle stdin",
@@ -196,7 +178,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
     }
 
     public void test50KeystorePasswordFromFile() throws Exception {
-        String password = "keystorepass";
+        String password = "!@#$%^&*()|\\<>/?";
         Path esKeystorePassphraseFile = installation.config.resolve("eks");
 
         rmKeystoreIfExists();
@@ -239,34 +221,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
             StandardOpenOption.WRITE);
 
         assertElasticsearchFailsToStart();
-    }
-
-    public void test52KeystorePasswordFromFileWithSpecialCharacters() throws Exception {
-        String password = "!@#$%^&*()|\\<>/?";
-        Path esKeystorePassphraseFile = installation.config.resolve("eks");
-
-        rmKeystoreIfExists();
-        createKeystore();
-        setKeystorePassword(password);
-
-        assertPasswordProtectedKeystore();
-
-        sh.getEnv().put("ES_KEYSTORE_PASSPHRASE_FILE", esKeystorePassphraseFile.toString());
-        if (distribution.isPackage()) {
-            sh.run("sudo systemctl set-environment ES_KEYSTORE_PASSPHRASE_FILE=$ES_KEYSTORE_PASSPHRASE_FILE");
-        }
-
-        if (Files.exists(esKeystorePassphraseFile)) {
-            rm(esKeystorePassphraseFile);
-        }
-        Files.createFile(esKeystorePassphraseFile);
-        Files.write(esKeystorePassphraseFile,
-            (password + LINE_SEP).getBytes(StandardCharsets.UTF_8),
-            StandardOpenOption.WRITE);
-
-        startElasticsearch();
-        ServerUtils.runElasticsearchTests();
-        stopElasticsearch();
     }
 
     private void createKeystore() throws Exception {

@@ -274,8 +274,15 @@ public class ElasticsearchExceptionTests extends ESTestCase {
     public void testToString() {
         ElasticsearchException exception = new ElasticsearchException("foo", new ElasticsearchException("bar",
                 new IllegalArgumentException("index is closed", new RuntimeException("foobar"))));
-        assertEquals("ElasticsearchException[foo]; nested: ElasticsearchException[bar]; nested: IllegalArgumentException" +
-                "[index is closed]; nested: RuntimeException[foobar];", exception.toString());
+        assertThat(exception.toString(), equalTo("org.elasticsearch.ElasticsearchException: foo"));
+    }
+
+    public void testGetDetailedMessage() {
+        ElasticsearchException exception = new ElasticsearchException("foo", new ElasticsearchException("bar",
+            new IllegalArgumentException("index is closed", new RuntimeException("foobar"))));
+        assertThat(exception.getDetailedMessage(),
+            equalTo("org.elasticsearch.ElasticsearchException: foo; org.elasticsearch.ElasticsearchException: bar; " +
+                "java.lang.IllegalArgumentException: index is closed"));
     }
 
     public void testToXContent() throws IOException {

@@ -209,7 +209,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                 request.clear();
                 request.nodes(true);
                 request.local(true); // run this on the node that gets the request it's as good as any other
-                Transport.Connection connection = remoteConnectionManager.getAnyConnection();
+                Transport.Connection connection = remoteConnectionManager.getAnyRemoteConnection();
                 transportService.sendRequest(connection, ClusterStateAction.NAME, request, TransportRequestOptions.EMPTY,
                     new TransportResponseHandler<ClusterStateResponse>() {
 
@@ -253,7 +253,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
      * If such node is not connected, the returned connection will be a proxy connection that redirects to it.
      */
     Transport.Connection getConnection(DiscoveryNode remoteClusterNode) {
-        return remoteConnectionManager.getConnection(remoteClusterNode);
+        return remoteConnectionManager.getRemoteConnection(remoteClusterNode);
     }
 
     private Predicate<ClusterName> getRemoteClusterNamePredicate() {
@@ -273,7 +273,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
     }
 
     Transport.Connection getConnection() {
-        return remoteConnectionManager.getAnyConnection();
+        return remoteConnectionManager.getAnyRemoteConnection();
     }
 
     @Override

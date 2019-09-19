@@ -289,7 +289,6 @@ public class ConnectionManagerTests extends ESTestCase {
         @Override
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
             throws TransportException {
-
         }
     }
 }

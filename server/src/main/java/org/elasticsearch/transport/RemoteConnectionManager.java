@@ -53,15 +53,15 @@ public class RemoteConnectionManager {
         connectionManager.openConnection(node, profile, listener);
     }
 
-    public Transport.Connection getConnection(DiscoveryNode node) {
+    public Transport.Connection getRemoteConnection(DiscoveryNode node) {
         try {
             return connectionManager.getConnection(node);
         } catch (NodeNotConnectedException e) {
-            return new ProxyConnection(getAnyConnection(), node);
+            return new ProxyConnection(getAnyRemoteConnection(), node);
         }
     }
 
-    public Transport.Connection getAnyConnection() {
+    public Transport.Connection getAnyRemoteConnection() {
         List<Transport.Connection> localConnections = this.connections;
         if (localConnections.isEmpty()) {
             throw new NoSuchRemoteClusterException(clusterAlias);

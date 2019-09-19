@@ -22,25 +22,25 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.AbstractTransportGetResourcesAction;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.core.transform.DataFrameMessages;
-import org.elasticsearch.xpack.core.transform.action.GetDataFrameTransformsAction;
-import org.elasticsearch.xpack.core.transform.action.GetDataFrameTransformsAction.Request;
-import org.elasticsearch.xpack.core.transform.action.GetDataFrameTransformsAction.Response;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.action.GetTransformsAction;
+import org.elasticsearch.xpack.core.transform.action.GetTransformsAction.Request;
+import org.elasticsearch.xpack.core.transform.action.GetTransformsAction.Response;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndex;
 
-import static org.elasticsearch.xpack.core.transform.DataFrameField.INDEX_DOC_TYPE;
+import static org.elasticsearch.xpack.core.transform.TransformField.INDEX_DOC_TYPE;
 
 
-public class TransportGetDataFrameTransformsAction extends AbstractTransportGetResourcesAction<DataFrameTransformConfig,
+public class TransportGetDataFrameTransformsAction extends AbstractTransportGetResourcesAction<TransformConfig,
                                                                                                Request,
                                                                                                Response> {
 
     @Inject
     public TransportGetDataFrameTransformsAction(TransportService transportService, ActionFilters actionFilters,
                                                  Client client, NamedXContentRegistry xContentRegistry) {
-        super(GetDataFrameTransformsAction.NAME, transportService, actionFilters, Request::new, client, xContentRegistry);
+        super(GetTransformsAction.NAME, transportService, actionFilters, Request::new, client, xContentRegistry);
     }
 
     @Override
@@ -53,7 +53,7 @@ public class TransportGetDataFrameTransformsAction extends AbstractTransportGetR
 
     @Override
     protected ParseField getResultsField() {
-        return DataFrameField.TRANSFORMS;
+        return TransformField.TRANSFORMS;
     }
 
     @Override
@@ -62,14 +62,14 @@ public class TransportGetDataFrameTransformsAction extends AbstractTransportGetR
     }
 
     @Override
-    protected DataFrameTransformConfig parse(XContentParser parser) {
-        return DataFrameTransformConfig.fromXContent(parser, null, true);
+    protected TransformConfig parse(XContentParser parser) {
+        return TransformConfig.fromXContent(parser, null, true);
     }
 
     @Override
     protected ResourceNotFoundException notFoundException(String resourceId) {
         return new ResourceNotFoundException(
-            DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, resourceId));
+            TransformMessages.getMessage(TransformMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, resourceId));
     }
 
     @Override
@@ -78,13 +78,13 @@ public class TransportGetDataFrameTransformsAction extends AbstractTransportGetR
     }
 
     @Override
-    protected String extractIdFromResource(DataFrameTransformConfig transformConfig) {
+    protected String extractIdFromResource(TransformConfig transformConfig) {
         return transformConfig.getId();
     }
 
     @Override
     protected QueryBuilder additionalQuery() {
-        return QueryBuilders.termQuery(INDEX_DOC_TYPE.getPreferredName(), DataFrameTransformConfig.NAME);
+        return QueryBuilders.termQuery(INDEX_DOC_TYPE.getPreferredName(), TransformConfig.NAME);
     }
 
     @Override

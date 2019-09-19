@@ -292,7 +292,7 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             assertThat(response.getTasks().get(0).getStatus(), instanceOf(RawTaskStatus.class));
             assertEquals(Float.toString(requestsPerSecond),
                 ((RawTaskStatus) response.getTasks().get(0).getStatus()).toMap().get("requests_per_second").toString());
-            taskFinished.await(2, TimeUnit.SECONDS);
+            assertTrue(taskFinished.await(10, TimeUnit.SECONDS));
 
             // any rethrottling after the update-by-query is done performed with the same taskId should result in a failure
             response = execute(new RethrottleRequest(taskIdToRethrottle, requestsPerSecond),
@@ -423,7 +423,7 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             assertThat(response.getTasks().get(0).getStatus(), instanceOf(RawTaskStatus.class));
             assertEquals(Float.toString(requestsPerSecond),
                 ((RawTaskStatus) response.getTasks().get(0).getStatus()).toMap().get("requests_per_second").toString());
-            taskFinished.await(2, TimeUnit.SECONDS);
+            assertTrue(taskFinished.await(10, TimeUnit.SECONDS));
 
             // any rethrottling after the delete-by-query is done performed with the same taskId should result in a failure
             response = execute(new RethrottleRequest(taskIdToRethrottle, requestsPerSecond),

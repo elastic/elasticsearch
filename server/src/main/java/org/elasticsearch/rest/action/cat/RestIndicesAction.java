@@ -42,6 +42,7 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -226,6 +227,11 @@ public class RestIndicesAction extends AbstractCatAction {
 
             @Override
             public void onFailure(final Exception e) {
+                // Temporary logging to help debug https://github.com/elastic/elasticsearch/issues/45652
+                // TODO: remove this when we understand why _cat/indices sometimes returns a 404
+                if (e instanceof IndexNotFoundException) {
+                    logger.debug("_cat/indices returning index_not_found_exception", e);
+                }
                 listener.onFailure(e);
             }
         }, size);

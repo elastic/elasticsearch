@@ -235,7 +235,7 @@ public class TransformConfigUpdate implements Writeable, ToXContentObject {
             String currentConfigName = config.getSyncConfig() == null ? "null" : config.getSyncConfig().getWriteableName();
             if (syncConfig.getWriteableName().equals(currentConfigName) == false) {
                 throw new ElasticsearchStatusException(
-                    TransformMessages.getMessage(TransformMessages.DATA_FRAME_UPDATE_CANNOT_CHANGE_SYNC_METHOD,
+                    TransformMessages.getMessage(TransformMessages.TRANSFORM_UPDATE_CANNOT_CHANGE_SYNC_METHOD,
                         config.getId(),
                         currentConfigName,
                         syncConfig.getWriteableName()),

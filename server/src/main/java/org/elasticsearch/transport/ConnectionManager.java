@@ -22,10 +22,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.concurrent.CompletableContext;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.internal.io.IOUtils;
 
@@ -49,7 +50,7 @@ public class ConnectionManager implements Closeable {
     private static final Logger logger = LogManager.getLogger(ConnectionManager.class);
 
     private final ConcurrentMap<DiscoveryNode, Transport.Connection> connectedNodes = ConcurrentCollections.newConcurrentMap();
-    private final ConcurrentMap<DiscoveryNode, CompletableContext<Void>> pendingConnections = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<DiscoveryNode, ListenableFuture<Void>> pendingConnections = ConcurrentCollections.newConcurrentMap();
     private final AbstractRefCounted connectingRefCounter = new AbstractRefCounted("connection manager") {
         @Override
         protected void closeInternal() {
@@ -123,16 +124,19 @@ public class ConnectionManager implements Closeable {
             return;
         }
 
-        final CompletableContext<Void> currentAttemptContext = new CompletableContext<>();
-        final CompletableContext<Void> existingContext = pendingConnections.putIfAbsent(node, currentAttemptContext);
-        if (existingContext != null) {
-            existingContext.addListener(ActionListener.toBiConsumer(listener));
-            // wait on previous entry to complete connection attempt
-            connectingRefCounter.decRef();
+        final ListenableFuture<Void> currentListener = new ListenableFuture<>();
+        final ListenableFuture<Void> existingListener = pendingConnections.putIfAbsent(node, currentListener);
+        if (existingListener != null) {
+            try {
+                // wait on previous entry to complete connection attempt
+                existingListener.addListener(listener, EsExecutors.newDirectExecutorService());
+            } finally {
+                connectingRefCounter.decRef();
+            }
             return;
         }
 
-        currentAttemptContext.addListener(ActionListener.toBiConsumer(listener));
+        currentListener.addListener(listener, EsExecutors.newDirectExecutorService());
 
         final RunOnce releaseOnce = new RunOnce(connectingRefCounter::decRef);
         internalOpenConnection(node, resolvedProfile, ActionListener.wrap(conn -> {
@@ -157,27 +161,19 @@ public class ConnectionManager implements Closeable {
                             }
                         }
                     } finally {
-                        CompletableContext<Void> completableContext = pendingConnections.remove(node);
+                        ListenableFuture<Void> future = pendingConnections.remove(node);
+                        assert future == currentListener : "Listener in pending map is different than the expected listener";
                         releaseOnce.run();
-                        completableContext.complete(null);
+                        future.onResponse(null);
                     }
                 }, e -> {
                     assert Transports.assertNotTransportThread("connection validator failure");
-                    try {
-                        IOUtils.closeWhileHandlingException(conn);
-                    } finally {
-                        CompletableContext<Void> completableContext = pendingConnections.remove(node);
-                        releaseOnce.run();
-                        completableContext.completeExceptionally(e);
-                    }
+                    IOUtils.closeWhileHandlingException(conn);
+                    failConnectionListeners(node, releaseOnce, e, currentListener);
                 }));
         }, e -> {
             assert Transports.assertNotTransportThread("internalOpenConnection failure");
-            CompletableContext<Void> completableContext = pendingConnections.remove(node);
-            releaseOnce.run();
-            if (completableContext != null) {
-                completableContext.completeExceptionally(e);
-            }
+            failConnectionListeners(node, releaseOnce, e, currentListener);
         }));
     }
 
@@ -267,6 +263,15 @@ public class ConnectionManager implements Closeable {
             }
             return connection;
         }));
+    }
+
+    private void failConnectionListeners(DiscoveryNode node, RunOnce releaseOnce, Exception e, ListenableFuture<Void> expectedListener) {
+        ListenableFuture<Void> future = pendingConnections.remove(node);
+        releaseOnce.run();
+        if (future != null) {
+            assert future == expectedListener : "Listener in pending map is different than the expected listener";
+            future.onFailure(e);
+        }
     }
 
     ConnectionProfile getConnectionProfile() {

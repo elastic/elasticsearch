@@ -236,7 +236,6 @@ Docs Infrastructure::
 * Docs: Simplifying setup by using module configuration variant syntax {pull}40879[#40879]
 
 Engine::
-* Use reader attributes to control term dict memory useage {pull}42838[#42838] (issue: {issue}38390[#38390])
 * Simplify initialization of max_seq_no of updates {pull}41161[#41161] (issues: {issue}33842[#33842], {issue}40249[#40249])
 * Adjust init map size of user data of index commit {pull}40965[#40965]
 * Don't mark shard as refreshPending on stats fetching {pull}40458[#40458] (issues: {issue}33835[#33835], {issue}33847[#33847])

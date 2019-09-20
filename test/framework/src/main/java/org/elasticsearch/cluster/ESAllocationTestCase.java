@@ -254,10 +254,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
      * Mocks behavior in ReplicaShardAllocator to remove delayed shards from list of unassigned shards so they don't get reassigned yet.
      */
     protected static class DelayedShardsMockGatewayAllocator extends GatewayAllocator {
-        private boolean skipAllocation = false;
-
-        public DelayedShardsMockGatewayAllocator() {
-        }
+        public DelayedShardsMockGatewayAllocator() {}
 
         @Override
         public void applyStartedShards(RoutingAllocation allocation, List<ShardRouting> startedShards) {
@@ -271,9 +268,6 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
         @Override
         public void allocateUnassigned(RoutingAllocation allocation) {
-            if (this.skipAllocation) {
-                return;
-            }
             final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = allocation.routingNodes().unassigned().iterator();
             while (unassignedIterator.hasNext()) {
                 ShardRouting shard = unassignedIterator.next();
@@ -284,10 +278,6 @@ public abstract class ESAllocationTestCase extends ESTestCase {
                     unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION, allocation.changes());
                 }
             }
-        }
-
-        public void skipAllocation(boolean skipAllocation) {
-            this.skipAllocation = skipAllocation;
         }
     }
 }

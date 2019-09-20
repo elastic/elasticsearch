@@ -21,19 +21,19 @@ package org.elasticsearch.client.transform.transforms.hlrc;
 
 import org.elasticsearch.client.AbstractHlrcXContentTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.function.Predicate;
 
 public class DataFrameTransformCheckpointingInfoTests extends AbstractHlrcXContentTestCase<
-        DataFrameTransformCheckpointingInfo,
+        TransformCheckpointingInfo,
         org.elasticsearch.client.transform.transforms.DataFrameTransformCheckpointingInfo> {
 
-    public static DataFrameTransformCheckpointingInfo fromHlrc(
+    public static TransformCheckpointingInfo fromHlrc(
             org.elasticsearch.client.transform.transforms.DataFrameTransformCheckpointingInfo instance) {
-        return new DataFrameTransformCheckpointingInfo(
+        return new TransformCheckpointingInfo(
             DataFrameTransformCheckpointStatsTests.fromHlrc(instance.getLast()),
             DataFrameTransformCheckpointStatsTests.fromHlrc(instance.getNext()),
             instance.getOperationsBehind(),
@@ -46,13 +46,13 @@ public class DataFrameTransformCheckpointingInfoTests extends AbstractHlrcXConte
     }
 
     @Override
-    public DataFrameTransformCheckpointingInfo convertHlrcToInternal(
+    public TransformCheckpointingInfo convertHlrcToInternal(
             org.elasticsearch.client.transform.transforms.DataFrameTransformCheckpointingInfo instance) {
         return fromHlrc(instance);
     }
 
-    public static DataFrameTransformCheckpointingInfo randomDataFrameTransformCheckpointingInfo() {
-        return new DataFrameTransformCheckpointingInfo(
+    public static TransformCheckpointingInfo randomDataFrameTransformCheckpointingInfo() {
+        return new TransformCheckpointingInfo(
             DataFrameTransformCheckpointStatsTests.randomDataFrameTransformCheckpointStats(),
             DataFrameTransformCheckpointStatsTests.randomDataFrameTransformCheckpointStats(),
             randomNonNegativeLong(),
@@ -60,13 +60,13 @@ public class DataFrameTransformCheckpointingInfoTests extends AbstractHlrcXConte
     }
 
     @Override
-    protected DataFrameTransformCheckpointingInfo createTestInstance() {
+    protected TransformCheckpointingInfo createTestInstance() {
         return randomDataFrameTransformCheckpointingInfo();
     }
 
     @Override
-    protected DataFrameTransformCheckpointingInfo doParseInstance(XContentParser parser) throws IOException {
-        return DataFrameTransformCheckpointingInfo.fromXContent(parser);
+    protected TransformCheckpointingInfo doParseInstance(XContentParser parser) throws IOException {
+        return TransformCheckpointingInfo.fromXContent(parser);
     }
 
     @Override

@@ -27,15 +27,11 @@ information, see {stack-ov}/security-privileges.html[Security privileges] and
 [[ml-evaluate-dfanalytics-desc]]
 ==== {api-description-title}
 
-This API evaluates the executed analysis on an index that is already annotated
-with a field that contains the results of the analytics (the `ground truth`)
-for each {dataframe} row.
+The API packages together commonly used evaluation metrics for various types of 
+machine learning features. This has been designed for use on indexes created by 
+{dfanalytics}. Evaluation requires both a ground truth field and an analytics 
+result field to be present.
 
-Evaluation is typically done by calculating a set of metrics that capture various aspects of the quality of the results over the data for which you have the
-`ground truth`.
-
-For different types of analyses different metrics are suitable. This API
-packages together commonly used metrics for various analyses.
 
 [[ml-evaluate-dfanalytics-request-body]]
 ==== {api-request-body-title}
@@ -45,15 +41,20 @@ packages together commonly used metrics for various analyses.
   performed.
 
 `query`::
-  (Optional, object) Query used to select data from the index.
-  The {es} query domain-specific language (DSL). This value corresponds to the query
-  object in an {es} search POST body. By default, this property has the following
-  value: `{"match_all": {}}`.
+  (Optional, object) A query clause that retrieves a subset of data from the 
+  source index. See <<query-dsl>>.
 
 `evaluation`::
-  (Required, object) Defines the type of evaluation you want to perform. For example: 
-  `binary_soft_classification`. See <<ml-evaluate-dfanalytics-resources>>.
-  
+  (Required, object) Defines the type of evaluation you want to perform. See 
+  <<ml-evaluate-dfanalytics-resources>>.
++
+--
+Available evaluation types:
+* `binary_soft_classification`
+* `regression`
+--
+
+
 ////
 [[ml-evaluate-dfanalytics-results]]
 ==== {api-response-body-title}
@@ -73,6 +74,8 @@ packages together commonly used metrics for various analyses.
 
 [[ml-evaluate-dfanalytics-example]]
 ==== {api-examples-title}
+
+===== Binary soft classification
 
 [source,console]
 --------------------------------------------------
@@ -131,3 +134,40 @@ The API returns the following results:
   }
 }
 ----
+
+
+===== {regression-cap}
+
+[source,console]
+--------------------------------------------------
+POST _ml/data_frame/_evaluate
+{
+  "index": "house_price_predictions", <1>
+  "query": {
+      "bool": {
+        "filter": [
+          { "term":  { "ml.is_training": false } } <2>
+        ]
+      }
+  },
+  "evaluation": {
+    "regression": { 
+      "actual_field": "price", <3>
+      "predicted_field": "ml.price_prediction", <4>
+      "metrics": {  
+        "r_squared": {},
+        "mean_squared_error": {}                             
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+<1> The output destination index from a {dfanalytics} {reganalysis}.
+<2> In this example, a test/train split (`training_percent`) was defined for the 
+{reganalysis}. This query limits evaluation to be performed on the test split 
+only. 
+<3> The ground truth value for the actual house price. This is required in order 
+to evaluate results.
+<4> The predicted value for house price calculated by the {reganalysis}.

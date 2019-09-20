@@ -214,8 +214,8 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
         searchHits.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         assertEquals("{\"hits\":{\"total\":{\"value\":1000,\"relation\":\"eq\"},\"max_score\":1.5," +
-            "\"hits\":[{\"_type\":\"type\",\"_id\":\"id1\",\"_score\":null},"+
-            "{\"_type\":\"type\",\"_id\":\"id2\",\"_score\":null}]}}", Strings.toString(builder));
+            "\"hits\":[{\"_id\":\"id1\",\"_score\":null},"+
+            "{\"_id\":\"id2\",\"_score\":null}]}}", Strings.toString(builder));
     }
 
     public void testFromXContentWithShards() throws IOException {

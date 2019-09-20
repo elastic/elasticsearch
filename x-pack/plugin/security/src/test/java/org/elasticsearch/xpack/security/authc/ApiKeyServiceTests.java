@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -195,7 +196,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertThat(((Map) source.get("creator")).get("principal"), Matchers.equalTo(user.principal()));
 
             ActionListener<IndexResponse> listener = (ActionListener) invocationOnMock.getArguments()[2];
-            listener.onResponse(new IndexResponse(null, "doc", UUIDs.randomBase64UUID(random()), randomLong(), randomLong(), 1, true));
+            listener.onResponse(new IndexResponse(
+                new ShardId("test", "test", 0), "doc", UUIDs.randomBase64UUID(random()), randomLong(), randomLong(), 1, true));
             return null;
         }).when(client).execute(Mockito.same(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture();

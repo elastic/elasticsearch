@@ -56,7 +56,7 @@ public final class CountRequest extends ActionRequest implements IndicesRequest.
      * Constructs a new count request against the indices. No indices provided here means that count will execute on all indices.
      */
     public CountRequest(String... indices) {
-        this(indices, (QueryBuilder) null);
+        indices(indices);
     }
 
     /**
@@ -67,7 +67,7 @@ public final class CountRequest extends ActionRequest implements IndicesRequest.
     @Deprecated
     public CountRequest(String[] indices, SearchSourceBuilder searchSourceBuilder) {
         indices(indices);
-        this.query = searchSourceBuilder.query();
+        this.query = Objects.requireNonNull(searchSourceBuilder, "source must not be null").query();
     }
 
     /**
@@ -75,7 +75,7 @@ public final class CountRequest extends ActionRequest implements IndicesRequest.
      */
     public CountRequest(String[] indices, QueryBuilder query) {
         indices(indices);
-        this.query = query;
+        this.query = Objects.requireNonNull(query, "query must not be null");;
     }
 
     @Override
@@ -222,7 +222,7 @@ public final class CountRequest extends ActionRequest implements IndicesRequest.
     }
 
     /**
-     * @return The provided the query to execute with the count request or
+     * @return The provided query to execute with the count request or
      * <code>null</code> if no query was provided.
      */
     public QueryBuilder query() {

@@ -18,11 +18,11 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpoint;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
-import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
-import org.elasticsearch.xpack.transform.persistence.DataFrameTransformsConfigManager;
+import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 public class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
 
@@ -31,15 +31,15 @@ public class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
     private final TimeSyncConfig timeSyncConfig;
 
     TimeBasedCheckpointProvider(final Client client,
-                                final DataFrameTransformsConfigManager dataFrameTransformsConfigManager,
-                                final DataFrameAuditor dataFrameAuditor,
-                                final DataFrameTransformConfig transformConfig) {
-        super(client, dataFrameTransformsConfigManager, dataFrameAuditor, transformConfig);
+                                final TransformConfigManager transformConfigManager,
+                                final TransformAuditor transformAuditor,
+                                final TransformConfig transformConfig) {
+        super(client, transformConfigManager, transformAuditor, transformConfig);
         timeSyncConfig = (TimeSyncConfig) transformConfig.getSyncConfig();
     }
 
     @Override
-    public void sourceHasChanged(DataFrameTransformCheckpoint lastCheckpoint,
+    public void sourceHasChanged(TransformCheckpoint lastCheckpoint,
             ActionListener<Boolean> listener) {
 
         final long timestamp = getTime();
@@ -64,15 +64,15 @@ public class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
 
         logger.trace("query for changes based on time: {}", sourceBuilder);
 
-        ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(), ClientHelper.DATA_FRAME_ORIGIN, client, SearchAction.INSTANCE,
+        ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(), ClientHelper.TRANSFORM_ORIGIN, client, SearchAction.INSTANCE,
                 searchRequest, ActionListener.wrap(r -> {
                     listener.onResponse(r.getHits().getTotalHits().value > 0L);
                 }, listener::onFailure));
     }
 
     @Override
-    public void createNextCheckpoint(final DataFrameTransformCheckpoint lastCheckpoint,
-            final ActionListener<DataFrameTransformCheckpoint> listener) {
+    public void createNextCheckpoint(final TransformCheckpoint lastCheckpoint,
+            final ActionListener<TransformCheckpoint> listener) {
         final long timestamp = getTime();
         final long checkpoint = lastCheckpoint != null ? lastCheckpoint.getCheckpoint() + 1 : 1;
 
@@ -81,7 +81,7 @@ public class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
 
         getIndexCheckpoints(ActionListener.wrap(checkpointsByIndex -> {
             listener.onResponse(
-                    new DataFrameTransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, timeUpperBound));
+                    new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, timeUpperBound));
         }, listener::onFailure));
     }
 

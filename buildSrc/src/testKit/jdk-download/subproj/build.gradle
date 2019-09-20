@@ -3,17 +3,21 @@ plugins {
 }
 
 
+String fakeJdkVendor = Objects.requireNonNull(System.getProperty('tests.jdk_vendor'))
 String fakeJdkVersion = Objects.requireNonNull(System.getProperty('tests.jdk_version'))
 jdks {
     linux {
+        vendor = fakeJdkVendor
         version = fakeJdkVersion
         platform = "linux"
     }
     darwin {
+        vendor = fakeJdkVendor
         version = fakeJdkVersion
         platform = "darwin"
     }
     windows {
+        vendor = fakeJdkVendor
         version = fakeJdkVersion
         platform = "windows"
     }

@@ -17,6 +17,5 @@ All {transform} endpoints have the following base:
 * {ref}/preview-transform.html[Preview {transforms}]
 * {ref}/start-transform.html[Start {transforms}]
 * {ref}/stop-transform.html[Stop {transforms}]
-* {ref}/update-transform.html[Update {transforms}]
 
 For the full list, see {ref}/transform-apis.html[{transform-cap} APIs].

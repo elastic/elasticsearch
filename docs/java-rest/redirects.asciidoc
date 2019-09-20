@@ -23,11 +23,6 @@ See <<java-rest-high-get-transform-stats>>.
 
 See <<java-rest-high-put-transform>>.
 
-[role="exclude",id="java-rest-high-dataframe-update-data-frame-transform"]
-=== Update {transform} API
-
-See <<java-rest-high-update-transform>>.
-
 [role="exclude",id="java-rest-high-dataframe-delete-data-frame-transform"]
 === Delete {transform} API
 

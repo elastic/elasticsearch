@@ -805,11 +805,6 @@ See <<start-transform>>.
 
 See <<stop-transform>>.
 
-[role="exclude",id="update-data-frame-transform"]
-=== Update {transforms} API
-
-See <<update-transform>>.
-
 [role="exclude",id="data-frame-apis"]
 === {transform-cap} APIs
 

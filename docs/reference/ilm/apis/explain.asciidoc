@@ -98,7 +98,7 @@ GET my_index/_ilm/explain
 When management of the index is first taken over by ILM, `explain` shows
 that the index is managed and in the `new` phase:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "indices": {
@@ -118,7 +118,6 @@ that the index is managed and in the `new` phase:
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTRESPONSE[skip:no way to know if we will get this response immediately]
 <1> Shows if the index is being managed by ILM. If the index is not managed by
 ILM the other fields will not be shown

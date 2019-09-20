@@ -112,8 +112,8 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                 if (fieldName.equals("enabled")) {
                     String indexName = parserContext.mapperService().index().getName();
                     if (parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0)) {
-                        throw new MapperParsingException("The `enabled` setting for the `_field_names` has been deprecated and removed but"
-                                + "is still used in index [{}]. Please remove it from your mappings and templates.");
+                        throw new MapperParsingException("The `enabled` setting for the `_field_names` field has been deprecated and "
+                                + "removed but is still used in index [{}]. Please remove it from your mappings and templates.");
                     } else {
                         deprecationLogger.deprecatedAndMaybeLog("field_names_enabled_parameter", ENABLED_DEPRECATION_MESSAGE, indexName);
                         builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, name + ".enabled"));

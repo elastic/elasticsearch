@@ -211,7 +211,7 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         searchHit.score(1.5f);
         XContentBuilder builder = JsonXContent.contentBuilder();
         searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"_type\":\"type\",\"_id\":\"id1\",\"_score\":1.5}", Strings.toString(builder));
+        assertEquals("{\"_id\":\"id1\",\"_score\":1.5}", Strings.toString(builder));
     }
 
     public void testSerializeShardTarget() throws Exception {
@@ -287,7 +287,6 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         {
             XContentParser parser = createParser(XContentType.JSON.xContent(), "{\n" +
                     "  \"_index\": \"twitter\",\n" +
-                    "  \"_type\": \"tweet\",\n" +
                     "  \"_id\": \"1\",\n" +
                     "  \"_score\": 1.0,\n" +
                     "  \"fields\": {\n" +
@@ -305,7 +304,6 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         {
             XContentParser parser = createParser(XContentType.JSON.xContent(), "{\n" +
                     "  \"_index\": \"twitter\",\n" +
-                    "  \"_type\": \"tweet\",\n" +
                     "  \"_id\": \"1\",\n" +
                     "  \"_score\": 1.0,\n" +
                     "  \"fields\": {\n" +
@@ -327,7 +325,6 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         {
             XContentParser parser = createParser(JsonXContent.jsonXContent, "{\n" +
                     "  \"_index\": \"twitter\",\n" +
-                    "  \"_type\": \"tweet\",\n" +
                     "  \"_id\": \"1\",\n" +
                     "  \"_score\": 1.0,\n" +
                     "  \"fields\": {\n" +

@@ -126,4 +126,4 @@ composite aggregations. See
 ==== {api-examples-title}
 
 See the
-<<put-data-frame-transform-example,create {transforms} API examples>>.
+<<put-transform-example,create {transforms} API examples>>.

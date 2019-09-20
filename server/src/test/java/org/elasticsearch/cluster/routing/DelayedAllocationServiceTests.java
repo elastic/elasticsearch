@@ -61,15 +61,13 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
     private TestDelayAllocationService delayedAllocationService;
     private MockAllocationService allocationService;
     private ClusterService clusterService;
-    private DelayedShardsMockGatewayAllocator gatewayAllocator;
     private ThreadPool threadPool;
 
     @Before
     public void createDelayedAllocationService() {
         threadPool = new TestThreadPool(getTestName());
         clusterService = mock(ClusterService.class);
-        gatewayAllocator = new DelayedShardsMockGatewayAllocator();
-        allocationService = createAllocationService(Settings.EMPTY, gatewayAllocator);
+        allocationService = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator());
         delayedAllocationService = new TestDelayAllocationService(threadPool, clusterService, allocationService);
         verify(clusterService).addListener(delayedAllocationService);
     }
@@ -462,92 +460,6 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             equalTo(shorterDelaySetting.nanos() - (clusterChangeEventTimestampNanos - nodeLeftTimestampNanos)));
     }
 
-    public void testDelayUnassignedNoShardCopyBeforeDelay() throws Exception {
-        TimeValue delaySetting = timeValueMillis(100);
-        MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delaySetting))
-                .numberOfShards(1).numberOfReplicas(1))
-            .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metaData(metaData)
-            .routingTable(RoutingTable.builder().addAsNew(metaData.index("test")).build()).build();
-        clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")).localNodeId("node1").masterNodeId("node1"))
-            .build();
-        final long baseTimestampNanos = System.nanoTime();
-        allocationService.setNanoTimeOverride(baseTimestampNanos);
-        clusterState = allocationService.reroute(clusterState, "reroute");
-        // starting primaries
-        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
-        // starting replicas
-        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
-        assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(false));
-
-        String nodeId = null;
-        final List<ShardRouting> allShards = clusterState.getRoutingTable().allShards("test");
-        // we need to find the node with the replica to be removed
-        for (ShardRouting shardRouting : allShards) {
-            if (shardRouting.primary() == false) {
-                nodeId = shardRouting.currentNodeId();
-                break;
-            }
-        }
-        assertNotNull(nodeId);
-
-        // skip allocation of handling existing data copy shard
-        gatewayAllocator.skipAllocation(true);
-
-        // remove node that has replica and reroute
-        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes()).remove(nodeId);
-        clusterState = ClusterState.builder(clusterState).nodes(nodes).build();
-        clusterState = allocationService.disassociateDeadNodes(clusterState, true, "reroute");
-        ClusterState stateWithDelayedShard = clusterState;
-        // make sure the replica is marked as delayed (i.e. not reallocated)
-        assertEquals(1, UnassignedInfo.getNumberOfDelayedUnassigned(stateWithDelayedShard));
-        ShardRouting delayedShard = stateWithDelayedShard.getRoutingNodes().unassigned().iterator().next();
-        assertEquals(baseTimestampNanos, delayedShard.unassignedInfo().getUnassignedTimeInNanos());
-
-        // mock ClusterService.submitStateUpdateTask() method
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<ClusterStateUpdateTask> clusterStateUpdateTask = new AtomicReference<>();
-        doAnswer(invocationOnMock -> {
-            clusterStateUpdateTask.set((ClusterStateUpdateTask)invocationOnMock.getArguments()[1]);
-            latch.countDown();
-            return null;
-        }).when(clusterService).submitStateUpdateTask(eq(CLUSTER_UPDATE_TASK_SOURCE), any(ClusterStateUpdateTask.class));
-        assertNull(delayedAllocationService.delayedRerouteTask.get());
-        long delayUntilClusterChangeEvent = TimeValue.timeValueNanos(randomInt((int)delaySetting.nanos() - 1)).nanos();
-        long clusterChangeEventTimestampNanos = baseTimestampNanos + delayUntilClusterChangeEvent;
-        delayedAllocationService.setNanoTimeOverride(clusterChangeEventTimestampNanos);
-        delayedAllocationService.clusterChanged(new ClusterChangedEvent("fake node left", stateWithDelayedShard, clusterState));
-
-        // check that delayed reroute task was created and registered with the proper settings
-        DelayedAllocationService.DelayedRerouteTask delayedRerouteTask = delayedAllocationService.delayedRerouteTask.get();
-        assertNotNull(delayedRerouteTask);
-        assertFalse(delayedRerouteTask.cancelScheduling.get());
-        assertThat(delayedRerouteTask.baseTimestampNanos, equalTo(clusterChangeEventTimestampNanos));
-        assertThat(delayedRerouteTask.nextDelay.nanos(),
-            equalTo(delaySetting.nanos() - (clusterChangeEventTimestampNanos - baseTimestampNanos)));
-
-        // check that submitStateUpdateTask() was invoked on the cluster service mock
-        assertTrue(latch.await(30, TimeUnit.SECONDS));
-        verify(clusterService).submitStateUpdateTask(eq(CLUSTER_UPDATE_TASK_SOURCE), eq(clusterStateUpdateTask.get()));
-
-        // advance the time on the allocation service to a timestamp that happened after the delayed scheduling
-        long nanoTimeForReroute = clusterChangeEventTimestampNanos + delaySetting.nanos() + timeValueMillis(randomInt(200)).nanos();
-        allocationService.setNanoTimeOverride(nanoTimeForReroute);
-        // apply cluster state
-        ClusterState stateWithRemovedDelay = clusterStateUpdateTask.get().execute(stateWithDelayedShard);
-        // check that shard is not delayed anymore
-        assertEquals(0, UnassignedInfo.getNumberOfDelayedUnassigned(stateWithRemovedDelay));
-        // check that task is now removed
-        assertNull(delayedAllocationService.delayedRerouteTask.get());
-
-        // reset
-        gatewayAllocator.skipAllocation(false);
-    }
-
     private static class TestDelayAllocationService extends DelayedAllocationService {
         private volatile long nanoTimeOverride = -1L;
 
@@ -571,4 +483,3 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         }
     }
 }
-

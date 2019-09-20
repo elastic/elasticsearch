@@ -396,8 +396,8 @@ public class AllocationService {
         assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metaData(), allocation.nodes()).isEmpty() :
             "auto-expand replicas out of sync with number of nodes in the cluster";
 
-        // now allocate all the unassigned to available nodes
-        if (allocation.routingNodes().unassigned().size() > 0) {
+        // now allocate all the unassigned to available nodes or cancel existing recoveries if we have a better match
+        if (allocation.routingNodes().unassigned().size() > 0 || allocation.routingNodes().hasInactiveShards()) {
             removeDelayMarkers(allocation);
             gatewayAllocator.allocateUnassigned(allocation);
         }

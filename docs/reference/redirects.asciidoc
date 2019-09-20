@@ -878,3 +878,28 @@ See <<stop-transform>>.
 === Update {transforms} API
 
 See <<update-transform>>.
+
+[role="exclude",id="data-frame-apis"]
+=== {transform-cap} APIs
+
+See <<transform-apis>>.
+
+[role="exclude",id="data-frame-transform-resource"]
+=== {transform-cap} resources
+
+See <<transform-resource>>.
+
+[role="exclude",id="data-frame-transform-dest"]
+=== Dest objects
+
+See <<transform-dest>>.
+
+[role="exclude",id="data-frame-transform-source"]
+==== Source objects
+
+See <<transform-source>>.
+
+[role="exclude",id="data-frame-transform-pivot"]
+==== Pivot objects
+
+See <<transform-pivot>>.

@@ -100,7 +100,7 @@ IMPORTANT:  You must use {kib} or this API to create a {transform}.
 
 `pivot`::
   (Required, object) Defines the pivot function `group by` fields and the aggregation to
-  reduce the data. See <<data-frame-transform-pivot>>.
+  reduce the data. See <<transform-pivot>>.
 
 `source`::
   (Required, object) The source configuration, which has the following

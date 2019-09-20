@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="basic"]
-[[data-frame-apis]]
+[[transform-apis]]
 == {transform-cap} APIs
 
 See also {stack-ov}/ml-dataframes.html[{transforms-cap}].

@@ -80,7 +80,7 @@ are no matches or only partial matches.
 
 `transforms`::
   (array) An array of {transform} resources, which are sorted by the `id` value in
-  ascending order. See <<data-frame-transform-resource>>.
+  ascending order. See <<transform-resource>>.
   
 [[get-transform-response-codes]]
 ==== {api-response-codes-title}

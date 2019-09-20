@@ -481,7 +481,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 ConnectionManager delegate = new ConnectionManager(Settings.EMPTY, service.transport);
                 StubbableConnectionManager connectionManager = new StubbableConnectionManager(delegate, Settings.EMPTY, service.transport);
 
-                connectionManager.addConnectBehavior(seedNode.getAddress(), (cm, discoveryNode) -> {
+                connectionManager.addGetConnectionBehavior(seedNode.getAddress(), (cm, discoveryNode) -> {
                     if (discoveryNode == seedNode) {
                         return seedConnection;
                     }
@@ -1098,14 +1098,14 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 ConnectionManager delegate = new ConnectionManager(Settings.EMPTY, service.transport);
                 StubbableConnectionManager connectionManager = new StubbableConnectionManager(delegate, Settings.EMPTY, service.transport);
 
-                connectionManager.setDefaultNodeConnectedBehavior(cm -> Collections.singleton(connectedNode));
+                connectionManager.setDefaultNodeConnectedBehavior((cm, node) -> connectedNode.equals(node));
 
-                connectionManager.addConnectBehavior(connectedNode.getAddress(), (cm, discoveryNode) -> {
-                    if (discoveryNode == connectedNode) {
-                        return seedConnection;
-                    }
-                    return cm.getConnection(discoveryNode);
+                connectionManager.addGetConnectionBehavior(connectedNode.getAddress(), (cm, discoveryNode) -> seedConnection);
+
+                connectionManager.addGetConnectionBehavior(disconnectedNode.getAddress(), (cm, discoveryNode) -> {
+                    throw new NodeNotConnectedException(discoveryNode, "");
                 });
+
                 service.start();
                 service.acceptIncomingRequests();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",

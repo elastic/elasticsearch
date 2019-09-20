@@ -73,19 +73,19 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTestCase {
+public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
 
     private List<String> transformsToClean = new ArrayList<>();
 
     @After
     public void cleanUpTransforms() throws Exception {
         for (String transformId : transformsToClean) {
-            highLevelClient().dataFrame().stopTransform(
+            highLevelClient().transform().stopTransform(
                     new StopTransformRequest(transformId, Boolean.TRUE, TimeValue.timeValueSeconds(20)), RequestOptions.DEFAULT);
         }
 
         for (String transformId : transformsToClean) {
-            highLevelClient().dataFrame().deleteDataFrameTransform(
+            highLevelClient().transform().deleteTransform(
                     new DeleteTransformRequest(transformId), RequestOptions.DEFAULT);
         }
 
@@ -116,7 +116,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         assertTrue(response.isAcknowledged());
     }
 
-    public void testPutDataFrameTransform() throws IOException, InterruptedException {
+    public void testPutTransform() throws IOException, InterruptedException {
         createIndex("source-index");
 
         RestHighLevelClient client = highLevelClient();
@@ -174,7 +174,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
             // tag::put-transform-execute
             AcknowledgedResponse response =
-                    client.dataFrame().putTransform(
+                    client.transform().putTransform(
                             request, RequestOptions.DEFAULT);
             // end::put-transform-execute
             transformsToClean.add(request.getConfig().getId());
@@ -210,7 +210,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::put-transform-execute-async
-            client.dataFrame().putTransformAsync(
+            client.transform().putTransformAsync(
                     request, RequestOptions.DEFAULT, listener); // <1>
             // end::put-transform-execute-async
 
@@ -239,7 +239,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             .setSyncConfig(new TimeSyncConfig("time-field", TimeValue.timeValueSeconds(120)))
             .build();
 
-        client.dataFrame().putTransform(new PutTransformRequest(transformConfig), RequestOptions.DEFAULT);
+        client.transform().putTransform(new PutTransformRequest(transformConfig), RequestOptions.DEFAULT);
         transformsToClean.add(transformConfig.getId());
 
         // tag::update-transform-config
@@ -269,7 +269,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
         // tag::update-transform-execute
         UpdateTransformResponse response =
-            client.dataFrame().updateDataFrameTransform(request,
+            client.transform().updateTransform(request,
                 RequestOptions.DEFAULT);
         TransformConfig updatedConfig =
             response.getTransformConfiguration();
@@ -301,7 +301,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         listener = new LatchedActionListener<>(listener, latch);
 
         // tag::update-transform-execute-async
-        client.dataFrame().updateDataFrameTransformAsync(
+        client.transform().updateTransformAsync(
             request, RequestOptions.DEFAULT, listener); // <1>
         // end::update-transform-execute-async
 
@@ -329,7 +329,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             .setPivotConfig(pivotConfig)
             .build();
 
-        client.dataFrame().putTransform(new PutTransformRequest(transformConfig), RequestOptions.DEFAULT);
+        client.transform().putTransform(new PutTransformRequest(transformConfig), RequestOptions.DEFAULT);
         transformsToClean.add(transformConfig.getId());
 
         {
@@ -344,7 +344,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
             // tag::start-transform-execute
             StartTransformResponse response =
-                    client.dataFrame().startDataFrameTransform(
+                    client.transform().startTransform(
                             request, RequestOptions.DEFAULT);
             // end::start-transform-execute
 
@@ -364,7 +364,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
             // tag::stop-transform-execute
             StopTransformResponse response =
-                    client.dataFrame().stopTransform(
+                    client.transform().stopTransform(
                             request, RequestOptions.DEFAULT);
             // end::stop-transform-execute
 
@@ -393,7 +393,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
             StartTransformRequest request = new StartTransformRequest("mega-transform");
             // tag::start-transform-execute-async
-            client.dataFrame().startTransformAsync(
+            client.transform().startTransformAsync(
                     request, RequestOptions.DEFAULT, listener); // <1>
             // end::start-transform-execute-async
 
@@ -422,7 +422,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
             StopTransformRequest request = new StopTransformRequest("mega-transform");
             // tag::stop-transform-execute-async
-            client.dataFrame().stopTransformAsync(
+            client.transform().stopTransformAsync(
                     request, RequestOptions.DEFAULT, listener); // <1>
             // end::stop-transform-execute-async
 
@@ -461,8 +461,8 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             .setPivotConfig(pivotConfig)
             .build();
 
-        client.dataFrame().putTransform(new PutTransformRequest(transformConfig1), RequestOptions.DEFAULT);
-        client.dataFrame().putTransform(new PutTransformRequest(transformConfig2), RequestOptions.DEFAULT);
+        client.transform().putTransform(new PutTransformRequest(transformConfig1), RequestOptions.DEFAULT);
+        client.transform().putTransform(new PutTransformRequest(transformConfig2), RequestOptions.DEFAULT);
 
         {
             // tag::delete-transform-request
@@ -473,8 +473,8 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
             // tag::delete-transform-execute
             AcknowledgedResponse response =
-                    client.dataFrame()
-                    .deleteDataFrameTransform(request, RequestOptions.DEFAULT);
+                    client.transform()
+                    .deleteTransform(request, RequestOptions.DEFAULT);
             // end::delete-transform-execute
 
             assertTrue(response.isAcknowledged());
@@ -502,7 +502,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             DeleteTransformRequest request = new DeleteTransformRequest("mega-transform2");
 
             // tag::delete-transform-execute-async
-            client.dataFrame().deleteTransformAsync(
+            client.transform().deleteTransformAsync(
                     request, RequestOptions.DEFAULT, listener);  // <1>
             // end::delete-transform-execute-async
 
@@ -539,7 +539,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         {
             // tag::preview-transform-execute
             PreviewTransformResponse response =
-                client.dataFrame()
+                client.transform()
                     .previewTransform(request, RequestOptions.DEFAULT);
             // end::preview-transform-execute
 
@@ -567,7 +567,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::preview-transform-execute-async
-            client.dataFrame().previewTransformAsync(
+            client.transform().previewTransformAsync(
                     request, RequestOptions.DEFAULT, listener);  // <1>
             // end::preview-transform-execute-async
 
@@ -597,7 +597,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             .setDest(DestConfig.builder().setIndex("pivot-dest").build())
             .setPivotConfig(pivotConfig)
             .build();
-        client.dataFrame().putTransform(new PutTransformRequest(transformConfig), RequestOptions.DEFAULT);
+        client.transform().putTransform(new PutTransformRequest(transformConfig), RequestOptions.DEFAULT);
         transformsToClean.add(id);
 
         // tag::get-transform-stats-request
@@ -613,7 +613,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         {
             // tag::get-transform-stats-execute
             GetTransformStatsResponse response =
-                client.dataFrame()
+                client.transform()
                     .getTransformStats(request, RequestOptions.DEFAULT);
             // end::get-transform-stats-execute
 
@@ -659,7 +659,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::get-transform-stats-execute-async
-            client.dataFrame().getTransformStatsAsync(
+            client.transform().getTransformStatsAsync(
                     request, RequestOptions.DEFAULT, listener);  // <1>
             // end::get-transform-stats-execute-async
 
@@ -690,7 +690,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             .build();
 
         RestHighLevelClient client = highLevelClient();
-        client.dataFrame().putTransform(new PutTransformRequest(putTransformConfig), RequestOptions.DEFAULT);
+        client.transform().putTransform(new PutTransformRequest(putTransformConfig), RequestOptions.DEFAULT);
         transformsToClean.add(putTransformConfig.getId());
 
         {
@@ -706,7 +706,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
             // tag::get-transform-execute
             GetTransformResponse response =
-                client.dataFrame()
+                client.transform()
                     .getTransform(request, RequestOptions.DEFAULT);
             // end::get-transform-execute
 
@@ -740,7 +740,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             GetTransformRequest request = new GetTransformRequest("mega-transform");
 
             // tag::get-transform-execute-async
-            client.dataFrame().getTransformAsync(
+            client.transform().getTransformAsync(
                     request, RequestOptions.DEFAULT, listener);  // <1>
             // end::get-transform-execute-async
 

@@ -146,12 +146,12 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
     @After
     public void cleanUpTransforms() throws Exception {
         for (String transformId : transformsToClean) {
-            highLevelClient().dataFrame().stopTransform(
+            highLevelClient().transform().stopTransform(
                     new StopTransformRequest(transformId, Boolean.TRUE, null), RequestOptions.DEFAULT);
         }
 
         for (String transformId : transformsToClean) {
-            highLevelClient().dataFrame().deleteDataFrameTransform(
+            highLevelClient().transform().deleteTransform(
                     new DeleteTransformRequest(transformId), RequestOptions.DEFAULT);
         }
 
@@ -166,18 +166,18 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         String id = "test-crud";
         TransformConfig transform = validDataFrameTransformConfig(id, sourceIndex, "pivot-dest");
 
-        TransformClient client = highLevelClient().dataFrame();
+        TransformClient client = highLevelClient().transform();
         AcknowledgedResponse ack = execute(new PutTransformRequest(transform), client::putTransform,
                 client::putTransformAsync);
         assertTrue(ack.isAcknowledged());
 
-        ack = execute(new DeleteTransformRequest(transform.getId()), client::deleteDataFrameTransform,
+        ack = execute(new DeleteTransformRequest(transform.getId()), client::deleteTransform,
                 client::deleteTransformAsync);
         assertTrue(ack.isAcknowledged());
 
         // The second delete should fail
         ElasticsearchStatusException deleteError = expectThrows(ElasticsearchStatusException.class,
-                () -> execute(new DeleteTransformRequest(transform.getId()), client::deleteDataFrameTransform,
+                () -> execute(new DeleteTransformRequest(transform.getId()), client::deleteTransform,
                         client::deleteTransformAsync));
         assertThat(deleteError.getMessage(), containsString("Transform with id [test-crud] could not be found"));
     }
@@ -191,7 +191,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
             .setSyncConfig(new TimeSyncConfig("timefield", TimeValue.timeValueSeconds(60)))
             .build();
 
-        TransformClient client = highLevelClient().dataFrame();
+        TransformClient client = highLevelClient().transform();
         AcknowledgedResponse ack = execute(new PutTransformRequest(transform), client::putTransform,
             client::putTransformAsync);
         assertTrue(ack.isAcknowledged());
@@ -199,13 +199,13 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         String updatedDescription = "my new description";
         TransformConfigUpdate update = TransformConfigUpdate.builder().setDescription(updatedDescription).build();
         UpdateTransformResponse response = execute(
-            new UpdateTransformRequest(update, id), client::updateDataFrameTransform,
-            client::updateDataFrameTransformAsync);
+            new UpdateTransformRequest(update, id), client::updateTransform,
+            client::updateTransformAsync);
         assertThat(response.getTransformConfiguration().getDescription(), equalTo(updatedDescription));
 
         ElasticsearchStatusException updateError = expectThrows(ElasticsearchStatusException.class,
-            () -> execute(new UpdateTransformRequest(update, "missing-transform"), client::updateDataFrameTransform,
-                client::updateDataFrameTransformAsync));
+            () -> execute(new UpdateTransformRequest(update, "missing-transform"), client::updateTransform,
+                client::updateTransformAsync));
         assertThat(updateError.getMessage(), containsString("Transform with id [missing-transform] could not be found"));
     }
 
@@ -214,13 +214,13 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
 
         String id = "test-with-defer";
         TransformConfig transform = validDataFrameTransformConfig(id, sourceIndex, "pivot-dest");
-        TransformClient client = highLevelClient().dataFrame();
+        TransformClient client = highLevelClient().transform();
         PutTransformRequest request = new PutTransformRequest(transform);
         request.setDeferValidation(true);
         AcknowledgedResponse ack = execute(request, client::putTransform, client::putTransformAsync);
         assertTrue(ack.isAcknowledged());
 
-        ack = execute(new DeleteTransformRequest(transform.getId()), client::deleteDataFrameTransform,
+        ack = execute(new DeleteTransformRequest(transform.getId()), client::deleteTransform,
             client::deleteTransformAsync);
         assertTrue(ack.isAcknowledged());
     }
@@ -232,7 +232,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         String id = "test-get";
         TransformConfig transform = validDataFrameTransformConfig(id, sourceIndex, "pivot-dest");
 
-        TransformClient client = highLevelClient().dataFrame();
+        TransformClient client = highLevelClient().transform();
         putTransform(transform);
 
         GetTransformRequest getRequest = new GetTransformRequest(id);
@@ -247,7 +247,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         String sourceIndex = "transform-source";
         createIndex(sourceIndex);
 
-        TransformClient client = highLevelClient().dataFrame();
+        TransformClient client = highLevelClient().transform();
 
         TransformConfig transform = validDataFrameTransformConfig("test-get-all-1", sourceIndex, "pivot-dest-1");
         putTransform(transform);
@@ -276,7 +276,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testGetMissingTransform() {
-        TransformClient client = highLevelClient().dataFrame();
+        TransformClient client = highLevelClient().transform();
 
         ElasticsearchStatusException missingError = expectThrows(ElasticsearchStatusException.class,
                 () -> execute(new GetTransformRequest("unknown"), client::getTransform,
@@ -291,12 +291,12 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         String id = "test-stop-start";
         TransformConfig transform = validDataFrameTransformConfig(id, sourceIndex, "pivot-dest");
 
-        TransformClient client = highLevelClient().dataFrame();
+        TransformClient client = highLevelClient().transform();
         putTransform(transform);
 
         StartTransformRequest startRequest = new StartTransformRequest(id);
         StartTransformResponse startResponse =
-                execute(startRequest, client::startDataFrameTransform, client::startTransformAsync);
+                execute(startRequest, client::startTransform, client::startTransformAsync);
         assertTrue(startResponse.isAcknowledged());
         assertThat(startResponse.getNodeFailures(), empty());
         assertThat(startResponse.getTaskFailures(), empty());
@@ -332,7 +332,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
 
         TransformConfig transform = validDataFrameTransformConfig("test-preview", sourceIndex, null);
 
-        TransformClient client = highLevelClient().dataFrame();
+        TransformClient client = highLevelClient().transform();
         PreviewTransformResponse preview = execute(new PreviewTransformRequest(transform),
                 client::previewTransform,
                 client::previewTransformAsync);
@@ -396,7 +396,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
             .setDescription("transform for testing stats")
             .build();
 
-        TransformClient client = highLevelClient().dataFrame();
+        TransformClient client = highLevelClient().transform();
         putTransform(transform);
 
         GetTransformStatsResponse statsResponse = execute(new GetTransformStatsRequest(id),
@@ -424,7 +424,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
 
         // start the transform
         StartTransformResponse startTransformResponse = execute(new StartTransformRequest(id),
-            client::startDataFrameTransform,
+            client::startTransform,
             client::startTransformAsync);
         assertThat(startTransformResponse.isAcknowledged(), is(true));
         assertBusy(() -> {
@@ -439,7 +439,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
     }
 
     void putTransform(TransformConfig config) throws IOException {
-        TransformClient client = highLevelClient().dataFrame();
+        TransformClient client = highLevelClient().transform();
         AcknowledgedResponse ack = execute(new PutTransformRequest(config), client::putTransform,
             client::putTransformAsync);
         assertTrue(ack.isAcknowledged());

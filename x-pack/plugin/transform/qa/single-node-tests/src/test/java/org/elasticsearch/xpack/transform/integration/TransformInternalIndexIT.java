@@ -88,11 +88,11 @@ public class TransformInternalIndexIT extends ESRestTestCase {
             RequestOptions.DEFAULT);
         assertThat(getResponse.isExists(), is(true));
 
-        GetTransformResponse response = client.dataFrame()
+        GetTransformResponse response = client.transform()
             .getTransform(new GetTransformRequest(transformId), RequestOptions.DEFAULT);
         assertThat(response.getTransformConfigurations().get(0).getId(), equalTo(transformId));
 
-        UpdateTransformResponse updated = client.dataFrame().updateDataFrameTransform(
+        UpdateTransformResponse updated = client.transform().updateDataFrameTransform(
             new UpdateTransformRequest(TransformConfigUpdate.builder().setDescription("updated").build(), transformId),
             RequestOptions.DEFAULT);
 

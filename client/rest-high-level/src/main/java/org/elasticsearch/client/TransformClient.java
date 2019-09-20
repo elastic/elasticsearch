@@ -124,9 +124,9 @@ public final class TransformClient {
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable updateDataFrameTransformAsync(UpdateTransformRequest request,
-                                                     RequestOptions options,
-                                                     ActionListener<UpdateTransformResponse> listener) {
+    public Cancellable updateTransformAsync(UpdateTransformRequest request,
+                                            RequestOptions options,
+                                            ActionListener<UpdateTransformResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request,
             TransformRequestConverters::updateTransform,
             options,

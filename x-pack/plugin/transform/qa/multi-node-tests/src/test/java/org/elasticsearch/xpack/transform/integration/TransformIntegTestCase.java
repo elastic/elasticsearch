@@ -87,18 +87,18 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
 
     protected StopTransformResponse stopTransform(String id) throws IOException {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
-        return restClient.dataFrame().stopTransform(new StopTransformRequest(id, true, null), RequestOptions.DEFAULT);
+        return restClient.transform().stopTransform(new StopTransformRequest(id, true, null), RequestOptions.DEFAULT);
     }
 
     protected StartTransformResponse startTransform(String id, RequestOptions options) throws IOException {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
-        return restClient.dataFrame().startDataFrameTransform(new StartTransformRequest(id), options);
+        return restClient.transform().startDataFrameTransform(new StartTransformRequest(id), options);
     }
 
     protected AcknowledgedResponse deleteTransform(String id) throws IOException {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
         AcknowledgedResponse response =
-            restClient.dataFrame().deleteDataFrameTransform(new DeleteTransformRequest(id), RequestOptions.DEFAULT);
+            restClient.transform().deleteDataFrameTransform(new DeleteTransformRequest(id), RequestOptions.DEFAULT);
         if (response.isAcknowledged()) {
             transformConfigs.remove(id);
         }
@@ -111,7 +111,7 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
         }
         RestHighLevelClient restClient = new TestRestHighLevelClient();
         AcknowledgedResponse response =
-            restClient.dataFrame().putTransform(new PutTransformRequest(config), options);
+            restClient.transform().putTransform(new PutTransformRequest(config), options);
         if (response.isAcknowledged()) {
             transformConfigs.put(config.getId(), config);
         }
@@ -120,12 +120,12 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
 
     protected GetTransformStatsResponse getTransformStats(String id) throws IOException {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
-        return restClient.dataFrame().getTransformStats(new GetTransformStatsRequest(id), RequestOptions.DEFAULT);
+        return restClient.transform().getTransformStats(new GetTransformStatsRequest(id), RequestOptions.DEFAULT);
     }
 
     protected GetTransformResponse getTransform(String id) throws IOException {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
-        return restClient.dataFrame().getTransform(new GetTransformRequest(id), RequestOptions.DEFAULT);
+        return restClient.transform().getTransform(new GetTransformRequest(id), RequestOptions.DEFAULT);
     }
 
     protected void waitUntilCheckpoint(String id, long checkpoint) throws Exception {
@@ -235,7 +235,7 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
 
     protected void updateConfig(String id, TransformConfigUpdate update) throws Exception {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
-        restClient.dataFrame().updateDataFrameTransform(new UpdateTransformRequest(update, id), RequestOptions.DEFAULT);
+        restClient.transform().updateDataFrameTransform(new UpdateTransformRequest(update, id), RequestOptions.DEFAULT);
     }
 
     protected void createReviewsIndex(String indexName, int numDocs) throws Exception {

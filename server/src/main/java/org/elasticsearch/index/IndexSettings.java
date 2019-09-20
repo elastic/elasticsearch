@@ -35,8 +35,10 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.Node;
 
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -292,12 +294,67 @@ public final class IndexSettings {
         1000, 1, Property.Dynamic, Property.IndexScope);
 
     public static final Setting<String> DEFAULT_PIPELINE =
-       new Setting<>("index.default_pipeline", IngestService.NOOP_PIPELINE_NAME, s -> {
-           if (s == null || s.isEmpty()) {
-               throw new IllegalArgumentException("Value for [index.default_pipeline] must be a non-empty string.");
-           }
-        return s;
-       }, Property.Dynamic, Property.IndexScope);
+        new Setting<>("index.default_pipeline",
+        IngestService.NOOP_PIPELINE_NAME,
+        Function.identity(),
+        new DefaultPipelineValidator(),
+        Property.Dynamic,
+        Property.IndexScope);
+
+    public static final Setting<String> REQUIRED_PIPELINE =
+        new Setting<>("index.required_pipeline",
+            IngestService.NOOP_PIPELINE_NAME,
+            Function.identity(),
+            new RequiredPipelineValidator(),
+            Property.Dynamic,
+            Property.IndexScope);
+
+    static class DefaultPipelineValidator implements Setting.Validator<String> {
+
+        @Override
+        public void validate(final String value) {
+
+        }
+
+        @Override
+        public void validate(final String value, final Map<Setting<String>, String> settings) {
+            final String requiredPipeline = settings.get(IndexSettings.REQUIRED_PIPELINE);
+            if (value.equals(IngestService.NOOP_PIPELINE_NAME) == false
+                && requiredPipeline.equals(IngestService.NOOP_PIPELINE_NAME) == false) {
+                throw new IllegalArgumentException(
+                    "index has a default pipeline [" + value + "] and a required pipeline [" + requiredPipeline + "]");
+            }
+        }
+
+        @Override
+        public Iterator<Setting<String>> settings() {
+            return List.of(REQUIRED_PIPELINE).iterator();
+        }
+
+    }
+
+    static class RequiredPipelineValidator implements Setting.Validator<String> {
+
+        @Override
+        public void validate(final String value) {
+
+        }
+
+        @Override
+        public void validate(final String value, final Map<Setting<String>, String> settings) {
+            final String defaultPipeline = settings.get(IndexSettings.DEFAULT_PIPELINE);
+            if (value.equals(IngestService.NOOP_PIPELINE_NAME) && defaultPipeline.equals(IngestService.NOOP_PIPELINE_NAME) == false) {
+                throw new IllegalArgumentException(
+                    "index has a required pipeline [" + value + "] and a default pipeline [" + defaultPipeline + "]");
+            }
+        }
+
+        @Override
+        public Iterator<Setting<String>> settings() {
+            return List.of(DEFAULT_PIPELINE).iterator();
+        }
+
+    }
 
     /**
      * Marks an index to be searched throttled. This means that never more than one shard of such an index will be searched concurrently
@@ -376,6 +433,7 @@ public final class IndexSettings {
     private volatile int maxAnalyzedOffset;
     private volatile int maxTermsCount;
     private volatile String defaultPipeline;
+    private volatile String requiredPipeline;
     private volatile boolean searchThrottled;
 
     /**
@@ -545,6 +603,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_IDLE_AFTER, this::setSearchIdleAfter);
         scopedSettings.addSettingsUpdateConsumer(MAX_REGEX_LENGTH_SETTING, this::setMaxRegexLength);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_PIPELINE, this::setDefaultPipeline);
+        scopedSettings.addSettingsUpdateConsumer(REQUIRED_PIPELINE, this::setRequiredPipeline);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_THROTTLED, this::setSearchThrottled);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING, this::setRetentionLeaseMillis);
@@ -736,7 +795,7 @@ public final class IndexSettings {
     public void setTranslogSyncInterval(TimeValue translogSyncInterval) {
         this.syncInterval = translogSyncInterval;
     }
-    
+
     /**
      * Returns this interval in which the shards of this index are asynchronously refreshed. {@code -1} means async refresh is disabled.
      */
@@ -962,6 +1021,14 @@ public final class IndexSettings {
 
     public void setDefaultPipeline(String defaultPipeline) {
         this.defaultPipeline = defaultPipeline;
+    }
+
+    public String getRequiredPipeline() {
+        return requiredPipeline;
+    }
+
+    public void setRequiredPipeline(final String requiredPipeline) {
+        this.requiredPipeline = requiredPipeline;
     }
 
     /**

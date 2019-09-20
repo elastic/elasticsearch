@@ -838,3 +838,68 @@ See <<high-availability>>.
 [role="exclude",id="slm-api"]
 === Snapshot lifecycle management API
 See <<snapshot-lifecycle-management-api>>.
+
+[role="exclude",id="delete-data-frame-transform"]
+===  Delete {transforms} API
+
+See <<delete-transform>>.
+
+[role="exclude",id="get-data-frame-transform-stats"]
+=== Get {transform} statistics API
+
+See <<get-transform-stats>>.
+
+[role="exclude",id="get-data-frame-transform"]
+=== Get {transforms} API
+
+See <<get-transform>>.
+
+[role="exclude",id="preview-data-frame-transform"]
+=== Preview {transforms} API
+
+See <<preview-transform>>.
+
+[role="exclude",id="put-data-frame-transform"]
+===  Create {transforms} API
+
+See <<put-transform>>.
+
+[role="exclude",id="start-data-frame-transform"]
+=== Start {transforms} API
+
+See <<start-transform>>.
+
+[role="exclude",id="stop-data-frame-transform"]
+=== Stop {transforms} API
+
+See <<stop-transform>>.
+
+[role="exclude",id="update-data-frame-transform"]
+=== Update {transforms} API
+
+See <<update-transform>>.
+
+[role="exclude",id="data-frame-apis"]
+=== {transform-cap} APIs
+
+See <<transform-apis>>.
+
+[role="exclude",id="data-frame-transform-resource"]
+=== {transform-cap} resources
+
+See <<transform-resource>>.
+
+[role="exclude",id="data-frame-transform-dest"]
+=== Dest objects
+
+See <<transform-dest>>.
+
+[role="exclude",id="data-frame-transform-source"]
+==== Source objects
+
+See <<transform-source>>.
+
+[role="exclude",id="data-frame-transform-pivot"]
+==== Pivot objects
+
+See <<transform-pivot>>.

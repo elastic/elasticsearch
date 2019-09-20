@@ -90,7 +90,7 @@ public class ExplainRequestTests extends ESTestCase {
             final ActionRequestValidationException validate = request.validate();
 
             assertThat(validate, not(nullValue()));
-            assertThat(validate.validationErrors(), hasItems("type is missing", "id is missing"));
+            assertThat(validate.validationErrors(), hasItems("id is missing"));
         }
     }
 }

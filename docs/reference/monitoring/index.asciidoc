@@ -1,12 +1,12 @@
 [role="xpack"]
 [testenv="basic"]
-[[monitor-cluster]]
+[[monitor-elasticsearch-cluster]]
 = Monitor a cluster
 
 [partintro]
 --
 The {stack} {monitor-features} provide a way to keep a pulse on the health and
-performance of your cluster. 
+performance of your {es} cluster. 
 
 * <<monitoring-overview>>
 * <<how-monitoring-works>>
@@ -21,7 +21,7 @@ performance of your cluster.
 
 include::overview.asciidoc[]
 
-include::how-it-works.asciidoc[]
+include::how-monitoring-works.asciidoc[]
 
 include::collecting-monitoring-data.asciidoc[]
 include::pause-export.asciidoc[]

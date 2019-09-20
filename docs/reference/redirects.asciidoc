@@ -847,4 +847,4 @@ See <<monitoring-overview>>.
 [role="exclude",id="es-monitoring"]
 === Monitoring {es}
 
-See <<monitor-cluster>>.
+See <<monitor-elasticsearch-cluster>>.

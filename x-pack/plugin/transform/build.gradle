@@ -4,7 +4,7 @@ apply plugin: 'elasticsearch.esplugin'
 esplugin {
   name 'transform'
   description 'A plugin to transform data'
-  classname 'org.elasticsearch.xpack.transform.DataFrame'
+  classname 'org.elasticsearch.xpack.transform.Transform'
   extendedPlugins = ['x-pack-core']
 }
 

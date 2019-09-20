@@ -9,7 +9,13 @@ The {stack} {monitor-features} provide a way to keep a pulse on the health and
 performance of your cluster. 
 
 * <<monitoring-overview>>
-* <<es-monitoring>>
+* <<how-monitoring-works>>
+* <<collecting-monitoring-data>>
+* <<configuring-metricbeat>>
+* <<configuring-filebeat>>
+* <<config-monitoring-indices>>
+* <<es-monitoring-collectors>>
+* <<es-monitoring-exporters>>
 
 --
 

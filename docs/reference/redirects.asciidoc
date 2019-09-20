@@ -878,21 +878,3 @@ See <<stop-transform>>.
 === Update {transforms} API
 
 See <<update-transform>>.
-
-////
-[role="exclude",id="xx"]
-=== x
-
-TBD
-
-[role="exclude",id="xx"]
-=== x
-
-TBD
-
-[role="exclude",id="xx"]
-=== x
-
-TBD
-
-////

@@ -39,7 +39,6 @@ import static org.mockito.Mockito.mock;
 public class RemoteConnectionManagerTests extends ESTestCase {
 
     private Transport transport;
-    private ConnectionManager connectionManager;
     private RemoteConnectionManager remoteConnectionManager;
     private ConnectionManager.ConnectionValidator validator = (connection, profile, listener) -> listener.onResponse(null);
 
@@ -47,8 +46,7 @@ public class RemoteConnectionManagerTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         transport = mock(Transport.class);
-        connectionManager = new ConnectionManager(Settings.EMPTY, transport);
-        remoteConnectionManager = new RemoteConnectionManager("remote-cluster", connectionManager);
+        remoteConnectionManager = new RemoteConnectionManager("remote-cluster", new ConnectionManager(Settings.EMPTY, transport));
     }
 
     @SuppressWarnings("unchecked")

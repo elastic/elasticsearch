@@ -101,6 +101,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
 
 public class RemoteClusterConnectionTests extends ESTestCase {
 
@@ -344,14 +345,14 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     CountDownLatch latchConnected = new CountDownLatch(1);
                     connectionManager.addListener(new TransportConnectionListener() {
                         @Override
-                        public void onNodeDisconnected(DiscoveryNode node) {
+                        public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
                             if (node.equals(discoverableNode)) {
                                 latchDisconnect.countDown();
                             }
                         }
 
                         @Override
-                        public void onNodeConnected(DiscoveryNode node) {
+                        public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
                             if (node.equals(spareNode)) {
                                 latchConnected.countDown();
                             }
@@ -989,7 +990,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                             ActionListener.map(fut, x -> null)));
                                     } else {
                                         DiscoveryNode node = randomFrom(discoverableNodes).v2().get();
-                                        connection.onNodeDisconnected(node);
+                                        connection.onNodeDisconnected(node, mock(Transport.Connection.class));
                                     }
                                 }
                             } catch (Exception ex) {

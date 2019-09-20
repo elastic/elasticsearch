@@ -166,7 +166,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
     }
 
     @Override
-    public void onNodeDisconnected(DiscoveryNode node) {
+    public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
         if (remoteConnectionManager.size() < maxNumRemoteConnections) {
             // try to reconnect and fill up the slot of the disconnected node
             connectHandler.connect(ActionListener.wrap(
@@ -569,7 +569,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
     }
 
     boolean isNodeConnected(final DiscoveryNode node) {
-        return remoteConnectionManager.nodeConnected(node);
+        return remoteConnectionManager.getConnectionManager().nodeConnected(node);
     }
 
     /**

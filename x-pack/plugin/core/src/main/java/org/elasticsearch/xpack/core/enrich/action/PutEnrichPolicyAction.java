@@ -5,8 +5,9 @@
  */
 package org.elasticsearch.xpack.core.enrich.action;
 
-import org.elasticsearch.action.ActionType;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,6 +38,10 @@ public class PutEnrichPolicyAction extends ActionType<AcknowledgedResponse> {
 
         public Request(String name, EnrichPolicy policy) {
             this.name = Objects.requireNonNull(name, "name cannot be null");
+            if (!Version.CURRENT.equals(policy.getElasticsearchVersion())) {
+                throw new IllegalArgumentException("Cannot set [version_created] field on enrich policy [" + name +
+                    "]. Found [" + policy.getElasticsearchVersion() + "]");
+            }
             this.policy = policy;
         }
 

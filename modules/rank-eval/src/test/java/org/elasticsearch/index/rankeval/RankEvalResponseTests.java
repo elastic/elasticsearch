@@ -159,9 +159,9 @@ public class RankEvalResponseTests extends ESTestCase {
                 "        \"coffee_query\": {" +
                 "            \"metric_score\": 0.1," +
                 "            \"unrated_docs\": [{\"_index\":\"index\",\"_id\":\"456\"}]," +
-                "            \"hits\":[{\"hit\":{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"123\",\"_score\":1.0}," +
+                "            \"hits\":[{\"hit\":{\"_index\":\"index\",\"_id\":\"123\",\"_score\":1.0}," +
                 "                       \"rating\":5}," +
-                "                      {\"hit\":{\"_index\":\"index\",\"_type\":\"_doc\",\"_id\":\"456\",\"_score\":1.0}," +
+                "                      {\"hit\":{\"_index\":\"index\",\"_id\":\"456\",\"_score\":1.0}," +
                 "                       \"rating\":null}" +
                 "                     ]" +
                 "        }" +

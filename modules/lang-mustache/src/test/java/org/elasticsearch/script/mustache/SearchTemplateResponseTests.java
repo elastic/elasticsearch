@@ -195,7 +195,6 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
                     .field("max_score", 1.5F)
                     .startArray("hits")
                         .startObject()
-                            .field("_type", "type")
                             .field("_id", "id")
                             .field("_score", 2.0F)
                         .endObject()

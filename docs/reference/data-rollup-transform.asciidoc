@@ -1,4 +1,4 @@
-[[data-operations]]
+[[data-rollup-transform]]
 = Roll up or transform your data
 
 [partintro]

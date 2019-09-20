@@ -622,7 +622,7 @@ setup:
   - match: { transforms.0.state: "/started|indexing/" }
 
   - do:
-      catch: /Cannot delete data frame \[airline-transform-start-delete\] as the task is running/
+      catch: /Cannot delete transform \[airline-transform-start-delete\] as the task is running/
       data_frame.delete_data_frame_transform:
         transform_id: "airline-transform-start-delete"
 

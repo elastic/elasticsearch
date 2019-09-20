@@ -68,13 +68,7 @@ public class RestGetSourceAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final GetRequest getRequest;
-        if (request.hasParam("type")) {
-            deprecationLogger.deprecatedAndMaybeLog("get_source_with_types", TYPES_DEPRECATION_MESSAGE);
-            getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
-        } else {
-            getRequest = new GetRequest(request.param("index"), request.param("id"));
-        }
+        final GetRequest getRequest = new GetRequest(request.param("index"), request.param("id"));
         getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
         getRequest.routing(request.param("routing"));
         getRequest.preference(request.param("preference"));
@@ -121,13 +115,12 @@ public class RestGetSourceAction extends BaseRestHandler {
          */
         private void checkResource(final GetResponse response) {
             final String index = response.getIndex();
-            final String type = response.getType();
             final String id = response.getId();
 
             if (response.isExists() == false) {
-                throw new ResourceNotFoundException("Document not found [" + index + "]/[" + type + "]/[" + id + "]");
+                throw new ResourceNotFoundException("Document not found [" + index + "]/[" + id + "]");
             } else if (response.isSourceEmpty()) {
-                throw new ResourceNotFoundException("Source not found [" + index + "]/[" + type + "]/[" + id + "]");
+                throw new ResourceNotFoundException("Source not found [" + index + "]/[" + id + "]");
             }
         }
     }

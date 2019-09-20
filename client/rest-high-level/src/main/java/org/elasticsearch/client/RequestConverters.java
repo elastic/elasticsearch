@@ -266,7 +266,7 @@ final class RequestConverters {
     }
 
     private static Request getStyleRequest(String method, GetRequest getRequest) {
-        Request request = new Request(method, endpoint(getRequest.index(), getRequest.type(), getRequest.id()));
+        Request request = new Request(method, endpoint(getRequest.index(), getRequest.id()));
 
         Params parameters = new Params();
         parameters.withPreference(getRequest.preference());
@@ -282,13 +282,7 @@ final class RequestConverters {
     }
 
     static Request sourceExists(GetRequest getRequest) {
-        String optionalType = getRequest.type();
-        String endpoint;
-        if (optionalType.equals(MapperService.SINGLE_MAPPING_NAME)) {
-            endpoint = endpoint(getRequest.index(), "_source", getRequest.id());
-        } else {
-            endpoint = endpoint(getRequest.index(), optionalType, getRequest.id(), "_source");
-        }
+        String endpoint = endpoint(getRequest.index(), "_source", getRequest.id());
         Request request = new Request(HttpHead.METHOD_NAME, endpoint);
         Params parameters = new Params();
         parameters.withPreference(getRequest.preference());
@@ -498,6 +492,12 @@ final class RequestConverters {
         params.withRouting(countRequest.routing());
         params.withPreference(countRequest.preference());
         params.withIndicesOptions(countRequest.indicesOptions());
+        if (countRequest.terminateAfter() != 0){
+            params.withTerminateAfter(countRequest.terminateAfter());
+        }
+        if (countRequest.minScore() != null){
+            params.putParam("min_score", String.valueOf(countRequest.minScore()));
+        }
         request.addParameters(params.asMap());
         request.setEntity(createEntity(countRequest.source(), REQUEST_BODY_CONTENT_TYPE));
         return request;
@@ -736,6 +736,10 @@ final class RequestConverters {
         return new EndpointBuilder().addPathPart(index, type, id).build();
     }
 
+    static String endpoint(String index, String id) {
+        return new EndpointBuilder().addPathPart(index, "_doc", id).build();
+    }
+
     @Deprecated
     static String endpoint(String index, String type, String id, String endpoint) {
         return new EndpointBuilder().addPathPart(index, type, id).addPathPartAsIs(endpoint).build();
@@ -908,6 +912,10 @@ final class RequestConverters {
                 return putParam("stored_fields", String.join(",", storedFields));
             }
             return this;
+        }
+
+        Params withTerminateAfter(int terminateAfter){
+            return putParam("terminate_after", String.valueOf(terminateAfter));
         }
 
         Params withTimeout(TimeValue timeout) {

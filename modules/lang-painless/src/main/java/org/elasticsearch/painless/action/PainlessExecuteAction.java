@@ -551,9 +551,9 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     ParsedDocument parsedDocument = indexService.mapperService().documentMapper().parse(sourceToParse);
                     indexWriter.addDocuments(parsedDocument.docs());
                     try (IndexReader indexReader = DirectoryReader.open(indexWriter)) {
-                        final long absoluteStartMillis = System.currentTimeMillis();
                         final IndexSearcher searcher = new IndexSearcher(indexReader);
                         searcher.setQueryCache(null);
+                        final long absoluteStartMillis = System.currentTimeMillis();
                         QueryShardContext context =
                             indexService.newQueryShardContext(0, searcher, () -> absoluteStartMillis, null);
                         return handler.apply(context, indexReader.leaves().get(0));

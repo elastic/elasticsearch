@@ -279,7 +279,7 @@ public class QueryTranslatorTests extends ESTestCase {
         }
         assertEquals("date", rq.field());
         
-        if (operator.contains("<") || operator.equals("=") || operator.equals("!=")) { 
+        if (operator.contains("<") || operator.equals("=") || operator.equals("!=")) {
             assertEquals(DateFormatter.forPattern(pattern).format(now.withNano(DateUtils.getNanoPrecision(null, now.getNano()))),
                     rq.upper());
         }
@@ -1206,9 +1206,31 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec eqe = (EsQueryExec) p;
         assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(
-                "{\"terms\":{\"script\":{\"source\":\"InternalSqlScriptUtils." + scriptMethods[pos] 
+                "{\"terms\":{\"script\":{\"source\":\"InternalSqlScriptUtils." + scriptMethods[pos]
                 + "(InternalSqlScriptUtils.add(InternalSqlScriptUtils.docValue(doc,params.v0),"
                 + "InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2)),params.v3)\",\"lang\":\"painless\","
                 + "\"params\":{\"v0\":\"date\",\"v1\":\"P1Y\",\"v2\":\"INTERVAL_YEAR\",\"v3\":\"Z\"}},\"missing_bucket\":true,"));
+    }
+
+
+    public void testHavingWithLiteralImplicitGrouping() {
+        PhysicalPlan p = optimizeAndPlan("SELECT 1 FROM test HAVING COUNT(*) > 0");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertTrue("Should be tracking hits", eqe.queryContainer().shouldTrackHits());
+        assertEquals(1, eqe.output().size());
+        String query = eqe.queryContainer().toString().replaceAll("\\s+", "");
+        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString("\"size\":0"));
+    }
+
+    public void testHavingWithColumnImplicitGrouping() {
+        PhysicalPlan p = optimizeAndPlan("SELECT MAX(int) FROM test HAVING COUNT(*) > 0");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec eqe = (EsQueryExec) p;
+        assertTrue("Should be tracking hits", eqe.queryContainer().shouldTrackHits());
+        assertEquals(1, eqe.output().size());
+        assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString(
+                "\"script\":{\"source\":\"InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a0,params.v0))\","
+                + "\"lang\":\"painless\",\"params\":{\"v0\":0}}"));
     }
 }

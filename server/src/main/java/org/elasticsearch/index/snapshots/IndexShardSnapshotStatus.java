@@ -112,7 +112,7 @@ public class IndexShardSnapshotStatus {
         return asCopy();
     }
 
-    public synchronized Copy moveToDone(final long endTime, final String newGeneration) {
+    public synchronized void moveToDone(final long endTime, final String newGeneration) {
         assert newGeneration != null;
         if (stage.compareAndSet(Stage.FINALIZE, Stage.DONE)) {
             this.totalTime = Math.max(0L, endTime - startTime);
@@ -121,14 +121,12 @@ public class IndexShardSnapshotStatus {
                 "expecting [FINALIZE] but got [" + stage.get() + "]");
         }
         this.generation.set(newGeneration);
-        return asCopy();
     }
 
-    public synchronized Copy abortIfNotCompleted(final String failure) {
+    public synchronized void abortIfNotCompleted(final String failure) {
         if (stage.compareAndSet(Stage.INIT, Stage.ABORTED) || stage.compareAndSet(Stage.STARTED, Stage.ABORTED)) {
             this.failure = failure;
         }
-        return asCopy();
     }
 
     public synchronized void moveToFailed(final long endTime, final String failure) {

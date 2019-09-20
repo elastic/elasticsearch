@@ -278,8 +278,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(connectHandler);
-        remoteConnectionManager.close();
+        IOUtils.close(connectHandler, remoteConnectionManager);
     }
 
     public boolean isClosed() {

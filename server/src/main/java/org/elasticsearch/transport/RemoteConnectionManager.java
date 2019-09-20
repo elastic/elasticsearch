@@ -4,13 +4,16 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class RemoteConnectionManager {
+public class RemoteConnectionManager implements Closeable {
 
     private final String clusterAlias;
     private final ConnectionManager connectionManager;
@@ -27,12 +30,13 @@ public class RemoteConnectionManager {
                               ActionListener<Void> listener) throws ConnectTransportException {
         connectionManager.connectToNode(node, connectionProfile, connectionValidator, new ActionListener<>() {
             @Override
-            public void onResponse(Void aVoid) {
+            public void onResponse(Void v) {
                 try {
                     // TODO: Propagate the connection to the listener
                     Transport.Connection newConnection = connectionManager.getConnection(node);
                     addConnection(newConnection);
                     newConnection.addCloseListener(ActionListener.wrap(() -> removeConnection(newConnection)));
+                    listener.onResponse(v);
                 } catch (NodeNotConnectedException e) {
                     listener.onFailure(e);
                 }
@@ -85,20 +89,18 @@ public class RemoteConnectionManager {
     }
 
     private synchronized void addConnection(Transport.Connection addedConnection) {
-        ArrayList<Transport.Connection> newConnections = new ArrayList<>(this.connections);
+        Set<Transport.Connection> newConnections = new HashSet<>(this.connections);
         newConnections.add(addedConnection);
-        this.connections = Collections.unmodifiableList(newConnections);
+        this.connections = List.copyOf(newConnections);
     }
 
     private synchronized void removeConnection(Transport.Connection removedConnection) {
-        int newSize = this.connections.size() - 1;
-        ArrayList<Transport.Connection> newConnections = new ArrayList<>(newSize);
+        ArrayList<Transport.Connection> newConnections = new ArrayList<>(this.connections.size());
         for (Transport.Connection connection : this.connections) {
             if (connection.equals(removedConnection) == false) {
                 newConnections.add(connection);
             }
         }
-        assert newConnections.size() == newSize : "Expected connection count: " + newSize + ", Found: " + newConnections.size();
         this.connections = Collections.unmodifiableList(newConnections);
     }
 

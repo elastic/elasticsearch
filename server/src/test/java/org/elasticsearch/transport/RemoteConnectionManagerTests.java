@@ -62,9 +62,17 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         }).when(transport).openConnection(any(DiscoveryNode.class), any(ConnectionProfile.class), any(ActionListener.class));
 
         DiscoveryNode node1 = new DiscoveryNode("node-1", address, Version.CURRENT);
+        PlainActionFuture<Void> future1 = PlainActionFuture.newFuture();
+        remoteConnectionManager.connectToNode(node1, null, validator, future1);
+        assertTrue(future1.isDone());
+
+        // Add duplicate connect attempt to ensure that we do not get duplicate connections in the round robin
         remoteConnectionManager.connectToNode(node1, null, validator, PlainActionFuture.newFuture());
+
         DiscoveryNode node2 = new DiscoveryNode("node-2", address, Version.CURRENT.minimumCompatibilityVersion());
-        remoteConnectionManager.connectToNode(node2, null, validator, PlainActionFuture.newFuture());
+        PlainActionFuture<Void> future2 = PlainActionFuture.newFuture();
+        remoteConnectionManager.connectToNode(node2, null, validator, future2);
+        assertTrue(future2.isDone());
 
         assertEquals(node1, remoteConnectionManager.getRemoteConnection(node1).getNode());
         assertEquals(node2, remoteConnectionManager.getRemoteConnection(node2).getNode());

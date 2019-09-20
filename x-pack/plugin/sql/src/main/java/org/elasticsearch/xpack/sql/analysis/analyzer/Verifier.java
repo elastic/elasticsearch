@@ -102,7 +102,7 @@ public final class Verifier {
 
         @Override
         public int hashCode() {
-            return Objects.hash(node.source());
+            return Objects.hash(node);
         }
 
         @Override
@@ -116,7 +116,7 @@ public final class Verifier {
             }
 
             Verifier.Failure other = (Verifier.Failure) obj;
-            return Objects.equals(node.source(), other.node.source());
+            return Objects.equals(node, other.node);
         }
 
         @Override

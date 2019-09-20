@@ -16,8 +16,6 @@ include::getting-started.asciidoc[]
 
 include::setup.asciidoc[]
 
-include::{xes-repo-dir}/security/configuring-es.asciidoc[]
-
 include::setup/bootstrap-checks-xes.asciidoc[]
 
 include::upgrade.asciidoc[]
@@ -51,6 +49,8 @@ include::rollup/index.asciidoc[]
 include::frozen-indices.asciidoc[]
 
 include::high-availability.asciidoc[]
+
+include::security/index.asciidoc[]
 
 include::commands/index.asciidoc[]
 

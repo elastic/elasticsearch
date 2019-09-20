@@ -1,5 +1,5 @@
 --
-:api: update-data-frame-transform
+:api: update-transform
 :request: UpdateDataFrameTransformRequest
 :response: UpdateDataFrameTransformResponse
 --

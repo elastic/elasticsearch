@@ -1,7 +1,7 @@
 {
   "data_frame.get_data_frame_transform_stats":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-data-frame-transform-stats.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-transform-stats.html"
     },
     "stability":"beta",
     "url":{

@@ -21,11 +21,14 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import java.util.function.Predicate;
 
 public class IndexFieldTypeTests extends FieldTypeTestCase {
 
@@ -62,12 +65,15 @@ public class IndexFieldTypeTests extends FieldTypeTestCase {
     }
 
     private QueryShardContext createContext() {
-        QueryShardContext context = mock(QueryShardContext.class);
+        IndexMetaData indexMetaData = IndexMetaData.builder("index")
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
 
-        Index index = new Index("index", "123");
-        when(context.getFullyQualifiedIndex()).thenReturn(index);
-        when(context.index()).thenReturn(index);
-
-        return context;
+        Predicate<String> indexNameMatcher = pattern -> Regex.simpleMatch(pattern, "index");
+        return new QueryShardContext(0, indexSettings, null, null, null, null, null, null, xContentRegistry(), writableRegistry(),
+            null, null, System::currentTimeMillis, null, indexNameMatcher);
     }
 }

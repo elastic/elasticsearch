@@ -100,11 +100,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     }
 
     private TermsLookup randomTermsLookup() {
-        // Randomly choose between a typeless terms lookup and one with an explicit type to make sure we are
-        // testing both cases.
-        TermsLookup lookup = randomBoolean()
-            ? new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), termsPath)
-            : new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10), termsPath);
+        TermsLookup lookup = new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), termsPath);
         lookup.routing(randomBoolean() ? randomAlphaOfLength(10) : null);
         return lookup;
     }
@@ -322,11 +318,6 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
         QueryBuilder query = super.parseQuery(parser);
         assertThat(query, CoreMatchers.instanceOf(TermsQueryBuilder.class));
-
-        TermsQueryBuilder termsQuery = (TermsQueryBuilder) query;
-        if (termsQuery.isTypeless() == false) {
-            assertWarnings(TermsQueryBuilder.TYPES_DEPRECATION_MESSAGE);
-        }
         return query;
     }
 }

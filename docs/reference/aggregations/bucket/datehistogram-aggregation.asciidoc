@@ -58,7 +58,7 @@ seconds of the following minute in the specified timezone, compensating for any
 intervening leap seconds, so that the number of minutes and seconds past the
 hour is the same at the start and end.
 
-hours (`h`, `1h`) ::
+hour (`h`, `1h`) ::
 All hours begin at 00 minutes and 00 seconds.
 
 One hour (1h) is the interval between 00:00 minutes of the first hour and 00:00
@@ -67,7 +67,7 @@ intervening leap seconds, so that the number of minutes and seconds past the hou
 is the same at the start and end.
 
 
-days (`d`, `1d`) ::
+day (`d`, `1d`) ::
 All days begin at the earliest possible time, which is usually 00:00:00
 (midnight).
 

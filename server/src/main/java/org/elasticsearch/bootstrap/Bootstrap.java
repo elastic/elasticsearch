@@ -26,6 +26,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.logging.NodeNamePatternConverter;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
@@ -303,14 +304,13 @@ final class Bootstrap {
         final SecureSettings keystore = loadSecureSettings(initialEnv);
         final Environment environment = createEnvironment(pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
 
-//        LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));
+        LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));
         try {
             LogConfigurator.configure(environment);
         } catch (IOException e) {
             throw new BootstrapException(e);
         }
-        LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));
-
+        NodeNamePatternConverter.setGLobalNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));
         if (environment.pidFile() != null) {
             try {
                 PidFile.create(environment.pidFile(), true);

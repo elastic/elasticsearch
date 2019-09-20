@@ -32,25 +32,25 @@ import java.util.Locale;
  * Pattern converter to format the node_and_cluster_id variable into JSON fields <code>node.id</code> and <code>cluster.uuid</code>.
  * Keeping those two fields together assures that they will be atomically set and become visible in logs at the same time.
  */
-@Plugin(category = PatternConverter.CATEGORY, name = "NodeIdConverter")
-@ConverterKeys({"ESnode_id"})
-public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
+@Plugin(category = PatternConverter.CATEGORY, name = "ClusterIdConverter")
+@ConverterKeys({"EScluster_id"})
+public final class ClusterIdConverter extends LogEventPatternConverter {
     private static final SetOnce<String> nodeAndClusterId = new SetOnce<>();
 
     /**
      * Called by log4j2 to initialize this converter.
      */
-    public static NodeAndClusterIdConverter newInstance(@SuppressWarnings("unused") final String[] options) {
-        return new NodeAndClusterIdConverter();
+    public static ClusterIdConverter newInstance(@SuppressWarnings("unused") final String[] options) {
+        return new ClusterIdConverter();
     }
 
-    public NodeAndClusterIdConverter() {
-        super("ESnode_id", "ESnode_id");
+    public ClusterIdConverter() {
+        super("EScluster_id", "EScluster_id");
     }
 
     /**
      * Updates only once the clusterID and nodeId.
-     * Subsequent executions will throw {@link org.apache.lucene.util.SetOnce.AlreadySetException}.
+     * Subsequent executions will throw {@link SetOnce.AlreadySetException}.
      *
      * @param nodeId      a nodeId received from cluster state update
      * @param clusterUUID a clusterId received from cluster state update
@@ -67,7 +67,7 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
         if (NodeAndClusterIdStateListener.nodeAndClusterId.get() != null) {
-            toAppendTo.append(NodeAndClusterIdStateListener.nodeAndClusterId.get().v1());
+            toAppendTo.append(NodeAndClusterIdStateListener.nodeAndClusterId.get().v2());
         }
         // nodeId/clusterUuid not received yet, not appending
     }

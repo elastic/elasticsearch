@@ -36,7 +36,7 @@ import org.apache.lucene.util.SetOnce;
  * elasticsearch.yml.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeNamePatternConverter")
-@ConverterKeys({"node_name"})
+@ConverterKeys({"ESnode_name"})
 public final class NodeNamePatternConverter extends LogEventPatternConverter {
     /**
      * The name of this node.
@@ -49,9 +49,12 @@ public final class NodeNamePatternConverter extends LogEventPatternConverter {
     static void setNodeName(String nodeName) {
         NODE_NAME.set(nodeName);
 
-        LoggerContext ctx = LoggerContext.getContext();
-        ctx.getConfiguration().getProperties().put("node_name",nodeName);
-        ctx.reconfigure();
+
+//        ctx.reconfigure();
+    }
+    public static void setGLobalNodeName(String nodename){
+        LoggerContext ctx = LoggerContext.getContext(false);
+        ctx.getConfiguration().getProperties().put("node_name",nodename);
     }
 
     /**
@@ -63,9 +66,9 @@ public final class NodeNamePatternConverter extends LogEventPatternConverter {
                     + Arrays.toString(options));
         }
         String nodeName = NODE_NAME.get();
-//        if (nodeName == null) {
-//            throw new IllegalStateException("the node name hasn't been set");
-//        }
+        if (nodeName == null) {
+            throw new IllegalStateException("the node name hasn't been set");
+        }
         return new NodeNamePatternConverter(nodeName);
     }
 

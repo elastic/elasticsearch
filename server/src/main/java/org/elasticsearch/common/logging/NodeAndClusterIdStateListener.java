@@ -21,9 +21,12 @@ package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
+import org.apache.lucene.util.fst.PairOutputs;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
@@ -34,6 +37,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
  */
 public class NodeAndClusterIdStateListener implements ClusterStateObserver.Listener {
     private static final Logger logger = LogManager.getLogger(NodeAndClusterIdStateListener.class);
+    static final SetOnce<Tuple<String,String>> nodeAndClusterId = new SetOnce<>();
 
     private NodeAndClusterIdStateListener() {}
 
@@ -66,7 +70,10 @@ public class NodeAndClusterIdStateListener implements ClusterStateObserver.Liste
         String clusterUUID = getClusterUUID(state);
 
         logger.debug("Received cluster state update. Setting nodeId=[{}] and clusterUuid=[{}]", nodeId, clusterUUID);
-        NodeAndClusterIdConverter.setNodeIdAndClusterId(nodeId, clusterUUID);
+        /*NodeAndClusterIdConverter.*/setNodeIdAndClusterId(nodeId, clusterUUID);
+    }
+    void setNodeIdAndClusterId(String nodeId, String clusterUUID){
+        nodeAndClusterId.set(Tuple.tuple(nodeId,clusterUUID));
     }
 
     @Override

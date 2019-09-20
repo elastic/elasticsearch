@@ -5,7 +5,7 @@ Allows you to retrieve the capabilities of fields among multiple indices.
 
 [source,console]
 --------------------------------------------------
-GET _field_caps?fields=rating
+GET /_field_caps?fields=rating
 --------------------------------------------------
 
 

@@ -32,7 +32,7 @@ public class XPackInfoFeatureAction extends ActionType<XPackInfoFeatureResponse>
     public static final XPackInfoFeatureAction ROLLUP = new XPackInfoFeatureAction(XPackField.ROLLUP);
     public static final XPackInfoFeatureAction INDEX_LIFECYCLE = new XPackInfoFeatureAction(XPackField.INDEX_LIFECYCLE);
     public static final XPackInfoFeatureAction CCR = new XPackInfoFeatureAction(XPackField.CCR);
-    public static final XPackInfoFeatureAction DATA_FRAME = new XPackInfoFeatureAction(XPackField.Transform);
+    public static final XPackInfoFeatureAction TRANSFORM = new XPackInfoFeatureAction(XPackField.TRANSFORM);
     public static final XPackInfoFeatureAction FLATTENED = new XPackInfoFeatureAction(XPackField.FLATTENED);
     public static final XPackInfoFeatureAction VECTORS = new XPackInfoFeatureAction(XPackField.VECTORS);
     public static final XPackInfoFeatureAction VOTING_ONLY = new XPackInfoFeatureAction(XPackField.VOTING_ONLY);
@@ -41,7 +41,7 @@ public class XPackInfoFeatureAction extends ActionType<XPackInfoFeatureResponse>
     public static final XPackInfoFeatureAction ANALYTICS = new XPackInfoFeatureAction(XPackField.ANALYTICS);
 
     public static final List<XPackInfoFeatureAction> ALL = Arrays.asList(
-        SECURITY, MONITORING, WATCHER, GRAPH, MACHINE_LEARNING, LOGSTASH, SQL, ROLLUP, INDEX_LIFECYCLE, CCR, DATA_FRAME, FLATTENED,
+        SECURITY, MONITORING, WATCHER, GRAPH, MACHINE_LEARNING, LOGSTASH, SQL, ROLLUP, INDEX_LIFECYCLE, CCR, TRANSFORM, FLATTENED,
         VECTORS, VOTING_ONLY, FROZEN_INDICES, SPATIAL, ANALYTICS
     );
 

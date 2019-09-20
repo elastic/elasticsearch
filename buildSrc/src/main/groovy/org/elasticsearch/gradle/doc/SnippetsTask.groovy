@@ -80,6 +80,7 @@ public class SnippetsTask extends DefaultTask {
          */
         for (File file: docs) {
             String lastLanguage
+            String name
             int lastLanguageLine
             Snippet snippet = null
             StringBuilder contents = null
@@ -153,13 +154,19 @@ public class SnippetsTask extends DefaultTask {
                 if (line ==~ /-{4,}\s*/) { // Four dashes looks like a snippet
                     if (snippet == null) {
                         Path path = docs.dir.toPath().relativize(file.toPath())
-                        snippet = new Snippet(path: path, start: lineNumber, testEnv: testEnv)
+                        snippet = new Snippet(path: path, start: lineNumber, testEnv: testEnv, name: name)
                         if (lastLanguageLine == lineNumber - 1) {
                             snippet.language = lastLanguage
                         }
+                        name = null
                     } else {
                         snippet.end = lineNumber
                     }
+                    return
+                }
+                matcher = line =~ /\["?name"?,\s*"?([-\w]+)"?].*/
+                if(matcher.matches()) {
+                    name = matcher.group(1)
                     return
                 }
                 matcher = line =~ /\["?source"?,\s*"?([-\w]+)"?(,.*)?].*/
@@ -334,6 +341,7 @@ public class SnippetsTask extends DefaultTask {
         boolean curl
         List warnings = new ArrayList()
         boolean skipShardsFailures = false
+        String name
 
         @Override
         public String toString() {

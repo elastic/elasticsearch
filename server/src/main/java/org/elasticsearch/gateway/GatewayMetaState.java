@@ -95,7 +95,7 @@ public class GatewayMetaState {
             = new IncrementalClusterStateWriter(metaStateService, manifestClusterStateTuple.v1(),
                 prepareInitialClusterState(transportService, clusterService, manifestClusterStateTuple.v2()));
         if (DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings).equals(DiscoveryModule.ZEN_DISCOVERY_TYPE)) {
-            // only for tests that simulate a mixed Zen1/Zen2 clusters, see Zen1IT
+            // only for tests that simulate mixed Zen1/Zen2 clusters, see Zen1IT
             if (isMasterOrDataNode(settings)) {
                 clusterService.addLowPriorityApplier(new GatewayClusterApplier(incrementalClusterStateWriter));
             }

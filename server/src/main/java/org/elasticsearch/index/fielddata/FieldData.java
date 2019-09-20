@@ -25,6 +25,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -81,6 +82,11 @@ public enum FieldData {
             @Override
             public int docValueCount() {
                 return 0;
+            }
+
+            @Override
+            public ValuesSourceType valuesSourceType() {
+                return ValuesSourceType.GEO;
             }
 
             @Override

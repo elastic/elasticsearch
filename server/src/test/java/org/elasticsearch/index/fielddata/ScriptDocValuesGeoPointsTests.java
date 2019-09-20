@@ -22,6 +22,7 @@ package org.elasticsearch.index.fielddata;
 import org.elasticsearch.index.fielddata.ScriptDocValues.GeoPoints;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -53,6 +54,11 @@ public class ScriptDocValuesGeoPointsTests extends ESTestCase {
             @Override
             public int docValueCount() {
                 return current.length;
+            }
+
+            @Override
+            public ValuesSourceType valuesSourceType() {
+                return ValuesSourceType.GEOPOINT;
             }
         };
     }

@@ -33,11 +33,11 @@ import java.io.IOException;
  * to numeric long values for bucketing.
  */
 public class CellIdSource extends ValuesSource.Numeric {
-    private final ValuesSource.GeoPoint valuesSource;
+    private final ValuesSource.Geo valuesSource;
     private final int precision;
-    private final GeoPointLongEncoder encoder;
+    private final GeoGridTiler encoder;
 
-    public CellIdSource(GeoPoint valuesSource, int precision, GeoPointLongEncoder encoder) {
+    public CellIdSource(Geo valuesSource, int precision, GeoGridTiler encoder) {
         this.valuesSource = valuesSource;
         //different GeoPoints could map to the same or different hashing cells.
         this.precision = precision;
@@ -68,33 +68,43 @@ public class CellIdSource extends ValuesSource.Numeric {
         throw new UnsupportedOperationException();
     }
 
-    /**
-     * The encoder to use to convert a geopoint's (lon, lat, precision) into
-     * a long-encoded bucket key for aggregating.
-     */
-    @FunctionalInterface
-    public interface GeoPointLongEncoder {
-        long encode(double lon, double lat, int precision);
-    }
-
     private static class CellValues extends AbstractSortingNumericDocValues {
         private MultiGeoValues geoValues;
         private int precision;
-        private GeoPointLongEncoder encoder;
+        private GeoGridTiler tiler;
 
-        protected CellValues(MultiGeoValues geoValues, int precision, GeoPointLongEncoder encoder) {
+        protected CellValues(MultiGeoValues geoValues, int precision, GeoGridTiler tiler) {
             this.geoValues = geoValues;
             this.precision = precision;
-            this.encoder = encoder;
+            this.tiler = tiler;
         }
 
         @Override
         public boolean advanceExact(int docId) throws IOException {
             if (geoValues.advanceExact(docId)) {
-                resize(geoValues.docValueCount());
-                for (int i = 0; i < docValueCount(); ++i) {
-                    MultiGeoValues.GeoValue target = geoValues.nextValue();
-                    values[i] = encoder.encode(target.lon(), target.lat(), precision);
+                switch (geoValues.valuesSourceType()) {
+                    case GEOPOINT:
+                        resize(geoValues.docValueCount());
+                        for (int i = 0; i < docValueCount(); ++i) {
+                            MultiGeoValues.GeoValue target = geoValues.nextValue();
+                            values[i] = tiler.encode(target.lon(), target.lat(), precision);
+                        }
+                        break;
+                    case GEOSHAPE:
+                    case GEO:
+                        MultiGeoValues.GeoValue target = geoValues.nextValue();
+                        // TODO(talevy): determine reasonable circuit-breaker here
+                        // must resize array to contain the upper-bound of matching cells, which
+                        // is the number of tiles that overlap the shape's bounding-box. No need
+                        // to be concerned with original docValueCount since shape doc-values are
+                        // single-valued.
+                        resize((int) tiler.getBoundingTileCount(target, precision));
+                        int matched = tiler.setValues(values, target, precision);
+                        // must truncate array to only contain cells that actually intersected shape
+                        resize(matched);
+                        break;
+                    default:
+                        throw new IllegalArgumentException("unsupported geo type");
                 }
                 sort();
                 return true;

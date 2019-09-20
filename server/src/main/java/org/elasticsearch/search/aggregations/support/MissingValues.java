@@ -418,6 +418,11 @@ public enum MissingValues {
             }
 
             @Override
+            public ValuesSourceType valuesSourceType() {
+                return values.valuesSourceType();
+            }
+
+            @Override
             public GeoValue nextValue() throws IOException {
                 if (count > 0) {
                     return values.nextValue();

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+
 import java.io.IOException;
 
 final class SingletonMultiGeoPointValues extends MultiGeoValues {
@@ -37,6 +39,11 @@ final class SingletonMultiGeoPointValues extends MultiGeoValues {
     @Override
     public int docValueCount() {
         return 1;
+    }
+
+    @Override
+    public ValuesSourceType valuesSourceType() {
+        return ValuesSourceType.GEOPOINT;
     }
 
     @Override

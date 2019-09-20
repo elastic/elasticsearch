@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.DirectoryReader;
@@ -28,7 +29,11 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.mapper.BinaryGeoShapeDocValuesField;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -68,7 +73,13 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             // Intentionally not writing any docs
         }, geoGrid -> {
             assertEquals(0, geoGrid.getBuckets().size());
-        });
+        }, new GeoPointFieldMapper.GeoPointFieldType());
+
+        testCase(new MatchAllDocsQuery(), FIELD_NAME, randomPrecision(), iw -> {
+            // Intentionally not writing any docs
+        }, geoGrid -> {
+            assertEquals(0, geoGrid.getBuckets().size());
+        }, new GeoShapeFieldMapper.GeoShapeFieldType());
     }
 
     public void testFieldMissing() throws IOException {
@@ -76,10 +87,16 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             iw.addDocument(Collections.singleton(new LatLonDocValuesField(FIELD_NAME, 10D, 10D)));
         }, geoGrid -> {
             assertEquals(0, geoGrid.getBuckets().size());
-        });
+        }, new GeoPointFieldMapper.GeoPointFieldType());
+
+        testCase(new MatchAllDocsQuery(), "wrong_field", randomPrecision(), iw -> {
+            iw.addDocument(Collections.singleton(new BinaryGeoShapeDocValuesField(FIELD_NAME, new Point(10D, 10D))));
+        }, geoGrid -> {
+            assertEquals(0, geoGrid.getBuckets().size());
+        }, new GeoShapeFieldMapper.GeoShapeFieldType());
     }
 
-    public void testWithSeveralDocs() throws IOException {
+    public void testGeoPointWithSeveralDocs() throws IOException {
         int precision = randomPrecision();
         int numPoints = randomIntBetween(8, 128);
         Map<String, Integer> expectedCountPerGeoHash = new HashMap<>();
@@ -118,11 +135,58 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
                 assertEquals((long) expectedCountPerGeoHash.get(bucket.getKeyAsString()), bucket.getDocCount());
             }
             assertTrue(AggregationInspectionHelper.hasValue(geoHashGrid));
-        });
+        }, new GeoPointFieldMapper.GeoPointFieldType());
+    }
+
+    public void testGeoShapeWithSeveralDocs() throws IOException {
+        int precision = randomIntBetween(1, 4);
+        int numShapes = randomIntBetween(8, 128);
+        Map<String, Integer> expectedCountPerGeoHash = new HashMap<>();
+        testCase(new MatchAllDocsQuery(), FIELD_NAME, precision, iw -> {
+            List<Point> shapes = new ArrayList<>();
+            Document document = new Document();
+            Set<String> distinctHashesPerDoc = new HashSet<>();
+            for (int shapeId = 0; shapeId < numShapes; shapeId++) {
+                // undefined close to pole
+                double lat = (170.10225756d * randomDouble()) - 85.05112878d;
+                double lng = (360d * randomDouble()) - 180d;
+
+                // Precision-adjust longitude/latitude to avoid wrong bucket placement
+                // Internally, lat/lng get converted to 32 bit integers, loosing some precision.
+                // This does not affect geohashing because geohash uses the same algorithm,
+                // but it does affect other bucketing algos, thus we need to do the same steps here.
+                lng = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lng));
+                lat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
+
+                shapes.add(new Point(lng, lat));
+                String hash = hashAsString(lng, lat, precision);
+                if (distinctHashesPerDoc.contains(hash) == false) {
+                    expectedCountPerGeoHash.put(hash, expectedCountPerGeoHash.getOrDefault(hash, 0) + 1);
+                }
+                distinctHashesPerDoc.add(hash);
+                if (usually()) {
+                    document.add(new BinaryGeoShapeDocValuesField(FIELD_NAME, new MultiPoint(new ArrayList<>(shapes))));
+                    iw.addDocument(document);
+                    shapes.clear();
+                    distinctHashesPerDoc.clear();
+                    document.clear();
+                }
+            }
+            if (shapes.size() != 0) {
+                document.add(new BinaryGeoShapeDocValuesField(FIELD_NAME, new MultiPoint(new ArrayList<>(shapes))));
+                iw.addDocument(document);
+            }
+        }, geoHashGrid -> {
+            assertEquals(expectedCountPerGeoHash.size(), geoHashGrid.getBuckets().size());
+            for (GeoGrid.Bucket bucket : geoHashGrid.getBuckets()) {
+                assertEquals((long) expectedCountPerGeoHash.get(bucket.getKeyAsString()), bucket.getDocCount());
+            }
+            assertTrue(AggregationInspectionHelper.hasValue(geoHashGrid));
+        }, new GeoShapeFieldMapper.GeoShapeFieldType());
     }
 
     private void testCase(Query query, String field, int precision, CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-                          Consumer<InternalGeoGrid<T>> verify) throws IOException {
+                          Consumer<InternalGeoGrid<T>> verify, MappedFieldType fieldType) throws IOException {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         buildIndex.accept(indexWriter);
@@ -133,7 +197,6 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
 
         GeoGridAggregationBuilder aggregationBuilder = createBuilder("_name").field(field);
         aggregationBuilder.precision(precision);
-        MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType();
         fieldType.setHasDocValues(true);
         fieldType.setName(FIELD_NAME);
 

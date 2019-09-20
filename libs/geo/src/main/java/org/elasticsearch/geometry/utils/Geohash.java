@@ -53,6 +53,20 @@ public class Geohash {
     /** Bit encoded representation of the latitude of north pole */
     private static final long MAX_LAT_BITS = (0x1L << (PRECISION * 5 / 2)) - 1;
 
+    // Below code is adapted from the spatial4j library (GeohashUtils.java) Apache 2.0 Licensed
+    private static final double[] precisionToLatHeight, precisionToLonWidth;
+    static {
+        precisionToLatHeight = new double[PRECISION + 1];
+        precisionToLonWidth = new double[PRECISION + 1];
+        precisionToLatHeight[0] = 90*2;
+        precisionToLonWidth[0] = 180*2;
+        boolean even = false;
+        for(int i = 1; i <= PRECISION; i++) {
+            precisionToLatHeight[i] = precisionToLatHeight[i-1] / (even ? 8 : 4);
+            precisionToLonWidth[i] = precisionToLonWidth[i-1] / (even ? 4 : 8);
+            even = ! even;
+        }
+    }
 
     // no instance:
     private Geohash() {
@@ -314,6 +328,16 @@ public class Geohash {
             longitude = Math.nextDown(longitude);
         }
         return (int) Math.floor(longitude / LON_DECODE);
+    }
+
+    /** approximate width of geohash tile for a specific precision in degrees */
+    public static double lonWidthInDegrees(int precision) {
+        return precisionToLonWidth[precision];
+    }
+
+    /** approximate height of geohash tile for a specific precision in degrees */
+    public static double latHeightInDegrees(int precision) {
+        return precisionToLatHeight[precision];
     }
 
     /** returns the latitude value from the string based geohash */

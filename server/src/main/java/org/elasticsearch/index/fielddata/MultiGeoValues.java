@@ -25,8 +25,10 @@ import org.elasticsearch.common.geo.GeoShapeCoordinateEncoder;
 import org.elasticsearch.common.geo.GeometryTreeReader;
 import org.elasticsearch.common.geo.GeometryTreeWriter;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -65,6 +67,8 @@ public abstract class MultiGeoValues {
      */
     public abstract int docValueCount();
 
+    public abstract ValuesSourceType valuesSourceType();
+
     /**
      * Return the next value associated with the current document. This must not be
      * called more than {@link #docValueCount()} times.
@@ -89,6 +93,11 @@ public abstract class MultiGeoValues {
         @Override
         public BoundingBox boundingBox() {
             return new BoundingBox(geoPoint);
+        }
+
+        @Override
+        public boolean intersects(Rectangle rectangle) {
+            throw new UnsupportedOperationException("intersect is unsupported for geo_point doc values");
         }
 
         @Override
@@ -132,6 +141,20 @@ public abstract class MultiGeoValues {
          * @return the latitude of the centroid of the shape
          */
         @Override
+        public boolean intersects(Rectangle rectangle) {
+            int minX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(rectangle.getMinX());
+            int maxX = GeoShapeCoordinateEncoder.INSTANCE.encodeX(rectangle.getMaxX());
+            int minY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(rectangle.getMinY());
+            int maxY = GeoShapeCoordinateEncoder.INSTANCE.encodeY(rectangle.getMaxY());
+            Extent extent = new Extent(maxY, minY, minX, maxX, minX, maxX);
+            try {
+                return reader.intersects(extent);
+            } catch (IOException e) {
+                throw new IllegalStateException("unable to check intersection", e);
+            }
+        }
+
+        @Override
         public double lat() {
             try {
                 return reader.getCentroidY();
@@ -171,6 +194,7 @@ public abstract class MultiGeoValues {
         double lat();
         double lon();
         BoundingBox boundingBox();
+        boolean intersects(Rectangle rectangle);
     }
 
     public static class BoundingBox {
@@ -181,7 +205,7 @@ public abstract class MultiGeoValues {
         public final double posLeft;
         public final double posRight;
 
-        BoundingBox(Extent extent, CoordinateEncoder coordinateEncoder) {
+        public BoundingBox(Extent extent, CoordinateEncoder coordinateEncoder) {
             this.top = coordinateEncoder.decodeY(extent.top);
             this.bottom = coordinateEncoder.decodeY(extent.bottom);
             if (extent.negLeft == Integer.MAX_VALUE) {
@@ -221,5 +245,34 @@ public abstract class MultiGeoValues {
                 this.posRight = point.lon();
             }
         }
+        /**
+         * @return the minimum y-coordinate of the extent
+         */
+        public double minY() {
+            return bottom;
+        }
+
+        /**
+         * @return the maximum y-coordinate of the extent
+         */
+        public double maxY() {
+            return top;
+        }
+
+        /**
+         * @return the absolute minimum x-coordinate of the extent, whether it is positive or negative.
+         */
+        public double minX() {
+            return Math.min(negLeft, posLeft);
+        }
+
+        /**
+         * @return the absolute maximum x-coordinate of the extent, whether it is positive or negative.
+         */
+        public double maxX() {
+            return Math.max(negRight, posRight);
+        }
+
+
     }
 }

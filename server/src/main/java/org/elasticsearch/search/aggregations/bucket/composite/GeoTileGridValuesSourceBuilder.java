@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.geogrid.CellIdSource;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridTiler;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -106,16 +107,17 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<?> config) throws IOException {
         ValuesSource orig = config.toValuesSource(queryShardContext);
         if (orig == null) {
-            orig = ValuesSource.GeoPoint.EMPTY;
+            orig = ValuesSource.Geo.EMPTY;
         }
-        if (orig instanceof ValuesSource.GeoPoint) {
-            ValuesSource.GeoPoint geoPoint = (ValuesSource.GeoPoint) orig;
+        if (orig instanceof ValuesSource.Geo) {
+            ValuesSource.Geo geoValue = (ValuesSource.Geo) orig;
             // is specified in the builder.
             final MappedFieldType fieldType = config.fieldContext() != null ? config.fieldContext().fieldType() : null;
-            CellIdSource cellIdSource = new CellIdSource(geoPoint, precision, GeoTileUtils::longEncode);
+            CellIdSource cellIdSource = new CellIdSource(geoValue, precision, GeoGridTiler.GeoTileGridTiler.INSTANCE);
             return new CompositeValuesSourceConfig(name, fieldType, cellIdSource, DocValueFormat.GEOTILE, order(), missingBucket());
         } else {
-            throw new IllegalArgumentException("invalid source, expected geo_point, got " + orig.getClass().getSimpleName());
+            throw new IllegalArgumentException("invalid source, expected one of [geo_point, geo_shape], got "
+                + orig.getClass().getSimpleName());
         }
     }
 

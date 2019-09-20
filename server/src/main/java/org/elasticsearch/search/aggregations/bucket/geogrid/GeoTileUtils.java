@@ -23,6 +23,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.geometry.Rectangle;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -89,6 +90,49 @@ public final class GeoTileUtils {
     }
 
     /**
+     * Calculates the x-coordinate in the tile grid for the specified longitude given
+     * the number of tile columns for a pre-determined zoom-level.
+     *
+     * @param longitude the longitude to use when determining the tile x-coordinate
+     * @param tiles     the number of tiles per row for a pre-determined zoom-level
+     */
+    static int getXTile(double longitude, long tiles) {
+        int xTile = (int) Math.floor((normalizeLon(longitude) + 180) / 360 * tiles);
+
+        // Edge values may generate invalid values, and need to be clipped.
+        // For example, polar regions (above/below lat 85.05112878) get normalized.
+        if (xTile < 0) {
+            return 0;
+        }
+        if (xTile >= tiles) {
+            return (int) tiles - 1;
+        }
+
+        return xTile;
+    }
+
+    /**
+     * Calculates the y-coordinate in the tile grid for the specified longitude given
+     * the number of tile rows for pre-determined zoom-level.
+     *
+     * @param latitude  the latitude to use when determining the tile y-coordinate
+     * @param tiles     the number of tiles per column for a pre-determined zoom-level
+     */
+    static int getYTile(double latitude, long tiles) {
+        double latSin = Math.sin(Math.toRadians(normalizeLat(latitude)));
+        int yTile = (int) Math.floor((0.5 - (Math.log((1 + latSin) / (1 - latSin)) / (4 * Math.PI))) * tiles);
+
+        if (yTile < 0) {
+            yTile = 0;
+        }
+        if (yTile >= tiles) {
+            return (int) tiles - 1;
+        }
+
+        return yTile;
+    }
+
+    /**
      * Encode lon/lat to the geotile based long format.
      * The resulting hash contains interleaved tile X and Y coordinates.
      * The precision itself is also encoded as a few high bits.
@@ -119,7 +163,7 @@ public final class GeoTileUtils {
             yTile = tiles - 1;
         }
 
-        return longEncode((long) precision, xTile, yTile);
+        return longEncodeTiles(precision, xTile, yTile);
     }
 
     /**
@@ -130,7 +174,14 @@ public final class GeoTileUtils {
      */
     public static long longEncode(String hashAsString) {
         int[] parsed = parseHash(hashAsString);
-        return longEncode((long)parsed[0], (long)parsed[1], (long)parsed[2]);
+        return longEncode((long) parsed[0], (long) parsed[1], (long) parsed[2]);
+    }
+
+    static long longEncodeTiles(int precision, long xTile, long yTile) {
+        // Zoom value is placed in front of all the bits used for the geotile
+        // e.g. when max zoom is 29, the largest index would use 58 bits (57th..0th),
+        // leaving 5 bits unused for zoom. See MAX_ZOOM comment above.
+        return ((long) precision << ZOOM_SHIFT) | (xTile << MAX_ZOOM) | yTile;
     }
 
     /**
@@ -190,6 +241,19 @@ public final class GeoTileUtils {
     static GeoPoint keyToGeoPoint(String hashAsString) {
         int[] hashAsInts = parseHash(hashAsString);
         return zxyToGeoPoint(hashAsInts[0], hashAsInts[1], hashAsInts[2]);
+    }
+
+    static Rectangle toBoundingBox(int xTile, int yTile, int precision) {
+        final double tiles = validateZXY(precision, xTile, yTile);
+        final double minN = Math.PI - (2.0 * Math.PI * (yTile + 1)) / tiles;
+        final double maxN = Math.PI - (2.0 * Math.PI * (yTile)) / tiles;
+        final double minY = Math.toDegrees(Math.atan(Math.sinh(minN)));
+        final double minX = ((xTile) / tiles * 360.0) - 180;
+
+        final double maxY = Math.toDegrees(Math.atan(Math.sinh(maxN)));
+        final double maxX = ((xTile + 1) / tiles * 360.0) - 180;
+
+        return new Rectangle(minX, maxX, maxY, minY);
     }
 
     /**

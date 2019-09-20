@@ -5,10 +5,10 @@
 
 beta[]
 
-<<ml-dataframes,{dataframe-transforms-cap}>> enable you to retrieve information
+<<ml-dataframes,{transforms-cap}>> enable you to retrieve information
 from an {es} index, transform it, and store it in another index. Let's use the
 {kibana-ref}/add-sample-data.html[{kib} sample data] to demonstrate how you can
-pivot and summarize your data with {dataframe-transforms}.
+pivot and summarize your data with {transforms}.
 
 
 . If the {es} {security-features} are enabled, obtain a user ID with sufficient
@@ -16,7 +16,7 @@ privileges to complete these steps.
 +
 --
 You need `manage_data_frame_transforms` cluster privileges to preview and create
-{dataframe-transforms}. Members of the built-in `data_frame_transforms_admin`
+{transforms}. Members of the built-in `data_frame_transforms_admin`
 role have these privileges.
 
 You also need `read` and `view_index_metadata` index privileges on the source
@@ -81,7 +81,7 @@ more complex queries, you can create your {dataframe} from a
 {kibana-ref}/save-open-search.html[saved search].
 
 If you prefer, you can use the
-{ref}/preview-data-frame-transform.html[preview {dataframe-transforms} API]:
+{ref}/preview-transform.html[preview {transforms} API]:
 
 [source,js]
 --------------------------------------------------
@@ -135,7 +135,7 @@ POST _data_frame/transforms/_preview
 --
 
 . When you are satisfied with what you see in the preview, create the
-{dataframe-transform}. 
+{transform}. 
 +
 --
 Supply a job ID and the name of the target (or _destination_) index. If the
@@ -144,7 +144,7 @@ you can choose to create and start the job, create it, or copy it to the
 clipboard.
 
 If you prefer, you can use the
-{ref}/put-data-frame-transform.html[create {dataframe-transforms} API]. For
+{ref}/put-transform.html[create {transforms} API]. For
 example:
 
 [source,js]
@@ -205,12 +205,12 @@ PUT _data_frame/transforms/ecommerce-customer-transform
 // TEST[skip:setup kibana sample data]
 --
 
-. Start the {dataframe-transform}.
+. Start the {transform}.
 +
 --
 
 TIP: Even though resource utilization is automatically adjusted based on the
-cluster load, a {dataframe-transform} increases search and indexing load on your
+cluster load, a {transform} increases search and indexing load on your
 cluster while it runs. When it reaches the end of the data in your index, it
 stops automatically. If you're experiencing an excessive load, however, you can
 stop it sooner.
@@ -221,8 +221,8 @@ You can start, stop, and manage {dataframe} jobs in {kib}:
 image::images/dataframe-jobs.jpg["Managing {dataframe} jobs in {kib}"]
 
 Alternatively, you can use the
-{ref}/start-data-frame-transform.html[start {dataframe-transforms}] and
-{ref}/stop-data-frame-transform.html[stop {dataframe-transforms}] APIs. For
+{ref}/start-transform.html[start {transforms}] and
+{ref}/stop-transform.html[stop {transforms}] APIs. For
 example:
 
 [source,js]
@@ -244,7 +244,7 @@ image::images/ecommerce-results.jpg["Exploring the new index in {kib}"]
 
 --
 
-TIP: If you do not want to keep the {dataframe-transform}, you can delete it in
+TIP: If you do not want to keep the {transform}, you can delete it in
 {kib} or use the
-{ref}/delete-data-frame-transform.html[delete {dataframe-transform} API]. When
-you delete a {dataframe-transform}, its destination index remains.
+{ref}/delete-transform.html[delete {transform} API]. When
+you delete a {transform}, its destination index remains.

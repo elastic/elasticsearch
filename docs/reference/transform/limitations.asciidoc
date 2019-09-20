@@ -19,15 +19,15 @@ the API. If you try to create one, the UI will fail to show the source index tab
 [[df-ccs-limitations]]
 === {ccs-cap} limitation
 
-{ccs-cap} is not supported in 7.2 for {dataframe-transforms}.
+{ccs-cap} is not supported in 7.2 for {transforms}.
 
 [float]
 [[df-kibana-limitations]]
 === {kib} only displays up to 100 {dataframe-transforms}
 
 The {kib} *Machine Learning* > *Data Frames* page lists up to 100 
-{dataframe-transforms}. You can work-around this limitation by calling the 
-{ref}/get-data-frame-transform.html[GET {dataframe-transforms} API] 
+{transforms}. You can work-around this limitation by calling the 
+{ref}/get-transform.html[GET {transforms} API] 
 with the `size` parameter.
 
 [float]
@@ -35,7 +35,7 @@ with the `size` parameter.
 === Date histogram limitation
 
 If you use a {ref}/search-aggregations-bucket-datehistogram-aggregation.html[date 
-histogram] in the `group_by` object in the create or preview {dataframe-transform} 
+histogram] in the `group_by` object in the create or preview {transform} 
 APIs, the defined interval and time format must have the same time fidelity. 
 Otherwise, it might cause issues in the {dataframe}.
 
@@ -44,14 +44,14 @@ For example, if you set the `calendar_interval` of the date histogram to one min
 `yyyy-MM-dd HH:00`.
 
 [float]
-=== Date format limitation in {dataframe-transform} destination index
+=== Date format limitation in {transform} destination index
 
-When you create a {dataframe-transform} that uses a `date_histogram` as a `group-by` 
+When you create a {transform} that uses a `date_histogram` as a `group-by` 
 and set the `interval` to `1y`, the date could be interpreted incorrectly 
 in the generated date field of the destination index. The reason is that the `yyyy`
 value can be identified incorrectly as `epoch_millis`. As a workaround, using the 
 API, you may define a custom destination index data format mapping prior to starting 
-the {dataframe-transform}. For example:
+the {transform}. For example:
 
 [source,js]
 ------------------------------------------------------------
@@ -76,4 +76,4 @@ mappings set for the destination index. For example "NaN", "Infinity" or possibl
 a numeric overflow. Where possible, a null response has been substituted. Please, 
 check {es} logs if you think this may have occurred. As a workaround, 
 using the API, you may define custom destination index mappings prior to starting 
-the {dataframe-transform}.
+the {transform}.

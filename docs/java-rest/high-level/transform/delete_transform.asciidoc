@@ -1,5 +1,5 @@
 --
-:api: delete-data-frame-transform
+:api: delete-transform
 :request: DeleteDataFrameTransformRequest
 :response: AcknowledgedResponse
 --

@@ -266,7 +266,7 @@ final class RequestConverters {
     }
 
     private static Request getStyleRequest(String method, GetRequest getRequest) {
-        Request request = new Request(method, endpoint(getRequest.index(), getRequest.type(), getRequest.id()));
+        Request request = new Request(method, endpoint(getRequest.index(), getRequest.id()));
 
         Params parameters = new Params();
         parameters.withPreference(getRequest.preference());
@@ -282,13 +282,7 @@ final class RequestConverters {
     }
 
     static Request sourceExists(GetRequest getRequest) {
-        String optionalType = getRequest.type();
-        String endpoint;
-        if (optionalType.equals(MapperService.SINGLE_MAPPING_NAME)) {
-            endpoint = endpoint(getRequest.index(), "_source", getRequest.id());
-        } else {
-            endpoint = endpoint(getRequest.index(), optionalType, getRequest.id(), "_source");
-        }
+        String endpoint = endpoint(getRequest.index(), "_source", getRequest.id());
         Request request = new Request(HttpHead.METHOD_NAME, endpoint);
         Params parameters = new Params();
         parameters.withPreference(getRequest.preference());
@@ -740,6 +734,10 @@ final class RequestConverters {
     @Deprecated
     static String endpoint(String index, String type, String id) {
         return new EndpointBuilder().addPathPart(index, type, id).build();
+    }
+
+    static String endpoint(String index, String id) {
+        return new EndpointBuilder().addPathPart(index, "_doc", id).build();
     }
 
     @Deprecated

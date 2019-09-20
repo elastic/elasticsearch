@@ -72,7 +72,7 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
      * fixed_interval fixed intervals like 1h, 1m, 1d
      * calendar_interval calendar aware intervals like 1M, 1Y, ...
      *
-     * Note: data frames do not support the deprecated interval option
+     * Note: transform does not support the deprecated interval option
      */
     public interface Interval extends ToXContentFragment {
         String getName();

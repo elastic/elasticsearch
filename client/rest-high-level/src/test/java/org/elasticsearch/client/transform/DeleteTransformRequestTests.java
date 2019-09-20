@@ -19,24 +19,15 @@
 
 package org.elasticsearch.client.transform;
 
-import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.test.ESTestCase;
-
-import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class StartDataFrameTransformRequestTests extends ESTestCase {
-    public void testValidate_givenNullId() {
-        StartTransformRequest request = new StartTransformRequest(null, null);
-        Optional<ValidationException> validate = request.validate();
-        assertTrue(validate.isPresent());
-        assertThat(validate.get().getMessage(), containsString("transform id must not be null"));
-    }
+public class DeleteTransformRequestTests extends ESTestCase {
 
-    public void testValidate_givenValid() {
-        StartTransformRequest request = new StartTransformRequest("foo", null);
-        Optional<ValidationException> validate = request.validate();
-        assertFalse(validate.isPresent());
+    public void testValidate() {
+        assertFalse(new DeleteTransformRequest("valid-id").validate().isPresent());
+        assertThat(new DeleteTransformRequest(null).validate().get().getMessage(),
+                containsString("transform id must not be null"));
     }
 }

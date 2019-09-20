@@ -26,16 +26,16 @@ import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class StartDataFrameTransformRequestTests extends ESTestCase {
+public class StopTransformRequestTests extends ESTestCase {
     public void testValidate_givenNullId() {
-        StartTransformRequest request = new StartTransformRequest(null, null);
+        StopTransformRequest request = new StopTransformRequest(null);
         Optional<ValidationException> validate = request.validate();
         assertTrue(validate.isPresent());
         assertThat(validate.get().getMessage(), containsString("transform id must not be null"));
     }
 
     public void testValidate_givenValid() {
-        StartTransformRequest request = new StartTransformRequest("foo", null);
+        StopTransformRequest request = new StopTransformRequest("foo");
         Optional<ValidationException> validate = request.validate();
         assertFalse(validate.isPresent());
     }

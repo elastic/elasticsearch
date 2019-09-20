@@ -17,46 +17,32 @@
  * under the License.
  */
 
-package org.elasticsearch.client.transform.transforms;
+package org.elasticsearch.client.transform;
 
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 
-import java.io.IOException;
 import java.util.Objects;
 
-/**
- * Object for encapsulating the desired Query for a Transform
- */
-public class QueryConfig implements ToXContentObject {
+public class UpdateTransformResponse {
 
-    private final QueryBuilder query;
-
-    public static QueryConfig fromXContent(XContentParser parser) throws IOException {
-        QueryBuilder query = AbstractQueryBuilder.parseInnerQueryBuilder(parser);
-        return new QueryConfig(query);
+    public static UpdateTransformResponse fromXContent(final XContentParser parser) {
+        return new UpdateTransformResponse(TransformConfig.PARSER.apply(parser, null));
     }
 
-    public QueryConfig(QueryBuilder query) {
-        this.query = query;
+    private TransformConfig transformConfiguration;
+
+    public UpdateTransformResponse(TransformConfig transformConfiguration) {
+        this.transformConfiguration = transformConfiguration;
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        query.toXContent(builder, params);
-        return builder;
-    }
-
-    public QueryBuilder getQuery() {
-        return query;
+    public TransformConfig getTransformConfiguration() {
+        return transformConfiguration;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(query);
+        return Objects.hash(transformConfiguration);
     }
 
     @Override
@@ -69,9 +55,7 @@ public class QueryConfig implements ToXContentObject {
             return false;
         }
 
-        final QueryConfig that = (QueryConfig) other;
-
-        return Objects.equals(this.query, that.query);
+        final UpdateTransformResponse that = (UpdateTransformResponse) other;
+        return Objects.equals(this.transformConfiguration, that.transformConfiguration);
     }
-
 }

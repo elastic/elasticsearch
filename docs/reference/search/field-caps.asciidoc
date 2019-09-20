@@ -131,6 +131,7 @@ The API returns the following response:
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[skip:historically skipped]
 
 <1> The field `rating` is defined as a long in `index1` and `index2`
 and as a `keyword` in `index3` and `index4`.
@@ -189,6 +190,7 @@ in some indices but not all:
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[skip:historically skipped
 
 <1> The `rating` field is unmapped` in `index5`.
 <2> The `title` field is unmapped` in `index5`.

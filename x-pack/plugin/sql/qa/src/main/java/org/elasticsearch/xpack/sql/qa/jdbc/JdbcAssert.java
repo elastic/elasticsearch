@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import com.carrotsearch.hppc.IntObjectHashMap;
+
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
@@ -224,7 +225,7 @@ public class JdbcAssert {
                         String columnClassName = metaData.getColumnClassName(column);
 
                         // fix for CSV which returns the shortName not fully-qualified name
-                        if (!columnClassName.contains(".")) {
+                        if (columnClassName != null && !columnClassName.contains(".")) {
                             switch (columnClassName) {
                                 case "Date":
                                     columnClassName = "java.sql.Date";
@@ -244,13 +245,17 @@ public class JdbcAssert {
                             }
                         }
 
-                        expectedColumnClass = Class.forName(columnClassName);
+                        if (columnClassName != null) {
+                            expectedColumnClass = Class.forName(columnClassName);
+                        }
                     } catch (ClassNotFoundException cnfe) {
                         throw new SQLException(cnfe);
                     }
 
                     Object expectedObject = expected.getObject(column);
-                    Object actualObject = lenientDataType ? actual.getObject(column, expectedColumnClass) : actual.getObject(column);
+                    Object actualObject = (lenientDataType && expectedColumnClass != null) 
+                            ? actual.getObject(column, expectedColumnClass)
+                            : actual.getObject(column);
 
                     String msg = format(Locale.ROOT, "Different result for column [%s], entry [%d]",
                         metaData.getColumnName(column), count + 1);

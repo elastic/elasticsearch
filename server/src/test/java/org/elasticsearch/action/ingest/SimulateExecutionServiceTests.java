@@ -101,8 +101,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
 
     public void testExecuteVerboseItemExceptionWithoutOnFailure() throws Exception {
         TestProcessor processor1 = new TestProcessor("processor_0", "mock", ingestDocument -> {});
-        TestProcessor processor2 = new TestProcessor("processor_1", "mock",
-                ingestDocument -> { throw new RuntimeException("processor failed"); });
+        TestProcessor processor2 = new TestProcessor("processor_1", "mock", new RuntimeException("processor failed"));
         TestProcessor processor3 = new TestProcessor("processor_2", "mock", ingestDocument -> {});
         Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor1, processor2, processor3));
         SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, true);
@@ -126,8 +125,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
     }
 
     public void testExecuteVerboseItemWithOnFailure() throws Exception {
-        TestProcessor processor1 = new TestProcessor("processor_0", "mock",
-                ingestDocument -> { throw new RuntimeException("processor failed"); });
+        TestProcessor processor1 = new TestProcessor("processor_0", "mock", new RuntimeException("processor failed"));
         TestProcessor processor2 = new TestProcessor("processor_1", "mock", ingestDocument -> {});
         TestProcessor processor3 = new TestProcessor("processor_2", "mock", ingestDocument -> {});
         Pipeline pipeline = new Pipeline("_id", "_description", version,
@@ -165,7 +163,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
 
     public void testExecuteVerboseItemExceptionWithIgnoreFailure() throws Exception {
         RuntimeException exception = new RuntimeException("processor failed");
-        TestProcessor testProcessor = new TestProcessor("processor_0", "mock", ingestDocument -> { throw exception; });
+        TestProcessor testProcessor = new TestProcessor("processor_0", "mock", exception);
         CompoundProcessor processor = new CompoundProcessor(true, Collections.singletonList(testProcessor), Collections.emptyList());
         Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor));
         SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, true);

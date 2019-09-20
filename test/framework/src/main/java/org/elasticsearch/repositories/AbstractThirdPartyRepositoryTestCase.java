@@ -302,7 +302,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         return future.actionGet();
     }
 
-    private BlobStoreRepository getRepository() {
+    protected BlobStoreRepository getRepository() {
         return (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository("test-repo");
     }
 }

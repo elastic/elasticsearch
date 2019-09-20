@@ -25,6 +25,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.Arrays;
 import java.util.Objects;
@@ -42,6 +43,7 @@ public final class CountRequest extends ActionRequest implements IndicesRequest.
     private String preference;
     private SearchSourceBuilder searchSourceBuilder;
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
+    private int terminateAfter = SearchContext.DEFAULT_TERMINATE_AFTER;
 
     public CountRequest() {
         this.searchSourceBuilder = new SearchSourceBuilder();
@@ -165,11 +167,14 @@ public final class CountRequest extends ActionRequest implements IndicesRequest.
     }
 
     public int terminateAfter() {
-        return this.searchSourceBuilder.terminateAfter();
+        return this.terminateAfter;
     }
 
     public CountRequest terminateAfter(int terminateAfter) {
-        this.searchSourceBuilder.terminateAfter(terminateAfter);
+        if (terminateAfter < 0) {
+            throw new IllegalArgumentException("terminateAfter must be > 0");
+        }
+        this.terminateAfter = terminateAfter;
         return this;
     }
 

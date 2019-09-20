@@ -21,17 +21,17 @@ package org.elasticsearch.client.transform.transforms.hlrc;
 
 import org.elasticsearch.client.AbstractHlrcXContentTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 
 import java.io.IOException;
 
 public class DataFrameIndexerTransformStatsTests extends AbstractHlrcXContentTestCase<
-        DataFrameIndexerTransformStats,
+        TransformIndexerStats,
         org.elasticsearch.client.transform.transforms.DataFrameIndexerTransformStats> {
 
-    public static DataFrameIndexerTransformStats fromHlrc(
+    public static TransformIndexerStats fromHlrc(
             org.elasticsearch.client.transform.transforms.DataFrameIndexerTransformStats instance) {
-        return new DataFrameIndexerTransformStats(
+        return new TransformIndexerStats(
             instance.getNumPages(),
             instance.getNumDocuments(),
             instance.getOutputDocuments(),
@@ -54,13 +54,13 @@ public class DataFrameIndexerTransformStatsTests extends AbstractHlrcXContentTes
     }
 
     @Override
-    public DataFrameIndexerTransformStats convertHlrcToInternal(
+    public TransformIndexerStats convertHlrcToInternal(
             org.elasticsearch.client.transform.transforms.DataFrameIndexerTransformStats instance) {
         return fromHlrc(instance);
     }
 
-    public static DataFrameIndexerTransformStats randomStats() {
-        return new DataFrameIndexerTransformStats(randomLongBetween(10L, 10000L),
+    public static TransformIndexerStats randomStats() {
+        return new TransformIndexerStats(randomLongBetween(10L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L), randomLongBetween(0L, 10000L),
             randomLongBetween(0L, 10000L),
@@ -70,13 +70,13 @@ public class DataFrameIndexerTransformStatsTests extends AbstractHlrcXContentTes
     }
 
     @Override
-    protected DataFrameIndexerTransformStats createTestInstance() {
+    protected TransformIndexerStats createTestInstance() {
         return randomStats();
     }
 
     @Override
-    protected DataFrameIndexerTransformStats doParseInstance(XContentParser parser) throws IOException {
-        return DataFrameIndexerTransformStats.fromXContent(parser);
+    protected TransformIndexerStats doParseInstance(XContentParser parser) throws IOException {
+        return TransformIndexerStats.fromXContent(parser);
     }
 
     @Override

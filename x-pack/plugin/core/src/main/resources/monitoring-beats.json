@@ -411,6 +411,13 @@
                     },
                     "acm": {
                       "properties": {
+                        "request": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        },
                         "response": {
                           "properties": {
                             "count": {

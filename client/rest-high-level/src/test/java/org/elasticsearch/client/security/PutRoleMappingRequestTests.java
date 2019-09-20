@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class PutRoleMappingRequestTests extends ESTestCase {
 
@@ -240,4 +241,9 @@ public class PutRoleMappingRequestTests extends ESTestCase {
         }
     }
 
+    public void testBuildRequestDefaultsToImmediateRefreshPolicy() {
+        PutRoleMappingRequest putRoleMappingRequest = new PutRoleMappingRequest(randomAlphaOfLength(4), randomBoolean(),
+            Collections.singletonList("superuser"), Collections.emptyList(), FieldRoleMapperExpression.ofUsername("user"), null, null);
+        assertThat(putRoleMappingRequest.getRefreshPolicy(), is(RefreshPolicy.IMMEDIATE));
+    }
 }

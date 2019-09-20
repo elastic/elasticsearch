@@ -8,14 +8,20 @@ package org.elasticsearch.xpack.core.security.action.privilege;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.security.PutUserRequest;
+import org.elasticsearch.client.security.RefreshPolicy;
+import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -58,4 +64,8 @@ public class DeletePrivilegesRequestTests extends ESTestCase {
         }
     }
 
+    public void testBuildRequestDefaultsToImmediateRefreshPolicy() {
+        final DeletePrivilegesRequest request = new DeletePrivilegesRequest("app", new String[]{"all"});
+        assertThat(request.getRefreshPolicy(), is(RefreshPolicy.IMMEDIATE));
+    }
 }

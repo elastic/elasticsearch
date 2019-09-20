@@ -105,7 +105,7 @@ public final class PutUserRequest implements Validatable, ToXContentObject {
      * @param passwordHash the hash of the password. Only one of "password" or "passwordHash" may be populated.
      *                     The other parameter must be {@code null}.
      * @param enabled true if the user is enabled and allowed to access elasticsearch
-     * @param refreshPolicy the refresh policy for the request.
+     * @param refreshPolicy the refresh policy for the request. Defaults to {@link RefreshPolicy#IMMEDIATE}
      */
     private PutUserRequest(User user, @Nullable char[] password, @Nullable char[] passwordHash, boolean enabled,
                            RefreshPolicy refreshPolicy) {
@@ -116,7 +116,7 @@ public final class PutUserRequest implements Validatable, ToXContentObject {
         this.password = password;
         this.passwordHash = passwordHash;
         this.enabled = enabled;
-        this.refreshPolicy = refreshPolicy == null ? RefreshPolicy.getDefault() : refreshPolicy;
+        this.refreshPolicy = refreshPolicy == null ? RefreshPolicy.IMMEDIATE : refreshPolicy;
     }
 
     public User getUser() {

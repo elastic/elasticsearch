@@ -52,6 +52,17 @@ public final class PutRoleMappingRequest implements Validatable, ToXContentObjec
         this(name, enabled, roles, Collections.emptyList(), rules, metadata, refreshPolicy);
     }
 
+    /**
+     * Constructor to create request object to create or update a role mapping.
+     * @param name name for role mapping
+     * @param enabled mappings that have enabled set to {@code false} are ignored when role mapping is performed
+     * @param roles a list of roles that are granted to the users that match the role mapping rules
+     * @param templates a list of mustache templates that will be evaluated to determine the roles names that should granted to the
+     *                  users that match the role mapping rules
+     * @param rules the rules that determine which users should be matched by the mapping
+     * @param metadata metadata to be associated with role mapping
+     * @param refreshPolicy the refresh policy for the request. Defaults to {@link RefreshPolicy#IMMEDIATE}
+     */
     public PutRoleMappingRequest(final String name, final boolean enabled, final List<String> roles, final List<TemplateRoleName> templates,
                                  final RoleMapperExpression rules, @Nullable final Map<String, Object> metadata,
                                  @Nullable final RefreshPolicy refreshPolicy) {
@@ -70,7 +81,7 @@ public final class PutRoleMappingRequest implements Validatable, ToXContentObjec
         }
         this.rules = Objects.requireNonNull(rules, "role-mapping rules are missing");
         this.metadata = (metadata == null) ? Collections.emptyMap() : metadata;
-        this.refreshPolicy = (refreshPolicy == null) ? RefreshPolicy.getDefault() : refreshPolicy;
+        this.refreshPolicy = (refreshPolicy == null) ? RefreshPolicy.IMMEDIATE : refreshPolicy;
     }
 
     public String getName() {

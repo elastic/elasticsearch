@@ -48,7 +48,7 @@ public final class DeletePrivilegesRequest implements Validatable {
      *
      * @param application   the name of the application for which the privileges will be deleted
      * @param privileges    the privileges to delete
-     * @param refreshPolicy the refresh policy {@link RefreshPolicy} for the request, defaults to {@link RefreshPolicy#getDefault()}
+     * @param refreshPolicy the refresh policy {@link RefreshPolicy} for the request, defaults to {@link RefreshPolicy#IMMEDIATE}
      */
     public DeletePrivilegesRequest(String application, String[] privileges, @Nullable RefreshPolicy refreshPolicy) {
         if (Strings.hasText(application) == false) {
@@ -59,7 +59,7 @@ public final class DeletePrivilegesRequest implements Validatable {
         }
         this.application = application;
         this.privileges = privileges;
-        this.refreshPolicy = (refreshPolicy == null) ? RefreshPolicy.getDefault() : refreshPolicy;
+        this.refreshPolicy = (refreshPolicy == null) ? RefreshPolicy.IMMEDIATE : refreshPolicy;
     }
 
     public String getApplication() {

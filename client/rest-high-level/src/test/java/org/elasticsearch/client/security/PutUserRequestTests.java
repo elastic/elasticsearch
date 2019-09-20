@@ -98,4 +98,11 @@ public class PutUserRequestTests extends ESTestCase {
         assertThat(metadata.get("status"), is("active"));
     }
 
+    public void testBuildRequestDefaultsToImmediateRefreshPolicy() {
+        final User user = new User("hawkeye", Arrays.asList("kibana_user", "avengers"),
+            Collections.singletonMap("status", "active"), "Clinton Barton", null);
+        final char[] password = "f@rmb0y".toCharArray();
+        final PutUserRequest request = PutUserRequest.withPassword(user, password, true, null);
+        assertThat(request.getRefreshPolicy(), is(RefreshPolicy.IMMEDIATE));
+    }
 }

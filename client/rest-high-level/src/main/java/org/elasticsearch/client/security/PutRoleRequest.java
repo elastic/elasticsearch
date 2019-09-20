@@ -36,9 +36,14 @@ public final class PutRoleRequest implements Validatable, ToXContentObject {
     private final Role role;
     private final RefreshPolicy refreshPolicy;
 
+    /**
+     * Constructor to create qequest object to create or update a role.
+     * @param role {@link Role} to be created or updated.
+     * @param refreshPolicy the refresh policy for the request. Defaults to {@link RefreshPolicy#IMMEDIATE}
+     */
     public PutRoleRequest(Role role, @Nullable final RefreshPolicy refreshPolicy) {
         this.role = Objects.requireNonNull(role);
-        this.refreshPolicy = (refreshPolicy == null) ? RefreshPolicy.getDefault() : refreshPolicy;
+        this.refreshPolicy = (refreshPolicy == null) ? RefreshPolicy.IMMEDIATE : refreshPolicy;
     }
 
     public Role getRole() {

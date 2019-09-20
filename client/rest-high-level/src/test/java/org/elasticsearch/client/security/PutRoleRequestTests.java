@@ -37,8 +37,8 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
 
 public class PutRoleRequestTests extends AbstractXContentTestCase<PutRoleRequest> {
 
@@ -84,4 +84,8 @@ public class PutRoleRequestTests extends AbstractXContentTestCase<PutRoleRequest
         return roleBuilder.build(); 
     }
 
+    public void testBuildRequestDefaultsToImmediateRefreshPolicy() {
+        final PutRoleRequest request = createTestInstance();
+        assertThat(request.getRefreshPolicy(), is(RefreshPolicy.IMMEDIATE));
+    }
 }

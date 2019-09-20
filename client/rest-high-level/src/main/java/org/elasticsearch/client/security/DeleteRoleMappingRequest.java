@@ -37,14 +37,14 @@ public final class DeleteRoleMappingRequest implements Validatable {
      *
      * @param name role mapping name to be deleted
      * @param refreshPolicy refresh policy {@link RefreshPolicy} for the
-     * request, defaults to {@link RefreshPolicy#getDefault()}
+     * request, defaults to {@link RefreshPolicy#IMMEDIATE}
      */
     public DeleteRoleMappingRequest(final String name, @Nullable final RefreshPolicy refreshPolicy) {
         if (Strings.hasText(name) == false) {
             throw new IllegalArgumentException("role-mapping name is required");
         }
         this.name = name;
-        this.refreshPolicy = (refreshPolicy == null) ? RefreshPolicy.getDefault() : refreshPolicy;
+        this.refreshPolicy = (refreshPolicy == null) ? RefreshPolicy.IMMEDIATE : refreshPolicy;
     }
 
     public String getName() {

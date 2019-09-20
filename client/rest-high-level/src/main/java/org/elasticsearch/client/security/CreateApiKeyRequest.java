@@ -46,6 +46,7 @@ public final class CreateApiKeyRequest implements Validatable, ToXContentObject 
      * @param name name for the API key
      * @param roles list of {@link Role}s
      * @param expiration to specify expiration for the API key
+     * @param refreshPolicy refresh policy {@link RefreshPolicy} for the request, defaults to {@link RefreshPolicy#IMMEDIATE}
      */
     public CreateApiKeyRequest(String name, List<Role> roles, @Nullable TimeValue expiration, @Nullable final RefreshPolicy refreshPolicy) {
         if (Strings.hasText(name)) {
@@ -55,7 +56,7 @@ public final class CreateApiKeyRequest implements Validatable, ToXContentObject 
         }
         this.roles = Objects.requireNonNull(roles, "roles may not be null");
         this.expiration = expiration;
-        this.refreshPolicy = (refreshPolicy == null) ? RefreshPolicy.getDefault() : refreshPolicy;
+        this.refreshPolicy = (refreshPolicy == null) ? RefreshPolicy.IMMEDIATE : refreshPolicy;
     }
 
     public String getName() {

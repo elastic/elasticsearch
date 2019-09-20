@@ -32,10 +32,16 @@ public abstract class SetUserEnabledRequest implements Validatable {
     private final String username;
     private final RefreshPolicy refreshPolicy;
 
+    /**
+     * Constructor for creating request for enabling or disabling a built-in or native user
+     * @param enabled if set to {@code true} will enable a user else if set to {@code false} to disable a user
+     * @param username user name
+     * @param refreshPolicy the refresh policy for the request. Defaults to {@link RefreshPolicy#IMMEDIATE}
+     */
     SetUserEnabledRequest(boolean enabled, String username, RefreshPolicy refreshPolicy) {
         this.enabled = enabled;
         this.username = Objects.requireNonNull(username, "username is required");
-        this.refreshPolicy = refreshPolicy == null ? RefreshPolicy.getDefault() : refreshPolicy;
+        this.refreshPolicy = refreshPolicy == null ? RefreshPolicy.IMMEDIATE : refreshPolicy;
     }
 
     public boolean isEnabled() {

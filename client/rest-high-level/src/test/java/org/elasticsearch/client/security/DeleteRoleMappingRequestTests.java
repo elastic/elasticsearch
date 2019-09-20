@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class DeleteRoleMappingRequestTests extends ESTestCase {
 
@@ -68,5 +69,11 @@ public class DeleteRoleMappingRequestTests extends ESTestCase {
                     Collectors.toList());
             return new DeleteRoleMappingRequest(original.getName(), randomFrom(values));
         }
+    }
+
+    public void testBuildRequestDefaultsToImmediateRefreshPolicy() {
+        final String name = randomAlphaOfLength(5);
+        final DeleteRoleMappingRequest deleteRoleMappingRequest = new DeleteRoleMappingRequest(name, null);
+        assertThat(deleteRoleMappingRequest.getRefreshPolicy(), is(RefreshPolicy.IMMEDIATE));
     }
 }

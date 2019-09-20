@@ -89,8 +89,8 @@ Vagrant.configure(2) do |config|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/debian-9-x86_64'
       deb_common config, box
+      deb_docker config
     end
-    deb_docker config
   end
   'centos-6'.tap do |box|
     config.vm.define box, define_opts do |config|
@@ -230,7 +230,7 @@ def rpm_common(config, name)
 end
 
 def rpm_docker(config)
-  config.vm.provision 'install Docker using yum', run: 'always', type: 'shell', inline: <<-SHELL
+  config.vm.provision 'install Docker using yum', type: 'shell', inline: <<-SHELL
     # Install prerequisites
     yum install -y yum-utils device-mapper-persistent-data lvm2
 
@@ -265,7 +265,7 @@ def dnf_common(config, name)
 end
 
 def dnf_docker(config)
-  config.vm.provision 'install Docker using dnf', run: 'always', type: 'shell', inline: <<-SHELL
+  config.vm.provision 'install Docker using dnf', type: 'shell', inline: <<-SHELL
     # Install prerequisites
     dnf -y install dnf-plugins-core
 
@@ -340,7 +340,7 @@ def linux_common(config,
 
   # This prevents leftovers from previous tests using the
   # same VM from messing up the current test
-  config.vm.provision 'clean es installs in tmp', run: 'always', type: 'shell', inline: <<-SHELL
+  config.vm.provision 'clean es installs in tmp', type: 'shell', inline: <<-SHELL
     rm -rf /tmp/elasticsearch*
   SHELL
 

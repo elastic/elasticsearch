@@ -95,7 +95,6 @@ public class ExplainResponseTests extends AbstractSerializingTestCase<ExplainRes
         String expectedResponse =
             ("{\n" +
             "    \"_index\":\"index\",\n" +
-            "    \"_type\":\"type\",\n" +
             "    \"_id\":\"1\",\n" +
             "    \"matched\":true,\n" +
             "    \"explanation\":{\n" +

@@ -118,7 +118,7 @@ public class ConnectionManager implements Closeable {
             return;
         }
 
-        if (pendingConnections.containsKey(node)) {
+        if (connectedNodes.containsKey(node)) {
             connectingRefCounter.decRef();
             listener.onResponse(null);
             return;

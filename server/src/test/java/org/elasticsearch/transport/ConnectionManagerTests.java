@@ -151,10 +151,12 @@ public class ConnectionManagerTests extends ESTestCase {
             }
         };
 
-        CyclicBarrier barrier = new CyclicBarrier(11);
         List<Thread> threads = new ArrayList<>();
+        AtomicReference<AssertionError> failure = new AtomicReference<>();
         AtomicInteger nodeConnectedCount = new AtomicInteger();
         AtomicInteger nodeFailureCount = new AtomicInteger();
+
+        CyclicBarrier barrier = new CyclicBarrier(11);
         for (int i = 0; i < 10; i++) {
             Thread thread = new Thread(() -> {
                 try {
@@ -166,6 +168,9 @@ public class ConnectionManagerTests extends ESTestCase {
                 connectionManager.connectToNode(node, connectionProfile, validator,
                     ActionListener.wrap(c -> {
                         nodeConnectedCount.incrementAndGet();
+                        if (connectionManager.nodeConnected(node) == false) {
+                            failure.set(new AssertionError("Expected node to be connected"));
+                        }
                         assert latch.getCount() == 1;
                         latch.countDown();
                     }, e -> {
@@ -192,7 +197,12 @@ public class ConnectionManagerTests extends ESTestCase {
             }
         });
 
-        assertEquals(10, nodeConnectedCount.get() + nodeFailureCount.get());
+
+        if (failure.get() != null) {
+            throw failure.get();
+        }
+
+        assertEquals(100, nodeConnectedCount.get() + nodeFailureCount.get());
     }
 
     public void testConnectFailsDuringValidation() {

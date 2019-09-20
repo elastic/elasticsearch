@@ -272,4 +272,25 @@ public class IngestClientIT extends ESIntegTestCase {
         GetPipelineResponse response = client().admin().cluster().prepareGetPipeline("_id2").get();
         assertFalse(response.isFound());
     }
+
+    public void testWithDedicatedMaster() throws Exception {
+        String masterOnlyNode = internalCluster().startMasterOnlyNode();
+        BytesReference source = BytesReference.bytes(jsonBuilder().startObject()
+            .field("description", "my_pipeline")
+            .startArray("processors")
+            .startObject()
+            .startObject("test")
+            .endObject()
+            .endObject()
+            .endArray()
+            .endObject());
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
+        client().admin().cluster().putPipeline(putPipelineRequest).get();
+
+        BulkItemResponse item = client(masterOnlyNode).prepareBulk().add(
+            client().prepareIndex("test", "type").setSource("field", "value2", "drop", true).setPipeline("_id")).get()
+            .getItems()[0];
+        assertFalse(item.isFailed());
+        assertEquals("auto-generated", item.getResponse().getId());
+    }
 }

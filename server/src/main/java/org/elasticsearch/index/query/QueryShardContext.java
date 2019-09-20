@@ -115,8 +115,8 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public QueryShardContext(QueryShardContext source) {
         this(source.shardId, source.indexSettings, source.bigArrays, source.bitsetFilterCache, source.indexFieldDataService,
-            source.mapperService, source.similarityService, source.scriptService, source.getXContentRegistry(),
-            source.getWriteableRegistry(), source.client, source.searcher, source.nowInMillis, source.fullyQualifiedIndex);
+                source.mapperService, source.similarityService, source.scriptService, source.getXContentRegistry(),
+                source.getWriteableRegistry(), source.client, source.searcher, source.nowInMillis, source.fullyQualifiedIndex);
     }
 
     private QueryShardContext(int shardId,
@@ -137,13 +137,13 @@ public class QueryShardContext extends QueryRewriteContext {
         this.shardId = shardId;
         this.similarityService = similarityService;
         this.mapperService = mapperService;
+        this.bigArrays = bigArrays;
         this.bitsetFilterCache = bitsetFilterCache;
         this.indexFieldDataService = indexFieldDataLookup;
         this.allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
         this.nestedScope = new NestedScope();
         this.scriptService = scriptService;
         this.indexSettings = indexSettings;
-        this.bigArrays = bigArrays;
         this.searcher = searcher;
         this.fullyQualifiedIndex = fullyQualifiedIndex;
     }
@@ -408,7 +408,7 @@ public class QueryShardContext extends QueryRewriteContext {
     /** Return the current {@link IndexReader}, or {@code null} if no index reader is available,
      *  for instance if this rewrite context is used to index queries (percolation). */
     public IndexReader getIndexReader() {
-        return searcher != null ? searcher.getIndexReader() : null;
+        return searcher == null ? null : searcher.getIndexReader();
     }
 
     /** Return the current {@link IndexSearcher}, or {@code null} if no index reader is available,

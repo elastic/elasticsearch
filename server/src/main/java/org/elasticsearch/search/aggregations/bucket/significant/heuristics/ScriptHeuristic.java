@@ -31,7 +31,6 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.SignificantTermsHeuristicScoreScript;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -101,9 +100,8 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     }
 
     @Override
-    public SignificanceHeuristic rewrite(SearchContext context) {
-        QueryShardContext shardContext = context.getQueryShardContext();
-        SignificantTermsHeuristicScoreScript.Factory compiledScript = shardContext.getScriptService().compile(script,
+    public SignificanceHeuristic rewrite(QueryShardContext queryShardContext) {
+        SignificantTermsHeuristicScoreScript.Factory compiledScript = queryShardContext.getScriptService().compile(script,
                 SignificantTermsHeuristicScoreScript.CONTEXT);
         return new ExecutableScriptHeuristic(script, compiledScript.newInstance());
     }

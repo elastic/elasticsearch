@@ -22,11 +22,15 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import org.apache.http.HttpStatus;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.mocksocket.MockHttpServer;
+import org.elasticsearch.test.BackgroundIndexer;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -38,6 +42,10 @@ import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Integration tests for {@link BlobStoreRepository} implementations rely on mock APIs that emulate cloud-based services.
@@ -82,6 +90,37 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     protected abstract Map<String, HttpHandler> createHttpHandlers();
 
     protected abstract HttpHandler createErroneousHttpHandler(HttpHandler delegate);
+
+    /**
+     * Test the snapshot and restore of an index which has large segments files.
+     */
+    public final void testSnapshotWithLargeSegmentFiles() throws Exception {
+        final String repository = createRepository(randomName());
+        final String index = "index-no-merges";
+        createIndex(index, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build());
+
+        final long nbDocs = randomLongBetween(10_000L, 20_000L);
+        try (BackgroundIndexer indexer = new BackgroundIndexer(index, "_doc", client(), (int) nbDocs)) {
+            waitForDocs(nbDocs, indexer);
+        }
+
+        flushAndRefresh(index);
+        ForceMergeResponse forceMerge = client().admin().indices().prepareForceMerge(index).setFlush(true).setMaxNumSegments(1).get();
+        assertThat(forceMerge.getSuccessfulShards(), equalTo(1));
+        assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
+
+        assertSuccessfulSnapshot(client().admin().cluster().prepareCreateSnapshot(repository, "snapshot")
+            .setWaitForCompletion(true).setIndices(index));
+
+        assertAcked(client().admin().indices().prepareDelete(index));
+
+        assertSuccessfulRestore(client().admin().cluster().prepareRestoreSnapshot(repository, "snapshot").setWaitForCompletion(true));
+        ensureGreen(index);
+        assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
+    }
 
     protected static String httpServerUrl() {
         InetSocketAddress address = httpServer.getAddress();

@@ -44,6 +44,7 @@ public final class CountRequest extends ActionRequest implements IndicesRequest.
     private SearchSourceBuilder searchSourceBuilder;
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
     private int terminateAfter = SearchContext.DEFAULT_TERMINATE_AFTER;
+    private Float minScore;
 
     public CountRequest() {
         this.searchSourceBuilder = new SearchSourceBuilder();
@@ -158,11 +159,11 @@ public final class CountRequest extends ActionRequest implements IndicesRequest.
     }
 
     public Float minScore() {
-        return this.searchSourceBuilder.minScore();
+        return minScore;
     }
 
     public CountRequest minScore(Float minScore) {
-        this.searchSourceBuilder.minScore(minScore);
+        this.minScore = minScore;
         return this;
     }
 

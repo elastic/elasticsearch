@@ -30,7 +30,6 @@ import java.net.InetAddress;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.mockito.Matchers.any;

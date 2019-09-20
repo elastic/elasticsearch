@@ -26,7 +26,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -207,7 +206,7 @@ public class SearchResponseTests extends ESTestCase {
     }
 
     public void testToXContent() {
-        SearchHit hit = new SearchHit(1, "id1", new Text("type"), Collections.emptyMap());
+        SearchHit hit = new SearchHit(1, "id1", Collections.emptyMap());
         hit.score(2.0f);
         SearchHit[] hits = new SearchHit[] { hit };
         {

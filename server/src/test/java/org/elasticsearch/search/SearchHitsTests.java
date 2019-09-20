@@ -27,7 +27,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.LuceneTests;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -204,8 +203,8 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
 
     public void testToXContent() throws IOException {
         SearchHit[] hits = new SearchHit[] {
-            new SearchHit(1, "id1", new Text("type"), Collections.emptyMap()),
-            new SearchHit(2, "id2", new Text("type"), Collections.emptyMap()) };
+            new SearchHit(1, "id1", Collections.emptyMap()),
+            new SearchHit(2, "id2", Collections.emptyMap()) };
 
         long totalHits = 1000;
         float maxScore = 1.5f;
@@ -222,9 +221,9 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
     public void testFromXContentWithShards() throws IOException {
         for (boolean withExplanation : new boolean[] {true, false}) {
             final SearchHit[] hits = new SearchHit[]{
-                new SearchHit(1, "id1", new Text("type"), Collections.emptyMap()),
-                new SearchHit(2, "id2", new Text("type"), Collections.emptyMap()),
-                new SearchHit(10, "id10", new Text("type"), Collections.emptyMap())
+                new SearchHit(1, "id1", Collections.emptyMap()),
+                new SearchHit(2, "id2", Collections.emptyMap()),
+                new SearchHit(10, "id10", Collections.emptyMap())
             };
 
             for (SearchHit hit : hits) {

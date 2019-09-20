@@ -54,7 +54,7 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
     @SuppressWarnings("unchecked")
     protected <T extends ActionRequest> T applyScript(Consumer<Map<String, Object>> scriptBody) {
         IndexRequest index = new IndexRequest("index", "type", "1").source(singletonMap("foo", "bar"));
-        ScrollableHitSource.Hit doc = new ScrollableHitSource.BasicHit("test", "type", "id", 0);
+        ScrollableHitSource.Hit doc = new ScrollableHitSource.BasicHit("test", "id", 0);
         UpdateScript.Factory factory = (params, ctx) -> new UpdateScript(Collections.emptyMap(), ctx) {
             @Override
             public void execute() {

@@ -31,14 +31,12 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchParseException;
@@ -181,7 +179,7 @@ public class RankEvalResponseTests extends ESTestCase {
     }
 
     private static RatedSearchHit searchHit(String index, int docId, Integer rating) {
-        SearchHit hit = new SearchHit(docId, docId + "", new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap());
+        SearchHit hit = new SearchHit(docId, docId + "", Collections.emptyMap());
         hit.shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null, OriginalIndices.NONE));
         hit.score(1.0f);
         return new RatedSearchHit(hit, rating != null ? OptionalInt.of(rating) : OptionalInt.empty());

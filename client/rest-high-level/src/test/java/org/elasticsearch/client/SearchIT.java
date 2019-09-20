@@ -1092,7 +1092,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
             assertThat(explainResponse.getIndex(), equalTo("index1"));
-            assertThat(explainResponse.getType(), equalTo("_doc"));
             assertThat(Integer.valueOf(explainResponse.getId()), equalTo(1));
             assertTrue(explainResponse.isExists());
             assertTrue(explainResponse.isMatch());
@@ -1107,7 +1106,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
             assertThat(explainResponse.getIndex(), equalTo("index1"));
-            assertThat(explainResponse.getType(), equalTo("_doc"));
             assertThat(Integer.valueOf(explainResponse.getId()), equalTo(1));
             assertTrue(explainResponse.isExists());
             assertTrue(explainResponse.isMatch());
@@ -1122,7 +1120,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
             assertThat(explainResponse.getIndex(), equalTo("index1"));
-            assertThat(explainResponse.getType(), equalTo("_doc"));
             assertThat(Integer.valueOf(explainResponse.getId()), equalTo(1));
             assertTrue(explainResponse.isExists());
             assertFalse(explainResponse.isMatch());
@@ -1138,7 +1135,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
             assertThat(explainResponse.getIndex(), equalTo("index1"));
-            assertThat(explainResponse.getType(), equalTo("_doc"));
             assertThat(Integer.valueOf(explainResponse.getId()), equalTo(1));
             assertTrue(explainResponse.isExists());
             assertFalse(explainResponse.isMatch());
@@ -1166,7 +1162,6 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             ExplainResponse explainResponse = execute(explainRequest, highLevelClient()::explain, highLevelClient()::explainAsync);
 
             assertThat(explainResponse.getIndex(), equalTo("index1"));
-            assertThat(explainResponse.getType(), equalTo("_doc"));
             assertThat(explainResponse.getId(), equalTo("999"));
             assertFalse(explainResponse.isExists());
             assertFalse(explainResponse.isMatch());
@@ -1378,7 +1373,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertCountHeader(countResponse);
         assertEquals(3, countResponse.getCount());
     }
-    
+
     public void testSearchWithBasicLicensedQuery() throws IOException {
         SearchRequest searchRequest = new SearchRequest("index");
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
@@ -1390,7 +1385,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertFirstHit(searchResponse, hasId("2"));
         assertSecondHit(searchResponse, hasId("1"));
     }
-    
+
     private static void assertCountHeader(CountResponse countResponse) {
         assertEquals(0, countResponse.getSkippedShards());
         assertEquals(0, countResponse.getFailedShards());

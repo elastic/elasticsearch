@@ -504,9 +504,7 @@ final class RequestConverters {
     }
 
     static Request explain(ExplainRequest explainRequest) throws IOException {
-        String endpoint = explainRequest.type().equals(MapperService.SINGLE_MAPPING_NAME)
-            ? endpoint(explainRequest.index(), "_explain", explainRequest.id())
-            : endpoint(explainRequest.index(), explainRequest.type(), explainRequest.id(), "_explain");
+        String endpoint = endpoint(explainRequest.index(), "_explain", explainRequest.id());
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         Params params = new Params();

@@ -386,10 +386,9 @@ public interface Client extends ElasticsearchClient, Releasable {
      * Computes a score explanation for the specified request.
      *
      * @param index The index this explain is targeted for
-     * @param type  The type this explain is targeted for
      * @param id    The document identifier this explain is targeted for
      */
-    ExplainRequestBuilder prepareExplain(String index, String type, String id);
+    ExplainRequestBuilder prepareExplain(String index, String id);
 
     /**
      * Computes a score explanation for the specified request.

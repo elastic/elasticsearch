@@ -19,8 +19,8 @@
 
 package org.elasticsearch.packaging.util;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -55,11 +55,11 @@ import static org.junit.Assert.assertTrue;
  */
 public class Archives {
 
-    private static final Log logger = LogFactory.getLog(Archives.class);
+    protected static final Logger logger =  LogManager.getLogger(Archives.class);
 
     // in the future we'll run as a role user on Windows
     public static final String ARCHIVE_OWNER = Platforms.WINDOWS
-        ? "vagrant"
+        ? System.getenv("username")
         : "elasticsearch";
 
     public static Installation installArchive(Distribution distribution) throws Exception {
@@ -107,7 +107,8 @@ public class Archives {
         assertThat("only the intended installation exists", installations.get(0), is(fullInstallPath));
 
         Platforms.onLinux(() -> setupArchiveUsersLinux(fullInstallPath));
-        Platforms.onWindows(() -> setupArchiveUsersWindows(fullInstallPath));
+
+        sh.chown(fullInstallPath);
 
         return Installation.ofArchive(fullInstallPath);
     }
@@ -143,23 +144,6 @@ public class Archives {
                     "elasticsearch");
             }
         }
-        sh.run("chown -R elasticsearch:elasticsearch " + installPath);
-    }
-
-    private static void setupArchiveUsersWindows(Path installPath) {
-        // we want the installation to be owned as the vagrant user rather than the Administrators group
-
-        final Shell sh = new Shell();
-        sh.run(
-            "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
-            "$install = Get-ChildItem -Path '" + installPath + "' -Recurse; " +
-            "$install += Get-Item -Path '" + installPath + "'; " +
-            "$install | ForEach-Object { " +
-                "$acl = Get-Acl $_.FullName; " +
-                "$acl.SetOwner($account); " +
-                "Set-Acl $_.FullName $acl " +
-            "}"
-        );
     }
 
     public static void verifyArchiveInstallation(Installation installation, Distribution distribution) {
@@ -275,26 +259,45 @@ public class Archives {
 
         Platforms.onWindows(() -> {
             // this starts the server in the background. the -d flag is unsupported on windows
-            // these tests run as Administrator. we don't want to run the server as Administrator, so we provide the current user's
-            // username and password to the process which has the effect of starting it not as Administrator.
-            sh.run(
-                "$password = ConvertTo-SecureString 'vagrant' -AsPlainText -Force; " +
-                "$processInfo = New-Object System.Diagnostics.ProcessStartInfo; " +
-                "$processInfo.FileName = '" + bin.elasticsearch + "'; " +
-                "$processInfo.Arguments = '-p " + installation.home.resolve("elasticsearch.pid") + "'; " +
-                "$processInfo.Username = 'vagrant'; " +
-                "$processInfo.Password = $password; " +
-                "$processInfo.RedirectStandardOutput = $true; " +
-                "$processInfo.RedirectStandardError = $true; " +
-                sh.env.entrySet().stream()
-                    .map(entry -> "$processInfo.Environment.Add('" + entry.getKey() + "', '" + entry.getValue() + "'); ")
-                    .collect(joining()) +
-                "$processInfo.UseShellExecute = $false; " +
-                "$process = New-Object System.Diagnostics.Process; " +
-                "$process.StartInfo = $processInfo; " +
-                "$process.Start() | Out-Null; " +
-                "$process.Id;"
-            );
+            if (System.getenv("username").equals("vagrant")) {
+                // these tests run as Administrator in vagrant.
+                // we don't want to run the server as Administrator, so we provide the current user's
+                // username and password to the process which has the effect of starting it not as Administrator.
+                sh.run(
+                    "$password = ConvertTo-SecureString 'vagrant' -AsPlainText -Force; " +
+                        "$processInfo = New-Object System.Diagnostics.ProcessStartInfo; " +
+                        "$processInfo.FileName = '" + bin.elasticsearch + "'; " +
+                        "$processInfo.Arguments = '-p " + installation.home.resolve("elasticsearch.pid") + "'; " +
+                        "$processInfo.Username = 'vagrant'; " +
+                        "$processInfo.Password = $password; " +
+                        "$processInfo.RedirectStandardOutput = $true; " +
+                        "$processInfo.RedirectStandardError = $true; " +
+                        sh.env.entrySet().stream()
+                            .map(entry -> "$processInfo.Environment.Add('" + entry.getKey() + "', '" + entry.getValue() + "'); ")
+                            .collect(joining()) +
+                        "$processInfo.UseShellExecute = $false; " +
+                        "$process = New-Object System.Diagnostics.Process; " +
+                        "$process.StartInfo = $processInfo; " +
+                        "$process.Start() | Out-Null; " +
+                        "$process.Id;"
+                );
+            } else {
+                sh.run(
+                        "$processInfo = New-Object System.Diagnostics.ProcessStartInfo; " +
+                        "$processInfo.FileName = '" + bin.elasticsearch + "'; " +
+                        "$processInfo.Arguments = '-p " + installation.home.resolve("elasticsearch.pid") + "'; " +
+                        "$processInfo.RedirectStandardOutput = $true; " +
+                        "$processInfo.RedirectStandardError = $true; " +
+                        sh.env.entrySet().stream()
+                            .map(entry -> "$processInfo.Environment.Add('" + entry.getKey() + "', '" + entry.getValue() + "'); ")
+                            .collect(joining()) +
+                        "$processInfo.UseShellExecute = $false; " +
+                        "$process = New-Object System.Diagnostics.Process; " +
+                        "$process.StartInfo = $processInfo; " +
+                        "$process.Start() | Out-Null; " +
+                        "$process.Id;"
+                );
+            }
         });
 
         ServerUtils.waitForElasticsearch();

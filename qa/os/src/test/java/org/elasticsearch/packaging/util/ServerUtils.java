@@ -19,13 +19,13 @@
 
 package org.elasticsearch.packaging.util;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.fluent.Request;
 import org.apache.http.conn.HttpHostConnectException;
 import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.containsString;
 
 public class ServerUtils {
 
-    private static final Log LOG = LogFactory.getLog(ServerUtils.class);
+    protected static final Logger logger =  LogManager.getLogger(ServerUtils.class);
 
     private static final long waitTime = TimeUnit.SECONDS.toMillis(60);
     private static final long timeoutLength = TimeUnit.SECONDS.toMillis(10);
@@ -72,7 +72,7 @@ public class ServerUtils {
 
             } catch (HttpHostConnectException e) {
                 // we want to retry if the connection is refused
-                LOG.debug("Got connection refused when waiting for cluster health", e);
+                logger.debug("Got connection refused when waiting for cluster health", e);
             }
 
             timeElapsed = System.currentTimeMillis() - startTime;

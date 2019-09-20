@@ -104,13 +104,10 @@ public class ArchiveTests extends PackagingTestCase {
         // the keystore ends up being owned by the Administrators group, so we manually set it to be owned by the vagrant user here.
         // from the server's perspective the permissions aren't really different, this is just to reflect what we'd expect in the tests.
         // when we run these commands as a role user we won't have to do this
-        Platforms.onWindows(() -> sh.run(
-                bin.elasticsearchKeystore + " create; " +
-                "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
-                "$acl = Get-Acl '" + installation.config("elasticsearch.keystore") + "'; " +
-                "$acl.SetOwner($account); " +
-                "Set-Acl '" + installation.config("elasticsearch.keystore") + "' $acl"
-        ));
+        Platforms.onWindows(() -> {
+            sh.run(bin.elasticsearchKeystore + " create");
+            sh.chown(installation.config("elasticsearch.keystore"));
+        });
 
         assertThat(installation.config("elasticsearch.keystore"), file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660));
 
@@ -175,9 +172,10 @@ public class ArchiveTests extends PackagingTestCase {
     public void test53JavaHomeWithSpecialCharacters() throws Exception {
         Platforms.onWindows(() -> {
             final Shell sh = new Shell();
+            String javaPath = "C:\\Program Files (x86)\\java";
             try {
                 // once windows 2012 is no longer supported and powershell 5.0 is always available we can change this command
-                sh.run("cmd /c mklink /D 'C:\\Program Files (x86)\\java' $Env:SYSTEM_JAVA_HOME");
+                sh.run("cmd /c mklink /D '" + javaPath + "' $Env:SYSTEM_JAVA_HOME");
 
                 sh.getEnv().put("JAVA_HOME", "C:\\Program Files (x86)\\java");
 
@@ -192,7 +190,9 @@ public class ArchiveTests extends PackagingTestCase {
 
             } finally {
                 //clean up sym link
-                sh.run("cmd /c rmdir 'C:\\Program Files (x86)\\java' ");
+                if (Files.exists(Paths.get(javaPath))) {
+                    sh.run("cmd /c rmdir '" + javaPath + "' ");
+                }
             }
         });
 
@@ -226,6 +226,7 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test60AutoCreateKeystore() throws Exception {
+        sh.chown(installation.config("elasticsearch.keystore"));
         assertThat(installation.config("elasticsearch.keystore"), file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660));
 
         final Installation.Executables bin = installation.executables();
@@ -258,17 +259,8 @@ public class ArchiveTests extends PackagingTestCase {
                 "-Dlog4j2.disable.jmx=true\n";
             append(tempConf.resolve("jvm.options"), jvmOptions);
 
-            Platforms.onLinux(() -> sh.run("chown -R elasticsearch:elasticsearch " + tempConf));
-            Platforms.onWindows(() -> sh.run(
-                "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
-                "$tempConf = Get-ChildItem '" + tempConf + "' -Recurse; " +
-                "$tempConf += Get-Item '" + tempConf + "'; " +
-                "$tempConf | ForEach-Object { " +
-                    "$acl = Get-Acl $_.FullName; " +
-                    "$acl.SetOwner($account); " +
-                    "Set-Acl $_.FullName $acl " +
-                "}"
-            ));
+            final Shell sh = newShell();
+            sh.chown(tempConf);
 
             sh.getEnv().put("ES_PATH_CONF", tempConf.toString());
             sh.getEnv().put("ES_JAVA_OPTS", "-XX:-UseCompressedOops");
@@ -301,17 +293,8 @@ public class ArchiveTests extends PackagingTestCase {
 
             append(tempConf.resolve("elasticsearch.yml"), "node.name: relative");
 
-            Platforms.onLinux(() -> sh.run("chown -R elasticsearch:elasticsearch " + temp));
-            Platforms.onWindows(() -> sh.run(
-                "$account = New-Object System.Security.Principal.NTAccount 'vagrant'; " +
-                "$tempConf = Get-ChildItem '" + temp + "' -Recurse; " +
-                "$tempConf += Get-Item '" + temp + "'; " +
-                "$tempConf | ForEach-Object { " +
-                    "$acl = Get-Acl $_.FullName; " +
-                    "$acl.SetOwner($account); " +
-                    "Set-Acl $_.FullName $acl " +
-                "}"
-            ));
+            final Shell sh = newShell();
+            sh.chown(temp);
 
             sh.setWorkingDirectory(temp);
             sh.getEnv().put("ES_PATH_CONF", "config");

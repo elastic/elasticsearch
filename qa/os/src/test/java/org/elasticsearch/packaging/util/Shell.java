@@ -19,6 +19,8 @@
 
 package org.elasticsearch.packaging.util;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.SuppressForbidden;
 
 import java.io.BufferedReader;
@@ -26,16 +28,20 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 /**
  * Wrapper to run shell commands and collect their outputs in a less verbose way
  */
 public class Shell {
+
+    protected final Logger logger =  LogManager.getLogger(getClass());
 
     final Map<String, String> env;
     Path workingDirectory;
@@ -68,6 +74,20 @@ public class Shell {
         return runScriptIgnoreExitCode(getScriptCommand(script));
     }
 
+    public void chown(Path path) throws Exception {
+        Platforms.onLinux(() -> run("chown -R elasticsearch:elasticsearch " + path));
+        Platforms.onWindows(() -> run(
+            "$account = New-Object System.Security.Principal.NTAccount '" + System.getenv("username")  + "'; " +
+                "$tempConf = Get-ChildItem '" + path + "' -Recurse; " +
+                "$tempConf += Get-Item '" + path + "'; " +
+                "$tempConf | ForEach-Object { " +
+                "$acl = Get-Acl $_.FullName; " +
+                "$acl.SetOwner($account); " +
+                "Set-Acl $_.FullName $acl " +
+                "}"
+        ));
+    }
+
     public Result run( String command, Object... args) {
         String formattedCommand = String.format(Locale.ROOT, command, args);
         return run(formattedCommand);
@@ -91,7 +111,7 @@ public class Shell {
     private Result runScript(String[] command) {
         Result result = runScriptIgnoreExitCode(command);
         if (result.isSuccess() == false) {
-            throw new RuntimeException("Command was not successful: [" + String.join(" ", command) + "] result: " + result.toString());
+            throw new RuntimeException("Command was not successful: [" + String.join(" ", command) + "]\n   result: " + result.toString());
         }
         return result;
     }
@@ -115,8 +135,8 @@ public class Shell {
 
             Process process = builder.start();
 
-            StringBuilder stdout = new StringBuilder();
-            StringBuilder stderr = new StringBuilder();
+            StringBuffer stdout = new StringBuffer();
+            StringBuffer stderr = new StringBuffer();
 
             Thread stdoutThread = new Thread(new StreamCollector(process.getInputStream(), stdout));
             Thread stderrThread = new Thread(new StreamCollector(process.getErrorStream(), stderr));
@@ -124,15 +144,37 @@ public class Shell {
             stdoutThread.start();
             stderrThread.start();
 
-            stdoutThread.join();
-            stderrThread.join();
+            if (process.waitFor(10, TimeUnit.MINUTES) == false) {
+                // Try to wait for thread
+                tryToWaitForThread(stdoutThread);
+                tryToWaitForThread(stderrThread);
 
-            int exitCode = process.waitFor();
+                Result result = new Result(-1, stdout.toString(), stderr.toString());
+                throw new IllegalStateException(
+                    "Timed out running shell command: " + command + "\n" +
+                    "Result:\n" + result
+                );
+            }
+            int exitCode = process.exitValue();
 
-            return new Result(exitCode, stdout.toString(), stderr.toString());
+            // Try to wait for thread
+            tryToWaitForThread(stdoutThread);
+            tryToWaitForThread(stderrThread);
+
+            Result result = new Result(exitCode, stdout.toString(), stderr.toString());
+            logger.info("Ran: {}\nresult:{}\n", Arrays.toString(command), result);
+            return result;
 
         } catch (IOException | InterruptedException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    private void tryToWaitForThread(Thread stdoutThread) throws InterruptedException {
+        stdoutThread.join(TimeUnit.SECONDS.toMillis(1));
+        if (stdoutThread.isAlive()) {
+            stdoutThread.interrupt();
+            stdoutThread.join();
         }
     }
 
@@ -175,15 +217,15 @@ public class Shell {
             return new StringBuilder()
                 .append("<")
                 .append(this.getClass().getName())
-                .append(" ")
+                .append("\n")
                 .append("exitCode = [")
                 .append(exitCode)
                 .append("]")
-                .append(" ")
+                .append("\n")
                 .append("stdout = [")
                 .append(stdout)
                 .append("]")
-                .append(" ")
+                .append("\n")
                 .append("stderr = [")
                 .append(stderr)
                 .append("]")
@@ -203,17 +245,24 @@ public class Shell {
 
         public void run() {
             try {
-
                 BufferedReader reader = new BufferedReader(reader(input));
                 String line;
 
-                while ((line = reader.readLine()) != null) {
-                    appendable.append(line);
-                    appendable.append("\n");
-                }
-
+                do {
+                    while (reader.ready() == false) {
+                        Thread.sleep(100);
+                    }
+                    line = reader.readLine();
+                    if (line != null) {
+                        appendable.append(line);
+                        appendable.append("\n");
+                    }
+                } while (line != null);
             } catch (IOException e) {
                 throw new RuntimeException(e);
+            } catch (InterruptedException e) {
+                // It's expected that the control thread will interrupt, just exit
+                return;
             }
         }
 

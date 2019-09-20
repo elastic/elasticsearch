@@ -54,7 +54,7 @@ table.
 
 A single cluster will support up to 1,000 {transforms}.
 When using the 
-{ref}/get-data-frame-transform.html[GET {transforms} API] a total 
+{ref}/get-transform.html[GET {transforms} API] a total 
 `count` of {transforms} is returned. Use the `size` and `from` parameters to 
 enumerate through the full list.
 

@@ -5,13 +5,13 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Stop {dataframe-transform} API
+=== Stop {transform} API
 
-Stops a started {dataframe-transform}.
+Stops a started {transform}.
 It accepts a +{request}+ object and responds with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Stop {dataframe-transform} request
+==== Stop {transform} request
 
 A +{request}+ object requires a non-null `id`. `id` can be a comma separated
 list of IDs or a single ID. Wildcards, `*` and `_all` are also accepted.
@@ -21,7 +21,7 @@ list of IDs or a single ID. Wildcards, `*` and `_all` are also accepted.
 ---------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 ---------------------------------------------------
-<1> Constructing a new stop request referencing an existing {dataframe-transform}
+<1> Constructing a new stop request referencing an existing {transform}
 
 ==== Optional arguments
 
@@ -32,11 +32,11 @@ The following arguments are optional.
 include-tagged::{doc-tests-file}[{api}-request-options]
 --------------------------------------------------
 <1> If true wait for the data frame task to stop before responding
-<2> Controls the amount of time to wait until the {dataframe-transform} stops.
-<3> Whether to ignore if a wildcard expression matches no transforms.
+<2> Controls the amount of time to wait until the {transform} stops.
+<3> Whether to ignore if a wildcard expression matches no {transforms}.
 
 include::../execution.asciidoc[]
 
 ==== Response
 
-The returned +{response}+ object acknowledges the {dataframe-transform} has stopped.
+The returned +{response}+ object acknowledges the {transform} has stopped.

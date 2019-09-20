@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.is;
 public class SecurityCachePermissionTests extends SecurityIntegTestCase {
 
     private final String READ_ONE_IDX_USER = "read_user";
-    
+
     @Override
     public String configUsers() {
         return super.configUsers()
@@ -68,7 +68,7 @@ public class SecurityCachePermissionTests extends SecurityIntegTestCase {
                     .execute().actionGet();
             fail("search phase exception should have been thrown! response was:\n" + response.toString());
         } catch (ElasticsearchSecurityException e) {
-            assertThat(e.toString(), containsString("ElasticsearchSecurityException[action"));
+            assertThat(e.toString(), containsString("ElasticsearchSecurityException: action"));
             assertThat(e.toString(), containsString("unauthorized"));
         }
     }

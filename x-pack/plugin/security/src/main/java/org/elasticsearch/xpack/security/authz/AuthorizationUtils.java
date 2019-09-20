@@ -19,8 +19,8 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.REINDEX_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.DATA_FRAME_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.DEPRECATION_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -107,7 +107,7 @@ public final class AuthorizationUtils {
             case WATCHER_ORIGIN:
             case ML_ORIGIN:
             case MONITORING_ORIGIN:
-            case DATA_FRAME_ORIGIN:
+            case TRANSFORM_ORIGIN:
             case DEPRECATION_ORIGIN:
             case PERSISTENT_TASK_ORIGIN:
             case ROLLUP_ORIGIN:

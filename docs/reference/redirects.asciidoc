@@ -834,3 +834,7 @@ See <<ccs-works>>.
 [role="exclude",id="administer-elasticsearch"]
 === Administering {es}
 See <<high-availability>>.
+
+[role="exclude",id="slm-api"]
+=== Snapshot lifecycle management API
+See <<snapshot-lifecycle-management-api>>.

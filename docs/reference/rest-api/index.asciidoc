@@ -28,7 +28,7 @@ not be included yet.
 * <<rollup-apis,Rollup APIs>>
 * <<search, Search APIs>>
 * <<security-api,Security APIs>>
-* <<data-frame-apis,{transform-cap} APIs>>
+* <<transform-apis,{transform-cap} APIs>>
 * <<watcher-api,Watcher APIs>>
 --
 

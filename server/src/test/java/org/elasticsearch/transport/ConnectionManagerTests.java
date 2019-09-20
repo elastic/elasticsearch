@@ -202,7 +202,7 @@ public class ConnectionManagerTests extends ESTestCase {
             throw failure.get();
         }
 
-        assertEquals(100, nodeConnectedCount.get() + nodeFailureCount.get());
+        assertEquals(10, nodeConnectedCount.get() + nodeFailureCount.get());
     }
 
     public void testConnectFailsDuringValidation() {

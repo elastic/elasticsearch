@@ -14,8 +14,9 @@ be available but will not use the `_field_names` field.
 [[disable-field-names]]
 ==== Disabling `_field_names`
 
-Disabling `_field_names` is usually no longer possible. It is enabled by default because it no longer
-carries the index overhead it once did.
+Disabling `_field_names` is no longer possible. It is now enabled by default
+because it no longer carries the index overhead it once did.
 
-NOTE: Support for disabling `_field_names` has been removed. Using it on new indices will throw an error. Using it in
-pre-8.0 indices is still allowed but issues a deprecation warning.
+NOTE: Support for disabling `_field_names` has been removed. Using it on new
+indices will throw an error. Using it in pre-8.0 indices is still allowed but
+issues a deprecation warning.

@@ -894,7 +894,7 @@ public class FieldSortIT extends ESIntegTestCase {
         } catch (SearchPhaseExecutionException e) {
             //we check that it's a parse failure rather than a different shard failure
             for (ShardSearchFailure shardSearchFailure : e.shardFailures()) {
-                assertThat(shardSearchFailure.toString(), containsString("[No mapping found for [kkk] in order to sort on]"));
+                assertThat(shardSearchFailure.getCause().toString(), containsString("No mapping found for [kkk] in order to sort on"));
             }
         }
 

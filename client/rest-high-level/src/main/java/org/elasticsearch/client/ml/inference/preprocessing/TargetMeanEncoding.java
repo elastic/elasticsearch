@@ -36,7 +36,7 @@ import java.util.Objects;
  */
 public class TargetMeanEncoding implements PreProcessor {
 
-    public static final ParseField NAME = new ParseField("target_mean_encoding");
+    public static final String NAME = "target_mean_encoding";
     public static final ParseField FIELD = new ParseField("field");
     public static final ParseField FEATURE_NAME = new ParseField("feature_name");
     public static final ParseField TARGET_MEANS = new ParseField("target_means");
@@ -44,7 +44,7 @@ public class TargetMeanEncoding implements PreProcessor {
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<TargetMeanEncoding, Void> PARSER = new ConstructingObjectParser<>(
-        NAME.getPreferredName(),
+        NAME,
         true,
         a -> new TargetMeanEncoding((String)a[0], (String)a[1], (Map<String, Double>)a[2], (Double)a[3]));
     static {
@@ -102,7 +102,7 @@ public class TargetMeanEncoding implements PreProcessor {
 
     @Override
     public String getName() {
-        return NAME.getPreferredName();
+        return NAME;
     }
 
     @Override

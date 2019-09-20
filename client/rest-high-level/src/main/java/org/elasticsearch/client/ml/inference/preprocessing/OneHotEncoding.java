@@ -35,13 +35,13 @@ import java.util.Objects;
  */
 public class OneHotEncoding implements PreProcessor {
 
-    public static final ParseField NAME = new ParseField("one_hot_encoding");
+    public static final String NAME = "one_hot_encoding";
     public static final ParseField FIELD = new ParseField("field");
     public static final ParseField HOT_MAP = new ParseField("hot_map");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<OneHotEncoding, Void> PARSER = new ConstructingObjectParser<>(
-        NAME.getPreferredName(),
+        NAME,
         true,
         a -> new OneHotEncoding((String)a[0], (Map<String, String>)a[1]));
     static {
@@ -77,7 +77,7 @@ public class OneHotEncoding implements PreProcessor {
 
     @Override
     public String getName() {
-        return NAME.getPreferredName();
+        return NAME;
     }
 
     @Override

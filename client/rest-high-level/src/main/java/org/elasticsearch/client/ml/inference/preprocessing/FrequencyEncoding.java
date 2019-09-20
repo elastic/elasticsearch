@@ -36,14 +36,14 @@ import java.util.Objects;
  */
 public class FrequencyEncoding implements PreProcessor {
 
-    public static final ParseField NAME = new ParseField("frequency_encoding");
+    public static final String NAME = "frequency_encoding";
     public static final ParseField FIELD = new ParseField("field");
     public static final ParseField FEATURE_NAME = new ParseField("feature_name");
     public static final ParseField FREQUENCY_MAP = new ParseField("frequency_map");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<FrequencyEncoding, Void> PARSER = new ConstructingObjectParser<>(
-        NAME.getPreferredName(),
+        NAME,
         true,
         a -> new FrequencyEncoding((String)a[0], (String)a[1], (Map<String, Double>)a[2]));
     static {
@@ -91,7 +91,7 @@ public class FrequencyEncoding implements PreProcessor {
 
     @Override
     public String getName() {
-        return NAME.getPreferredName();
+        return NAME;
     }
 
     @Override

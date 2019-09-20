@@ -947,10 +947,4 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         return namedXContent;
     }
 
-    @Override
-    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
-        namedWriteables.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
-        return namedWriteables;
-    }
 }

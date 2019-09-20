@@ -22,6 +22,7 @@ import org.elasticsearch.client.ml.inference.preprocessing.FrequencyEncoding;
 import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.client.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.client.ml.inference.preprocessing.TargetMeanEncoding;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 
@@ -35,11 +36,11 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
 
         // PreProcessing
-        namedXContent.add(new NamedXContentRegistry.Entry(PreProcessor.class, OneHotEncoding.NAME,
+        namedXContent.add(new NamedXContentRegistry.Entry(PreProcessor.class, new ParseField(OneHotEncoding.NAME),
             OneHotEncoding::fromXContent));
-        namedXContent.add(new NamedXContentRegistry.Entry(PreProcessor.class, TargetMeanEncoding.NAME,
+        namedXContent.add(new NamedXContentRegistry.Entry(PreProcessor.class, new ParseField(TargetMeanEncoding.NAME),
             TargetMeanEncoding::fromXContent));
-        namedXContent.add(new NamedXContentRegistry.Entry(PreProcessor.class, FrequencyEncoding.NAME,
+        namedXContent.add(new NamedXContentRegistry.Entry(PreProcessor.class, new ParseField(FrequencyEncoding.NAME),
             FrequencyEncoding::fromXContent));
         return namedXContent;
     }

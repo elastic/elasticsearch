@@ -10,7 +10,7 @@ Security protects {es} clusters by:
 * <<preventing-unauthorized-access, Preventing unauthorized access>>
   with password protection, role-based access control, and IP filtering.
 * <<preserving-data-integrity, Preserving the integrity of your data>>
-  with message authentication and SSL/TLS encryption.
+  with SSL/TLS encryption.
 * <<maintaining-audit-trail, Maintaining an audit trail>>
   so you know who's doing what to your cluster and the data it stores.
 

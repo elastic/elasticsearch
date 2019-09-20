@@ -66,7 +66,6 @@ public class ExplainResponseTests extends AbstractSerializingTestCase<ExplainRes
         List<Object> values = Arrays.asList(randomAlphaOfLengthBetween(3, 10), randomInt(), randomLong(), randomDouble(), randomBoolean());
         GetResult getResult = new GetResult(randomAlphaOfLengthBetween(3, 10),
             randomAlphaOfLengthBetween(3, 10),
-            randomAlphaOfLengthBetween(3, 10),
             0, 1, randomNonNegativeLong(),
             true,
             RandomObjects.randomSource(random()),
@@ -85,7 +84,7 @@ public class ExplainResponseTests extends AbstractSerializingTestCase<ExplainRes
         String id = "1";
         boolean exist = true;
         Explanation explanation = Explanation.match(1.0f, "description", Collections.emptySet());
-        GetResult getResult = new GetResult(null, null, null, 0, 1, -1, true, new BytesArray("{ \"field1\" : " +
+        GetResult getResult = new GetResult(null, null, 0, 1, -1, true, new BytesArray("{ \"field1\" : " +
             "\"value1\", \"field2\":\"value2\"}"), singletonMap("field1", new DocumentField("field1",
             singletonList("value1"))), null);
         ExplainResponse response = new ExplainResponse(index, type, id, exist, explanation, getResult);

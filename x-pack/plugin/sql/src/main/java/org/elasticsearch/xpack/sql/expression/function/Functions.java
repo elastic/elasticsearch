@@ -23,12 +23,12 @@ public abstract class Functions {
         return e instanceof GroupingFunction;
     }
 
-    public static Map<String, Function> collectFunctions(QueryPlan<?> plan) {
-        Map<String, Function> resolvedFunctions = new LinkedHashMap<>();
+    public static Map<Integer, Function> collectFunctions(QueryPlan<?> plan) {
+        Map<Integer, Function> resolvedFunctions = new LinkedHashMap<>();
         plan.forEachExpressionsDown(e -> {
             if (e.resolved() && e instanceof Function) {
                 Function f = (Function) e;
-                resolvedFunctions.put(f.functionId(), f);
+                resolvedFunctions.put(f.semanticHash(), f);
             }
         });
         return resolvedFunctions;

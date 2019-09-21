@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -21,6 +22,8 @@ import java.util.Objects;
  * function is always a {@code NamedExpression}.
  */
 public abstract class Function extends Expression {
+
+    private final String functionName = getClass().getSimpleName().toUpperCase(Locale.ROOT);
 
     private Pipe lazyPipe = null;
 
@@ -31,6 +34,10 @@ public abstract class Function extends Expression {
 
     public final List<Expression> arguments() {
         return children();
+    }
+
+    public String functionName() {
+        return functionName;
     }
 
     @Override

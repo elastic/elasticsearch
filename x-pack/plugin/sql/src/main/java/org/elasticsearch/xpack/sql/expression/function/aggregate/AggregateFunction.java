@@ -49,6 +49,11 @@ public abstract class AggregateFunction extends Function {
     }
 
     @Override
+    protected TypeResolution resolveType() {
+        return TypeResolutions.isExact(field, sourceText(), Expressions.ParamOrdinal.DEFAULT);
+    }
+
+    @Override
     protected Pipe makePipe() {
         // unresolved AggNameInput (should always get replaced by the folder)
         return new AggNameInput(source(), this, sourceText());
@@ -68,14 +73,9 @@ public abstract class AggregateFunction extends Function {
     public boolean equals(Object obj) {
         if (super.equals(obj) == true) {
             AggregateFunction other = (AggregateFunction) obj;
-            return Objects.equals(other.field(), field()) 
+            return Objects.equals(other.field(), field())
                     && Objects.equals(other.parameters(), parameters());
         }
         return false;
-    }
-
-    @Override
-    protected TypeResolution resolveType() {
-        return TypeResolutions.isExact(field, sourceText(), Expressions.ParamOrdinal.DEFAULT);
     }
 }

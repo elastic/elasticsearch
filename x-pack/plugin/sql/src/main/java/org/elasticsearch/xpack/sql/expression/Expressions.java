@@ -101,7 +101,7 @@ public final class Expressions {
     }
 
     public static String name(Expression e) {
-        return e instanceof NamedExpression ? ((NamedExpression) e).name() : e.nodeName();
+        return e instanceof NamedExpression ? ((NamedExpression) e).name() : e.sourceText();
     }
 
     public static boolean isNull(Expression e) {
@@ -120,9 +120,6 @@ public final class Expressions {
     public static Attribute attribute(Expression e) {
         if (e instanceof NamedExpression) {
             return ((NamedExpression) e).toAttribute();
-        }
-        if (e != null && e.foldable()) {
-            return Literal.of(e).toAttribute();
         }
         return null;
     }

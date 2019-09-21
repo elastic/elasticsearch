@@ -28,8 +28,6 @@ public abstract class GroupingFunction extends Function {
     private final Expression field;
     private final List<Expression> parameters;
 
-    private GroupingFunctionAttribute lazyAttribute;
-
     protected GroupingFunction(Source source, Expression field) {
         this(source, field, emptyList());
     }

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.expression.function;
 
 import org.elasticsearch.xpack.sql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.sql.capabilities.UnresolvedException;
-import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.Nullability;
@@ -141,11 +140,6 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     @Override
     public Nullability nullable() {
         throw new UnresolvedException("nullable", this);
-    }
-
-    @Override
-    public Attribute toAttribute() {
-        throw new UnresolvedException("attribute", this);
     }
 
     @Override

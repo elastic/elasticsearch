@@ -110,7 +110,7 @@ public class In extends ScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        TypeResolution resolution = TypeResolutions.isExact(value, sourceText(), Expressions.ParamOrdinal.DEFAULT);
+        TypeResolution resolution = TypeResolutions.isExact(value, functionName(), Expressions.ParamOrdinal.DEFAULT);
         if (resolution.unresolved()) {
             return resolution;
         }

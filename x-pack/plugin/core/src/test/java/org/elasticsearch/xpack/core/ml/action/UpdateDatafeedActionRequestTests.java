@@ -30,7 +30,7 @@ public class UpdateDatafeedActionRequestTests extends AbstractSerializingTestCas
 
     @Override
     protected Request createTestInstance() {
-        return new Request(DatafeedUpdateTests.createRandomized(datafeedId, null, false));
+        return new Request(DatafeedUpdateTests.createRandomized(datafeedId));
     }
 
     @Override

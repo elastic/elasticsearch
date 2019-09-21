@@ -434,7 +434,13 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
         TimestampFormatFinder timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, true, NOOP_TIMEOUT_CHECKER);
 
         // Locale fallback is the only way to decide
+
+        // The US locale should work for both FIPS and non-FIPS
         assertFalse(timestampFormatFinder.guessIsDayFirstFromLocale(Locale.US));
+
+        // Non-US locales may not work correctly in a FIPS JVM - see https://github.com/elastic/elasticsearch/issues/45140
+        assumeFalse("Locales not reliable in FIPS JVM", inFipsJvm());
+
         assertTrue(timestampFormatFinder.guessIsDayFirstFromLocale(Locale.UK));
         assertTrue(timestampFormatFinder.guessIsDayFirstFromLocale(Locale.FRANCE));
         assertFalse(timestampFormatFinder.guessIsDayFirstFromLocale(Locale.JAPAN));

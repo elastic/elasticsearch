@@ -143,7 +143,8 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
         return deprecations;
     }
 
-    public Map<String, Object> getQuery() {
+    // Visible for testing
+    Map<String, Object> getQuery() {
         return queryProvider.getQuery();
     }
 }

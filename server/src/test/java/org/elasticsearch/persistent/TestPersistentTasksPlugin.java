@@ -22,10 +22,10 @@ package org.elasticsearch.persistent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
@@ -217,10 +217,6 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             return minVersion;
         }
 
-        @Override
-        public Optional<String> getRequiredFeature() {
-            return feature;
-        }
     }
 
     public static class State implements PersistentTaskState {

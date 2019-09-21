@@ -22,9 +22,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
-import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
-import org.elasticsearch.xpack.core.snapshotlifecycle.action.DeleteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.slm.action.DeleteSnapshotLifecycleAction;
 
 import java.io.IOException;
 import java.util.Map;
@@ -55,7 +55,7 @@ public class TransportDeleteSnapshotLifecycleAction extends
                                    ClusterState state,
                                    ActionListener<DeleteSnapshotLifecycleAction.Response> listener) throws Exception {
         clusterService.submitStateUpdateTask("delete-snapshot-lifecycle-" + request.getLifecycleId(),
-            new AckedClusterStateUpdateTask<DeleteSnapshotLifecycleAction.Response>(request, listener) {
+            new AckedClusterStateUpdateTask<>(request, listener) {
                 @Override
                 protected DeleteSnapshotLifecycleAction.Response newResponse(boolean acknowledged) {
                     return new DeleteSnapshotLifecycleAction.Response(acknowledged);
@@ -82,7 +82,8 @@ public class TransportDeleteSnapshotLifecycleAction extends
                     return ClusterState.builder(currentState)
                         .metaData(MetaData.builder(metaData)
                             .putCustom(SnapshotLifecycleMetadata.TYPE,
-                                new SnapshotLifecycleMetadata(newConfigs, snapMeta.getOperationMode())))
+                                new SnapshotLifecycleMetadata(newConfigs,
+                                    snapMeta.getOperationMode(), snapMeta.getStats().removePolicy(request.getLifecycleId()))))
                         .build();
                 }
             });

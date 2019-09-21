@@ -38,8 +38,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.geo.geometry.Rectangle;
-import org.elasticsearch.geo.utils.Geohash;
+import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
@@ -183,7 +183,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     public GeoBoundingBoxQueryBuilder setCorners(final String geohash) {
         // get the bounding box of the geohash and set topLeft and bottomRight
         Rectangle ghBBox = Geohash.toBoundingBox(geohash);
-        return setCorners(new GeoPoint(ghBBox.getMaxLat(), ghBBox.getMinLon()), new GeoPoint(ghBBox.getMinLat(), ghBBox.getMaxLon()));
+        return setCorners(new GeoPoint(ghBBox.getMaxY(), ghBBox.getMinX()), new GeoPoint(ghBBox.getMinY(), ghBBox.getMaxX()));
     }
 
     /**

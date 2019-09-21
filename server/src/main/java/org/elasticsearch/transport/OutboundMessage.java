@@ -19,6 +19,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -82,19 +83,20 @@ abstract class OutboundMessage extends NetworkMessage {
 
     static class Request extends OutboundMessage {
 
-        private final String[] features;
         private final String action;
 
-        Request(ThreadContext threadContext, String[] features, Writeable message, Version version, String action, long requestId,
+        Request(ThreadContext threadContext, Writeable message, Version version, String action, long requestId,
                 boolean isHandshake, boolean compress) {
             super(threadContext, version, setStatus(compress, isHandshake, message), requestId, message);
-            this.features = features;
             this.action = action;
         }
 
         @Override
         protected BytesReference writeMessage(CompressibleBytesOutputStream out) throws IOException {
-            out.writeStringArray(features);
+            if (version.before(Version.V_8_0_0)) {
+                // empty features array
+                out.writeStringArray(Strings.EMPTY_ARRAY);
+            }
             out.writeString(action);
             return super.writeMessage(out);
         }

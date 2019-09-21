@@ -82,7 +82,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
                     throw new IllegalArgumentException("The mapping definition cannot be nested under a type " +
                         "[" + MapperService.SINGLE_MAPPING_NAME + "] unless include_type_name is set to true.");
                 }
-                request.createIndexRequest.mapping(MapperService.SINGLE_MAPPING_NAME, parser.map());
+                request.createIndexRequest.mapping(MapperService.SINGLE_MAPPING_NAME, mappings);
             }
         }, CreateIndexRequest.MAPPINGS, ObjectParser.ValueType.OBJECT);
         PARSER.declareField((parser, request, context) -> request.createIndexRequest.aliases(parser.map()),

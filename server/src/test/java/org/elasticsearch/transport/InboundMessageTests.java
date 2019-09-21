@@ -51,7 +51,7 @@ public class InboundMessageTests extends ESTestCase {
         boolean compress = randomBoolean();
         threadContext.putHeader("header", "header_value");
         Version version = randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion());
-        OutboundMessage.Request request = new OutboundMessage.Request(threadContext, features, message, version, action, requestId,
+        OutboundMessage.Request request = new OutboundMessage.Request(threadContext, message, version, action, requestId,
             isHandshake, compress);
         BytesReference reference;
         try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
@@ -74,7 +74,6 @@ public class InboundMessageTests extends ESTestCase {
         assertEquals(compress, inboundMessage.isCompress());
         assertEquals(version, inboundMessage.getVersion());
         assertEquals(action, inboundMessage.getActionName());
-        assertEquals(new HashSet<>(Arrays.asList(features)), inboundMessage.getFeatures());
         assertTrue(inboundMessage.isRequest());
         assertFalse(inboundMessage.isResponse());
         assertFalse(inboundMessage.isError());
@@ -208,7 +207,7 @@ public class InboundMessageTests extends ESTestCase {
         String action = randomAlphaOfLength(10);
         long requestId = randomLong();
         boolean compress = randomBoolean();
-        OutboundMessage.Request request = new OutboundMessage.Request(threadContext, features, message, version, action, requestId,
+        OutboundMessage.Request request = new OutboundMessage.Request(threadContext, message, version, action, requestId,
             isHandshake, compress);
         BytesReference reference;
         try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {

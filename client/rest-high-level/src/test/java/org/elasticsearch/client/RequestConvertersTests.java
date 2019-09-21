@@ -152,17 +152,13 @@ public class RequestConvertersTests extends ESTestCase {
         getAndExistsTest(RequestConverters::get, HttpGet.METHOD_NAME);
     }
 
-    public void testGetWithType() {
-        getAndExistsWithTypeTest(RequestConverters::get, HttpGet.METHOD_NAME);
-    }
-
     public void testSourceExists() throws IOException {
         doTestSourceExists((index, id) -> new GetRequest(index, id));
     }
 
     public void testSourceExistsWithType() throws IOException {
         String type = frequently() ? randomAlphaOfLengthBetween(3, 10) : MapperService.SINGLE_MAPPING_NAME;
-        doTestSourceExists((index, id) -> new GetRequest(index, type, id));
+        doTestSourceExists((index, id) -> new GetRequest(index, id));
     }
 
     private static void doTestSourceExists(BiFunction<String, String, GetRequest> requestFunction) throws IOException {
@@ -197,12 +193,7 @@ public class RequestConvertersTests extends ESTestCase {
         }
         Request request = RequestConverters.sourceExists(getRequest);
         assertEquals(HttpHead.METHOD_NAME, request.getMethod());
-        String type = getRequest.type();
-        if (type.equals(MapperService.SINGLE_MAPPING_NAME)) {
-            assertEquals("/" + index + "/_source/" + id, request.getEndpoint());
-        } else {
-            assertEquals("/" + index + "/" + type + "/" + id + "/_source", request.getEndpoint());
-        }
+        assertEquals("/" + index + "/_source/" + id, request.getEndpoint());
 
         assertEquals(expectedParams, request.getParameters());
         assertNull(request.getEntity());
@@ -260,7 +251,6 @@ public class RequestConvertersTests extends ESTestCase {
     public void testMultiGetWithType() throws IOException {
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         MultiGetRequest.Item item = new MultiGetRequest.Item(randomAlphaOfLength(4),
-            randomAlphaOfLength(4),
             randomAlphaOfLength(4));
         multiGetRequest.add(item);
 
@@ -312,10 +302,6 @@ public class RequestConvertersTests extends ESTestCase {
 
     public void testExists() {
         getAndExistsTest(RequestConverters::exists, HttpHead.METHOD_NAME);
-    }
-
-    public void testExistsWithType() {
-        getAndExistsWithTypeTest(RequestConverters::exists, HttpHead.METHOD_NAME);
     }
 
     private static void getAndExistsTest(Function<GetRequest, Request> requestConverter, String method) {
@@ -377,12 +363,11 @@ public class RequestConvertersTests extends ESTestCase {
 
     private static void getAndExistsWithTypeTest(Function<GetRequest, Request> requestConverter, String method) {
         String index = randomAlphaOfLengthBetween(3, 10);
-        String type = randomAlphaOfLengthBetween(3, 10);
         String id = randomAlphaOfLengthBetween(3, 10);
-        GetRequest getRequest = new GetRequest(index, type, id);
+        GetRequest getRequest = new GetRequest(index, id);
 
         Request request = requestConverter.apply(getRequest);
-        assertEquals("/" + index + "/" + type + "/" + id, request.getEndpoint());
+        assertEquals("/" + index + "/" + id, request.getEndpoint());
         assertNull(request.getEntity());
         assertEquals(method, request.getMethod());
     }
@@ -438,6 +423,13 @@ public class RequestConvertersTests extends ESTestCase {
         }
         if (reindexRequest.getRemoteInfo() == null && randomBoolean()) {
             reindexRequest.setSourceQuery(new TermQueryBuilder("foo", "fooval"));
+        }
+        if (randomBoolean()) {
+            int slices = randomInt(100);
+            reindexRequest.setSlices(slices);
+            expectedParams.put("slices", String.valueOf(slices));
+        } else {
+            expectedParams.put("slices", "1");
         }
         setRandomTimeout(reindexRequest::setTimeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
         setRandomWaitForActiveShards(reindexRequest::setWaitForActiveShards, ActiveShardCount.DEFAULT, expectedParams);
@@ -1184,6 +1176,14 @@ public class RequestConvertersTests extends ESTestCase {
             countRequest.preference(randomAlphaOfLengthBetween(3, 10));
             expectedParams.put("preference", countRequest.preference());
         }
+        if (randomBoolean()) {
+            countRequest.terminateAfter(randomIntBetween(0, Integer.MAX_VALUE));
+            expectedParams.put("terminate_after", String.valueOf(countRequest.terminateAfter()));
+        }
+        if (randomBoolean()) {
+            countRequest.minScore((float) randomIntBetween(1, 10));
+            expectedParams.put("min_score", String.valueOf(countRequest.minScore()));
+        }
     }
 
     public void testMultiSearch() throws IOException {
@@ -1357,12 +1357,20 @@ public class RequestConvertersTests extends ESTestCase {
             multiSearchTemplateRequest.add(searchTemplateRequest);
         }
 
+        Map<String, String> expectedParams = new HashMap<>();
+        if (randomBoolean()) {
+            multiSearchTemplateRequest.maxConcurrentSearchRequests(randomIntBetween(1,10));
+            expectedParams.put("max_concurrent_searches", Integer.toString(multiSearchTemplateRequest.maxConcurrentSearchRequests()));
+        }
+        expectedParams.put(RestSearchAction.TYPED_KEYS_PARAM, "true");
+
         Request multiRequest = RequestConverters.multiSearchTemplate(multiSearchTemplateRequest);
 
         assertEquals(HttpPost.METHOD_NAME, multiRequest.getMethod());
         assertEquals("/_msearch/template", multiRequest.getEndpoint());
         List<SearchTemplateRequest> searchRequests = multiSearchTemplateRequest.requests();
         assertEquals(numSearchRequests, searchRequests.size());
+        assertEquals(expectedParams, multiRequest.getParameters());
 
         HttpEntity actualEntity = multiRequest.getEntity();
         byte[] expectedBytes = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, XContentType.JSON.xContent());

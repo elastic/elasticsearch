@@ -14,7 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase;
 import org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase;
 
 import java.io.IOException;
@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.containsString;
  * and which can affect the outcome of _source extraction and parsing when retrieving
  * values from Elasticsearch.
  */
-public abstract class FieldExtractorTestCase extends ESRestTestCase {
+public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
 
     /*
      *    "text_field": {
@@ -797,18 +797,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         index.endObject();
 
         request.setJsonEntity(Strings.toString(index));
-        client().performRequest(request);
-    }
-    
-    private void index(String... docs) throws IOException {
-        Request request = new Request("POST", "/test/_bulk");
-        request.addParameter("refresh", "true");
-        StringBuilder bulk = new StringBuilder();
-        for (String doc : docs) {
-            bulk.append("{\"index\":{}\n");
-            bulk.append(doc + "\n");
-        }
-        request.setJsonEntity(bulk.toString());
         client().performRequest(request);
     }
     

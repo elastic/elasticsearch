@@ -1,8 +1,8 @@
 ---
 "Copy settings during clone index":
   - skip:
-      version: " - 7.99.99"
-      reason: index cloning was added in 8.0.0
+      version: " - 7.3.99"
+      reason: index cloning was added in 7.4.0
       features: [arbitrary_key]
 
   - do:

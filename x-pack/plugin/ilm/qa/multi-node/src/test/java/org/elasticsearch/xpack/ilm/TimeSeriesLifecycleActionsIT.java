@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -22,23 +24,23 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.indexlifecycle.AllocateAction;
-import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
-import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
-import org.elasticsearch.xpack.core.indexlifecycle.ForceMergeAction;
-import org.elasticsearch.xpack.core.indexlifecycle.FreezeAction;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
-import org.elasticsearch.xpack.core.indexlifecycle.Phase;
-import org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction;
-import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
-import org.elasticsearch.xpack.core.indexlifecycle.SetPriorityAction;
-import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
-import org.elasticsearch.xpack.core.indexlifecycle.ShrinkStep;
-import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
-import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
-import org.elasticsearch.xpack.core.indexlifecycle.WaitForRolloverReadyStep;
+import org.elasticsearch.xpack.core.ilm.AllocateAction;
+import org.elasticsearch.xpack.core.ilm.DeleteAction;
+import org.elasticsearch.xpack.core.ilm.ErrorStep;
+import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
+import org.elasticsearch.xpack.core.ilm.FreezeAction;
+import org.elasticsearch.xpack.core.ilm.LifecycleAction;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.Phase;
+import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
+import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
+import org.elasticsearch.xpack.core.ilm.ShrinkAction;
+import org.elasticsearch.xpack.core.ilm.ShrinkStep;
+import org.elasticsearch.xpack.core.ilm.Step.StepKey;
+import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
+import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -54,15 +56,19 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     private String index;
     private String policy;
+
+    private static final Logger logger = LogManager.getLogger(TimeSeriesLifecycleActionsIT.class);
 
     @Before
     public void refreshIndex() {
@@ -381,7 +387,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // index document so snapshot actually does something
         indexDocument();
         // start snapshot
-        request = new Request("PUT", "/_snapshot/repo/snapshot");
+        String snapName = "snapshot-" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        request = new Request("PUT", "/_snapshot/repo/" + snapName);
         request.addParameter("wait_for_completion", "false");
         request.setJsonEntity("{\"indices\": \"" + index + "\"}");
         assertOK(client().performRequest(request));
@@ -390,8 +397,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // assert that index was deleted
         assertBusy(() -> assertFalse(indexExists(index)), 2, TimeUnit.MINUTES);
         // assert that snapshot is still in progress and clean up
-        assertThat(getSnapshotState("snapshot"), equalTo("SUCCESS"));
-        assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
+        assertThat(getSnapshotState(snapName), equalTo("SUCCESS"));
+        assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/" + snapName)));
     }
 
     public void testReadOnly() throws Exception {
@@ -670,7 +677,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         policy = randomAlphaOfLengthBetween(0,10) + "," + randomAlphaOfLengthBetween(0,10);
         ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
         assertThat(ex.getMessage(), containsString("invalid policy name"));
-        
+
         policy = randomAlphaOfLengthBetween(0,10) + "%20" + randomAlphaOfLengthBetween(0,10);
         ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
         assertThat(ex.getMessage(), containsString("invalid policy name"));
@@ -829,6 +836,45 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertOK(client().performRequest(startILMReqest));
     }
 
+    public void testExplainFilters() throws Exception {
+        String goodIndex = index + "-good-000001";
+        String errorIndex = index + "-error";
+        String nonexistantPolicyIndex = index + "-nonexistant-policy";
+        String unmanagedIndex = index + "-unmanaged";
+
+        createFullPolicy(TimeValue.ZERO);
+
+        createIndexWithSettings(goodIndex, Settings.builder()
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias")
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
+        createIndexWithSettingsNoAlias(errorIndex, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(LifecycleSettings.LIFECYCLE_NAME, policy));
+        createIndexWithSettingsNoAlias(nonexistantPolicyIndex, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(LifecycleSettings.LIFECYCLE_NAME, randomValueOtherThan(policy, () -> randomAlphaOfLengthBetween(3,10))));
+        createIndexWithSettingsNoAlias(unmanagedIndex, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+
+        assertBusy(() -> {
+            Map<String, Map<String, Object>> explainResponse = explain(index + "*", false, false);
+            assertNotNull(explainResponse);
+            assertThat(explainResponse,
+                allOf(hasKey(goodIndex), hasKey(errorIndex), hasKey(nonexistantPolicyIndex), hasKey(unmanagedIndex)));
+
+            Map<String, Map<String, Object>> onlyManagedResponse = explain(index + "*", false, true);
+            assertNotNull(onlyManagedResponse);
+            assertThat(onlyManagedResponse, allOf(hasKey(goodIndex), hasKey(errorIndex), hasKey(nonexistantPolicyIndex)));
+            assertThat(onlyManagedResponse, not(hasKey(unmanagedIndex)));
+
+            Map<String, Map<String, Object>> onlyErrorsResponse = explain(index + "*", true, randomBoolean());
+            assertNotNull(onlyErrorsResponse);
+            assertThat(onlyErrorsResponse, allOf(hasKey(errorIndex), hasKey(nonexistantPolicyIndex)));
+            assertThat(onlyErrorsResponse, allOf(not(hasKey(goodIndex)), not(hasKey(unmanagedIndex))));
+        });
+    }
+
     private void createFullPolicy(TimeValue hotTime) throws IOException {
         Map<String, LifecycleAction> hotActions = new HashMap<>();
         hotActions.put(SetPriorityAction.NAME, new SetPriorityAction(100));
@@ -920,7 +966,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         return (Map<String, Object>) response.get("settings");
     }
 
-    private StepKey getStepKeyForIndex(String indexName) throws IOException {
+    public static StepKey getStepKeyForIndex(String indexName) throws IOException {
         Map<String, Object> indexResponse = explainIndex(indexName);
         if (indexResponse == null) {
             return new StepKey(null, null, null);
@@ -947,16 +993,23 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         return ((Map<String, String>) indexResponse.get("step_info")).get("reason");
     }
 
-    private Map<String, Object> explainIndex(String indexName) throws IOException {
-        Request explainRequest = new Request("GET", indexName + "/_ilm/explain");
+    private static Map<String, Object> explainIndex(String indexName) throws IOException {
+        return explain(indexName, false, false).get(indexName);
+    }
+
+    private static Map<String, Map<String, Object>> explain(String indexPattern, boolean onlyErrors,
+                                                            boolean onlyManaged) throws IOException {
+        Request explainRequest = new Request("GET", indexPattern + "/_ilm/explain");
+        explainRequest.addParameter("only_errors", Boolean.toString(onlyErrors));
+        explainRequest.addParameter("only_managed", Boolean.toString(onlyManaged));
         Response response = client().performRequest(explainRequest);
         Map<String, Object> responseMap;
         try (InputStream is = response.getEntity().getContent()) {
             responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
         }
 
-        @SuppressWarnings("unchecked") Map<String, Object> indexResponse = ((Map<String, Map<String, Object>>) responseMap.get("indices"))
-            .get(indexName);
+        @SuppressWarnings("unchecked") Map<String, Map<String, Object>> indexResponse =
+            ((Map<String, Map<String, Object>>) responseMap.get("indices"));
         return indexResponse;
     }
 

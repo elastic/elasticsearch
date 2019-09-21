@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Collections;
 import java.util.DoubleSummaryStatistics;
 import java.util.HashSet;
@@ -27,12 +28,12 @@ import java.util.Map;
 import java.util.Random;
 import java.util.SortedMap;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 public class DelimitedFileStructureFinder implements FileStructureFinder {
 
     private static final String REGEX_NEEDS_ESCAPE_PATTERN = "([\\\\|()\\[\\]{}^$.+*?])";
     private static final int MAX_LEVENSHTEIN_COMPARISONS = 100;
+    private static final int LONG_FIELD_THRESHOLD = 100;
 
     private final List<String> sampleMessages;
     private final FileStructure structure;
@@ -322,10 +323,15 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
         explanation.add("First row is not unusual based on length test: [" + firstRowLength + "] and [" +
             toNiceString(otherRowStats) + "]");
 
-        // Check edit distances
+        // Check edit distances between short fields
 
+        BitSet shortFieldMask = makeShortFieldMask(rows, LONG_FIELD_THRESHOLD);
+
+        // The reason that only short fields are included is that sometimes
+        // there are "message" fields that are much longer than the other
+        // fields, vary enormously between rows, and skew the comparison.
         DoubleSummaryStatistics firstRowStats = otherRows.stream().limit(MAX_LEVENSHTEIN_COMPARISONS)
-            .mapToDouble(otherRow -> (double) levenshteinFieldwiseCompareRows(firstRow, otherRow))
+            .mapToDouble(otherRow -> (double) levenshteinFieldwiseCompareRows(firstRow, otherRow, shortFieldMask))
             .collect(DoubleSummaryStatistics::new, DoubleSummaryStatistics::accept, DoubleSummaryStatistics::combine);
 
         otherRowStats = new DoubleSummaryStatistics();
@@ -336,7 +342,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
         for (int i = 0; numComparisons < MAX_LEVENSHTEIN_COMPARISONS && i < otherRowStrs.size(); ++i) {
             for (int j = i + 1 + random.nextInt(innerIncrement); numComparisons < MAX_LEVENSHTEIN_COMPARISONS && j < otherRowStrs.size();
                  j += innerIncrement) {
-                otherRowStats.accept((double) levenshteinFieldwiseCompareRows(otherRows.get(i), otherRows.get(j)));
+                otherRowStats.accept((double) levenshteinFieldwiseCompareRows(otherRows.get(i), otherRows.get(j), shortFieldMask));
                 ++numComparisons;
             }
         }
@@ -359,29 +365,57 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
     }
 
     /**
+     * Make a mask whose bits are set when the corresponding field in every supplied
+     * row is short, and unset if the corresponding field in any supplied row is long.
+     */
+    static BitSet makeShortFieldMask(List<List<String>> rows, int longFieldThreshold) {
+
+        assert rows.isEmpty() == false;
+
+        BitSet shortFieldMask = new BitSet();
+
+        int maxLength = rows.stream().map(List::size).max(Integer::compareTo).get();
+        for (int index = 0; index < maxLength; ++index) {
+            final int i = index;
+            shortFieldMask.set(i,
+                rows.stream().allMatch(row -> i >= row.size() || row.get(i) == null || row.get(i).length() < longFieldThreshold));
+        }
+
+        return shortFieldMask;
+    }
+
+    /**
      * Sum of the Levenshtein distances between corresponding elements
-     * in the two supplied lists _excluding_ the biggest difference.
-     * The reason the biggest difference is excluded is that sometimes
-     * there's a "message" field that is much longer than any of the other
-     * fields, varies enormously between rows, and skews the comparison.
+     * in the two supplied lists.
      */
     static int levenshteinFieldwiseCompareRows(List<String> firstRow, List<String> secondRow) {
 
         int largestSize = Math.max(firstRow.size(), secondRow.size());
-        if (largestSize <= 1) {
+        if (largestSize < 1) {
             return 0;
         }
 
-        int[] distances = new int[largestSize];
+        BitSet allFields = new BitSet();
+        allFields.set(0, largestSize);
 
-        for (int index = 0; index < largestSize; ++index) {
-            distances[index] = levenshteinDistance((index < firstRow.size()) ? firstRow.get(index) : "",
+        return levenshteinFieldwiseCompareRows(firstRow, secondRow, allFields);
+    }
+
+    /**
+     * Sum of the Levenshtein distances between corresponding elements
+     * in the two supplied lists where the corresponding bit in the
+     * supplied bit mask is set.
+     */
+    static int levenshteinFieldwiseCompareRows(List<String> firstRow, List<String> secondRow, BitSet fieldMask) {
+
+        int result = 0;
+
+        for (int index = fieldMask.nextSetBit(0); index >= 0; index = fieldMask.nextSetBit(index + 1)) {
+            result += levenshteinDistance((index < firstRow.size()) ? firstRow.get(index) : "",
                 (index < secondRow.size()) ? secondRow.get(index) : "");
         }
 
-        Arrays.sort(distances);
-
-        return IntStream.of(distances).limit(distances.length - 1).sum();
+        return result;
     }
 
     /**

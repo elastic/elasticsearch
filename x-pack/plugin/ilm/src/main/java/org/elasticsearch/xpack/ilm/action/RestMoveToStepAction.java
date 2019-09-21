@@ -8,20 +8,18 @@
 package org.elasticsearch.xpack.ilm.action;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.indexlifecycle.action.MoveToStepAction;
+import org.elasticsearch.xpack.core.ilm.action.MoveToStepAction;
 
 import java.io.IOException;
 
 public class RestMoveToStepAction extends BaseRestHandler {
 
-    public RestMoveToStepAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestMoveToStepAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.POST,"/_ilm/move/{name}", this);
     }
 

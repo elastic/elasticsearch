@@ -733,7 +733,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         extends AbstractAsyncBulkByScrollAction<DummyAbstractBulkByScrollRequest, DummyTransportAsyncBulkByScrollAction> {
         DummyAsyncBulkByScrollAction() {
             super(testTask, randomBoolean(), randomBoolean(), AsyncBulkByScrollActionTests.this.logger,
-                new ParentTaskAssigningClient(client, localNode, testTask), client.threadPool(), null, testRequest, listener);
+                new ParentTaskAssigningClient(client, localNode, testTask), client.threadPool(), testRequest, listener, null, null);
         }
 
         @Override
@@ -878,7 +878,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                             new IndexResponse(
                                 shardId,
                                 index.type(),
-                                index.id(),
+                                index.id() == null ? "dummy_id" : index.id(),
                                 randomInt(20),
                                 randomIntBetween(1, 16),
                                 randomIntBetween(0, Integer.MAX_VALUE),

@@ -17,6 +17,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -70,6 +71,6 @@ public class WatcherPagerDutyYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
-        });
+        }, 60, TimeUnit.SECONDS);
     }
 }

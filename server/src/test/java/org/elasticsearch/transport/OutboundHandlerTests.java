@@ -45,13 +45,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class OutboundHandlerTests extends ESTestCase {
 
-    private final String feature1 = "feature1";
-    private final String feature2 = "feature2";
     private final TestThreadPool threadPool = new TestThreadPool(getClass().getName());
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
     private final TransportRequestOptions options = TransportRequestOptions.EMPTY;
@@ -62,12 +59,10 @@ public class OutboundHandlerTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        TransportLogger transportLogger = new TransportLogger();
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address());
         TransportAddress transportAddress = buildNewFakeTransportAddress();
         node = new DiscoveryNode("", transportAddress, Version.CURRENT);
-        String[] features = {feature1, feature2};
-        handler = new OutboundHandler("node", Version.CURRENT, features, threadPool, BigArrays.NON_RECYCLING_INSTANCE, transportLogger);
+        handler = new OutboundHandler("node", Version.CURRENT, threadPool, BigArrays.NON_RECYCLING_INSTANCE);
     }
 
     @After
@@ -156,7 +151,6 @@ public class OutboundHandlerTests extends ESTestCase {
                 assertFalse(inboundMessage.isCompress());
             }
             InboundMessage.Request inboundRequest = (InboundMessage.Request) inboundMessage;
-            assertThat(inboundRequest.getFeatures(), contains(feature1, feature2));
 
             Request readMessage = new Request(inboundMessage.getStreamInput());
             assertEquals(value, readMessage.value);

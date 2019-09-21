@@ -1313,6 +1313,10 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             request.onlyExpungeDeletes(true); // <1>
             // end::force-merge-request-only-expunge-deletes
 
+            // set only expunge deletes back to its default value
+            // as it is mutually exclusive with max. num. segments
+            request.onlyExpungeDeletes(ForceMergeRequest.Defaults.ONLY_EXPUNGE_DELETES);
+
             // tag::force-merge-request-flush
             request.flush(true); // <1>
             // end::force-merge-request-flush

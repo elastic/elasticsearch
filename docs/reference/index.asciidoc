@@ -18,8 +18,6 @@ include::setup.asciidoc[]
 
 include::monitoring/configuring-monitoring.asciidoc[]
 
-include::{xes-repo-dir}/security/configuring-es.asciidoc[]
-
 include::setup/bootstrap-checks-xes.asciidoc[]
 
 include::upgrade.asciidoc[]
@@ -27,6 +25,8 @@ include::upgrade.asciidoc[]
 include::aggregations.asciidoc[]
 
 include::query-dsl.asciidoc[]
+
+include::modules/cross-cluster-search.asciidoc[]
 
 include::scripting.asciidoc[]
 
@@ -50,7 +50,9 @@ include::rollup/index.asciidoc[]
 
 include::frozen-indices.asciidoc[]
 
-include::administering.asciidoc[]
+include::high-availability.asciidoc[]
+
+include::security/index.asciidoc[]
 
 include::commands/index.asciidoc[]
 

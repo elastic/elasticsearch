@@ -37,7 +37,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
-public class ConditionalProcessor extends AbstractProcessor {
+public class ConditionalProcessor extends AbstractProcessor implements WrappingProcessor {
 
     private static final Map<String, String> DEPRECATIONS =
             Map.of("_type", "[types removal] Looking up doc types [_type] in scripts is deprecated.");
@@ -90,7 +90,7 @@ public class ConditionalProcessor extends AbstractProcessor {
                 new DeprecationMap(ingestDocument.getSourceAndMetadata(), DEPRECATIONS, "conditional-processor")));
     }
 
-    Processor getProcessor() {
+    public Processor getInnerProcessor() {
         return processor;
     }
 

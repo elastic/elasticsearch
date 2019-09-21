@@ -41,7 +41,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.geo.geometry.Geometry;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -409,18 +409,16 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
      */
     private void fetch(Client client, GetRequest getRequest, String path, ActionListener<Geometry> listener) {
         getRequest.preference("_local");
-        client.get(getRequest, new ActionListener<GetResponse>(){
+        client.get(getRequest, new ActionListener<>(){
 
             @Override
             public void onResponse(GetResponse response) {
                 try {
                     if (!response.isExists()) {
-                        throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type()
-                            + "] not found");
+                        throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] not found");
                     }
                     if (response.isSourceEmpty()) {
-                        throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type() +
-                            "] source disabled");
+                        throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] source disabled");
                     }
 
                     String[] pathElements = path.split("\\.");
@@ -530,7 +528,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
                 if (indexedShapeType == null) {
                     getRequest = new GetRequest(indexedShapeIndex, indexedShapeId);
                 } else {
-                    getRequest = new GetRequest(indexedShapeIndex, indexedShapeType, indexedShapeId);
+                    getRequest = new GetRequest(indexedShapeIndex, indexedShapeId);
                 }
                 getRequest.routing(indexedShapeRouting);
                 fetch(client, getRequest, indexedShapePath, ActionListener.wrap(builder-> {
@@ -544,7 +542,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     }
 
     /** local class that encapsulates xcontent parsed shape parameters */
-    protected abstract static class ParsedShapeQueryParams {
+    protected abstract static class ParsedGeometryQueryParams {
         public String fieldName;
         public ShapeRelation relation;
         public ShapeBuilder shape;
@@ -562,7 +560,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
         protected abstract boolean parseXContentField(XContentParser parser) throws IOException;
     }
 
-    public static ParsedShapeQueryParams parsedParamsFromXContent(XContentParser parser, ParsedShapeQueryParams params)
+    public static ParsedGeometryQueryParams parsedParamsFromXContent(XContentParser parser, ParsedGeometryQueryParams params)
         throws IOException {
         String fieldName = null;
         XContentParser.Token token;

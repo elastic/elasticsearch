@@ -19,11 +19,15 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
@@ -34,6 +38,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import java.util.Collection;
 import java.util.Collections;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -133,5 +138,78 @@ public class MetaDataMappingServiceTests extends ESSingleNodeTestCase {
         assertEquals(Collections.singletonMap("properties",
                 Collections.singletonMap("foo",
                         Collections.singletonMap("type", "keyword"))), mappingMetaData.sourceAsMap());
+    }
+
+    public void testForbidMultipleTypes() throws Exception {
+        CreateIndexRequestBuilder createIndexRequest = client().admin().indices()
+            .prepareCreate("test")
+            .addMapping(MapperService.SINGLE_MAPPING_NAME);
+        IndexService indexService = createIndex("test", createIndexRequest);
+
+        MetaDataMappingService mappingService = getInstanceFromNode(MetaDataMappingService.class);
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+
+        PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest()
+            .type("other_type")
+            .indices(new Index[] {indexService.index()})
+            .source(Strings.toString(XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("other_type").endObject()
+                .endObject()));
+        ClusterStateTaskExecutor.ClusterTasksResult<PutMappingClusterStateUpdateRequest> result =
+            mappingService.putMappingExecutor.execute(clusterService.state(), Collections.singletonList(request));
+        assertThat(result.executionResults.size(), equalTo(1));
+
+        ClusterStateTaskExecutor.TaskResult taskResult = result.executionResults.values().iterator().next();
+        assertFalse(taskResult.isSuccess());
+        assertThat(taskResult.getFailure().getMessage(), containsString(
+            "Rejecting mapping update to [test] as the final mapping would have more than 1 type: "));
+    }
+
+    /**
+     * This test checks that the multi-type validation is done before we do any other kind of validation
+     * on the mapping that's added, see https://github.com/elastic/elasticsearch/issues/29313
+     */
+    public void testForbidMultipleTypesWithConflictingMappings() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+            .startObject(MapperService.SINGLE_MAPPING_NAME)
+                .startObject("properties")
+                    .startObject("field1")
+                        .field("type", "text")
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject();
+
+        CreateIndexRequestBuilder createIndexRequest = client().admin().indices()
+            .prepareCreate("test")
+            .addMapping(MapperService.SINGLE_MAPPING_NAME, mapping);
+        IndexService indexService = createIndex("test", createIndexRequest);
+
+        MetaDataMappingService mappingService = getInstanceFromNode(MetaDataMappingService.class);
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+
+        String conflictingMapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("other_type")
+                .startObject("properties")
+                    .startObject("field1")
+                        .field("type", "keyword")
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject());
+
+        PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest()
+            .type("other_type")
+            .indices(new Index[] {indexService.index()})
+            .source(conflictingMapping);
+        ClusterStateTaskExecutor.ClusterTasksResult<PutMappingClusterStateUpdateRequest> result =
+            mappingService.putMappingExecutor.execute(clusterService.state(), Collections.singletonList(request));
+        assertThat(result.executionResults.size(), equalTo(1));
+
+        ClusterStateTaskExecutor.TaskResult taskResult = result.executionResults.values().iterator().next();
+        assertFalse(taskResult.isSuccess());
+        assertThat(taskResult.getFailure().getMessage(), containsString(
+            "Rejecting mapping update to [test] as the final mapping would have more than 1 type: "));
     }
 }

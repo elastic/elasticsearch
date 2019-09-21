@@ -28,7 +28,6 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.node.SSource.Reserved;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Opcodes;
 
@@ -41,49 +40,20 @@ import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.unmodifiableSet;
 
 /**
  * Represents a user-defined function.
  */
 public final class SFunction extends AStatement {
-    public static final class FunctionReserved implements Reserved {
-        private final Set<String> usedVariables = new HashSet<>();
-        private int maxLoopCounter = 0;
 
-        @Override
-        public void markUsedVariable(String name) {
-            usedVariables.add(name);
-        }
-
-        @Override
-        public Set<String> getUsedVariables() {
-            return unmodifiableSet(usedVariables);
-        }
-
-        @Override
-        public void addUsedVariables(FunctionReserved reserved) {
-            usedVariables.addAll(reserved.getUsedVariables());
-        }
-
-        @Override
-        public void setMaxLoopCounter(int max) {
-            maxLoopCounter = max;
-        }
-
-        @Override
-        public int getMaxLoopCounter() {
-            return maxLoopCounter;
-        }
-    }
-
-    final FunctionReserved reserved;
     private final String rtnTypeStr;
     public final String name;
     private final List<String> paramTypeStrs;
     private final List<String> paramNameStrs;
     private final List<AStatement> statements;
     public final boolean synthetic;
+
+    private CompilerSettings settings;
 
     Class<?> returnType;
     List<Class<?>> typeParameters;
@@ -94,12 +64,11 @@ public final class SFunction extends AStatement {
 
     private Variable loop = null;
 
-    public SFunction(FunctionReserved reserved, Location location, String rtnType, String name,
+    public SFunction(Location location, String rtnType, String name,
                      List<String> paramTypes, List<String> paramNames, List<AStatement> statements,
                      boolean synthetic) {
         super(location);
 
-        this.reserved = Objects.requireNonNull(reserved);
         this.rtnTypeStr = Objects.requireNonNull(rtnType);
         this.name = Objects.requireNonNull(name);
         this.paramTypeStrs = Collections.unmodifiableList(paramTypes);
@@ -109,9 +78,22 @@ public final class SFunction extends AStatement {
     }
 
     @Override
+    void storeSettings(CompilerSettings settings) {
+        for (AStatement statement : statements) {
+            statement.storeSettings(settings);
+        }
+
+        this.settings = settings;
+    }
+
+    @Override
     void extractVariables(Set<String> variables) {
-        // we should never be extracting from a function, as functions are top-level!
-        throw new IllegalStateException("Illegal tree structure");
+        for (AStatement statement : statements) {
+            // we reset the list for function scope
+            // note this is not stored for this node
+            // but still required for lambdas
+            statement.extractVariables(new HashSet<>());
+        }
     }
 
     void generateSignature(PainlessLookup painlessLookup) {
@@ -176,13 +158,13 @@ public final class SFunction extends AStatement {
             throw createError(new IllegalArgumentException("Not all paths provide a return value for method [" + name + "]."));
         }
 
-        if (reserved.getMaxLoopCounter() > 0) {
+        if (settings.getMaxLoopCounter() > 0) {
             loop = locals.getVariable(null, Locals.LOOP);
         }
     }
 
     /** Writes the function to given ClassVisitor. */
-    void write (ClassVisitor writer, CompilerSettings settings, Globals globals) {
+    void write(ClassVisitor writer, CompilerSettings settings, Globals globals) {
         int access = Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC;
         if (synthetic) {
             access |= Opcodes.ACC_SYNTHETIC;
@@ -195,10 +177,10 @@ public final class SFunction extends AStatement {
 
     @Override
     void write(MethodWriter function, Globals globals) {
-        if (reserved.getMaxLoopCounter() > 0) {
+        if (settings.getMaxLoopCounter() > 0) {
             // if there is infinite loop protection, we do this once:
             // int #loop = settings.getMaxLoopCounter()
-            function.push(reserved.getMaxLoopCounter());
+            function.push(settings.getMaxLoopCounter());
             function.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
         }
 

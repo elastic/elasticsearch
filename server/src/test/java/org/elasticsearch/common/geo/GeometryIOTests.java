@@ -24,13 +24,13 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.geo.geometry.Geometry;
-import org.elasticsearch.geo.geometry.GeometryCollection;
-import org.elasticsearch.geo.geometry.ShapeType;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.geo.GeometryTestUtils.randomGeometry;
-import static org.elasticsearch.index.query.GeoShapeQueryBuilder.geometryToShapeBuilder;
+import static org.elasticsearch.index.query.LegacyGeoShapeQueryProcessor.geometryToShapeBuilder;
 
 public class GeometryIOTests extends ESTestCase {
 
@@ -84,7 +84,7 @@ public class GeometryIOTests extends ESTestCase {
     }
 
     private boolean shapeSupported(Geometry geometry) {
-        if (geometry.hasAlt()) {
+        if (geometry.hasZ()) {
             return false;
         }
 

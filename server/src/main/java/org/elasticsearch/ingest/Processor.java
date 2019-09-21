@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -110,9 +111,14 @@ public interface Processor {
          */
         public final BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler;
 
+        /**
+         * Provides access to the node client
+         */
+        public final Client client;
+
         public Parameters(Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,  ThreadContext threadContext,
                           LongSupplier relativeTimeSupplier, BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler,
-            IngestService ingestService) {
+                          IngestService ingestService, Client client) {
             this.env = env;
             this.scriptService = scriptService;
             this.threadContext = threadContext;
@@ -120,6 +126,7 @@ public interface Processor {
             this.relativeTimeSupplier = relativeTimeSupplier;
             this.scheduler = scheduler;
             this.ingestService = ingestService;
+            this.client = client;
         }
 
     }

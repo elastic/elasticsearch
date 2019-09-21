@@ -24,7 +24,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.io.IOException;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class TcpTransportChannel implements TransportChannel {
@@ -35,15 +34,13 @@ public final class TcpTransportChannel implements TransportChannel {
     private final String action;
     private final long requestId;
     private final Version version;
-    private final Set<String> features;
     private final CircuitBreakerService breakerService;
     private final long reservedBytes;
     private final boolean compressResponse;
 
     TcpTransportChannel(OutboundHandler outboundHandler, TcpChannel channel, String action, long requestId, Version version,
-                        Set<String> features, CircuitBreakerService breakerService, long reservedBytes, boolean compressResponse) {
+                        CircuitBreakerService breakerService, long reservedBytes, boolean compressResponse) {
         this.version = version;
-        this.features = features;
         this.channel = channel;
         this.outboundHandler = outboundHandler;
         this.action = action;

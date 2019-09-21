@@ -1,8 +1,8 @@
 ---
 "Noop":
   - skip:
-      version:  " - 7.9.99"
-      reason:   "Noop does not return seq_no and primary_term until 8.0"
+      version:  " - 7.3.99"
+      reason:   "Noop does not return seq_no and primary_term until 7.4"
   - do:
       index:
         index: test_1

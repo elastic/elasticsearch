@@ -57,16 +57,22 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
         }
 
         final String indexName = "test";
-        final String analyzerName = "my_synonym_analyzer";
+        final String synonymAnalyzerName = "synonym_analyzer";
+        final String synonymGraphAnalyzerName = "synonym_graph_analyzer";
         assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
                 .put("index.number_of_shards", 5)
                 .put("index.number_of_replicas", 0)
-                .put("analysis.analyzer." + analyzerName + ".tokenizer", "standard")
-                .putList("analysis.analyzer." + analyzerName + ".filter", "lowercase", "my_synonym_filter")
-                .put("analysis.filter.my_synonym_filter.type", "synonym")
-                .put("analysis.filter.my_synonym_filter.updateable", "true")
-                .put("analysis.filter.my_synonym_filter.synonyms_path", synonymsFileName))
-                .addMapping("_doc", "field", "type=text,analyzer=standard,search_analyzer=" + analyzerName));
+                .put("analysis.analyzer." + synonymAnalyzerName + ".tokenizer", "standard")
+                .putList("analysis.analyzer." + synonymAnalyzerName + ".filter", "lowercase", "synonym_filter")
+                .put("analysis.analyzer." + synonymGraphAnalyzerName + ".tokenizer", "standard")
+                .putList("analysis.analyzer." + synonymGraphAnalyzerName + ".filter", "lowercase", "synonym_graph_filter")
+                .put("analysis.filter.synonym_filter.type", "synonym")
+                .put("analysis.filter.synonym_filter.updateable", "true")
+                .put("analysis.filter.synonym_filter.synonyms_path", synonymsFileName)
+                .put("analysis.filter.synonym_graph_filter.type", "synonym_graph")
+                .put("analysis.filter.synonym_graph_filter.updateable", "true")
+                .put("analysis.filter.synonym_graph_filter.synonyms_path", synonymsFileName))
+                .addMapping("_doc", "field", "type=text,analyzer=standard,search_analyzer=" + synonymAnalyzerName));
 
         client().prepareIndex(indexName, "_doc", "1").setSource("field", "Foo").get();
         assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().actionGet());
@@ -75,10 +81,18 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
         assertHitCount(response, 1L);
         response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("field", "buzz")).get();
         assertHitCount(response, 0L);
-        Response analyzeResponse = client().admin().indices().prepareAnalyze(indexName, "foo").setAnalyzer(analyzerName).get();
-        assertEquals(2, analyzeResponse.getTokens().size());
-        assertEquals("foo", analyzeResponse.getTokens().get(0).getTerm());
-        assertEquals("baz", analyzeResponse.getTokens().get(1).getTerm());
+
+        {
+            for (String analyzerName : new String[] { synonymAnalyzerName, synonymGraphAnalyzerName }) {
+                Response analyzeResponse = client().admin().indices().prepareAnalyze(indexName, "foo").setAnalyzer(analyzerName)
+                        .get();
+                assertEquals(2, analyzeResponse.getTokens().size());
+                Set<String> tokens = new HashSet<>();
+                analyzeResponse.getTokens().stream().map(AnalyzeToken::getTerm).forEach(t -> tokens.add(t));
+                assertTrue(tokens.contains("foo"));
+                assertTrue(tokens.contains("baz"));
+            }
+        }
 
         // now update synonyms file and trigger reloading
         try (PrintWriter out = new PrintWriter(
@@ -89,16 +103,22 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
                 .actionGet();
         assertNoFailures(reloadResponse);
         Set<String> reloadedAnalyzers = reloadResponse.getReloadDetails().get(indexName).getReloadedAnalyzers();
-        assertEquals(1, reloadedAnalyzers.size());
-        assertTrue(reloadedAnalyzers.contains(analyzerName));
+        assertEquals(2, reloadedAnalyzers.size());
+        assertTrue(reloadedAnalyzers.contains(synonymAnalyzerName));
+        assertTrue(reloadedAnalyzers.contains(synonymGraphAnalyzerName));
 
-        analyzeResponse = client().admin().indices().prepareAnalyze(indexName, "Foo").setAnalyzer(analyzerName).get();
-        assertEquals(3, analyzeResponse.getTokens().size());
-        Set<String> tokens = new HashSet<>();
-        analyzeResponse.getTokens().stream().map(AnalyzeToken::getTerm).forEach(t -> tokens.add(t));
-        assertTrue(tokens.contains("foo"));
-        assertTrue(tokens.contains("baz"));
-        assertTrue(tokens.contains("buzz"));
+        {
+            for (String analyzerName : new String[] { synonymAnalyzerName, synonymGraphAnalyzerName }) {
+                Response analyzeResponse = client().admin().indices().prepareAnalyze(indexName, "foo").setAnalyzer(analyzerName)
+                        .get();
+                assertEquals(3, analyzeResponse.getTokens().size());
+                Set<String> tokens = new HashSet<>();
+                analyzeResponse.getTokens().stream().map(AnalyzeToken::getTerm).forEach(t -> tokens.add(t));
+                assertTrue(tokens.contains("foo"));
+                assertTrue(tokens.contains("baz"));
+                assertTrue(tokens.contains("buzz"));
+            }
+        }
 
         response = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("field", "baz")).get();
         assertHitCount(response, 1L);
@@ -128,15 +148,15 @@ public class ReloadSynonymAnalyzerTests extends ESSingleNodeTestCase {
                 .put("index.number_of_shards", 5)
                 .put("index.number_of_replicas", 0)
                 .put("analysis.analyzer." + analyzerName + ".tokenizer", "standard")
-                .putList("analysis.analyzer." + analyzerName + ".filter", "lowercase", "my_synonym_filter")
-                .put("analysis.filter.my_synonym_filter.type", "synonym")
-                .put("analysis.filter.my_synonym_filter.updateable", "true")
-                .put("analysis.filter.my_synonym_filter.synonyms_path", synonymsFileName))
+                .putList("analysis.analyzer." + analyzerName + ".filter", "lowercase", "synonym_filter")
+                .put("analysis.filter.synonym_filter.type", "synonym")
+                .put("analysis.filter.synonym_filter.updateable", "true")
+                .put("analysis.filter.synonym_filter.synonyms_path", synonymsFileName))
                 .addMapping("_doc", "field", "type=text,analyzer=" + analyzerName).get());
 
         assertEquals(
                 "Failed to parse mapping [_doc]: analyzer [my_synonym_analyzer] "
-                + "contains filters [my_synonym_filter] that are not allowed to run in all mode.",
+                + "contains filters [synonym_filter] that are not allowed to run in all mode.",
                 ex.getMessage());
     }
 }

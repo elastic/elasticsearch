@@ -31,10 +31,6 @@ import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Set;
-import java.util.TreeSet;
 
 public abstract class InboundMessage extends NetworkMessage implements Closeable {
 
@@ -96,15 +92,12 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
 
                 InboundMessage message;
                 if (TransportStatus.isRequest(status)) {
-                    final String[] featuresFound = streamInput.readStringArray();
-                    final Set<String> features;
-                    if (featuresFound.length == 0) {
-                        features = Collections.emptySet();
-                    } else {
-                        features = Collections.unmodifiableSet(new TreeSet<>(Arrays.asList(featuresFound)));
+                    if (remoteVersion.before(Version.V_8_0_0)) {
+                        // discard features
+                        streamInput.readStringArray();
                     }
                     final String action = streamInput.readString();
-                    message = new Request(threadContext, remoteVersion, status, requestId, action, features, streamInput);
+                    message = new Request(threadContext, remoteVersion, status, requestId, action, streamInput);
                 } else {
                     message = new Response(threadContext, remoteVersion, status, requestId, streamInput);
                 }
@@ -146,22 +139,17 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
     public static class Request extends InboundMessage {
 
         private final String actionName;
-        private final Set<String> features;
 
-        Request(ThreadContext threadContext, Version version, byte status, long requestId, String actionName, Set<String> features,
+        Request(ThreadContext threadContext, Version version, byte status, long requestId, String actionName,
                 StreamInput streamInput) {
             super(threadContext, version, status, requestId, streamInput);
             this.actionName = actionName;
-            this.features = features;
         }
 
         String getActionName() {
             return actionName;
         }
 
-        Set<String> getFeatures() {
-            return features;
-        }
     }
 
     public static class Response extends InboundMessage {

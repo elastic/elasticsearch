@@ -84,10 +84,6 @@ public class JobNodeSelectorTests extends ESTestCase {
 
         node = new DiscoveryNode(null, "_node_id1", ta, attributes, Collections.emptySet(), Version.CURRENT);
         assertEquals("{_node_id1}{ml.machine_memory=5}", JobNodeSelector.nodeNameAndMlAttributes(node));
-
-        attributes.put("node.ml", "true");
-        node = new DiscoveryNode("_node_name1", "_node_id1", ta, attributes, Collections.emptySet(), Version.CURRENT);
-        assertEquals("{_node_name1}{ml.machine_memory=5}{node.ml=true}", JobNodeSelector.nodeNameAndMlAttributes(node));
     }
 
     public void testSelectLeastLoadedMlNode_byCount() {

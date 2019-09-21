@@ -405,9 +405,9 @@ public abstract class MetaDataStateFormat<T> {
                 logger.trace("generation id [{}] read from [{}]", generation, stateFile.getFileName());
                 return state;
             } catch (Exception e) {
-                exceptions.add(new IOException("failed to read " + stateFile.toAbsolutePath(), e));
+                exceptions.add(new IOException("failed to read " + stateFile, e));
                 logger.debug(() -> new ParameterizedMessage(
-                        "{}: failed to read [{}], ignoring...", stateFile.toAbsolutePath(), prefix), e);
+                        "{}: failed to read [{}], ignoring...", stateFile, prefix), e);
             }
         }
         // if we reach this something went wrong
@@ -415,7 +415,7 @@ public abstract class MetaDataStateFormat<T> {
         if (stateFiles.size() > 0) {
             // We have some state files but none of them gave us a usable state
             throw new IllegalStateException("Could not find a state file to recover from among " +
-                    stateFiles.stream().map(Path::toAbsolutePath).map(Object::toString).collect(Collectors.joining(", ")));
+                    stateFiles.stream().map(Object::toString).collect(Collectors.joining(", ")));
         }
         return null;
     }
@@ -435,7 +435,7 @@ public abstract class MetaDataStateFormat<T> {
         if (generation > -1 && state == null) {
             throw new IllegalStateException("unable to find state files with generation id " + generation +
                     " returned by findMaxGenerationId function, in data folders [" +
-                    Arrays.stream(dataLocations).map(Path::toAbsolutePath).
+                    Arrays.stream(dataLocations).
                             map(Object::toString).collect(Collectors.joining(", ")) +
                     "], concurrent writes?");
         }

@@ -115,9 +115,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     @Override
     public void allocate(RoutingAllocation allocation) {
-        if (allocation.routingNodes().size() == 0) {
-            // If no data node then set AllocationStatus to DECIDERS_NO
-            failedAllocationOfNewPrimaries(allocation);
+        if (allocation.routingNodes().size() == 0){
+            failAllocationOfNewPrimaries(allocation);
             return;
         }
         final Balancer balancer = new Balancer(logger, allocation, weightFunction, threshold);
@@ -143,14 +142,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         return new ShardAllocationDecision(allocateUnassignedDecision, moveDecision);
     }
 
-    private void failedAllocationOfNewPrimaries(RoutingAllocation allocation){
+    private void failAllocationOfNewPrimaries(RoutingAllocation allocation){
         RoutingNodes routingNodes = allocation.routingNodes();
         assert routingNodes.size() == 0 : routingNodes;
-        RoutingNodes.UnassignedShards unassignedShards = routingNodes.unassigned();
-        RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = unassignedShards.iterator();
+        final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = routingNodes.unassigned().iterator();
         while (unassignedIterator.hasNext()) {
-            ShardRouting shardRouting = unassignedIterator.next();
-            UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
+            final ShardRouting shardRouting = unassignedIterator.next();
+            final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
             if (shardRouting.primary() && unassignedInfo.getLastAllocationStatus() == AllocationStatus.NO_ATTEMPT) {
                 unassignedIterator.updateUnassigned(new UnassignedInfo(unassignedInfo.getReason(), unassignedInfo.getMessage(), unassignedInfo.getFailure(),
                     unassignedInfo.getNumFailedAllocations(), unassignedInfo.getUnassignedTimeInNanos(),

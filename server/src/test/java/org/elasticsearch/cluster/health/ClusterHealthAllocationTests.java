@@ -24,19 +24,21 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 
 import java.util.Collections;
-
-import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 
 public class ClusterHealthAllocationTests extends ESAllocationTestCase {
     public void testClusterHealth() {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).build();
-        clusterState = addNode(clusterState, "node_m", true);
+        if (randomBoolean()) {
+            clusterState = addNode(clusterState, "node_m", true);
+        }
         assertEquals(ClusterHealthStatus.GREEN, getClusterHealthStatus(clusterState));
+
         MetaData metaData = MetaData.builder()
             .put(IndexMetaData.builder("test")
                 .settings(settings(Version.CURRENT))
@@ -46,30 +48,29 @@ public class ClusterHealthAllocationTests extends ESAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder().addAsNew(metaData.index("test")).build();
         clusterState = ClusterState.builder(clusterState).metaData(metaData).routingTable(routingTable).build();
         MockAllocationService allocation = createAllocationService();
-        clusterState = allocation.reroute(clusterState, "reroute");
-        assertTrue(clusterState.nodes().getDataNodes().size() == 0);
-        assertTrue(clusterState.nodes().getMasterNodes().size() == 1);
+        clusterState = applyStartedShardsUntilNoChange(clusterState, allocation);
+        assertEquals(0, clusterState.nodes().getDataNodes().size());
         assertEquals(ClusterHealthStatus.RED, getClusterHealthStatus(clusterState));
+
         clusterState = addNode(clusterState, "node_d1", false);
-        assertTrue(clusterState.nodes().getDataNodes().size() == 1);
-        clusterState = allocation.reroute(clusterState, "reroute");
-        // starting primaries
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        assertEquals(1, clusterState.nodes().getDataNodes().size());
+        clusterState = applyStartedShardsUntilNoChange(clusterState, allocation);
         assertEquals(ClusterHealthStatus.YELLOW, getClusterHealthStatus(clusterState));
+
         clusterState = addNode(clusterState, "node_d2", false);
-        clusterState = allocation.reroute(clusterState, "reroute");
-        // starting replicas
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = applyStartedShardsUntilNoChange(clusterState, allocation);
         assertEquals(ClusterHealthStatus.GREEN, getClusterHealthStatus(clusterState));
-        clusterState = removeNode(clusterState, "node_d1");
+
+        clusterState = removeNode(clusterState, "node_d1",allocation);
         assertEquals(ClusterHealthStatus.YELLOW, getClusterHealthStatus(clusterState));
-        clusterState = removeNode(clusterState, "node_d2");
+
+        clusterState = removeNode(clusterState, "node_d2",allocation);
         assertEquals(ClusterHealthStatus.RED, getClusterHealthStatus(clusterState));
+
         routingTable = RoutingTable.builder(routingTable).remove("test").build();
         metaData = MetaData.builder(clusterState.metaData()).remove("test").build();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metaData(metaData).build();
-        assertTrue(clusterState.nodes().getDataNodes().size() == 0);
-        assertTrue(clusterState.nodes().getMasterNodes().size() == 1);
+        assertEquals(0, clusterState.nodes().getDataNodes().size());
         assertEquals(ClusterHealthStatus.GREEN, getClusterHealthStatus(clusterState));
     }
 
@@ -77,23 +78,19 @@ public class ClusterHealthAllocationTests extends ESAllocationTestCase {
 
         DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder(clusterState.getNodes());
         if (isMaster) {
-            nodeBuilder = nodeBuilder.add(newNode(nodeName, Collections.singleton(DiscoveryNode.Role.MASTER)));
+            nodeBuilder.add(newNode(nodeName, Collections.singleton(DiscoveryNodeRole.MASTER_ROLE)));
         } else {
-            nodeBuilder = nodeBuilder.add(newNode(nodeName, Collections.singleton(DiscoveryNode.Role.DATA)));
+            nodeBuilder.add(newNode(nodeName, Collections.singleton(DiscoveryNodeRole.DATA_ROLE)));
         }
-        clusterState = ClusterState.builder(clusterState)
-            .nodes(nodeBuilder.build())
-            .build();
-        return clusterState;
+        return ClusterState.builder(clusterState).nodes(nodeBuilder).build();
     }
 
-    private ClusterState removeNode(ClusterState clusterState, String nodeName) {
+    private ClusterState removeNode(ClusterState clusterState, String nodeName, AllocationService allocationService) {
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder(clusterState.getNodes())
                 .remove(nodeName).build())
             .build();
-        clusterState = createAllocationService().deassociateDeadNodes(clusterState, true, "reroute");
-        return clusterState;
+        return allocationService.disassociateDeadNodes(clusterState, true, "reroute");
     }
 
     private ClusterHealthStatus getClusterHealthStatus(ClusterState clusterState) {

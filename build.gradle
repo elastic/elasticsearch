@@ -117,7 +117,9 @@ subprojects {
           googleJavaFormat().aosp()
 
           // See CONTRIBUTING.md for details of when to enabled this.
-          // paddedCell()
+          if (System.getProperty('spotless.paddedcell') != null) {
+            paddedCell()
+          }
         }
       }
 

@@ -221,7 +221,8 @@ and infer what is the problem. Ther are two common problems:
       https://github.com/google/google-java-format/issues/254
 
 The `paddedCell() option is disabled for normal operation in order to
-detect any misbehaviour.
+detect any misbehaviour. You can enabled the option from the command line
+by running Gradle with `-Dspotless.paddedcell`.
 
 ### License Headers
 

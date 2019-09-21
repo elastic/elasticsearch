@@ -155,11 +155,10 @@ For Eclipse, go to `Preferences->Java->Installed JREs` and add `-ea` to
 
 ### Java Language Formatting Guidelines
 
-Java files in the Elasticsearch codebase are formatted with
-[google-java-format](https://github.com/google/google-java-format), which
-enforces the [Google Java
-Style](https://google.github.io/styleguide/javaguide.html). The formatting
-check can be run explicitly with:
+Java files in the Elasticsearch codebase are formatted with the Eclipse JDT
+formatter, using the [Spotless
+Gradle](https://github.com/diffplug/spotless/tree/master/plugin-gradle)
+plugin. The formatting check can be run explicitly with:
 
     ./gradlew spotlessJavaCheck
 
@@ -171,14 +170,10 @@ These tasks can also be run for specific subprojects, e.g.
 
     ./gradlew server:spotlessJavaCheck
 
-Code is formatted with the `--aosp` option (Android Open Source Project),
-which indents with 4 spaces instead of 2. There are no other formatting
-options available by design.
-
 Please follow these formatting guidelines:
 
 * Java indent is 4 spaces
-* Line width is 100 characters
+* Line width is 140 characters
 * Lines of code surrounded by `// tag` and `// end` comments are included
   in the documentation and should only be 76 characters wide not counting
   leading indentation
@@ -194,11 +189,16 @@ Please follow these formatting guidelines:
 
 #### Editor / IDE Support
 
-See the `google-java-format` repository for details on installing the
-[plugins for Jetbrains IDEs] and [Eclipse plugins].
+Eclipse IDEs can import the file [elasticsearch.eclipseformat.xml]
+directly.
 
-For editors that support formatting via a CLI command, see the
-[google-java-format CLI instructions].
+IntelliJ IDEs can
+[import](https://blog.jetbrains.com/idea/2014/01/intellij-idea-13-importing-code-formatter-settings-from-eclipse/)
+the same settings file.
+
+You can also tell Spotless to [format a specific
+file](https://github.com/diffplug/spotless/tree/master/plugin-gradle#can-i-apply-spotless-to-specific-files)
+from the command line.
 
 #### Formatting failures
 
@@ -207,18 +207,8 @@ mind" and will recommend enabling the `paddedCell()` setting. If you
 enabled this settings and run the format check again,
 Spotless will write files to
 `$PROJECT/build/spotless-diagnose-java/` to aid diagnosis. It writes
-different copies of formatted files, so that you can see how they differ
-and infer what is the problem. Ther are two common problems:
-
-   1. Single-line comments at the end of a line of code can be wrapped onto
-      multiple lines during one formatting interation, and then change
-      indentation in another iteration. The solution is to identify the
-      comment and move it so that it is consistently formatted.
-      Multiline-style comments are not affected.
-   2. Sometimes `<p>` tags are inserted within `<code>` tags in JavaDoc.
-      The solution is to wrap with `<pre>` tags. See:
-
-      https://github.com/google/google-java-format/issues/254
+different copies of the formatted files, so that you can see how they
+differ and infer what is the problem.
 
 The `paddedCell() option is disabled for normal operation in order to
 detect any misbehaviour. You can enabled the option from the command line
@@ -446,6 +436,3 @@ repeating in this section because it has come up in this context.
 [eclipse]: http://www.eclipse.org/community/eclipse_newsletter/2017/june/
 [intellij]: https://blog.jetbrains.com/idea/2017/07/intellij-idea-2017-2-is-here-smart-sleek-and-snappy/
 [shadow-plugin]: https://github.com/johnrengelman/shadow
-[plugins for Jetbrains IDEs]: https://github.com/google/google-java-format#intellij-android-studio-and-other-jetbrains-ides
-[Eclipse plugins]: https://github.com/google/google-java-format#eclipse
-[google-java-format CLI instructions]: https://github.com/google/google-java-format#from-the-command-line

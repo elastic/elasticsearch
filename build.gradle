@@ -113,8 +113,11 @@ subprojects {
 
       spotless {
         java {
-          // Use Android Open Source Project settings (i.e. 4 space indents)
-          googleJavaFormat().aosp()
+
+          removeUnusedImports()
+          eclipse().configFile rootProject.file('elasticsearch.eclipseformat.xml')
+          trimTrailingWhitespace()
+          endWithNewline()
 
           // See CONTRIBUTING.md for details of when to enabled this.
           if (System.getProperty('spotless.paddedcell') != null) {

@@ -30,23 +30,23 @@ public class ReaperPlugin implements Plugin<Project> {
     public void apply(Project project) {
         if (project != project.getRootProject()) {
             throw new IllegalArgumentException(
-                    "ReaperPlugin can only be applied to the root project of a build");
+                "ReaperPlugin can only be applied to the root project of a build"
+            );
         }
 
-        Path inputDir =
-                project.getRootDir()
-                        .toPath()
-                        .resolve(".gradle")
-                        .resolve("reaper")
-                        .resolve("build-" + ProcessHandle.current().pid());
-        ReaperService service =
-                project.getExtensions()
-                        .create(
-                                "reaper",
-                                ReaperService.class,
-                                project.getLogger(),
-                                project.getBuildDir().toPath(),
-                                inputDir);
+        Path inputDir = project.getRootDir()
+            .toPath()
+            .resolve(".gradle")
+            .resolve("reaper")
+            .resolve("build-" + ProcessHandle.current().pid());
+        ReaperService service = project.getExtensions()
+            .create(
+                "reaper",
+                ReaperService.class,
+                project.getLogger(),
+                project.getBuildDir().toPath(),
+                inputDir
+            );
 
         project.getGradle().buildFinished(result -> service.shutdown());
     }

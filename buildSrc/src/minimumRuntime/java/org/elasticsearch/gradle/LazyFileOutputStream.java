@@ -30,25 +30,24 @@ class LazyFileOutputStream extends OutputStream {
 
     LazyFileOutputStream(File file) {
         // use an initial dummy delegate to avoid doing a conditional on every write
-        this.delegate =
-                new OutputStream() {
-                    private void bootstrap() throws IOException {
-                        file.getParentFile().mkdirs();
-                        delegate = new FileOutputStream(file);
-                    }
+        this.delegate = new OutputStream() {
+            private void bootstrap() throws IOException {
+                file.getParentFile().mkdirs();
+                delegate = new FileOutputStream(file);
+            }
 
-                    @Override
-                    public void write(int b) throws IOException {
-                        bootstrap();
-                        delegate.write(b);
-                    }
+            @Override
+            public void write(int b) throws IOException {
+                bootstrap();
+                delegate.write(b);
+            }
 
-                    @Override
-                    public void write(byte b[], int off, int len) throws IOException {
-                        bootstrap();
-                        delegate.write(b, off, len);
-                    }
-                };
+            @Override
+            public void write(byte b[], int off, int len) throws IOException {
+                bootstrap();
+                delegate.write(b, off, len);
+            }
+        };
     }
 
     @Override

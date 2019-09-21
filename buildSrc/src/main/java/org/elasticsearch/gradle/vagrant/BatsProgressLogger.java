@@ -39,9 +39,9 @@ import org.gradle.api.logging.Logger;
  */
 public class BatsProgressLogger implements UnaryOperator<String> {
 
-    private static final Pattern lineRegex =
-            Pattern.compile(
-                    "(?<status>ok|not ok) \\d+(?<skip> # skip (?<skipReason>\\(.+\\))?)? \\[(?<suite>.+)\\] (?<test>.+)");
+    private static final Pattern lineRegex = Pattern.compile(
+        "(?<status>ok|not ok) \\d+(?<skip> # skip (?<skipReason>\\(.+\\))?)? \\[(?<suite>.+)\\] (?<test>.+)"
+    );
     private static final Pattern startRegex = Pattern.compile("1..(\\d+)");
 
     private final Logger logger;
@@ -94,11 +94,10 @@ public class BatsProgressLogger implements UnaryOperator<String> {
             testsFailed++;
         }
 
-        String counts =
-                new Formatter()
-                        .format(countsFormat, testsCompleted, testsFailed, testsSkipped, testCount)
-                        .out()
-                        .toString();
+        String counts = new Formatter()
+            .format(countsFormat, testsCompleted, testsFailed, testsSkipped, testCount)
+            .out()
+            .toString();
         if (success == false) {
             logger.warn(line);
         }

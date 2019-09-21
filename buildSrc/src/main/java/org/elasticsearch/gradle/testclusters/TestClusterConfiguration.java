@@ -63,21 +63,24 @@ public interface TestClusterConfiguration {
     void setting(String key, Supplier<CharSequence> valueSupplier);
 
     void setting(
-            String key, Supplier<CharSequence> valueSupplier, PropertyNormalization normalization);
+        String key, Supplier<CharSequence> valueSupplier, PropertyNormalization normalization
+    );
 
     void systemProperty(String key, String value);
 
     void systemProperty(String key, Supplier<CharSequence> valueSupplier);
 
     void systemProperty(
-            String key, Supplier<CharSequence> valueSupplier, PropertyNormalization normalization);
+        String key, Supplier<CharSequence> valueSupplier, PropertyNormalization normalization
+    );
 
     void environment(String key, String value);
 
     void environment(String key, Supplier<CharSequence> valueSupplier);
 
     void environment(
-            String key, Supplier<CharSequence> valueSupplier, PropertyNormalization normalization);
+        String key, Supplier<CharSequence> valueSupplier, PropertyNormalization normalization
+    );
 
     void jvmArgs(String... values);
 
@@ -110,71 +113,73 @@ public interface TestClusterConfiguration {
     void setNameCustomization(Function<String, String> nameSupplier);
 
     default void waitForConditions(
-            LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions,
-            long startedAtMillis,
-            long nodeUpTimeout,
-            TimeUnit nodeUpTimeoutUnit,
-            TestClusterConfiguration context) {
+        LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions,
+        long startedAtMillis,
+        long nodeUpTimeout,
+        TimeUnit nodeUpTimeoutUnit,
+        TestClusterConfiguration context
+    ) {
         Logger logger = Logging.getLogger(TestClusterConfiguration.class);
         waitConditions.forEach(
-                (description, predicate) -> {
-                    long thisConditionStartedAt = System.currentTimeMillis();
-                    boolean conditionMet = false;
-                    Throwable lastException = null;
-                    while (System.currentTimeMillis() - startedAtMillis
-                            < TimeUnit.MILLISECONDS.convert(nodeUpTimeout, nodeUpTimeoutUnit)) {
-                        if (context.isProcessAlive() == false) {
-                            throw new TestClustersException(
-                                    "process was found dead while waiting for "
-                                            + description
-                                            + ", "
-                                            + this);
-                        }
+            (description, predicate) -> {
+                long thisConditionStartedAt = System.currentTimeMillis();
+                boolean conditionMet = false;
+                Throwable lastException = null;
+                while (System.currentTimeMillis() - startedAtMillis < TimeUnit.MILLISECONDS.convert(nodeUpTimeout, nodeUpTimeoutUnit)) {
+                    if (context.isProcessAlive() == false) {
+                        throw new TestClustersException(
+                            "process was found dead while waiting for "
+                                + description
+                                + ", "
+                                + this
+                        );
+                    }
 
-                        try {
-                            if (predicate.test(context)) {
-                                conditionMet = true;
-                                break;
-                            }
-                        } catch (TestClustersException e) {
-                            throw e;
-                        } catch (Exception e) {
-                            lastException = e;
+                    try {
+                        if (predicate.test(context)) {
+                            conditionMet = true;
+                            break;
                         }
+                    } catch (TestClustersException e) {
+                        throw e;
+                    } catch (Exception e) {
+                        lastException = e;
                     }
-                    if (conditionMet == false) {
-                        String message =
-                                "`"
-                                        + context
-                                        + "` failed to wait for "
-                                        + description
-                                        + " after "
-                                        + nodeUpTimeout
-                                        + " "
-                                        + nodeUpTimeoutUnit;
-                        if (lastException == null) {
-                            throw new TestClustersException(message);
-                        } else {
-                            String extraCause = "";
-                            Throwable cause = lastException;
-                            int ident = 2;
-                            while (cause != null) {
-                                if (cause.getMessage() != null
-                                        && cause.getMessage().isEmpty() == false) {
-                                    extraCause += "\n" + " ".repeat(ident) + cause.getMessage();
-                                    ident += 2;
-                                }
-                                cause = cause.getCause();
+                }
+                if (conditionMet == false) {
+                    String message = "`"
+                        + context
+                        + "` failed to wait for "
+                        + description
+                        + " after "
+                        + nodeUpTimeout
+                        + " "
+                        + nodeUpTimeoutUnit;
+                    if (lastException == null) {
+                        throw new TestClustersException(message);
+                    } else {
+                        String extraCause = "";
+                        Throwable cause = lastException;
+                        int ident = 2;
+                        while (cause != null) {
+                            if (cause.getMessage() != null
+                                && cause.getMessage().isEmpty() == false) {
+                                extraCause += "\n" + " ".repeat(ident) + cause.getMessage();
+                                ident += 2;
                             }
-                            throw new TestClustersException(message + extraCause, lastException);
+                            cause = cause.getCause();
                         }
+                        throw new TestClustersException(message + extraCause, lastException);
                     }
-                    logger.info(
-                            "{}: {} took {} seconds",
-                            this,
-                            description,
-                            (System.currentTimeMillis() - thisConditionStartedAt) / 1000.0);
-                });
+                }
+                logger.info(
+                    "{}: {} took {} seconds",
+                    this,
+                    description,
+                    (System.currentTimeMillis() - thisConditionStartedAt) / 1000.0
+                );
+            }
+        );
     }
 
     default String safeName(String name) {

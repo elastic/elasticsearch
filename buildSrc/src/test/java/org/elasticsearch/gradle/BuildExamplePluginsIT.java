@@ -41,20 +41,23 @@ import org.junit.rules.TemporaryFolder;
 @Ignore("https://github.com/elastic/elasticsearch/issues/42453")
 public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
 
-    private static final List<File> EXAMPLE_PLUGINS =
-            Collections.unmodifiableList(
-                    Arrays.stream(
-                                    Objects.requireNonNull(
-                                                    System.getProperty(
-                                                            "test.build-tools.plugin.examples"))
-                                            .split(File.pathSeparator))
-                            .map(File::new)
-                            .collect(Collectors.toList()));
+    private static final List<File> EXAMPLE_PLUGINS = Collections.unmodifiableList(
+        Arrays.stream(
+            Objects.requireNonNull(
+                System.getProperty(
+                    "test.build-tools.plugin.examples"
+                )
+            )
+                .split(File.pathSeparator)
+        )
+            .map(File::new)
+            .collect(Collectors.toList())
+    );
 
-    private static final String BUILD_TOOLS_VERSION =
-            Objects.requireNonNull(System.getProperty("test.version_under_test"));
+    private static final String BUILD_TOOLS_VERSION = Objects.requireNonNull(System.getProperty("test.version_under_test"));
 
-    @Rule public TemporaryFolder tmpDir = new TemporaryFolder();
+    @Rule
+    public TemporaryFolder tmpDir = new TemporaryFolder();
 
     public final File examplePlugin;
 
@@ -65,34 +68,37 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
     @BeforeClass
     public static void assertProjectsExist() {
         assertEquals(
-                EXAMPLE_PLUGINS,
-                EXAMPLE_PLUGINS.stream().filter(File::exists).collect(Collectors.toList()));
+            EXAMPLE_PLUGINS,
+            EXAMPLE_PLUGINS.stream().filter(File::exists).collect(Collectors.toList())
+        );
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return EXAMPLE_PLUGINS.stream()
-                .map(each -> new Object[] {each})
-                .collect(Collectors.toList());
+            .map(each -> new Object[] { each })
+            .collect(Collectors.toList());
     }
 
     public void testCurrentExamplePlugin() throws IOException {
         FileUtils.copyDirectory(
-                examplePlugin,
-                tmpDir.getRoot(),
-                pathname -> pathname.getPath().contains("/build/") == false);
+            examplePlugin,
+            tmpDir.getRoot(),
+            pathname -> pathname.getPath().contains("/build/") == false
+        );
 
         adaptBuildScriptForTest();
 
         Files.write(
-                tmpDir.newFile("NOTICE.txt").toPath(),
-                "dummy test notice".getBytes(StandardCharsets.UTF_8));
+            tmpDir.newFile("NOTICE.txt").toPath(),
+            "dummy test notice".getBytes(StandardCharsets.UTF_8)
+        );
 
         GradleRunner.create()
-                .withProjectDir(tmpDir.getRoot())
-                .withArguments("clean", "check", "-s", "-i", "--warning-mode=all", "--scan")
-                .withPluginClasspath()
-                .build();
+            .withProjectDir(tmpDir.getRoot())
+            .withArguments("clean", "check", "-s", "-i", "--warning-mode=all", "--scan")
+            .withPluginClasspath()
+            .build();
     }
 
     private void adaptBuildScriptForTest() throws IOException {
@@ -103,53 +109,55 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
         // which appears to mirror jcenter, opening us up to pulling a "later" version of
         // build-tools
         writeBuildScript(
-                "buildscript {\n"
-                        + "    repositories {\n"
-                        + "        maven {\n"
-                        + "            name = \"test\"\n"
-                        + "            url = '"
-                        + getLocalTestRepoPath()
-                        + "'\n"
-                        + "        }\n"
-                        + "    }\n"
-                        + "    dependencies {\n"
-                        + "        classpath \"org.elasticsearch.gradle:build-tools:"
-                        + BUILD_TOOLS_VERSION
-                        + "\"\n"
-                        + "    }\n"
-                        + "}\n");
+            "buildscript {\n"
+                + "    repositories {\n"
+                + "        maven {\n"
+                + "            name = \"test\"\n"
+                + "            url = '"
+                + getLocalTestRepoPath()
+                + "'\n"
+                + "        }\n"
+                + "    }\n"
+                + "    dependencies {\n"
+                + "        classpath \"org.elasticsearch.gradle:build-tools:"
+                + BUILD_TOOLS_VERSION
+                + "\"\n"
+                + "    }\n"
+                + "}\n"
+        );
         // get the original file
-        Files.readAllLines(getTempPath("build.gradle"), StandardCharsets.UTF_8).stream()
-                .map(line -> line + "\n")
-                .forEach(this::writeBuildScript);
+        Files.readAllLines(getTempPath("build.gradle"), StandardCharsets.UTF_8)
+            .stream()
+            .map(line -> line + "\n")
+            .forEach(this::writeBuildScript);
         // Add a repositories section to be able to resolve dependencies
         String luceneSnapshotRepo = "";
         String luceneSnapshotRevision = System.getProperty("test.lucene-snapshot-revision");
         if (luceneSnapshotRepo != null) {
-            luceneSnapshotRepo =
-                    "  maven {\n"
-                            + "    name \"lucene-snapshots\"\n"
-                            + "    url \"https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/"
-                            + luceneSnapshotRevision
-                            + "\"\n"
-                            + "  }\n";
+            luceneSnapshotRepo = "  maven {\n"
+                + "    name \"lucene-snapshots\"\n"
+                + "    url \"https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/"
+                + luceneSnapshotRevision
+                + "\"\n"
+                + "  }\n";
         }
         writeBuildScript(
-                "\n"
-                        + "repositories {\n"
-                        + "  maven {\n"
-                        + "    name \"test\"\n"
-                        + "    url \""
-                        + getLocalTestRepoPath()
-                        + "\"\n"
-                        + "  }\n"
-                        + "  flatDir {\n"
-                        + "    dir '"
-                        + getLocalTestDownloadsPath()
-                        + "'\n"
-                        + "  }\n"
-                        + luceneSnapshotRepo
-                        + "}\n");
+            "\n"
+                + "repositories {\n"
+                + "  maven {\n"
+                + "    name \"test\"\n"
+                + "    url \""
+                + getLocalTestRepoPath()
+                + "\"\n"
+                + "  }\n"
+                + "  flatDir {\n"
+                + "    dir '"
+                + getLocalTestDownloadsPath()
+                + "'\n"
+                + "  }\n"
+                + luceneSnapshotRepo
+                + "}\n"
+        );
         Files.delete(getTempPath("build.gradle"));
         Files.move(getTempPath("build.gradle.new"), getTempPath("build.gradle"));
         System.err.print("Generated build script is:");
@@ -164,9 +172,10 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
         try {
             Path path = getTempPath("build.gradle.new");
             return Files.write(
-                    path,
-                    script.getBytes(StandardCharsets.UTF_8),
-                    Files.exists(path) ? StandardOpenOption.APPEND : StandardOpenOption.CREATE_NEW);
+                path,
+                script.getBytes(StandardCharsets.UTF_8),
+                Files.exists(path) ? StandardOpenOption.APPEND : StandardOpenOption.CREATE_NEW
+            );
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

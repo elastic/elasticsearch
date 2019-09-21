@@ -65,15 +65,17 @@ public class WaitForHttpResource {
     private String password;
 
     public WaitForHttpResource(String protocol, String host, int numberOfNodes)
-            throws MalformedURLException {
+        throws MalformedURLException {
         this(
-                new URL(
-                        protocol
-                                + "://"
-                                + host
-                                + "/_cluster/health?wait_for_nodes=>="
-                                + numberOfNodes
-                                + "&wait_for_status=yellow"));
+            new URL(
+                protocol
+                    + "://"
+                    + host
+                    + "/_cluster/health?wait_for_nodes=>="
+                    + numberOfNodes
+                    + "&wait_for_status=yellow"
+            )
+        );
     }
 
     public WaitForHttpResource(URL url) {
@@ -108,7 +110,7 @@ public class WaitForHttpResource {
     }
 
     public boolean wait(int durationInMs)
-            throws GeneralSecurityException, InterruptedException, IOException {
+        throws GeneralSecurityException, InterruptedException, IOException {
         final long waitUntil = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(durationInMs);
         final long sleep = Long.max(durationInMs / 10, 100);
 
@@ -120,7 +122,7 @@ public class WaitForHttpResource {
             ssl = null;
         }
         IOException failure = null;
-        for (; ; ) {
+        for (;;) {
             try {
                 checkResource(ssl);
                 return true;
@@ -162,7 +164,8 @@ public class WaitForHttpResource {
                 ((HttpsURLConnection) connection).setSSLSocketFactory(ssl.getSocketFactory());
             } else {
                 throw new IllegalStateException(
-                        "SSL trust has been configured, but [" + url + "] is not a 'https' URL");
+                    "SSL trust has been configured, but [" + url + "] is not a 'https' URL"
+                );
             }
         }
     }
@@ -171,17 +174,20 @@ public class WaitForHttpResource {
         if (username != null) {
             if (password == null) {
                 throw new IllegalStateException(
-                        "Basic Auth user ["
-                                + username
-                                + "] has been set, but no password has been configured");
+                    "Basic Auth user ["
+                        + username
+                        + "] has been set, but no password has been configured"
+                );
             }
             connection.setRequestProperty(
-                    "Authorization",
-                    "Basic "
-                            + Base64.getEncoder()
-                                    .encodeToString(
-                                            (username + ":" + password)
-                                                    .getBytes(StandardCharsets.UTF_8)));
+                "Authorization",
+                "Basic "
+                    + Base64.getEncoder()
+                        .encodeToString(
+                            (username + ":" + password)
+                                .getBytes(StandardCharsets.UTF_8)
+                        )
+            );
         }
     }
 
@@ -199,11 +205,12 @@ public class WaitForHttpResource {
     }
 
     private KeyStore buildTrustStoreFromFile() throws GeneralSecurityException, IOException {
-        KeyStore keyStore =
-                KeyStore.getInstance(trustStoreFile.getName().endsWith(".jks") ? "JKS" : "PKCS12");
+        KeyStore keyStore = KeyStore.getInstance(trustStoreFile.getName().endsWith(".jks") ? "JKS" : "PKCS12");
         try (InputStream input = new FileInputStream(trustStoreFile)) {
             keyStore.load(
-                    input, trustStorePassword == null ? null : trustStorePassword.toCharArray());
+                input,
+                trustStorePassword == null ? null : trustStorePassword.toCharArray()
+            );
         }
         return keyStore;
     }
@@ -226,8 +233,7 @@ public class WaitForHttpResource {
 
     private SSLContext createSslContext(KeyStore trustStore) throws GeneralSecurityException {
         checkForTrustEntry(trustStore);
-        TrustManagerFactory tmf =
-                TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+        TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
         tmf.init(trustStore);
         SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
         sslContext.init(new KeyManager[0], tmf.getTrustManagers(), new SecureRandom());
@@ -243,6 +249,7 @@ public class WaitForHttpResource {
             }
         }
         throw new IllegalStateException(
-                "Trust-store does not contain any trusted certificate entries");
+            "Trust-store does not contain any trusted certificate entries"
+        );
     }
 }

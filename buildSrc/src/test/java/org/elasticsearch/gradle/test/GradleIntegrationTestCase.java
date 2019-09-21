@@ -19,14 +19,16 @@ import org.junit.rules.TemporaryFolder;
 
 public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
 
-    @Rule public TemporaryFolder testkitTmpDir = new TemporaryFolder();
+    @Rule
+    public TemporaryFolder testkitTmpDir = new TemporaryFolder();
 
     protected File getProjectDir(String name) {
         File root = new File("src/testKit/");
         if (root.exists() == false) {
             throw new RuntimeException(
-                    "Could not find resources dir for integration tests. "
-                            + "Note that these tests can only be ran by Gradle and are not currently supported by the IDE");
+                "Could not find resources dir for integration tests. "
+                    + "Note that these tests can only be ran by Gradle and are not currently supported by the IDE"
+            );
         }
         return new File(root, name).getAbsoluteFile();
     }
@@ -39,9 +41,9 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
             throw new UncheckedIOException(e);
         }
         return GradleRunner.create()
-                .withProjectDir(getProjectDir(sampleProject))
-                .withPluginClasspath()
-                .withTestKitDir(testkit);
+            .withProjectDir(getProjectDir(sampleProject))
+            .withPluginClasspath()
+            .withTestKitDir(testkit);
     }
 
     protected File getBuildDir(String name) {
@@ -52,17 +54,17 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
         for (String line : lines) {
             assertOutputContains(output, line);
         }
-        List<Integer> index =
-                Stream.of(lines).map(line -> output.indexOf(line)).collect(Collectors.toList());
+        List<Integer> index = Stream.of(lines).map(line -> output.indexOf(line)).collect(Collectors.toList());
         if (index.equals(index.stream().sorted().collect(Collectors.toList())) == false) {
             fail(
-                    "Expected the following lines to appear in this order:\n"
-                            + Stream.of(lines)
-                                    .map(line -> "   - `" + line + "`")
-                                    .collect(Collectors.joining("\n"))
-                            + "\nTBut the order was different. Output is:\n\n```"
-                            + output
-                            + "\n```\n");
+                "Expected the following lines to appear in this order:\n"
+                    + Stream.of(lines)
+                        .map(line -> "   - `" + line + "`")
+                        .collect(Collectors.joining("\n"))
+                    + "\nTBut the order was different. Output is:\n\n```"
+                    + output
+                    + "\n```\n"
+            );
         }
     }
 
@@ -74,17 +76,19 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
 
     protected void assertOutputContains(String output, String line) {
         assertTrue(
-                "Expected the following line in output:\n\n" + line + "\n\nOutput is:\n" + output,
-                output.contains(line));
+            "Expected the following line in output:\n\n" + line + "\n\nOutput is:\n" + output,
+            output.contains(line)
+        );
     }
 
     protected void assertOutputDoesNotContain(String output, String line) {
         assertFalse(
-                "Expected the following line not to be in output:\n\n"
-                        + line
-                        + "\n\nOutput is:\n"
-                        + output,
-                output.contains(line));
+            "Expected the following line not to be in output:\n\n"
+                + line
+                + "\n\nOutput is:\n"
+                + output,
+            output.contains(line)
+        );
     }
 
     protected void assertOutputDoesNotContain(String output, String... lines) {
@@ -119,25 +123,27 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
         BuildTask task = result.task(taskName);
         if (task == null) {
             fail(
-                    "Expected task `"
-                            + taskName
-                            + "` to be "
-                            + taskOutcome
-                            + ", but it did not run"
-                            + "\n\nOutput is:\n"
-                            + result.getOutput());
+                "Expected task `"
+                    + taskName
+                    + "` to be "
+                    + taskOutcome
+                    + ", but it did not run"
+                    + "\n\nOutput is:\n"
+                    + result.getOutput()
+            );
         }
         assertEquals(
-                "Expected task `"
-                        + taskName
-                        + "` to be "
-                        + taskOutcome
-                        + " but it was: "
-                        + task.getOutcome()
-                        + "\n\nOutput is:\n"
-                        + result.getOutput(),
-                taskOutcome,
-                task.getOutcome());
+            "Expected task `"
+                + taskName
+                + "` to be "
+                + taskOutcome
+                + " but it was: "
+                + task.getOutcome()
+                + "\n\nOutput is:\n"
+                + result.getOutput(),
+            taskOutcome,
+            task.getOutcome()
+        );
     }
 
     protected void assertTaskUpToDate(BuildResult result, String... taskNames) {
@@ -147,38 +153,42 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
                 fail("Expected task `" + taskName + "` to be up-to-date, but it did not run");
             }
             assertEquals(
-                    "Expected task to be up to date but it was: "
-                            + task.getOutcome()
-                            + "\n\nOutput is:\n"
-                            + result.getOutput(),
-                    TaskOutcome.UP_TO_DATE,
-                    task.getOutcome());
+                "Expected task to be up to date but it was: "
+                    + task.getOutcome()
+                    + "\n\nOutput is:\n"
+                    + result.getOutput(),
+                TaskOutcome.UP_TO_DATE,
+                task.getOutcome()
+            );
         }
     }
 
     protected void assertBuildFileExists(BuildResult result, String projectName, String path) {
         Path absPath = getBuildDir(projectName).toPath().resolve(path);
         assertTrue(
-                result.getOutput()
-                        + "\n\nExpected `"
-                        + absPath
-                        + "` to exists but it did not"
-                        + "\n\nOutput is:\n"
-                        + result.getOutput(),
-                Files.exists(absPath));
+            result.getOutput()
+                + "\n\nExpected `"
+                + absPath
+                + "` to exists but it did not"
+                + "\n\nOutput is:\n"
+                + result.getOutput(),
+            Files.exists(absPath)
+        );
     }
 
     protected void assertBuildFileDoesNotExists(
-            BuildResult result, String projectName, String path) {
+        BuildResult result, String projectName, String path
+    ) {
         Path absPath = getBuildDir(projectName).toPath().resolve(path);
         assertFalse(
-                result.getOutput()
-                        + "\n\nExpected `"
-                        + absPath
-                        + "` bo to exists but it did"
-                        + "\n\nOutput is:\n"
-                        + result.getOutput(),
-                Files.exists(absPath));
+            result.getOutput()
+                + "\n\nExpected `"
+                + absPath
+                + "` bo to exists but it did"
+                + "\n\nOutput is:\n"
+                + result.getOutput(),
+            Files.exists(absPath)
+        );
     }
 
     protected String getLocalTestRepoPath() {
@@ -207,17 +217,19 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
             int i = output.indexOf(each);
             if (i == -1) {
                 fail(
-                        "Expected \n```"
-                                + each
-                                + "```\nto appear at most once, but it didn't at all.\n\nOutout is:\n"
-                                + output);
+                    "Expected \n```"
+                        + each
+                        + "```\nto appear at most once, but it didn't at all.\n\nOutout is:\n"
+                        + output
+                );
             }
             if (output.indexOf(each) != output.lastIndexOf(each)) {
                 fail(
-                        "Expected `"
-                                + each
-                                + "` to appear at most once, but it did multiple times.\n\nOutout is:\n"
-                                + output);
+                    "Expected `"
+                        + each
+                        + "` to appear at most once, but it did multiple times.\n\nOutout is:\n"
+                        + output
+                );
             }
         }
     }

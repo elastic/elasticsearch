@@ -11,8 +11,7 @@ public final class Version implements Comparable<Version> {
     private final int revision;
     private final int id;
 
-    private static final Pattern pattern =
-            Pattern.compile("(\\d)+\\.(\\d+)\\.(\\d+)(-alpha\\d+|-beta\\d+|-rc\\d+)?(-SNAPSHOT)?");
+    private static final Pattern pattern = Pattern.compile("(\\d)+\\.(\\d+)\\.(\\d+)(-alpha\\d+|-beta\\d+|-rc\\d+)?(-SNAPSHOT)?");
 
     public Version(int major, int minor, int revision) {
         Objects.requireNonNull(major, "major version can't be null");
@@ -38,24 +37,26 @@ public final class Version implements Comparable<Version> {
         Matcher matcher = pattern.matcher(s);
         if (matcher.matches() == false) {
             throw new IllegalArgumentException(
-                    "Invalid version format: '"
-                            + s
-                            + "'. Should be major.minor.revision[-(alpha|beta|rc)Number][-SNAPSHOT]");
+                "Invalid version format: '"
+                    + s
+                    + "'. Should be major.minor.revision[-(alpha|beta|rc)Number][-SNAPSHOT]"
+            );
         }
 
         return new Version(
-                Integer.parseInt(matcher.group(1)),
-                parseSuffixNumber(matcher.group(2)),
-                parseSuffixNumber(matcher.group(3)));
+            Integer.parseInt(matcher.group(1)),
+            parseSuffixNumber(matcher.group(2)),
+            parseSuffixNumber(matcher.group(3))
+        );
     }
 
     @Override
     public String toString() {
         return String.valueOf(getMajor())
-                + "."
-                + String.valueOf(getMinor())
-                + "."
-                + String.valueOf(getRevision());
+            + "."
+            + String.valueOf(getMinor())
+            + "."
+            + String.valueOf(getRevision());
     }
 
     public boolean before(Version compareTo) {
@@ -92,8 +93,10 @@ public final class Version implements Comparable<Version> {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
         Version version = (Version) o;
         return major == version.major && minor == version.minor && revision == version.revision;
     }

@@ -41,7 +41,8 @@ public class VagrantExtension {
         this.vmEnv = project.getObjects().mapProperty(String.class, Object.class);
         this.vagrantfile = project.getObjects().fileProperty();
         this.vagrantfile.convention(
-                project.getRootProject().getLayout().getProjectDirectory().file("Vagrantfile"));
+            project.getRootProject().getLayout().getProjectDirectory().file("Vagrantfile")
+        );
         this.isWindowsVM = false;
     }
 

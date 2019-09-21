@@ -36,8 +36,7 @@ import org.gradle.internal.jvm.Jvm;
 public class ReaperService {
 
     private static final String REAPER_CLASS = "org/elasticsearch/gradle/reaper/Reaper.class";
-    private static final Pattern REAPER_JAR_PATH_PATTERN =
-            Pattern.compile("file:(.*)!/" + REAPER_CLASS);
+    private static final Pattern REAPER_JAR_PATH_PATTERN = Pattern.compile("file:(.*)!/" + REAPER_CLASS);
     private Logger logger;
     private Path buildDir;
     private Path inputDir;
@@ -53,12 +52,12 @@ public class ReaperService {
 
     /** Register a pid that will be killed by the reaper. */
     public void registerPid(String serviceId, long pid) {
-        String[] killPidCommand =
-                OS.<String[]>conditional()
-                        .onWindows(
-                                () -> new String[] {"Taskill", "/F", "/PID", String.valueOf(pid)})
-                        .onUnix(() -> new String[] {"kill", "-9", String.valueOf(pid)})
-                        .supply();
+        String[] killPidCommand = OS.<String[]>conditional()
+            .onWindows(
+                () -> new String[] { "Taskill", "/F", "/PID", String.valueOf(pid) }
+            )
+            .onUnix(() -> new String[] { "kill", "-9", String.valueOf(pid) })
+            .supply();
         registerCommand(serviceId, killPidCommand);
     }
 
@@ -93,9 +92,10 @@ public class ReaperService {
                 logger.info("Waiting for reaper to exit normally");
                 if (reaperProcess.waitFor() != 0) {
                     throw new GradleException(
-                            "Reaper process failed. Check log at "
-                                    + inputDir.resolve("error.log")
-                                    + " for details");
+                        "Reaper process failed. Check log at "
+                            + inputDir.resolve("error.log")
+                            + " for details"
+                    );
                 }
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -112,15 +112,15 @@ public class ReaperService {
                 Files.createDirectories(inputDir);
 
                 // start the reaper
-                ProcessBuilder builder =
-                        new ProcessBuilder(
-                                Jvm.current().getJavaExecutable().toString(), // same jvm as gradle
-                                // no need for a big heap, just need to read some files and execute
-                                "-Xms4m",
-                                "-Xmx16m",
-                                "-jar",
-                                jarPath.toString(),
-                                inputDir.toString());
+                ProcessBuilder builder = new ProcessBuilder(
+                    Jvm.current().getJavaExecutable().toString(), // same jvm as gradle
+                    // no need for a big heap, just need to read some files and execute
+                    "-Xms4m",
+                    "-Xmx16m",
+                    "-jar",
+                    jarPath.toString(),
+                    inputDir.toString()
+                );
                 logger.info("Launching reaper: " + String.join(" ", builder.command()));
                 // be explicit for stdin, we use closing of the pipe to signal shutdown to the
                 // reaper
@@ -147,13 +147,15 @@ public class ReaperService {
             if (matcher.matches()) {
                 String path = matcher.group(1);
                 return Path.of(
-                        OS.<String>conditional()
-                                .onWindows(() -> path.substring(1))
-                                .onUnix(() -> path)
-                                .supply());
+                    OS.<String>conditional()
+                        .onWindows(() -> path.substring(1))
+                        .onUnix(() -> path)
+                        .supply()
+                );
             } else {
                 throw new RuntimeException(
-                        "Unable to locate " + REAPER_CLASS + " on build classpath.");
+                    "Unable to locate " + REAPER_CLASS + " on build classpath."
+                );
             }
         } else {
             // copy the reaper jar
@@ -162,12 +164,13 @@ public class ReaperService {
                 Files.createDirectories(jarPath.getParent());
             } catch (IOException e) {
                 throw new UncheckedIOException(
-                        "Unable to create reaper JAR output directory " + jarPath.getParent(), e);
+                    "Unable to create reaper JAR output directory " + jarPath.getParent(),
+                    e
+                );
             }
 
             try (OutputStream out = Files.newOutputStream(jarPath);
-                    InputStream jarInput =
-                            this.getClass().getResourceAsStream("/META-INF/reaper.jar"); ) {
+                InputStream jarInput = this.getClass().getResourceAsStream("/META-INF/reaper.jar");) {
                 logger.info("Copying reaper.jar...");
                 jarInput.transferTo(out);
             } catch (IOException e) {
@@ -181,7 +184,8 @@ public class ReaperService {
     private void ensureReaperAlive() {
         if (reaperProcess.isAlive() == false) {
             throw new IllegalStateException(
-                    "Reaper process died unexpectedly! Check the log at " + logFile.toString());
+                "Reaper process died unexpectedly! Check the log at " + logFile.toString()
+            );
         }
     }
 }

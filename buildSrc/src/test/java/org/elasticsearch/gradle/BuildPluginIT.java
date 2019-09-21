@@ -37,24 +37,24 @@ import org.junit.rules.TemporaryFolder;
 
 public class BuildPluginIT extends GradleIntegrationTestCase {
 
-    @Rule public TemporaryFolder tmpDir = new TemporaryFolder();
+    @Rule
+    public TemporaryFolder tmpDir = new TemporaryFolder();
 
     public void testPluginCanBeApplied() {
-        BuildResult result =
-                getGradleRunner("elasticsearch.build").withArguments("hello", "-s").build();
+        BuildResult result = getGradleRunner("elasticsearch.build").withArguments("hello", "-s").build();
         assertTaskSuccessful(result, ":hello");
         assertOutputContains("build plugin can be applied");
     }
 
     public void testCheckTask() {
-        BuildResult result =
-                getGradleRunner("elasticsearch.build")
-                        .withArguments(
-                                "check",
-                                "assemble",
-                                "-s",
-                                "-Dlocal.repo.path=" + getLocalTestRepoPath())
-                        .build();
+        BuildResult result = getGradleRunner("elasticsearch.build")
+            .withArguments(
+                "check",
+                "assemble",
+                "-s",
+                "-Dlocal.repo.path=" + getLocalTestRepoPath()
+            )
+            .build();
         assertTaskSuccessful(result, ":check");
     }
 
@@ -62,14 +62,14 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
         final String name = "elastic-maven";
         final String url = "http://s3.amazonaws.com/artifacts.elastic.co/maven";
         // add an insecure maven repository to the build.gradle
-        final List<String> lines =
-                Arrays.asList(
-                        "repositories {",
-                        "  maven {",
-                        "    name \"elastic-maven\"",
-                        "    url \"" + url + "\"\n",
-                        "  }",
-                        "}");
+        final List<String> lines = Arrays.asList(
+            "repositories {",
+            "  maven {",
+            "    name \"elastic-maven\"",
+            "    url \"" + url + "\"\n",
+            "  }",
+            "}"
+        );
         runInsecureArtifactRepositoryTest(name, url, lines);
     }
 
@@ -77,79 +77,89 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
         final String name = "elastic-ivy";
         final String url = "http://s3.amazonaws.com/artifacts.elastic.co/ivy";
         // add an insecure ivy repository to the build.gradle
-        final List<String> lines =
-                Arrays.asList(
-                        "repositories {",
-                        "  ivy {",
-                        "    name \"elastic-ivy\"",
-                        "    url \"" + url + "\"\n",
-                        "  }",
-                        "}");
+        final List<String> lines = Arrays.asList(
+            "repositories {",
+            "  ivy {",
+            "    name \"elastic-ivy\"",
+            "    url \"" + url + "\"\n",
+            "  }",
+            "}"
+        );
         runInsecureArtifactRepositoryTest(name, url, lines);
     }
 
     private void runInsecureArtifactRepositoryTest(
-            final String name, final String url, final List<String> lines) throws IOException {
+        final String name, final String url, final List<String> lines
+    ) throws IOException {
         final File projectDir = getProjectDir("elasticsearch.build");
         FileUtils.copyDirectory(
-                projectDir,
-                tmpDir.getRoot(),
-                pathname -> pathname.getPath().contains("/build/") == false);
-        final List<String> buildGradleLines =
-                Files.readAllLines(
-                        tmpDir.getRoot().toPath().resolve("build.gradle"), StandardCharsets.UTF_8);
+            projectDir,
+            tmpDir.getRoot(),
+            pathname -> pathname.getPath().contains("/build/") == false
+        );
+        final List<String> buildGradleLines = Files.readAllLines(
+            tmpDir.getRoot().toPath().resolve("build.gradle"),
+            StandardCharsets.UTF_8
+        );
         buildGradleLines.addAll(lines);
         Files.write(
-                tmpDir.getRoot().toPath().resolve("build.gradle"),
-                buildGradleLines,
-                StandardCharsets.UTF_8);
-        final BuildResult result =
-                GradleRunner.create()
-                        .withProjectDir(tmpDir.getRoot())
-                        .withArguments("clean", "hello", "-s", "-i", "--warning-mode=all", "--scan")
-                        .withPluginClasspath()
-                        .buildAndFail();
+            tmpDir.getRoot().toPath().resolve("build.gradle"),
+            buildGradleLines,
+            StandardCharsets.UTF_8
+        );
+        final BuildResult result = GradleRunner.create()
+            .withProjectDir(tmpDir.getRoot())
+            .withArguments("clean", "hello", "-s", "-i", "--warning-mode=all", "--scan")
+            .withPluginClasspath()
+            .buildAndFail();
         assertOutputContains(
-                result.getOutput(),
-                "repository ["
-                        + name
-                        + "] on project with path [:] is not using a secure protocol for artifacts on ["
-                        + url
-                        + "]");
+            result.getOutput(),
+            "repository ["
+                + name
+                + "] on project with path [:] is not using a secure protocol for artifacts on ["
+                + url
+                + "]"
+        );
     }
 
     public void testLicenseAndNotice() throws IOException {
-        BuildResult result =
-                getGradleRunner("elasticsearch.build")
-                        .withArguments(
-                                "clean",
-                                "assemble",
-                                "-s",
-                                "-Dlocal.repo.path=" + getLocalTestRepoPath())
-                        .build();
+        BuildResult result = getGradleRunner("elasticsearch.build")
+            .withArguments(
+                "clean",
+                "assemble",
+                "-s",
+                "-Dlocal.repo.path=" + getLocalTestRepoPath()
+            )
+            .build();
 
         assertTaskSuccessful(result, ":assemble");
 
         assertBuildFileExists(
-                result, "elasticsearch.build", "distributions/elasticsearch.build.jar");
+            result,
+            "elasticsearch.build",
+            "distributions/elasticsearch.build.jar"
+        );
 
-        try (ZipFile zipFile =
-                new ZipFile(
-                        new File(
-                                getBuildDir("elasticsearch.build"),
-                                "distributions/elasticsearch.build.jar"))) {
+        try (ZipFile zipFile = new ZipFile(
+            new File(
+                getBuildDir("elasticsearch.build"),
+                "distributions/elasticsearch.build.jar"
+            )
+        )) {
             ZipEntry licenseEntry = zipFile.getEntry("META-INF/LICENSE.txt");
             ZipEntry noticeEntry = zipFile.getEntry("META-INF/NOTICE.txt");
             assertNotNull("Jar does not have META-INF/LICENSE.txt", licenseEntry);
             assertNotNull("Jar does not have META-INF/NOTICE.txt", noticeEntry);
             try (InputStream license = zipFile.getInputStream(licenseEntry);
-                    InputStream notice = zipFile.getInputStream(noticeEntry)) {
+                InputStream notice = zipFile.getInputStream(noticeEntry)) {
                 assertEquals(
-                        "this is a test license file",
-                        IOUtils.toString(license, StandardCharsets.UTF_8.name()));
+                    "this is a test license file",
+                    IOUtils.toString(license, StandardCharsets.UTF_8.name())
+                );
                 assertEquals(
-                        "this is a test notice file",
-                        IOUtils.toString(notice, StandardCharsets.UTF_8.name()));
+                    "this is a test notice file",
+                    IOUtils.toString(notice, StandardCharsets.UTF_8.name())
+                );
             }
         }
     }

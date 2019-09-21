@@ -39,30 +39,34 @@ public class LoggedExec extends Exec {
             // incremental build if we use a lambda. This ensures LoggedExec tasks that declare
             // output can be UP-TO-DATE.
             doLast(
-                    new Action<Task>() {
-                        @Override
-                        public void execute(Task task) {
-                            if (LoggedExec.this.getExecResult().getExitValue() != 0) {
-                                try {
-                                    LoggedExec.this
-                                            .getLogger()
-                                            .error(
-                                                    "Output for "
-                                                            + LoggedExec.this.getExecutable()
-                                                            + ":");
-                                    outputLogger.accept(LoggedExec.this.getLogger());
-                                } catch (Exception e) {
-                                    throw new GradleException("Failed to read exec output", e);
-                                }
-                                throw new GradleException(
-                                        String.format(
-                                                "Process '%s %s' finished with non-zero exit value %d",
-                                                LoggedExec.this.getExecutable(),
-                                                LoggedExec.this.getArgs(),
-                                                LoggedExec.this.getExecResult().getExitValue()));
+                new Action<Task>() {
+                    @Override
+                    public void execute(Task task) {
+                        if (LoggedExec.this.getExecResult().getExitValue() != 0) {
+                            try {
+                                LoggedExec.this
+                                    .getLogger()
+                                    .error(
+                                        "Output for "
+                                            + LoggedExec.this.getExecutable()
+                                            + ":"
+                                    );
+                                outputLogger.accept(LoggedExec.this.getLogger());
+                            } catch (Exception e) {
+                                throw new GradleException("Failed to read exec output", e);
                             }
+                            throw new GradleException(
+                                String.format(
+                                    "Process '%s %s' finished with non-zero exit value %d",
+                                    LoggedExec.this.getExecutable(),
+                                    LoggedExec.this.getArgs(),
+                                    LoggedExec.this.getExecResult().getExitValue()
+                                )
+                            );
                         }
-                    });
+                    }
+                }
+            );
         }
     }
 
@@ -70,30 +74,27 @@ public class LoggedExec extends Exec {
     public void setSpoolOutput(boolean spoolOutput) {
         final OutputStream out;
         if (spoolOutput) {
-            File spoolFile =
-                    new File(getProject().getBuildDir() + "/buffered-output/" + this.getName());
+            File spoolFile = new File(getProject().getBuildDir() + "/buffered-output/" + this.getName());
             out = new LazyFileOutputStream(spoolFile);
-            outputLogger =
-                    logger -> {
-                        try {
-                            // the file may not exist if the command never output anything
-                            if (Files.exists(spoolFile.toPath())) {
-                                Files.lines(spoolFile.toPath()).forEach(logger::error);
-                            }
-                        } catch (IOException e) {
-                            throw new RuntimeException("could not log", e);
-                        }
-                    };
+            outputLogger = logger -> {
+                try {
+                    // the file may not exist if the command never output anything
+                    if (Files.exists(spoolFile.toPath())) {
+                        Files.lines(spoolFile.toPath()).forEach(logger::error);
+                    }
+                } catch (IOException e) {
+                    throw new RuntimeException("could not log", e);
+                }
+            };
         } else {
             out = new ByteArrayOutputStream();
-            outputLogger =
-                    logger -> {
-                        try {
-                            logger.error(((ByteArrayOutputStream) out).toString("UTF-8"));
-                        } catch (UnsupportedEncodingException e) {
-                            throw new RuntimeException(e);
-                        }
-                    };
+            outputLogger = logger -> {
+                try {
+                    logger.error(((ByteArrayOutputStream) out).toString("UTF-8"));
+                } catch (UnsupportedEncodingException e) {
+                    throw new RuntimeException(e);
+                }
+            };
         }
         setStandardOutput(out);
         setErrorOutput(out);
@@ -110,31 +111,34 @@ public class LoggedExec extends Exec {
     private static final Pattern NEWLINE = Pattern.compile(System.lineSeparator());
 
     private static <T extends BaseExecSpec> ExecResult genericExec(
-            Project project, Function<Action<T>, ExecResult> function, Action<T> action) {
+        Project project, Function<Action<T>, ExecResult> function, Action<T> action
+    ) {
         if (project.getLogger().isInfoEnabled()) {
             return function.apply(action);
         }
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         try {
             return function.apply(
-                    spec -> {
-                        spec.setStandardOutput(output);
-                        spec.setErrorOutput(output);
-                        action.execute(spec);
-                        try {
-                            output.write(
-                                    ("Output for " + spec.getExecutable() + ":")
-                                            .getBytes(StandardCharsets.UTF_8));
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
-                        }
-                    });
+                spec -> {
+                    spec.setStandardOutput(output);
+                    spec.setErrorOutput(output);
+                    action.execute(spec);
+                    try {
+                        output.write(
+                            ("Output for " + spec.getExecutable() + ":")
+                                .getBytes(StandardCharsets.UTF_8)
+                        );
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+            );
         } catch (Exception e) {
             try {
                 if (output.size() != 0) {
                     project.getLogger().error("Exec output and error:");
                     NEWLINE.splitAsStream(output.toString("UTF-8"))
-                            .forEach(s -> project.getLogger().error("| " + s));
+                        .forEach(s -> project.getLogger().error("| " + s));
                 }
             } catch (UnsupportedEncodingException ue) {
                 throw new GradleException("Failed to read exec output", ue);

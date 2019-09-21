@@ -53,19 +53,18 @@ public class ForbiddenPatternsTask extends DefaultTask {
     /*
      * A pattern set of which files should be checked.
      */
-    private final PatternFilterable filesFilter =
-            new PatternSet()
-                    // we always include all source files, and exclude what should not be checked
-                    .include("**")
-                    // exclude known binary extensions
-                    .exclude("**/*.gz")
-                    .exclude("**/*.ico")
-                    .exclude("**/*.jar")
-                    .exclude("**/*.zip")
-                    .exclude("**/*.jks")
-                    .exclude("**/*.crt")
-                    .exclude("**/*.keystore")
-                    .exclude("**/*.png");
+    private final PatternFilterable filesFilter = new PatternSet()
+        // we always include all source files, and exclude what should not be checked
+        .include("**")
+        // exclude known binary extensions
+        .exclude("**/*.gz")
+        .exclude("**/*.ico")
+        .exclude("**/*.jar")
+        .exclude("**/*.zip")
+        .exclude("**/*.jks")
+        .exclude("**/*.crt")
+        .exclude("**/*.keystore")
+        .exclude("**/*.png");
 
     /*
      * The rules: a map from the rule name, to a rule regex pattern.
@@ -80,25 +79,27 @@ public class ForbiddenPatternsTask extends DefaultTask {
         // add mandatory rules
         patterns.put("nocommit", "nocommit|NOCOMMIT");
         patterns.put(
-                "nocommit should be all lowercase or all uppercase",
-                "((?i)nocommit)(?<!(nocommit|NOCOMMIT))");
+            "nocommit should be all lowercase or all uppercase",
+            "((?i)nocommit)(?<!(nocommit|NOCOMMIT))"
+        );
         patterns.put("tab", "\t");
     }
 
     @InputFiles
     @SkipWhenEmpty
     public FileCollection files() {
-        return getProject().getConvention().getPlugin(JavaPluginConvention.class).getSourceSets()
-                .stream()
-                .map(sourceSet -> sourceSet.getAllSource().matching(filesFilter))
-                .reduce(FileTree::plus)
-                .orElse(getProject().files().getAsFileTree());
+        return getProject().getConvention()
+            .getPlugin(JavaPluginConvention.class)
+            .getSourceSets()
+            .stream()
+            .map(sourceSet -> sourceSet.getAllSource().matching(filesFilter))
+            .reduce(FileTree::plus)
+            .orElse(getProject().files().getAsFileTree());
     }
 
     @TaskAction
     public void checkInvalidPatterns() throws IOException {
-        Pattern allPatterns =
-                Pattern.compile("(" + String.join(")|(", getPatterns().values()) + ")");
+        Pattern allPatterns = Pattern.compile("(" + String.join(")|(", getPatterns().values()) + ")");
         List<String> failures = new ArrayList<>();
         for (File f : files()) {
             List<String> lines;
@@ -107,39 +108,39 @@ public class ForbiddenPatternsTask extends DefaultTask {
             } catch (UncheckedIOException e) {
                 throw new IllegalArgumentException("Failed to read " + f + " as UTF_8", e);
             }
-            List<Integer> invalidLines =
-                    IntStream.range(0, lines.size())
-                            .filter(i -> allPatterns.matcher(lines.get(i)).find())
-                            .boxed()
-                            .collect(Collectors.toList());
+            List<Integer> invalidLines = IntStream.range(0, lines.size())
+                .filter(i -> allPatterns.matcher(lines.get(i)).find())
+                .boxed()
+                .collect(Collectors.toList());
 
-            String path =
-                    getProject()
-                            .getRootProject()
-                            .getProjectDir()
-                            .toURI()
-                            .relativize(f.toURI())
-                            .toString();
+            String path = getProject()
+                .getRootProject()
+                .getProjectDir()
+                .toURI()
+                .relativize(f.toURI())
+                .toString();
             failures.addAll(
-                    invalidLines.stream()
-                            .map(l -> new AbstractMap.SimpleEntry<>(l + 1, lines.get(l)))
-                            .flatMap(
-                                    kv ->
-                                            patterns.entrySet().stream()
-                                                    .filter(
-                                                            p ->
-                                                                    Pattern.compile(p.getValue())
-                                                                            .matcher(kv.getValue())
-                                                                            .find())
-                                                    .map(
-                                                            p ->
-                                                                    "- "
-                                                                            + p.getKey()
-                                                                            + " on line "
-                                                                            + kv.getKey()
-                                                                            + " of "
-                                                                            + path))
-                            .collect(Collectors.toList()));
+                invalidLines.stream()
+                    .map(l -> new AbstractMap.SimpleEntry<>(l + 1, lines.get(l)))
+                    .flatMap(
+                        kv -> patterns.entrySet()
+                            .stream()
+                            .filter(
+                                p -> Pattern.compile(p.getValue())
+                                    .matcher(kv.getValue())
+                                    .find()
+                            )
+                            .map(
+                                p -> "- "
+                                    + p.getKey()
+                                    + " on line "
+                                    + kv.getKey()
+                                    + " of "
+                                    + path
+                            )
+                    )
+                    .collect(Collectors.toList())
+            );
         }
         if (failures.isEmpty() == false) {
             throw new GradleException("Found invalid patterns:\n" + String.join("\n", failures));
@@ -175,8 +176,9 @@ public class ForbiddenPatternsTask extends DefaultTask {
         }
         if (props.isEmpty() == false) {
             throw new InvalidUserDataException(
-                    "Unknown arguments for ForbiddenPatterns rule mapping: "
-                            + props.keySet().toString());
+                "Unknown arguments for ForbiddenPatterns rule mapping: "
+                    + props.keySet().toString()
+            );
         }
         // TODO: fail if pattern contains a newline, it won't work (currently)
         patterns.put(name, pattern);

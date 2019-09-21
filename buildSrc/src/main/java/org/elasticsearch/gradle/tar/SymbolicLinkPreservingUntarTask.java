@@ -90,10 +90,11 @@ public class SymbolicLinkPreservingUntarTask extends DefaultTask {
     final void execute() {
         // ensure the target extraction path is empty
         getProject().delete(extractPath);
-        try (TarArchiveInputStream tar =
-                new TarArchiveInputStream(
-                        new GzipCompressorInputStream(
-                                new FileInputStream(tarFile.getAsFile().get())))) {
+        try (TarArchiveInputStream tar = new TarArchiveInputStream(
+            new GzipCompressorInputStream(
+                new FileInputStream(tarFile.getAsFile().get())
+            )
+        )) {
             final Path destinationPath = extractPath.get().getAsFile().toPath();
             TarArchiveEntry entry = tar.getNextTarEntry();
             while (entry != null) {
@@ -121,14 +122,13 @@ public class SymbolicLinkPreservingUntarTask extends DefaultTask {
                 }
                 if (entry.isSymbolicLink() == false) {
                     // check if the underlying file system supports POSIX permissions
-                    final PosixFileAttributeView view =
-                            Files.getFileAttributeView(destination, PosixFileAttributeView.class);
+                    final PosixFileAttributeView view = Files.getFileAttributeView(destination, PosixFileAttributeView.class);
                     if (view != null) {
-                        final Set<PosixFilePermission> permissions =
-                                PosixFilePermissions.fromString(
-                                        permissions((entry.getMode() >> 6) & 07)
-                                                + permissions((entry.getMode() >> 3) & 07)
-                                                + permissions((entry.getMode() >> 0) & 07));
+                        final Set<PosixFilePermission> permissions = PosixFilePermissions.fromString(
+                            permissions((entry.getMode() >> 6) & 07)
+                                + permissions((entry.getMode() >> 3) & 07)
+                                + permissions((entry.getMode() >> 0) & 07)
+                        );
                         Files.setPosixFilePermissions(destination, permissions);
                     }
                 }
@@ -136,7 +136,9 @@ public class SymbolicLinkPreservingUntarTask extends DefaultTask {
             }
         } catch (final IOException e) {
             throw new GradleException(
-                    "unable to extract tar [" + tarFile.getAsFile().get().toPath() + "]", e);
+                "unable to extract tar [" + tarFile.getAsFile().get().toPath() + "]",
+                e
+            );
         }
     }
 

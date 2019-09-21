@@ -29,25 +29,29 @@ public class ExportElasticsearchBuildResourcesTaskIT extends GradleIntegrationTe
     public void testUpToDateWithSourcesConfigured() {
         getGradleRunner(PROJECT_NAME).withArguments("clean", "-s").build();
 
-        BuildResult result =
-                getGradleRunner(PROJECT_NAME).withArguments("buildResources", "-s", "-i").build();
+        BuildResult result = getGradleRunner(PROJECT_NAME).withArguments("buildResources", "-s", "-i").build();
         assertTaskSuccessful(result, ":buildResources");
         assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle.xml");
         assertBuildFileExists(
-                result, PROJECT_NAME, "build-tools-exported/checkstyle_suppressions.xml");
+            result,
+            PROJECT_NAME,
+            "build-tools-exported/checkstyle_suppressions.xml"
+        );
 
         result = getGradleRunner(PROJECT_NAME).withArguments("buildResources", "-s", "-i").build();
         assertTaskUpToDate(result, ":buildResources");
         assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle.xml");
         assertBuildFileExists(
-                result, PROJECT_NAME, "build-tools-exported/checkstyle_suppressions.xml");
+            result,
+            PROJECT_NAME,
+            "build-tools-exported/checkstyle_suppressions.xml"
+        );
     }
 
     public void testImplicitTaskDependencyCopy() {
-        BuildResult result =
-                getGradleRunner(PROJECT_NAME)
-                        .withArguments("clean", "sampleCopyAll", "-s", "-i")
-                        .build();
+        BuildResult result = getGradleRunner(PROJECT_NAME)
+            .withArguments("clean", "sampleCopyAll", "-s", "-i")
+            .build();
 
         assertTaskSuccessful(result, ":buildResources");
         assertTaskSuccessful(result, ":sampleCopyAll");
@@ -57,21 +61,24 @@ public class ExportElasticsearchBuildResourcesTaskIT extends GradleIntegrationTe
     }
 
     public void testImplicitTaskDependencyInputFileOfOther() {
-        BuildResult result =
-                getGradleRunner(PROJECT_NAME).withArguments("clean", "sample", "-s", "-i").build();
+        BuildResult result = getGradleRunner(PROJECT_NAME).withArguments("clean", "sample", "-s", "-i").build();
 
         assertTaskSuccessful(result, ":sample");
         assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle.xml");
         assertBuildFileExists(
-                result, PROJECT_NAME, "build-tools-exported/checkstyle_suppressions.xml");
+            result,
+            PROJECT_NAME,
+            "build-tools-exported/checkstyle_suppressions.xml"
+        );
     }
 
     public void testIncorrectUsage() {
         assertOutputContains(
-                getGradleRunner(PROJECT_NAME)
-                        .withArguments("noConfigAfterExecution", "-s", "-i")
-                        .buildAndFail()
-                        .getOutput(),
-                "buildResources can't be configured after the task ran");
+            getGradleRunner(PROJECT_NAME)
+                .withArguments("noConfigAfterExecution", "-s", "-i")
+                .buildAndFail()
+                .getOutput(),
+            "buildResources can't be configured after the task ran"
+        );
     }
 }

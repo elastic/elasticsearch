@@ -72,29 +72,34 @@ public class PrintGlobalBuildInfoTask extends DefaultTask {
 
     private TextResource getFileText(RegularFileProperty regularFileProperty) {
         return getProject()
-                .getResources()
-                .getText()
-                .fromFile(regularFileProperty.getAsFile().get());
+            .getResources()
+            .getText()
+            .fromFile(regularFileProperty.getAsFile().get());
     }
 
     private void setGlobalProperties() {
         getProject()
-                .getRootProject()
-                .allprojects(
-                        p -> {
-                            ExtraPropertiesExtension ext =
-                                    p.getExtensions().getByType(ExtraPropertiesExtension.class);
-                            ext.set(
-                                    "compilerJavaVersion",
-                                    JavaVersion.valueOf(
-                                            getFileText(getCompilerVersionFile()).asString()));
-                            ext.set(
-                                    "runtimeJavaVersion",
-                                    JavaVersion.valueOf(
-                                            getFileText(getRuntimeVersionFile()).asString()));
-                            ext.set(
-                                    "inFipsJvm",
-                                    Boolean.valueOf(getFileText(getFipsJvmFile()).asString()));
-                        });
+            .getRootProject()
+            .allprojects(
+                p -> {
+                    ExtraPropertiesExtension ext = p.getExtensions().getByType(ExtraPropertiesExtension.class);
+                    ext.set(
+                        "compilerJavaVersion",
+                        JavaVersion.valueOf(
+                            getFileText(getCompilerVersionFile()).asString()
+                        )
+                    );
+                    ext.set(
+                        "runtimeJavaVersion",
+                        JavaVersion.valueOf(
+                            getFileText(getRuntimeVersionFile()).asString()
+                        )
+                    );
+                    ext.set(
+                        "inFipsJvm",
+                        Boolean.valueOf(getFileText(getFipsJvmFile()).asString())
+                    );
+                }
+            );
     }
 }

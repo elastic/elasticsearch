@@ -45,9 +45,7 @@ public class GradleDistroTestTask extends VagrantShellTask {
         return taskName;
     }
 
-    @Option(
-            option = "tests",
-            description = "Sets test class or method name to be included, '*' is supported.")
+    @Option(option = "tests", description = "Sets test class or method name to be included, '*' is supported.")
     public void setTestClass(String testClass) {
         this.testClass = testClass;
     }
@@ -78,13 +76,15 @@ public class GradleDistroTestTask extends VagrantShellTask {
         line.append(taskName);
         line.append(" --project-cache-dir ");
         line.append(
-                isWindows
-                        ? convertWindowsPath(getProject(), cacheDir)
-                        : convertLinuxPath(getProject(), cacheDir));
+            isWindows
+                ? convertWindowsPath(getProject(), cacheDir)
+                : convertLinuxPath(getProject(), cacheDir)
+        );
         line.append(" -S");
         line.append(
-                " -D'org.gradle.logging.level'="
-                        + getProject().getGradle().getStartParameter().getLogLevel());
+            " -D'org.gradle.logging.level'="
+                + getProject().getGradle().getStartParameter().getLogLevel()
+        );
         if (testClass != null) {
             line.append(" --tests=");
             line.append(testClass);

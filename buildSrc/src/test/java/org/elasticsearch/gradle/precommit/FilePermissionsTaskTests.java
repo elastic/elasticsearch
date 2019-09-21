@@ -35,7 +35,9 @@ public class FilePermissionsTaskTests extends GradleUnitTestCase {
 
     public void testCheckPermissionsWhenAnExecutableFileExists() throws Exception {
         RandomizedTest.assumeFalse(
-                "Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
+            "Functionality is Unix specific",
+            Os.isFamily(Os.FAMILY_WINDOWS)
+        );
 
         Project project = createProject();
 
@@ -57,7 +59,9 @@ public class FilePermissionsTaskTests extends GradleUnitTestCase {
 
     public void testCheckPermissionsWhenNoFileExists() throws Exception {
         RandomizedTest.assumeFalse(
-                "Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
+            "Functionality is Unix specific",
+            Os.isFamily(Os.FAMILY_WINDOWS)
+        );
 
         Project project = createProject();
 
@@ -72,7 +76,9 @@ public class FilePermissionsTaskTests extends GradleUnitTestCase {
 
     public void testCheckPermissionsWhenNoExecutableFileExists() throws Exception {
         RandomizedTest.assumeFalse(
-                "Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
+            "Functionality is Unix specific",
+            Os.isFamily(Os.FAMILY_WINDOWS)
+        );
 
         Project project = createProject();
 

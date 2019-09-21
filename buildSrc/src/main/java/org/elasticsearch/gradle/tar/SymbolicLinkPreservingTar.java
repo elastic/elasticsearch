@@ -68,7 +68,10 @@ public class SymbolicLinkPreservingTar extends Tar {
                 break;
         }
         return new SymbolicLinkPreservingTarCopyAction(
-                getArchiveFile(), compressor, isPreserveFileTimestamps());
+            getArchiveFile(),
+            compressor,
+            isPreserveFileTimestamps()
+        );
     }
 
     private static class SymbolicLinkPreservingTarCopyAction implements CopyAction {
@@ -78,9 +81,10 @@ public class SymbolicLinkPreservingTar extends Tar {
         private final boolean isPreserveFileTimestamps;
 
         SymbolicLinkPreservingTarCopyAction(
-                final Provider<RegularFile> tarFile,
-                final ArchiveOutputStreamFactory compressor,
-                final boolean isPreserveFileTimestamps) {
+            final Provider<RegularFile> tarFile,
+            final ArchiveOutputStreamFactory compressor,
+            final boolean isPreserveFileTimestamps
+        ) {
             this.tarFile = tarFile;
             this.compressor = compressor;
             this.isPreserveFileTimestamps = isPreserveFileTimestamps;
@@ -88,9 +92,8 @@ public class SymbolicLinkPreservingTar extends Tar {
 
         @Override
         public WorkResult execute(final CopyActionProcessingStream stream) {
-            try (OutputStream out =
-                            compressor.createArchiveOutputStream(tarFile.get().getAsFile());
-                    TarArchiveOutputStream tar = new TarArchiveOutputStream(out)) {
+            try (OutputStream out = compressor.createArchiveOutputStream(tarFile.get().getAsFile());
+                TarArchiveOutputStream tar = new TarArchiveOutputStream(out)) {
                 tar.setLongFileMode(TarArchiveOutputStream.LONGFILE_GNU);
                 stream.process(new SymbolicLinkPreservingTarStreamAction(tar));
             } catch (final IOException e) {
@@ -101,7 +104,7 @@ public class SymbolicLinkPreservingTar extends Tar {
         }
 
         private class SymbolicLinkPreservingTarStreamAction
-                implements CopyActionProcessingStreamAction {
+            implements CopyActionProcessingStreamAction {
 
             private final TarArchiveOutputStream tar;
 
@@ -140,7 +143,8 @@ public class SymbolicLinkPreservingTar extends Tar {
                     return false;
                 }
                 for (final File symbolicLink : visitedSymbolicLinks) {
-                    if (isChildOf(symbolicLink, file)) return true;
+                    if (isChildOf(symbolicLink, file))
+                        return true;
                 }
                 return false;
             }
@@ -163,14 +167,16 @@ public class SymbolicLinkPreservingTar extends Tar {
 
             private void visitSymbolicLink(final FileCopyDetailsInternal details) {
                 visitedSymbolicLinks.add(details.getFile());
-                final TarArchiveEntry entry =
-                        new TarArchiveEntry(
-                                details.getRelativePath().getPathString(), TarConstants.LF_SYMLINK);
+                final TarArchiveEntry entry = new TarArchiveEntry(
+                    details.getRelativePath().getPathString(),
+                    TarConstants.LF_SYMLINK
+                );
                 entry.setModTime(getModTime(details));
                 entry.setMode(UnixStat.LINK_FLAG | details.getMode());
                 try {
                     entry.setLinkName(
-                            Files.readSymbolicLink(details.getFile().toPath()).toString());
+                        Files.readSymbolicLink(details.getFile().toPath()).toString()
+                    );
                     tar.putArchiveEntry(entry);
                     tar.closeArchiveEntry();
                 } catch (final IOException e) {
@@ -179,8 +185,7 @@ public class SymbolicLinkPreservingTar extends Tar {
             }
 
             private void visitDirectory(final FileCopyDetailsInternal details) {
-                final TarArchiveEntry entry =
-                        new TarArchiveEntry(details.getRelativePath().getPathString() + "/");
+                final TarArchiveEntry entry = new TarArchiveEntry(details.getRelativePath().getPathString() + "/");
                 entry.setModTime(getModTime(details));
                 entry.setMode(UnixStat.DIR_FLAG | details.getMode());
                 try {
@@ -192,8 +197,7 @@ public class SymbolicLinkPreservingTar extends Tar {
             }
 
             private void visitFile(final FileCopyDetailsInternal details) {
-                final TarArchiveEntry entry =
-                        new TarArchiveEntry(details.getRelativePath().getPathString());
+                final TarArchiveEntry entry = new TarArchiveEntry(details.getRelativePath().getPathString());
                 entry.setModTime(getModTime(details));
                 entry.setMode(UnixStat.FILE_FLAG | details.getMode());
                 entry.setSize(details.getSize());
@@ -207,9 +211,12 @@ public class SymbolicLinkPreservingTar extends Tar {
             }
 
             private void handleProcessingException(
-                    final FileCopyDetailsInternal details, final IOException e) {
+                final FileCopyDetailsInternal details, final IOException e
+            ) {
                 throw new GradleException(
-                        "could not add [" + details + "] to tar file [" + tarFile + "]", e);
+                    "could not add [" + details + "] to tar file [" + tarFile + "]",
+                    e
+                );
             }
         }
 

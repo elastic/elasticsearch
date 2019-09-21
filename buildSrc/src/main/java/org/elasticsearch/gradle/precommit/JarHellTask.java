@@ -39,11 +39,12 @@ public class JarHellTask extends PrecommitTask {
     @TaskAction
     public void runJarHellCheck() {
         LoggedExec.javaexec(
-                getProject(),
-                spec -> {
-                    spec.classpath(getClasspath());
-                    spec.setMain("org.elasticsearch.bootstrap.JarHell");
-                });
+            getProject(),
+            spec -> {
+                spec.classpath(getClasspath());
+                spec.setMain("org.elasticsearch.bootstrap.JarHell");
+            }
+        );
     }
 
     // We use compile classpath normalization here because class implementation changes are

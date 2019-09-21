@@ -21,11 +21,12 @@ public abstract class AbstractLazyPropertyCollection {
     void assertNotNull(Object value, String description) {
         if (value == null) {
             throw new NullPointerException(
-                    name
-                            + " "
-                            + description
-                            + " was null"
-                            + (owner != null ? " when configuring " + owner : ""));
+                name
+                    + " "
+                    + description
+                    + " was null"
+                    + (owner != null ? " when configuring " + owner : "")
+            );
         }
     }
 }

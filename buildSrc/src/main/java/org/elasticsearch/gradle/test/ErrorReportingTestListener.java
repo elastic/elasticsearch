@@ -55,14 +55,14 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
 
         // Hold on to any repro messages so we can report them immediately on test case failure
         if (outputEvent.getMessage().startsWith(REPRODUCE_WITH_PREFIX)) {
-            Deque<String> lines =
-                    reproductionLines.computeIfAbsent(
-                            Descriptor.of(suite), d -> new LinkedList<>());
+            Deque<String> lines = reproductionLines.computeIfAbsent(
+                Descriptor.of(suite),
+                d -> new LinkedList<>()
+            );
             lines.add(outputEvent.getMessage());
         }
 
-        EventWriter eventWriter =
-                eventWriters.computeIfAbsent(Descriptor.of(suite), EventWriter::new);
+        EventWriter eventWriter = eventWriters.computeIfAbsent(Descriptor.of(suite), EventWriter::new);
         eventWriter.write(outputEvent);
     }
 
@@ -91,9 +91,7 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
 
                         try (BufferedReader reader = eventWriter.reader()) {
                             PrintStream out = System.out;
-                            for (String message = reader.readLine();
-                                    message != null;
-                                    message = reader.readLine()) {
+                            for (String message = reader.readLine(); message != null; message = reader.readLine()) {
                                 if (message.startsWith("  1> ")) {
                                     out = System.out;
                                 } else if (message.startsWith("  2> ")) {
@@ -131,8 +129,7 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
 
             if (testDescriptor.getParent() != null) {
                 // go back and fetch the reproduction line for this test failure
-                Deque<String> lines =
-                        reproductionLines.get(Descriptor.of(testDescriptor.getParent()));
+                Deque<String> lines = reproductionLines.get(Descriptor.of(testDescriptor.getParent()));
                 if (lines != null) {
                     String line = lines.getLast();
                     if (line != null) {
@@ -142,24 +139,25 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
 
                 // include test failure exception stacktraces in test suite output log
                 if (result.getExceptions().size() > 0) {
-                    String message =
-                            formatter.format(testDescriptor, result.getExceptions()).substring(4);
-                    EventWriter eventWriter =
-                            eventWriters.computeIfAbsent(
-                                    Descriptor.of(testDescriptor.getParent()), EventWriter::new);
+                    String message = formatter.format(testDescriptor, result.getExceptions()).substring(4);
+                    EventWriter eventWriter = eventWriters.computeIfAbsent(
+                        Descriptor.of(testDescriptor.getParent()),
+                        EventWriter::new
+                    );
 
                     eventWriter.write(
-                            new TestOutputEvent() {
-                                @Override
-                                public Destination getDestination() {
-                                    return Destination.StdErr;
-                                }
+                        new TestOutputEvent() {
+                            @Override
+                            public Destination getDestination() {
+                                return Destination.StdErr;
+                            }
 
-                                @Override
-                                public String getMessage() {
-                                    return message;
-                                }
-                            });
+                            @Override
+                            public String getMessage() {
+                                return message;
+                            }
+                        }
+                    );
                 }
             }
         }
@@ -189,9 +187,10 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
 
         public static Descriptor of(TestDescriptor d) {
             return new Descriptor(
-                    d.getName(),
-                    d.getClassName(),
-                    d.getParent() == null ? null : d.getParent().toString());
+                d.getName(),
+                d.getClassName(),
+                d.getParent() == null ? null : d.getParent().toString()
+            );
         }
 
         public String getClassName() {
@@ -204,12 +203,14 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
             Descriptor that = (Descriptor) o;
             return Objects.equals(name, that.name)
-                    && Objects.equals(className, that.className)
-                    && Objects.equals(parent, that.parent);
+                && Objects.equals(className, that.className)
+                && Objects.equals(parent, that.parent);
         }
 
         @Override

@@ -45,8 +45,9 @@ public class ConcatFilesTaskTests extends GradleUnitTestCase {
         concatFilesTask.concatFiles();
 
         assertEquals(
-                Arrays.asList("Header"),
-                Files.readAllLines(concatFilesTask.getTarget().toPath(), StandardCharsets.UTF_8));
+            Arrays.asList("Header"),
+            Files.readAllLines(concatFilesTask.getTarget().toPath(), StandardCharsets.UTF_8)
+        );
 
         file.delete();
     }
@@ -68,19 +69,22 @@ public class ConcatFilesTaskTests extends GradleUnitTestCase {
         file1.createNewFile();
         file2.createNewFile();
         Files.write(
-                file1.toPath(),
-                ("Hello" + System.lineSeparator() + "Hello").getBytes(StandardCharsets.UTF_8));
+            file1.toPath(),
+            ("Hello" + System.lineSeparator() + "Hello").getBytes(StandardCharsets.UTF_8)
+        );
         Files.write(
-                file2.toPath(),
-                ("Hello" + System.lineSeparator() + "नमस्ते").getBytes(StandardCharsets.UTF_8));
+            file2.toPath(),
+            ("Hello" + System.lineSeparator() + "नमस्ते").getBytes(StandardCharsets.UTF_8)
+        );
 
         concatFilesTask.setFiles(project.fileTree(file1.getParentFile().getParentFile()));
 
         concatFilesTask.concatFiles();
 
         assertEquals(
-                Arrays.asList("Hello", "नमस्ते"),
-                Files.readAllLines(concatFilesTask.getTarget().toPath(), StandardCharsets.UTF_8));
+            Arrays.asList("Hello", "नमस्ते"),
+            Files.readAllLines(concatFilesTask.getTarget().toPath(), StandardCharsets.UTF_8)
+        );
     }
 
     private Project createProject() {

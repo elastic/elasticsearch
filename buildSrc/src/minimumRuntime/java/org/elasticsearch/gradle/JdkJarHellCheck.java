@@ -40,20 +40,21 @@ public class JdkJarHellCheck {
         assert ext != null;
 
         Files.walkFileTree(
-                root,
-                new SimpleFileVisitor<Path>() {
-                    @Override
-                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-                        String entry = root.relativize(file).toString().replace('\\', '/');
-                        if (entry.endsWith(".class")
-                                && entry.endsWith("module-info.class") == false) {
-                            if (ext.getResource(entry) != null) {
-                                detected.add(entry.replace("/", ".").replace(".class", ""));
-                            }
+            root,
+            new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                    String entry = root.relativize(file).toString().replace('\\', '/');
+                    if (entry.endsWith(".class")
+                        && entry.endsWith("module-info.class") == false) {
+                        if (ext.getResource(entry) != null) {
+                            detected.add(entry.replace("/", ".").replace(".class", ""));
                         }
-                        return FileVisitResult.CONTINUE;
                     }
-                });
+                    return FileVisitResult.CONTINUE;
+                }
+            }
+        );
     }
 
     public Set<String> getDetected() {

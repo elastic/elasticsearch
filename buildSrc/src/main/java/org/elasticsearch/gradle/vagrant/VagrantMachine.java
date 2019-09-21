@@ -69,37 +69,36 @@ public class VagrantMachine {
         Objects.requireNonNull(vagrantSpec.command);
 
         LoggedExec.exec(
-                project,
-                execSpec -> {
-                    execSpec.setExecutable("vagrant");
-                    File vagrantfile = extension.getVagrantfile();
-                    execSpec.setEnvironment(System.getenv()); // pass through env
-                    execSpec.environment("VAGRANT_CWD", vagrantfile.getParentFile().toString());
-                    execSpec.environment("VAGRANT_VAGRANTFILE", vagrantfile.getName());
-                    execSpec.environment("VAGRANT_LOG", "debug");
-                    extension.getHostEnv().forEach(execSpec::environment);
+            project,
+            execSpec -> {
+                execSpec.setExecutable("vagrant");
+                File vagrantfile = extension.getVagrantfile();
+                execSpec.setEnvironment(System.getenv()); // pass through env
+                execSpec.environment("VAGRANT_CWD", vagrantfile.getParentFile().toString());
+                execSpec.environment("VAGRANT_VAGRANTFILE", vagrantfile.getName());
+                execSpec.environment("VAGRANT_LOG", "debug");
+                extension.getHostEnv().forEach(execSpec::environment);
 
-                    execSpec.args(vagrantSpec.command);
-                    if (vagrantSpec.subcommand != null) {
-                        execSpec.args(vagrantSpec.subcommand);
-                    }
-                    execSpec.args(extension.getBox());
-                    if (vagrantSpec.args != null) {
-                        execSpec.args(Arrays.asList(vagrantSpec.args));
-                    }
+                execSpec.args(vagrantSpec.command);
+                if (vagrantSpec.subcommand != null) {
+                    execSpec.args(vagrantSpec.subcommand);
+                }
+                execSpec.args(extension.getBox());
+                if (vagrantSpec.args != null) {
+                    execSpec.args(Arrays.asList(vagrantSpec.args));
+                }
 
-                    UnaryOperator<String> progressHandler = vagrantSpec.progressHandler;
-                    if (progressHandler == null) {
-                        progressHandler =
-                                new VagrantProgressLogger("==> " + extension.getBox() + ": ");
-                    }
-                    OutputStream output = execSpec.getStandardOutput();
-                    // output from vagrant needs to be manually curated because --machine-readable
-                    // isn't actually "readable"
-                    OutputStream progressStream =
-                            new ProgressOutputStream(vagrantSpec.command, progressHandler);
-                    execSpec.setStandardOutput(new TeeOutputStream(output, progressStream));
-                });
+                UnaryOperator<String> progressHandler = vagrantSpec.progressHandler;
+                if (progressHandler == null) {
+                    progressHandler = new VagrantProgressLogger("==> " + extension.getBox() + ": ");
+                }
+                OutputStream output = execSpec.getStandardOutput();
+                // output from vagrant needs to be manually curated because --machine-readable
+                // isn't actually "readable"
+                OutputStream progressStream = new ProgressOutputStream(vagrantSpec.command, progressHandler);
+                execSpec.setStandardOutput(new TeeOutputStream(output, progressStream));
+            }
+        );
     }
 
     // start the configuration VM if it hasn't been started yet
@@ -109,10 +108,11 @@ public class VagrantMachine {
         }
 
         execute(
-                spec -> {
-                    spec.setCommand("box");
-                    spec.setSubcommand("update");
-                });
+            spec -> {
+                spec.setCommand("box");
+                spec.setSubcommand("update");
+            }
+        );
 
         // Destroying before every execution can be annoying while iterating on tests locally.
         // Therefore, we provide a flag that defaults
@@ -121,10 +121,11 @@ public class VagrantMachine {
         boolean destroyVM = Util.getBooleanProperty("vagrant.destroy", true);
         if (destroyVM) {
             execute(
-                    spec -> {
-                        spec.setCommand("destroy");
-                        spec.setArgs("--force");
-                    });
+                spec -> {
+                    spec.setCommand("destroy");
+                    spec.setArgs("--force");
+                }
+            );
         }
 
         // register box to be shutdown if gradle dies
@@ -135,10 +136,11 @@ public class VagrantMachine {
         // properly in virtualbox. Virtualbox is vagrant's default but its possible to change that
         // default and folks do.
         execute(
-                spec -> {
-                    spec.setCommand("up");
-                    spec.setArgs("--provision", "--provider", "virtualbox");
-                });
+            spec -> {
+                spec.setCommand("up");
+                spec.setArgs("--provision", "--provider", "virtualbox");
+            }
+        );
         isVMStarted = true;
     }
 
@@ -159,11 +161,11 @@ public class VagrantMachine {
 
     public static String convertWindowsPath(Project project, String path) {
         return "C:\\elasticsearch\\"
-                + project.getRootDir()
-                        .toPath()
-                        .relativize(Paths.get(path))
-                        .toString()
-                        .replace('/', '\\');
+            + project.getRootDir()
+                .toPath()
+                .relativize(Paths.get(path))
+                .toString()
+                .replace('/', '\\');
     }
 
     public static class VagrantExecSpec {

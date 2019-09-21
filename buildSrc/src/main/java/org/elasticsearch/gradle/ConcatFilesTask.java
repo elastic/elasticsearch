@@ -79,8 +79,9 @@ public class ConcatFilesTask extends DefaultTask {
     public void concatFiles() throws IOException {
         if (getHeaderLine() != null) {
             Files.write(
-                    getTarget().toPath(),
-                    (getHeaderLine() + '\n').getBytes(StandardCharsets.UTF_8));
+                getTarget().toPath(),
+                (getHeaderLine() + '\n').getBytes(StandardCharsets.UTF_8)
+            );
         }
 
         // To remove duplicate lines
@@ -89,9 +90,10 @@ public class ConcatFilesTask extends DefaultTask {
             uniqueLines.addAll(Files.readAllLines(f.toPath(), StandardCharsets.UTF_8));
         }
         Files.write(
-                getTarget().toPath(),
-                uniqueLines,
-                StandardCharsets.UTF_8,
-                StandardOpenOption.APPEND);
+            getTarget().toPath(),
+            uniqueLines,
+            StandardCharsets.UTF_8,
+            StandardOpenOption.APPEND
+        );
     }
 }

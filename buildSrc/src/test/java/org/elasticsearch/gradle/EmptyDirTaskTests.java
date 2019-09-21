@@ -51,7 +51,9 @@ public class EmptyDirTaskTests extends GradleUnitTestCase {
 
     public void testCreateEmptyDirNoPermissions() throws Exception {
         RandomizedTest.assumeFalse(
-                "Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
+            "Functionality is Unix specific",
+            Os.isFamily(Os.FAMILY_WINDOWS)
+        );
 
         Project project = ProjectBuilder.builder().build();
         EmptyDirTask emptyDirTask = project.getTasks().create("emptyDirTask", EmptyDirTask.class);

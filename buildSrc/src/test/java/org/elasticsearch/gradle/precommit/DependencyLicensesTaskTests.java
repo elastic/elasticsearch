@@ -27,7 +27,8 @@ import org.junit.rules.ExpectedException;
 
 public class DependencyLicensesTaskTests extends GradleUnitTestCase {
 
-    @Rule public ExpectedException expectedException = ExpectedException.none();
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
 
     private UpdateShasTask updateShas;
 
@@ -47,7 +48,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
 
     @Test
     public void givenProjectWithLicensesDirButNoDependenciesThenShouldThrowException()
-            throws Exception {
+        throws Exception {
         expectedException.expect(GradleException.class);
         expectedException.expectMessage(containsString("exists, but there are no dependencies"));
 
@@ -57,10 +58,11 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
 
     @Test
     public void givenProjectWithoutLicensesDirButWithDependenciesThenShouldThrowException()
-            throws Exception {
+        throws Exception {
         expectedException.expect(GradleException.class);
         expectedException.expectMessage(
-                containsString("does not exist, but there are dependencies"));
+            containsString("does not exist, but there are dependencies")
+        );
 
         project.getDependencies().add("compile", dependency);
         task.get().checkDependencies();
@@ -68,7 +70,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
 
     @Test
     public void givenProjectWithoutLicensesDirNorDependenciesThenShouldReturnSilently()
-            throws Exception {
+        throws Exception {
         task.get().checkDependencies();
     }
 
@@ -87,7 +89,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
 
     @Test
     public void givenProjectWithDependencyButNoLicenseFileThenShouldReturnException()
-            throws Exception {
+        throws Exception {
         expectedException.expect(GradleException.class);
         expectedException.expectMessage(containsString("Missing LICENSE for "));
 
@@ -100,7 +102,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
 
     @Test
     public void givenProjectWithDependencyButNoNoticeFileThenShouldReturnException()
-            throws Exception {
+        throws Exception {
         expectedException.expect(GradleException.class);
         expectedException.expectMessage(containsString("Missing NOTICE for "));
 
@@ -114,7 +116,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
 
     @Test
     public void givenProjectWithDependencyAndEverythingInOrderThenShouldReturnSilently()
-            throws Exception {
+        throws Exception {
         project.getDependencies().add("compile", dependency);
 
         File licensesDir = getLicensesDir(project);
@@ -125,7 +127,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
 
     @Test
     public void givenProjectWithALicenseButWithoutTheDependencyThenShouldThrowException()
-            throws Exception {
+        throws Exception {
         expectedException.expect(GradleException.class);
         expectedException.expectMessage(containsString("Unused license "));
 
@@ -140,7 +142,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
 
     @Test
     public void givenProjectWithANoticeButWithoutTheDependencyThenShouldThrowException()
-            throws Exception {
+        throws Exception {
         expectedException.expect(GradleException.class);
         expectedException.expectMessage(containsString("Unused notice "));
 
@@ -155,7 +157,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
 
     @Test
     public void givenProjectWithAShaButWithoutTheDependencyThenShouldThrowException()
-            throws Exception {
+        throws Exception {
         expectedException.expect(GradleException.class);
         expectedException.expectMessage(containsString("Unused sha files found: \n"));
 
@@ -178,13 +180,12 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
         File licensesDir = getLicensesDir(project);
         createAllDefaultDependencyFiles(licensesDir, "groovy-all");
 
-        Path groovySha =
-                Files.list(licensesDir.toPath())
-                        .filter(file -> file.toFile().getName().contains("sha"))
-                        .findFirst()
-                        .get();
+        Path groovySha = Files.list(licensesDir.toPath())
+            .filter(file -> file.toFile().getName().contains("sha"))
+            .findFirst()
+            .get();
 
-        Files.write(groovySha, new byte[] {1}, StandardOpenOption.CREATE);
+        Files.write(groovySha, new byte[] { 1 }, StandardOpenOption.CREATE);
 
         task.get().checkDependencies();
     }
@@ -206,7 +207,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
 
     @Test
     public void givenProjectWithAIgnoreShaConfigurationAndNoShaFileThenShouldReturnSilently()
-            throws Exception {
+        throws Exception {
         project.getDependencies().add("compile", dependency);
 
         File licensesDir = getLicensesDir(project);
@@ -233,7 +234,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
     }
 
     private void createAllDefaultDependencyFiles(File licensesDir, String dependencyName)
-            throws IOException, NoSuchAlgorithmException {
+        throws IOException, NoSuchAlgorithmException {
         createFileIn(licensesDir, dependencyName + "-LICENSE.txt", "");
         createFileIn(licensesDir, dependencyName + "-NOTICE.txt", "");
 
@@ -258,7 +259,8 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
     }
 
     private UpdateShasTask createUpdateShasTask(
-            Project project, TaskProvider<DependencyLicensesTask> dependencyLicensesTask) {
+        Project project, TaskProvider<DependencyLicensesTask> dependencyLicensesTask
+    ) {
         UpdateShasTask task = project.getTasks().register("updateShas", UpdateShasTask.class).get();
 
         task.setParentTask(dependencyLicensesTask);
@@ -266,19 +268,21 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
     }
 
     private TaskProvider<DependencyLicensesTask> createDependencyLicensesTask(Project project) {
-        TaskProvider<DependencyLicensesTask> task =
-                project.getTasks()
-                        .register(
-                                "dependencyLicenses",
-                                DependencyLicensesTask.class,
-                                new Action<DependencyLicensesTask>() {
-                                    @Override
-                                    public void execute(
-                                            DependencyLicensesTask dependencyLicensesTask) {
-                                        dependencyLicensesTask.setDependencies(
-                                                getDependencies(project));
-                                    }
-                                });
+        TaskProvider<DependencyLicensesTask> task = project.getTasks()
+            .register(
+                "dependencyLicenses",
+                DependencyLicensesTask.class,
+                new Action<DependencyLicensesTask>() {
+                    @Override
+                    public void execute(
+                        DependencyLicensesTask dependencyLicensesTask
+                    ) {
+                        dependencyLicensesTask.setDependencies(
+                            getDependencies(project)
+                        );
+                    }
+                }
+            );
 
         return task;
     }

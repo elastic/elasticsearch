@@ -40,13 +40,14 @@ public final class JUnit3MethodProvider implements TestMethodProvider {
         ArrayList<Method> result = new ArrayList<>();
         for (MethodModel mm : methods.values()) {
             // Skip any methods that have overrieds/ shadows.
-            if (mm.getDown() != null) continue;
+            if (mm.getDown() != null)
+                continue;
 
             Method m = mm.element;
             if (m.getName().startsWith("test")
-                    && Modifier.isPublic(m.getModifiers())
-                    && !Modifier.isStatic(m.getModifiers())
-                    && m.getParameterTypes().length == 0) {
+                && Modifier.isPublic(m.getModifiers())
+                && !Modifier.isStatic(m.getModifiers())
+                && m.getParameterTypes().length == 0) {
                 result.add(m);
             }
         }

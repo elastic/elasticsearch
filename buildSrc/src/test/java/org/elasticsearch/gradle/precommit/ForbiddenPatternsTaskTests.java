@@ -49,7 +49,12 @@ public class ForbiddenPatternsTaskTests extends GradleUnitTestCase {
         task.rule(rule);
 
         writeSourceFile(
-                project, "src/main/java/Moot.java", "GOOD LINE", "//todo", "// some stuff, toDo");
+            project,
+            "src/main/java/Moot.java",
+            "GOOD LINE",
+            "//todo",
+            "// some stuff, toDo"
+        );
         checkAndAssertTaskThrowsException(task);
     }
 
@@ -104,9 +109,9 @@ public class ForbiddenPatternsTaskTests extends GradleUnitTestCase {
         File outputMarker = new File(project.getBuildDir(), "markers/" + fileName);
         assertTrue(outputMarker.exists());
 
-        Optional<String> result =
-                Files.readAllLines(outputMarker.toPath(), StandardCharsets.UTF_8).stream()
-                        .findFirst();
+        Optional<String> result = Files.readAllLines(outputMarker.toPath(), StandardCharsets.UTF_8)
+            .stream()
+            .findFirst();
         assertTrue(result.isPresent());
         assertEquals("done", result.get());
     }

@@ -26,7 +26,8 @@ import org.junit.rules.ExpectedException;
 
 public class UpdateShasTaskTests extends GradleUnitTestCase {
 
-    @Rule public ExpectedException expectedException = ExpectedException.none();
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
 
     private UpdateShasTask task;
 
@@ -43,7 +44,7 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
 
     @Test
     public void whenDependencyDoesntExistThenShouldDeleteDependencySha()
-            throws IOException, NoSuchAlgorithmException {
+        throws IOException, NoSuchAlgorithmException {
 
         File unusedSha = createFileIn(getLicensesDir(project), "test.sha1", "");
         task.updateShas();
@@ -53,7 +54,7 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
 
     @Test
     public void whenDependencyExistsButShaNotThenShouldCreateNewShaFile()
-            throws IOException, NoSuchAlgorithmException {
+        throws IOException, NoSuchAlgorithmException {
         project.getDependencies().add("compile", dependency);
 
         getLicensesDir(project).mkdir();
@@ -66,7 +67,7 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
 
     @Test
     public void whenDependencyAndWrongShaExistsThenShouldNotOverwriteShaFile()
-            throws IOException, NoSuchAlgorithmException {
+        throws IOException, NoSuchAlgorithmException {
         project.getDependencies().add("compile", dependency);
 
         File groovyJar = task.getParentTask().getDependencies().getFiles().iterator().next();
@@ -80,7 +81,7 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
 
     @Test
     public void whenLicensesDirDoesntExistThenShouldThrowException()
-            throws IOException, NoSuchAlgorithmException {
+        throws IOException, NoSuchAlgorithmException {
         expectedException.expect(GradleException.class);
         expectedException.expectMessage(containsString("isn't a valid directory"));
 
@@ -121,19 +122,21 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
     }
 
     private TaskProvider<DependencyLicensesTask> createDependencyLicensesTask(Project project) {
-        TaskProvider<DependencyLicensesTask> task =
-                project.getTasks()
-                        .register(
-                                "dependencyLicenses",
-                                DependencyLicensesTask.class,
-                                new Action<DependencyLicensesTask>() {
-                                    @Override
-                                    public void execute(
-                                            DependencyLicensesTask dependencyLicensesTask) {
-                                        dependencyLicensesTask.setDependencies(
-                                                getDependencies(project));
-                                    }
-                                });
+        TaskProvider<DependencyLicensesTask> task = project.getTasks()
+            .register(
+                "dependencyLicenses",
+                DependencyLicensesTask.class,
+                new Action<DependencyLicensesTask>() {
+                    @Override
+                    public void execute(
+                        DependencyLicensesTask dependencyLicensesTask
+                    ) {
+                        dependencyLicensesTask.setDependencies(
+                            getDependencies(project)
+                        );
+                    }
+                }
+            );
 
         return task;
     }

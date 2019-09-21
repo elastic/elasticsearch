@@ -110,27 +110,35 @@ public class BatsTestTask extends DefaultTask {
         command.add("bats");
         command.add("--tap");
         command.addAll(
-                testsDir.getAsFileTree().getFiles().stream()
-                        .filter(f -> f.getName().endsWith(".bats"))
-                        .sorted()
-                        .collect(Collectors.toList()));
+            testsDir.getAsFileTree()
+                .getFiles()
+                .stream()
+                .filter(f -> f.getName().endsWith(".bats"))
+                .sorted()
+                .collect(Collectors.toList())
+        );
         getProject()
-                .exec(
-                        spec -> {
-                            spec.setWorkingDir(distributionsDir.getAsFile());
-                            spec.environment(System.getenv());
-                            spec.environment("BATS_TESTS", testsDir.getAsFile().get().toString());
-                            spec.environment("BATS_UTILS", utilsDir.getAsFile().get().toString());
-                            if (pluginsDir.isPresent()) {
-                                spec.environment(
-                                        "BATS_PLUGINS", pluginsDir.getAsFile().get().toString());
-                            }
-                            if (upgradeDir.isPresent()) {
-                                spec.environment(
-                                        "BATS_UPGRADE", upgradeDir.getAsFile().get().toString());
-                            }
-                            spec.environment("PACKAGE_NAME", packageName);
-                            spec.setCommandLine(command);
-                        });
+            .exec(
+                spec -> {
+                    spec.setWorkingDir(distributionsDir.getAsFile());
+                    spec.environment(System.getenv());
+                    spec.environment("BATS_TESTS", testsDir.getAsFile().get().toString());
+                    spec.environment("BATS_UTILS", utilsDir.getAsFile().get().toString());
+                    if (pluginsDir.isPresent()) {
+                        spec.environment(
+                            "BATS_PLUGINS",
+                            pluginsDir.getAsFile().get().toString()
+                        );
+                    }
+                    if (upgradeDir.isPresent()) {
+                        spec.environment(
+                            "BATS_UPGRADE",
+                            upgradeDir.getAsFile().get().toString()
+                        );
+                    }
+                    spec.environment("PACKAGE_NAME", packageName);
+                    spec.setCommandLine(command);
+                }
+            );
     }
 }

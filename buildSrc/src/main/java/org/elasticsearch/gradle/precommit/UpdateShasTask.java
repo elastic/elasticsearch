@@ -67,13 +67,16 @@ public class UpdateShasTask extends DefaultTask {
     }
 
     private void createSha(File dependency, String jarName, File shaFile)
-            throws IOException, NoSuchAlgorithmException {
+        throws IOException, NoSuchAlgorithmException {
         logger.lifecycle("Adding sha for " + jarName);
 
         String sha = parentTask.get().getSha1(dependency);
 
         Files.write(
-                shaFile.toPath(), sha.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE);
+            shaFile.toPath(),
+            sha.getBytes(StandardCharsets.UTF_8),
+            StandardOpenOption.CREATE
+        );
     }
 
     public DependencyLicensesTask getParentTask() {

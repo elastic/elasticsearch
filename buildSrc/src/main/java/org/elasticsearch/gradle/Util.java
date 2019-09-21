@@ -34,11 +34,12 @@ public class Util {
             return false;
         } else {
             throw new GradleException(
-                    "Sysprop ["
-                            + property
-                            + "] must be [true] or [false] but was ["
-                            + propertyValue
-                            + "]");
+                "Sysprop ["
+                    + property
+                    + "] must be [true] or [false] but was ["
+                    + propertyValue
+                    + "]"
+            );
         }
     }
 }

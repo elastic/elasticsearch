@@ -81,41 +81,45 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         assertTaskSkipped(result, ":skipped1");
         assertTaskSuccessful(result, ":user1");
         assertOutputContains(
-                result.getOutput(),
-                "> Task :user1",
-                "Starting `node{::myTestCluster-0}`",
-                "Stopping `node{::myTestCluster-0}`");
+            result.getOutput(),
+            "> Task :user1",
+            "Starting `node{::myTestCluster-0}`",
+            "Stopping `node{::myTestCluster-0}`"
+        );
     }
 
     @Ignore // https://github.com/elastic/elasticsearch/issues/41256
     public void testMultiProject() {
-        BuildResult result =
-                getTestClustersRunner(
-                                "user1",
-                                "user2",
-                                "-s",
-                                "-i",
-                                "--parallel",
-                                "-Dlocal.repo.path=" + getLocalTestRepoPath())
-                        .build();
+        BuildResult result = getTestClustersRunner(
+            "user1",
+            "user2",
+            "-s",
+            "-i",
+            "--parallel",
+            "-Dlocal.repo.path=" + getLocalTestRepoPath()
+        )
+            .build();
 
         assertTaskSuccessful(
-                result,
-                ":user1",
-                ":user2",
-                ":alpha:user1",
-                ":alpha:user2",
-                ":bravo:user1",
-                ":bravo:user2");
+            result,
+            ":user1",
+            ":user2",
+            ":alpha:user1",
+            ":alpha:user2",
+            ":bravo:user1",
+            ":bravo:user2"
+        );
         assertStartedAndStoppedOnce(result);
         assertOutputOnlyOnce(
-                result.getOutput(),
-                "Starting `node{:alpha:myTestCluster-0}`",
-                "Stopping `node{::myTestCluster-0}`");
+            result.getOutput(),
+            "Starting `node{:alpha:myTestCluster-0}`",
+            "Stopping `node{::myTestCluster-0}`"
+        );
         assertOutputOnlyOnce(
-                result.getOutput(),
-                "Starting `node{::myTestCluster-0}`",
-                "Stopping `node{:bravo:myTestCluster-0}`");
+            result.getOutput(),
+            "Starting `node{::myTestCluster-0}`",
+            "Stopping `node{:bravo:myTestCluster-0}`"
+        );
     }
 
     public void testReleased() {
@@ -146,9 +150,10 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         assertTaskFailed(result, ":itAlwaysFails");
         assertStartedAndStoppedOnce(result);
         assertOutputContains(
-                result.getOutput(),
-                "Stopping `node{::myTestCluster-0}`, tailLogs: true",
-                "Execution failed for task ':itAlwaysFails'.");
+            result.getOutput(),
+            "Stopping `node{::myTestCluster-0}`, tailLogs: true",
+            "Execution failed for task ':itAlwaysFails'."
+        );
     }
 
     public void testUseClusterByFailingDependency() {
@@ -157,17 +162,19 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         assertNull(result.task(":dependsOnFailed"));
         assertStartedAndStoppedOnce(result);
         assertOutputContains(
-                result.getOutput(),
-                "Stopping `node{::myTestCluster-0}`, tailLogs: true",
-                "Execution failed for task ':itAlwaysFails'.");
+            result.getOutput(),
+            "Stopping `node{::myTestCluster-0}`, tailLogs: true",
+            "Execution failed for task ':itAlwaysFails'."
+        );
     }
 
     public void testConfigurationLocked() {
         BuildResult result = getTestClustersRunner(":illegalConfigAlter").buildAndFail();
         assertTaskFailed(result, ":illegalConfigAlter");
         assertOutputContains(
-                result.getOutput(),
-                "Configuration for node{::myTestCluster-0} can not be altered, already locked");
+            result.getOutput(),
+            "Configuration for node{::myTestCluster-0} can not be altered, already locked"
+        );
     }
 
     @Ignore // https://github.com/elastic/elasticsearch/issues/41256
@@ -201,9 +208,10 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
 
     private void assertStartedAndStoppedOnce(BuildResult result, String nodeName) {
         assertOutputOnlyOnce(
-                result.getOutput(),
-                "Starting `node{::" + nodeName + "}`",
-                "Stopping `node{::" + nodeName + "}`");
+            result.getOutput(),
+            "Starting `node{::" + nodeName + "}`",
+            "Stopping `node{::" + nodeName + "}`"
+        );
     }
 
     private void assertStartedAndStoppedOnce(BuildResult result) {

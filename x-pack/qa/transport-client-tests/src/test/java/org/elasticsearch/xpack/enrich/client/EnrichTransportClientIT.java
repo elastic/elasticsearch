@@ -52,7 +52,7 @@ public class EnrichTransportClientIT extends ESXPackSmokeClientTestCase {
         assertTrue(acknowledgedResponse.isAcknowledged());
 
         GetEnrichPolicyAction.Response getResponse = enrichClient.getEnrichPolicy(
-            new GetEnrichPolicyAction.Request(policyName)).actionGet();
+            new GetEnrichPolicyAction.Request(new String[] {policyName})).actionGet();
 
         assertThat(getResponse.getPolicies().size(), equalTo(1));
         assertThat(policyName, equalTo(getResponse.getPolicies().get(0).getName()));

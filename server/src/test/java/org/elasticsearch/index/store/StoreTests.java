@@ -80,6 +80,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -859,7 +860,7 @@ public class StoreTests extends ESTestCase {
         Store.MetadataSnapshot metadataSnapshot = createMetaDataSnapshot();
         TransportNodesListShardStoreMetaData.StoreFilesMetaData outStoreFileMetaData =
             new TransportNodesListShardStoreMetaData.StoreFilesMetaData(new ShardId("test", "_na_", 0),
-                metadataSnapshot);
+                metadataSnapshot, Collections.emptyList());
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
         org.elasticsearch.Version targetNodeVersion = randomVersion(random());

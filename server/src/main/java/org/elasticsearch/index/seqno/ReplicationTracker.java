@@ -529,7 +529,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     /**
      * Id for a peer recovery retention lease for the given node. See {@link ReplicationTracker#addPeerRecoveryRetentionLease}.
      */
-    static String getPeerRecoveryRetentionLeaseId(String nodeId) {
+    public static String getPeerRecoveryRetentionLeaseId(String nodeId) {
         return "peer_recovery/" + nodeId;
     }
 
@@ -539,6 +539,15 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      */
     public static String getPeerRecoveryRetentionLeaseId(ShardRouting shardRouting) {
         return getPeerRecoveryRetentionLeaseId(shardRouting.currentNodeId());
+    }
+
+    /**
+     * Returns a list of peer recovery retention leases installed in this replication group
+     */
+    public List<RetentionLease> getPeerRecoveryRetentionLeases() {
+        return getRetentionLeases().leases().stream()
+            .filter(lease -> PEER_RECOVERY_RETENTION_LEASE_SOURCE.equals(lease.source()))
+            .collect(Collectors.toUnmodifiableList());
     }
 
     /**

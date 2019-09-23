@@ -105,11 +105,11 @@ public class MonitoringIT extends ESSingleNodeTestCase {
     }
 
     private String createBulkEntity() {
-        return  "{\"index\":{\"_type\":\"monitoring_data_type\"}}\n" +
+        return  "{\"index\":{}}\n" +
                 "{\"foo\":{\"bar\":0}}\n" +
-                "{\"index\":{\"_type\":\"monitoring_data_type\"}}\n" +
+                "{\"index\":{}}\n" +
                 "{\"foo\":{\"bar\":1}}\n" +
-                "{\"index\":{\"_type\":\"monitoring_data_type\"}}\n" +
+                "{\"index\":{}}\n" +
                 "{\"foo\":{\"bar\":2}}\n" +
                 "\n";
     }

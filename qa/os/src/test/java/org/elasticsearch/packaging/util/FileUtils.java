@@ -27,7 +27,6 @@ import org.hamcrest.Matcher;
 import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
@@ -183,13 +182,17 @@ public class FileUtils {
     }
 
     public static void logAllLogs(Path logsDir, Logger logger) {
+        if (Files.exists(logsDir) == false) {
+            logger.warn("Can't show logs from directory {} as it doesn't exists", logsDir);
+            return;
+        }
         logger.info("Showing contents of directory: {}", logsDir.toAbsolutePath());
         logsDir.forEach( file -> {
             logger.info("=== Contents of `{}` ===", file.toAbsolutePath());
             try(Stream<String> stream = Files.lines(file)) {
                 stream.forEach(logger::info);
             } catch (IOException e) {
-                throw new UncheckedIOException(e);
+                logger.error("Can't show contents of " + file.toAbsolutePath(), e);
             }
             logger.info("=== End of contents of `{}`===", file.toAbsolutePath());
         });

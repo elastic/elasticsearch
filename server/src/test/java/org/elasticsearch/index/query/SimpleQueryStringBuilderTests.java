@@ -43,7 +43,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -266,7 +265,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
      * actual functionality of query parsing.
      */
     @Override
-    protected void doAssertLuceneQuery(SimpleQueryStringBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(SimpleQueryStringBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, notNullValue());
 
         if (queryBuilder.value().isEmpty()) {

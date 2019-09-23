@@ -28,7 +28,6 @@ import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -60,12 +59,12 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
     }
 
     @Override
-    protected void doAssertLuceneQuery(ExistsQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(ExistsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         String fieldPattern = queryBuilder.fieldName();
-        Collection<String> fields = context.getQueryShardContext().simpleMatchToIndexNames(fieldPattern);
-        Collection<String> mappedFields = fields.stream().filter((field) -> context.getQueryShardContext().getObjectMapper(field) != null
-                || context.getQueryShardContext().getMapperService().fullName(field) != null).collect(Collectors.toList());
-        if (context.mapperService().getIndexSettings().getIndexVersionCreated().before(Version.V_6_1_0)) {
+        Collection<String> fields = context.simpleMatchToIndexNames(fieldPattern);
+        Collection<String> mappedFields = fields.stream().filter((field) -> context.getObjectMapper(field) != null
+                || context.getMapperService().fullName(field) != null).collect(Collectors.toList());
+        if (context.getIndexSettings().getIndexVersionCreated().before(Version.V_6_1_0)) {
             if (fields.size() == 1) {
                 assertThat(query, instanceOf(ConstantScoreQuery.class));
                 ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
@@ -93,21 +92,21 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
             assertThat(query, instanceOf(ConstantScoreQuery.class));
             ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
             String field = expectedFieldName(fields.iterator().next());
-            if (context.getQueryShardContext().getObjectMapper(field) != null) {
+            if (context.getObjectMapper(field) != null) {
                 assertThat(constantScoreQuery.getQuery(), instanceOf(BooleanQuery.class));
                 BooleanQuery booleanQuery = (BooleanQuery) constantScoreQuery.getQuery();
                 List<String> childFields = new ArrayList<>();
-                context.getQueryShardContext().getObjectMapper(field).forEach(mapper -> childFields.add(mapper.name()));
+                context.getObjectMapper(field).forEach(mapper -> childFields.add(mapper.name()));
                 assertThat(booleanQuery.clauses().size(), equalTo(childFields.size()));
                 for (int i = 0; i < childFields.size(); i++) {
                     BooleanClause booleanClause = booleanQuery.clauses().get(i);
                     assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
                 }
-            } else if (context.getQueryShardContext().getMapperService().fullName(field).hasDocValues()) {
+            } else if (context.getMapperService().fullName(field).hasDocValues()) {
                 assertThat(constantScoreQuery.getQuery(), instanceOf(DocValuesFieldExistsQuery.class));
                 DocValuesFieldExistsQuery dvExistsQuery = (DocValuesFieldExistsQuery) constantScoreQuery.getQuery();
                 assertEquals(field, dvExistsQuery.getField());
-            } else if (context.getQueryShardContext().getMapperService().fullName(field).omitNorms() == false) {
+            } else if (context.getMapperService().fullName(field).omitNorms() == false) {
                 assertThat(constantScoreQuery.getQuery(), instanceOf(NormsFieldExistsQuery.class));
                 NormsFieldExistsQuery normsExistsQuery = (NormsFieldExistsQuery) constantScoreQuery.getQuery();
                 assertEquals(field, normsExistsQuery.getField());

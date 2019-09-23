@@ -48,7 +48,7 @@ The following example moves `my_index` from the initial step to the
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -79,12 +79,10 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ilm/move/my_index
 {
@@ -100,7 +98,6 @@ POST _ilm/move/my_index
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 <1> The step that the index is expected to be in
 <2> The step that you want to execute

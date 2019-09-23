@@ -19,6 +19,7 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.settings.Settings;
@@ -37,7 +38,6 @@ import static org.elasticsearch.env.NodeMetaData.NODE_VERSION_KEY;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasToString;
 
 public class OverrideNodeVersionCommandTests extends ESTestCase {
 
@@ -163,9 +163,12 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
         final String nodeId = randomAlphaOfLength(10);
         final Version nodeVersion = NodeMetaDataTests.tooNewVersion();
         FutureNodeMetaData.FORMAT.writeAndCleanup(new FutureNodeMetaData(nodeId, nodeVersion, randomLong()), nodePaths);
-        assertThat(expectThrows(ElasticsearchException.class,
-            () -> NodeMetaData.FORMAT.loadLatestState(logger, xContentRegistry(), nodePaths)),
-            hasToString(containsString("unknown field [future_field]")));
+        try {
+            NodeMetaData.FORMAT.loadLatestState(logger, xContentRegistry(), nodePaths);
+            fail("An exception should have been thrown");
+        } catch (ElasticsearchException e) {
+            assertThat(ExceptionsHelper.stackTrace(e), containsString("unknown field [future_field]"));
+        }
 
         final MockTerminal mockTerminal = new MockTerminal();
         mockTerminal.addTextInput(randomFrom("y", "Y"));

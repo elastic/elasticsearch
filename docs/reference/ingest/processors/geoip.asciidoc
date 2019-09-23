@@ -68,7 +68,6 @@ Which returns:
 {
   "found": true,
   "_index": "my_index",
-  "_type": "_doc",
   "_id": "my_id",
   "_version": 1,
   "_seq_no": 55,
@@ -118,7 +117,6 @@ returns this:
 {
   "found": true,
   "_index": "my_index",
-  "_type": "_doc",
   "_id": "my_id",
   "_version": 1,
   "_seq_no": 65,
@@ -169,7 +167,6 @@ Which returns:
 --------------------------------------------------
 {
   "_index" : "my_index",
-  "_type" : "_doc",
   "_id" : "my_id",
   "_version" : 1,
   "_seq_no" : 71,

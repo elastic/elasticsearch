@@ -107,6 +107,8 @@ application, along with the document ratings for each particular search request.
 
 [source,console]
 -----------------------------
+GET /my_index/_rank_eval
+{
     "requests": [
         {
             "id": "amsterdam_query", <1>
@@ -129,6 +131,7 @@ application, along with the document ratings for each particular search request.
             ]
         }
     ]
+  }
 -----------------------------
 // NOTCONSOLE
 

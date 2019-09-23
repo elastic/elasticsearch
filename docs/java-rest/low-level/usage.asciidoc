@@ -233,7 +233,7 @@ Once the `RestClient` has been created, requests can be sent by calling either
 will block the calling thread and return the `Response` when the request is
 successful or throw an exception if it fails. `performRequestAsync` is
 asynchronous and accepts a `ResponseListener` argument that it calls with a
-`Response` when the request is successful or with an `Exception` if it4 fails.
+`Response` when the request is successful or with an `Exception` if it fails.
 
 This is synchronous:
 

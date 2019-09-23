@@ -22,7 +22,7 @@ package org.elasticsearch.client.transform.transforms.hlrc;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerPosition;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -30,23 +30,23 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataFrameIndexerPositionTests extends AbstractResponseTestCase<
-        DataFrameIndexerPosition,
+        TransformIndexerPosition,
         org.elasticsearch.client.transform.transforms.DataFrameIndexerPosition> {
 
-    public static DataFrameIndexerPosition fromHlrc(
+    public static TransformIndexerPosition fromHlrc(
             org.elasticsearch.client.transform.transforms.DataFrameIndexerPosition instance) {
         if (instance == null) {
             return null;
         }
-        return new DataFrameIndexerPosition(instance.getIndexerPosition(), instance.getBucketsPosition());
+        return new TransformIndexerPosition(instance.getIndexerPosition(), instance.getBucketsPosition());
     }
 
-    public static DataFrameIndexerPosition randomDataFrameIndexerPosition() {
-        return new DataFrameIndexerPosition(randomPositionMap(), randomPositionMap());
+    public static TransformIndexerPosition randomDataFrameIndexerPosition() {
+        return new TransformIndexerPosition(randomPositionMap(), randomPositionMap());
     }
 
     @Override
-    protected DataFrameIndexerPosition createServerTestInstance(XContentType xContentType) {
+    protected TransformIndexerPosition createServerTestInstance(XContentType xContentType) {
         return randomDataFrameIndexerPosition();
     }
 
@@ -56,7 +56,7 @@ public class DataFrameIndexerPositionTests extends AbstractResponseTestCase<
     }
 
     @Override
-    protected void assertInstances(DataFrameIndexerPosition serverTestInstance,
+    protected void assertInstances(TransformIndexerPosition serverTestInstance,
                                    org.elasticsearch.client.transform.transforms.DataFrameIndexerPosition clientInstance) {
         assertThat(serverTestInstance.getIndexerPosition(), equalTo(clientInstance.getIndexerPosition()));
         assertThat(serverTestInstance.getBucketsPosition(), equalTo(clientInstance.getBucketsPosition()));

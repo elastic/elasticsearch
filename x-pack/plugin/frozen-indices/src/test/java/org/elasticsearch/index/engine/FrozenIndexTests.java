@@ -123,7 +123,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             numRefreshes++;
             switch (randomIntBetween(0, 3)) {
                 case 0:
-                    client().prepareGet("index", "_doc", "" + randomIntBetween(0, 9)).execute(ActionListener.wrap(latch::countDown));
+                    client().prepareGet("index", "" + randomIntBetween(0, 9)).execute(ActionListener.wrap(latch::countDown));
                     break;
                 case 1:
                     client().prepareSearch("index").setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)

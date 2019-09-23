@@ -62,6 +62,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
+import org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -441,11 +442,10 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testRoutingMissingException() throws IOException {
-        RoutingMissingException ex = serialize(new RoutingMissingException("idx", "type", "id"));
+        RoutingMissingException ex = serialize(new RoutingMissingException("idx", "id"));
         assertEquals("idx", ex.getIndex().getName());
-        assertEquals("type", ex.getType());
         assertEquals("id", ex.getId());
-        assertEquals("routing is required for [idx]/[type]/[id]", ex.getMessage());
+        assertEquals("routing is required for [idx]/[id]", ex.getMessage());
     }
 
     public void testRepositoryException() throws IOException {
@@ -818,6 +818,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(153, RetentionLeaseAlreadyExistsException.class);
         ids.put(154, RetentionLeaseNotFoundException.class);
         ids.put(155, ShardNotInPrimaryModeException.class);
+        ids.put(156, RetentionLeaseInvalidRetainingSeqNoException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

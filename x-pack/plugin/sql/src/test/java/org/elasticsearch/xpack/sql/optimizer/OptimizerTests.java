@@ -9,6 +9,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer.PruneSubqueryAliases;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expression.TypeResolution;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Foldables;
@@ -49,9 +50,9 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.Case;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Greatest;
-import org.elasticsearch.xpack.sql.expression.predicate.conditional.Iif;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfConditional;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Iif;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Least;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
@@ -86,7 +87,9 @@ import org.elasticsearch.xpack.sql.optimizer.Optimizer.PropagateEquals;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.PruneDuplicateFunctions;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceFoldableAttributes;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceMinMaxWithTopHits;
+import org.elasticsearch.xpack.sql.optimizer.Optimizer.SimplifyCase;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.SimplifyConditional;
+import org.elasticsearch.xpack.sql.optimizer.Optimizer.SortAggregateOnOrderBy;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
@@ -116,8 +119,6 @@ import static org.elasticsearch.xpack.sql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.sql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.sql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.sql.expression.Literal.of;
-import static org.elasticsearch.xpack.sql.optimizer.Optimizer.SimplifyCase;
-import static org.elasticsearch.xpack.sql.optimizer.Optimizer.SortAggregateOnOrderBy;
 import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 import static org.hamcrest.Matchers.contains;
@@ -293,7 +294,7 @@ public class OptimizerTests extends ESTestCase {
         // check now with an alias
         result = new ConstantFolding().rule(new Alias(EMPTY, "a", exp));
         assertEquals("a", Expressions.name(result));
-        assertEquals(5, ((Literal) result).value());
+        assertEquals(Alias.class, result.getClass());
     }
 
     public void testConstantFoldingBinaryComparison() {
@@ -630,6 +631,7 @@ public class OptimizerTests extends ESTestCase {
         assertThat(c.conditions().get(0).condition().toString(), startsWith("Equals[a{f}#"));
         assertThat(c.conditions().get(1).condition().toString(), startsWith("GreaterThan[a{f}#"));
         assertFalse(c.foldable());
+        assertEquals(TypeResolution.TYPE_RESOLVED, c.typeResolved());
     }
 
     public void testSimplifyCaseConditionsFoldWhenTrue() {
@@ -661,6 +663,7 @@ public class OptimizerTests extends ESTestCase {
         assertThat(c.conditions().get(0).condition().toString(), startsWith("Equals[a{f}#"));
         assertThat(c.conditions().get(1).condition().toString(), startsWith("Equals[=1,=1]#"));
         assertFalse(c.foldable());
+        assertEquals(TypeResolution.TYPE_RESOLVED, c.typeResolved());
     }
 
     public void testSimplifyCaseConditionsFoldCompletely() {
@@ -685,6 +688,7 @@ public class OptimizerTests extends ESTestCase {
         assertThat(c.conditions().get(0).condition().toString(), startsWith("Equals[=1,=1]#"));
         assertTrue(c.foldable());
         assertEquals("foo2", c.fold());
+        assertEquals(TypeResolution.TYPE_RESOLVED, c.typeResolved());
     }
 
     public void testSimplifyIif_ConditionTrue() {
@@ -696,6 +700,7 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(1, iif.conditions().size());
         assertTrue(iif.foldable());
         assertEquals("foo", iif.fold());
+        assertEquals(TypeResolution.TYPE_RESOLVED, iif.typeResolved());
     }
 
     public void testSimplifyIif_ConditionFalse() {
@@ -707,6 +712,7 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(0, iif.conditions().size());
         assertTrue(iif.foldable());
         assertEquals("bar", iif.fold());
+        assertEquals(TypeResolution.TYPE_RESOLVED, iif.typeResolved());
     }
 
     //

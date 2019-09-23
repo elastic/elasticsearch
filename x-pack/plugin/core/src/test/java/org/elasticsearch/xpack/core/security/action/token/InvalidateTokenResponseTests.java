@@ -39,8 +39,8 @@ public class InvalidateTokenResponseTests extends ESTestCase {
                 assertThat(serialized.getResult().getPreviouslyInvalidatedTokens(),
                     equalTo(response.getResult().getPreviouslyInvalidatedTokens()));
                 assertThat(serialized.getResult().getErrors().size(), equalTo(response.getResult().getErrors().size()));
-                assertThat(serialized.getResult().getErrors().get(0).toString(), containsString("this is an error message"));
-                assertThat(serialized.getResult().getErrors().get(1).toString(), containsString("this is an error message2"));
+                assertThat(serialized.getResult().getErrors().get(0).getCause().getMessage(), containsString("this is an error message"));
+                assertThat(serialized.getResult().getErrors().get(1).getCause().getMessage(), containsString("this is an error message2"));
             }
         }
 

@@ -45,8 +45,6 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.core.MainRequest;
 import org.elasticsearch.client.core.MainResponse;
-import org.elasticsearch.client.dataframe.transforms.SyncConfig;
-import org.elasticsearch.client.dataframe.transforms.TimeSyncConfig;
 import org.elasticsearch.client.ilm.AllocateAction;
 import org.elasticsearch.client.ilm.DeleteAction;
 import org.elasticsearch.client.ilm.ForceMergeAction;
@@ -67,6 +65,8 @@ import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.Binar
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.ConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.PrecisionMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.RecallMetric;
+import org.elasticsearch.client.transform.transforms.SyncConfig;
+import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;

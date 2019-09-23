@@ -27,7 +27,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -411,15 +410,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             }
             assertEquals(expectedMinimumShouldMatch, boolQuery.getMinimumNumberShouldMatch());
         }
-    }
-
-    public void testIndexMetaField() throws IOException {
-        QueryShardContext shardContext = createShardContext();
-        SimpleQueryStringBuilder simpleQueryStringBuilder = new SimpleQueryStringBuilder(getIndex().getName());
-        simpleQueryStringBuilder.field("_index");
-        Query query = simpleQueryStringBuilder.toQuery(shardContext);
-        assertThat(query, notNullValue());
-        assertThat(query, instanceOf(MatchAllDocsQuery.class));
     }
 
     public void testExpandedTerms() throws Exception {

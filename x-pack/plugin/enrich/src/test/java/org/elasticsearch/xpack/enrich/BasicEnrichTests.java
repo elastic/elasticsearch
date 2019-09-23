@@ -13,6 +13,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.reindex.ReindexPlugin;
@@ -20,6 +21,7 @@ import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 
@@ -33,6 +35,7 @@ import static org.elasticsearch.xpack.enrich.EnrichMultiNodeIT.DECORATE_FIELDS;
 import static org.elasticsearch.xpack.enrich.EnrichMultiNodeIT.MATCH_FIELD;
 import static org.elasticsearch.xpack.enrich.EnrichMultiNodeIT.SOURCE_INDEX_NAME;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -41,6 +44,11 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return List.of(LocalStateEnrich.class, ReindexPlugin.class, IngestCommonPlugin.class);
+    }
+
+    @Override
+    protected boolean resetNodeAfterTest() {
+        return true;
     }
 
     public void testIngestDataWithEnrichProcessor() {
@@ -92,6 +100,13 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
                 assertThat(keys.contains(userEntry.get(MATCH_FIELD)), is(true));
             }
         }
+
+        EnrichStatsAction.Response statsResponse =
+            client().execute(EnrichStatsAction.INSTANCE, new EnrichStatsAction.Request()).actionGet();
+        assertThat(statsResponse.getCoordinatorStats().size(), equalTo(1));
+        String localNodeId = getInstanceFromNode(ClusterService.class).localNode().getId();
+        assertThat(statsResponse.getCoordinatorStats().get(localNodeId).getRemoteRequestsTotal(), greaterThanOrEqualTo(1L));
+        assertThat(statsResponse.getCoordinatorStats().get(localNodeId).getExecutedSearchesTotal(), equalTo((long) numDocs));
     }
 
     public void testMultiplePolicies() {

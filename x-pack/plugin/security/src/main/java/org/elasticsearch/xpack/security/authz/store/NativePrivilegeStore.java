@@ -199,7 +199,7 @@ public class NativePrivilegeStore {
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure,
                 () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareGet(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, toDocId(application, name))
+                    client.prepareGet(SECURITY_MAIN_ALIAS, toDocId(application, name))
                             .request(),
                     new ActionListener<GetResponse>() {
                         @Override

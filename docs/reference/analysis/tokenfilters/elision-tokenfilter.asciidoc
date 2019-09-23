@@ -11,7 +11,7 @@ case sensitive.
 
 For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /elision_example
 {
@@ -34,4 +34,3 @@ PUT /elision_example
     }
 }
 --------------------------------------------------
-// CONSOLE

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.enrich;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -86,7 +87,7 @@ public class EnrichPolicyReindexPipeline {
                     .endArray()
                 .endObject();
         } catch (final IOException e) {
-            throw new RuntimeException("Failed to create pipeline for enrich document sanitization", e);
+            throw new UncheckedIOException("Failed to create pipeline for enrich document sanitization", e);
         }
     }
 

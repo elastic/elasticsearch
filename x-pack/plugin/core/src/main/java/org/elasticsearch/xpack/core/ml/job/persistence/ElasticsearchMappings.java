@@ -129,6 +129,7 @@ public class ElasticsearchMappings {
     public static final String BOOLEAN = "boolean";
     public static final String DATE = "date";
     public static final String DOUBLE = "double";
+    public static final String GEO_POINT = "geo_point";
     public static final String INTEGER = "integer";
     public static final String KEYWORD = "keyword";
     public static final String LONG = "long";
@@ -761,8 +762,14 @@ public class ElasticsearchMappings {
         .startObject(AnomalyRecord.ACTUAL.getPreferredName())
             .field(TYPE, DOUBLE)
         .endObject()
+        .startObject(AnomalyRecord.ACTUAL_GEO.getPreferredName())
+            .field(TYPE, GEO_POINT)
+        .endObject()
         .startObject(AnomalyRecord.TYPICAL.getPreferredName())
             .field(TYPE, DOUBLE)
+        .endObject()
+        .startObject(AnomalyRecord.TYPICAL_GEO.getPreferredName())
+            .field(TYPE, GEO_POINT)
         .endObject()
         .startObject(AnomalyRecord.PROBABILITY.getPreferredName())
             .field(TYPE, DOUBLE)
@@ -812,8 +819,14 @@ public class ElasticsearchMappings {
                 .startObject(AnomalyCause.ACTUAL.getPreferredName())
                     .field(TYPE, DOUBLE)
                 .endObject()
+                .startObject(AnomalyCause.ACTUAL_GEO.getPreferredName())
+                    .field(TYPE, GEO_POINT)
+                .endObject()
                 .startObject(AnomalyCause.TYPICAL.getPreferredName())
                     .field(TYPE, DOUBLE)
+                .endObject()
+                .startObject(AnomalyCause.TYPICAL_GEO.getPreferredName())
+                    .field(TYPE, GEO_POINT)
                 .endObject()
                 .startObject(AnomalyCause.PROBABILITY.getPreferredName())
                     .field(TYPE, DOUBLE)

@@ -5,14 +5,19 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
+import org.elasticsearch.client.ml.job.config.DetectorFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,6 +29,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecord> {
 
@@ -215,5 +221,67 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             AnomalyRecord.LENIENT_PARSER.apply(parser, null);
         }
+    }
+
+    public void testActualTypicalValuesGeoSerialization() throws IOException {
+        AnomalyRecord anomalyRecord = new AnomalyRecord("test-job-with-lat-lon", new Date(1000), 60L);
+        anomalyRecord.setFunction(DetectorFunction.LAT_LONG.getFullName());
+        List<Double> actual = Arrays.asList(34.93873, -82.22706);
+        List<Double> typical = Arrays.asList(29.4241, -98.4936);
+        anomalyRecord.setActual(actual);
+        anomalyRecord.setTypical(typical);
+
+        String reference = XContentHelper.toXContent(anomalyRecord,
+            XContentType.JSON,
+            new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
+            false).utf8ToString();
+        assertThat(reference, containsString("\"actual_geo\":\"34.93873,-82.22706\""));
+        assertThat(reference, containsString("\"typical_geo\":\"29.4241,-98.4936\""));
+
+        reference = XContentHelper.toXContent(anomalyRecord,
+            XContentType.JSON,
+            false).utf8ToString();
+        assertThat(reference, not(containsString("\"actual_geo\":\"34.93873,-82.22706\"")));
+        assertThat(reference, not(containsString("\"typical_geo\":\"29.4241,-98.4936\"")));
+
+        anomalyRecord.setFunction(DetectorFunction.AVG.getFullName());
+        reference = XContentHelper.toXContent(anomalyRecord,
+            XContentType.JSON,
+            new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
+            false).utf8ToString();
+        assertThat(reference, not(containsString("\"actual_geo\":\"34.93873,-82.22706\"")));
+        assertThat(reference, not(containsString("\"typical_geo\":\"29.4241,-98.4936\"")));
+    }
+
+    public void testActualTypicalCauseValuesGeoSerialization() throws IOException {
+        AnomalyRecord anomalyRecord = new AnomalyRecord("test-job-with-lat-lon", new Date(1000), 60L);
+        AnomalyCause cause = new AnomalyCause();
+        List<Double> actual = Arrays.asList(34.93873, -82.22706);
+        List<Double> typical = Arrays.asList(29.4241, -98.4936);
+        cause.setActual(actual);
+        cause.setTypical(typical);
+        cause.setFunction(DetectorFunction.LAT_LONG.getFullName());
+        anomalyRecord.setCauses(Collections.singletonList(cause));
+
+        String reference = XContentHelper.toXContent(anomalyRecord,
+            XContentType.JSON,
+            new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
+            false).utf8ToString();
+        assertThat(reference, containsString("\"actual_geo\":\"34.93873,-82.22706\""));
+        assertThat(reference, containsString("\"typical_geo\":\"29.4241,-98.4936\""));
+
+        reference = XContentHelper.toXContent(anomalyRecord,
+            XContentType.JSON,
+            false).utf8ToString();
+        assertThat(reference, not(containsString("\"actual_geo\":\"34.93873,-82.22706\"")));
+        assertThat(reference, not(containsString("\"typical_geo\":\"29.4241,-98.4936\"")));
+
+        cause.setFunction(DetectorFunction.AVG.getFullName());
+        reference = XContentHelper.toXContent(anomalyRecord,
+            XContentType.JSON,
+            new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
+            false).utf8ToString();
+        assertThat(reference, not(containsString("\"actual_geo\":\"34.93873,-82.22706\"")));
+        assertThat(reference, not(containsString("\"typical_geo\":\"29.4241,-98.4936\"")));
     }
 }

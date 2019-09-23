@@ -15,9 +15,11 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
+import org.elasticsearch.xpack.core.ml.job.config.DetectorFunction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,7 +54,9 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
     public static final ParseField FUNCTION = new ParseField("function");
     public static final ParseField FUNCTION_DESCRIPTION = new ParseField("function_description");
     public static final ParseField TYPICAL = new ParseField("typical");
+    public static final ParseField TYPICAL_GEO = new ParseField("typical_geo");
     public static final ParseField ACTUAL = new ParseField("actual");
+    public static final ParseField ACTUAL_GEO = new ParseField("actual_geo");
     public static final ParseField INFLUENCERS = new ParseField("influencers");
     public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
 
@@ -276,9 +280,25 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         }
         if (typical != null) {
             builder.field(TYPICAL.getPreferredName(), typical);
+            if (DetectorFunction.LAT_LONG.getFullName().equals(function) &&
+                params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+                //TODO should we fail if `typical` is not an array of length 2?
+                assert typical.size() == 2 : "lat_lon function typical result has invalid format " + typical;
+                if (typical.size() == 2) {
+                    builder.field(TYPICAL_GEO.getPreferredName(), typical.get(0) + "," + typical.get(1));
+                }
+            }
         }
         if (actual != null) {
             builder.field(ACTUAL.getPreferredName(), actual);
+            if (DetectorFunction.LAT_LONG.getFullName().equals(function) &&
+                params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+                //TODO should we fail if `actual` is not an array of length 2?
+                assert actual.size() == 2 : "lat_lon function actual result has invalid format " + actual;
+                if (actual.size() == 2) {
+                    builder.field(ACTUAL_GEO.getPreferredName(), actual.get(0) + "," + actual.get(1));
+                }
+            }
         }
         if (fieldName != null) {
             builder.field(FIELD_NAME.getPreferredName(), fieldName);
@@ -290,7 +310,11 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
             builder.field(OVER_FIELD_VALUE.getPreferredName(), overFieldValue);
         }
         if (causes != null) {
-            builder.field(CAUSES.getPreferredName(), causes);
+            builder.startArray(CAUSES.getPreferredName());
+            for (AnomalyCause cause : causes) {
+                builder.value(cause, params);
+            }
+            builder.endArray();
         }
         if (influences != null) {
             builder.field(INFLUENCERS.getPreferredName(), influences);

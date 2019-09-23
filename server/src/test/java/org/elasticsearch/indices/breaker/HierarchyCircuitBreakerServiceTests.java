@@ -293,6 +293,21 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         }
     }
 
+    public void testSingleRequestBreaker() throws Exception {
+        Settings clusterSettings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "50mb")
+            .put(HierarchyCircuitBreakerService.SINGLE_REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "25mb")
+            .build();
+        try (CircuitBreakerService service = new HierarchyCircuitBreakerService(clusterSettings,
+            new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
+            CircuitBreaker requestCircuitBreaker = service.getBreaker(CircuitBreaker.REQUEST);
+            CircuitBreakingException exception = expectThrows(CircuitBreakingException.class, () -> requestCircuitBreaker
+                .addEstimateBytesAndMaybeBreak(new ByteSizeValue(30, ByteSizeUnit.MB).getBytes(), "should break"));
+            assertThat(exception.getMessage(), containsString("[single_request] Data too large, data for [should break] " +
+                "would be [31457280/30mb], which is larger than the single request limit of [26214400/25mb]"));
+        }
+    }
+
     private long mb(long size) {
         return new ByteSizeValue(size, ByteSizeUnit.MB).getBytes();
     }

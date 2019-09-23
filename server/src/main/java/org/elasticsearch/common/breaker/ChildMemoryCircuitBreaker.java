@@ -99,6 +99,19 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     }
 
     /**
+     * Method used to trip the single request breaker
+     */
+    public void singleRequestCircuitBreak(String fieldName, long bytesNeeded) {
+        this.trippedCount.incrementAndGet();
+        final String message = "[single_request] Data too large, data for [" + fieldName + "]" +
+            " would be [" + bytesNeeded + "/" + new ByteSizeValue(bytesNeeded) + "]" +
+            ", which is larger than the single request limit of [" + parent.getSingleRequestBreakerLimit() +
+            "/" + new ByteSizeValue(parent.getSingleRequestBreakerLimit()) + "]";
+        logger.debug("{}", message);
+        throw new CircuitBreakingException(message, bytesNeeded, memoryBytesLimit, durability);
+    }
+
+    /**
      * Add a number of bytes, tripping the circuit breaker if the aggregated
      * estimates are above the limit. Automatically trips the breaker if the
      * memory limit is set to 0. Will never trip the breaker if the limit is
@@ -111,6 +124,11 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         // short-circuit on no data allowed, immediately throwing an exception
         if (memoryBytesLimit == 0) {
             circuitBreak(label, bytes);
+        }
+
+        // check single request breaker
+        if (name.equals(REQUEST) && bytes > parent.getSingleRequestBreakerLimit()) {
+            singleRequestCircuitBreak(label, bytes);
         }
 
         long newUsed;

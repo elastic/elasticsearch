@@ -79,6 +79,9 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     public static final Setting<CircuitBreaker.Type> REQUEST_CIRCUIT_BREAKER_TYPE_SETTING =
         new Setting<>("indices.breaker.request.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
 
+    public static final Setting<ByteSizeValue> SINGLE_REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING =
+        Setting.memorySizeSetting("indices.breaker.single_request.limit", "60%", Property.Dynamic, Property.NodeScope);
+
     public static final Setting<ByteSizeValue> ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING =
         Setting.memorySizeSetting("indices.breaker.accounting.limit", "100%", Property.Dynamic, Property.NodeScope);
     public static final Setting<Double> ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING =
@@ -93,6 +96,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     public static final Setting<CircuitBreaker.Type> IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_TYPE_SETTING =
         new Setting<>("network.breaker.inflight_requests.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
 
+    private long singleRequestMemoryBytesLimit;
     private final boolean trackRealMemoryUsage;
     private volatile BreakerSettings parentSettings;
     private volatile BreakerSettings fielddataSettings;
@@ -142,6 +146,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
 
         this.trackRealMemoryUsage = USE_REAL_MEMORY_USAGE_SETTING.get(settings);
+        this.singleRequestMemoryBytesLimit = SINGLE_REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes();
 
         registerBreaker(this.requestSettings);
         registerBreaker(this.fielddataSettings);
@@ -156,6 +161,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING, this::setInFlightRequestsBreakerLimit);
         clusterSettings.addSettingsUpdateConsumer(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING,
             this::setRequestBreakerLimit);
+        clusterSettings.addSettingsUpdateConsumer(SINGLE_REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, this::setSingleRequestBreakerLimit);
         clusterSettings.addSettingsUpdateConsumer(ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING, ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING,
             this::setAccountingBreakerLimit);
     }
@@ -166,6 +172,15 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         registerBreaker(newRequestSettings);
         this.requestSettings = newRequestSettings;
         logger.info("Updated breaker settings request: {}", newRequestSettings);
+    }
+
+    private void setSingleRequestBreakerLimit(ByteSizeValue newSingleRequestMax) {
+        singleRequestMemoryBytesLimit = newSingleRequestMax.getBytes();
+        logger.info("Updated breaker settings single request: {}", singleRequestMemoryBytesLimit);
+    }
+
+    public final long getSingleRequestBreakerLimit() {
+        return singleRequestMemoryBytesLimit;
     }
 
     private void setInFlightRequestsBreakerLimit(ByteSizeValue newInFlightRequestsMax, Double newInFlightRequestsOverhead) {

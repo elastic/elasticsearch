@@ -300,7 +300,7 @@ public class Archives {
             }
         });
 
-        ServerUtils.waitForElasticsearch();
+        ServerUtils.waitForElasticsearch(installation);
 
         assertTrue(Files.exists(pidFile));
         String pid = slurp(pidFile).trim();

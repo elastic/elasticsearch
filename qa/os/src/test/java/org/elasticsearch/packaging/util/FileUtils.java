@@ -19,6 +19,7 @@
 
 package org.elasticsearch.packaging.util;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
@@ -26,6 +27,7 @@ import org.hamcrest.Matcher;
 import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
@@ -43,6 +45,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.StringJoiner;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipException;
 
@@ -177,6 +180,19 @@ public class FileUtils {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static void logAllLogs(Path logsDir, Logger logger) {
+        logger.info("Showing contents of directory: {}", logsDir.toAbsolutePath());
+        logsDir.forEach( file -> {
+            logger.info("=== Contents of `{}` ===", file.toAbsolutePath());
+            try(Stream<String> stream = Files.lines(file)) {
+                stream.forEach(logger::info);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            logger.info("=== End of contents of `{}`===", file.toAbsolutePath());
+        });
     }
 
     /**

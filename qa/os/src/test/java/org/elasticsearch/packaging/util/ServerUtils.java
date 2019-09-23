@@ -41,11 +41,11 @@ public class ServerUtils {
     private static final long waitTime = TimeUnit.SECONDS.toMillis(60);
     private static final long timeoutLength = TimeUnit.SECONDS.toMillis(10);
 
-    public static void waitForElasticsearch() throws IOException {
-        waitForElasticsearch("green", null);
+    public static void waitForElasticsearch(Installation installation) throws IOException {
+        waitForElasticsearch("green", null, installation);
     }
 
-    public static void waitForElasticsearch(String status, String index) throws IOException {
+    public static void waitForElasticsearch(String status, String index, Installation installation) throws IOException {
 
         Objects.requireNonNull(status);
 
@@ -79,6 +79,9 @@ public class ServerUtils {
         }
 
         if (started == false) {
+            if (installation != null) {
+                FileUtils.logAllLogs(installation.logs, logger);
+            }
             throw new RuntimeException("Elasticsearch did not start");
         }
 

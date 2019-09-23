@@ -50,7 +50,6 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -58,7 +57,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.QueryStringQueryParser;
 import org.elasticsearch.search.internal.SearchContext;
@@ -1051,36 +1049,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         query = queryBuilder.toQuery(context);
         expected = new MatchAllDocsQuery();
         assertThat(query, equalTo(expected));
-    }
-
-    public void testDisabledFieldNamesField() throws Exception {
-        QueryShardContext context = createShardContext();
-        context.getMapperService().merge("_doc",
-                new CompressedXContent(Strings
-                        .toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
-                                "foo",
-                                "type=text",
-                                "_field_names",
-                                "enabled=false"))),
-                MapperService.MergeReason.MAPPING_UPDATE);
-
-        try {
-            QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder("foo:*");
-            Query query = queryBuilder.toQuery(context);
-            Query expected = new WildcardQuery(new Term("foo", "*"));
-            assertThat(query, equalTo(expected));
-        } finally {
-            // restore mappings as they were before
-            context.getMapperService().merge("_doc",
-                    new CompressedXContent(Strings.toString(
-                            PutMappingRequest.buildFromSimplifiedDef("_doc",
-                                    "foo",
-                                    "type=text",
-                                    "_field_names",
-                                    "enabled=true"))),
-                    MapperService.MergeReason.MAPPING_UPDATE);
-        }
-        assertWarnings(FieldNamesFieldMapper.TypeParser.ENABLED_DEPRECATION_MESSAGE.replace("{}",  context.index().getName()));
     }
 
     public void testFromJson() throws IOException {

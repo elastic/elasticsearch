@@ -31,10 +31,12 @@ import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
+import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
 import java.util.Arrays;
 import java.util.List;
@@ -52,6 +54,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     private final Client client;
     private final ClusterService clusterService;
     private final DataFrameAnalyticsManager analyticsManager;
+    private final DataFrameAnalyticsAuditor auditor;
     private final StartDataFrameAnalyticsAction.TaskParams taskParams;
     @Nullable
     private volatile Long reindexingTaskId;
@@ -61,11 +64,12 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
 
     public DataFrameAnalyticsTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers,
                                   Client client, ClusterService clusterService, DataFrameAnalyticsManager analyticsManager,
-                                  StartDataFrameAnalyticsAction.TaskParams taskParams) {
+                                  DataFrameAnalyticsAuditor auditor, StartDataFrameAnalyticsAction.TaskParams taskParams) {
         super(id, type, action, MlTasks.DATA_FRAME_ANALYTICS_TASK_ID_PREFIX + taskParams.getId(), parentTask, headers);
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.analyticsManager = Objects.requireNonNull(analyticsManager);
+        this.auditor = Objects.requireNonNull(auditor);
         this.taskParams = Objects.requireNonNull(taskParams);
     }
 
@@ -159,11 +163,17 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
 
     public void updateState(DataFrameAnalyticsState state, @Nullable String reason) {
         DataFrameAnalyticsTaskState newTaskState = new DataFrameAnalyticsTaskState(state, getAllocationId(), reason);
-        updatePersistentTaskState(newTaskState, ActionListener.wrap(
-            updatedTask -> LOGGER.info("[{}] Successfully update task state to [{}]", getParams().getId(), state),
-            e -> LOGGER.error(new ParameterizedMessage("[{}] Could not update task state to [{}] with reason [{}]",
-                getParams().getId(), state, reason), e)
-        ));
+        updatePersistentTaskState(
+            newTaskState,
+            ActionListener.wrap(
+                updatedTask -> {
+                    auditor.info(getParams().getId(), Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_UPDATED_STATE, state));
+                    LOGGER.info("[{}] Successfully update task state to [{}]", getParams().getId(), state);
+                },
+                e -> LOGGER.error(new ParameterizedMessage("[{}] Could not update task state to [{}] with reason [{}]",
+                    getParams().getId(), state, reason), e)
+            )
+        );
     }
 
     public void updateReindexTaskProgress(ActionListener<Void> listener) {

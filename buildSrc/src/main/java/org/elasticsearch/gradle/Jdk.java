@@ -34,25 +34,39 @@ import java.util.regex.Pattern;
 
 public class Jdk implements Buildable, Iterable<File> {
 
-    static final Pattern VERSION_PATTERN = Pattern.compile("(\\d+)(\\.\\d+\\.\\d+)?\\+(\\d+)(@([a-f0-9]{32}))?");
-    private static final List<String> ALLOWED_PLATFORMS = Collections.unmodifiableList(Arrays.asList("linux", "windows", "darwin"));
+    private static final List<String> ALLOWED_VENDORS = List.of("adoptopenjdk", "openjdk");
+    static final Pattern VERSION_PATTERN =
+        Pattern.compile("(\\d+)(\\.\\d+\\.\\d+)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?");
+    private static final List<String> ALLOWED_PLATFORMS = Collections.unmodifiableList(Arrays.asList("darwin", "linux", "windows"));
 
     private final String name;
     private final Configuration configuration;
 
+    private final Property<String> vendor;
     private final Property<String> version;
     private final Property<String> platform;
-
 
     Jdk(String name, Project project) {
         this.name = name;
         this.configuration = project.getConfigurations().create("jdk_" + name);
+        this.vendor = project.getObjects().property(String.class);
         this.version = project.getObjects().property(String.class);
         this.platform = project.getObjects().property(String.class);
     }
 
     public String getName() {
         return name;
+    }
+
+    public String getVendor() {
+        return vendor.get();
+    }
+
+    public void setVendor(final String vendor) {
+        if (ALLOWED_VENDORS.contains(vendor) == false) {
+            throw new IllegalArgumentException("unknown vendor [" + vendor + "] for jdk [" + name + "], must be one of " + ALLOWED_VENDORS);
+        }
+        this.vendor.set(vendor);
     }
 
     public String getVersion() {
@@ -105,12 +119,17 @@ public class Jdk implements Buildable, Iterable<File> {
         if (platform.isPresent() == false) {
             throw new IllegalArgumentException("platform not specified for jdk [" + name + "]");
         }
+        if (vendor.isPresent() == false) {
+            throw new IllegalArgumentException("vendor not specified for jdk [" + name + "]");
+        }
         version.finalizeValue();
         platform.finalizeValue();
+        vendor.finalizeValue();;
     }
 
     @Override
     public Iterator<File> iterator() {
         return configuration.iterator();
     }
+
 }

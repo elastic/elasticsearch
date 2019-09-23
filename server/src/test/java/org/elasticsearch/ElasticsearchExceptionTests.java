@@ -274,8 +274,15 @@ public class ElasticsearchExceptionTests extends ESTestCase {
     public void testToString() {
         ElasticsearchException exception = new ElasticsearchException("foo", new ElasticsearchException("bar",
                 new IllegalArgumentException("index is closed", new RuntimeException("foobar"))));
-        assertEquals("ElasticsearchException[foo]; nested: ElasticsearchException[bar]; nested: IllegalArgumentException" +
-                "[index is closed]; nested: RuntimeException[foobar];", exception.toString());
+        assertThat(exception.toString(), equalTo("org.elasticsearch.ElasticsearchException: foo"));
+    }
+
+    public void testGetDetailedMessage() {
+        ElasticsearchException exception = new ElasticsearchException("foo", new ElasticsearchException("bar",
+            new IllegalArgumentException("index is closed", new RuntimeException("foobar"))));
+        assertThat(exception.getDetailedMessage(),
+            equalTo("org.elasticsearch.ElasticsearchException: foo; org.elasticsearch.ElasticsearchException: bar; " +
+                "java.lang.IllegalArgumentException: index is closed"));
     }
 
     public void testToXContent() throws IOException {
@@ -465,7 +472,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         ElasticsearchException e = new ElasticsearchException("foo",
                 new ElasticsearchException("bar",
                         new ElasticsearchException("baz",
-                                new RoutingMissingException("_test", "_type", "_id"))));
+                                new RoutingMissingException("_test", "_id"))));
 
         final XContent xContent = randomFrom(XContentType.values()).xContent();
         XContentBuilder builder = XContentBuilder.builder(xContent).startObject().value(e).endObject();
@@ -490,7 +497,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
         cause = (ElasticsearchException) cause.getCause();
         assertEquals(cause.getMessage(),
-                "Elasticsearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_type]/[_id]]");
+                "Elasticsearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_id]]");
         assertThat(cause.getHeaderKeys(), hasSize(0));
         assertThat(cause.getMetadataKeys(), hasSize(2));
         assertThat(cause.getMetadata("es.index"), hasItem("_test"));
@@ -498,7 +505,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
     }
 
     public void testFromXContentWithHeadersAndMetadata() throws IOException {
-        RoutingMissingException routing = new RoutingMissingException("_test", "_type", "_id");
+        RoutingMissingException routing = new RoutingMissingException("_test", "_id");
         ElasticsearchException baz = new ElasticsearchException("baz", routing);
         baz.addHeader("baz_0", "baz0");
         baz.addMetadata("es.baz_1", "baz1");
@@ -550,7 +557,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
         cause = (ElasticsearchException) cause.getCause();
         assertEquals(cause.getMessage(),
-                "Elasticsearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_type]/[_id]]");
+                "Elasticsearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_id]]");
         assertThat(cause.getHeaderKeys(), hasSize(0));
         assertThat(cause.getMetadataKeys(), hasSize(2));
         assertThat(cause.getMetadata("es.index"), hasItem("_test"));
@@ -771,11 +778,11 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 break;
 
             case 4: // JDK exception with cause
-                failureCause = new RoutingMissingException("idx", "type", "id");
+                failureCause = new RoutingMissingException("idx", "id");
                 failure = new RuntimeException("E", failureCause);
 
                 expectedCause = new ElasticsearchException("Elasticsearch exception [type=routing_missing_exception, " +
-                        "reason=routing is required for [idx]/[type]/[id]]");
+                        "reason=routing is required for [idx]/[id]]");
                 expectedCause.addMetadata("es.index", "idx");
                 expectedCause.addMetadata("es.index_uuid", "_na_");
                 expected = new ElasticsearchException("Elasticsearch exception [type=runtime_exception, reason=E]", expectedCause);

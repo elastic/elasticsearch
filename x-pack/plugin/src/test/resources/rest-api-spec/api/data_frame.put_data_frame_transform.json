@@ -1,7 +1,7 @@
 {
   "data_frame.put_data_frame_transform":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/put-data-frame-transform.html"
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/put-transform.html"
     },
     "stability":"beta",
     "url":{

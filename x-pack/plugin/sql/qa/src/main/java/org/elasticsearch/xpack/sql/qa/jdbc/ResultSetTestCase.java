@@ -34,6 +34,7 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
@@ -1157,6 +1158,33 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertEquals(expectedTimestamp, results.getObject("date", java.sql.Timestamp.class));
         });
     }
+    
+    public void testGetDateTypeFromAggregation() throws Exception {
+        createIndex("test");
+        updateMapping("test", builder -> builder.startObject("test_date").field("type", "date").endObject());
+
+        // 1984-05-02 14:59:12 UTC
+        Long timeInMillis = 452357952000L;
+        index("test", "1", builder -> builder.field("test_date", timeInMillis));
+
+        doWithQueryAndTimezone("SELECT CONVERT(test_date, DATE) AS converted FROM test GROUP BY converted", "UTC", results -> {
+            results.next();
+            ZonedDateTime zdt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(timeInMillis), ZoneId.of("Z"))
+                    .toLocalDate().atStartOfDay(ZoneId.of("Z"));
+
+            java.sql.Date expectedDate = new java.sql.Date(zdt.toInstant().toEpochMilli());
+            assertEquals(expectedDate, results.getDate("converted"));
+            assertEquals(expectedDate, results.getObject("converted", java.sql.Date.class));
+
+            java.sql.Time expectedTime = new java.sql.Time(0L);
+            assertEquals(expectedTime, results.getTime("converted"));
+            assertEquals(expectedTime, results.getObject("converted", java.sql.Time.class));
+
+            java.sql.Timestamp expectedTimestamp = new java.sql.Timestamp(zdt.toInstant().toEpochMilli());
+            assertEquals(expectedTimestamp, results.getTimestamp("converted"));
+            assertEquals(expectedTimestamp, results.getObject("converted", java.sql.Timestamp.class));
+        });
+    }
 
     public void testGetTimeType() throws Exception {
         createIndex("test");
@@ -1421,6 +1449,34 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         assertThrowsWritesUnsupportedForUpdate(() -> r.rowDeleted());
     }
     
+    public void testResultSetNotInitialized() throws Exception {
+        createTestDataForNumericValueTypes(() -> randomInt());
+
+        SQLException sqle = expectThrows(SQLException.class, () -> {
+            doWithQuery(SELECT_WILDCARD, rs -> {
+                assertFalse(rs.isAfterLast());
+                rs.getObject(1);
+            });
+        });
+        assertEquals("No row available", sqle.getMessage());
+    }
+
+    public void testResultSetConsumed() throws Exception {
+        createTestDataForNumericValueTypes(() -> randomInt());
+
+        SQLException sqle = expectThrows(SQLException.class, () -> {
+            doWithQuery("SELECT * FROM test LIMIT 1", rs -> {
+                assertFalse(rs.isAfterLast());
+                assertTrue(rs.next());
+                assertFalse(rs.isAfterLast());
+                assertFalse(rs.next());
+                assertTrue(rs.isAfterLast());
+                rs.getObject(1);
+            });
+        });
+        assertEquals("No row available", sqle.getMessage());
+    }
+
     private void doWithQuery(String query, CheckedConsumer<ResultSet, SQLException> consumer) throws SQLException {
         doWithQuery(() -> esJdbc(timeZoneId), query, consumer);
     }

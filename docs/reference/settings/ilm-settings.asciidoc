@@ -2,6 +2,15 @@
 [[ilm-settings]]
 === {ilm-cap} settings
 
+These are the settings available for configuring Index Lifecycle Management
+
+==== Cluster level settings
+
+`xpack.ilm.enabled`::
+Whether ILM is enabled or disabled, setting this to `false` disables any
+ILM REST API endpoints and functionality. Defaults to `true`.
+
+==== Index level settings
 These index-level {ilm-init} settings are typically configured through index
 templates. For more information, see <<ilm-gs-create-policy>>.
 

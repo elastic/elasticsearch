@@ -189,9 +189,6 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=version_type]
 `_index`::
 The name of the index the document belongs to.
 
-`_type`::
-The document type. {es} indices now support a single document type, `_doc`.
-
 `_id`::
 The unique identifier for the document.
 
@@ -239,7 +236,6 @@ The API returns the following result:
 --------------------------------------------------
 {
     "_index" : "twitter",
-    "_type" : "_doc",
     "_id" : "0",
     "_version" : 1,
     "_seq_no" : 10,
@@ -351,7 +347,6 @@ The API returns the following result:
 --------------------------------------------------
 {
    "_index": "twitter",
-   "_type": "_doc",
    "_id": "1",
    "_version": 1,
    "_seq_no" : 22,
@@ -393,7 +388,6 @@ The API returns the following result:
 --------------------------------------------------
 {
    "_index": "twitter",
-   "_type": "_doc",
    "_id": "2",
    "_version": 1,
    "_seq_no" : 13,

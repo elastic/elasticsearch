@@ -48,11 +48,11 @@ public final class DataFrameClient {
     }
 
     /**
-     * Creates a new Data Frame Transform
+     * Creates a new transform
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-data-frame-transform.html">
-     *     Create data frame transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-transform.html">
+     *     Create transform documentation</a>
      *
      * @param request The PutDataFrameTransformRequest containing the
      * {@link org.elasticsearch.client.transform.transforms.DataFrameTransformConfig}.
@@ -69,11 +69,11 @@ public final class DataFrameClient {
     }
 
     /**
-     * Creates a new Data Frame Transform asynchronously and notifies listener on completion
+     * Creates a new transform asynchronously and notifies listener on completion
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-data-frame-transform.html">
-     *     Create data frame transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-transform.html">
+     *     Create transform documentation</a>
      * @param request The PutDataFrameTransformRequest containing the
      * {@link org.elasticsearch.client.transform.transforms.DataFrameTransformConfig}.
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -91,11 +91,11 @@ public final class DataFrameClient {
     }
 
     /**
-     * Updates an existing Data Frame Transform
+     * Updates an existing transform
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/update-data-frame-transform.html">
-     *     Create data frame transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/update-transform.html">
+     *     Create transform documentation</a>
      *
      * @param request The UpdateDataFrameTransformRequest containing the
      * {@link org.elasticsearch.client.transform.transforms.DataFrameTransformConfigUpdate}.
@@ -113,11 +113,11 @@ public final class DataFrameClient {
     }
 
     /**
-     * Updates an existing Data Frame Transform asynchronously and notifies listener on completion
+     * Updates an existing transform asynchronously and notifies listener on completion
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/update-data-frame-transform.html">
-     *     Create data frame transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/update-transform.html">
+     *     Create transform documentation</a>
      * @param request The UpdateDataFrameTransformRequest containing the
      * {@link org.elasticsearch.client.transform.transforms.DataFrameTransformConfigUpdate}.
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -136,15 +136,15 @@ public final class DataFrameClient {
     }
 
     /**
-     * Get the running statistics of a Data Frame Transform
+     * Get the running statistics of a transform
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-data-frame-transform-stats.html">
-     *     Get data frame transform stats documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-transform-stats.html">
+     *     Get transform stats documentation</a>
      *
      * @param request Specifies the which transforms to get the stats for
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return The Data Frame Transform stats
+     * @return The transform stats
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public GetDataFrameTransformStatsResponse getDataFrameTransformStats(GetDataFrameTransformStatsRequest request, RequestOptions options)
@@ -157,11 +157,11 @@ public final class DataFrameClient {
     }
 
     /**
-     * Get the running statistics of a Data Frame Transform asynchronously and notifies listener on completion
+     * Get the running statistics of a transform asynchronously and notifies listener on completion
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-data-frame-transform-stats.html">
-     *     Get data frame transform stats documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-transform-stats.html">
+     *     Get transform stats documentation</a>
      * @param request Specifies the which transforms to get the stats for
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
@@ -178,13 +178,13 @@ public final class DataFrameClient {
     }
 
     /**
-     * Delete a data frame transform
+     * Delete a transform
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-data-frame-transform.html">
-     *     Delete data frame transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-transform.html">
+     *     Delete transform documentation</a>
      *
-     * @param request The delete data frame transform request
+     * @param request The delete transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return An AcknowledgedResponse object indicating request success
      * @throws IOException when there is a serialization issue sending the request or receiving the response
@@ -199,12 +199,12 @@ public final class DataFrameClient {
     }
 
     /**
-     * Delete a data frame transform asynchronously and notifies listener on completion
+     * Delete a transform asynchronously and notifies listener on completion
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-data-frame-transform.html">
-     *     Delete data frame transform documentation</a>
-     * @param request The delete data frame transform request
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-transform.html">
+     *     Delete transform documentation</a>
+     * @param request The delete transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
@@ -220,13 +220,13 @@ public final class DataFrameClient {
     }
 
     /**
-     * Preview the result of a data frame transform
+     * Preview the result of a transform
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/preview-data-frame-transform.html">
-     *     Preview data frame transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/preview-transform.html">
+     *     Preview transform documentation</a>
      *
-     * @param request The preview data frame transform request
+     * @param request The preview transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return A response containing the results of the applied transform
      * @throws IOException when there is a serialization issue sending the request or receiving the response
@@ -241,11 +241,11 @@ public final class DataFrameClient {
     }
 
     /**
-     * Preview the result of a data frame transform asynchronously and notifies listener on completion
+     * Preview the result of a transform asynchronously and notifies listener on completion
      * <p>
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/preview-data-frame-transform.html">
-     *     Preview data frame transform documentation</a>
-     * @param request The preview data frame transform request
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/preview-transform.html">
+     *     Preview transform documentation</a>
+     * @param request The preview transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
@@ -261,13 +261,13 @@ public final class DataFrameClient {
     }
 
     /**
-     * Start a data frame transform
+     * Start a transform
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/start-data-frame-transform.html">
-     *     Start data frame transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/start-transform.html">
+     *     Start transform documentation</a>
      *
-     * @param request The start data frame transform request
+     * @param request The start transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return A response object indicating request success
      * @throws IOException when there is a serialization issue sending the request or receiving the response
@@ -282,12 +282,12 @@ public final class DataFrameClient {
     }
 
     /**
-     * Start a data frame transform asynchronously and notifies listener on completion
+     * Start a transform asynchronously and notifies listener on completion
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/start-data-frame-transform.html">
-     *     Start data frame transform documentation</a>
-     * @param request The start data frame transform request
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/start-transform.html">
+     *     Start transform documentation</a>
+     * @param request The start transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
@@ -303,13 +303,13 @@ public final class DataFrameClient {
     }
 
     /**
-     * Stop a data frame transform
+     * Stop a transform
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/stop-data-frame-transform.html">
-     *     Stop data frame transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/stop-transform.html">
+     *     Stop transform documentation</a>
      *
-     * @param request The stop data frame transform request
+     * @param request The stop transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return A response object indicating request success
      * @throws IOException when there is a serialization issue sending the request or receiving the response
@@ -324,12 +324,12 @@ public final class DataFrameClient {
     }
 
     /**
-     * Stop a data frame transform asynchronously and notifies listener on completion
+     * Stop a transform asynchronously and notifies listener on completion
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/stop-data-frame-transform.html">
-     *     Stop data frame transform documentation</a>
-     * @param request The stop data frame transform request
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/stop-transform.html">
+     *     Stop transform documentation</a>
+     * @param request The stop transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
@@ -345,13 +345,13 @@ public final class DataFrameClient {
     }
 
     /**
-     * Get one or more data frame transform configurations
+     * Get one or more transform configurations
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-data-frame-transform.html">
-     *     Get data frame transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-transform.html">
+     *     Get transform documentation</a>
      *
-     * @param request The get data frame transform request
+     * @param request The get transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return An GetDataFrameTransformResponse containing the requested transforms
      * @throws IOException when there is a serialization issue sending the request or receiving the response
@@ -366,12 +366,12 @@ public final class DataFrameClient {
     }
 
     /**
-     * Get one or more data frame transform configurations asynchronously and notifies listener on completion
+     * Get one or more transform configurations asynchronously and notifies listener on completion
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-data-frame-transform.html">
-     *     Get data frame transform documentation</a>
-     * @param request The get data frame transform request
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-transform.html">
+     *     Get data transform documentation</a>
+     * @param request The get transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request

@@ -334,7 +334,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
         assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)), is(false));
 
-        Arrays.asList(".kibana", ".kibana-devnull", ".reporting-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
+        Arrays.asList(
+            ".kibana",
+            ".kibana-devnull",
+            ".reporting-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            ".apm-agent-configuration"
+        ).forEach((index) -> {
             logger.info("index name [{}]", index);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(index), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(index), is(true));

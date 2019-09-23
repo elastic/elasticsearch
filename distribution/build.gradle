@@ -26,7 +26,8 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.test.RunTask
 
 import java.nio.file.Files
-import java.nio.file.Path 
+import java.nio.file.Path
+
 /*****************************************************************************
  *                  Third party dependencies report                          *
  *****************************************************************************/
@@ -387,11 +388,12 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
     }
 
-    jdkFiles = { project, platform ->
+    jdkFiles = { Project project, String platform ->
       project.jdks {
         "bundled_${platform}" {
           it.platform = platform
           it.version = VersionProperties.bundledJdk
+          it.vendor = VersionProperties.bundledJdkVendor
         }
       }
       return copySpec {

@@ -116,7 +116,7 @@ public class Requests {
 
     /**
      * Creates a get request to get the JSON source from an index based on a type and id. Note, the
-     * {@link GetRequest#type(String)} and {@link GetRequest#id(String)} must be set.
+     * {@link GetRequest#id(String)} must be set.
      *
      * @param index The index to get the JSON source from
      * @return The get request

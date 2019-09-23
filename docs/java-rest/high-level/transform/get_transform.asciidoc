@@ -1,5 +1,5 @@
 --
-:api: get-data-frame-transform
+:api: get-transform
 :request: GetDataFrameTransformRequest
 :response: GetDataFrameTransformResponse
 --

@@ -109,12 +109,10 @@
         body:
           - index:
               _index: test_index
-              _type:  test_type
               _id:    test_id
           - f1: v1
           - index:
               _index: test_index
-              _type:  test_type
               _id:    test_id2
               pipeline: my_pipeline_1
           - f1: v2

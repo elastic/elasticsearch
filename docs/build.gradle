@@ -574,7 +574,6 @@ buildRestTests.setups['library'] = '''
   - do:
         bulk:
           index: library
-          type: book
           refresh: true
           body: |
             {"index":{"_id": "Leviathan Wakes"}}
@@ -923,7 +922,6 @@ buildRestTests.setups['farequote_data'] = buildRestTests.setups['farequote_index
   - do:
         bulk:
           index: farequote
-          type: metric
           refresh: true
           body: |
             {"index": {"_id":"1"}}
@@ -983,7 +981,6 @@ buildRestTests.setups['server_metrics_data'] = buildRestTests.setups['server_met
   - do:
         bulk:
           index: server-metrics
-          type: metric
           refresh: true
           body: |
             {"index": {"_id":"1177"}}

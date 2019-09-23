@@ -21,11 +21,11 @@ package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.apache.lucene.util.FutureObjects;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A page based bytes reference, internally holding the bytes in a paged
@@ -61,7 +61,7 @@ public class PagedBytesReference extends BytesReference {
 
     @Override
     public BytesReference slice(int from, int length) {
-        FutureObjects.checkFromIndexSize(from, length, this.length);
+        Objects.checkFromIndexSize(from, length, this.length);
         return new PagedBytesReference(byteArray, offset + from, length);
     }
 

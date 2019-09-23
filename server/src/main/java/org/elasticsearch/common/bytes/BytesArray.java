@@ -20,7 +20,8 @@
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FutureObjects;
+
+import java.util.Objects;
 
 public final class BytesArray extends BytesReference {
 
@@ -68,7 +69,7 @@ public final class BytesArray extends BytesReference {
 
     @Override
     public BytesReference slice(int from, int length) {
-        FutureObjects.checkFromIndexSize(from, length, this.length);
+        Objects.checkFromIndexSize(from, length, this.length);
         return new BytesArray(bytes, offset + from, length);
     }
 

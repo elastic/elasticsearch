@@ -60,11 +60,11 @@ include::sql/index.asciidoc[]
 
 include::monitoring/index.asciidoc[]
 
-include::rollup/index.asciidoc[]
-
 include::frozen-indices.asciidoc[]
 
 include::administering.asciidoc[]
+
+include::data-rollup-transform.asciidoc[]
 
 include::rest-api/index.asciidoc[]
 

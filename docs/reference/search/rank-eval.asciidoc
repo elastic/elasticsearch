@@ -130,7 +130,7 @@ application, along with the document ratings for each particular search request.
         }
     ]
 -----------------------------
-// TEST[skip: TBD]
+// NOTCONSOLE
 
 <1> the search requests id, used to group result details later 
 <2> the query that is being evaluated

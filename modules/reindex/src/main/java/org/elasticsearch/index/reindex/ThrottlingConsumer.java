@@ -20,12 +20,14 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 /**
  * A throttling consumer that forwards input to an outbound consumer, but discarding any that arrive too quickly (but eventually sending the
@@ -51,7 +53,12 @@ public class ThrottlingConsumer<T> implements Consumer<T> {
 
     public ThrottlingConsumer(BiConsumer<T, Runnable> outbound, TimeValue minimumInterval,
                               LongSupplier nanoTimeSource, ThreadPool threadPool) {
-        this.outbound = outbound;
+        Supplier<ThreadContext.StoredContext> restorableContext = threadPool.getThreadContext().newRestorableContext(false);
+        this.outbound = (value, whenDone) -> {
+            try (ThreadContext.StoredContext ignored = restorableContext.get()) {
+                outbound.accept(value, whenDone);
+            }
+        };
         this.minimumInterval = minimumInterval;
         this.threadPool = threadPool;
         this.nanoTimeSource = nanoTimeSource;
@@ -89,6 +96,7 @@ public class ThrottlingConsumer<T> implements Consumer<T> {
             lastWriteTimeNanos = now;
             outboundActive = true;
         }
+
 
         outbound.accept(value, () -> {
             synchronized (this) {

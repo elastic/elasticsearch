@@ -33,6 +33,7 @@ import java.util.concurrent.Delayed;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -103,6 +104,31 @@ public class ThrottlingConsumerTests extends ESTestCase {
 
         threadPool.validate(false, null, false);
         assertThat(throttledValue.get(), equalTo(expectedValue));
+    }
+
+    public void testRetainThreadContext() {
+        String headerValue = Long.toString(randomLong());
+        threadPool.getThreadContext().putHeader("test-header", headerValue);
+        AtomicLong time = new AtomicLong(randomLong());
+        AtomicInteger invocationCount = new AtomicInteger();
+        Consumer<Long> validateThreadContextConsumer = v -> {
+            assertEquals(headerValue, threadPool.getThreadContext().getHeader("test-header"));
+            invocationCount.incrementAndGet();
+        };
+        ThrottlingConsumer<Long> throttler
+            = new ThrottlingConsumer<>(wrap(validateThreadContextConsumer), TimeValue.timeValueNanos(10), time::get, threadPool);
+
+        throttler.accept(randomLong());
+        threadPool.validate(true, TimeValue.timeValueNanos(10), false);
+        threadPool.getThreadContext().stashContext();
+        threadPool.runScheduledTask();
+
+        time.addAndGet(randomLongBetween(10,1000));
+        throttler.accept(randomLong());
+        threadPool.validate(true, TimeValue.timeValueNanos(0), false);
+        threadPool.runScheduledTask();
+
+        assertEquals(2, invocationCount.get());
     }
 
     public void testCloseNormal() {

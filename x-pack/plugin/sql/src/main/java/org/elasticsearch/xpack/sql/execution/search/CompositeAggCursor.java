@@ -37,14 +37,14 @@ import java.util.BitSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Consumer;
-import java.util.function.Function;
+import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 /**
  * Cursor for composite aggregation (GROUP BY).
  * Stores the query that gets updated/slides across requests.
  */
-public class CompositeAggregationCursor implements Cursor {
+public class CompositeAggCursor implements Cursor {
 
     private final Logger log = LogManager.getLogger(getClass());
 
@@ -57,7 +57,7 @@ public class CompositeAggregationCursor implements Cursor {
     private final int limit;
     private final boolean includeFrozen;
 
-    CompositeAggregationCursor(byte[] next, List<BucketExtractor> exts, BitSet mask, int remainingLimit, boolean includeFrozen,
+    CompositeAggCursor(byte[] next, List<BucketExtractor> exts, BitSet mask, int remainingLimit, boolean includeFrozen,
             String... indices) {
         this.indices = indices;
         this.nextQuery = next;
@@ -67,7 +67,7 @@ public class CompositeAggregationCursor implements Cursor {
         this.includeFrozen = includeFrozen;
     }
 
-    public CompositeAggregationCursor(StreamInput in) throws IOException {
+    public CompositeAggCursor(StreamInput in) throws IOException {
         indices = in.readStringArray();
         nextQuery = in.readByteArray();
         limit = in.readVInt();
@@ -86,7 +86,6 @@ public class CompositeAggregationCursor implements Cursor {
         out.writeNamedWriteableList(extractors);
         out.writeByteArray(mask.toByteArray());
         out.writeBoolean(includeFrozen);
-
     }
 
     @Override
@@ -133,16 +132,17 @@ public class CompositeAggregationCursor implements Cursor {
             log.trace("About to execute composite query {} on {}", StringUtils.toString(query), indices);
         }
 
-        SearchRequest search = Querier.prepareRequest(client, query, cfg.pageTimeout(), includeFrozen, indices);
+        SearchRequest request = Querier.prepareRequest(client, query, cfg.pageTimeout(), includeFrozen, indices);
 
-        client.search(search, new ActionListener<>() {
+        client.search(request, new ActionListener<>() {
             @Override
-            public void onResponse(SearchResponse r) {
-                handle(r, search.source(), ba -> new CompositeAggsRowSet(extractors, mask, r, limit, ba),
-                        () -> client.search(search, this),
-                        p -> listener.onResponse(p),
-                        e -> listener.onFailure(e),
-                        Schema.EMPTY, includeFrozen, indices);
+            public void onResponse(SearchResponse response) {
+                handle(response, request.source(),
+                        makeRowSet(response),
+                        makeCursor(),
+                        () -> client.search(request, this),
+                        listener,
+                        Schema.EMPTY);
             }
 
             @Override
@@ -151,41 +151,56 @@ public class CompositeAggregationCursor implements Cursor {
             }
         });
     }
+    
+    protected Supplier<CompositeAggRowSet> makeRowSet(SearchResponse response) {
+        return () -> new CompositeAggRowSet(extractors, mask, response, limit);
+    }
 
-    static void handle(SearchResponse response, SearchSourceBuilder source, Function<byte[], CompositeAggsRowSet> makeRowSet,
-            Runnable retry, Consumer<Page> onPage, Consumer<Exception> onFailure,
-            Schema schema, boolean includeFrozen, String[] indices) {
+    protected BiFunction<byte[], CompositeAggRowSet, CompositeAggCursor> makeCursor() {
+        return (q, r) -> new CompositeAggCursor(q, r.extractors(), r.mask(), r.remainingData(), includeFrozen, indices);
+    }
+
+    static void handle(SearchResponse response, SearchSourceBuilder source,
+            Supplier<CompositeAggRowSet> makeRowSet,
+            BiFunction<byte[], CompositeAggRowSet, CompositeAggCursor> makeCursor,
+            Runnable retry,
+            ActionListener<Page> listener,
+            Schema schema) {
         
         // there are some results
         if (response.getAggregations().asList().isEmpty() == false) {
             // retry
-            if (CompositeAggregationCursor.shouldRetryDueToEmptyPage(response)) {
-                CompositeAggregationCursor.updateCompositeAfterKey(response, source);
+            if (shouldRetryDueToEmptyPage(response)) {
+                updateCompositeAfterKey(response, source);
                 retry.run();
                 return;
             }
 
             try {
-                boolean hasAfterKey = updateCompositeAfterKey(response, source);
-                byte[] queryAsBytes = hasAfterKey ? serializeQuery(source) : null;
-                CompositeAggsRowSet rowSet = makeRowSet.apply(queryAsBytes);
+                CompositeAggRowSet rowSet = makeRowSet.get();
+                Map<String, Object> afterKey = rowSet.afterKey();
+
+                byte[] queryAsBytes = null;
+                if (afterKey != null) {
+                    updateSourceAfterKey(afterKey, source);
+                    queryAsBytes = serializeQuery(source);
+                }
 
                 Cursor next = rowSet.remainingData() == 0
                         ? Cursor.EMPTY
-                        : new CompositeAggregationCursor(queryAsBytes, rowSet.extractors(), rowSet.mask(),
-                                rowSet.remainingData(), includeFrozen, indices);
-                onPage.accept(new Page(rowSet, next));
+                        : makeCursor.apply(queryAsBytes, rowSet);
+                listener.onResponse(new Page(rowSet, next));
             } catch (Exception ex) {
-                onFailure.accept(ex);
+                listener.onFailure(ex);
             }
         }
         // no results
         else {
-            onPage.accept(Page.last(Rows.empty(schema)));
+            listener.onResponse(Page.last(Rows.empty(schema)));
         }
     }
     
-    static boolean shouldRetryDueToEmptyPage(SearchResponse response) {
+    private static boolean shouldRetryDueToEmptyPage(SearchResponse response) {
         CompositeAggregation composite = getComposite(response);
         // if there are no buckets but a next page, go fetch it instead of sending an empty response to the client
         return composite != null && composite.getBuckets().isEmpty() && composite.afterKey() != null && !composite.afterKey().isEmpty();
@@ -204,25 +219,22 @@ public class CompositeAggregationCursor implements Cursor {
         throw new SqlIllegalArgumentException("Unrecognized root group found; {}", agg.getClass());
     }
 
-    static boolean updateCompositeAfterKey(SearchResponse r, SearchSourceBuilder next) {
+    private static void updateCompositeAfterKey(SearchResponse r, SearchSourceBuilder search) {
         CompositeAggregation composite = getComposite(r);
 
         if (composite == null) {
             throw new SqlIllegalArgumentException("Invalid server response; no group-by detected");
         }
 
-        Map<String, Object> afterKey = composite.afterKey();
-        // a null after-key means done
-        if (afterKey == null) {
-            return false;
-        }
+        updateSourceAfterKey(composite.afterKey(), search);
+    }
 
-        AggregationBuilder aggBuilder = next.aggregations().getAggregatorFactories().iterator().next();
+    private static void updateSourceAfterKey(Map<String, Object> afterKey, SearchSourceBuilder search) {
+        AggregationBuilder aggBuilder = search.aggregations().getAggregatorFactories().iterator().next();
         // update after-key with the new value
         if (aggBuilder instanceof CompositeAggregationBuilder) {
             CompositeAggregationBuilder comp = (CompositeAggregationBuilder) aggBuilder;
             comp.aggregateAfter(afterKey);
-            return true;
         } else {
             throw new SqlIllegalArgumentException("Invalid client request; expected a group-by but instead got {}", aggBuilder);
         }
@@ -240,7 +252,7 @@ public class CompositeAggregationCursor implements Cursor {
     /**
      * Serializes the search source to a byte array.
      */
-    static byte[] serializeQuery(SearchSourceBuilder source) throws IOException {
+    private static byte[] serializeQuery(SearchSourceBuilder source) throws IOException {
         if (source == null) {
             return new byte[0];
         }
@@ -259,7 +271,7 @@ public class CompositeAggregationCursor implements Cursor {
 
     @Override
     public int hashCode() {
-        return Objects.hash(Arrays.hashCode(indices), Arrays.hashCode(nextQuery), extractors, limit);
+        return Objects.hash(Arrays.hashCode(indices), Arrays.hashCode(nextQuery), extractors, limit, mask, includeFrozen);
     }
 
     @Override
@@ -267,11 +279,12 @@ public class CompositeAggregationCursor implements Cursor {
         if (obj == null || obj.getClass() != getClass()) {
             return false;
         }
-        CompositeAggregationCursor other = (CompositeAggregationCursor) obj;
+        CompositeAggCursor other = (CompositeAggCursor) obj;
         return Arrays.equals(indices, other.indices)
                 && Arrays.equals(nextQuery, other.nextQuery)
                 && Objects.equals(extractors, other.extractors)
-                && Objects.equals(limit, other.limit);
+                && Objects.equals(limit, other.limit)
+                && Objects.equals(includeFrozen, other.includeFrozen);
     }
 
     @Override

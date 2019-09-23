@@ -52,8 +52,8 @@ public class SimpleMgetIT extends ESIntegTestCase {
                 .setRefreshPolicy(IMMEDIATE).get();
 
         MultiGetResponse mgetResponse = client().prepareMultiGet()
-                .add(new MultiGetRequest.Item("test", "test", "1"))
-                .add(new MultiGetRequest.Item("nonExistingIndex", "test", "1"))
+                .add(new MultiGetRequest.Item("test", "1"))
+                .add(new MultiGetRequest.Item("nonExistingIndex", "1"))
                 .get();
         assertThat(mgetResponse.getResponses().length, is(2));
 
@@ -67,7 +67,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
             is("nonExistingIndex"));
 
         mgetResponse = client().prepareMultiGet()
-                .add(new MultiGetRequest.Item("nonExistingIndex", "test", "1"))
+                .add(new MultiGetRequest.Item("nonExistingIndex", "1"))
                 .get();
         assertThat(mgetResponse.getResponses().length, is(1));
         assertThat(mgetResponse.getResponses()[0].getIndex(), is("nonExistingIndex"));
@@ -85,8 +85,8 @@ public class SimpleMgetIT extends ESIntegTestCase {
             .setRefreshPolicy(IMMEDIATE).get();
 
         MultiGetResponse mgetResponse = client().prepareMultiGet()
-            .add(new MultiGetRequest.Item("test", "test", "1"))
-            .add(new MultiGetRequest.Item("multiIndexAlias", "test", "1"))
+            .add(new MultiGetRequest.Item("test", "1"))
+            .add(new MultiGetRequest.Item("multiIndexAlias", "1"))
             .get();
         assertThat(mgetResponse.getResponses().length, is(2));
 
@@ -98,7 +98,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
         assertThat(mgetResponse.getResponses()[1].getFailure().getMessage(), containsString("more than one indices"));
 
         mgetResponse = client().prepareMultiGet()
-            .add(new MultiGetRequest.Item("multiIndexAlias", "test", "1"))
+            .add(new MultiGetRequest.Item("multiIndexAlias", "1"))
             .get();
         assertThat(mgetResponse.getResponses().length, is(1));
         assertThat(mgetResponse.getResponses()[0].getIndex(), is("multiIndexAlias"));
@@ -115,7 +115,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
             .setRefreshPolicy(IMMEDIATE).get();
 
         MultiGetResponse mgetResponse = client().prepareMultiGet()
-            .add(new MultiGetRequest.Item("alias1", "test", "1"))
+            .add(new MultiGetRequest.Item("alias1", "1"))
             .get();
         assertEquals(1, mgetResponse.getResponses().length);
 
@@ -138,10 +138,10 @@ public class SimpleMgetIT extends ESIntegTestCase {
         MultiGetRequestBuilder request = client().prepareMultiGet();
         for (int i = 0; i < 100; i++) {
             if (i % 2 == 0) {
-                request.add(new MultiGetRequest.Item(indexOrAlias(), "type", Integer.toString(i))
+                request.add(new MultiGetRequest.Item(indexOrAlias(), Integer.toString(i))
                     .fetchSourceContext(new FetchSourceContext(true, new String[] {"included"}, new String[] {"*.hidden_field"})));
             } else {
-                request.add(new MultiGetRequest.Item(indexOrAlias(), "type", Integer.toString(i))
+                request.add(new MultiGetRequest.Item(indexOrAlias(), Integer.toString(i))
                     .fetchSourceContext(new FetchSourceContext(false)));
             }
         }
@@ -178,8 +178,8 @@ public class SimpleMgetIT extends ESIntegTestCase {
                 .get();
 
         MultiGetResponse mgetResponse = client().prepareMultiGet()
-                .add(new MultiGetRequest.Item(indexOrAlias(), "test", id).routing(routingOtherShard))
-                .add(new MultiGetRequest.Item(indexOrAlias(), "test", id))
+                .add(new MultiGetRequest.Item(indexOrAlias(), id).routing(routingOtherShard))
+                .add(new MultiGetRequest.Item(indexOrAlias(), id))
                 .get();
 
         assertThat(mgetResponse.getResponses().length, is(2));

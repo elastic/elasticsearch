@@ -976,6 +976,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 new NoneCircuitBreakerService(),
                 bigArrays,
                 scriptService,
+                clusterService,
                 client,
                 new MetaStateService(nodeEnv, namedXContentRegistry),
                 Collections.emptyList(),

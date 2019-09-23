@@ -257,28 +257,14 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 Map<ShardId, IndexShardSnapshotStatus> snapshotShards = shardSnapshots.getOrDefault(snapshot, emptyMap());
                 for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shard : entry.shards()) {
                     final IndexShardSnapshotStatus snapshotStatus = snapshotShards.get(shard.key);
-                    if (snapshotStatus != null) {
-                        final IndexShardSnapshotStatus.Copy lastSnapshotStatus =
-                            snapshotStatus.abortIfNotCompleted("snapshot has been aborted");
-                        final Stage stage = lastSnapshotStatus.getStage();
-                        if (stage == Stage.FINALIZE) {
-                            logger.debug("[{}] trying to cancel snapshot on shard [{}] that is finalizing, " +
-                                "letting it finish", snapshot, shard.key);
-                        } else if (stage == Stage.DONE) {
-                            logger.debug("[{}] trying to cancel snapshot on the shard [{}] that is already done, " +
-                                "updating status on the master", snapshot, shard.key);
-                            notifySuccessfulSnapshotShard(snapshot, shard.key);
-                        } else if (stage == Stage.FAILURE) {
-                            logger.debug("[{}] trying to cancel snapshot on the shard [{}] that has already failed, " +
-                                "updating status on the master", snapshot, shard.key);
-                            notifyFailedSnapshotShard(snapshot, shard.key, lastSnapshotStatus.getFailure());
-                        }
-                    } else {
+                    if (snapshotStatus == null) {
                         // due to CS batching we might have missed the INIT state and straight went into ABORTED
                         // notify master that abort has completed by moving to FAILED
                         if (shard.value.state() == ShardState.ABORTED) {
                             notifyFailedSnapshotShard(snapshot, shard.key, shard.value.reason());
                         }
+                    } else {
+                        snapshotStatus.abortIfNotCompleted("snapshot has been aborted");
                     }
                 }
             }

@@ -123,11 +123,10 @@ public class ReindexTask extends AllocatedPersistentTask {
             @Override
             public void onResponse(ReindexTaskStateDoc stateDoc) {
                 ReindexRequest reindexRequest = stateDoc.getReindexRequest();
-                Runnable performReindex = () -> performReindex(reindexJob, stateDoc, taskUpdater);
                 reindexer.initTask(childTask, reindexRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(Void aVoid) {
-                        sendStartedNotification(reindexJob.shouldStoreResult(), performReindex);
+                        performReindex(reindexJob, stateDoc, taskUpdater);
                     }
 
                     @Override
@@ -144,11 +143,10 @@ public class ReindexTask extends AllocatedPersistentTask {
         });
     }
 
-    private void sendStartedNotification(boolean shouldStoreResult, Runnable listener) {
+    private void sendStartedNotification(boolean shouldStoreResult) {
         updatePersistentTaskState(new ReindexJobState(taskId, ReindexJobState.Status.STARTED), new ActionListener<>() {
             @Override
             public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
-                listener.run();
             }
 
             @Override
@@ -185,6 +183,8 @@ public class ReindexTask extends AllocatedPersistentTask {
                 }
             }), checkpoint, taskUpdater);
         }
+        // send this after we started reindex to ensure sub-tasks are created.
+        sendStartedNotification(reindexJob.shouldStoreResult());
     }
 
     private void handleDone(boolean shouldStoreResult, ReindexTaskStateUpdater taskUpdater, BulkByScrollResponse response) {

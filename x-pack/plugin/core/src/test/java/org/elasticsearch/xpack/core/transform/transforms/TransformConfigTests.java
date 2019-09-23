@@ -39,8 +39,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         return randomDataFrameTransformConfigWithoutHeaders(randomAlphaOfLengthBetween(1, 10));
     }
 
-    public static TransformConfig randomDataFrameTransformConfig() {
-        return randomDataFrameTransformConfig(randomAlphaOfLengthBetween(1, 10));
+    public static TransformConfig randomTransformConfig() {
+        return randomTransformConfig(randomAlphaOfLengthBetween(1, 10));
     }
 
     public static TransformConfig randomDataFrameTransformConfigWithoutHeaders(String id) {
@@ -56,7 +56,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             null);
     }
 
-    public static TransformConfig randomDataFrameTransformConfig(String id) {
+    public static TransformConfig randomTransformConfig(String id) {
         return new TransformConfig(id,
             randomSourceConfig(),
             randomDestConfig(),
@@ -101,7 +101,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
     @Override
     protected TransformConfig createTestInstance() {
-        return runWithHeaders ? randomDataFrameTransformConfig(transformId) : randomDataFrameTransformConfigWithoutHeaders(transformId);
+        return runWithHeaders ? randomTransformConfig(transformId) : randomDataFrameTransformConfigWithoutHeaders(transformId);
     }
 
     @Override
@@ -213,7 +213,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testXContentForInternalStorage() throws IOException {
-        TransformConfig dataFrameTransformConfig = randomDataFrameTransformConfig();
+        TransformConfig dataFrameTransformConfig = randomTransformConfig();
 
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
             XContentBuilder content = dataFrameTransformConfig.toXContent(xContentBuilder, getToXContentParams());

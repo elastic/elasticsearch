@@ -827,14 +827,17 @@ public abstract class IndexShardTestCase extends ESTestCase {
             shard.recoveryState());
     }
 
-    /** Snapshot a shard using a given repository **/
+    /**
+     * Snapshot a shard using a given repository.
+     *
+     * @return new shard generation
+     */
     protected String snapshotShard(final IndexShard shard,
-                                 final Snapshot snapshot,
-                                 final Repository repository) throws IOException {
-        Index index = shard.shardId().getIndex();
-        IndexId indexId = new IndexId(index.getName(), index.getUUID());
-        final IndexShardSnapshotStatus snapshotStatus =
-            IndexShardSnapshotStatus.newInitializing(repository.getRepositoryData().getShardGen(indexId, shard.shardId.id()));
+                                   final Snapshot snapshot,
+                                   final Repository repository) throws IOException {
+        final Index index = shard.shardId().getIndex();
+        final IndexId indexId = new IndexId(index.getName(), index.getUUID());
+        final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
         final PlainActionFuture<String> future = PlainActionFuture.newFuture();
         final String shardGen;
         try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(true)) {

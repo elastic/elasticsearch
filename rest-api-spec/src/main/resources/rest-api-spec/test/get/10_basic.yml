@@ -13,6 +13,5 @@
         id:    中文
 
   - match: { _index:   test_1 }
-  - match: { _type: _doc }
   - match: { _id:      中文      }
   - match: { _source:  { foo: "Hello: 中文" } }

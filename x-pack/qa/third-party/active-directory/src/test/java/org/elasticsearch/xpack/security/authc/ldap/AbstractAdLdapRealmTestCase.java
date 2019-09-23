@@ -259,7 +259,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
 
         refresh();
 
-        GetResponse getResponse = client.prepareGet(index, "type", indexResponse.getId())
+        GetResponse getResponse = client.prepareGet(index, indexResponse.getId())
                 .get();
 
         assertThat("user " + user + " should have read access to index " + index, getResponse.getId(), equalTo(indexResponse.getId()));

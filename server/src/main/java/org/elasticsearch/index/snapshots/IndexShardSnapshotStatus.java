@@ -116,11 +116,11 @@ public class IndexShardSnapshotStatus {
         assert newGeneration != null;
         if (stage.compareAndSet(Stage.FINALIZE, Stage.DONE)) {
             this.totalTime = Math.max(0L, endTime - startTime);
+            this.generation.set(newGeneration);
         } else {
             throw new IllegalStateException("Unable to move the shard snapshot status to [DONE]: " +
                 "expecting [FINALIZE] but got [" + stage.get() + "]");
         }
-        this.generation.set(newGeneration);
     }
 
     public synchronized void abortIfNotCompleted(final String failure) {

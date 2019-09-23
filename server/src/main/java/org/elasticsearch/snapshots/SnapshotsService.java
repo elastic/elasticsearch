@@ -1416,8 +1416,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             IndexMetaData indexMetaData = metaData.index(indexName);
             if (indexMetaData == null) {
                 // The index was deleted before we managed to start the snapshot - mark it as missing.
-                builder.put(new ShardId(indexName, IndexMetaData.INDEX_UUID_NA_VALUE, 0),
-                    new SnapshotsInProgress.ShardSnapshotStatus(null, ShardState.MISSING, "missing index", null));
+                builder.put(new ShardId(indexName, IndexMetaData.INDEX_UUID_NA_VALUE, 0), missingStatus(null, "missing index"));
             } else {
                 IndexRoutingTable indexRoutingTable = clusterState.getRoutingTable().index(indexName);
                 for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
@@ -1425,29 +1424,28 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     if (indexRoutingTable != null) {
                         ShardRouting primary = indexRoutingTable.shard(i).primaryShard();
                         if (primary == null || !primary.assignedToNode()) {
-                            builder.put(shardId,
-                                new SnapshotsInProgress.ShardSnapshotStatus(null, ShardState.MISSING, "primary shard is not allocated",
-                                    null));
+                            builder.put(shardId, missingStatus(null, "primary shard is not allocated"));
                         } else if (primary.relocating() || primary.initializing()) {
                             builder.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(
                                 primary.currentNodeId(), ShardState.WAITING, null));
                         } else if (!primary.started()) {
-                            builder.put(shardId,
-                                new SnapshotsInProgress.ShardSnapshotStatus(primary.currentNodeId(), ShardState.MISSING,
-                                    "primary shard hasn't been started yet", null));
+                            builder.put(shardId, missingStatus(primary.currentNodeId(), "primary shard hasn't been started yet"));
                         } else {
                             builder.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(
                                 primary.currentNodeId(), null));
                         }
                     } else {
-                        builder.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(null, ShardState.MISSING,
-                            "missing routing table", null));
+                        builder.put(shardId, missingStatus(null, "missing routing table"));
                     }
                 }
             }
         }
 
         return builder.build();
+    }
+
+    private static ShardSnapshotStatus missingStatus(@Nullable String nodeId, String reason) {
+        return new SnapshotsInProgress.ShardSnapshotStatus(nodeId, ShardState.MISSING, reason, null);
     }
 
     /**

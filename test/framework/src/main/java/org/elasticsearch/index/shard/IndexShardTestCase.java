@@ -827,7 +827,11 @@ public abstract class IndexShardTestCase extends ESTestCase {
             shard.recoveryState());
     }
 
-    /** Snapshot a shard using a given repository **/
+    /**
+     * Snapshot a shard using a given repository.
+     *
+     * @return new shard generation
+     */
     protected String snapshotShard(final IndexShard shard,
                                    final Snapshot snapshot,
                                    final Repository repository) throws IOException {

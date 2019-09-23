@@ -110,6 +110,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 new ResolveFunctions(),
                 new ResolveAliases(),
                 new ProjectedAggregations(),
+                new HavingOverProject(),
                 new ResolveAggsInHaving(),
                 new ResolveAggsInOrderBy()
                 //new ImplicitCasting()
@@ -1003,6 +1004,45 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     }
 
     //
+    // Detect implicit grouping with filtering and convert them into aggregates.
+    // SELECT 1 FROM x HAVING COUNT(*) > 0
+    // is a filter followed by projection and fails as the engine does not
+    // understand it is an implicit grouping.
+    //
+    private static class HavingOverProject extends AnalyzeRule<Filter> {
+
+        @Override
+        protected LogicalPlan rule(Filter f) {
+            if (f.child() instanceof Project) {
+                Project p = (Project) f.child();
+
+                for (Expression n : p.projections()) {
+                    if (n instanceof Alias) {
+                        n = ((Alias) n).child();
+                    }
+                    // no literal or aggregates - it's a 'regular' projection
+                    if (n.foldable() == false && Functions.isAggregate(n) == false
+                            // folding might not work (it might wait for the optimizer)
+                            // so check whether any column is referenced
+                            && n.anyMatch(e -> e instanceof FieldAttribute) == true) {
+                        return f;
+                    }
+                }
+
+                if (containsAggregate(f.condition())) {
+                    return new Filter(f.source(), new Aggregate(p.source(), p.child(), emptyList(), p.projections()), f.condition());
+                }
+            }
+            return f;
+        }
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+    }
+
+    //
     // Handle aggs in HAVING. To help folding any aggs not found in Aggregation
     // will be pushed down to the Aggregate and then projected. This also simplifies the Verifier's job.
     //
@@ -1237,14 +1277,13 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         protected LogicalPlan rule(LogicalPlan plan) {
             if (plan instanceof Project) {
                 Project p = (Project) plan;
-                return new Project(p.source(), p.child(), cleanExpressions(p.projections()));
+                return new Project(p.source(), p.child(), cleanSecondaryAliases(p.projections()));
             }
 
             if (plan instanceof Aggregate) {
                 Aggregate a = (Aggregate) plan;
                 // clean group expressions
-                List<Expression> cleanedGroups = a.groupings().stream().map(CleanAliases::trimAliases).collect(toList());
-                return new Aggregate(a.source(), a.child(), cleanedGroups, cleanExpressions(a.aggregates()));
+                return new Aggregate(a.source(), a.child(), cleanAllAliases(a.groupings()), cleanSecondaryAliases(a.aggregates()));
             }
 
             return plan.transformExpressionsOnly(e -> {
@@ -1255,8 +1294,20 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             });
         }
 
-        private List<NamedExpression> cleanExpressions(List<? extends NamedExpression> args) {
-            return args.stream().map(CleanAliases::trimNonTopLevelAliases).map(NamedExpression.class::cast).collect(toList());
+        private List<NamedExpression> cleanSecondaryAliases(List<? extends NamedExpression> args) {
+            List<NamedExpression> cleaned = new ArrayList<>(args.size());
+            for (NamedExpression ne : args) {
+                cleaned.add((NamedExpression) trimNonTopLevelAliases(ne));
+            }
+            return cleaned;
+        }
+
+        private List<Expression> cleanAllAliases(List<Expression> args) {
+            List<Expression> cleaned = new ArrayList<>(args.size());
+            for (Expression e : args) {
+                cleaned.add(trimAliases(e));
+            }
+            return cleaned;
         }
 
         public static Expression trimNonTopLevelAliases(Expression e) {

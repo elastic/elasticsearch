@@ -399,9 +399,9 @@
       mget:
         body:
           docs:
-            - { _index: index2, _type: _doc, _id: en_123}
-            - { _index: index2, _type: _doc, _id: en_456}
-            - { _index: index2, _type: _doc, _id: fr_789}
+            - { _index: index2, _id: en_123}
+            - { _index: index2, _id: en_456}
+            - { _index: index2, _id: fr_789}
 
   - is_true: docs.0.found
   - match:  { docs.0._index:     index2      }

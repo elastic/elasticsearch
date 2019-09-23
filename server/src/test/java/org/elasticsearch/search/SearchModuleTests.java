@@ -59,7 +59,6 @@ import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.RescorerBuilder;
@@ -390,8 +389,10 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(SearchContext context,
-                ValuesSourceConfig<ValuesSource> config, AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
+        protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
+                                                                            ValuesSourceConfig<ValuesSource> config,
+                                                                            AggregatorFactory parent,
+                                                                            Builder subFactoriesBuilder) throws IOException {
             return null;
         }
 

@@ -404,7 +404,9 @@ public class Setting<T> implements ToXContentObject {
      * @return true if the setting is present in the given settings instance, otherwise false
      */
     public boolean exists(final Settings settings) {
-        return settings.keySet().contains(getKey());
+        SecureSettings secureSettings = settings.getSecureSettings();
+        return settings.keySet().contains(getKey()) &&
+            (secureSettings == null || secureSettings.getSettingNames().contains(getKey()) == false);
     }
 
     /**
@@ -1051,15 +1053,6 @@ public class Setting<T> implements ToXContentObject {
 
     public static Setting<Integer> intSetting(String key, Setting<Integer> fallbackSetting, int minValue, Property... properties) {
         return new Setting<>(key, fallbackSetting, (s) -> parseInt(s, minValue, key), properties);
-    }
-
-    public static Setting<Integer> intSetting(
-        final String key,
-        final Setting<Integer> fallbackSetting,
-        final int minValue,
-        final int maxValue,
-        final Property... properties) {
-        return new Setting<>(key, fallbackSetting, (s) -> parseInt(s, minValue, maxValue, key), properties);
     }
 
     public static Setting<Integer> intSetting(String key, Setting<Integer> fallbackSetting, int minValue, Validator<Integer> validator,

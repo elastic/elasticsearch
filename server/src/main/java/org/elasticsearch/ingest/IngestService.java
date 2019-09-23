@@ -101,7 +101,9 @@ public class IngestService implements ClusterStateApplier {
                 threadPool.getThreadContext(), threadPool::relativeTimeInMillis,
                 (delay, command) -> threadPool.schedule(
                     command, TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC
-                ), this, client));
+                ), this, client
+            )
+        );
         this.threadPool = threadPool;
     }
 
@@ -421,7 +423,7 @@ public class IngestService implements ClusterStateApplier {
      * Adds a listener that gets invoked with the current cluster state before processor factories
      * get invoked.
      *
-     * This is useful for components that are used by ingest processors, so that have the opportunity to update
+     * This is useful for components that are used by ingest processors, so that they have the opportunity to update
      * before these components get used by the ingest processor factory.
      */
     public void addIngestClusterStateListener(Consumer<ClusterState> listener) {
@@ -490,7 +492,7 @@ public class IngestService implements ClusterStateApplier {
                 if (metadataMap.get(IngestDocument.MetaData.VERSION_TYPE) != null) {
                     indexRequest.versionType(VersionType.fromString((String) metadataMap.get(IngestDocument.MetaData.VERSION_TYPE)));
                 }
-                indexRequest.source(ingestDocument.getSourceAndMetadata());
+                indexRequest.source(ingestDocument.getSourceAndMetadata(), indexRequest.getContentType());
                 handler.accept(null);
             }
         });

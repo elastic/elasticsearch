@@ -29,11 +29,13 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -68,9 +70,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -105,8 +110,9 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testIngestPlugin() {
         ThreadPool tp = mock(ThreadPool.class);
+        Client client = mock(Client.class);
         IngestService ingestService = new IngestService(mock(ClusterService.class), tp, null, null,
-            null, Collections.singletonList(DUMMY_PLUGIN), null);
+            null, Collections.singletonList(DUMMY_PLUGIN), client);
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("foo"));
         assertEquals(1, factories.size());
@@ -114,18 +120,20 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testIngestPluginDuplicate() {
         ThreadPool tp = mock(ThreadPool.class);
+        Client client = mock(Client.class);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             new IngestService(mock(ClusterService.class), tp, null, null,
-            null, Arrays.asList(DUMMY_PLUGIN, DUMMY_PLUGIN), null));
+            null, Arrays.asList(DUMMY_PLUGIN, DUMMY_PLUGIN), client));
         assertTrue(e.getMessage(), e.getMessage().contains("already registered"));
     }
 
     public void testExecuteIndexPipelineDoesNotExist() {
         ThreadPool threadPool = mock(ThreadPool.class);
+        Client client = mock(Client.class);
         final ExecutorService executorService = EsExecutors.newDirectExecutorService();
         when(threadPool.executor(anyString())).thenReturn(executorService);
         IngestService ingestService = new IngestService(mock(ClusterService.class), threadPool, null, null,
-            null, Collections.singletonList(DUMMY_PLUGIN), null);
+            null, Collections.singletonList(DUMMY_PLUGIN), client);
         final IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(emptyMap()).setPipeline("_id");
 
         final SetOnce<Boolean> failure = new SetOnce<>();
@@ -915,20 +923,38 @@ public class IngestServiceTests extends ESTestCase {
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
 
-    public void testBulkRequestExecution() {
+    public void testBulkRequestExecution() throws Exception {
         BulkRequest bulkRequest = new BulkRequest();
         String pipelineId = "_id";
 
+        // Test to make sure that ingest respects content types other than the default index content type
+        XContentType xContentType = randomFrom(Arrays.stream(XContentType.values())
+                .filter(t -> Requests.INDEX_CONTENT_TYPE.equals(t) == false)
+                .collect(Collectors.toList()));
+
+        logger.info("Using [{}], not randomly determined default [{}]", xContentType, Requests.INDEX_CONTENT_TYPE);
         int numRequest = scaledRandomIntBetween(8, 64);
         for (int i = 0; i < numRequest; i++) {
             IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").setPipeline(pipelineId);
-            indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
+            indexRequest.source(xContentType, "field1", "value1");
             bulkRequest.add(indexRequest);
         }
 
-        IngestService ingestService = createWithProcessors(emptyMap());
-        PutPipelineRequest putRequest =
-            new PutPipelineRequest("_id", new BytesArray("{\"processors\": [], \"description\": \"_description\"}"), XContentType.JSON);
+        final Processor processor = mock(Processor.class);
+        when(processor.getType()).thenReturn("mock");
+        when(processor.getTag()).thenReturn("mockTag");
+        doAnswer(args -> {
+            @SuppressWarnings("unchecked")
+            BiConsumer<IngestDocument, Exception> handler = (BiConsumer) args.getArguments()[1];
+            handler.accept(RandomDocumentPicks.randomIngestDocument(random()), null);
+            return null;
+        }).when(processor).execute(any(), any());
+        Map<String, Processor.Factory> map = new HashMap<>(2);
+        map.put("mock", (factories, tag, config) -> processor);
+
+        IngestService ingestService = createWithProcessors(map);
+        PutPipelineRequest putRequest = new PutPipelineRequest("_id",
+            new BytesArray("{\"processors\": [{\"mock\": {}}], \"description\": \"_description\"}"), XContentType.JSON);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
@@ -942,6 +968,11 @@ public class IngestServiceTests extends ESTestCase {
 
         verify(requestItemErrorHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+        for (DocWriteRequest<?> docWriteRequest : bulkRequest.requests()) {
+            IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(docWriteRequest);
+            assertThat(indexRequest, notNullValue());
+            assertThat(indexRequest.getContentType(), equalTo(xContentType));
+        }
     }
 
     public void testStats() throws Exception {
@@ -1128,6 +1159,44 @@ public class IngestServiceTests extends ESTestCase {
         verify(dropHandler, times(1)).accept(0);
     }
 
+    public void testIngestClusterStateListeners_orderOfExecution() {
+        final AtomicInteger counter = new AtomicInteger(0);
+
+        // Ingest cluster state listener state should be invoked first:
+        Consumer<ClusterState> ingestClusterStateListener = clusterState -> {
+            assertThat(counter.compareAndSet(0, 1), is(true));
+        };
+
+        // Processor factory should be invoked secondly after ingest cluster state listener:
+        IngestPlugin testPlugin = new IngestPlugin() {
+            @Override
+            public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+                return Collections.singletonMap("test", (factories, tag, config) -> {
+                    assertThat(counter.compareAndSet(1, 2), is(true));
+                    return new FakeProcessor("test", tag, ingestDocument -> {});
+                });
+            }
+        };
+
+        // Create ingest service:
+        ThreadPool tp = mock(ThreadPool.class);
+        Client client = mock(Client.class);
+        IngestService ingestService =
+            new IngestService(mock(ClusterService.class), tp, null, null, null, List.of(testPlugin), client);
+        ingestService.addIngestClusterStateListener(ingestClusterStateListener);
+
+        // Create pipeline and apply the resulting cluster state, which should update the counter in the right order:
+        PutPipelineRequest putRequest = new PutPipelineRequest("_id",
+            new BytesArray("{\"processors\": [{\"test\" : {}}]}"), XContentType.JSON);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        ClusterState previousClusterState = clusterState;
+        clusterState = IngestService.innerPut(putRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+        // Sanity check that counter has been updated twice:
+        assertThat(counter.get(), equalTo(2));
+    }
+
     private IngestDocument eqIndexTypeId(final Map<String, Object> source) {
         return argThat(new IngestDocumentMatcher("_index", "_type", "_id", -3L, VersionType.INTERNAL, source));
     }
@@ -1153,6 +1222,7 @@ public class IngestServiceTests extends ESTestCase {
 
     private static IngestService createWithProcessors(Map<String, Processor.Factory> processors) {
         ThreadPool threadPool = mock(ThreadPool.class);
+        Client client = mock(Client.class);
         final ExecutorService executorService = EsExecutors.newDirectExecutorService();
         when(threadPool.executor(anyString())).thenReturn(executorService);
         return new IngestService(mock(ClusterService.class), threadPool, null, null,
@@ -1161,7 +1231,7 @@ public class IngestServiceTests extends ESTestCase {
             public Map<String, Processor.Factory> getProcessors(final Processor.Parameters parameters) {
                 return processors;
             }
-        }), null);
+        }), client);
     }
 
     private CompoundProcessor mockCompoundProcessor() {

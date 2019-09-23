@@ -21,8 +21,8 @@ package org.elasticsearch.repositories.fs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 
 import java.io.IOException;
@@ -37,23 +37,26 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.instanceOf;
 
 public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase {
+
     @Override
-    protected void createTestRepository(String name, boolean verify) {
-        assertAcked(client().admin().cluster().preparePutRepository(name)
-            .setVerify(verify)
-            .setType("fs").setSettings(Settings.builder()
-                .put("location", randomRepoPath())
-                .put("compress", randomBoolean())
-                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+    protected String repositoryType() {
+        return FsRepository.TYPE;
     }
 
     @Override
-    protected void afterCreationCheck(Repository repository) {
-        assertThat(repository, instanceOf(FsRepository.class));
+    protected Settings repositorySettings() {
+        final Settings.Builder settings = Settings.builder();
+        settings.put(super.repositorySettings());
+        settings.put("location", randomRepoPath());
+        if (randomBoolean()) {
+            long size = 1 << randomInt(10);
+            settings.put("chunk_size", new ByteSizeValue(size, ByteSizeUnit.KB));
+        }
+        return settings.build();
     }
 
     public void testMissingDirectoriesNotCreatedInReadonlyRepository() throws IOException, ExecutionException, InterruptedException {
-        final String repoName = randomAsciiName();
+        final String repoName = randomName();
         final Path repoPath = randomRepoPath();
 
         logger.info("--> creating repository {} at {}", repoName, repoPath);
@@ -63,13 +66,13 @@ public class FsBlobStoreRepositoryIT extends ESBlobStoreRepositoryIntegTestCase 
             .put("compress", randomBoolean())
             .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
-        String indexName = randomAsciiName();
+        final String indexName = randomName();
         int docCount = iterations(10, 1000);
         logger.info("-->  create random index {} with {} records", indexName, docCount);
         addRandomDocuments(indexName, docCount);
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), docCount);
 
-        final String snapshotName = randomAsciiName();
+        final String snapshotName = randomName();
         logger.info("-->  create snapshot {}:{}", repoName, snapshotName);
         assertSuccessfulSnapshot(client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
             .setWaitForCompletion(true).setIndices(indexName));

@@ -24,6 +24,7 @@ import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
+import org.elasticsearch.gradle.tar.SymbolicLinkPreservingTar
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -141,49 +142,49 @@ Closure commonTarConfig = {
   fileMode 0644
 }
 
-task buildDarwinTar(type: Tar) {
+task buildDarwinTar(type: SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'darwin-x86_64'
   with archiveFiles(modulesFiles(false, 'darwin'), 'tar', 'darwin', false, true)
 }
 
-task buildOssDarwinTar(type: Tar) {
+task buildOssDarwinTar(type: SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'darwin-x86_64'
   with archiveFiles(modulesFiles(true, 'darwin'), 'tar', 'darwin', true, true)
 }
 
-task buildNoJdkDarwinTar(type: Tar) {
+task buildNoJdkDarwinTar(type: SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'no-jdk-darwin-x86_64'
   with archiveFiles(modulesFiles(false, 'darwin'), 'tar', 'darwin', false, false)
 }
 
-task buildOssNoJdkDarwinTar(type: Tar) {
+task buildOssNoJdkDarwinTar(type: SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'no-jdk-darwin-x86_64'
   with archiveFiles(modulesFiles(true, 'darwin'), 'tar', 'darwin', true, false)
 }
 
-task buildLinuxTar(type: Tar) {
+task buildLinuxTar(type: SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'linux-x86_64'
   with archiveFiles(modulesFiles(false, 'linux'), 'tar', 'linux', false, true)
 }
 
-task buildOssLinuxTar(type: Tar) {
+task buildOssLinuxTar(type: SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'linux-x86_64'
   with archiveFiles(modulesFiles(true, 'linux'), 'tar', 'linux', true, true)
 }
 
-task buildNoJdkLinuxTar(type: Tar) {
+task buildNoJdkLinuxTar(type: SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'no-jdk-linux-x86_64'
   with archiveFiles(modulesFiles(false, 'linux'), 'tar', 'linux', false, false)
 }
 
-task buildOssNoJdkLinuxTar(type: Tar) {
+task buildOssNoJdkLinuxTar(type: SymbolicLinkPreservingTar) {
   configure(commonTarConfig)
   archiveClassifier = 'no-jdk-linux-x86_64'
   with archiveFiles(modulesFiles(true, 'linux'), 'tar', 'linux', true, false)
@@ -375,4 +376,3 @@ configure(subprojects.findAll { it.name == 'integ-test-zip' }) {
     }
   }
 }
-

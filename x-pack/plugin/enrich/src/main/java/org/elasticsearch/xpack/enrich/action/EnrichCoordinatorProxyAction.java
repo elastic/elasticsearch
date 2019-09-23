@@ -18,11 +18,11 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.CoordinatorStats;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
 
 import java.util.ArrayList;
@@ -35,6 +35,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * An internal action to locally manage the load of the search requests that originate from the enrich processor.
@@ -56,7 +57,7 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters, Coordinator coordinator) {
-            super(NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
+            super(NAME, transportService, actionFilters, SearchRequest::new);
             this.coordinator = coordinator;
         }
 
@@ -73,7 +74,9 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
         final int maxLookupsPerRequest;
         final int maxNumberOfConcurrentRequests;
         final BlockingQueue<Slot> queue;
-        final AtomicInteger numberOfOutstandingRequests = new AtomicInteger(0);
+        final AtomicInteger remoteRequestsCurrent = new AtomicInteger(0);
+        volatile long remoteRequestsTotal = 0;
+        final AtomicLong executedSearchesTotal = new AtomicLong(0);
 
         public Coordinator(Client client, Settings settings) {
             this(
@@ -106,16 +109,22 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
             coordinateLookups();
         }
 
+        CoordinatorStats getStats() {
+            return new CoordinatorStats(queue.size(), remoteRequestsCurrent.get(), remoteRequestsTotal,
+                executedSearchesTotal.get());
+        }
+
         synchronized void coordinateLookups() {
             while (queue.isEmpty() == false &&
-                numberOfOutstandingRequests.get() < maxNumberOfConcurrentRequests) {
+                remoteRequestsCurrent.get() < maxNumberOfConcurrentRequests) {
 
                 final List<Slot> slots = new ArrayList<>();
                 queue.drainTo(slots, maxLookupsPerRequest);
                 final MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
                 slots.forEach(slot -> multiSearchRequest.add(slot.searchRequest));
 
-                numberOfOutstandingRequests.incrementAndGet();
+                remoteRequestsCurrent.incrementAndGet();
+                remoteRequestsTotal++;
                 lookupFunction.accept(multiSearchRequest, (response, e) -> {
                     handleResponse(slots, response, e);
                 });
@@ -123,7 +132,8 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
         }
 
         void handleResponse(List<Slot> slots, MultiSearchResponse response, Exception e) {
-            numberOfOutstandingRequests.decrementAndGet();
+            remoteRequestsCurrent.decrementAndGet();
+            executedSearchesTotal.addAndGet(slots.size());
 
             if (response != null) {
                 assert slots.size() == response.getResponses().length;

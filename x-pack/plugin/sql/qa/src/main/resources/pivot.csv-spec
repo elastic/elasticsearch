@@ -152,7 +152,7 @@ SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary
 null           |48396.28571428572|62140.666666666664
 ;
 
-averageWithTwoValuesAndOrderDesc
+averageWithTwoValuesAndOrderDescAndLimit
 schema::languages:bt|'M':d|'F':d
 SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('M', 'F')) ORDER BY languages DESC LIMIT 2;
 

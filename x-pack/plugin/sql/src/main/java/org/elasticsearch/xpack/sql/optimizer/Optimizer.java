@@ -198,7 +198,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 else if (namedExpression.foldable()) {
                     rawValues.add(Literal.of(namedExpression.name(), namedExpression));
                 }
-                // TOOD: same as above
+                // TODO: same as above
                 else {
                     UnresolvedAttribute attr = new UnresolvedAttribute(namedExpression.source(), namedExpression.name(), null,
                             "Unexpected alias");

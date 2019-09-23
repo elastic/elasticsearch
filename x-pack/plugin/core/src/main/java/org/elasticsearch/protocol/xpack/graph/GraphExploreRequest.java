@@ -101,7 +101,8 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         if (in.getVersion().before(Version.V_8_0_0)) {
-            in.readStringArray();
+            String[] types = in.readStringArray();
+            assert types.length == 0;
         }
         routing = in.readOptionalString();
         timeout = in.readOptionalTimeValue();
@@ -163,15 +164,13 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
         return this;
     }
 
-    private static final String[] EMPTY_ARRAY = new String[]{};
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         if (out.getVersion().before(Version.V_8_0_0)) {
-            out.writeStringArray(EMPTY_ARRAY);
+            out.writeStringArray(Strings.EMPTY_ARRAY);
         }
         out.writeOptionalString(routing);
         out.writeOptionalTimeValue(timeout);

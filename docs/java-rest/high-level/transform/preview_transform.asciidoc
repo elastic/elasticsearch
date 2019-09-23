@@ -1,5 +1,5 @@
 --
-:api: preview-data-frame-transform
+:api: preview-transform
 :request: PreviewDataFrameTransformRequest
 :response: PreviewDataFrameTransformResponse
 --

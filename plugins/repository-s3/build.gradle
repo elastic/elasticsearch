@@ -139,6 +139,9 @@ task thirdPartyTest(type: Test) {
 
 if (useFixture) {
   apply plugin: 'elasticsearch.test.fixtures'
+
+  testFixtures.useFixture()
+
   task writeDockerFile {
     File minioDockerfile = new File("${project.buildDir}/minio-docker/Dockerfile")
     outputs.file(minioDockerfile)

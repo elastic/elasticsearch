@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[ecommerce-dataframes]]
-=== Transforming the eCommerce sample data
+==== Transforming the eCommerce sample data
 
 beta[]
 

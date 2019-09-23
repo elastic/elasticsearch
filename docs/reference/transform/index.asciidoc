@@ -1,9 +1,6 @@
 [role="xpack"]
 [[ml-dataframes]]
-= Transforming data
-
-[partintro]
---
+== Transforming data
 
 // tag::transform-intro[]
 {transforms-cap} enable you to convert existing {es} indices into summarized
@@ -19,7 +16,6 @@ your data.
 * <<dataframe-examples>>
 * <<dataframe-troubleshooting>>
 * <<dataframe-limitations>>
---
 
 include::overview.asciidoc[]
 include::usage.asciidoc[]

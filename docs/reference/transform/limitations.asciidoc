@@ -1,6 +1,6 @@
 [role="xpack"]
 [[dataframe-limitations]]
-== {transform-cap} limitations
+=== {transform-cap} limitations
 [subs="attributes"]
 ++++
 <titleabbrev>Limitations</titleabbrev>
@@ -13,7 +13,7 @@ the Elastic {dataframe} feature:
 
 [float]
 [[df-compatibility-limitations]]
-=== Beta {transforms} do not have guaranteed backwards or forwards compatibility
+==== Beta {transforms} do not have guaranteed backwards or forwards compatibility
 
 Whilst {transforms} are beta, it is not guaranteed that a 
 {transform} created in a previous version of the {stack} will be able 
@@ -26,7 +26,7 @@ status.
 
 [float]
 [[df-ui-limitation]]
-=== {dataframe-cap} UI will not work during a rolling upgrade from 7.2
+==== {dataframe-cap} UI will not work during a rolling upgrade from 7.2
 
 If your cluster contains mixed version nodes, for example during a rolling 
 upgrade from 7.2 to a newer version, and {transforms} have been 
@@ -36,7 +36,7 @@ have been upgraded to the newer version before using the {dataframe} UI.
 
 [float]
 [[df-datatype-limitations]]
-=== {dataframe-cap} data type limitation
+==== {dataframe-cap} data type limitation
 
 {dataframes-cap} do not (yet) support fields containing arrays – in the UI or 
 the API. If you try to create one, the UI will fail to show the source index 
@@ -44,13 +44,13 @@ table.
 
 [float]
 [[df-ccs-limitations]]
-=== {ccs-cap} is not supported
+==== {ccs-cap} is not supported
 
 {ccs-cap} is not supported for {transforms}.
 
 [float]
 [[df-kibana-limitations]]
-=== Up to 1,000 {transforms} are supported
+==== Up to 1,000 {transforms} are supported
 
 A single cluster will support up to 1,000 {transforms}.
 When using the 
@@ -60,7 +60,7 @@ enumerate through the full list.
 
 [float]
 [[df-aggresponse-limitations]]
-=== Aggregation responses may be incompatible with destination index mappings
+==== Aggregation responses may be incompatible with destination index mappings
 
 When a {transform} is first started, it will deduce the mappings 
 required for the destination index. This process is based on the field types of 
@@ -78,7 +78,7 @@ workaround, you may define custom mappings prior to starting the
 
 [float]
 [[df-batch-limitations]]
-=== Batch {transforms} may not account for changed documents
+==== Batch {transforms} may not account for changed documents
 
 A batch {transform} uses a 
 {ref}/search-aggregations-bucket-composite-aggregation.html[composite aggregation]
@@ -89,7 +89,7 @@ results may not include these changes.
 
 [float]
 [[df-consistency-limitations]]
-=== {cdataframe-cap} consistency does not account for deleted or updated documents
+==== {cdataframe-cap} consistency does not account for deleted or updated documents
 
 While the process for {transforms} allows the continual recalculation 
 of the {transform} as new data is being ingested, it does also have 
@@ -115,7 +115,7 @@ updated when viewing the {dataframe} destination index.
 
 [float]
 [[df-deletion-limitations]]
-=== Deleting a {transform} does not delete the {dataframe} destination index or {kib} index pattern
+==== Deleting a {transform} does not delete the {dataframe} destination index or {kib} index pattern
 
 When deleting a {transform} using `DELETE _data_frame/transforms/index` 
 neither the {dataframe} destination index nor the {kib} index pattern, should 
@@ -123,7 +123,7 @@ one have been created, are deleted. These objects must be deleted separately.
 
 [float]
 [[df-aggregation-page-limitations]]
-=== Handling dynamic adjustment of aggregation page size
+==== Handling dynamic adjustment of aggregation page size
 
 During the development of {transforms}, control was favoured over 
 performance. In the design considerations, it is preferred for the 
@@ -154,7 +154,7 @@ be set to a failed state.
 
 [float]
 [[df-dynamic-adjustments-limitations]]
-=== Handling dynamic adjustments for many terms
+==== Handling dynamic adjustments for many terms
 
 For each checkpoint, entities are identified that have changed since the last 
 time the check was performed. This list of changed entities is supplied as a 
@@ -177,7 +177,7 @@ for the {transform} checkpoint to complete.
 
 [float]
 [[df-scheduling-limitations]]
-=== {cdataframe-cap} scheduling limitations
+==== {cdataframe-cap} scheduling limitations
 
 A {cdataframe} periodically checks for changes to source data. The functionality 
 of the scheduler is currently limited to a basic periodic timer which can be 
@@ -189,7 +189,7 @@ occur at `frequency` interval.
 
 [float]
 [[df-failed-limitations]]
-=== Handling of failed {transforms}
+==== Handling of failed {transforms}
 
 Failed {transforms} remain as a persistent task and should be handled 
 appropriately, either by deleting it or by resolving the root cause of the 
@@ -200,7 +200,7 @@ When using the API to delete a failed {transform}, first stop it using
 
 [float]
 [[df-availability-limitations]]
-=== {cdataframes-cap} may give incorrect results if documents are not yet available to search
+==== {cdataframes-cap} may give incorrect results if documents are not yet available to search
 
 After a document is indexed, there is a very small delay until it is available 
 to search.

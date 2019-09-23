@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[dataframe-troubleshooting]]
-== Troubleshooting {transforms}
+=== Troubleshooting {transforms}
 [subs="attributes"]
 ++++
 <titleabbrev>Troubleshooting</titleabbrev>

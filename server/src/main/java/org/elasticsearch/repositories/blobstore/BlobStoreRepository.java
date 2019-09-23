@@ -122,45 +122,9 @@ import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSna
  * <p>
  * This repository works with any {@link BlobStore} implementation. The blobStore could be (and preferred) lazy initialized in
  * {@link #createBlobStore()}.
- * <p>
- * BlobStoreRepository maintains the following structure in the blob store
- * <pre>
- * {@code
- *   STORE_ROOT
- *   |- index-N           - JSON serialized {@link RepositoryData} containing a list of all snapshot ids and the indices belonging to
- *   |                      each snapshot, N is the generation of the file
- *   |- index.latest      - contains the numeric value of the latest generation of the index file (i.e. N from above)
- *   |- incompatible-snapshots - list of all snapshot ids that are no longer compatible with the current version of the cluster
- *   |- snap-20131010.dat - SMILE serialized {@link SnapshotInfo} for snapshot "20131010"
- *   |- meta-20131010.dat - SMILE serialized {@link MetaData} for snapshot "20131010" (includes only global metadata)
- *   |- snap-20131011.dat - SMILE serialized {@link SnapshotInfo} for snapshot "20131011"
- *   |- meta-20131011.dat - SMILE serialized {@link MetaData} for snapshot "20131011"
- *   .....
- *   |- indices/ - data for all indices
- *      |- Ac1342-B_x/ - data for index "foo" which was assigned the unique id of Ac1342-B_x in the repository
- *      |  |- meta-20131010.dat - JSON Serialized {@link IndexMetaData} for index "foo"
- *      |  |- 0/ - data for shard "0" of index "foo"
- *      |  |  |- __1                      \  (files with numeric names were created by older ES versions)
- *      |  |  |- __2                      |
- *      |  |  |- __VPO5oDMVT5y4Akv8T_AO_A |- files from different segments see snap-* for their mappings to real segment files
- *      |  |  |- __1gbJy18wS_2kv1qI7FgKuQ |
- *      |  |  |- __R8JvZAHlSMyMXyZc2SS8Zg /
- *      |  |  .....
- *      |  |  |- snap-20131010.dat - SMILE serialized {@link BlobStoreIndexShardSnapshot} for snapshot "20131010"
- *      |  |  |- snap-20131011.dat - SMILE serialized {@link BlobStoreIndexShardSnapshot} for snapshot "20131011"
- *      |  |  |- index-123 - SMILE serialized {@link BlobStoreIndexShardSnapshots} for the shard
- *      |  |
- *      |  |- 1/ - data for shard "1" of index "foo"
- *      |  |  |- __1
- *      |  |  .....
- *      |  |
- *      |  |-2/
- *      |  ......
- *      |
- *      |- 1xB0D8_B3y/ - data for index "bar" which was assigned the unique id of 1xB0D8_B3y in the repository
- *      ......
- * }
- * </pre>
+ * </p>
+ * For in depth documentation on how exactly implementations of this class interact with the snapshot functionality please refer to the
+ * documentation of the package {@link org.elasticsearch.repositories.blobstore}.
  */
 public abstract class BlobStoreRepository extends AbstractLifecycleComponent implements Repository {
     private static final Logger logger = LogManager.getLogger(BlobStoreRepository.class);
@@ -514,7 +478,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      *     <li>Deleting unreferenced root level blobs {@link #cleanupStaleRootFiles}</li>
      * </ul>
      * @param repositoryStateId Current repository state id
-     * @param listener Lister to complete when done
+     * @param listener          Listener to complete when done
      */
     public void cleanup(long repositoryStateId, ActionListener<RepositoryCleanupResult> listener) {
         try {
@@ -998,11 +962,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, ActionListener<Void> listener) {
+                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, ActionListener<String> listener) {
         final ShardId shardId = store.shardId();
         final long startTime = threadPool.absoluteTimeInMillis();
-
-        final ActionListener<Void> snapshotDoneListener = ActionListener.wrap(listener::onResponse, e -> {
+        final ActionListener<String> snapshotDoneListener = ActionListener.wrap(listener::onResponse, e -> {
             snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), ExceptionsHelper.stackTrace(e));
             listener.onFailure(e instanceof IndexShardSnapshotFailedException ? e : new IndexShardSnapshotFailedException(shardId, e));
         });
@@ -1010,14 +973,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             logger.debug("[{}] [{}] snapshot to [{}] ...", shardId, snapshotId, metadata.name());
 
             final BlobContainer shardContainer = shardContainer(indexId, shardId);
-            final Map<String, BlobMetaData> blobs;
+            final Set<String> blobs;
             try {
-                blobs = shardContainer.listBlobsByPrefix(INDEX_FILE_PREFIX);
+                blobs = shardContainer.listBlobsByPrefix(INDEX_FILE_PREFIX).keySet();
             } catch (IOException e) {
                 throw new IndexShardSnapshotFailedException(shardId, "failed to list blobs", e);
             }
 
-            Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(blobs.keySet(), shardContainer);
+            Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(blobs, shardContainer);
             BlobStoreIndexShardSnapshots snapshots = tuple.v1();
             long fileListGeneration = tuple.v2();
 
@@ -1111,7 +1074,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
                 }
-                // delete all files that are not referenced by any commit point
                 // build a new BlobStoreIndexShardSnapshot, that includes this one and all the saved ones
                 List<SnapshotFiles> newSnapshotsList = new ArrayList<>();
                 newSnapshotsList.add(new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles()));
@@ -1124,8 +1086,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     final BlobStoreIndexShardSnapshots updatedSnapshots = new BlobStoreIndexShardSnapshots(newSnapshotsList);
                     indexShardSnapshotsFormat.writeAtomic(updatedSnapshots, shardContainer, indexGeneration);
                     // Delete all previous index-N blobs
-                    blobsToDelete =
-                        blobs.keySet().stream().filter(blob -> blob.startsWith(SNAPSHOT_INDEX_PREFIX)).collect(Collectors.toList());
+                    blobsToDelete = blobs.stream().filter(blob -> blob.startsWith(SNAPSHOT_INDEX_PREFIX)).collect(Collectors.toList());
                     assert blobsToDelete.stream().mapToLong(b -> Long.parseLong(b.replaceFirst(SNAPSHOT_INDEX_PREFIX, "")))
                         .max().orElse(-1L) < Long.parseLong(indexGeneration)
                         : "Tried to delete an index-N blob newer than the current generation [" + indexGeneration
@@ -1141,8 +1102,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete old index-N blobs during finalization",
                         snapshotId, shardId), e);
                 }
-                snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis());
-                snapshotDoneListener.onResponse(null);
+                snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis(), indexGeneration);
+                snapshotDoneListener.onResponse(indexGeneration);
             }, snapshotDoneListener::onFailure);
             if (indexIncrementalFileCount == 0) {
                 allFilesUploadedListener.onResponse(Collections.emptyList());
@@ -1246,7 +1207,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         BlobStoreIndexShardSnapshot snapshot = loadShardSnapshot(shardContainer(indexId, shardId), snapshotId);
         return IndexShardSnapshotStatus.newDone(snapshot.startTime(), snapshot.time(),
             snapshot.incrementalFileCount(), snapshot.totalFileCount(),
-            snapshot.incrementalSize(), snapshot.totalSize());
+            snapshot.incrementalSize(), snapshot.totalSize(), null); // Not adding a real generation here as it doesn't matter to callers
     }
 
     @Override
@@ -1301,14 +1262,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private ShardSnapshotMetaDeleteResult deleteShardSnapshot(RepositoryData repositoryData, IndexId indexId, ShardId snapshotShardId,
                                                               SnapshotId snapshotId) throws IOException {
         final BlobContainer shardContainer = shardContainer(indexId, snapshotShardId);
-        final Map<String, BlobMetaData> blobs;
+        final Set<String> blobs;
         try {
-            blobs = shardContainer.listBlobs();
+            blobs = shardContainer.listBlobs().keySet();
         } catch (IOException e) {
             throw new IndexShardSnapshotException(snapshotShardId, "Failed to list content of shard directory", e);
         }
 
-        Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(blobs.keySet(), shardContainer);
+        Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(blobs, shardContainer);
         BlobStoreIndexShardSnapshots snapshots = tuple.v1();
         long fileListGeneration = tuple.v2();
 
@@ -1326,7 +1287,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final List<String> blobsToDelete;
             if (newSnapshotsList.isEmpty()) {
                 // If we deleted all snapshots, we don't need to create a new index file and simply delete all the blobs we found
-                blobsToDelete = new ArrayList<>(blobs.keySet());
+                blobsToDelete = new ArrayList<>(blobs);
             } else {
                 final Set<String> survivingSnapshotUUIDs = repositoryData.getSnapshots(indexId).stream().map(SnapshotId::getUUID)
                     .collect(Collectors.toSet());
@@ -1344,9 +1305,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     // Unused blobs are all previous index-, data- and meta-blobs and that are not referenced by the new index- as well as all
     // temporary blobs
-    private static List<String> unusedBlobs(Map<String, BlobMetaData> blobs, Set<String> survivingSnapshotUUIDs,
+    private static List<String> unusedBlobs(Set<String> blobs, Set<String> survivingSnapshotUUIDs,
                                             BlobStoreIndexShardSnapshots updatedSnapshots) {
-        return blobs.keySet().stream().filter(blob ->
+        return blobs.stream().filter(blob ->
             blob.startsWith(SNAPSHOT_INDEX_PREFIX)
                 || (blob.startsWith(SNAPSHOT_PREFIX) && blob.endsWith(".dat")
                     && survivingSnapshotUUIDs.contains(

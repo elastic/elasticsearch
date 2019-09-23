@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 
 public class StartDataFrameAnalyticsActionTaskParamsTests extends AbstractSerializingTestCase<StartDataFrameAnalyticsAction.TaskParams> {
 
@@ -22,7 +23,7 @@ public class StartDataFrameAnalyticsActionTaskParamsTests extends AbstractSerial
 
     @Override
     protected StartDataFrameAnalyticsAction.TaskParams createTestInstance() {
-        return new StartDataFrameAnalyticsAction.TaskParams(randomAlphaOfLength(10), Version.CURRENT);
+        return new StartDataFrameAnalyticsAction.TaskParams(randomAlphaOfLength(10), Version.CURRENT, Collections.emptyList());
     }
 
     @Override

@@ -202,7 +202,8 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
             taskResponse -> {
                 TaskResult taskResult = taskResponse.getTask();
                 BulkByScrollTask.Status taskStatus = (BulkByScrollTask.Status) taskResult.getTask().getStatus();
-                int progress = taskStatus.getTotal() == 0 ? 0 : (int) (taskStatus.getCreated() * 100.0 / taskStatus.getTotal());
+                int progress = taskStatus.getTotal() == 0 ?
+                    0 : Math.max(1, (int) (taskStatus.getCreated() * 100.0 / taskStatus.getTotal()));
                 progressTracker.reindexingPercent.set(progress);
                 listener.onResponse(null);
             },
@@ -262,6 +263,45 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
                 runnable.run();
             }
         ));
+    }
+
+    /**
+     * This captures the possible states a job can be when it starts.
+     * {@code FIRST_TIME} means the job has never been started before.
+     * {@code RESUMING_REINDEXING} means the job was stopped while it was reindexing.
+     * {@code RESUMING_ANALYZING} means the job was stopped while it was analyzing.
+     * {@code FINISHED} means the job had finished.
+     */
+    public enum StartingState {
+        FIRST_TIME, RESUMING_REINDEXING, RESUMING_ANALYZING, FINISHED
+    }
+
+    public static StartingState determineStartingState(String jobId, List<PhaseProgress> progressOnStart) {
+        PhaseProgress lastIncompletePhase = null;
+        for (PhaseProgress phaseProgress : progressOnStart) {
+            if (phaseProgress.getProgressPercent() < 100) {
+                lastIncompletePhase = phaseProgress;
+                break;
+            }
+        }
+
+
+        if (lastIncompletePhase == null) {
+            return StartingState.FINISHED;
+        }
+        LOGGER.info("Last incomplete progress [{}, {}]", lastIncompletePhase.getPhase(), lastIncompletePhase.getProgressPercent());
+
+        switch (lastIncompletePhase.getPhase()) {
+            case ProgressTracker.REINDEXING:
+                return lastIncompletePhase.getProgressPercent() == 0 ? StartingState.FIRST_TIME : StartingState.RESUMING_REINDEXING;
+            case ProgressTracker.LOADING_DATA:
+            case ProgressTracker.ANALYZING:
+            case ProgressTracker.WRITING_RESULTS:
+                return StartingState.RESUMING_ANALYZING;
+            default:
+                LOGGER.warn("[{}] Unexpected progress phase [{}]", jobId, lastIncompletePhase.getPhase());
+                return StartingState.FIRST_TIME;
+        }
     }
 
     public static String progressDocId(String id) {

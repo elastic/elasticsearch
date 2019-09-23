@@ -29,7 +29,6 @@ index settings, aliases, mappings, and index templates.
 * <<indices-put-mapping>>
 * <<indices-get-mapping>>
 * <<indices-get-field-mapping>>
-* <<indices-types-exists>>
 
 [float]
 [[alias-management]]
@@ -98,8 +97,6 @@ include::indices/forcemerge.asciidoc[]
 include::indices/apis/freeze.asciidoc[]
 
 include::indices/get-field-mapping.asciidoc[]
-
-include::indices/get-index.asciidoc[]
 
 include::indices/get-alias.asciidoc[]
 

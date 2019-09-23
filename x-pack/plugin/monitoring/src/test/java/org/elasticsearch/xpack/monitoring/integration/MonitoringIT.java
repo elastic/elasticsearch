@@ -179,7 +179,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                        equalTo(1L));
 
             for (final SearchHit hit : hits.getHits()) {
-                assertMonitoringDoc(toMap(hit), system, "monitoring_data_type", interval);
+                assertMonitoringDoc(toMap(hit), system, interval);
             }
         });
     }
@@ -227,25 +227,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
 
             for (final SearchHit hit : searchResponse.get().getHits()) {
                 final Map<String, Object> searchHit = toMap(hit);
-                final String type = (String) extractValue("_source.type", searchHit);
-
-                assertMonitoringDoc(searchHit, MonitoredSystem.ES, type, MonitoringService.MIN_INTERVAL);
-
-                if (ClusterStatsMonitoringDoc.TYPE.equals(type)) {
-                    assertClusterStatsMonitoringDoc(searchHit, createAPMIndex);
-                } else if (IndexRecoveryMonitoringDoc.TYPE.equals(type)) {
-                    assertIndexRecoveryMonitoringDoc(searchHit);
-                } else if (IndicesStatsMonitoringDoc.TYPE.equals(type)) {
-                    assertIndicesStatsMonitoringDoc(searchHit);
-                } else if (IndexStatsMonitoringDoc.TYPE.equals(type)) {
-                    assertIndexStatsMonitoringDoc(searchHit);
-                } else if (NodeStatsMonitoringDoc.TYPE.equals(type)) {
-                    assertNodeStatsMonitoringDoc(searchHit);
-                } else if (ShardMonitoringDoc.TYPE.equals(type)) {
-                    assertShardMonitoringDoc(searchHit);
-                } else {
-                    fail("Monitoring document of type [" + type + "] is not supported by this test");
-                }
+                assertMonitoringDoc(searchHit, MonitoredSystem.ES, MonitoringService.MIN_INTERVAL);
             }
         });
 
@@ -258,9 +240,8 @@ public class MonitoringIT extends ESSingleNodeTestCase {
     @SuppressWarnings("unchecked")
     private void assertMonitoringDoc(final Map<String, Object> document,
                                      final MonitoredSystem expectedSystem,
-                                     final String expectedType,
                                      final TimeValue interval) {
-        assertEquals(document.toString(),4, document.size());
+        assertEquals(document.toString(),3, document.size());
 
         final String index = (String) document.get("_index");
         assertThat(index, containsString(".monitoring-" + expectedSystem.getSystem() + "-" + TEMPLATE_VERSION + "-"));
@@ -269,7 +250,6 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         final Map<String, Object> source = (Map<String, Object>) document.get("_source");
         assertThat(source, notNullValue());
         assertThat((String) source.get("cluster_uuid"), not(isEmptyOrNullString()));
-        assertThat(source.get("type"), equalTo(expectedType));
 
         final String timestamp = (String) source.get("timestamp");
         assertThat(timestamp, not(isEmptyOrNullString()));

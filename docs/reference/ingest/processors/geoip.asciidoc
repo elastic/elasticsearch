@@ -266,7 +266,6 @@ GET /my_ip_locations/_search
     "hits" : [
       {
         "_index" : "my_ip_locations",
-        "_type" : "_doc",
         "_id" : "1",
         "_score" : 1.0,
         "_source" : {

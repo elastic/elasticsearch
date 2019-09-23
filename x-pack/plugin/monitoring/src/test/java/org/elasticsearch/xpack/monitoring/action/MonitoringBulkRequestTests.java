@@ -180,7 +180,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
             bulkRequest.add(randomFrom(MonitoredSystem.values()), content.bytes(), xContentType, 0L, 0L)
         );
 
-        assertThat(e.getMessage(), containsString("source is missing for monitoring document [][doc][" + nbDocs + "]"));
+        assertThat(e.getMessage(), containsString("source is missing for monitoring document [][_doc][" + nbDocs + "]"));
     }
 
     public void testAddRequestContentWithUnrecognizedIndexName() throws IOException {

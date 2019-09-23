@@ -49,9 +49,7 @@ import java.util.function.Function;
  * <p>
  * To perform a snapshot:
  * <ul>
- * <li>Master calls {@link #initializeSnapshot(SnapshotId, List, org.elasticsearch.cluster.metadata.MetaData)}
- * with list of indices that will be included into the snapshot</li>
- * <li>Data nodes call {@link Repository#snapshotShard(Store, MapperService, SnapshotId, IndexId, IndexCommit, IndexShardSnapshotStatus)}
+ * <li>Data nodes call {@link Repository#snapshotShard}
  * for each shard</li>
  * <li>When all shard calls return master calls {@link #finalizeSnapshot} with possible list of failures</li>
  * </ul>
@@ -117,7 +115,11 @@ public interface Repository extends LifecycleComponent {
      * @param snapshotId snapshot id
      * @param indices    list of indices to be snapshotted
      * @param metaData   cluster metadata
+     *
+     * @deprecated this method is only used when taking snapshots in a mixed version cluster where a master node older than
+     *             {@link org.elasticsearch.snapshots.SnapshotsService#NO_REPO_INITIALIZE_VERSION} is present.
      */
+    @Deprecated
     void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData metaData);
 
     /**
@@ -137,7 +139,7 @@ public interface Repository extends LifecycleComponent {
      */
     SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards,
                                   List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState,
-                                  Map<String, Object> userMetadata);
+                                  MetaData clusterMetaData, Map<String, Object> userMetadata);
 
     /**
      * Deletes snapshot
@@ -199,36 +201,16 @@ public interface Repository extends LifecycleComponent {
      * <p>
      * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
      * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
-     * @param indexShard          the shard to be snapshotted
-     * @param snapshotId          snapshot id
-     * @param indexId             id for the index being snapshotted
-     * @param snapshotIndexCommit commit point
-     * @param snapshotStatus      snapshot status
-     * @deprecated use {@link #snapshotShard(Store, MapperService, SnapshotId, IndexId, IndexCommit, IndexShardSnapshotStatus)} instead
-     */
-    @Deprecated
-    default void snapshotShard(IndexShard indexShard, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                       IndexShardSnapshotStatus snapshotStatus) {
-        snapshotShard(indexShard.store(), indexShard.mapperService(), snapshotId, indexId, snapshotIndexCommit, snapshotStatus);
-    }
-
-    /**
-     * Creates a snapshot of the shard based on the index commit point.
-     * <p>
-     * The index commit point can be obtained by using {@link org.elasticsearch.index.engine.Engine#acquireLastIndexCommit} method.
-     * Repository implementations shouldn't release the snapshot index commit point. It is done by the method caller.
-     * <p>
-     * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
-     * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
      * @param store               store to be snapshotted
      * @param mapperService       the shards mapper service
      * @param snapshotId          snapshot id
      * @param indexId             id for the index being snapshotted
      * @param snapshotIndexCommit commit point
      * @param snapshotStatus      snapshot status
+     * @param listener            listener invoked on completion
      */
     void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                       IndexShardSnapshotStatus snapshotStatus);
+                       IndexShardSnapshotStatus snapshotStatus, ActionListener<Void> listener);
 
     /**
      * Restores snapshot of the shard.

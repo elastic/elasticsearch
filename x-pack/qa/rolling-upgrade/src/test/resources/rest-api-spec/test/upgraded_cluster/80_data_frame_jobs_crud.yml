@@ -157,3 +157,117 @@ setup:
       data_frame.get_data_frame_transform_stats:
         transform_id: "old-simple-transform,mixed-simple-transform"
   - match: { count: 0 }
+
+---
+"Test GET, stop, delete, old and mixed continuous transforms":
+  - do:
+      data_frame.get_data_frame_transform:
+        transform_id: "old-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-continuous-transform" }
+  - match: { transforms.0.sync.time.field: "time" }
+  - match: { transforms.0.sync.time.delay: "90m" }
+  - is_true: transforms.0.version
+  - is_true: transforms.0.create_time
+
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "old-simple-continuous-transform"
+  - match: { acknowledged: true }
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "old-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-continuous-transform" }
+  - match: { transforms.0.state: "/started|indexing/" }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "old-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-continuous-transform" }
+  - match: { transforms.0.state: "/started|indexing/" }
+
+  - do:
+      data_frame.stop_data_frame_transform:
+        transform_id: "old-simple-continuous-transform"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "old-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-continuous-transform" }
+  - match: { transforms.0.state: "stopped" }
+
+  - do:
+      data_frame.delete_data_frame_transform:
+        transform_id: "old-simple-continuous-transform"
+
+  - do:
+      data_frame.get_data_frame_transform:
+        transform_id: "mixed-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-simple-continuous-transform" }
+  - match: { transforms.0.sync.time.field: "time" }
+  - match: { transforms.0.sync.time.delay: "90m" }
+  - is_true: transforms.0.version
+  - is_true: transforms.0.create_time
+
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "mixed-simple-continuous-transform"
+  - match: { acknowledged: true }
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "mixed-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-simple-continuous-transform" }
+  - match: { transforms.0.state: "/started|indexing/" }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "mixed-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-simple-continuous-transform" }
+  - match: { transforms.0.state: "/started|indexing/" }
+
+  - do:
+      data_frame.stop_data_frame_transform:
+        transform_id: "mixed-simple-continuous-transform"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+
+  - do:
+      data_frame.get_data_frame_transform_stats:
+        transform_id: "mixed-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-simple-continuous-transform" }
+  - match: { transforms.0.state: "stopped" }
+
+  - do:
+      data_frame.delete_data_frame_transform:
+        transform_id: "mixed-simple-continuous-transform"
+---
+"Test index mappings for latest internal index":
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "upgraded-simple-transform"
+        defer_validation: true
+        body: >
+          {
+            "source": { "index": "dataframe-transform-airline-data" },
+            "dest": { "index": "upgraded-simple-transform-idx" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_mapping:
+        index: .data-frame-internal-2
+  - match: { \.data-frame-internal-2.mappings.dynamic: "false" }
+  - match: { \.data-frame-internal-2.mappings.properties.id.type: "keyword" }

@@ -21,20 +21,20 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
-import org.elasticsearch.client.dataframe.GetDataFrameTransformRequest;
-import org.elasticsearch.client.dataframe.GetDataFrameTransformResponse;
-import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsRequest;
-import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsResponse;
-import org.elasticsearch.client.dataframe.PreviewDataFrameTransformRequest;
-import org.elasticsearch.client.dataframe.PreviewDataFrameTransformResponse;
-import org.elasticsearch.client.dataframe.PutDataFrameTransformRequest;
-import org.elasticsearch.client.dataframe.StartDataFrameTransformRequest;
-import org.elasticsearch.client.dataframe.StartDataFrameTransformResponse;
-import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
-import org.elasticsearch.client.dataframe.StopDataFrameTransformResponse;
-import org.elasticsearch.client.dataframe.UpdateDataFrameTransformRequest;
-import org.elasticsearch.client.dataframe.UpdateDataFrameTransformResponse;
+import org.elasticsearch.client.transform.DeleteDataFrameTransformRequest;
+import org.elasticsearch.client.transform.GetDataFrameTransformRequest;
+import org.elasticsearch.client.transform.GetDataFrameTransformResponse;
+import org.elasticsearch.client.transform.GetDataFrameTransformStatsRequest;
+import org.elasticsearch.client.transform.GetDataFrameTransformStatsResponse;
+import org.elasticsearch.client.transform.PreviewDataFrameTransformRequest;
+import org.elasticsearch.client.transform.PreviewDataFrameTransformResponse;
+import org.elasticsearch.client.transform.PutDataFrameTransformRequest;
+import org.elasticsearch.client.transform.StartDataFrameTransformRequest;
+import org.elasticsearch.client.transform.StartDataFrameTransformResponse;
+import org.elasticsearch.client.transform.StopDataFrameTransformRequest;
+import org.elasticsearch.client.transform.StopDataFrameTransformResponse;
+import org.elasticsearch.client.transform.UpdateDataFrameTransformRequest;
+import org.elasticsearch.client.transform.UpdateDataFrameTransformResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -48,14 +48,14 @@ public final class DataFrameClient {
     }
 
     /**
-     * Creates a new Data Frame Transform
+     * Creates a new transform
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-data-frame-transform.html">
-     *     Create data frame transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-transform.html">
+     *     Create transform documentation</a>
      *
      * @param request The PutDataFrameTransformRequest containing the
-     * {@link org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig}.
+     * {@link org.elasticsearch.client.transform.transforms.DataFrameTransformConfig}.
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return An AcknowledgedResponse object indicating request success
      * @throws IOException when there is a serialization issue sending the request or receiving the response
@@ -69,20 +69,20 @@ public final class DataFrameClient {
     }
 
     /**
-     * Creates a new Data Frame Transform asynchronously and notifies listener on completion
+     * Creates a new transform asynchronously and notifies listener on completion
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-data-frame-transform.html">
-     *     Create data frame transform documentation</a>
-     *
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/put-transform.html">
+     *     Create transform documentation</a>
      * @param request The PutDataFrameTransformRequest containing the
-     * {@link org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig}.
+     * {@link org.elasticsearch.client.transform.transforms.DataFrameTransformConfig}.
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void putDataFrameTransformAsync(PutDataFrameTransformRequest request, RequestOptions options,
-                                      ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+    public Cancellable putDataFrameTransformAsync(PutDataFrameTransformRequest request, RequestOptions options,
+                                                  ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
                 DataFrameRequestConverters::putDataFrameTransform,
                 options,
                 AcknowledgedResponse::fromXContent,
@@ -91,14 +91,14 @@ public final class DataFrameClient {
     }
 
     /**
-     * Updates an existing Data Frame Transform
+     * Updates an existing transform
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/update-data-frame-transform.html">
-     *     Create data frame transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/update-transform.html">
+     *     Create transform documentation</a>
      *
      * @param request The UpdateDataFrameTransformRequest containing the
-     * {@link org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigUpdate}.
+     * {@link org.elasticsearch.client.transform.transforms.DataFrameTransformConfigUpdate}.
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return An UpdateDataFrameTransformResponse object containing the updated configuration
      * @throws IOException when there is a serialization issue sending the request or receiving the response
@@ -113,21 +113,21 @@ public final class DataFrameClient {
     }
 
     /**
-     * Updates an existing Data Frame Transform asynchronously and notifies listener on completion
+     * Updates an existing transform asynchronously and notifies listener on completion
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/update-data-frame-transform.html">
-     *     Create data frame transform documentation</a>
-     *
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/update-transform.html">
+     *     Create transform documentation</a>
      * @param request The UpdateDataFrameTransformRequest containing the
-     * {@link org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfigUpdate}.
+     * {@link org.elasticsearch.client.transform.transforms.DataFrameTransformConfigUpdate}.
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void updateDataFrameTransformAsync(UpdateDataFrameTransformRequest request,
-                                              RequestOptions options,
-                                              ActionListener<UpdateDataFrameTransformResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+    public Cancellable updateDataFrameTransformAsync(UpdateDataFrameTransformRequest request,
+                                                     RequestOptions options,
+                                                     ActionListener<UpdateDataFrameTransformResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
             DataFrameRequestConverters::updateDataFrameTransform,
             options,
             UpdateDataFrameTransformResponse::fromXContent,
@@ -136,15 +136,15 @@ public final class DataFrameClient {
     }
 
     /**
-     * Get the running statistics of a Data Frame Transform
+     * Get the running statistics of a transform
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-data-frame-transform-stats.html">
-     *     Get data frame transform stats documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-transform-stats.html">
+     *     Get transform stats documentation</a>
      *
      * @param request Specifies the which transforms to get the stats for
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return The Data Frame Transform stats
+     * @return The transform stats
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public GetDataFrameTransformStatsResponse getDataFrameTransformStats(GetDataFrameTransformStatsRequest request, RequestOptions options)
@@ -157,19 +157,19 @@ public final class DataFrameClient {
     }
 
     /**
-     * Get the running statistics of a Data Frame Transform asynchronously and notifies listener on completion
+     * Get the running statistics of a transform asynchronously and notifies listener on completion
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-data-frame-transform-stats.html">
-     *     Get data frame transform stats documentation</a>
-     *
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-transform-stats.html">
+     *     Get transform stats documentation</a>
      * @param request Specifies the which transforms to get the stats for
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void getDataFrameTransformStatsAsync(GetDataFrameTransformStatsRequest request, RequestOptions options,
-                                           ActionListener<GetDataFrameTransformStatsResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+    public Cancellable getDataFrameTransformStatsAsync(GetDataFrameTransformStatsRequest request, RequestOptions options,
+                                                       ActionListener<GetDataFrameTransformStatsResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
                 DataFrameRequestConverters::getDataFrameTransformStats,
                 options,
                 GetDataFrameTransformStatsResponse::fromXContent,
@@ -178,13 +178,13 @@ public final class DataFrameClient {
     }
 
     /**
-     * Delete a data frame transform
+     * Delete a transform
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-data-frame-transform.html">
-     *     Delete data frame transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-transform.html">
+     *     Delete transform documentation</a>
      *
-     * @param request The delete data frame transform request
+     * @param request The delete transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return An AcknowledgedResponse object indicating request success
      * @throws IOException when there is a serialization issue sending the request or receiving the response
@@ -199,19 +199,19 @@ public final class DataFrameClient {
     }
 
     /**
-     * Delete a data frame transform asynchronously and notifies listener on completion
+     * Delete a transform asynchronously and notifies listener on completion
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-data-frame-transform.html">
-     *     Delete data frame transform documentation</a>
-     *
-     * @param request The delete data frame transform request
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-transform.html">
+     *     Delete transform documentation</a>
+     * @param request The delete transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void deleteDataFrameTransformAsync(DeleteDataFrameTransformRequest request, RequestOptions options,
-                                              ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+    public Cancellable deleteDataFrameTransformAsync(DeleteDataFrameTransformRequest request, RequestOptions options,
+                                                     ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
                 DataFrameRequestConverters::deleteDataFrameTransform,
                 options,
                 AcknowledgedResponse::fromXContent,
@@ -220,13 +220,13 @@ public final class DataFrameClient {
     }
 
     /**
-     * Preview the result of a data frame transform
+     * Preview the result of a transform
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/preview-data-frame-transform.html">
-     *     Preview data frame transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/preview-transform.html">
+     *     Preview transform documentation</a>
      *
-     * @param request The preview data frame transform request
+     * @param request The preview transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return A response containing the results of the applied transform
      * @throws IOException when there is a serialization issue sending the request or receiving the response
@@ -241,18 +241,18 @@ public final class DataFrameClient {
     }
 
     /**
-     * Preview the result of a data frame transform asynchronously and notifies listener on completion
+     * Preview the result of a transform asynchronously and notifies listener on completion
      * <p>
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/preview-data-frame-transform.html">
-     *     Preview data frame transform documentation</a>
-     *
-     * @param request The preview data frame transform request
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/preview-transform.html">
+     *     Preview transform documentation</a>
+     * @param request The preview transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void previewDataFrameTransformAsync(PreviewDataFrameTransformRequest request, RequestOptions options,
-                                             ActionListener<PreviewDataFrameTransformResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+    public Cancellable previewDataFrameTransformAsync(PreviewDataFrameTransformRequest request, RequestOptions options,
+                                                      ActionListener<PreviewDataFrameTransformResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
                 DataFrameRequestConverters::previewDataFrameTransform,
                 options,
                 PreviewDataFrameTransformResponse::fromXContent,
@@ -261,13 +261,13 @@ public final class DataFrameClient {
     }
 
     /**
-     * Start a data frame transform
+     * Start a transform
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/start-data-frame-transform.html">
-     *     Start data frame transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/start-transform.html">
+     *     Start transform documentation</a>
      *
-     * @param request The start data frame transform request
+     * @param request The start transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return A response object indicating request success
      * @throws IOException when there is a serialization issue sending the request or receiving the response
@@ -282,19 +282,19 @@ public final class DataFrameClient {
     }
 
     /**
-     * Start a data frame transform asynchronously and notifies listener on completion
+     * Start a transform asynchronously and notifies listener on completion
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/start-data-frame-transform.html">
-     *     Start data frame transform documentation</a>
-     *
-     * @param request The start data frame transform request
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/start-transform.html">
+     *     Start transform documentation</a>
+     * @param request The start transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void startDataFrameTransformAsync(StartDataFrameTransformRequest request, RequestOptions options,
-                                            ActionListener<StartDataFrameTransformResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+    public Cancellable startDataFrameTransformAsync(StartDataFrameTransformRequest request, RequestOptions options,
+                                                    ActionListener<StartDataFrameTransformResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
                 DataFrameRequestConverters::startDataFrameTransform,
                 options,
                 StartDataFrameTransformResponse::fromXContent,
@@ -303,13 +303,13 @@ public final class DataFrameClient {
     }
 
     /**
-     * Stop a data frame transform
+     * Stop a transform
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/stop-data-frame-transform.html">
-     *     Stop data frame transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/stop-transform.html">
+     *     Stop transform documentation</a>
      *
-     * @param request The stop data frame transform request
+     * @param request The stop transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return A response object indicating request success
      * @throws IOException when there is a serialization issue sending the request or receiving the response
@@ -324,19 +324,19 @@ public final class DataFrameClient {
     }
 
     /**
-     * Stop a data frame transform asynchronously and notifies listener on completion
+     * Stop a transform asynchronously and notifies listener on completion
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/stop-data-frame-transform.html">
-     *     Stop data frame transform documentation</a>
-     *
-     * @param request The stop data frame transform request
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/stop-transform.html">
+     *     Stop transform documentation</a>
+     * @param request The stop transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void stopDataFrameTransformAsync(StopDataFrameTransformRequest request, RequestOptions options,
-                                            ActionListener<StopDataFrameTransformResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+    public Cancellable stopDataFrameTransformAsync(StopDataFrameTransformRequest request, RequestOptions options,
+                                                   ActionListener<StopDataFrameTransformResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
                 DataFrameRequestConverters::stopDataFrameTransform,
                 options,
                 StopDataFrameTransformResponse::fromXContent,
@@ -345,13 +345,13 @@ public final class DataFrameClient {
     }
 
     /**
-     * Get one or more data frame transform configurations
+     * Get one or more transform configurations
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-data-frame-transform.html">
-     *     Get data frame transform documentation</a>
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-transform.html">
+     *     Get transform documentation</a>
      *
-     * @param request The get data frame transform request
+     * @param request The get transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return An GetDataFrameTransformResponse containing the requested transforms
      * @throws IOException when there is a serialization issue sending the request or receiving the response
@@ -366,19 +366,19 @@ public final class DataFrameClient {
     }
 
     /**
-     * Get one or more data frame transform configurations asynchronously and notifies listener on completion
+     * Get one or more transform configurations asynchronously and notifies listener on completion
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-data-frame-transform.html">
-     *     Get data frame transform documentation</a>
-     *
-     * @param request The get data frame transform request
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-transform.html">
+     *     Get data transform documentation</a>
+     * @param request The get transform request
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void getDataFrameTransformAsync(GetDataFrameTransformRequest request, RequestOptions options,
-                                           ActionListener<GetDataFrameTransformResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+    public Cancellable getDataFrameTransformAsync(GetDataFrameTransformRequest request, RequestOptions options,
+                                                  ActionListener<GetDataFrameTransformResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
                 DataFrameRequestConverters::getDataFrameTransform,
                 options,
                 GetDataFrameTransformResponse::fromXContent,

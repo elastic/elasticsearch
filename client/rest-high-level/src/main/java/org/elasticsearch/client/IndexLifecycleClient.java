@@ -39,6 +39,8 @@ import org.elasticsearch.client.slm.ExecuteSnapshotLifecyclePolicyRequest;
 import org.elasticsearch.client.slm.ExecuteSnapshotLifecyclePolicyResponse;
 import org.elasticsearch.client.slm.GetSnapshotLifecyclePolicyRequest;
 import org.elasticsearch.client.slm.GetSnapshotLifecyclePolicyResponse;
+import org.elasticsearch.client.slm.GetSnapshotLifecycleStatsRequest;
+import org.elasticsearch.client.slm.GetSnapshotLifecycleStatsResponse;
 import org.elasticsearch.client.slm.PutSnapshotLifecyclePolicyRequest;
 
 import java.io.IOException;
@@ -74,10 +76,11 @@ public class IndexLifecycleClient {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void getLifecyclePolicyAsync(GetLifecyclePolicyRequest request, RequestOptions options,
-                                        ActionListener<GetLifecyclePolicyResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::getLifecyclePolicy, options,
+    public Cancellable getLifecyclePolicyAsync(GetLifecyclePolicyRequest request, RequestOptions options,
+                                               ActionListener<GetLifecyclePolicyResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::getLifecyclePolicy, options,
             GetLifecyclePolicyResponse::fromXContent, listener, emptySet());
     }
 
@@ -103,10 +106,11 @@ public class IndexLifecycleClient {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void putLifecyclePolicyAsync(PutLifecyclePolicyRequest request, RequestOptions options,
-                                        ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::putLifecyclePolicy, options,
+    public Cancellable putLifecyclePolicyAsync(PutLifecyclePolicyRequest request, RequestOptions options,
+                                               ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::putLifecyclePolicy, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -132,10 +136,12 @@ public class IndexLifecycleClient {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void deleteLifecyclePolicyAsync(DeleteLifecyclePolicyRequest request, RequestOptions options,
-                                           ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::deleteLifecyclePolicy, options,
+    public Cancellable deleteLifecyclePolicyAsync(DeleteLifecyclePolicyRequest request, RequestOptions options,
+                                                  ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request, IndexLifecycleRequestConverters::deleteLifecyclePolicy, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -161,10 +167,12 @@ public class IndexLifecycleClient {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void removeIndexLifecyclePolicyAsync(RemoveIndexLifecyclePolicyRequest request, RequestOptions options,
-            ActionListener<RemoveIndexLifecyclePolicyResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::removeIndexLifecyclePolicy, options,
+    public Cancellable removeIndexLifecyclePolicyAsync(RemoveIndexLifecyclePolicyRequest request, RequestOptions options,
+                                                       ActionListener<RemoveIndexLifecyclePolicyResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request, IndexLifecycleRequestConverters::removeIndexLifecyclePolicy, options,
                 RemoveIndexLifecyclePolicyResponse::fromXContent, listener, emptySet());
     }
 
@@ -189,9 +197,10 @@ public class IndexLifecycleClient {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void startILMAsync(StartILMRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::startILM, options,
+    public Cancellable startILMAsync(StartILMRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::startILM, options,
                 AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -227,14 +236,15 @@ public class IndexLifecycleClient {
      * Asynchronously get the status of index lifecycle management
      * See <a href="https://fix-me-when-we-have-docs.com">
      * the docs</a> for more.
-     *
      * @param request  the request
      * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void lifecycleManagementStatusAsync(LifecycleManagementStatusRequest request, RequestOptions options,
-                                               ActionListener<LifecycleManagementStatusResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::lifecycleManagementStatus, options,
+    public Cancellable lifecycleManagementStatusAsync(LifecycleManagementStatusRequest request, RequestOptions options,
+                                                      ActionListener<LifecycleManagementStatusResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request, IndexLifecycleRequestConverters::lifecycleManagementStatus, options,
             LifecycleManagementStatusResponse::fromXContent, listener, emptySet());
     }
 
@@ -245,9 +255,10 @@ public class IndexLifecycleClient {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void stopILMAsync(StopILMRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::stopILM, options,
+    public Cancellable stopILMAsync(StopILMRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::stopILM, options,
                 AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -272,10 +283,11 @@ public class IndexLifecycleClient {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void explainLifecycleAsync(ExplainLifecycleRequest request, RequestOptions options,
-                                      ActionListener<ExplainLifecycleResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::explainLifecycle, options,
+    public Cancellable explainLifecycleAsync(ExplainLifecycleRequest request, RequestOptions options,
+                                             ActionListener<ExplainLifecycleResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::explainLifecycle, options,
                 ExplainLifecycleResponse::fromXContent, listener, emptySet());
     }
 
@@ -300,10 +312,11 @@ public class IndexLifecycleClient {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void retryLifecyclePolicyAsync(RetryLifecyclePolicyRequest request, RequestOptions options,
-                                          ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::retryLifecycle, options,
+    public Cancellable retryLifecyclePolicyAsync(RetryLifecyclePolicyRequest request, RequestOptions options,
+                                                 ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::retryLifecycle, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -335,10 +348,11 @@ public class IndexLifecycleClient {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void getSnapshotLifecyclePolicyAsync(GetSnapshotLifecyclePolicyRequest request, RequestOptions options,
-                                                ActionListener<GetSnapshotLifecyclePolicyResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::getSnapshotLifecyclePolicy,
+    public Cancellable getSnapshotLifecyclePolicyAsync(GetSnapshotLifecyclePolicyRequest request, RequestOptions options,
+                                                       ActionListener<GetSnapshotLifecyclePolicyResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::getSnapshotLifecyclePolicy,
             options, GetSnapshotLifecyclePolicyResponse::fromXContent, listener, emptySet());
     }
 
@@ -370,10 +384,11 @@ public class IndexLifecycleClient {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void putSnapshotLifecyclePolicyAsync(PutSnapshotLifecyclePolicyRequest request, RequestOptions options,
-                                                ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::putSnapshotLifecyclePolicy,
+    public Cancellable putSnapshotLifecyclePolicyAsync(PutSnapshotLifecyclePolicyRequest request, RequestOptions options,
+                                                       ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::putSnapshotLifecyclePolicy,
             options, AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -405,10 +420,12 @@ public class IndexLifecycleClient {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void deleteSnapshotLifecyclePolicyAsync(DeleteSnapshotLifecyclePolicyRequest request, RequestOptions options,
-                                                   ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::deleteSnapshotLifecyclePolicy,
+    public Cancellable deleteSnapshotLifecyclePolicyAsync(DeleteSnapshotLifecyclePolicyRequest request,
+                                          RequestOptions options,ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request, IndexLifecycleRequestConverters::deleteSnapshotLifecyclePolicy,
             options, AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -440,10 +457,48 @@ public class IndexLifecycleClient {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
      */
-    public void executeSnapshotLifecyclePolicyAsync(ExecuteSnapshotLifecyclePolicyRequest request, RequestOptions options,
-                                                    ActionListener<ExecuteSnapshotLifecyclePolicyResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::executeSnapshotLifecyclePolicy,
+    public Cancellable executeSnapshotLifecyclePolicyAsync(
+        ExecuteSnapshotLifecyclePolicyRequest request, RequestOptions options,
+        ActionListener<ExecuteSnapshotLifecyclePolicyResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request, IndexLifecycleRequestConverters::executeSnapshotLifecyclePolicy,
             options, ExecuteSnapshotLifecyclePolicyResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Retrieve snapshot lifecycle statistics.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-get-snapshot-lifecycle-stats.html
+     * </pre>
+     * for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetSnapshotLifecycleStatsResponse getSnapshotLifecycleStats(GetSnapshotLifecycleStatsRequest request,
+                                                                       RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::getSnapshotLifecycleStats,
+            options, GetSnapshotLifecycleStatsResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously retrieve snapshot lifecycle statistics.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-get-snapshot-lifecycle-stats.html
+     * </pre>
+     * for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public Cancellable getSnapshotLifecycleStatsAsync(GetSnapshotLifecycleStatsRequest request, RequestOptions options,
+                                               ActionListener<GetSnapshotLifecycleStatsResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::getSnapshotLifecycleStats,
+            options, GetSnapshotLifecycleStatsResponse::fromXContent, listener, emptySet());
     }
 }

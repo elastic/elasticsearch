@@ -422,7 +422,7 @@ to grant roles to users authenticating via OpenID Connect.
 This is an example of a simple role mapping that grants the `kibana_user` role
 to any user who authenticates against the `oidc1` OpenID Connect realm:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/oidc-kibana
 {
@@ -433,8 +433,6 @@ PUT /_security/role_mapping/oidc-kibana
   }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 
 The user properties that are mapped via the realm configuration are used to process
@@ -459,7 +457,7 @@ as per the example below.
 This mapping grants the {es} `finance_data` role, to any users who authenticate
 via the `oidc1` realm with the `finance-team` group membership.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/oidc-finance
 {
@@ -471,8 +469,6 @@ PUT /_security/role_mapping/oidc-finance
   ] }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 If your users also exist in a repository that can be directly accessed by {es}
 (such as an LDAP directory) then you can use
@@ -599,17 +595,16 @@ that gives them the `manage_oidc` cluster privilege. The use of the `manage_toke
 cluster privilege will be necessary after the authentication takes place, so that the
 the user can maintain access or be subsequently logged out.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/role/facilitator-role
 {
   "cluster" : ["manage_oidc", "manage_token"]
 }
 --------------------------------------------------
-// CONSOLE
 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/user/facilitator
 {
@@ -617,7 +612,6 @@ POST /_security/user/facilitator
   "roles"    : [ "facilitator-role"]
 }
 --------------------------------------------------
-// CONSOLE
 
 
 ==== Handling the authentication flow
@@ -629,14 +623,13 @@ authenticate a user with OpenID Connect:
 OpenID Connect realm in the {es} configuration in the request body. See the
 {ref}/security-api-oidc-prepare-authentication.html[OIDC Prepare Authentication API] for more details
 +
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/oidc/prepare
 {
   "realm" : "oidc1"
 }
 --------------------------------------------------
-// CONSOLE
 +
 . Handle the response to `/_security/oidc/prepare`. The response from {es} will contain 3 parameters:
   `redirect`, `state`, `nonce`. The custom web application would need to store the values for `state`
@@ -653,7 +646,7 @@ POST /_security/oidc/prepare
   used for handling this, but this parameter is optional.
   See {ref}/security-api-oidc-authenticate.html[OIDC Authenticate API] for more details
 +
-[source,js]
+[source,console]
 -----------------------------------------------------------------------
 POST /_security/oidc/authenticate
 {
@@ -663,7 +656,6 @@ POST /_security/oidc/authenticate
   "realm" : "oidc1"
 }
 -----------------------------------------------------------------------
-// CONSOLE
 // TEST[catch:unauthorized]
 +
 Elasticsearch will validate this and if all is correct will respond with an access token that can be used
@@ -672,7 +664,7 @@ Elasticsearch will validate this and if all is correct will respond with an acce
 . At some point, if necessary, the custom web application can log the user out by using the
   {ref}/security-api-oidc-logout.html[OIDC Logout API] passing the access token and refresh token as parameters. For example:
 +
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/oidc/logout
 {
@@ -680,7 +672,6 @@ POST /_security/oidc/logout
   "refresh_token": "vLBPvmAB6KvwvJZr27cS"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[catch:unauthorized]
 +
 If the realm is configured accordingly, this may result in a response with a `redirect` parameter indicating where

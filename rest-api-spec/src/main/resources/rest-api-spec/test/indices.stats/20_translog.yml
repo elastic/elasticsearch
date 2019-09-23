@@ -9,6 +9,7 @@
   - do:
       cluster.health:
         wait_for_no_initializing_shards: true
+        wait_for_events: languid
   - do:
       indices.stats:
         metric: [ translog ]
@@ -78,6 +79,7 @@
   - do:
       cluster.health:
         wait_for_no_initializing_shards: true
+        wait_for_events: languid
   - do:
       indices.stats:
         metric: [ translog ]
@@ -142,6 +144,7 @@
   - do:
       cluster.health:
         wait_for_no_initializing_shards: true
+        wait_for_events: languid
   - do:
       index:
         index: test
@@ -194,6 +197,7 @@
   - do:
       cluster.health:
         wait_for_no_initializing_shards: true
+        wait_for_events: languid
   - do:
       index:
         index: test

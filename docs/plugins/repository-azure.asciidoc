@@ -183,7 +183,7 @@ include::repository-shared-settings.asciidoc[]
 
 Some examples, using scripts:
 
-[source,js]
+[source,console]
 ----
 # The simplest one
 PUT _snapshot/my_backup1
@@ -221,7 +221,6 @@ PUT _snapshot/my_backup4
     }
 }
 ----
-// CONSOLE
 // TEST[skip:we don't have azure setup while testing this]
 
 Example using Java:

@@ -34,11 +34,10 @@ information, see {stack-ov}/security-privileges.html[Security privileges] and
 
 The following example deletes the `loganalytics` {dfanalytics-job}:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE _ml/data_frame/analytics/loganalytics
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:TBD]
 
 The API returns the following result:

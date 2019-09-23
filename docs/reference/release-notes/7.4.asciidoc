@@ -35,7 +35,6 @@ Snapshot/Restore::
 === Breaking Java changes
 
 Geo::
-* Geo: Change order of parameter in Geometries to lon, lat 7.x {pull}45618[#45618] (issues: {issue}45048[#45048], {issue}45332[#45332])
 * Geo: Change order of parameter in Geometries to lon, lat {pull}45332[#45332] (issue: {issue}45048[#45048])
 
 Network::
@@ -93,6 +92,7 @@ Geo::
 * [SPATIAL] New ShapeQueryBuilder for querying indexed cartesian geometry {pull}45108[#45108] (issue: {issue}44980[#44980])
 * [GEO] New ShapeFieldMapper for indexing cartesian geometries {pull}44980[#44980]
 * Add Circle Processor {pull}43851[#43851] (issue: {issue}43554[#43554])
+* New `shape` field type for indexing Cartesian Geometries {pull}43644[#43644]
 
 Machine Learning::
 * Allow the user to specify 'query' in Evaluate Data Frame request {pull}45775[#45775] (issue: {issue}45729[#45729])
@@ -167,6 +167,7 @@ Features/Features::
 * Disable String interning on field names for JSON parsing {pull}41039[#41039] (issue: {issue}39890[#39890])
 
 Features/ILM::
+* Add node setting for disabling SLM {pull}46794[#46794] (issue: {issue}38461[#38461])
 * Include in-progress snapshot for a policy with get SLM policy API {pull}45245[#45245]
 *  Add option to filter ILM explain response {pull}44777[#44777] (issue: {issue}44189[#44189])
 * Expose index age in ILM explain output {pull}44457[#44457] (issue: {issue}38988[#38988])
@@ -201,7 +202,6 @@ Geo::
 Infra/Core::
 * Add OCI annotations and adjust existing annotations {pull}45167[#45167] (issues: {issue}45162[#45162], {issue}45166[#45166])
 * Use the full hash in build info {pull}45163[#45163] (issue: {issue}45162[#45162])
-* Set start of the week to Monday for root locale {pull}43652[#43652] (issues: {issue}41670[#41670], {issue}42588[#42588], {issue}43275[#43275])
 
 Infra/Packaging::
 * Remove redundant Java check from Sys V init {pull}45793[#45793] (issue: {issue}45593[#45593])
@@ -216,6 +216,7 @@ Infra/Scripting::
 * Remove stale permissions from untrusted policy {pull}44783[#44783]
 
 Infra/Settings::
+* Add more meaningful keystore version mismatch errors {pull}46291[#46291] (issue: {issue}44624[#44624])
 * Lift the restrictions that uppercase is not allowed in Setting Name. {pull}45222[#45222] (issue: {issue}43835[#43835])
 * Normalize environment paths {pull}45179[#45179] (issue: {issue}45176[#45176])
 
@@ -242,7 +243,6 @@ Network::
 * Move ConnectionManager to async APIs {pull}42636[#42636]
 
 Ranking::
-* Precompute vector length on indexing {pull}45390[#45390]
 * Search enhancement: pinned queries {pull}44345[#44345] (issue: {issue}44074[#44074])
 * Fix parameter value for calling data.advanceExact {pull}44205[#44205]
 * Add l1norm and l2norm distances for vectors {pull}44116[#44116] (issue: {issue}37947[#37947])
@@ -255,6 +255,7 @@ Recovery::
 * Make peer recovery send file chunks async {pull}44468[#44468] (issues: {issue}36195[#36195], {issue}44040[#44040])
 
 SQL::
+* SQL: Support queries with HAVING over SELECT {pull}46709[#46709] (issue: {issue}37051[#37051])
 * SQL: Break TextFormatter/Cursor dependency {pull}45613[#45613] (issue: {issue}45516[#45516])
 * SQL: remove deprecated use of "interval" from date_histogram usage {pull}45501[#45501] (issue: {issue}43922[#43922])
 * SQL: use hasValue() methods from Elasticsearch's InspectionHelper classes {pull}44745[#44745] (issue: {issue}35745[#35745])
@@ -300,12 +301,15 @@ Analysis::
 * Fix AnalyzeAction response serialization {pull}44284[#44284] (issue: {issue}44078[#44078])
 
 Authentication::
+* Fallback to realm authc if ApiKey fails {pull}46538[#46538]
+* Enforce realm name uniqueness {pull}46253[#46253]
 * Allow empty token endpoint for implicit flow {pull}45038[#45038]
 * Do not use scroll when finding duplicate API key {pull}45026[#45026]
 * Fix broken short-circuit in getUnlicensedRealms {pull}44399[#44399]
 * Fix X509AuthenticationToken principal {pull}43932[#43932] (issues: {issue}34396[#34396], {issue}43796[#43796])
 
 Authorization::
+* Give kibana user privileges to create APM agent config index {pull}46765[#46765] (issue: {issue}45610[#45610])
 *  Add `manage_own_api_key` cluster privilege {pull}45696[#45696] (issue: {issue}40031[#40031])
 * Sparse role queries can throw an NPE {pull}45053[#45053]
 
@@ -316,6 +320,7 @@ CCR::
 * Avoid NPE when checking for CCR index privileges {pull}44397[#44397] (issue: {issue}44172[#44172])
 
 CRUD::
+* Ignore replication for noop updates {pull}46458[#46458] (issues: {issue}41065[#41065], {issue}44603[#44603], {issue}46366[#46366])
 * Allow _update on write alias {pull}45318[#45318] (issue: {issue}31520[#31520])
 * Do not allow version in Rest Update API {pull}43516[#43516] (issue: {issue}42497[#42497])
 
@@ -323,6 +328,8 @@ Cluster Coordination::
 * Avoid counting votes from master-ineligible nodes {pull}43688[#43688]
 
 Data Frame::
+* [ML][Transform] Use field_caps API for mapping deduction {pull}46703[#46703] (issue: {issue}46694[#46694])
+* [ML-DataFrame] Fix off-by-one error in checkpoint operations_behind {pull}46235[#46235]
 * [ML][Data Frame] moves failure state transition for MT safety {pull}45676[#45676] (issue: {issue}45664[#45664])
 * [ML][Data Frame] fixing _start?force=true bug {pull}45660[#45660]
 * [ML][Data frame] fixing failure state transitions and race condition {pull}45627[#45627] (issues: {issue}45562[#45562], {issue}45609[#45609])
@@ -337,6 +344,8 @@ Data Frame::
 * [ML-DataFrame] audit message missing for autostop {pull}43984[#43984] (issue: {issue}43977[#43977])
 
 Distributed::
+* Fix false positive out of sync warning in synced-flush {pull}46576[#46576] (issues: {issue}28464[#28464], {issue}30244[#30244])
+* Suppress warning logs from background sync on relocated primary {pull}46247[#46247] (issues: {issue}40800[#40800], {issue}42241[#42241])
 * Ensure AsyncTask#isScheduled remain false after close {pull}45687[#45687] (issue: {issue}45576[#45576])
 * Update translog checkpoint after marking operations as persisted {pull}45634[#45634] (issue: {issue}29161[#29161])
 * Fix clock used in update requests {pull}45262[#45262] (issue: {issue}45254[#45254])
@@ -351,6 +360,9 @@ Engine::
 * Fail engine if hit document failure on replicas {pull}43523[#43523] (issues: {issue}40435[#40435], {issue}43228[#43228])
 
 Features/ILM::
+* Handle partial failure retrieving segments in SegmentCountStep {pull}46556[#46556]
+* Fixes for API specification {pull}46522[#46522]
+* Fix SnapshotLifecycleMetadata xcontent serialization {pull}46500[#46500] (issue: {issue}46499[#46499])
 * Updated slm API spec parameters and URL {pull}44797[#44797]
 * Fix swapped variables in error message {pull}44300[#44300]
 
@@ -360,17 +372,27 @@ Features/Indices APIs::
 * Check shard limit after applying index templates {pull}44619[#44619] (issues: {issue}34021[#34021], {issue}44567[#44567], {issue}44619[#44619])
 * Validate index settings after applying templates {pull}44612[#44612] (issues: {issue}34021[#34021], {issue}44567[#44567])
 
+Features/Ingest::
+* Allow dropping documents with auto-generated ID {pull}46773[#46773] (issue: {issue}46678[#46678])
+
 Features/Java High Level REST Client::
+* HLRC multisearchTemplate forgot params {pull}46492[#46492] (issue: {issue}46488[#46488])
+* terminateAfter added to the RequestConverter {pull}46474[#46474] (issue: {issue}46446[#46446])
 * [Closes #44045] Added 'slices' parameter when submitting reindex request via Java high level REST client {pull}45690[#45690] (issue: {issue}44045[#44045])
 * HLRC: Fix '+' Not Correctly Encoded in GET Req. {pull}33164[#33164] (issue: {issue}33077[#33077])
 
 Features/Watcher::
+* Fix class used to initialize logger in Watcher {pull}46467[#46467]
+* Fix wrong URL encoding in watcher HTTP client {pull}45894[#45894] (issue: {issue}44970[#44970])
 * Fix watcher HttpClient URL creation {pull}45207[#45207] (issue: {issue}44970[#44970])
 * Log write failures for watcher history document. {pull}44129[#44129]
 
 Geo::
 * Geo: fix geo query decomposition {pull}44924[#44924] (issue: {issue}44891[#44891])
 * Geo: add validator that only checks altitude {pull}43893[#43893]
+
+Highlighting::
+* Fix highlighting for script_score query {pull}46507[#46507] (issue: {issue}46471[#46471])
 
 Infra/Core::
 * Always check that cgroup data is present {pull}45606[#45606] (issue: {issue}45396[#45396])
@@ -431,13 +453,18 @@ Recovery::
 * Never release store using CancellableThreads {pull}45409[#45409] (issues: {issue}45136[#45136], {issue}45237[#45237])
 * Remove leniency in reset engine from translog {pull}44711[#44711]
 
-Reindex::
-* Fix issues with serializing BulkByScrollResponse {pull}45357[#45357]
-
 Rollup::
 * Fix Rollup job creation to work with templates {pull}43943[#43943]
 
 SQL::
+* SQL: Properly handle indices with no/empty mapping {pull}46775[#46775] (issue: {issue}46757[#46757])
+* SQL: improve ResultSet behavior when no rows are available {pull}46753[#46753] (issue: {issue}46750[#46750])
+* SQL: use the correct data type for types conversion {pull}46574[#46574] (issue: {issue}46090[#46090])
+* SQL: Fix issue with common type resolution {pull}46565[#46565] (issue: {issue}46551[#46551])
+* SQL: fix scripting for grouped by datetime functions {pull}46421[#46421] (issue: {issue}40241[#40241])
+* SQL: Use null schema response {pull}46386[#46386] (issue: {issue}46381[#46381])
+* SQL: Fix issue with IIF function when condition folds {pull}46290[#46290] (issue: {issue}46268[#46268])
+* SQL: Fix issue with DataType for CASE with NULL {pull}46173[#46173] (issue: {issue}46032[#46032])
 * SQL: adds format parameter to range queries for constant date comparisons {pull}45326[#45326] (issue: {issue}45139[#45139])
 * SQL: uniquely named inner_hits sections for each nested field condition {pull}45039[#45039] (issues: {issue}33080[#33080], {issue}44544[#44544])
 * SQL: fix URI path being lost in case of hosted ES scenario {pull}44776[#44776] (issue: {issue}44721[#44721])
@@ -447,6 +474,7 @@ SQL::
 * SQL: handle SQL not being available in a more graceful way {pull}43665[#43665] (issue: {issue}41279[#41279])
 
 Search::
+* Multi-get requests should wait for search active {pull}46283[#46283] (issue: {issue}27500[#27500])
 * Ensure top docs optimization is fully disabled for queries with unbounded max scores. {pull}46105[#46105] (issue: {issue}45933[#45933])
 * Disallow partial results when shard unavailable {pull}45739[#45739] (issue: {issue}42612[#42612])
 * Prevent Leaking Search Tasks on Exceptions in FetchSearchPhase and DfsQueryPhase {pull}45500[#45500]
@@ -454,6 +482,7 @@ Search::
 * Don't use index_phrases on graph queries {pull}44340[#44340] (issue: {issue}43976[#43976])
 
 Security::
+* Initialize document subset bit set cache used for DLS {pull}46211[#46211] (issue: {issue}45147[#45147])
 * Fix .security-* indices auto-create {pull}44918[#44918]
 * SecurityIndexManager handle RuntimeException while reading mapping {pull}44409[#44409]
 * Do not swallow I/O exception getting authentication {pull}44398[#44398] (issues: {issue}44172[#44172], {issue}44397[#44397])
@@ -468,6 +497,15 @@ Snapshot/Restore::
 
 Task Management::
 * Catch AllocatedTask registration failures {pull}45300[#45300]
+
+
+
+[[regression-7.4.0]]
+[float]
+=== Regressions
+
+Aggregations::
+* Implement rounding optimization for fixed offset timezones {pull}46670[#46670] (issue: {issue}45702[#45702])
 
 
 
@@ -486,6 +524,3 @@ Network::
 
 Search::
 * Upgrade to lucene snapshot 8.3.0-snapshot-8dd116a6158 {pull}45604[#45604] (issue: {issue}43976[#43976])
-
-
-

@@ -38,7 +38,6 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -107,7 +106,7 @@ class S3Service implements Closeable {
      * @param repositoryMetaData Repository Metadata
      * @return S3ClientSettings
      */
-    private S3ClientSettings settings(RepositoryMetaData repositoryMetaData) {
+    S3ClientSettings settings(RepositoryMetaData repositoryMetaData) {
         final String clientName = S3Repository.CLIENT_NAME.get(repositoryMetaData.settings());
         final S3ClientSettings staticSettings = staticClientSettings.get(clientName);
         if (staticSettings != null) {
@@ -229,7 +228,7 @@ class S3Service implements Closeable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         releaseCachedClients();
     }
 

@@ -30,7 +30,7 @@ that point to a missing or closed index.
 end::allow-no-indices[]
 
 tag::analyzer[]
-analyzer`::
+`analyzer`::
 (Optional, string) Analyzer to use for the query string.
 end::analyzer[]
 
@@ -201,6 +201,12 @@ tag::if_seq_no[]
 (Optional, integer) Only perform the operation if the document has this
 sequence number. See <<optimistic-concurrency-control-index>>.
 end::if_seq_no[]
+
+tag::ignore_throttled[]
+`ignore_throttled`::
+(Optional, boolean) If `true`, concrete, expanded or aliased indices are 
+ignored when throttled.
+end::ignore_throttled[]
 
 tag::index-ignore-unavailable[]
 `ignore_unavailable`::
@@ -403,6 +409,12 @@ tag::search-q[]
 `q`::
 (Optional, string) Query in the Lucene query string syntax.
 end::search-q[]
+
+tag::query[]
+`query`::
+(Optional, <<query-dsl,query object>>) Defines the search definition using the 
+<<query-dsl,Query DSL>>.
+end::query[]
 
 tag::refresh[]
 `refresh`::

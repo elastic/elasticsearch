@@ -51,58 +51,48 @@
     "params":{
       "ids":{
         "type":"list",
-        "description":"A comma-separated list of documents ids. You must define ids as parameter or set \"ids\" or \"docs\" in the request body",
-        "required":false
+        "description":"A comma-separated list of documents ids. You must define ids as parameter or set \"ids\" or \"docs\" in the request body"
       },
       "term_statistics":{
         "type":"boolean",
         "description":"Specifies if total term frequency and document frequency should be returned. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\".",
-        "default":false,
-        "required":false
+        "default":false
       },
       "field_statistics":{
         "type":"boolean",
         "description":"Specifies if document count, sum of document frequencies and sum of total term frequencies should be returned. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\".",
-        "default":true,
-        "required":false
+        "default":true
       },
       "fields":{
         "type":"list",
-        "description":"A comma-separated list of fields to return. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\".",
-        "required":false
+        "description":"A comma-separated list of fields to return. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\"."
       },
       "offsets":{
         "type":"boolean",
         "description":"Specifies if term offsets should be returned. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\".",
-        "default":true,
-        "required":false
+        "default":true
       },
       "positions":{
         "type":"boolean",
         "description":"Specifies if term positions should be returned. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\".",
-        "default":true,
-        "required":false
+        "default":true
       },
       "payloads":{
         "type":"boolean",
         "description":"Specifies if term payloads should be returned. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\".",
-        "default":true,
-        "required":false
+        "default":true
       },
       "preference":{
         "type":"string",
-        "description":"Specify the node or shard the operation should be performed on (default: random) .Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\".",
-        "required":false
+        "description":"Specify the node or shard the operation should be performed on (default: random) .Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\"."
       },
       "routing":{
         "type":"string",
-        "description":"Specific routing value. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\".",
-        "required":false
+        "description":"Specific routing value. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\"."
       },
       "realtime":{
         "type":"boolean",
-        "description":"Specifies if requests are real-time as opposed to near-real-time (default: true).",
-        "required":false
+        "description":"Specifies if requests are real-time as opposed to near-real-time (default: true)."
       },
       "version":{
         "type":"number",

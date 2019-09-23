@@ -1,3 +1,37 @@
+[[release-notes-7.3.2]]
+== {es} version 7.3.2
+
+Also see <<breaking-changes-7.3,Breaking changes in 7.3>>.
+
+[[bug-7.3.2]]
+[float]
+=== Bug fixes
+
+Data Frame::
+* Fix off-by-one error in checkpoint operations_behind {pull}46235[#46235]
+
+Distributed::
+* Update translog checkpoint after marking operations as persisted {pull}45634[#45634] (issue: {issue}29161[#29161])
+
+Engine::
+* Handle delete document level failures {pull}46100[#46100] (issue: {issue}46083[#46083])
+* Handle no-op document level failures {pull}46083[#46083]
+
+Infra/Scripting::
+* Fix bugs in Painless SCatch node {pull}45880[#45880]
+
+Machine learning::
+* Throw an error when a datafeed needs {ccs} but it is not enabled for the node {pull}46044[#46044]
+
+SQL::
+* SQL: Fix issue with IIF function when condition folds {pull}46290[#46290] (issue: {issue}46268[#46268])
+* SQL: Fix issue with DataType for CASE with NULL {pull}46173[#46173] (issue: {issue}46032[#46032])
+
+Search::
+* Multi-get requests should wait for search active {pull}46283[#46283] (issue: {issue}27500[#27500])
+* Ensure top docs optimization is fully disabled for queries with unbounded max scores. {pull}46105[#46105] (issue: {issue}45933[#45933])
+
+
 [[release-notes-7.3.1]]
 == {es} version 7.3.1
 
@@ -228,6 +262,7 @@ Distributed::
 * Improve Close Index Response {pull}39687[#39687] (issue: {issue}33888[#33888])
 
 Engine::
+* Use reader attributes to control term dict memory useage {pull}42838[#42838] (issue: {issue}38390[#38390])
 * Remove sort by primary term when reading soft-deletes {pull}43845[#43845]
 * Refresh translog stats after translog trimming in NoOpEngine {pull}43825[#43825] (issue: {issue}43156[#43156])
 * Expose translog stats in ReadOnlyEngine {pull}43752[#43752]

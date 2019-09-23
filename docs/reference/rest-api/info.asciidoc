@@ -41,11 +41,10 @@ The information provided by this API includes:
 
 The following example queries the info API:
 
-[source,js]
+[source,console]
 ------------------------------------------------------------
 GET /_xpack
 ------------------------------------------------------------
-// CONSOLE
 
 Example response:
 
@@ -67,10 +66,6 @@ Example response:
       "ccr" : {
         "available" : true,
         "enabled" : true
-      },
-      "data_frame" : {
-          "available" : true,
-          "enabled" : true
       },
       "analytics" : {
           "available" : true,
@@ -124,6 +119,10 @@ Example response:
          "available" : true,
          "enabled" : true
       },
+      "transform" : {
+         "available" : true,
+         "enabled" : true
+      },
       "vectors" : {
          "available" : true,
          "enabled" : true
@@ -150,16 +149,14 @@ Example response:
 
 The following example only returns the build and features information:
 
-[source,js]
+[source,console]
 ------------------------------------------------------------
 GET /_xpack?categories=build,features
 ------------------------------------------------------------
-// CONSOLE
 
 The following example removes the descriptions from the response:
 
-[source,js]
+[source,console]
 ------------------------------------------------------------
 GET /_xpack?human=false
 ------------------------------------------------------------
-// CONSOLE

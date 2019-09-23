@@ -45,11 +45,10 @@ this API. For more information, see
 
 The following example gets a watch with `my-watch` id:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _watcher/watch/my_watch
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:my_active_watch]
 
 Response:

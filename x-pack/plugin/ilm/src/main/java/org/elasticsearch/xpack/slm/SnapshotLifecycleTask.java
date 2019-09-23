@@ -94,7 +94,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                     final long timestamp = Instant.now().toEpochMilli();
                     clusterService.submitStateUpdateTask("slm-record-success-" + policyMetadata.getPolicy().getId(),
                         WriteJobStatus.success(policyMetadata.getPolicy().getId(), request.snapshot(), timestamp));
-                    historyStore.putAsync(SnapshotHistoryItem.successRecord(timestamp, policyMetadata.getPolicy(), request.snapshot()));
+                    historyStore.putAsync(SnapshotHistoryItem.creationSuccessRecord(timestamp, policyMetadata.getPolicy(),
+                        request.snapshot()));
                 }
 
                 @Override
@@ -106,7 +107,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                         WriteJobStatus.failure(policyMetadata.getPolicy().getId(), request.snapshot(), timestamp, e));
                     final SnapshotHistoryItem failureRecord;
                     try {
-                        failureRecord = SnapshotHistoryItem.failureRecord(timestamp, policyMetadata.getPolicy(), request.snapshot(), e);
+                        failureRecord = SnapshotHistoryItem.creationFailureRecord(timestamp, policyMetadata.getPolicy(),
+                            request.snapshot(), e);
                         historyStore.putAsync(failureRecord);
                     } catch (IOException ex) {
                         // This shouldn't happen unless there's an issue with serializing the original exception, which shouldn't happen
@@ -192,15 +194,19 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             }
 
             SnapshotLifecyclePolicyMetadata.Builder newPolicyMetadata = SnapshotLifecyclePolicyMetadata.builder(policyMetadata);
+            final SnapshotLifecycleStats stats = snapMeta.getStats();
 
             if (exception.isPresent()) {
+                stats.snapshotFailed(policyName);
                 newPolicyMetadata.setLastFailure(new SnapshotInvocationRecord(snapshotName, timestamp, exceptionToString()));
             } else {
+                stats.snapshotTaken(policyName);
                 newPolicyMetadata.setLastSuccess(new SnapshotInvocationRecord(snapshotName, timestamp, null));
             }
 
             snapLifecycles.put(policyName, newPolicyMetadata.build());
-            SnapshotLifecycleMetadata lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles, snapMeta.getOperationMode());
+            SnapshotLifecycleMetadata lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles,
+                snapMeta.getOperationMode(), stats);
             MetaData currentMeta = currentState.metaData();
             return ClusterState.builder(currentState)
                 .metaData(MetaData.builder(currentMeta)

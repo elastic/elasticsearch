@@ -24,7 +24,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.symbol.ClassTable;
 import org.objectweb.asm.Label;
 
 import java.util.Set;
@@ -51,12 +51,12 @@ public class PSubNullSafeField extends AStoreable {
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
+    void analyze(ClassTable classTable, Locals locals) {
         if (write) {
             throw createError(new IllegalArgumentException("Can't write to null safe reference"));
         }
         guarded.read = read;
-        guarded.analyze(functions, locals);
+        guarded.analyze(classTable, locals);
         actual = guarded.actual;
         if (actual.isPrimitive()) {
             throw new IllegalArgumentException("Result of null safe operator must be nullable");

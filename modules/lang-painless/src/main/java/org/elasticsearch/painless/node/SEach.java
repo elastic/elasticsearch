@@ -27,7 +27,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.symbol.ClassTable;
 
 import java.util.Objects;
 import java.util.Set;
@@ -74,12 +74,12 @@ public class SEach extends AStatement {
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
-        expression.analyze(functions, locals);
+    void analyze(ClassTable classTable, Locals locals) {
+        expression.analyze(classTable, locals);
         expression.expected = expression.actual;
-        expression = expression.cast(functions, locals);
+        expression = expression.cast(classTable, locals);
 
-        Class<?> clazz = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
+        Class<?> clazz = classTable.getPainlessLookup().canonicalTypeNameToType(this.type);
 
         if (clazz == null) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
@@ -97,7 +97,7 @@ public class SEach extends AStatement {
                     "[" + PainlessLookupUtility.typeToCanonicalTypeName(expression.actual) + "]."));
         }
 
-        sub.analyze(functions, locals);
+        sub.analyze(classTable, locals);
 
         if (block == null) {
             throw createError(new IllegalArgumentException("Extraneous for each loop."));
@@ -105,7 +105,7 @@ public class SEach extends AStatement {
 
         block.beginLoop = true;
         block.inLoop = true;
-        block.analyze(functions, locals);
+        block.analyze(classTable, locals);
         block.statementCount = Math.max(1, block.statementCount);
 
         if (block.loopEscape && !block.anyContinue) {

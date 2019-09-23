@@ -28,7 +28,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.symbol.ClassTable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -67,7 +67,7 @@ final class SSubEachArray extends AStatement {
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
+    void analyze(ClassTable classTable, Locals locals) {
         // We must store the array and index as variables for securing slots on the stack, and
         // also add the location offset to make the names unique in case of nested for each loops.
         array = locals.addVariable(location, expression.actual, "#array" + location.getOffset(), true);

@@ -24,7 +24,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.symbol.ClassTable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -93,24 +93,24 @@ public final class SFor extends AStatement {
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
+    void analyze(ClassTable classTable, Locals locals) {
         locals = Locals.newLocalScope(locals);
 
         if (initializer != null) {
             if (initializer instanceof SDeclBlock) {
-                initializer.analyze(functions, locals);
+                initializer.analyze(classTable, locals);
             } else if (initializer instanceof AExpression) {
                 AExpression initializer = (AExpression)this.initializer;
 
                 initializer.read = false;
-                initializer.analyze(functions, locals);
+                initializer.analyze(classTable, locals);
 
                 if (!initializer.statement) {
                     throw createError(new IllegalArgumentException("Not a statement."));
                 }
 
                 initializer.expected = initializer.actual;
-                this.initializer = initializer.cast(functions, locals);
+                this.initializer = initializer.cast(classTable, locals);
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
@@ -118,8 +118,8 @@ public final class SFor extends AStatement {
 
         if (condition != null) {
             condition.expected = boolean.class;
-            condition.analyze(functions, locals);
-            condition = condition.cast(functions, locals);
+            condition.analyze(classTable, locals);
+            condition = condition.cast(classTable, locals);
 
             if (condition.constant != null) {
                 continuous = (boolean)condition.constant;
@@ -138,21 +138,21 @@ public final class SFor extends AStatement {
 
         if (afterthought != null) {
             afterthought.read = false;
-            afterthought.analyze(functions, locals);
+            afterthought.analyze(classTable, locals);
 
             if (!afterthought.statement) {
                 throw createError(new IllegalArgumentException("Not a statement."));
             }
 
             afterthought.expected = afterthought.actual;
-            afterthought = afterthought.cast(functions, locals);
+            afterthought = afterthought.cast(classTable, locals);
         }
 
         if (block != null) {
             block.beginLoop = true;
             block.inLoop = true;
 
-            block.analyze(functions, locals);
+            block.analyze(classTable, locals);
 
             if (block.loopEscape && !block.anyContinue) {
                 throw createError(new IllegalArgumentException("Extraneous for loop."));

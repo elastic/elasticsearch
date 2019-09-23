@@ -24,7 +24,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.symbol.ClassTable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -65,10 +65,10 @@ public final class SIf extends AStatement {
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
+    void analyze(ClassTable classTable, Locals locals) {
         condition.expected = boolean.class;
-        condition.analyze(functions, locals);
-        condition = condition.cast(functions, locals);
+        condition.analyze(classTable, locals);
+        condition = condition.cast(classTable, locals);
 
         if (condition.constant != null) {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
@@ -82,7 +82,7 @@ public final class SIf extends AStatement {
         ifblock.inLoop = inLoop;
         ifblock.lastLoop = lastLoop;
 
-        ifblock.analyze(functions, Locals.newLocalScope(locals));
+        ifblock.analyze(classTable, Locals.newLocalScope(locals));
 
         anyContinue = ifblock.anyContinue;
         anyBreak = ifblock.anyBreak;

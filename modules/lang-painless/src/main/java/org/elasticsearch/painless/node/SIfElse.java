@@ -24,7 +24,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.symbol.ClassTable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -78,10 +78,10 @@ public final class SIfElse extends AStatement {
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
+    void analyze(ClassTable classTable, Locals locals) {
         condition.expected = boolean.class;
-        condition.analyze(functions, locals);
-        condition = condition.cast(functions, locals);
+        condition.analyze(classTable, locals);
+        condition = condition.cast(classTable, locals);
 
         if (condition.constant != null) {
             throw createError(new IllegalArgumentException("Extraneous if statement."));
@@ -95,7 +95,7 @@ public final class SIfElse extends AStatement {
         ifblock.inLoop = inLoop;
         ifblock.lastLoop = lastLoop;
 
-        ifblock.analyze(functions, Locals.newLocalScope(locals));
+        ifblock.analyze(classTable, Locals.newLocalScope(locals));
 
         anyContinue = ifblock.anyContinue;
         anyBreak = ifblock.anyBreak;
@@ -109,7 +109,7 @@ public final class SIfElse extends AStatement {
         elseblock.inLoop = inLoop;
         elseblock.lastLoop = lastLoop;
 
-        elseblock.analyze(functions, Locals.newLocalScope(locals));
+        elseblock.analyze(classTable, Locals.newLocalScope(locals));
 
         methodEscape = ifblock.methodEscape && elseblock.methodEscape;
         loopEscape = ifblock.loopEscape && elseblock.loopEscape;

@@ -24,7 +24,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.symbol.ClassTable;
 
 import java.util.Objects;
 import java.util.Set;
@@ -55,7 +55,7 @@ final class PSubArrayLength extends AStoreable {
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
+    void analyze(ClassTable classTable, Locals locals) {
         if ("length".equals(value)) {
             if (write) {
                 throw createError(new IllegalArgumentException("Cannot write to read-only field [length] for an array."));

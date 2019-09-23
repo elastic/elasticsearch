@@ -24,7 +24,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.symbol.ClassTable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -71,7 +71,7 @@ public abstract class ANode {
     /**
      * Checks for errors and collects data for the writing phase.
      */
-    abstract void analyze(FunctionTable functions, Locals locals);
+    abstract void analyze(ClassTable classTable, Locals locals);
 
     /**
      * Writes ASM based on the data collected during the analysis phase.

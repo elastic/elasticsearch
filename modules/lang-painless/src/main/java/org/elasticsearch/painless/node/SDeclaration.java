@@ -25,7 +25,7 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.symbol.ClassTable;
 import org.objectweb.asm.Opcodes;
 
 import java.util.Objects;
@@ -67,8 +67,8 @@ public final class SDeclaration extends AStatement {
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
-        Class<?> clazz = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
+    void analyze(ClassTable classTable, Locals locals) {
+        Class<?> clazz = classTable.getPainlessLookup().canonicalTypeNameToType(this.type);
 
         if (clazz == null) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
@@ -76,8 +76,8 @@ public final class SDeclaration extends AStatement {
 
         if (expression != null) {
             expression.expected = clazz;
-            expression.analyze(functions, locals);
-            expression = expression.cast(functions, locals);
+            expression.analyze(classTable, locals);
+            expression = expression.cast(classTable, locals);
         }
 
         variable = locals.addVariable(location, clazz, name, false);

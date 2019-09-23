@@ -28,7 +28,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.symbol.ClassTable;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Opcodes;
 
@@ -131,7 +131,7 @@ public final class SFunction extends AStatement {
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
+    void analyze(ClassTable classTable, Locals locals) {
         if (statements == null || statements.isEmpty()) {
             throw createError(new IllegalArgumentException("Cannot generate an empty function [" + name + "]."));
         }
@@ -149,7 +149,7 @@ public final class SFunction extends AStatement {
 
             statement.lastSource = statement == last;
 
-            statement.analyze(functions, locals);
+            statement.analyze(classTable, locals);
 
             methodEscape = statement.methodEscape;
             allEscape = statement.allEscape;

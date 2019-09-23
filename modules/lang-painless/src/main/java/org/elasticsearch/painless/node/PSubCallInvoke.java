@@ -25,7 +25,7 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.symbol.ClassTable;
 
 import java.util.List;
 import java.util.Objects;
@@ -59,14 +59,14 @@ final class PSubCallInvoke extends AExpression {
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
+    void analyze(ClassTable classTable, Locals locals) {
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
             expression.expected = method.typeParameters.get(argument);
             expression.internal = true;
-            expression.analyze(functions, locals);
-            arguments.set(argument, expression.cast(functions, locals));
+            expression.analyze(classTable, locals);
+            arguments.set(argument, expression.cast(classTable, locals));
         }
 
         statement = true;

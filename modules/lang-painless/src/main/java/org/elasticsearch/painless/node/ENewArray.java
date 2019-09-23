@@ -24,7 +24,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.symbol.ClassTable;
 
 import java.util.List;
 import java.util.Objects;
@@ -62,12 +62,12 @@ public final class ENewArray extends AExpression {
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
+    void analyze(ClassTable classTable, Locals locals) {
         if (!read) {
              throw createError(new IllegalArgumentException("A newly created array must be read from."));
         }
 
-        Class<?> clazz = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
+        Class<?> clazz = classTable.getPainlessLookup().canonicalTypeNameToType(this.type);
 
         if (clazz == null) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
@@ -78,8 +78,8 @@ public final class ENewArray extends AExpression {
 
             expression.expected = initialize ? clazz.getComponentType() : int.class;
             expression.internal = true;
-            expression.analyze(functions, locals);
-            arguments.set(argument, expression.cast(functions, locals));
+            expression.analyze(classTable, locals);
+            arguments.set(argument, expression.cast(classTable, locals));
         }
 
         actual = clazz;

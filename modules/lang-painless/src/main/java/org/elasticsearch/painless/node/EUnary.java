@@ -29,7 +29,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.symbol.ClassTable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
@@ -66,26 +66,26 @@ public final class EUnary extends AExpression {
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
+    void analyze(ClassTable classTable, Locals locals) {
         originallyExplicit = explicit;
 
         if (operation == Operation.NOT) {
-            analyzeNot(functions, locals);
+            analyzeNot(classTable, locals);
         } else if (operation == Operation.BWNOT) {
-            analyzeBWNot(functions, locals);
+            analyzeBWNot(classTable, locals);
         } else if (operation == Operation.ADD) {
-            analyzerAdd(functions, locals);
+            analyzerAdd(classTable, locals);
         } else if (operation == Operation.SUB) {
-            analyzerSub(functions, locals);
+            analyzerSub(classTable, locals);
         } else {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 
-    void analyzeNot(FunctionTable functions, Locals variables) {
+    void analyzeNot(ClassTable classTable, Locals variables) {
         child.expected = boolean.class;
-        child.analyze(functions, variables);
-        child = child.cast(functions, variables);
+        child.analyze(classTable, variables);
+        child = child.cast(classTable, variables);
 
         if (child.constant != null) {
             constant = !(boolean)child.constant;
@@ -94,8 +94,8 @@ public final class EUnary extends AExpression {
         actual = boolean.class;
     }
 
-    void analyzeBWNot(FunctionTable functions, Locals variables) {
-        child.analyze(functions, variables);
+    void analyzeBWNot(ClassTable classTable, Locals variables) {
+        child.analyze(classTable, variables);
 
         promote = AnalyzerCaster.promoteNumeric(child.actual, false);
 
@@ -105,7 +105,7 @@ public final class EUnary extends AExpression {
         }
 
         child.expected = promote;
-        child = child.cast(functions, variables);
+        child = child.cast(classTable, variables);
 
         if (child.constant != null) {
             if (promote == int.class) {
@@ -124,8 +124,8 @@ public final class EUnary extends AExpression {
         }
     }
 
-    void analyzerAdd(FunctionTable functions, Locals variables) {
-        child.analyze(functions, variables);
+    void analyzerAdd(ClassTable classTable, Locals variables) {
+        child.analyze(classTable, variables);
 
         promote = AnalyzerCaster.promoteNumeric(child.actual, true);
 
@@ -135,7 +135,7 @@ public final class EUnary extends AExpression {
         }
 
         child.expected = promote;
-        child = child.cast(functions, variables);
+        child = child.cast(classTable, variables);
 
         if (child.constant != null) {
             if (promote == int.class) {
@@ -158,8 +158,8 @@ public final class EUnary extends AExpression {
         }
     }
 
-    void analyzerSub(FunctionTable functions, Locals variables) {
-        child.analyze(functions, variables);
+    void analyzerSub(ClassTable classTable, Locals variables) {
+        child.analyze(classTable, variables);
 
         promote = AnalyzerCaster.promoteNumeric(child.actual, true);
 
@@ -169,7 +169,7 @@ public final class EUnary extends AExpression {
         }
 
         child.expected = promote;
-        child = child.cast(functions, variables);
+        child = child.cast(classTable, variables);
 
         if (child.constant != null) {
             if (promote == int.class) {

@@ -27,7 +27,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.symbol.ClassTable;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
 
@@ -67,21 +67,21 @@ public final class EListInit extends AExpression {
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
+    void analyze(ClassTable classTable, Locals locals) {
         if (!read) {
             throw createError(new IllegalArgumentException("Must read from list initializer."));
         }
 
         actual = ArrayList.class;
 
-        constructor = locals.getPainlessLookup().lookupPainlessConstructor(actual, 0);
+        constructor = classTable.getPainlessLookup().lookupPainlessConstructor(actual, 0);
 
         if (constructor == null) {
             throw createError(new IllegalArgumentException(
                     "constructor [" + typeToCanonicalTypeName(actual) + ", <init>/0] not found"));
         }
 
-        method = locals.getPainlessLookup().lookupPainlessMethod(actual, false, "add", 1);
+        method = classTable.getPainlessLookup().lookupPainlessMethod(actual, false, "add", 1);
 
         if (method == null) {
             throw createError(new IllegalArgumentException("method [" + typeToCanonicalTypeName(actual) + ", add/1] not found"));
@@ -92,8 +92,8 @@ public final class EListInit extends AExpression {
 
             expression.expected = def.class;
             expression.internal = true;
-            expression.analyze(functions, locals);
-            values.set(index, expression.cast(functions, locals));
+            expression.analyze(classTable, locals);
+            values.set(index, expression.cast(classTable, locals));
         }
     }
 

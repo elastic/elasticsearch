@@ -25,7 +25,7 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.symbol.ClassTable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -72,8 +72,8 @@ public final class SCatch extends AStatement {
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
-        Class<?> clazz = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
+    void analyze(ClassTable classTable, Locals locals) {
+        Class<?> clazz = classTable.getPainlessLookup().canonicalTypeNameToType(this.type);
 
         if (clazz == null) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
@@ -90,7 +90,7 @@ public final class SCatch extends AStatement {
             block.inLoop = inLoop;
             block.lastLoop = lastLoop;
 
-            block.analyze(functions, locals);
+            block.analyze(classTable, locals);
 
             methodEscape = block.methodEscape;
             loopEscape = block.loopEscape;

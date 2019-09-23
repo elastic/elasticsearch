@@ -30,7 +30,7 @@ import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.symbol.ClassTable;
 
 import java.util.Objects;
 import java.util.Set;
@@ -72,43 +72,43 @@ public final class EBinary extends AExpression {
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
+    void analyze(ClassTable classTable, Locals locals) {
         originallyExplicit = explicit;
 
         if (operation == Operation.MUL) {
-            analyzeMul(functions, locals);
+            analyzeMul(classTable, locals);
         } else if (operation == Operation.DIV) {
-            analyzeDiv(functions, locals);
+            analyzeDiv(classTable, locals);
         } else if (operation == Operation.REM) {
-            analyzeRem(functions, locals);
+            analyzeRem(classTable, locals);
         } else if (operation == Operation.ADD) {
-            analyzeAdd(functions, locals);
+            analyzeAdd(classTable, locals);
         } else if (operation == Operation.SUB) {
-            analyzeSub(functions, locals);
+            analyzeSub(classTable, locals);
         } else if (operation == Operation.FIND) {
-            analyzeRegexOp(functions, locals);
+            analyzeRegexOp(classTable, locals);
         } else if (operation == Operation.MATCH) {
-            analyzeRegexOp(functions, locals);
+            analyzeRegexOp(classTable, locals);
         } else if (operation == Operation.LSH) {
-            analyzeLSH(functions, locals);
+            analyzeLSH(classTable, locals);
         } else if (operation == Operation.RSH) {
-            analyzeRSH(functions, locals);
+            analyzeRSH(classTable, locals);
         } else if (operation == Operation.USH) {
-            analyzeUSH(functions, locals);
+            analyzeUSH(classTable, locals);
         } else if (operation == Operation.BWAND) {
-            analyzeBWAnd(functions, locals);
+            analyzeBWAnd(classTable, locals);
         } else if (operation == Operation.XOR) {
-            analyzeXor(functions, locals);
+            analyzeXor(classTable, locals);
         } else if (operation == Operation.BWOR) {
-            analyzeBWOr(functions, locals);
+            analyzeBWOr(classTable, locals);
         } else {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 
-    private void analyzeMul(FunctionTable functions, Locals variables) {
-        left.analyze(functions, variables);
-        right.analyze(functions, variables);
+    private void analyzeMul(ClassTable classTable, Locals variables) {
+        left.analyze(classTable, variables);
+        right.analyze(classTable, variables);
 
         promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
@@ -131,8 +131,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(functions, variables);
-        right = right.cast(functions, variables);
+        left = left.cast(classTable, variables);
+        right = right.cast(classTable, variables);
 
         if (left.constant != null && right.constant != null) {
             if (promote == int.class) {
@@ -149,9 +149,9 @@ public final class EBinary extends AExpression {
         }
     }
 
-    private void analyzeDiv(FunctionTable functions, Locals variables) {
-        left.analyze(functions, variables);
-        right.analyze(functions, variables);
+    private void analyzeDiv(ClassTable classTable, Locals variables) {
+        left.analyze(classTable, variables);
+        right.analyze(classTable, variables);
 
         promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
@@ -175,8 +175,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(functions, variables);
-        right = right.cast(functions, variables);
+        left = left.cast(classTable, variables);
+        right = right.cast(classTable, variables);
 
         if (left.constant != null && right.constant != null) {
             try {
@@ -197,9 +197,9 @@ public final class EBinary extends AExpression {
         }
     }
 
-    private void analyzeRem(FunctionTable functions, Locals variables) {
-        left.analyze(functions, variables);
-        right.analyze(functions, variables);
+    private void analyzeRem(ClassTable classTable, Locals variables) {
+        left.analyze(classTable, variables);
+        right.analyze(classTable, variables);
 
         promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
@@ -223,8 +223,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(functions, variables);
-        right = right.cast(functions, variables);
+        left = left.cast(classTable, variables);
+        right = right.cast(classTable, variables);
 
         if (left.constant != null && right.constant != null) {
             try {
@@ -245,9 +245,9 @@ public final class EBinary extends AExpression {
         }
     }
 
-    private void analyzeAdd(FunctionTable functions, Locals variables) {
-        left.analyze(functions, variables);
-        right.analyze(functions, variables);
+    private void analyzeAdd(ClassTable classTable, Locals variables) {
+        left.analyze(classTable, variables);
+        right.analyze(classTable, variables);
 
         promote = AnalyzerCaster.promoteAdd(left.actual, right.actual);
 
@@ -283,8 +283,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(functions, variables);
-        right = right.cast(functions, variables);
+        left = left.cast(classTable, variables);
+        right = right.cast(classTable, variables);
 
         if (left.constant != null && right.constant != null) {
             if (promote == int.class) {
@@ -304,9 +304,9 @@ public final class EBinary extends AExpression {
 
     }
 
-    private void analyzeSub(FunctionTable functions, Locals variables) {
-        left.analyze(functions, variables);
-        right.analyze(functions, variables);
+    private void analyzeSub(ClassTable classTable, Locals variables) {
+        left.analyze(classTable, variables);
+        right.analyze(classTable, variables);
 
         promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
@@ -330,8 +330,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(functions, variables);
-        right = right.cast(functions, variables);
+        left = left.cast(classTable, variables);
+        right = right.cast(classTable, variables);
 
         if (left.constant != null && right.constant != null) {
             if (promote == int.class) {
@@ -348,23 +348,23 @@ public final class EBinary extends AExpression {
         }
     }
 
-    private void analyzeRegexOp(FunctionTable functions, Locals variables) {
-        left.analyze(functions, variables);
-        right.analyze(functions, variables);
+    private void analyzeRegexOp(ClassTable classTable, Locals variables) {
+        left.analyze(classTable, variables);
+        right.analyze(classTable, variables);
 
         left.expected = String.class;
         right.expected = Pattern.class;
 
-        left = left.cast(functions, variables);
-        right = right.cast(functions, variables);
+        left = left.cast(classTable, variables);
+        right = right.cast(classTable, variables);
 
         promote = boolean.class;
         actual = boolean.class;
     }
 
-    private void analyzeLSH(FunctionTable functions, Locals variables) {
-        left.analyze(functions, variables);
-        right.analyze(functions, variables);
+    private void analyzeLSH(ClassTable classTable, Locals variables) {
+        left.analyze(classTable, variables);
+        right.analyze(classTable, variables);
 
         Class<?> lhspromote = AnalyzerCaster.promoteNumeric(left.actual, false);
         Class<?> rhspromote = AnalyzerCaster.promoteNumeric(right.actual, false);
@@ -396,8 +396,8 @@ public final class EBinary extends AExpression {
             }
         }
 
-        left = left.cast(functions, variables);
-        right = right.cast(functions, variables);
+        left = left.cast(classTable, variables);
+        right = right.cast(classTable, variables);
 
         if (left.constant != null && right.constant != null) {
             if (promote == int.class) {
@@ -410,9 +410,9 @@ public final class EBinary extends AExpression {
         }
     }
 
-    private void analyzeRSH(FunctionTable functions, Locals variables) {
-        left.analyze(functions, variables);
-        right.analyze(functions, variables);
+    private void analyzeRSH(ClassTable classTable, Locals variables) {
+        left.analyze(classTable, variables);
+        right.analyze(classTable, variables);
 
         Class<?> lhspromote = AnalyzerCaster.promoteNumeric(left.actual, false);
         Class<?> rhspromote = AnalyzerCaster.promoteNumeric(right.actual, false);
@@ -444,8 +444,8 @@ public final class EBinary extends AExpression {
             }
         }
 
-        left = left.cast(functions, variables);
-        right = right.cast(functions, variables);
+        left = left.cast(classTable, variables);
+        right = right.cast(classTable, variables);
 
         if (left.constant != null && right.constant != null) {
             if (promote == int.class) {
@@ -458,9 +458,9 @@ public final class EBinary extends AExpression {
         }
     }
 
-    private void analyzeUSH(FunctionTable functions, Locals variables) {
-        left.analyze(functions, variables);
-        right.analyze(functions, variables);
+    private void analyzeUSH(ClassTable classTable, Locals variables) {
+        left.analyze(classTable, variables);
+        right.analyze(classTable, variables);
 
         Class<?> lhspromote = AnalyzerCaster.promoteNumeric(left.actual, false);
         Class<?> rhspromote = AnalyzerCaster.promoteNumeric(right.actual, false);
@@ -492,8 +492,8 @@ public final class EBinary extends AExpression {
             }
         }
 
-        left = left.cast(functions, variables);
-        right = right.cast(functions, variables);
+        left = left.cast(classTable, variables);
+        right = right.cast(classTable, variables);
 
         if (left.constant != null && right.constant != null) {
             if (promote == int.class) {
@@ -506,9 +506,9 @@ public final class EBinary extends AExpression {
         }
     }
 
-    private void analyzeBWAnd(FunctionTable functions, Locals variables) {
-        left.analyze(functions, variables);
-        right.analyze(functions, variables);
+    private void analyzeBWAnd(ClassTable classTable, Locals variables) {
+        left.analyze(classTable, variables);
+        right.analyze(classTable, variables);
 
         promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, false);
 
@@ -532,8 +532,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(functions, variables);
-        right = right.cast(functions, variables);
+        left = left.cast(classTable, variables);
+        right = right.cast(classTable, variables);
 
         if (left.constant != null && right.constant != null) {
             if (promote == int.class) {
@@ -546,9 +546,9 @@ public final class EBinary extends AExpression {
         }
     }
 
-    private void analyzeXor(FunctionTable functions, Locals variables) {
-        left.analyze(functions, variables);
-        right.analyze(functions, variables);
+    private void analyzeXor(ClassTable classTable, Locals variables) {
+        left.analyze(classTable, variables);
+        right.analyze(classTable, variables);
 
         promote = AnalyzerCaster.promoteXor(left.actual, right.actual);
 
@@ -571,8 +571,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(functions, variables);
-        right = right.cast(functions, variables);
+        left = left.cast(classTable, variables);
+        right = right.cast(classTable, variables);
 
         if (left.constant != null && right.constant != null) {
             if (promote == boolean.class) {
@@ -587,9 +587,9 @@ public final class EBinary extends AExpression {
         }
     }
 
-    private void analyzeBWOr(FunctionTable functions, Locals variables) {
-        left.analyze(functions, variables);
-        right.analyze(functions, variables);
+    private void analyzeBWOr(ClassTable classTable, Locals variables) {
+        left.analyze(classTable, variables);
+        right.analyze(classTable, variables);
 
         promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, false);
 
@@ -612,8 +612,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(functions, variables);
-        right = right.cast(functions, variables);
+        left = left.cast(classTable, variables);
+        right = right.cast(classTable, variables);
 
         if (left.constant != null && right.constant != null) {
             if (promote == int.class) {

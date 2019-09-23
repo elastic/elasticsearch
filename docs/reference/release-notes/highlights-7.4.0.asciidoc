@@ -123,7 +123,7 @@ AdoptOpenJDK 13 is now supported and shipped with {es} as the pre-bundled JDK.
 If you want to use your own JDK,
 you can still do so by setting `JAVA_HOME` before starting Elasticsearch.
 
-The availabiliity of a notarized AdoptOpenJDK package
+The availability of a notarized AdoptOpenJDK package
 (per the new requirements for software running on macOS Catalina)
 facilitates notarization of {es} for continued support on macOS. 
 
@@ -131,7 +131,7 @@ facilitates notarization of {es} for continued support on macOS.
 
 // tag::notable-highlights[]
 [float]
-==== Regression analysis
+==== Regression analysis - Experimental
 
 <<dfa-regression,Regression analysis>> is an experimental machine learning process
 for estimating the relationships among a number of feature variables and a dependent variable,

@@ -18,12 +18,12 @@ import java.util.List;
  * Extension of the {@link RowSet} over a composite agg, extending it to provide its schema.
  * Used for the initial response.
  */
-class SchemaCompositeAggsRowSet extends CompositeAggsRowSet implements SchemaRowSet {
+class SchemaCompositeAggRowSet extends CompositeAggRowSet implements SchemaRowSet {
 
     private final Schema schema;
 
-    SchemaCompositeAggsRowSet(Schema schema, List<BucketExtractor> exts, BitSet mask, SearchResponse r, int limitAggs, byte[] next) {
-        super(exts, mask, r, limitAggs, next);
+    SchemaCompositeAggRowSet(Schema schema, List<BucketExtractor> exts, BitSet mask, SearchResponse r, int limitAggs) {
+        super(exts, mask, r, limitAggs);
         this.schema = schema;
     }
 

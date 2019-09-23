@@ -1125,7 +1125,6 @@ public class IndicesRequestConvertersTests extends ESTestCase {
     }
     public void testValidateQuery() throws Exception {
         String[] indices = ESTestCase.randomBoolean() ? null : RequestConvertersTests.randomIndicesNames(0, 5);
-        String[] types = ESTestCase.randomBoolean() ? ESTestCase.generateRandomStringArray(5, 5, false, false) : null;
         ValidateQueryRequest validateQueryRequest;
         if (ESTestCase.randomBoolean()) {
             validateQueryRequest = new ValidateQueryRequest(indices);
@@ -1133,7 +1132,6 @@ public class IndicesRequestConvertersTests extends ESTestCase {
             validateQueryRequest = new ValidateQueryRequest();
             validateQueryRequest.indices(indices);
         }
-        validateQueryRequest.types(types);
         Map<String, String> expectedParams = new HashMap<>();
         RequestConvertersTests.setRandomIndicesOptions(validateQueryRequest::indicesOptions, validateQueryRequest::indicesOptions,
             expectedParams);
@@ -1147,9 +1145,6 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         if (indices != null && indices.length > 0) {
             endpoint.add(String.join(",", indices));
-            if (types != null && types.length > 0) {
-                endpoint.add(String.join(",", types));
-            }
         }
         endpoint.add("_validate/query");
         Assert.assertThat(request.getEndpoint(), equalTo(endpoint.toString()));

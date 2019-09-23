@@ -14,7 +14,7 @@ These resource definitions are used in APIs related to {ml-features} and
 * <<ml-snapshot-resource,{anomaly-detect-cap} model snapshots>>
 * <<ml-results-resource,{anomaly-detect-cap} results>>
 * <<role-mapping-resources,Role mappings>>
-* <<data-frame-transform-resource,{transforms-cap}>>
+* <<transform-resource,{transforms-cap}>>
 
 include::{es-repo-dir}/ml/anomaly-detection/apis/datafeedresource.asciidoc[]
 include::{es-repo-dir}/ml/df-analytics/apis/dfanalyticsresources.asciidoc[]

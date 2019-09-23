@@ -270,7 +270,6 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
     private static void assertExplanation(QueryBuilder queryBuilder, Matcher<String> matcher, boolean withRewrite) {
         ValidateQueryResponse response = client().admin().indices().prepareValidateQuery("test")
-                .setTypes("type1")
                 .setQuery(queryBuilder)
                 .setExplain(true)
                 .setRewrite(withRewrite)
@@ -285,7 +284,6 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                                            List<Matcher<String>> matchers, boolean withRewrite,
                                            boolean allShards) {
         ValidateQueryResponse response = client().admin().indices().prepareValidateQuery("test")
-            .setTypes("type1")
             .setQuery(queryBuilder)
             .setExplain(true)
             .setRewrite(withRewrite)
@@ -309,7 +307,6 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
         TermsQueryBuilder termsLookupQuery = QueryBuilders.termsLookupQuery("user", new TermsLookup("twitter", "_doc", "1", "followers"));
         ValidateQueryResponse response = client().admin().indices().prepareValidateQuery("twitter")
-            .setTypes("_doc")
             .setQuery(termsLookupQuery)
             .setExplain(true)
             .execute().actionGet();

@@ -67,7 +67,8 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
     ExplainRequest(StreamInput in) throws IOException {
         super(in);
         if (in.getVersion().before(Version.V_8_0_0)) {
-            in.readString();
+            String type = in.readString();
+            assert MapperService.SINGLE_MAPPING_NAME.equals(type);
         }
         id = in.readString();
         routing = in.readOptionalString();

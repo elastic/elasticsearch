@@ -12,50 +12,50 @@ import org.elasticsearch.xpack.sql.session.RowSet;
 
 import java.util.BitSet;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.emptyList;
 
 /**
  * {@link RowSet} specific to (GROUP BY) aggregation.
  */
-class CompositeAggsRowSet extends ResultRowSet<BucketExtractor> {
+class CompositeAggRowSet extends ResultRowSet<BucketExtractor> {
 
-    private final List<? extends CompositeAggregation.Bucket> buckets;
-    private final int remainingData;
-    private final int size;
-    private int row = 0;
+    final List<? extends CompositeAggregation.Bucket> buckets;
 
-    CompositeAggsRowSet(List<BucketExtractor> exts, BitSet mask, SearchResponse response, int limit, byte[] next) {
+    Map<String, Object> afterKey;
+    int remainingData;
+    int size;
+    int row = 0;
+
+    CompositeAggRowSet(List<BucketExtractor> exts, BitSet mask, SearchResponse response, int limit) {
         super(exts, mask);
 
-        CompositeAggregation composite = CompositeAggregationCursor.getComposite(response);
+        CompositeAggregation composite = CompositeAggCursor.getComposite(response);
         if (composite != null) {
             buckets = composite.getBuckets();
+            afterKey = composite.afterKey();
         } else {
             buckets = emptyList();
+            afterKey = null;
         }
 
         // page size
         size = limit == -1 ? buckets.size() : Math.min(buckets.size(), limit);
+        remainingData = remainingData(afterKey != null, size, limit);
+    }
 
-        if (next == null) {
-            remainingData = 0;
+    static int remainingData(boolean hasNextPage, int size, int limit) {
+        if (hasNextPage == false) {
+            return 0;
         } else {
-            // Compute remaining limit
-
-            // If the limit is -1 then we have a local sorting (sort on aggregate function) that requires all the buckets
-            // to be processed so we stop only when all data is exhausted.
             int remainingLimit = (limit == -1) ? limit : ((limit - size) >= 0 ? (limit - size) : 0);
 
             // if the computed limit is zero, or the size is zero it means either there's nothing left or the limit has been reached
             // note that a composite agg might be valid but return zero groups (since these can be filtered with HAVING/bucket selector)
             // however the Querier takes care of that and keeps making requests until either the query is invalid or at least one response
             // is returned.
-            if (size == 0 || remainingLimit == 0) {
-                remainingData = 0;
-            } else {
-                remainingData = remainingLimit;
-            }
+            return size == 0 ? size : remainingLimit;
         }
     }
 
@@ -90,5 +90,9 @@ class CompositeAggsRowSet extends ResultRowSet<BucketExtractor> {
 
     int remainingData() {
         return remainingData;
+    }
+
+    Map<String, Object> afterKey() {
+        return afterKey;
     }
 }

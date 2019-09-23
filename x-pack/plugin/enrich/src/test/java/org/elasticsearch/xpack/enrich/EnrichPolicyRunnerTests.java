@@ -255,6 +255,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             IndexResponse indexRequest = client().index(new IndexRequest()
                 .index(sourceIndex)
                 .id(collidingDocId)
+                .routing(collidingDocId + idx)
                 .source(
                     "{" +
                         "\"idx\":" + idx + "," +
@@ -284,6 +285,12 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             assertThat(sourceDocMap.get("field3"), is(equalTo("ignored")));
             assertThat(sourceDocMap.get("field4"), is(equalTo("ignored")));
             assertThat(sourceDocMap.get("field5"), is(equalTo("value5")));
+
+            SearchResponse routingSearchResponse = client().search(
+                new SearchRequest(sourceIndex)
+                    .source(SearchSourceBuilder.searchSource()
+                        .query(QueryBuilders.matchQuery("_routing", collidingDocId + idx)))).actionGet();
+            assertEquals(1L, routingSearchResponse.getHits().getTotalHits().value);
         }
 
         String sourceIndexPattern = baseSourceName + "*";
@@ -337,6 +344,15 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(enrichDocument.get("field1"), is(equalTo("value1")));
         assertThat(enrichDocument.get("field2"), is(equalTo(2)));
         assertThat(enrichDocument.get("field5"), is(equalTo("value5")));
+
+        // Validate removal of routing values
+        for (int idx = 0; idx < numberOfSourceIndices; idx++) {
+            SearchResponse routingSearchResponse = client().search(
+                new SearchRequest(".enrich-test1")
+                    .source(SearchSourceBuilder.searchSource()
+                        .query(QueryBuilders.matchQuery("_routing", collidingDocId + idx)))).actionGet();
+            assertEquals(0L, routingSearchResponse.getHits().getTotalHits().value);
+        }
 
         // Validate segments
         validateSegments(createdEnrichIndex, 3);

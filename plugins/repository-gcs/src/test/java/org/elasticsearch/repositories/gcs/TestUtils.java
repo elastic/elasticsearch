@@ -144,13 +144,13 @@ final class TestUtils {
         return parse(PATTERN_CONTENT_RANGE, contentRange, (bytes, limit) -> "*".equals(limit) ? null : Integer.parseInt(limit));
     }
 
-    static Integer getContentRangeStart(final String contentRange) {
+    static int getContentRangeStart(final String contentRange) {
         return parse(PATTERN_CONTENT_RANGE, contentRange,
             (bytes, limit) -> parse(PATTERN_CONTENT_RANGE_BYTES, bytes,
                 (start, end) -> Integer.parseInt(start)));
     }
 
-    static Integer getContentRangeEnd(final String contentRange) {
+    static int getContentRangeEnd(final String contentRange) {
         return parse(PATTERN_CONTENT_RANGE, contentRange,
             (bytes, limit) -> parse(PATTERN_CONTENT_RANGE_BYTES, bytes,
                 (start, end) -> Integer.parseInt(end)));

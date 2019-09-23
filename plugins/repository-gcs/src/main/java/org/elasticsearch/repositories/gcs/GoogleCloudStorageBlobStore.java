@@ -268,7 +268,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             } catch (final StorageException se) {
                 final int errorCode = se.getCode();
                 if (errorCode == HTTP_GONE) {
-                    logger.warn(() -> new ParameterizedMessage("Retrying broken resumable upload session for blob {}", blobInfo));
+                    logger.warn(() -> new ParameterizedMessage("Retrying broken resumable upload session for blob {}", blobInfo), se);
                     storageException = ExceptionsHelper.useOrSuppress(storageException, se);
                     inputStream.reset();
                     continue;

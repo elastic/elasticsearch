@@ -107,7 +107,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
         super.tearDown();
     }
 
-    private BlobContainer createBlobContainer(final @Nullable Integer maxRetries, final @Nullable TimeValue readTimeout) {
+    private BlobContainer createBlobContainer(final int maxRetries, final @Nullable TimeValue readTimeout) {
         final Settings.Builder clientSettings = Settings.builder();
         final String client = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         clientSettings.put(ENDPOINT_SETTING.getConcreteSettingForNamespace(client).getKey(), httpServerUrl());
@@ -131,7 +131,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
                         .setInitialRetryDelay(Duration.ofMillis(10L))
                         .setRetryDelayMultiplier(options.getRetrySettings().getRetryDelayMultiplier())
                         .setMaxRetryDelay(Duration.ofSeconds(1L))
-                        .setMaxAttempts(maxRetries != null ? maxRetries : 3)
+                        .setMaxAttempts(maxRetries)
                         .setJittered(false)
                         .setInitialRpcTimeout(options.getRetrySettings().getInitialRpcTimeout())
                         .setRpcTimeoutMultiplier(options.getRetrySettings().getRpcTimeoutMultiplier())
@@ -304,9 +304,6 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
     }
 
     public void testWriteLargeBlob() throws IOException {
-        final boolean useTimeout = rarely();
-        final TimeValue readTimeout = useTimeout ? TimeValue.timeValueMillis(randomIntBetween(100, 500)) : null;
-
         // See {@link BaseWriteChannel#DEFAULT_CHUNK_SIZE}
         final int defaultChunkSize = 8 * 256 * 1024;
         final int nbChunks = randomIntBetween(3, 5);
@@ -322,7 +319,8 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
         final AtomicInteger countInits = new AtomicInteger(nbErrors);
         final AtomicInteger countUploads = new AtomicInteger(nbErrors * totalChunks);
         final AtomicBoolean allow410Gone = new AtomicBoolean(randomBoolean());
-        final int goneChunk = randomIntBetween(1, totalChunks);
+        final AtomicBoolean allowReadTimeout = new AtomicBoolean(rarely());
+        final int wrongChunk = randomIntBetween(1, totalChunks);
 
         final AtomicReference<String> sessionUploadId = new AtomicReference<>(UUIDs.randomBase64UUID());
         logger.debug("starting with resumable upload id [{}]", sessionUploadId.get());
@@ -344,22 +342,30 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
                     exchange.close();
                     return;
                 }
+                if (allowReadTimeout.get()) {
+                    assertThat(wrongChunk, greaterThan(0));
+                    return;
+                }
 
             } else if ("PUT".equals(exchange.getRequestMethod())) {
                 final String uploadId = params.get("upload_id");
                 if (uploadId.equals(sessionUploadId.get()) == false) {
                     logger.debug("session id [{}] is gone", uploadId);
-                    assertThat(goneChunk, greaterThan(0));
+                    assertThat(wrongChunk, greaterThan(0));
                     Streams.readFully(exchange.getRequestBody());
                     exchange.sendResponseHeaders(HttpStatus.SC_GONE, -1);
                     exchange.close();
                     return;
                 }
 
-                if (countUploads.get() == (goneChunk * nbErrors)) {
+                if (countUploads.get() == (wrongChunk * nbErrors)) {
+                    if (allowReadTimeout.compareAndSet(true, false)) {
+                        assertThat(wrongChunk, greaterThan(0));
+                        return;
+                    }
                     if (allow410Gone.compareAndSet(true, false)) {
-                        final String newUploadId = UUIDs.randomBase64UUID();
-                        logger.debug("chunk [{}] gone, updating session ids [{} -> {}]", goneChunk, sessionUploadId.get(), newUploadId);
+                        final String newUploadId = UUIDs.randomBase64UUID(random());
+                        logger.debug("chunk [{}] gone, updating session ids [{} -> {}]", wrongChunk, sessionUploadId.get(), newUploadId);
                         sessionUploadId.set(newUploadId);
 
                         // we must reset the counters because the whole object upload will be retried
@@ -381,8 +387,8 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
                     final long bytesRead = Streams.copy(exchange.getRequestBody(), requestBody);
                     assertThat(Math.toIntExact(bytesRead), anyOf(equalTo(defaultChunkSize), equalTo(lastChunkSize)));
 
-                    final Integer rangeStart = TestUtils.getContentRangeStart(range);
-                    final Integer rangeEnd = TestUtils.getContentRangeEnd(range);
+                    final int rangeStart = TestUtils.getContentRangeStart(range);
+                    final int rangeEnd = TestUtils.getContentRangeEnd(range);
                     assertThat(rangeEnd + 1 - rangeStart, equalTo(Math.toIntExact(bytesRead)));
                     assertArrayEquals(Arrays.copyOfRange(data, rangeStart, rangeEnd + 1), requestBody.toByteArray());
 
@@ -401,17 +407,15 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends ESTestCase {
                 }
             }
 
-            // sends an error back or let the request time out
-            if (useTimeout == false) {
-                // read all the request body, otherwise the SDK client throws a non-retryable StorageException
-                Streams.readFully(exchange.getRequestBody());
-                if (randomBoolean()) {
-                    exchange.sendResponseHeaders(HttpStatus.SC_INTERNAL_SERVER_ERROR, -1);
-                }
-                exchange.close();
+            // read all the request body, otherwise the SDK client throws a non-retryable StorageException
+            Streams.readFully(exchange.getRequestBody());
+            if (randomBoolean()) {
+                exchange.sendResponseHeaders(HttpStatus.SC_INTERNAL_SERVER_ERROR, -1);
             }
-
+            exchange.close();
         });
+
+        final TimeValue readTimeout = allowReadTimeout.get() ? TimeValue.timeValueSeconds(3) : null;
 
         final BlobContainer blobContainer = createBlobContainer(nbErrors + 1, readTimeout);
         try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", data), data.length)) {

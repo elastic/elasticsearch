@@ -346,8 +346,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
 
                     final String range = exchange.getRequestHeaders().getFirst("Content-Range");
                     final Integer limit = TestUtils.getContentRangeLimit(range);
-                    final Integer start = TestUtils.getContentRangeStart(range);
-                    final Integer end = TestUtils.getContentRangeEnd(range);
+                    final int start = TestUtils.getContentRangeStart(range);
+                    final int end = TestUtils.getContentRangeEnd(range);
 
                     final ByteArrayOutputStream out = new ByteArrayOutputStream();
                     long bytesRead = Streams.copy(exchange.getRequestBody(), out);

@@ -25,6 +25,7 @@ a `fields` block should be removed, either by flattening the chained `fields`
 blocks into a single level, or by switching to `copy_to` if appropriate.
 
 [float]
+[[fieldnames-enabling]]
 ==== Disallow use of the `enabled` setting on the  `_field_names` field
 
 The setting has been deprecated with 7.5 and is no longer supported on new indices.

@@ -259,9 +259,9 @@ public interface Client extends ElasticsearchClient, Releasable {
     GetRequestBuilder prepareGet();
 
     /**
-     * Gets the document that was indexed from an index with a type (optional) and id.
+     * Gets the document that was indexed from an index with an id.
      */
-    GetRequestBuilder prepareGet(String index, @Nullable String type, String id);
+    GetRequestBuilder prepareGet(String index, String id);
 
     /**
      * Multi get documents.

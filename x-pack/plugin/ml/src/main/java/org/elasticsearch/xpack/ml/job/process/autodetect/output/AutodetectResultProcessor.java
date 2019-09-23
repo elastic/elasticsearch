@@ -288,9 +288,15 @@ public class AutodetectResultProcessor {
             // Commit previous writes here, effectively continuing
             // the flush from the C++ autodetect process right
             // through to the data store
-            bulkResultsPersister.executeRequest();
-            persister.commitResultWrites(jobId);
-            flushListener.acknowledgeFlush(flushAcknowledgement);
+            try {
+                bulkResultsPersister.executeRequest();
+                persister.commitResultWrites(jobId);
+            } catch (Exception e) {
+                LOGGER.error("[" + jobId + "] failed to bulk persist results and commit writes during flush acknowledgement.", e);
+            } finally {
+                LOGGER.debug("[{}] Flush acknowledgement sent to listener for ID {}", jobId, flushAcknowledgement.getId());
+                flushListener.acknowledgeFlush(flushAcknowledgement);
+            }
             // Interim results may have been produced by the flush,
             // which need to be
             // deleted when the next finalized results come through

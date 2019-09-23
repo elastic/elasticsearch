@@ -1,5 +1,5 @@
 --
-:api: stop-data-frame-transform
+:api: stop-transform
 :request: StopDataFrameTransformRequest
 :response: StopDataFrameTransformResponse
 --

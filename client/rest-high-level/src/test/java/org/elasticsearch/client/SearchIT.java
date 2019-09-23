@@ -45,6 +45,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.ScriptQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
@@ -1347,9 +1348,14 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testCountMultipleIndicesMatchQueryUsingConstructor() throws IOException {
-
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(new MatchQueryBuilder("field", "value1"));
-        CountRequest countRequest = new CountRequest(new String[]{"index1", "index2", "index3"}, sourceBuilder);
+        CountRequest countRequest;
+        if (randomBoolean()) {
+            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(new MatchQueryBuilder("field", "value1"));
+            countRequest = new CountRequest(new String[]{"index1", "index2", "index3"}, sourceBuilder);
+        } else {
+            QueryBuilder query = new MatchQueryBuilder("field", "value1");
+            countRequest = new CountRequest(new String[]{"index1", "index2", "index3"}, query);
+        }
         CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
         assertCountHeader(countResponse);
         assertEquals(3, countResponse.getCount());
@@ -1357,9 +1363,12 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testCountMultipleIndicesMatchQuery() throws IOException {
-
         CountRequest countRequest = new CountRequest("index1", "index2", "index3");
-        countRequest.source(new SearchSourceBuilder().query(new MatchQueryBuilder("field", "value1")));
+        if (randomBoolean()) {
+            countRequest.source(new SearchSourceBuilder().query(new MatchQueryBuilder("field", "value1")));
+        } else {
+            countRequest.query(new MatchQueryBuilder("field", "value1"));
+        }
         CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
         assertCountHeader(countResponse);
         assertEquals(3, countResponse.getCount());

@@ -186,16 +186,20 @@ public class FileUtils {
             logger.warn("Can't show logs from directory {} as it doesn't exists", logsDir);
             return;
         }
-        logger.info("Showing contents of directory: {}", logsDir.toAbsolutePath());
-        logsDir.forEach( file -> {
-            logger.info("=== Contents of `{}` ===", file.toAbsolutePath());
-            try(Stream<String> stream = Files.lines(file)) {
-                stream.forEach(logger::info);
-            } catch (IOException e) {
-                logger.error("Can't show contents of " + file.toAbsolutePath(), e);
-            }
-            logger.info("=== End of contents of `{}`===", file.toAbsolutePath());
-        });
+        logger.info("Showing contents of directory: {} ({})", logsDir, logsDir.toAbsolutePath());
+        try(Stream<Path> fileStream = Files.list(logsDir)) {
+            fileStream.forEach(file -> {
+                logger.info("=== Contents of `{}` ({}) ===", file, file.toAbsolutePath());
+                try (Stream<String> stream = Files.lines(file)) {
+                    stream.forEach(logger::info);
+                } catch (IOException e) {
+                    logger.error("Can't show contents", e);
+                }
+                logger.info("=== End of contents of `{}`===", file);
+            });
+        } catch (IOException e) {
+            logger.error("Can't list log files", e);
+        }
     }
 
     /**

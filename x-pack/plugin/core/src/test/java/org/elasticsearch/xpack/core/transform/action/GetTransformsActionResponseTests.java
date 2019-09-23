@@ -27,9 +27,9 @@ public class GetTransformsActionResponseTests extends AbstractWireSerializingTra
     public void testInvalidTransforms() throws IOException {
         List<TransformConfig> transforms = new ArrayList<>();
 
-        transforms.add(TransformConfigTests.randomDataFrameTransformConfig());
+        transforms.add(TransformConfigTests.randomTransformConfig());
         transforms.add(TransformConfigTests.randomInvalidDataFrameTransformConfig());
-        transforms.add(TransformConfigTests.randomDataFrameTransformConfig());
+        transforms.add(TransformConfigTests.randomTransformConfig());
         transforms.add(TransformConfigTests.randomInvalidDataFrameTransformConfig());
 
         Response r = new Response(transforms, transforms.size());
@@ -49,7 +49,7 @@ public class GetTransformsActionResponseTests extends AbstractWireSerializingTra
         List<TransformConfig> transforms = new ArrayList<>();
 
         for (int i = 0; i < randomIntBetween(1, 10); ++i) {
-            transforms.add(TransformConfigTests.randomDataFrameTransformConfig());
+            transforms.add(TransformConfigTests.randomTransformConfig());
         }
 
         Response r = new Response(transforms, transforms.size());
@@ -73,7 +73,7 @@ public class GetTransformsActionResponseTests extends AbstractWireSerializingTra
     protected Response createTestInstance() {
         List<TransformConfig> configs = new ArrayList<>();
         for (int i = 0; i < randomInt(10); ++i) {
-            configs.add(TransformConfigTests.randomDataFrameTransformConfig());
+            configs.add(TransformConfigTests.randomTransformConfig());
         }
 
         return new Response(configs, randomNonNegativeLong());

@@ -69,6 +69,7 @@ index settings, aliases, mappings, and index templates.
 * <<indices-clearcache>>
 * <<indices-refresh>>
 * <<indices-flush>>
+* <<indices-synced-flush-api>>
 * <<indices-forcemerge>>
 
 include::indices/create-index.asciidoc[]
@@ -138,6 +139,8 @@ include::indices/shard-stores.asciidoc[]
 include::indices/clearcache.asciidoc[]
 
 include::indices/flush.asciidoc[]
+
+include::indices/synced-flush.asciidoc[]
 
 include::indices/refresh.asciidoc[]
 

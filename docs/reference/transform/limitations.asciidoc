@@ -54,7 +54,7 @@ table.
 
 A single cluster will support up to 1,000 {transforms}.
 When using the 
-{ref}/get-data-frame-transform.html[GET {transforms} API] a total 
+{ref}/get-transform.html[GET {transforms} API] a total 
 `count` of {transforms} is returned. Use the `size` and `from` parameters to 
 enumerate through the full list.
 
@@ -197,9 +197,6 @@ failure and re-starting.
 
 When using the API to delete a failed {transform}, first stop it using 
 `_stop?force=true`, then delete it.
-
-If starting a failed {transform}, after the root cause has been 
-resolved, the `_start?force=true` parameter must be specified.
 
 [float]
 [[df-availability-limitations]]

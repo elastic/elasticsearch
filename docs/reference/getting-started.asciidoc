@@ -229,8 +229,8 @@ operation was that version 1 of the document was created:
 --------------------------------------------------
 {
   "_index" : "customer",
-  "_type" : "_doc",
   "_id" : "1",
+  "_type" : "_doc",
   "_version" : 1,
   "result" : "created",
   "_shards" : {
@@ -263,7 +263,6 @@ and shows the original source fields that were indexed.
 --------------------------------------------------
 {
   "_index" : "customer",
-  "_type" : "_doc",
   "_id" : "1",
   "_version" : 1,
   "_seq_no" : 26,

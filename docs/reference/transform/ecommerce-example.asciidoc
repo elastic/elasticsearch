@@ -81,7 +81,7 @@ If you want to use more complex queries, you can create your {dataframe} from a
 {kibana-ref}/save-open-search.html[saved search].
 
 If you prefer, you can use the
-{ref}/preview-data-frame-transform.html[preview {transforms} API]:
+{ref}/preview-transform.html[preview {transforms} API]:
 
 [source,console]
 --------------------------------------------------
@@ -156,7 +156,7 @@ entities have changed. In general, it's a good idea to use the ingest timestamp
 field. In this example, however, you can use the `order_date` field.
 
 If you prefer, you can use the
-{ref}/put-data-frame-transform.html[create {transforms} API]. For
+{ref}/put-transform.html[create {transforms} API]. For
 example:
 
 [source,console]
@@ -231,8 +231,8 @@ You can start, stop, and manage {transforms} in {kib}:
 image::images/dataframe-transforms.jpg["Managing {transforms} in {kib}"]
 
 Alternatively, you can use the
-{ref}/start-data-frame-transform.html[start {transforms}] and
-{ref}/stop-data-frame-transform.html[stop {transforms}] APIs. For
+{ref}/start-transform.html[start {transforms}] and
+{ref}/stop-transform.html[stop {transforms}] APIs. For
 example:
 
 [source,console]
@@ -255,6 +255,6 @@ image::images/ecommerce-results.jpg["Exploring the new index in {kib}"]
 
 TIP: If you do not want to keep the {transform}, you can delete it in
 {kib} or use the
-{ref}/delete-data-frame-transform.html[delete {transform} API]. When
+{ref}/delete-transform.html[delete {transform} API]. When
 you delete a {transform}, its destination index and {kib} index
 patterns remain.

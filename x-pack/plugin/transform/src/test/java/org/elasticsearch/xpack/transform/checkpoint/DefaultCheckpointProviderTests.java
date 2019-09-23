@@ -17,9 +17,9 @@ import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.MockLogAppender.LoggingExpectation;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
-import org.elasticsearch.xpack.transform.notifications.MockDataFrameAuditor;
-import org.elasticsearch.xpack.transform.notifications.MockDataFrameAuditor.AuditExpectation;
-import org.elasticsearch.xpack.transform.persistence.DataFrameTransformsConfigManager;
+import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
+import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor.AuditExpectation;
+import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -31,25 +31,25 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
 
     private Client client;
 
-    private MockDataFrameAuditor dataFrameAuditor;
-    private DataFrameTransformsConfigManager dataFrameTransformsConfigManager;
+    private MockTransformAuditor transformAuditor;
+    private TransformConfigManager transformConfigManager;
     private Logger checkpointProviderlogger = LogManager.getLogger(DefaultCheckpointProvider.class);
 
     @Before
     public void setUpMocks() throws IllegalAccessException {
         client = mock(Client.class);
-        dataFrameTransformsConfigManager = mock(DataFrameTransformsConfigManager.class);
-        dataFrameAuditor = new MockDataFrameAuditor();
+        transformConfigManager = mock(TransformConfigManager.class);
+        transformAuditor = new MockTransformAuditor();
     }
 
     public void testReportSourceIndexChangesRunsEmpty() throws Exception {
         String transformId = getTestName();
-        TransformConfig transformConfig = TransformConfigTests.randomDataFrameTransformConfig(transformId);
+        TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
 
         DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
             client,
-            dataFrameTransformsConfigManager,
-            dataFrameAuditor,
+            transformConfigManager,
+            transformAuditor,
             transformConfig);
 
         assertExpectation(
@@ -57,7 +57,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                 checkpointProviderlogger.getName(),
                 Level.WARN,
                 "Source did not resolve to any open indexes for transform [" + transformId + "]"),
-            new MockDataFrameAuditor.SeenAuditExpectation("warn when source is empty",
+            new MockTransformAuditor.SeenAuditExpectation("warn when source is empty",
                 org.elasticsearch.xpack.core.common.notifications.Level.WARNING,
                 transformId,
                 "Source did not resolve to any open indexes"),
@@ -70,7 +70,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                 checkpointProviderlogger.getName(),
                 Level.WARN,
                 "Source did not resolve to any concrete indexes"),
-            new MockDataFrameAuditor.UnseenAuditExpectation("do not warn if empty again",
+            new MockTransformAuditor.UnseenAuditExpectation("do not warn if empty again",
                 org.elasticsearch.xpack.core.common.notifications.Level.WARNING,
                 transformId,
                 "Source did not resolve to any concrete indexes"),
@@ -81,12 +81,12 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
 
     public void testReportSourceIndexChangesAddDelete() throws Exception {
         String transformId = getTestName();
-        TransformConfig transformConfig = TransformConfigTests.randomDataFrameTransformConfig(transformId);
+        TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
 
         DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
             client,
-            dataFrameTransformsConfigManager,
-            dataFrameAuditor,
+            transformConfigManager,
+            transformAuditor,
             transformConfig);
 
         assertExpectation(
@@ -95,7 +95,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                 Level.DEBUG,
                 "Source index resolve found changes, removedIndexes: [index], new indexes: [other_index] for transform [" +
                     transformId + "]"),
-            new MockDataFrameAuditor.SeenAuditExpectation("info about adds/removal",
+            new MockTransformAuditor.SeenAuditExpectation("info about adds/removal",
                 org.elasticsearch.xpack.core.common.notifications.Level.INFO,
                 transformId,
                 "Source index resolve found changes, removedIndexes: [index], new indexes: [other_index]"),
@@ -109,7 +109,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                 Level.DEBUG,
                 "Source index resolve found changes, removedIndexes: [index], new indexes: [] for transform [" +
                     transformId + "]"),
-            new MockDataFrameAuditor.SeenAuditExpectation("info about adds/removal",
+            new MockTransformAuditor.SeenAuditExpectation("info about adds/removal",
                 org.elasticsearch.xpack.core.common.notifications.Level.INFO,
                 transformId,
                 "Source index resolve found changes, removedIndexes: [index], new indexes: []"),
@@ -122,7 +122,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                 Level.DEBUG,
                 "Source index resolve found changes, removedIndexes: [], new indexes: [other_index] for transform [" +
                     transformId + "]"),
-            new MockDataFrameAuditor.SeenAuditExpectation("info about adds/removal",
+            new MockTransformAuditor.SeenAuditExpectation("info about adds/removal",
                 org.elasticsearch.xpack.core.common.notifications.Level.INFO,
                 transformId,
                 "Source index resolve found changes, removedIndexes: [], new indexes: [other_index]"),
@@ -133,12 +133,12 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
 
     public void testReportSourceIndexChangesAddDeleteMany() throws Exception {
         String transformId = getTestName();
-        TransformConfig transformConfig = TransformConfigTests.randomDataFrameTransformConfig(transformId);
+        TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
 
         DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
             client,
-            dataFrameTransformsConfigManager,
-            dataFrameAuditor,
+            transformConfigManager,
+            transformAuditor,
             transformConfig);
 
         HashSet<String> oldSet = new HashSet<>();
@@ -156,7 +156,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
                 Level.DEBUG,
                 "Source index resolve found more than 10 changes, [50] removed indexes, [50] new indexes for transform [" +
                     transformId + "]"),
-            new MockDataFrameAuditor.SeenAuditExpectation("info about adds/removal",
+            new MockTransformAuditor.SeenAuditExpectation("info about adds/removal",
                 org.elasticsearch.xpack.core.common.notifications.Level.INFO,
                 transformId,
                 "Source index resolve found more than 10 changes, [50] removed indexes, [50] new indexes"),
@@ -175,13 +175,13 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         mockLogAppender.addExpectation(loggingExpectation);
 
         // always start fresh
-        dataFrameAuditor.reset();
-        dataFrameAuditor.addExpectation(auditExpectation);
+        transformAuditor.reset();
+        transformAuditor.addExpectation(auditExpectation);
         try {
             Loggers.addAppender(checkpointProviderlogger, mockLogAppender);
             codeBlock.run();
             mockLogAppender.assertAllExpectationsMatched();
-            dataFrameAuditor.assertAllExpectationsMatched();
+            transformAuditor.assertAllExpectationsMatched();
         } finally {
             Loggers.removeAppender(checkpointProviderlogger, mockLogAppender);
             mockLogAppender.stop();

@@ -257,8 +257,8 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertExists(GetResponse response) {
-        String message = String.format(Locale.ROOT, "Expected %s/%s/%s to exist, but does not",
-                response.getIndex(), response.getType(), response.getId());
+        String message = String.format(Locale.ROOT, "Expected %s/%s to exist, but does not",
+                response.getIndex(), response.getId());
         assertThat(message, response.isExists(), is(true));
     }
 

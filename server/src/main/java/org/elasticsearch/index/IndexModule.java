@@ -30,6 +30,7 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -386,6 +387,7 @@ public final class IndexModule {
             BigArrays bigArrays,
             ThreadPool threadPool,
             ScriptService scriptService,
+            ClusterService clusterService,
             Client client,
             IndicesQueryCache indicesQueryCache,
             MapperRegistry mapperRegistry,
@@ -411,7 +413,7 @@ public final class IndexModule {
         return new IndexService(indexSettings, indexCreationContext, environment, xContentRegistry,
                 new SimilarityService(indexSettings, scriptService, similarities),
                 shardStoreDeleter, analysisRegistry, engineFactory, circuitBreakerService, bigArrays, threadPool, scriptService,
-                client, queryCache, directoryFactory, eventListener, readerWrapperFactory, mapperRegistry,
+                clusterService, client, queryCache, directoryFactory, eventListener, readerWrapperFactory, mapperRegistry,
                 indicesFieldDataCache, searchOperationListeners, indexOperationListeners, namedWriteableRegistry);
     }
 

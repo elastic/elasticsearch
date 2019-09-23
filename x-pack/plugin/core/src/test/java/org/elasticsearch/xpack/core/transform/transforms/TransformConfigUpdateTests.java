@@ -21,7 +21,7 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests.randomDataFrameTransformConfig;
+import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests.randomTransformConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
 import static org.hamcrest.Matchers.equalTo;
@@ -58,7 +58,7 @@ public class TransformConfigUpdateTests extends AbstractSerializingTransformTest
 
     public void testIsNoop() {
         for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
-            TransformConfig config = randomDataFrameTransformConfig();
+            TransformConfig config = randomTransformConfig();
             TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null);
             assertTrue("null update is not noop", update.isNoop(config));
             update = new TransformConfigUpdate(config.getSource(),

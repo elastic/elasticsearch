@@ -19,7 +19,7 @@ public class TransformMessagesTests extends ESTestCase {
     public void testGetMessage_WithFormatStrings() {
         String formattedMessage = TransformMessages.getMessage(TransformMessages.REST_STOP_TRANSFORM_WAIT_FOR_COMPLETION_TIMEOUT, "30s",
                 "my_transform");
-        assertEquals("Timed out after [30s] while waiting for data frame transform [my_transform] to stop", formattedMessage);
+        assertEquals("Timed out after [30s] while waiting for transform [my_transform] to stop", formattedMessage);
     }
 
     public void testMessageProperFormat() throws IllegalArgumentException, IllegalAccessException {

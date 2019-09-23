@@ -209,7 +209,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
             try (Engine.Searcher searcher = indexShard.acquireSearcher("enrich_msearch")) {
                 final FieldsVisitor visitor = new FieldsVisitor(true);
                 final QueryShardContext context = indexService.newQueryShardContext(shardId.id(),
-                    searcher.getIndexReader(), () -> {throw new UnsupportedOperationException();}, null);
+                    searcher, () -> {throw new UnsupportedOperationException();}, null);
                 final MapperService mapperService = context.getMapperService();
                 final Text typeText = mapperService.documentMapper().typeText();
 

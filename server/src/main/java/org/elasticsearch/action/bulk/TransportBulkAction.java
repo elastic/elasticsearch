@@ -271,17 +271,17 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             // also with IngestService.NOOP_PIPELINE_NAME on each request. This ensures that this on the second time through this method,
             // this path is never taken.
             try {
+                if (Assertions.ENABLED) {
+                    final boolean arePipelinesResolved = bulkRequest.requests()
+                        .stream()
+                        .map(TransportBulkAction::getIndexWriteRequest)
+                        .filter(Objects::nonNull)
+                        .allMatch(IndexRequest::isPipelineResolved);
+                    assert arePipelinesResolved : bulkRequest;
+                }
                 if (clusterService.localNode().isIngestNode()) {
                     processBulkIndexIngestRequest(task, bulkRequest, listener);
                 } else {
-                    if (Assertions.ENABLED) {
-                        final boolean allAreForwardedRequests = bulkRequest.requests()
-                            .stream()
-                            .map(TransportBulkAction::getIndexWriteRequest)
-                            .filter(Objects::nonNull)
-                            .allMatch(IndexRequest::isPipelineResolved);
-                        assert allAreForwardedRequests : bulkRequest;
-                    }
                     ingestForwarder.forwardIngestRequest(BulkAction.INSTANCE, bulkRequest, listener);
                 }
             } catch (Exception e) {
@@ -436,7 +436,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         case INDEX:
                             IndexRequest indexRequest = (IndexRequest) docWriteRequest;
                             final IndexMetaData indexMetaData = metaData.index(concreteIndex);
-                            MappingMetaData mappingMd = indexMetaData.mappingOrDefault();
+                            MappingMetaData mappingMd = indexMetaData.mapping();
                             Version indexCreated = indexMetaData.getCreationVersion();
                             indexRequest.resolveRouting(metaData);
                             indexRequest.process(indexCreated, mappingMd, concreteIndex.getName());
@@ -449,7 +449,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             docWriteRequest.routing(metaData.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
                             // check if routing is required, if so, throw error if routing wasn't specified
                             if (docWriteRequest.routing() == null && metaData.routingRequired(concreteIndex.getName())) {
-                                throw new RoutingMissingException(concreteIndex.getName(), docWriteRequest.type(), docWriteRequest.id());
+                                throw new RoutingMissingException(concreteIndex.getName(), docWriteRequest.id());
                             }
                             break;
                         default: throw new AssertionError("request type not supported: [" + docWriteRequest.opType() + "]");

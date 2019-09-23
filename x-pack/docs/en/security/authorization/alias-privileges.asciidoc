@@ -27,7 +27,7 @@ The user attempts to retrieve a document from `current_year`:
 
 [source,console]
 -------------------------------------------------------------------------------
-GET /current_year/event/1
+GET /current_year/_doc/1
 -------------------------------------------------------------------------------
 // TEST[s/^/PUT 2015\n{"aliases": {"current_year": {}}}\nPUT 2015\/event\/1\n{}\n/]
 

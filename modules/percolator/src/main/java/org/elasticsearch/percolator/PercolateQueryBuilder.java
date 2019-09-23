@@ -502,7 +502,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         GetRequest getRequest;
         if (indexedDocumentType != null) {
             deprecationLogger.deprecatedAndMaybeLog("percolate_with_type", TYPE_DEPRECATION_MESSAGE);
-            getRequest = new GetRequest(indexedDocumentIndex, indexedDocumentType, indexedDocumentId);
+            getRequest = new GetRequest(indexedDocumentIndex, indexedDocumentId);
         } else {
             getRequest = new GetRequest(indexedDocumentIndex, indexedDocumentId);
         }

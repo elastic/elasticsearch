@@ -614,7 +614,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (mappingMd != null) {
             // might as well check for routing here
             if (mappingMd.routing().required() && routing == null) {
-                throw new RoutingMissingException(concreteIndex, type(), id);
+                throw new RoutingMissingException(concreteIndex, id);
             }
         }
 

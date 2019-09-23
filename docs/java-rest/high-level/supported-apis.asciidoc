@@ -576,29 +576,29 @@ include::ilm/retry_lifecycle_policy.asciidoc[]
 include::ilm/remove_lifecycle_policy_from_index.asciidoc[]
 
 [role="xpack"]
-[[_data_frame_transform_apis]]
+[[transform_apis]]
 == {transform-cap} APIs
 
-:upid: {mainid}-dataframe
+:upid: {mainid}
 :doc-tests-file: {doc-tests}/DataFrameTransformDocumentationIT.java
 
 The Java High Level REST Client supports the following {transform}
 APIs:
 
-* <<{upid}-get-data-frame-transform>>
-* <<{upid}-get-data-frame-transform-stats>>
-* <<{upid}-put-data-frame-transform>>
-* <<{upid}-update-data-frame-transform>>
-* <<{upid}-delete-data-frame-transform>>
-* <<{upid}-preview-data-frame-transform>>
-* <<{upid}-start-data-frame-transform>>
-* <<{upid}-stop-data-frame-transform>>
+* <<{upid}-get-transform>>
+* <<{upid}-get-transform-stats>>
+* <<{upid}-put-transform>>
+* <<{upid}-update-transform>>
+* <<{upid}-delete-transform>>
+* <<{upid}-preview-transform>>
+* <<{upid}-start-transform>>
+* <<{upid}-stop-transform>>
 
-include::dataframe/get_data_frame.asciidoc[]
-include::dataframe/get_data_frame_stats.asciidoc[]
-include::dataframe/put_data_frame.asciidoc[]
-include::dataframe/update_data_frame.asciidoc[]
-include::dataframe/delete_data_frame.asciidoc[]
-include::dataframe/preview_data_frame.asciidoc[]
-include::dataframe/start_data_frame.asciidoc[]
-include::dataframe/stop_data_frame.asciidoc[]
+include::transform/get_transform.asciidoc[]
+include::transform/get_transform_stats.asciidoc[]
+include::transform/put_transform.asciidoc[]
+include::transform/update_transform.asciidoc[]
+include::transform/delete_transform.asciidoc[]
+include::transform/preview_transform.asciidoc[]
+include::transform/start_transform.asciidoc[]
+include::transform/stop_transform.asciidoc[]

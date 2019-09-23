@@ -171,3 +171,61 @@ only.
 <3> The ground truth value for the actual house price. This is required in order 
 to evaluate results.
 <4> The predicted value for house price calculated by the {reganalysis}.
+
+
+The following example calculates the training error.
+
+[source,console]
+--------------------------------------------------
+POST _ml/data_frame/_evaluate
+{
+  "index": "student_performance_mathematics_reg",
+  "query": {
+    "term": {
+      "ml.is_training": {
+        "value": true
+      }
+    }
+  },
+  "evaluation": {
+    "regression": { 
+      "actual_field": "G3",
+      "predicted_field": "ml.G3_prediction",
+      "metrics": {  
+        "r_squared": {},
+        "mean_squared_error": {}                             
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+
+The next example calculates the testing error.
+
+[source,console]
+--------------------------------------------------
+POST _ml/data_frame/_evaluate
+{
+  "index": "student_performance_mathematics_reg",
+  "query": {
+    "term": {
+      "ml.is_training": {
+        "value": false
+      }
+    }
+  },
+  "evaluation": {
+    "regression": { 
+      "actual_field": "G3",
+      "predicted_field": "ml.G3_prediction",
+      "metrics": {  
+        "r_squared": {},
+        "mean_squared_error": {}                             
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:TBD]

@@ -35,12 +35,13 @@ import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
-import org.elasticsearch.xpack.ilm.IndexLifecycleOriginationDateResolver;
 import org.elasticsearch.xpack.ilm.IndexLifecycleService;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_ORIGINATION_DATE;
 
 public class TransportExplainLifecycleAction
         extends TransportClusterInfoAction<ExplainLifecycleRequest, ExplainLifecycleResponse> {
@@ -108,7 +109,7 @@ public class TransportExplainLifecycleAction
                 // If this is requesting only errors, only include indices in the error step or which are using a nonexistent policy
                 if (request.onlyErrors() == false
                     || (ErrorStep.NAME.equals(lifecycleState.getStep()) || indexLifecycleService.policyExists(policyName) == false)) {
-                    Long originationDate = IndexLifecycleOriginationDateResolver.resolveOriginationDate(idxMetadata);
+                    Long originationDate = idxMetadata.getSettings().getAsLong(LIFECYCLE_ORIGINATION_DATE, -1L);
                     indexResponse = IndexLifecycleExplainResponse.newManagedIndexResponse(index, policyName,
                         originationDate != -1L ? originationDate : lifecycleState.getLifecycleDate(),
                         lifecycleState.getPhase(),

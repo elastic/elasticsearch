@@ -294,13 +294,36 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
             assertThat(indexResponse.getLifecycleDate(), is(parsedLifecycleDate));
         });
 
-        // disabling the lifecycle parsing would fallback on the index creation date
+        // disabling the lifecycle parsing would maintain the parsed value as that was set as the origination date
         client().admin().indices().prepareUpdateSettings(indexName)
             .setSettings(Collections.singletonMap(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, false)).get();
 
         assertBusy(() -> {
             IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse(indexName);
+            assertThat(indexResponse.getLifecycleDate(), is(parsedLifecycleDate));
+        });
+
+        // setting the lifecycle origination date setting to null should make the lifecyle date fallback on the index creation date
+        client().admin().indices().prepareUpdateSettings(indexName)
+            .setSettings(Collections.singletonMap(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, null)).get();
+
+        assertBusy(() -> {
+            IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse(indexName);
             assertThat(indexResponse.getLifecycleDate(), is(greaterThan(parsedLifecycleDate)));
+        });
+
+        // setting the lifecycle origination date to an explicit value overrides the date parsing
+        long originationDate = 42L;
+        client().admin().indices().prepareUpdateSettings(indexName)
+            .setSettings(
+                Map.of(
+                    LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true,
+                    LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, originationDate)
+            ).get();
+
+        assertBusy(() -> {
+            IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse(indexName);
+            assertThat(indexResponse.getLifecycleDate(), is(originationDate));
         });
     }
 

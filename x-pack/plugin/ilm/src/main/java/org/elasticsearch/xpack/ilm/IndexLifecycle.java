@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -253,6 +254,11 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 new ActionHandler<>(GetSnapshotLifecycleStatsAction.INSTANCE, TransportGetSnapshotLifecycleStatsAction.class),
                 usageAction,
                 infoAction);
+    }
+
+    @Override
+    public void onIndexModule(IndexModule indexModule) {
+        indexModule.addIndexEventListener(indexLifecycleInitialisationService.get());
     }
 
     @Override

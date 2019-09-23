@@ -27,6 +27,11 @@ public class AbstractAuditMessageTests extends AbstractXContentTestCase<Abstract
         }
 
         @Override
+        public String getJobType() {
+            return "test_type";
+        }
+
+        @Override
         protected String getResourceField() {
             return TEST_ID.getPreferredName();
         }
@@ -40,6 +45,11 @@ public class AbstractAuditMessageTests extends AbstractXContentTestCase<Abstract
     public void testGetResourceField() {
         TestAuditMessage message = new TestAuditMessage(RESOURCE_ID, MESSAGE, Level.INFO, TIMESTAMP, NODE_NAME);
         assertThat(message.getResourceField(), equalTo(TestAuditMessage.TEST_ID.getPreferredName()));
+    }
+
+    public void testGetJobType() {
+        TestAuditMessage message = createTestInstance();
+        assertThat(message.getJobType(), equalTo("test_type"));
     }
 
     public void testNewInfo() {

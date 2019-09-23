@@ -178,6 +178,7 @@ public class QueryContainer {
             Attribute alias = aliases.get(column);
             // find the column index
             int index = -1;
+
             ExpressionId id = column instanceof AggregateFunctionAttribute ? ((AggregateFunctionAttribute) column).innerId() : column.id();
             ExpressionId aliasId = alias != null ? (alias instanceof AggregateFunctionAttribute ? ((AggregateFunctionAttribute) alias)
                     .innerId() : alias.id()) : null;
@@ -188,6 +189,7 @@ public class QueryContainer {
                     break;
                 }
             }
+
             if (index > -1) {
                 mask.set(index);
             } else {
@@ -227,7 +229,7 @@ public class QueryContainer {
 
     public boolean isAggsOnly() {
         if (aggsOnly == null) {
-            aggsOnly = Boolean.valueOf(this.fields.stream().allMatch(t -> t.v1().supportedByAggsOnlyQuery()));
+            aggsOnly = Boolean.valueOf(this.fields.stream().anyMatch(t -> t.v1().supportedByAggsOnlyQuery()));
         }
 
         return aggsOnly.booleanValue();

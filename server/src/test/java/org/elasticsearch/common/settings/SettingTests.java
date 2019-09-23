@@ -910,6 +910,13 @@ public class SettingTests extends ESTestCase {
         assertTrue(fooSetting.exists(Settings.builder().put("foo", "bar").build()));
     }
 
+    public void testExistsWithSecure() {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("foo", "foo");
+        Setting<String> fooSetting = Setting.simpleString("foo", Property.NodeScope);
+        assertFalse(fooSetting.exists(Settings.builder().setSecureSettings(secureSettings).build()));
+    }
+
     public void testExistsWithFallback() {
         final int count = randomIntBetween(1, 16);
         Setting<String> current = Setting.simpleString("fallback0", Property.NodeScope);

@@ -183,8 +183,11 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(licenseState.isAuthAllowed()).thenReturn(true);
         when(licenseState.isApiKeyServiceAllowed()).thenReturn(true);
         when(licenseState.isTokenServiceAllowed()).thenReturn(true);
+        ReservedRealm reservedRealm = mock(ReservedRealm.class);
+        when(reservedRealm.type()).thenReturn("reserved");
+        when(reservedRealm.name()).thenReturn("reserved_realm");
         realms = spy(new TestRealms(Settings.EMPTY, TestEnvironment.newEnvironment(settings), Collections.<String, Realm.Factory>emptyMap(),
-                licenseState, threadContext, mock(ReservedRealm.class), Arrays.asList(firstRealm, secondRealm),
+                licenseState, threadContext, reservedRealm, Arrays.asList(firstRealm, secondRealm),
                 Collections.singletonList(firstRealm)));
 
         auditTrail = mock(AuditTrailService.class);
@@ -207,10 +210,9 @@ public class AuthenticationServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             GetRequestBuilder builder = new GetRequestBuilder(client, GetAction.INSTANCE);
             builder.setIndex((String) invocationOnMock.getArguments()[0])
-                    .setType((String) invocationOnMock.getArguments()[1])
-                    .setId((String) invocationOnMock.getArguments()[2]);
+                    .setId((String) invocationOnMock.getArguments()[1]);
             return builder;
-        }).when(client).prepareGet(anyString(), anyString(), anyString());
+        }).when(client).prepareGet(anyString(), anyString());
         securityIndex = mock(SecurityIndexManager.class);
         doAnswer(invocationOnMock -> {
             Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
@@ -1250,11 +1252,11 @@ public class AuthenticationServiceTests extends ESTestCase {
                 creatorMap.put("metadata", Collections.emptyMap());
                 creatorMap.put("realm", "auth realm");
                 source.put("creator", creatorMap);
-                GetResponse getResponse = new GetResponse(new GetResult(request.index(), request.type(), request.id(), 0, 1, 1L, true,
+                GetResponse getResponse = new GetResponse(new GetResult(request.index(), request.id(), 0, 1, 1L, true,
                     BytesReference.bytes(JsonXContent.contentBuilder().map(source)), Collections.emptyMap(), Collections.emptyMap()));
                 listener.onResponse(getResponse);
             } else {
-                listener.onResponse(new GetResponse(new GetResult(request.index(), request.type(), request.id(),
+                listener.onResponse(new GetResponse(new GetResult(request.index(), request.id(),
                         SequenceNumbers.UNASSIGNED_SEQ_NO, 1, -1L, false, null,
                     Collections.emptyMap(), Collections.emptyMap())));
             }
@@ -1290,11 +1292,11 @@ public class AuthenticationServiceTests extends ESTestCase {
                 creatorMap.put("metadata", Collections.emptyMap());
                 creatorMap.put("realm", "auth realm");
                 source.put("creator", creatorMap);
-                GetResponse getResponse = new GetResponse(new GetResult(request.index(), request.type(), request.id(), 0, 1, 1L, true,
+                GetResponse getResponse = new GetResponse(new GetResult(request.index(), request.id(), 0, 1, 1L, true,
                         BytesReference.bytes(JsonXContent.contentBuilder().map(source)), Collections.emptyMap(), Collections.emptyMap()));
                 listener.onResponse(getResponse);
             } else {
-                listener.onResponse(new GetResponse(new GetResult(request.index(), request.type(), request.id(),
+                listener.onResponse(new GetResponse(new GetResult(request.index(), request.id(),
                         SequenceNumbers.UNASSIGNED_SEQ_NO, 1, -1L, false, null,
                     Collections.emptyMap(), Collections.emptyMap())));
             }
@@ -1305,7 +1307,6 @@ public class AuthenticationServiceTests extends ESTestCase {
             threadContext.putHeader("Authorization", headerValue);
             ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
                 () -> authenticateBlocking("_action", message, null));
-            assertThat(e.getMessage(), containsString("api key is expired"));
             assertEquals(RestStatus.UNAUTHORIZED, e.status());
         }
     }

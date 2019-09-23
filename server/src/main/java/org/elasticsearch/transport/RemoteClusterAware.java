@@ -72,7 +72,10 @@ public abstract class RemoteClusterAware {
     public static final String LOCAL_CLUSTER_GROUP_KEY = "";
 
     /**
-     * A proxy address for the remote cluster.
+     * A proxy address for the remote cluster. By default this is not set, meaning that Elasticsearch will connect directly to the nodes in
+     * the remote cluster using their publish addresses. If this setting is set to an IP address or hostname then Elasticsearch will connect
+     * to the nodes in the remote cluster using this address instead. Use of this setting is not recommended and it is deliberately
+     * undocumented as it does not work well with all proxies.
      */
     public static final Setting.AffixSetting<String> REMOTE_CLUSTERS_PROXY = Setting.affixKeySetting(
             "cluster.remote.",

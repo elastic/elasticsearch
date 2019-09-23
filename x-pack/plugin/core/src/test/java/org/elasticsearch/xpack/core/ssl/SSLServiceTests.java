@@ -712,7 +712,7 @@ public class SSLServiceTests extends ESTestCase {
         SSLContext sslContext = sslService.sslContext(sslService.sslConfiguration(Settings.EMPTY));
         try (CloseableHttpClient client = HttpClients.custom().setSSLContext(sslContext).build()) {
             // Execute a GET on a site known to have a valid certificate signed by a trusted public CA
-            // This will result in a SSLHandshakeException if the SSLContext does not trust the CA, but the default
+            // This will result in an SSLHandshakeException if the SSLContext does not trust the CA, but the default
             // truststore trusts all common public CAs so the handshake will succeed
             privilegedConnect(() -> client.execute(new HttpGet("https://www.elastic.co/")).close());
         }
@@ -745,7 +745,7 @@ public class SSLServiceTests extends ESTestCase {
             client.start();
 
             // Execute a GET on a site known to have a valid certificate signed by a trusted public CA
-            // This will result in a SSLHandshakeException if the SSLContext does not trust the CA, but the default
+            // This will result in an SSLHandshakeException if the SSLContext does not trust the CA, but the default
             // truststore trusts all common public CAs so the handshake will succeed
             client.execute(new HttpHost("elastic.co", 443, "https"), new HttpGet("/"), new AssertionCallback()).get();
         }

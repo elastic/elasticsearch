@@ -8,7 +8,7 @@
 [[sql-functions-datetime-interval]]
 ==== Intervals
 
-A common requirement when dealing with date/time in general revolves around 
+A common requirement when dealing with date/time in general revolves around
 the notion of `interval`, a topic that is worth exploring in the context of {es} and {es-sql}.
 
 {es} has comprehensive support for <<date-math, date math>> both inside <<date-math-index-names, index names>> and <<mapping-date-format, queries>>.
@@ -247,6 +247,79 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[filterNow]
 [IMPORTANT]
 Currently, using a _precision_ greater than 3 doesn't make any difference to the output of the
 function as the maximum number of second fractional digits returned is 3 (milliseconds).
+
+[[sql-functions-datetime-trunc]]
+==== `DATE_TRUNC`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+DATE_TRUNC(
+    string_exp, <1>
+    datetime_exp) <2>
+--------------------------------------------------
+
+*Input*:
+
+<1> string expression denoting the unit to which the date/datetime should be truncated to
+<2> date/datetime expression
+
+*Output*: datetime
+
+.Description:
+
+Truncate the date/datetime to the specified unit by setting all fields that are less significant than the specified
+one to zero (or one, for day, day of week and month).
+
+[cols="^,^"]
+|===
+2+h|Datetime truncation units
+
+s|unit
+s|abbreviations
+
+| millennium  | millennia
+| century     | centuries
+| decade      | decades
+| year        | years, yy, yyyy
+| quarter     | quarters, qq, q
+| month       | months, mm, m
+| week        | weeks, wk, ww
+| day         | days, dd, d
+| hour        | hours, hh
+| minute      | minutes, mi, n
+| second      | seconds, ss, s
+| millisecond | milliseconds, ms
+| microsecond | microseconds, mcs
+| nanosecond  | nanoseconds, ns
+|===
+
+
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[truncateDateTimeMillennium]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[truncateDateTimeWeek]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[truncateDateTimeMinutes]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[truncateDateDecades]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[truncateDateQuarter]
+--------------------------------------------------
 
 [[sql-functions-datetime-day]]
 ==== `DAY_OF_MONTH/DOM/DAY`

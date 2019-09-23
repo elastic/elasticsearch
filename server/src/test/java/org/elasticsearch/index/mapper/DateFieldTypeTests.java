@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
@@ -176,9 +177,9 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build();
         QueryShardContext context = new QueryShardContext(0,
-                new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(),
-                        indexSettings),
-                null, null, null, null, null, null, xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null);
+                new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings),
+                BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null,
+                xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null);
         MappedFieldType ft = createDefaultFieldType();
         ft.setName("field");
         String date = "2015-10-12T14:10:55";
@@ -200,7 +201,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build();
         QueryShardContext context = new QueryShardContext(0,
                 new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings),
-                null, null, null, null, null, null, xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null);
+                BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
+                null, null, () -> nowInMillis, null, null);
         MappedFieldType ft = createDefaultFieldType();
         ft.setName("field");
         String date1 = "2015-10-12T14:10:55";

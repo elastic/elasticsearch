@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 
 import java.util.ArrayList;
@@ -90,7 +91,8 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             .setModifiedDate(1)
             .build();
         ClusterState initialState = createState(new SnapshotLifecycleMetadata(
-            Collections.singletonMap(initialPolicy.getPolicy().getId(), initialPolicy), OperationMode.RUNNING));
+            Collections.singletonMap(initialPolicy.getPolicy().getId(), initialPolicy),
+            OperationMode.RUNNING, new SnapshotLifecycleStats()));
         try (ThreadPool threadPool = new TestThreadPool("test");
              ClusterService clusterService = ClusterServiceUtils.createClusterService(initialState, threadPool);
              SnapshotLifecycleService sls = new SnapshotLifecycleService(Settings.EMPTY,
@@ -106,8 +108,10 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
                 .build();
             Map<String, SnapshotLifecyclePolicyMetadata> policies = new HashMap<>();
             policies.put(newPolicy.getPolicy().getId(), newPolicy);
-            ClusterState emptyState = createState(new SnapshotLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING));
-            ClusterState state = createState(new SnapshotLifecycleMetadata(policies, OperationMode.RUNNING));
+            ClusterState emptyState =
+                createState(new SnapshotLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING, new SnapshotLifecycleStats()));
+            ClusterState state =
+                createState(new SnapshotLifecycleMetadata(policies, OperationMode.RUNNING, new SnapshotLifecycleStats()));
 
             sls.clusterChanged(new ClusterChangedEvent("1", state, emptyState));
 
@@ -117,13 +121,13 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             sls.onMaster();
             assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.singleton("initial-1")));
 
-            state = createState(new SnapshotLifecycleMetadata(policies, OperationMode.STOPPING));
+            state = createState(new SnapshotLifecycleMetadata(policies, OperationMode.STOPPING, new SnapshotLifecycleStats()));
             sls.clusterChanged(new ClusterChangedEvent("2", state, emptyState));
 
             // Since the service is stopping, jobs should have been cancelled
             assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.emptySet()));
 
-            state = createState(new SnapshotLifecycleMetadata(policies, OperationMode.STOPPED));
+            state = createState(new SnapshotLifecycleMetadata(policies, OperationMode.STOPPED, new SnapshotLifecycleStats()));
             sls.clusterChanged(new ClusterChangedEvent("3", state, emptyState));
 
             // Since the service is stopped, jobs should have been cancelled
@@ -148,7 +152,8 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
                  () -> new FakeSnapshotTask(e -> trigger.get().accept(e)), clusterService, clock)) {
 
             sls.offMaster();
-            SnapshotLifecycleMetadata snapMeta = new SnapshotLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING);
+            SnapshotLifecycleMetadata snapMeta =
+                new SnapshotLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING, new SnapshotLifecycleStats());
             ClusterState previousState = createState(snapMeta);
             Map<String, SnapshotLifecyclePolicyMetadata> policies = new HashMap<>();
 
@@ -158,7 +163,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
                 .setModifiedDate(1)
                 .build();
             policies.put(policy.getPolicy().getId(), policy);
-            snapMeta = new SnapshotLifecycleMetadata(policies, OperationMode.RUNNING);
+            snapMeta = new SnapshotLifecycleMetadata(policies, OperationMode.RUNNING, new SnapshotLifecycleStats());
             ClusterState state = createState(snapMeta);
             ClusterChangedEvent event = new ClusterChangedEvent("1", state, previousState);
             trigger.set(e -> {
@@ -187,7 +192,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
                 .setModifiedDate(2)
                 .build();
             policies.put(policy.getPolicy().getId(), newPolicy);
-            state = createState(new SnapshotLifecycleMetadata(policies, OperationMode.RUNNING));
+            state = createState(new SnapshotLifecycleMetadata(policies, OperationMode.RUNNING, new SnapshotLifecycleStats()));
             event = new ClusterChangedEvent("2", state, previousState);
             sls.clusterChanged(event);
             assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.singleton("foo-2")));
@@ -204,7 +209,8 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             final int currentCount2 = triggerCount.get();
             previousState = state;
             // Create a state simulating the policy being deleted
-            state = createState(new SnapshotLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING));
+            state =
+                createState(new SnapshotLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING, new SnapshotLifecycleStats()));
             event = new ClusterChangedEvent("2", state, previousState);
             sls.clusterChanged(event);
             clock.fastForwardSeconds(2);
@@ -221,7 +227,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
                 .setModifiedDate(1)
                 .build();
             policies.put(policy.getPolicy().getId(), policy);
-            snapMeta = new SnapshotLifecycleMetadata(policies, OperationMode.RUNNING);
+            snapMeta = new SnapshotLifecycleMetadata(policies, OperationMode.RUNNING, new SnapshotLifecycleStats());
             previousState = state;
             state = createState(snapMeta);
             event = new ClusterChangedEvent("1", state, previousState);
@@ -254,7 +260,8 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
                  () -> new FakeSnapshotTask(e -> trigger.get().accept(e)), clusterService, clock)) {
             sls.onMaster();
 
-            SnapshotLifecycleMetadata snapMeta = new SnapshotLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING);
+            SnapshotLifecycleMetadata snapMeta =
+                new SnapshotLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING, new SnapshotLifecycleStats());
             ClusterState previousState = createState(snapMeta);
             Map<String, SnapshotLifecyclePolicyMetadata> policies = new HashMap<>();
 
@@ -265,7 +272,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
                 .setModifiedDate(1)
                 .build();
             policies.put(policy.getPolicy().getId(), policy);
-            snapMeta = new SnapshotLifecycleMetadata(policies, OperationMode.RUNNING);
+            snapMeta = new SnapshotLifecycleMetadata(policies, OperationMode.RUNNING, new SnapshotLifecycleStats());
             ClusterState state = createState(snapMeta);
             ClusterChangedEvent event = new ClusterChangedEvent("1", state, previousState);
             sls.clusterChanged(event);
@@ -280,7 +287,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
                 .setModifiedDate(1)
                 .build();
             policies.put(secondPolicy.getPolicy().getId(), secondPolicy);
-            snapMeta = new SnapshotLifecycleMetadata(policies, OperationMode.RUNNING);
+            snapMeta = new SnapshotLifecycleMetadata(policies, OperationMode.RUNNING, new SnapshotLifecycleStats());
             state = createState(snapMeta);
             event = new ClusterChangedEvent("2", state, previousState);
             sls.clusterChanged(event);
@@ -329,10 +336,11 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
         indices.add("foo-*");
         indices.add(randomAlphaOfLength(4));
         config.put("indices", indices);
-        return new SnapshotLifecyclePolicy(id, randomAlphaOfLength(4), schedule, randomAlphaOfLength(4), config);
+        return new SnapshotLifecyclePolicy(id, randomAlphaOfLength(4), schedule, randomAlphaOfLength(4), config,
+            SnapshotRetentionConfiguration.EMPTY);
     }
 
-    private static String randomSchedule() {
+    public static String randomSchedule() {
         return randomIntBetween(0, 59) + " " +
             randomIntBetween(0, 59) + " " +
             randomIntBetween(0, 12) + " * * ?";

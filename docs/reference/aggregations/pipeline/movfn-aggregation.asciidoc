@@ -89,18 +89,15 @@ An example response from the above aggregation may look like:
       "my_date_histo": {
          "buckets": [
              {
-                 "key_as_string": "2015/01/01 00:00:00",
+                 "key_as_string": "2015-02-01T00:00:00.000Z",
                  "key": 1420070400000,
                  "doc_count": 3,
                  "the_sum": {
                     "value": 550.0
-                 },
-                 "the_movfn": {
-                    "value": null
                  }
              },
              {
-                 "key_as_string": "2015/02/01 00:00:00",
+                 "key_as_string": "2015-02-01T00:00:00.000Z",
                  "key": 1422748800000,
                  "doc_count": 2,
                  "the_sum": {
@@ -111,7 +108,7 @@ An example response from the above aggregation may look like:
                  }
              },
              {
-                 "key_as_string": "2015/03/01 00:00:00",
+                 "key_as_string": "2015-02-01T00:00:00.000Z",
                  "key": 1425168000000,
                  "doc_count": 2,
                  "the_sum": {

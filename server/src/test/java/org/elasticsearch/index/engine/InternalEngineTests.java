@@ -1382,7 +1382,7 @@ public class InternalEngineTests extends EngineTestCase {
         Engine.Index create = new Engine.Index(newUid(doc), primaryTerm.get(), doc, Versions.MATCH_DELETED);
         Engine.IndexResult indexResult = engine.index(create);
         assertThat(indexResult.getVersion(), equalTo(1L));
-        try (Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.type(), doc.id(), create.uid()),
+        try (Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.id(), create.uid()),
                 searcherFactory)) {
             assertEquals(1, get.version());
         }
@@ -1391,7 +1391,7 @@ public class InternalEngineTests extends EngineTestCase {
         Engine.IndexResult update_1_result = engine.index(update_1);
         assertThat(update_1_result.getVersion(), equalTo(2L));
 
-        try (Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.type(), doc.id(), create.uid()),
+        try (Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.id(), create.uid()),
                 searcherFactory)) {
             assertEquals(2, get.version());
         }
@@ -1400,7 +1400,7 @@ public class InternalEngineTests extends EngineTestCase {
         Engine.IndexResult update_2_result = engine.index(update_2);
         assertThat(update_2_result.getVersion(), equalTo(3L));
 
-        try (Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.type(), doc.id(), create.uid()),
+        try (Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.id(), create.uid()),
                 searcherFactory)) {
             assertEquals(3, get.version());
         }
@@ -1420,21 +1420,21 @@ public class InternalEngineTests extends EngineTestCase {
             engine.flush();
         }
         try (Engine.GetResult get = engine.get(
-            new Engine.Get(true, true, doc.type(), doc.id(), create.uid())
+            new Engine.Get(true, true, doc.id(), create.uid())
                 .setIfSeqNo(indexResult.getSeqNo()).setIfPrimaryTerm(primaryTerm.get()),
             searcherFactory)) {
             assertEquals(indexResult.getSeqNo(), get.docIdAndVersion().seqNo);
         }
 
-        expectThrows(VersionConflictEngineException.class, () -> engine.get(new Engine.Get(true, false, doc.type(), doc.id(), create.uid())
+        expectThrows(VersionConflictEngineException.class, () -> engine.get(new Engine.Get(true, false, doc.id(), create.uid())
                 .setIfSeqNo(indexResult.getSeqNo() + 1).setIfPrimaryTerm(primaryTerm.get()),
             searcherFactory));
 
-        expectThrows(VersionConflictEngineException.class, () -> engine.get(new Engine.Get(true, false, doc.type(), doc.id(), create.uid())
+        expectThrows(VersionConflictEngineException.class, () -> engine.get(new Engine.Get(true, false, doc.id(), create.uid())
                 .setIfSeqNo(indexResult.getSeqNo()).setIfPrimaryTerm(primaryTerm.get() + 1),
             searcherFactory));
 
-        expectThrows(VersionConflictEngineException.class, () -> engine.get(new Engine.Get(true, false, doc.type(), doc.id(), create.uid())
+        expectThrows(VersionConflictEngineException.class, () -> engine.get(new Engine.Get(true, false, doc.id(), create.uid())
                 .setIfSeqNo(indexResult.getSeqNo() + 1).setIfPrimaryTerm(primaryTerm.get() + 1),
             searcherFactory));
     }
@@ -2167,7 +2167,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertOpsOnReplica(replicaOps, replicaEngine, true, logger);
         final int opsOnPrimary = assertOpsOnPrimary(primaryOps, finalReplicaVersion, deletedOnReplica, replicaEngine);
         final long currentSeqNo = getSequenceID(replicaEngine,
-            new Engine.Get(false, false, "type", lastReplicaOp.uid().text(), lastReplicaOp.uid())).v1();
+            new Engine.Get(false, false, lastReplicaOp.uid().text(), lastReplicaOp.uid())).v1();
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             final TotalHitCountCollector collector = new TotalHitCountCollector();
             searcher.search(new MatchAllDocsQuery(), collector);
@@ -2234,7 +2234,7 @@ public class InternalEngineTests extends EngineTestCase {
                 }
                 for (int op = 0; op < opsPerThread; op++) {
                     try (Engine.GetResult get = engine.get(new Engine.Get(true, false,
-                        doc.type(), doc.id(), uidTerm), searcherFactory)) {
+                        doc.id(), uidTerm), searcherFactory)) {
                         FieldsVisitor visitor = new FieldsVisitor(true);
                         get.docIdAndVersion().reader.document(get.docIdAndVersion().docId, visitor);
                         List<String> values = new ArrayList<>(Strings.commaDelimitedListToSet(visitor.source().utf8ToString()));
@@ -2277,7 +2277,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
 
         try (Engine.GetResult get = engine.get(new Engine.Get(true, false,
-                doc.type(), doc.id(), uidTerm), searcherFactory)) {
+                doc.id(), uidTerm), searcherFactory)) {
             FieldsVisitor visitor = new FieldsVisitor(true);
             get.docIdAndVersion().reader.document(get.docIdAndVersion().docId, visitor);
             List<String> values = Arrays.asList(Strings.commaDelimitedListToStringArray(visitor.source().utf8ToString()));
@@ -2704,7 +2704,7 @@ public class InternalEngineTests extends EngineTestCase {
                 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), UNASSIGNED_SEQ_NO, 0));
 
             // Get should not find the document (we never indexed uid=2):
-            getResult = engine.get(new Engine.Get(true, false, "type", "2", newUid("2")),
+            getResult = engine.get(new Engine.Get(true, false, "2", newUid("2")),
                 searcherFactory);
             assertThat(getResult.exists(), equalTo(false));
 
@@ -3967,7 +3967,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testSequenceIDs() throws Exception {
         Tuple<Long, Long> seqID = getSequenceID(engine, new Engine.Get(false, false,
-            "type", "2", newUid("1")));
+            "2", newUid("1")));
         // Non-existent doc returns no seqnum and no primary term
         assertThat(seqID.v1(), equalTo(UNASSIGNED_SEQ_NO));
         assertThat(seqID.v2(), equalTo(0L));
@@ -4268,7 +4268,7 @@ public class InternalEngineTests extends EngineTestCase {
 
         assertThat(engine.getProcessedLocalCheckpoint(), equalTo(expectedLocalCheckpoint));
         try (Engine.GetResult result = engine.get(new Engine.Get(true, false,
-            "type", "2", uid), searcherFactory)) {
+            "2", uid), searcherFactory)) {
             assertThat(result.exists(), equalTo(exists));
         }
     }
@@ -5158,7 +5158,7 @@ public class InternalEngineTests extends EngineTestCase {
                 CountDownLatch awaitStarted = new CountDownLatch(1);
                 Thread thread = new Thread(() -> {
                     awaitStarted.countDown();
-                    try (Engine.GetResult getResult = engine.get(new Engine.Get(true, false, doc3.type(),
+                    try (Engine.GetResult getResult = engine.get(new Engine.Get(true, false,
                             doc3.id(), doc3.uid()),
                         engine::acquireSearcher)) {
                         assertTrue(getResult.exists());
@@ -5166,7 +5166,7 @@ public class InternalEngineTests extends EngineTestCase {
                 });
                 thread.start();
                 awaitStarted.await();
-                try (Engine.GetResult getResult = engine.get(new Engine.Get(true, false, doc.type(),
+                try (Engine.GetResult getResult = engine.get(new Engine.Get(true, false,
                         doc.id(), doc.uid()),
                     engine::acquireSearcher)) {
                     assertFalse(getResult.exists());

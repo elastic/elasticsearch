@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
+import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
@@ -26,8 +27,10 @@ import org.elasticsearch.xpack.sql.type.TypesTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.util.Arrays;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -396,5 +399,19 @@ public class QueryFolderTests extends ESTestCase {
         assertEquals(AggregateFunctionAttribute.class, ee.output().get(0).getClass());
         AggregateFunctionAttribute afa = (AggregateFunctionAttribute) ee.output().get(0);
         assertThat(afa.propertyPath(), endsWith("[3.0]"));
+    }
+
+    public void testFoldingOfPivot() {
+        PhysicalPlan p = plan("SELECT * FROM (SELECT int, keyword, bool FROM test) PIVOT(AVG(int) FOR keyword IN ('A', 'B'))");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        assertEquals(3, ee.output().size());
+        assertEquals(Arrays.asList("bool", "'A'", "'B'"), Expressions.names(ee.output()));
+        String q = ee.toString().replaceAll("\\s+", "");
+        assertThat(q, containsString("\"query\":{\"terms\":{\"keyword\":[\"A\",\"B\"]"));
+        String a = ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", "");
+        assertThat(a, containsString("\"terms\":{\"field\":\"bool\""));
+        assertThat(a, containsString("\"terms\":{\"field\":\"keyword\""));
+        assertThat(a, containsString("{\"avg\":{\"field\":\"int\"}"));
     }
 }

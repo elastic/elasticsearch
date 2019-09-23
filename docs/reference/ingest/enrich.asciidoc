@@ -31,7 +31,7 @@ follow these steps:
 Once you have an enrich processor set up,
 you can <<update-enrich-data,update your enrich data>>
 and <<update-enrich-policies, update your enrich policies>>
-using the <<enrich-apis,enrich APIs>>.
+using the <<enrich-apis,enrich>> APIs.
 
 [IMPORTANT]
 ====
@@ -63,7 +63,7 @@ A *source index* contains data you want to append to incoming documents.
 You can index and manage documents in a source index
 like a regular index.
 
-The following <<docs-index_,index API>> request creates the `users` source index
+The following <<docs-index_,index>> API request creates the `users` source index
 containing user data.
 This request also indexes a new document to the `users` source index.
 
@@ -204,7 +204,7 @@ the processor appends data from those documents to the array.
 If the incoming document matches no documents in the enrich index,
 the processor appends no data.
 
-The following <<docs-index_,Index API>> request uses the ingest pipeline
+The following <<docs-index_,index>> API request uses the ingest pipeline
 to index a document
 containing the `email` field,
 the `match_field` specified in the `users-policy` enrich policy.

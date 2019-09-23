@@ -86,7 +86,7 @@ Instead, you can:
     with the new enrich policy
     in any in-use enrich processors.
 
-.   Use the <<delete-enrich-policy-api, delete enrich policy API>>
+.   Use the <<delete-enrich-policy-api, delete enrich policy>> API
     to delete the previous enrich policy.
 // end::update-enrich-policy[]
 

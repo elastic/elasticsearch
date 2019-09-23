@@ -95,7 +95,7 @@ and deletes the previous enrich index.
 Because this API request performs several operations,
 it may take a while to return a response.
 
-[[sample-api-path-params]]
+[[execute-enrich-policy-api-path-params]]
 ==== {api-path-parms-title}
 
 `<enrich-policy>`::

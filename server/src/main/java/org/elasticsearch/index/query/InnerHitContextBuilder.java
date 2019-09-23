@@ -60,6 +60,10 @@ public abstract class InnerHitContextBuilder {
         doValidate(queryShardContext);
     }
 
+    public InnerHitBuilder innerHitBuilder() {
+        return innerHitBuilder;
+    }
+
     protected abstract void doValidate(QueryShardContext queryShardContext);
 
     public abstract void build(SearchContext parentSearchContext, InnerHitsContext innerHitsContext) throws IOException;

@@ -168,19 +168,6 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
         assertThat(hits, containsInAnyOrder(hasId("1"), hasId("2")));
     }
 
-    public void testGlobalIndexNoTypes() throws IOException {
-        BulkRequest request = new BulkRequest("global_index");
-        request.add(new IndexRequest().id("1")
-            .source(XContentType.JSON, "field", "bulk1"));
-        request.add(new IndexRequest().id("2")
-            .source(XContentType.JSON, "field", "bulk2"));
-
-        bulk(request);
-
-        Iterable<SearchHit> hits = searchAll("global_index");
-        assertThat(hits, everyItem(hasIndex("global_index")));
-    }
-
     private BulkResponse bulk(BulkRequest request) throws IOException {
         BulkResponse bulkResponse = execute(request, highLevelClient()::bulk, highLevelClient()::bulkAsync, RequestOptions.DEFAULT);
         assertFalse(bulkResponse.hasFailures());

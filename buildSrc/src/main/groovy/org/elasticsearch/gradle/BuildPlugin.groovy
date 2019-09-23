@@ -25,7 +25,6 @@ import groovy.transform.CompileDynamic
 import groovy.transform.CompileStatic
 import org.apache.commons.io.IOUtils
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
-import org.elasticsearch.gradle.info.GlobalInfoExtension
 import org.elasticsearch.gradle.info.JavaHome
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.precommit.PrecommitTasks
@@ -145,32 +144,35 @@ class BuildPlugin implements Plugin<Project> {
         configurePrecommit(project)
         configureDependenciesInfo(project)
 
-
         configureFips140(project)
     }
 
-    public static void configureFips140(Project project) {
-        // Need to do it here to support external plugins
-        GlobalInfoExtension globalInfo = project.rootProject.extensions.getByType(GlobalInfoExtension)
-        // wait until global info is populated because we don't know if we are running in a fips jvm until execution time
-        globalInfo.ready {
-                ExtraPropertiesExtension ext = project.extensions.getByType(ExtraPropertiesExtension)
-                // Common config when running with a FIPS-140 runtime JVM
-                if (ext.has('inFipsJvm') && ext.get('inFipsJvm')) {
-                    project.tasks.withType(Test).configureEach { Test task ->
-                        task.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
-                        task.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
-                    }
-                    project.pluginManager.withPlugin("elasticsearch.testclusters") {
-                        NamedDomainObjectContainer<ElasticsearchCluster> testClusters = project.extensions.findByName(TestClustersPlugin.EXTENSION_NAME) as NamedDomainObjectContainer<ElasticsearchCluster>
-                        if (testClusters != null) {
-                            testClusters.all { ElasticsearchCluster cluster ->
-                                cluster.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
-                                cluster.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
-                            }
-                        }
+    static void configureFips140(Project project) {
+        // Common config when running with a FIPS-140 runtime JVM
+        if (inFipsJvm()) {
+            String securityPropertiesPath = "" + BuildPlugin.getResource("/fips_java.security").getPath();
+            String securityPolicyPath = "" + BuildPlugin.getResource("/fips_java.policy").getPath();
+            project.tasks.withType(Test).configureEach { Test task ->
+                task.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
+                task.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
+                task.systemProperty 'javax.net.ssl.trustStoreType', 'BCFKS'
+                task.systemProperty('java.security.properties',
+                        '=/home/ioannis/code/devel/elasticsearch/buildSrc/src/main/resources/fips_java.security')
+                task.systemProperty('java.security.policy',
+                        '=/home/ioannis/code/devel/elasticsearch/buildSrc/src/main/resources/fips_java' +
+                        '.policy')
+                task.systemProperty('javax.net.ssl.trustStore', '/usr/lib/jvm/jdk-11-fips/lib/security/jssecacerts')
+            }
+            project.pluginManager.withPlugin("elasticsearch.testclusters") {
+                NamedDomainObjectContainer<ElasticsearchCluster> testClusters = project.extensions.findByName(TestClustersPlugin.EXTENSION_NAME) as NamedDomainObjectContainer<ElasticsearchCluster>
+                if (testClusters != null) {
+                    testClusters.all { ElasticsearchCluster cluster ->
+                        cluster.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
+                        cluster.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
+                        cluster.systemProperty 'javax.net.ssl.trustStoreType', 'BCFKS'
                     }
                 }
+            }
         }
     }
 
@@ -819,14 +821,11 @@ class BuildPlugin implements Plugin<Project> {
                     project.mkdir(testOutputDir)
                     project.mkdir(heapdumpDir)
                     project.mkdir(test.workingDir)
-
-                    if (project.property('inFipsJvm')) {
-                        nonInputProperties.systemProperty('runtime.java', "${-> (ext.get('runtimeJavaVersion') as JavaVersion).getMajorVersion()}FIPS")
-                    } else {
-                        nonInputProperties.systemProperty('runtime.java', "${-> (ext.get('runtimeJavaVersion') as JavaVersion).getMajorVersion()}")
-                    }
                 }
-
+                if (inFipsJvm()) {
+                    project.dependencies.add('testRuntimeOnly', "org.bouncycastle:bc-fips:1.0.1")
+                    project.dependencies.add('testRuntimeOnly', "org.bouncycastle:bctls-fips:1.0.9")
+                }
                 test.jvmArgumentProviders.add(nonInputProperties)
                 test.extensions.add('nonInputProperties', nonInputProperties)
 
@@ -999,5 +998,9 @@ class BuildPlugin implements Plugin<Project> {
                 }
             })
         }
+    }
+
+    private static inFipsJvm(){
+        return Boolean.parseBoolean(System.getProperty("fips.enabled"));
     }
 }

@@ -1,0 +1,153 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+package org.elasticsearch.xpack.enrich;
+
+import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchResponseSections;
+import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.Preference;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
+import org.elasticsearch.index.query.GeoShapeQueryBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.test.ESTestCase;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.function.BiConsumer;
+
+import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
+
+public class GeoMatchProcessorTests extends ESTestCase {
+
+    public void testBasics() throws Exception {
+        int maxMatches = randomIntBetween(1, 8);
+        MockSearchFunction mockSearch = mockedSearchFunction(Map.of("key", Map.of("shape", "object", "zipcode",94040)));
+        GeoMatchProcessor processor = new GeoMatchProcessor("_tag", mockSearch, "_name", "location", "entry",
+            "shape", false, true, maxMatches);
+        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL,
+            Map.of("location", "37.386637, -122.084110"));
+        // Run
+        IngestDocument[] holder = new IngestDocument[1];
+        processor.execute(ingestDocument, (result, e) -> holder[0] = result);
+        assertThat(holder[0], notNullValue());
+        // Check request
+        SearchRequest request = mockSearch.getCapturedRequest();
+        assertThat(request.indices().length, equalTo(1));
+        assertThat(request.indices()[0], equalTo(".enrich-_name"));
+        assertThat(request.preference(), equalTo(Preference.LOCAL.type()));
+        assertThat(request.source().size(), equalTo(maxMatches));
+        assertThat(request.source().trackScores(), equalTo(false));
+        assertThat(request.source().fetchSource().fetchSource(), equalTo(true));
+        assertThat(request.source().fetchSource().excludes(), emptyArray());
+        assertThat(request.source().fetchSource().includes(), emptyArray());
+        assertThat(request.source().query(), instanceOf(ConstantScoreQueryBuilder.class));
+        assertThat(((ConstantScoreQueryBuilder) request.source().query()).innerQuery(), instanceOf(GeoShapeQueryBuilder.class));
+        GeoShapeQueryBuilder shapeQueryBuilder = (GeoShapeQueryBuilder) ((ConstantScoreQueryBuilder) request.source().query()).innerQuery();
+        assertThat(shapeQueryBuilder.fieldName(), equalTo("shape"));
+        assertThat(shapeQueryBuilder.shape(), equalTo(new Point(-122.084110, 37.386637)));
+        o
+
+        shapeQueryBuilder.toQuery()
+        // Check result
+        List<?> entries = ingestDocument.getFieldValue("entry", List.class);
+        Map<?, ?> entry = (Map<?, ?>) entries.get(0);
+        assertThat(entry.size(), equalTo(2));
+        assertThat(entry.get("zipcode"), equalTo(94040));
+    }
+
+    private static final class MockSearchFunction implements BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>>  {
+        private final SearchResponse mockResponse;
+        private final SetOnce<SearchRequest> capturedRequest;
+        private final Exception exception;
+
+        MockSearchFunction(SearchResponse mockResponse) {
+            this.mockResponse = mockResponse;
+            this.exception = null;
+            this.capturedRequest = new SetOnce<>();
+        }
+
+        MockSearchFunction(Exception exception) {
+            this.mockResponse = null;
+            this.exception = exception;
+            this.capturedRequest = new SetOnce<>();
+        }
+
+        @Override
+        public void accept(SearchRequest request, BiConsumer<SearchResponse, Exception> handler) {
+            capturedRequest.set(request);
+            if (exception != null) {
+                handler.accept(null, exception);
+            } else {
+                handler.accept(mockResponse, null);
+            }
+        }
+
+        SearchRequest getCapturedRequest() {
+            return capturedRequest.get();
+        }
+    }
+
+    public MockSearchFunction mockedSearchFunction() {
+        return new MockSearchFunction(mockResponse(Collections.emptyMap()));
+    }
+
+    public MockSearchFunction mockedSearchFunction(Exception exception) {
+        return new MockSearchFunction(exception);
+    }
+
+    public MockSearchFunction mockedSearchFunction(Map<String, Map<String, ?>> documents) {
+        return new MockSearchFunction(mockResponse(documents));
+    }
+
+    public SearchResponse mockResponse(Map<String, Map<String, ?>> documents) {
+
+        final QueryShardContext context = new QueryShardContext(0, new IndexSettings(new IndexMetaData(), Settings.EMPTY), null, null, null, mapperService,
+            null, null, xContentRegistry(), writableRegistry(), client, leaf.reader(), () -> nowInMillis, null);
+
+        SearchHit[] searchHits = documents.entrySet().stream().map(e -> {
+            SearchHit searchHit = new SearchHit(randomInt(100), e.getKey(), new Text(MapperService.SINGLE_MAPPING_NAME),
+                Collections.emptyMap());
+            try (XContentBuilder builder = XContentBuilder.builder(XContentType.SMILE.xContent())) {
+                builder.map(e.getValue());
+                builder.flush();
+                ByteArrayOutputStream outputStream = (ByteArrayOutputStream) builder.getOutputStream();
+                searchHit.sourceRef(new BytesArray(outputStream.toByteArray()));
+            } catch (IOException ex) {
+                throw new UncheckedIOException(ex);
+            }
+            return searchHit;
+        }).toArray(SearchHit[]::new);
+        return new SearchResponse(new SearchResponseSections(
+            new SearchHits(searchHits, new TotalHits(documents.size(), TotalHits.Relation.EQUAL_TO), 1.0f),
+            new Aggregations(Collections.emptyList()), new Suggest(Collections.emptyList()),
+            false, false, null, 1), null, 1, 1, 0, 1, ShardSearchFailure.EMPTY_ARRAY, new SearchResponse.Clusters(1, 1, 0));
+    }
+}

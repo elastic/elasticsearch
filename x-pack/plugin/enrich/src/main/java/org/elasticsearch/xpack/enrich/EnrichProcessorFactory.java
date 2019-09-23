@@ -59,6 +59,9 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
             case EnrichPolicy.MATCH_TYPE:
                 return new MatchProcessor(tag, client, policyName, field, targetField, matchField,
                     ignoreMissing, overrideEnabled, maxMatches);
+            case EnrichPolicy.GEO_MATCH_TYPE:
+                return new GeoMatchProcessor(tag, client, policyName, field, targetField, matchField,
+                    ignoreMissing, overrideEnabled, maxMatches);
             default:
                 throw new IllegalArgumentException("unsupported policy type [" + policyType + "]");
         }

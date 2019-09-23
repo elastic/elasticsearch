@@ -200,6 +200,8 @@ public class EnrichPolicyRunner implements Runnable {
         if (EnrichPolicy.MATCH_TYPE.equals(policy.getType())) {
             keyType = "keyword";
             // No need to also configure index_options, because keyword type defaults to 'docs'.
+        } else if (EnrichPolicy.GEO_MATCH_TYPE.equals(policy.getType())) {
+            keyType = "geo_shape";
         } else {
             throw new ElasticsearchException("Unrecognized enrich policy type [{}]", policy.getType());
         }

@@ -23,7 +23,7 @@ mapping. For example:
 ----
 PUT /my_index
 {
-    "mappings": {
+    "mappings" : {
         "properties" : {
             "obj1" : {
                 "type" : "nested"
@@ -33,7 +33,6 @@ PUT /my_index
 }
 
 ----
-// TESTSETUP
 
 [[nested-query-ex-query]]
 ===== Example query
@@ -42,7 +41,7 @@ PUT /my_index
 ----
 GET /my_index/_search
 {
-    "query": {
+    "query":  {
         "nested" : {
             "path" : "obj1",
             "query" : {
@@ -58,6 +57,7 @@ GET /my_index/_search
     }
 }
 ----
+// TEST[continued]
 
 [[nested-top-level-params]]
 ==== Top-level parameters for `nested`
@@ -78,6 +78,8 @@ such as `obj1.name`.
 Multi-level nesting is automatically supported, and detected, resulting in an
 inner nested query to automatically match the relevant nesting level, rather
 than root, if it exists within another nested query.
+
+See <<multi-level-nested-query-ex>> for an example.
 --
 
 `score_mode`::
@@ -115,3 +117,124 @@ If `false`, {es} returns an error if the `path` is an unmapped field.
 You can use this parameter to query multiple indices that may not contain the
 field `path`.
 --
+
+[[nested-query-notes]]
+==== Notes
+
+[[multi-level-nested-query-ex]]
+===== Multi-level nested queries
+
+To see how multi-level nested queries work,
+try the following example.
+
+First, create an index, `drivers`
+with a nested field mapping.
+
+Note the `model` field is nested as follows:
+
+```
+driver → vehicle → model
+```
+
+[source,console]
+----
+PUT /drivers
+{
+    "mappings" : {
+        "properties" : {
+            "driver" : {
+                "type" : "nested",
+                "properties" : {
+                    "vehicle" : {
+                        "type" : "nested",
+                        "properties" : {
+                            "model" : {
+                                "type" : "keyword"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+----
+
+Next, index a document to the `drivers` index.
+
+[source,console]
+----
+PUT /drivers/_doc/1?refresh
+{
+  "driver" : {
+        "vehicle" : {
+            "model" : "Canyonero"
+        }
+    }
+}
+----
+// TEST[continued]
+
+You can now use a search request with a multi-level nested query
+to return documents based on the `model` field.
+
+[source,console]
+----
+GET /drivers/_search
+{
+    "query" : {
+        "nested" : {
+            "path" : "driver",
+            "query" : {
+                "nested" : {
+                    "path" :  "driver.vehicle",
+                    "query" :  {
+                       "match" : {
+                           "driver.vehicle.model" : "Canyonero"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+----
+// TEST[continued]
+
+The search request returns the following response:
+
+[source,console-result]
+----
+{
+  "took" : 75,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 1,
+      "relation" : "eq"
+    },
+    "max_score" : 0.2876821,
+    "hits" : [
+      {
+        "_index" : "drivers",
+        "_id" : "1",
+        "_score" : 0.2876821,
+        "_source" : {
+          "driver" : {
+            "vehicle" : {
+              "model" : "Canyonero"
+            }
+          }
+        },
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took" : 75/"took": $body.took/]

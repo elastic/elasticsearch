@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -215,6 +216,9 @@ public class TransportPutRoleActionTests extends ESTestCase {
         assertThat(throwableRef.get(), is(notNullValue()));
         Throwable t = throwableRef.get();
         assertThat(t, instanceOf(ElasticsearchParseException.class));
+        assertThat(t.getMessage(), containsString("failed to parse field 'query' for indices [" +
+            Strings.arrayToCommaDelimitedString(new String[]{"idx1"}) +
+            "] at [0]th index privilege from role descriptor"));
     }
 
     public void testCreationOfRoleWithUnsupportedQueryFails() throws Exception {
@@ -248,5 +252,8 @@ public class TransportPutRoleActionTests extends ESTestCase {
         assertThat(throwableRef.get(), is(notNullValue()));
         Throwable t = throwableRef.get();
         assertThat(t, instanceOf(ElasticsearchParseException.class));
+        assertThat(t.getMessage(), containsString("failed to parse field 'query' for indices [" +
+            Strings.arrayToCommaDelimitedString(new String[]{"idx1"}) +
+            "] at [0]th index privilege from role descriptor"));
     }
 }

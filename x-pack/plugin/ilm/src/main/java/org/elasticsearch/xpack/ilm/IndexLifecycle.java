@@ -272,7 +272,9 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
 
     @Override
     public void onIndexModule(IndexModule indexModule) {
-        indexModule.addIndexEventListener(indexLifecycleInitialisationService.get());
+        if (enabled) {
+            indexModule.addIndexEventListener(indexLifecycleInitialisationService.get());
+        }
     }
 
     @Override

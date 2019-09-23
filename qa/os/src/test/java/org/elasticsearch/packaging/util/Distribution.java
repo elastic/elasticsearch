@@ -40,7 +40,7 @@ public class Distribution {
             this.packaging = Packaging.DOCKER;
         } else {
             int lastDot = filename.lastIndexOf('.');
-            this.packaging = Packaging.valueOf(filename.substring(lastDot + 1));
+            this.packaging = Packaging.valueOf(filename.substring(lastDot + 1).toUpperCase(Locale.ROOT));
         }
 
         this.platform = filename.contains("windows") ? Platform.WINDOWS : Platform.LINUX;

@@ -92,7 +92,6 @@ public class BulkProcessor implements Closeable {
         private TimeValue flushInterval = null;
         private BackoffPolicy backoffPolicy = BackoffPolicy.exponentialBackoff();
         private String globalIndex;
-        private String globalType;
         private String globalRouting;
         private String globalPipeline;
 
@@ -148,11 +147,6 @@ public class BulkProcessor implements Closeable {
             return this;
         }
 
-        public Builder setGlobalType(String globalType) {
-            this.globalType = globalType;
-            return this;
-        }
-
         public Builder setGlobalRouting(String globalRouting) {
             this.globalRouting = globalRouting;
             return this;
@@ -188,7 +182,7 @@ public class BulkProcessor implements Closeable {
         }
 
         private Supplier<BulkRequest> createBulkRequestWithGlobalDefaults() {
-            return () -> new BulkRequest(globalIndex, globalType)
+            return () -> new BulkRequest(globalIndex)
                 .pipeline(globalPipeline)
                 .routing(globalRouting);
         }
@@ -344,22 +338,13 @@ public class BulkProcessor implements Closeable {
     /**
      * Adds the data from the bytes to be processed by the bulk processor
      */
-    public BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
-                             XContentType xContentType) throws Exception {
-        return add(data, defaultIndex, defaultType, null, xContentType);
-    }
-
-    /**
-     * Adds the data from the bytes to be processed by the bulk processor
-     */
-    public BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
-                                          @Nullable String defaultPipeline,
-                                          XContentType xContentType) throws Exception {
+    public BulkProcessor add(BytesReference data, @Nullable String defaultIndex,
+                             @Nullable String defaultPipeline, XContentType xContentType) throws Exception {
         Tuple<BulkRequest, Long> bulkRequestToExecute = null;
         lock.lock();
         try {
             ensureOpen();
-            bulkRequest.add(data, defaultIndex, defaultType, null, null, defaultPipeline,
+            bulkRequest.add(data, defaultIndex, null, null, defaultPipeline,
                 true, xContentType);
             bulkRequestToExecute = newBulkRequestIfNeeded();
         } finally {

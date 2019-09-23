@@ -387,7 +387,7 @@ public class GeoFilterIT extends ESIntegTestCase {
 
         client().admin().indices().prepareCreate("countries").setSettings(settings)
                 .addMapping("country", xContentBuilder).get();
-        BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, null, null, xContentBuilder.contentType()).get();
+        BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, null, xContentBuilder.contentType()).get();
 
         for (BulkItemResponse item : bulk.getItems()) {
             assertFalse("unable to index data", item.isFailed());

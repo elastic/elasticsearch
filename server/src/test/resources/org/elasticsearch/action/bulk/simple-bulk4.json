@@ -1,6 +1,6 @@
 { "update" : {"_id" : "1", "retry_on_conflict" : 2} }
 { "doc" : {"field" : "value"} }
-{ "update" : { "_id" : "0", "_type" : "type1", "_index" : "index1" } }
+{ "update" : { "_id" : "0", "_index" : "index1" } }
 { "script" : { "source" : "counter += param1", "lang" : "javascript", "params" : {"param1" : 1}}, "upsert" : {"counter" : 1}}
 { "delete" : { "_id" : "2" } }
 { "create" : { "_id" : "3" } }

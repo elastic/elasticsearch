@@ -101,7 +101,8 @@ public class ClientYamlSuiteRestApiTests extends ESTestCase {
         "    },\n"+
         "    \"source\": {\n"+
         "      \"type\": \"string\",\n"+
-        "      \"description\": \"The URL-encoded request definition. Useful for libraries that do not accept a request body for non-POST requests.\"\n"+
+        "      \"description\": \"The URL-encoded request definition." +
+        " Useful for libraries that do not accept a request body for non-POST requests.\"\n"+
         "    },\n"+
         "    \"filter_path\": {\n"+
         "      \"type\": \"list\",\n"+

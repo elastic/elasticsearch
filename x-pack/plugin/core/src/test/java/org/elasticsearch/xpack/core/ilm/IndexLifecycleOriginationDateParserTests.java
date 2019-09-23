@@ -17,7 +17,7 @@ import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDatePars
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.shouldParseIndexName;
 import static org.hamcrest.Matchers.is;
 
-public class IndexLifecycleOriginationDateParserTest extends ESTestCase {
+public class IndexLifecycleOriginationDateParserTests extends ESTestCase {
 
     public void testShouldParseIndexNameReturnsFalseWhenOriginationDateIsSet() {
         Settings settings = Settings.builder()

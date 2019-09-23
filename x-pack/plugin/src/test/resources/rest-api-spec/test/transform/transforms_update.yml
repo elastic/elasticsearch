@@ -15,7 +15,7 @@ setup:
                 type: integer
 
   - do:
-      data_frame.put_data_frame_transform:
+      transform.put_transform:
         transform_id: "updating-airline-transform"
         body: >
           {
@@ -38,7 +38,7 @@ setup:
 "Test update transform with missing transform":
   - do:
       catch: /Transform with id \[missing-transform\] could not be found/
-      data_frame.update_data_frame_transform:
+      transform.update_transform:
         transform_id: "missing-transform"
         body: >
           {
@@ -48,7 +48,7 @@ setup:
 "Test update transform with frequency too low":
   - do:
       catch: /minimum permitted \[frequency\] is \[1s\]/
-      data_frame.update_data_frame_transform:
+      transform.update_transform:
         transform_id: "updating-airline-transform"
         body: >
           {
@@ -58,7 +58,7 @@ setup:
 "Test update transform with frequency too high":
   - do:
       catch: /highest permitted \[frequency\] is \[1h\]/
-      data_frame.update_data_frame_transform:
+      transform.update_transform:
         transform_id: "updating-airline-transform"
         body: >
           {
@@ -68,14 +68,14 @@ setup:
 "Test put transform with invalid source index":
   - do:
       catch: /Source index \[missing-index\] does not exist/
-      data_frame.update_data_frame_transform:
+      transform.update_transform:
         transform_id: "updating-airline-transform"
         body: >
           {
             "source": { "index": "missing-index" }
           }
   - do:
-      data_frame.update_data_frame_transform:
+      transform.update_transform:
         transform_id: "updating-airline-transform"
         defer_validation: true
         body: >
@@ -87,7 +87,7 @@ setup:
 ---
 "Test update transform when it is batch":
   - do:
-      data_frame.put_data_frame_transform:
+      transform.put_transform:
         transform_id: "batch-airline-transform"
         body: >
           {
@@ -99,7 +99,7 @@ setup:
             }
           }
   - do:
-      data_frame.update_data_frame_transform:
+      transform.update_transform:
         transform_id: "batch-airline-transform"
         body: >
           {
@@ -109,7 +109,7 @@ setup:
 
   - do:
       catch: /Cannot change the current sync configuration of transform \[batch-airline-transform\] from \[null\] to \[time\]/
-      data_frame.update_data_frame_transform:
+      transform.update_transform:
         transform_id: "batch-airline-transform"
         body: >
           {
@@ -137,7 +137,7 @@ setup:
               event_rate:
                 type: integer
   - do:
-      data_frame.get_data_frame_transform:
+      transform.get_transform:
         transform_id: "updating-airline-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "updating-airline-transform" }
@@ -154,7 +154,7 @@ setup:
   - match: { transforms.0.frequency: "60s" }
 
   - do:
-      data_frame.update_data_frame_transform:
+      transform.update_transform:
         transform_id: "updating-airline-transform"
         body: >
           {
@@ -180,7 +180,7 @@ setup:
   - match: { frequency: "5s" }
 
   - do:
-      data_frame.get_data_frame_transform:
+      transform.get_transform:
         transform_id: "updating-airline-transform"
   - match: { count: 1 }
   - match: { transforms.0.id: "updating-airline-transform" }
@@ -200,7 +200,7 @@ setup:
 "Test transform where dest is included in source":
   - do:
       catch: /Destination index \[airline-data-by-airline\] is included in source expression \[airline-data/
-      data_frame.update_data_frame_transform:
+      transform.update_transform:
         transform_id: "updating-airline-transform"
         body: >
           {
@@ -211,7 +211,7 @@ setup:
           }
 
   - do:
-      data_frame.update_data_frame_transform:
+      transform.update_transform:
         transform_id: "updating-airline-transform"
         defer_validation: true
         body: >
@@ -238,7 +238,7 @@ setup:
         index: created-destination-index
         name: dest-index
   - do:
-      data_frame.update_data_frame_transform:
+      transform.update_transform:
         transform_id: "updating-airline-transform"
         body: >
           {
@@ -256,7 +256,7 @@ setup:
 
   - do:
       catch: /Destination index \[created-destination-index\] is included in source expression \[created-destination-index\]/
-      data_frame.update_data_frame_transform:
+      transform.update_transform:
         transform_id: "updating-airline-transform"
         body: >
           {
@@ -281,7 +281,7 @@ setup:
         name: dest2-index
   - do:
       catch: /Destination index \[dest2-index\] should refer to a single index/
-      data_frame.update_data_frame_transform:
+      transform.update_transform:
         transform_id: "updating-airline-transform"
         body: >
           {
@@ -291,7 +291,7 @@ setup:
 "Test invalid destination index name":
   - do:
       catch: /dest\.index \[DeStInAtIoN\] must be lowercase/
-      data_frame.update_data_frame_transform:
+      transform.update_transform:
         transform_id: "updating-airline-transform"
         body: >
           {
@@ -299,7 +299,7 @@ setup:
           }
   - do:
       catch: /Invalid index name \[destination#dest\], must not contain \'#\'/
-      data_frame.update_data_frame_transform:
+      transform.update_transform:
         transform_id: "updating-airline-transform"
         body: >
           {

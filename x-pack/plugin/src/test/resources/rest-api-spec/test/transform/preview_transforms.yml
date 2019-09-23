@@ -68,7 +68,7 @@ setup:
 ---
 "Test preview transform":
   - do:
-      data_frame.preview_data_frame_transform:
+      transform.preview_transform:
         body: >
           {
             "source": { "index": "airline-data" },
@@ -120,7 +120,7 @@ setup:
           }
   - match: { acknowledged: true }
   - do:
-      data_frame.preview_data_frame_transform:
+      transform.preview_transform:
         body: >
           {
             "source": { "index": "airline-data" },
@@ -154,7 +154,7 @@ setup:
 "Test preview transform with invalid config":
   - do:
       catch: /\[data_frame_terms_group\] unknown field \[not_a_terms_param\]/
-      data_frame.preview_data_frame_transform:
+      transform.preview_transform:
         body: >
           {
             "source": { "index": "airline-data" },
@@ -167,7 +167,7 @@ setup:
 "Test preview with non-existing source index":
   - do:
       catch: /Source index \[does_not_exist\] does not exist/
-      data_frame.preview_data_frame_transform:
+      transform.preview_transform:
         body: >
           {
             "source": { "index": ["airline-data", "does_not_exist"] },
@@ -182,7 +182,7 @@ setup:
 "Test preview returns bad request with invalid agg":
   - do:
       catch: bad_request
-      data_frame.preview_data_frame_transform:
+      transform.preview_transform:
         body: >
           {
             "source": { "index": "airline-data" },
@@ -198,7 +198,7 @@ setup:
 
   - do:
       catch: /field \[time\] cannot be both an object and a field/
-      data_frame.preview_data_frame_transform:
+      transform.preview_transform:
         body: >
           {
             "source": { "index": "airline-data" },
@@ -213,7 +213,7 @@ setup:
           }
   - do:
       catch: /field \[super_metric\] cannot be both an object and a field/
-      data_frame.preview_data_frame_transform:
+      transform.preview_transform:
         body: >
           {
             "source": { "index": "airline-data" },
@@ -238,7 +238,7 @@ setup:
 "Test preview with missing pipeline":
   - do:
       catch: bad_request
-      data_frame.preview_data_frame_transform:
+      transform.preview_transform:
         body: >
           {
             "source": { "index": "airline-data" },
@@ -256,7 +256,7 @@ setup:
 "Test preview with unsupported agg":
   - do:
       catch: bad_request
-      data_frame.preview_data_frame_transform:
+      transform.preview_transform:
         body: >
           {
             "source": { "index": "airline-data" },
@@ -271,7 +271,7 @@ setup:
           }
   - do:
       catch: /Unsupported aggregation type \[terms\]/
-      data_frame.preview_data_frame_transform:
+      transform.preview_transform:
         body: >
           {
             "source": { "index": "airline-data" },

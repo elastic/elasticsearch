@@ -14,7 +14,7 @@ setup:
               event_rate:
                 type: integer
   - do:
-      data_frame.put_data_frame_transform:
+      transform.put_transform:
         transform_id: "airline-transform-stats"
         body: >
           {
@@ -26,24 +26,24 @@ setup:
             }
           }
   - do:
-      data_frame.start_data_frame_transform:
+      transform.start_transform:
         transform_id: "airline-transform-stats"
 
 ---
 teardown:
   - do:
-      data_frame.stop_data_frame_transform:
+      transform.stop_transform:
         transform_id: "airline-transform-stats"
         wait_for_completion: true
 
   - do:
-      data_frame.delete_data_frame_transform:
+      transform.delete_transform:
         transform_id: "airline-transform-stats"
 
 ---
 "Test get transform stats":
   - do:
-      data_frame.get_data_frame_transform_stats:
+      transform.get_transform_stats:
         transform_id: "airline-transform-stats"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-stats" }
@@ -63,7 +63,7 @@ teardown:
 ---
 "Test get transform stats on missing transform":
   - do:
-      data_frame.get_data_frame_transform_stats:
+      transform.get_transform_stats:
         transform_id: "missing-transform"
   - match: { count: 0 }
   - match: { transforms: [] }
@@ -71,7 +71,7 @@ teardown:
 ---
 "Test get multiple transform stats":
   - do:
-      data_frame.put_data_frame_transform:
+      transform.put_transform:
         transform_id: "airline-transform-stats-dos"
         body: >
           {
@@ -83,7 +83,7 @@ teardown:
             }
           }
   - do:
-      data_frame.put_data_frame_transform:
+      transform.put_transform:
         transform_id: "airline-transform-stats-the-third"
         body: >
           {
@@ -95,7 +95,7 @@ teardown:
             }
           }
   - do:
-      data_frame.get_data_frame_transform_stats:
+      transform.get_transform_stats:
         transform_id: "*"
   - match: { count: 3 }
   - match: { transforms.0.id: "airline-transform-stats" }
@@ -103,7 +103,7 @@ teardown:
   - match: { transforms.2.id: "airline-transform-stats-the-third" }
 
   - do:
-      data_frame.get_data_frame_transform_stats:
+      transform.get_transform_stats:
         transform_id: "_all"
   - match: { count: 3 }
   - match: { transforms.0.id: "airline-transform-stats" }
@@ -111,14 +111,14 @@ teardown:
   - match: { transforms.2.id: "airline-transform-stats-the-third" }
 
   - do:
-      data_frame.get_data_frame_transform_stats:
+      transform.get_transform_stats:
         transform_id: "airline-transform-stats-dos,airline-transform-stats-the*"
   - match: { count: 2 }
   - match: { transforms.0.id: "airline-transform-stats-dos" }
   - match: { transforms.1.id: "airline-transform-stats-the-third" }
 
   - do:
-      data_frame.get_data_frame_transform_stats:
+      transform.get_transform_stats:
         transform_id: "_all"
         from: 0
         size: 1
@@ -126,7 +126,7 @@ teardown:
   - match: { transforms.0.id: "airline-transform-stats" }
 
   - do:
-      data_frame.get_data_frame_transform_stats:
+      transform.get_transform_stats:
         transform_id: "_all"
         from: 1
         size: 2
@@ -135,18 +135,18 @@ teardown:
   - match: { transforms.1.id: "airline-transform-stats-the-third" }
 
   - do:
-      data_frame.delete_data_frame_transform:
+      transform.delete_transform:
         transform_id: "airline-transform-stats-dos"
 
   - do:
-      data_frame.delete_data_frame_transform:
+      transform.delete_transform:
         transform_id: "airline-transform-stats-the-third"
 
 
 ---
 "Test get multiple transform stats where one does not have a task":
   - do:
-      data_frame.put_data_frame_transform:
+      transform.put_transform:
         transform_id: "airline-transform-stats-dos"
         body: >
           {
@@ -158,14 +158,14 @@ teardown:
             }
           }
   - do:
-      data_frame.get_data_frame_transform_stats:
+      transform.get_transform_stats:
         transform_id: "*"
   - match: { count: 2 }
   - match: { transforms.0.id: "airline-transform-stats" }
   - match: { transforms.1.id: "airline-transform-stats-dos" }
 
   - do:
-      data_frame.get_data_frame_transform_stats:
+      transform.get_transform_stats:
         transform_id: "_all"
   - match: { count: 2 }
   - match: { transforms.0.id: "airline-transform-stats" }
@@ -175,7 +175,7 @@ teardown:
 "Test get single transform stats when it does not have a task":
 
   - do:
-      data_frame.put_data_frame_transform:
+      transform.put_transform:
         transform_id: "airline-transform-stats-dos"
         body: >
           {
@@ -187,7 +187,7 @@ teardown:
             }
           }
   - do:
-      data_frame.get_data_frame_transform_stats:
+      transform.get_transform_stats:
         transform_id: "airline-transform-stats-dos"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-stats-dos" }
@@ -206,7 +206,7 @@ teardown:
 ---
 "Test get continuous transform stats":
   - do:
-      data_frame.put_data_frame_transform:
+      transform.put_transform:
         transform_id: "airline-transform-stats-continuous"
         body: >
           {
@@ -219,10 +219,10 @@ teardown:
             "sync": { "time": { "field": "time", "delay": "1m" } }
           }
   - do:
-      data_frame.start_data_frame_transform:
+      transform.start_transform:
         transform_id: "airline-transform-stats-continuous"
   - do:
-      data_frame.get_data_frame_transform_stats:
+      transform.get_transform_stats:
         transform_id: "airline-transform-stats-continuous"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-stats-continuous" }
@@ -251,10 +251,10 @@ teardown:
   - match: { transforms.0.stats.exponential_avg_documents_processed: 0.0 }
 
   - do:
-      data_frame.stop_data_frame_transform:
+      transform.stop_transform:
         transform_id: "airline-transform-stats-continuous"
         wait_for_completion: true
 
   - do:
-      data_frame.delete_data_frame_transform:
+      transform.delete_transform:
         transform_id: "airline-transform-stats-continuous"

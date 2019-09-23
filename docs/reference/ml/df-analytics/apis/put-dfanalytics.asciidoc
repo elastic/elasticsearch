@@ -121,6 +121,9 @@ and mappings.
 [[ml-put-dfanalytics-example]]
 ==== {api-examples-title}
 
+[[ml-put-dfanalytics-example-od]]
+===== {oldetection-cap} example
+
 The following example creates the `loganalytics` {dfanalytics-job}, the analysis 
 type is `outlier_detection`:
 
@@ -171,3 +174,64 @@ The API returns the following result:
 ----
 // TESTRESPONSE[s/1562265491319/$body.$_path/]
 // TESTRESPONSE[s/"version": "8.0.0"/"version": $body.version/]
+
+
+[[ml-put-dfanalytics-example-r]]
+===== {regression-cap} example
+
+The following example creates the `house_price_regression_analysis` {
+dfanalytics-job}, the analysis type is `regression`:
+
+[source,console]
+--------------------------------------------------
+PUT _ml/data_frame/analytics/house_price_regression_analysis
+{
+  "source": {
+    "index": "houses_sold_last_10_yrs"
+  },
+  "dest": {
+    "index": "house_price_predictions"
+  },
+  "analysis": 
+    {
+      "regression": {
+        "dependent_variable": "price"
+      }
+    }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+
+The API returns the following result:
+
+[source,console-result]
+----
+{
+  "id" : "house_price_regression_analysis",
+  "source" : {
+    "index" : [
+      "houses_sold_last_10_yrs"
+    ],
+    "query" : {
+      "match_all" : { }
+    }
+  },
+  "dest" : {
+    "index" : "house_price_predictions",
+    "results_field" : "ml"
+  },
+  "analysis" : {
+    "regression" : {
+      "dependent_variable" : "price",
+      "training_percent" : 100
+    }
+  },
+  "model_memory_limit" : "1gb",
+  "create_time" : 1567168659127,
+  "version" : "8.0.0"
+}
+----
+// TESTRESPONSE[s/1567168659127/$body.$_path/]
+// TESTRESPONSE[s/"version": "8.0.0"/"version": $body.version/]
+

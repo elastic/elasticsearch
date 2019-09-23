@@ -27,6 +27,10 @@ public class VersionProperties {
         return bundledJdk;
     }
 
+    public static String getBundledJdkVendor() {
+        return bundledJdkVendor;
+    }
+
     public static Map<String, String> getVersions() {
         return versions;
     }
@@ -34,12 +38,14 @@ public class VersionProperties {
     private static final String elasticsearch;
     private static final String lucene;
     private static final String bundledJdk;
+    private static final String bundledJdkVendor;
     private static final Map<String, String> versions = new HashMap<String, String>();
 
     static {
         Properties props = getVersionProperties();
         elasticsearch = props.getProperty("elasticsearch");
         lucene = props.getProperty("lucene");
+        bundledJdkVendor = props.getProperty("bundled_jdk_vendor");
         bundledJdk = props.getProperty("bundled_jdk");
 
         for (String property : props.stringPropertyNames()) {

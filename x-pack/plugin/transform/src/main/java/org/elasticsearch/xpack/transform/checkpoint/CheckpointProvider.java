@@ -26,7 +26,7 @@ public interface CheckpointProvider {
     void createNextCheckpoint(TransformCheckpoint lastCheckpoint, ActionListener<TransformCheckpoint> listener);
 
     /**
-     * Determines whether the data frame needs updating
+     * Determines whether the transform needs updating
      *
      * @param lastCheckpoint the last checkpoint
      * @param listener listener to send the result to
@@ -36,7 +36,7 @@ public interface CheckpointProvider {
     /**
      * Get checkpoint statistics for a running data frame
      *
-     * For running data frames most information is available in-memory.
+     * For running transforms most information is available in-memory.
      *
      * @param lastCheckpoint the last checkpoint
      * @param nextCheckpoint the next checkpoint
@@ -53,7 +53,7 @@ public interface CheckpointProvider {
     /**
      * Get checkpoint statistics for a stopped data frame
      *
-     * For stopped data frames we need to do lookups in the internal index.
+     * For stopped transforms we need to do lookups in the internal index.
      *
      * @param lastCheckpointNumber the last checkpoint number
      * @param nextCheckpointPosition position for the next checkpoint

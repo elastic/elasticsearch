@@ -31,6 +31,10 @@ import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BlobListOption;
 import com.google.cloud.storage.StorageBatch;
 import com.google.cloud.storage.StorageException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -60,16 +64,19 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static java.net.HttpURLConnection.HTTP_GONE;
 import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 import static java.net.HttpURLConnection.HTTP_PRECON_FAILED;
 
 class GoogleCloudStorageBlobStore implements BlobStore {
 
+    private static final Logger logger = LogManager.getLogger(GoogleCloudStorageBlobStore.class);
+
     // The recommended maximum size of a blob that should be uploaded in a single
     // request. Larger files should be uploaded over multiple requests (this is
     // called "resumable upload")
     // https://cloud.google.com/storage/docs/json_api/v1/how-tos/resumable-upload
-    private static final int LARGE_BLOB_THRESHOLD_BYTE_SIZE = 5 * 1024 * 1024;
+    public static final int LARGE_BLOB_THRESHOLD_BYTE_SIZE = 5 * 1024 * 1024;
 
     private final String bucketName;
     private final String clientName;
@@ -208,11 +215,16 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      */
     void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         final BlobInfo blobInfo = BlobInfo.newBuilder(bucketName, blobName).build();
-        if (blobSize > LARGE_BLOB_THRESHOLD_BYTE_SIZE) {
+        if (blobSize > getLargeBlobThresholdInBytes()) {
             writeBlobResumable(blobInfo, inputStream, failIfAlreadyExists);
         } else {
             writeBlobMultipart(blobInfo, inputStream, blobSize, failIfAlreadyExists);
         }
+    }
+
+    // non-static, package private for testing
+    long getLargeBlobThresholdInBytes() {
+        return LARGE_BLOB_THRESHOLD_BYTE_SIZE;
     }
 
     /**
@@ -224,35 +236,53 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
      */
     private void writeBlobResumable(BlobInfo blobInfo, InputStream inputStream, boolean failIfAlreadyExists) throws IOException {
-        try {
-            final Storage.BlobWriteOption[] writeOptions = failIfAlreadyExists ?
-                new Storage.BlobWriteOption[] { Storage.BlobWriteOption.doesNotExist() } :
-                new Storage.BlobWriteOption[0];
-            final WriteChannel writeChannel = SocketAccess
+        // We retry 410 GONE errors to cover the unlikely but possible scenario where a resumable upload session becomes broken and
+        // needs to be restarted from scratch. Given how unlikely a 410 error should be according to SLAs we retry only twice.
+        assert inputStream.markSupported();
+        inputStream.mark(Integer.MAX_VALUE);
+        StorageException storageException = null;
+        final Storage.BlobWriteOption[] writeOptions = failIfAlreadyExists ?
+            new Storage.BlobWriteOption[]{Storage.BlobWriteOption.doesNotExist()} : new Storage.BlobWriteOption[0];
+        for (int retry = 0; retry < 3; ++retry) {
+            try {
+                final WriteChannel writeChannel = SocketAccess
                     .doPrivilegedIOException(() -> client().writer(blobInfo, writeOptions));
-            Streams.copy(inputStream, Channels.newOutputStream(new WritableByteChannel() {
-                @Override
-                public boolean isOpen() {
-                    return writeChannel.isOpen();
-                }
+                Streams.copy(inputStream, Channels.newOutputStream(new WritableByteChannel() {
+                    @Override
+                    public boolean isOpen() {
+                        return writeChannel.isOpen();
+                    }
 
-                @Override
-                public void close() throws IOException {
-                    SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
-                }
+                    @Override
+                    public void close() throws IOException {
+                        SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
+                    }
 
-                @SuppressForbidden(reason = "Channel is based of a socket not a file")
-                @Override
-                public int write(ByteBuffer src) throws IOException {
-                    return SocketAccess.doPrivilegedIOException(() -> writeChannel.write(src));
+                    @SuppressForbidden(reason = "Channel is based of a socket not a file")
+                    @Override
+                    public int write(ByteBuffer src) throws IOException {
+                        return SocketAccess.doPrivilegedIOException(() -> writeChannel.write(src));
+                    }
+                }));
+                return;
+            } catch (final StorageException se) {
+                final int errorCode = se.getCode();
+                if (errorCode == HTTP_GONE) {
+                    logger.warn(() -> new ParameterizedMessage("Retrying broken resumable upload session for blob {}", blobInfo), se);
+                    storageException = ExceptionsHelper.useOrSuppress(storageException, se);
+                    inputStream.reset();
+                    continue;
+                } else if (failIfAlreadyExists && errorCode == HTTP_PRECON_FAILED) {
+                    throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
                 }
-            }));
-        } catch (final StorageException se) {
-            if (failIfAlreadyExists && se.getCode() == HTTP_PRECON_FAILED) {
-                throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
+                if (storageException != null) {
+                    se.addSuppressed(storageException);
+                }
+                throw se;
             }
-            throw se;
         }
+        assert storageException != null;
+        throw storageException;
     }
 
     /**
@@ -267,7 +297,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      */
     private void writeBlobMultipart(BlobInfo blobInfo, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
         throws IOException {
-        assert blobSize <= LARGE_BLOB_THRESHOLD_BYTE_SIZE : "large blob uploads should use the resumable upload method";
+        assert blobSize <= getLargeBlobThresholdInBytes() : "large blob uploads should use the resumable upload method";
         final ByteArrayOutputStream baos = new ByteArrayOutputStream(Math.toIntExact(blobSize));
         Streams.copy(inputStream, baos);
         try {
@@ -334,31 +364,36 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         }
         final List<BlobId> blobIdsToDelete = blobNames.stream().map(blob -> BlobId.of(bucketName, blob)).collect(Collectors.toList());
         final List<BlobId> failedBlobs = Collections.synchronizedList(new ArrayList<>());
-        final StorageException e = SocketAccess.doPrivilegedIOException(() -> {
-            final AtomicReference<StorageException> ioe = new AtomicReference<>();
-            final StorageBatch batch = client().batch();
-            for (BlobId blob : blobIdsToDelete) {
-                batch.delete(blob).notify(
-                    new BatchResult.Callback<>() {
-                        @Override
-                        public void success(Boolean result) {
-                        }
+        try {
+            SocketAccess.doPrivilegedVoidIOException(() -> {
+                final AtomicReference<StorageException> ioe = new AtomicReference<>();
+                final StorageBatch batch = client().batch();
+                for (BlobId blob : blobIdsToDelete) {
+                    batch.delete(blob).notify(
+                        new BatchResult.Callback<>() {
+                            @Override
+                            public void success(Boolean result) {
+                            }
 
-                        @Override
-                        public void error(StorageException exception) {
-                            if (exception.getCode() != HTTP_NOT_FOUND) {
-                                failedBlobs.add(blob);
-                                if (ioe.compareAndSet(null, exception) == false) {
-                                    ioe.get().addSuppressed(exception);
+                            @Override
+                            public void error(StorageException exception) {
+                                if (exception.getCode() != HTTP_NOT_FOUND) {
+                                    failedBlobs.add(blob);
+                                    if (ioe.compareAndSet(null, exception) == false) {
+                                        ioe.get().addSuppressed(exception);
+                                    }
                                 }
                             }
-                        }
-                    });
-            }
-            batch.submit();
-            return ioe.get();
-        });
-        if (e != null) {
+                        });
+                }
+                batch.submit();
+
+                final StorageException exception = ioe.get();
+                if (exception != null) {
+                    throw exception;
+                }
+            });
+        } catch (final Exception e) {
             throw new IOException("Exception when deleting blobs [" + failedBlobs + "]", e);
         }
         assert failedBlobs.isEmpty();

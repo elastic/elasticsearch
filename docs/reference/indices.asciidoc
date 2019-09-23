@@ -98,6 +98,8 @@ include::indices/apis/freeze.asciidoc[]
 
 include::indices/get-field-mapping.asciidoc[]
 
+include::indices/get-index.asciidoc[]
+
 include::indices/get-alias.asciidoc[]
 
 include::indices/get-settings.asciidoc[]

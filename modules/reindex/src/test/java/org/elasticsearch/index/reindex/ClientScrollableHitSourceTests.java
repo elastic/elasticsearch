@@ -114,12 +114,17 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
         TaskId parentTask = new TaskId("thenode", randomInt());
         AtomicInteger actualSearchRetries = new AtomicInteger();
         int expectedSearchRetries = 0;
+        LongSupplier seqNoGenerator = newSeqNoGenerator(0);
+        long seqNo = Long.MIN_VALUE;
+        ScrollableHitSource.Checkpoint initialCheckpoint = null;
+        if (randomBoolean()) {
+            seqNo = seqNoGenerator.getAsLong();
+            initialCheckpoint = new ScrollableHitSource.Checkpoint(seqNo);
+        }
         ClientScrollableHitSource hitSource = new ClientScrollableHitSource(logger, BackoffPolicy.constantBackoff(TimeValue.ZERO, retries),
             threadPool, actualSearchRetries::incrementAndGet, response -> handleResponse(responses, response), failureHandler,
             new ParentTaskAssigningClient(client, parentTask),
-            new SearchRequest().scroll("1m"), SeqNoFieldMapper.NAME, null);
-        LongSupplier seqNoGenerator = newSeqNoGenerator(0);
-        long seqNo = Long.MIN_VALUE;
+            new SearchRequest().scroll("1m"), SeqNoFieldMapper.NAME, initialCheckpoint);
 
         hitSource.start();
         for (int retry = 0; retry < randomIntBetween(0, maxFailures); ++retry) {
@@ -139,6 +144,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             assertNotNull(asyncResponse);
             assertEquals(responses.size(), 0);
             assertSameHits(asyncResponse.response().getHits(), searchResponse.getHits().getHits());
+            assertEquals(seqNo, asyncResponse.getCheckpoint().restartFromValue);
             asyncResponse.done(TimeValue.ZERO);
 
             ActionType<SearchResponse> expectedAction = SearchScrollAction.INSTANCE;

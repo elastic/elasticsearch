@@ -92,13 +92,13 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
 
     protected StartTransformResponse startTransform(String id, RequestOptions options) throws IOException {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
-        return restClient.transform().startDataFrameTransform(new StartTransformRequest(id), options);
+        return restClient.transform().startTransform(new StartTransformRequest(id), options);
     }
 
     protected AcknowledgedResponse deleteTransform(String id) throws IOException {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
         AcknowledgedResponse response =
-            restClient.transform().deleteDataFrameTransform(new DeleteTransformRequest(id), RequestOptions.DEFAULT);
+            restClient.transform().deleteTransform(new DeleteTransformRequest(id), RequestOptions.DEFAULT);
         if (response.isAcknowledged()) {
             transformConfigs.remove(id);
         }
@@ -235,7 +235,7 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
 
     protected void updateConfig(String id, TransformConfigUpdate update) throws Exception {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
-        restClient.transform().updateDataFrameTransform(new UpdateTransformRequest(update, id), RequestOptions.DEFAULT);
+        restClient.transform().updateTransform(new UpdateTransformRequest(update, id), RequestOptions.DEFAULT);
     }
 
     protected void createReviewsIndex(String indexName, int numDocs) throws Exception {

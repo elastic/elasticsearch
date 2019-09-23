@@ -92,7 +92,7 @@ public class TransformInternalIndexIT extends ESRestTestCase {
             .getTransform(new GetTransformRequest(transformId), RequestOptions.DEFAULT);
         assertThat(response.getTransformConfigurations().get(0).getId(), equalTo(transformId));
 
-        UpdateTransformResponse updated = client.transform().updateDataFrameTransform(
+        UpdateTransformResponse updated = client.transform().updateTransform(
             new UpdateTransformRequest(TransformConfigUpdate.builder().setDescription("updated").build(), transformId),
             RequestOptions.DEFAULT);
 

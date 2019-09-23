@@ -366,7 +366,6 @@ setup:
 
   - do:
       indices.put_mapping:
-        include_type_name: false
         index: test
         body:
           properties:

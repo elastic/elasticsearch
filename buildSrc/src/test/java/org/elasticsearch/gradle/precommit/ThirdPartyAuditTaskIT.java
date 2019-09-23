@@ -27,7 +27,9 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
     @Before
     public void setUp() throws Exception {
         // Build the sample jars
-        getGradleRunner("thirdPartyAudit").withArguments("build", "-s").build();
+        getGradleRunner("thirdPartyAudit")
+            .withArguments("build", "-s")
+            .build();
     }
 
     public void testElasticsearchIgnored() {
@@ -142,4 +144,5 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
             .build();
         assertTaskNoSource(result, ":absurd");
     }
+
 }

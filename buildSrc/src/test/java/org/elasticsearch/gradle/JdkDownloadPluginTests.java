@@ -19,13 +19,13 @@
 
 package org.elasticsearch.gradle;
 
-import static org.hamcrest.CoreMatchers.equalTo;
-
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
 import org.junit.BeforeClass;
+
+import static org.hamcrest.CoreMatchers.equalTo;
 
 public class JdkDownloadPluginTests extends GradleUnitTestCase {
     private static Project rootProject;
@@ -36,14 +36,7 @@ public class JdkDownloadPluginTests extends GradleUnitTestCase {
     }
 
     public void testMissingVendor() {
-        assertJdkError(
-            createProject(),
-            "testjdk",
-            null,
-            "11.0.2+33",
-            "linux",
-            "vendor not specified for jdk [testjdk]"
-        );
+        assertJdkError(createProject(), "testjdk", null, "11.0.2+33", "linux", "vendor not specified for jdk [testjdk]");
     }
 
     public void testUnknownVendor() {
@@ -58,36 +51,15 @@ public class JdkDownloadPluginTests extends GradleUnitTestCase {
     }
 
     public void testMissingVersion() {
-        assertJdkError(
-            createProject(),
-            "testjdk",
-            "openjdk",
-            null,
-            "linux",
-            "version not specified for jdk [testjdk]"
-        );
+        assertJdkError(createProject(), "testjdk", "openjdk", null, "linux", "version not specified for jdk [testjdk]");
     }
 
     public void testBadVersionFormat() {
-        assertJdkError(
-            createProject(),
-            "testjdk",
-            "openjdk",
-            "badversion",
-            "linux",
-            "malformed version [badversion] for jdk [testjdk]"
-        );
+        assertJdkError(createProject(), "testjdk", "openjdk", "badversion", "linux", "malformed version [badversion] for jdk [testjdk]");
     }
 
     public void testMissingPlatform() {
-        assertJdkError(
-            createProject(),
-            "testjdk",
-            "openjdk",
-            "11.0.2+33",
-            null,
-            "platform not specified for jdk [testjdk]"
-        );
+        assertJdkError(createProject(), "testjdk", "openjdk", "11.0.2+33", null, "platform not specified for jdk [testjdk]");
     }
 
     public void testUnknownPlatform() {
@@ -101,41 +73,26 @@ public class JdkDownloadPluginTests extends GradleUnitTestCase {
         );
     }
 
-    private void assertJdkError(
-        Project project,
-        String name,
-        String vendor,
-        String version,
-        String platform,
-        String message
-    ) {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> createJdk(project, name, vendor, version, platform)
-        );
+    private void assertJdkError(Project project, String name, String vendor, String version, String platform, String message) {
+        IllegalArgumentException e =
+            expectThrows(IllegalArgumentException.class, () -> createJdk(project, name, vendor, version, platform));
         assertThat(e.getMessage(), equalTo(message));
     }
 
-    private void createJdk(
-        Project project, String name, String vendor, String version, String platform
-    ) {
+    private void createJdk(Project project, String name, String vendor, String version, String platform) {
         @SuppressWarnings("unchecked")
         NamedDomainObjectContainer<Jdk> jdks = (NamedDomainObjectContainer<Jdk>) project.getExtensions().getByName("jdks");
-        jdks.create(
-            name,
-            jdk -> {
-                if (vendor != null) {
-                    jdk.setVendor(vendor);
-                }
-                if (version != null) {
-                    jdk.setVersion(version);
-                }
-                if (platform != null) {
-                    jdk.setPlatform(platform);
-                }
+        jdks.create(name, jdk -> {
+            if (vendor != null) {
+                jdk.setVendor(vendor);
             }
-        )
-            .finalizeValues();
+            if (version != null) {
+                jdk.setVersion(version);
+            }
+            if (platform != null) {
+                jdk.setPlatform(platform);
+            }
+        }).finalizeValues();
     }
 
     private Project createProject() {

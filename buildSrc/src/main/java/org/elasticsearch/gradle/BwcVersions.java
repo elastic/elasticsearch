@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.gradle;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.unmodifiableList;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -37,52 +34,52 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableList;
+
 /**
  * A container for elasticsearch supported version information used in BWC testing.
  *
- * <p>Parse the Java source file containing the versions declarations and use the known rules to
- * figure out which are all the version the current one is wire and index compatible with. On top of
- * this, figure out which of these are unreleased and provide the branch they can be built from.
+ * Parse the Java source file containing the versions declarations and use the known rules to figure out which are all
+ * the version the current one is wire and index compatible with.
+ * On top of this, figure out which of these are unreleased and provide the branch they can be built from.
  *
- * <p>Note that in this context, currentVersion is the unreleased version this build operates on. At
- * any point in time there will surely be four such unreleased versions being worked on, thus
- * currentVersion will be one of these.
+ * Note that in this context, currentVersion is the unreleased version this build operates on.
+ * At any point in time there will surely be four such unreleased versions being worked on,
+ * thus currentVersion will be one of these.
  *
- * <p>Considering:
- *
+ * Considering:
  * <dl>
- *   <dt>M, M &gt; 0
- *   <dd>last released major
- *   <dt>N, N &gt; 0
- *   <dd>last released minor
+ *     <dt>M, M &gt; 0</dt>
+ *     <dd>last released major</dd>
+ *     <dt>N, N &gt; 0</dt>
+ *     <dd>last released minor</dd>
  * </dl>
  *
  * <ul>
- *   <li>the unreleased <b>major</b>, M+1.0.0 on the `master` branch
- *   <li>the unreleased <b>minor</b>, M.N.0 on the `M.x` (x is literal) branch
- *   <li>the unreleased <b>bugfix</b>, M.N.c (c &gt; 0) on the `M.N` branch
- *   <li>the unreleased <b>maintenance</b>, M-1.d.e ( d &gt; 0, e &gt; 0) on the `(M-1).d` branch
+ * <li>the unreleased <b>major</b>, M+1.0.0 on the `master` branch</li>
+ * <li>the unreleased <b>minor</b>,  M.N.0 on the `M.x` (x is literal) branch</li>
+ * <li>the unreleased <b>bugfix</b>, M.N.c (c &gt; 0) on the `M.N` branch</li>
+ * <li>the unreleased <b>maintenance</b>, M-1.d.e ( d &gt; 0, e &gt; 0) on the `(M-1).d` branch</li>
  * </ul>
- *
- * In addition to these, there will be a fifth one when a minor reaches feature freeze, we call this
- * the <i>staged</i> version:
- *
+ * In addition to these, there will be a fifth one when a minor reaches feature freeze, we call this the <i>staged</i>
+ * version:
  * <ul>
- *   <li>the unreleased <b>staged</b>, M.N-2.0 (N &gt; 2) on the `M.(N-2)` branch
+ * <li>the unreleased <b>staged</b>, M.N-2.0 (N &gt; 2) on the `M.(N-2)` branch</li>
  * </ul>
  *
- * Each build is only concerned with versions before it, as those are the ones that need to be
- * tested for backwards compatibility. We never look forward, and don't add forward facing version
- * number to branches of previous version.
+ * Each build is only concerned with versions before it, as those are the ones that need to be tested
+ * for backwards compatibility. We never look forward, and don't add forward facing version number to branches of previous
+ * version.
  *
- * <p>Each branch has a current version, and expected compatible versions are parsed from the server
- * code's Version` class. We can reliably figure out which the unreleased versions are due to the
- * convention of always adding the next unreleased version number to server in all branches when a
- * version is released. E.x when M.N.c is released M.N.c+1 is added to the Version class mentioned
- * above in all the following branches: `M.N`, `M.x` and `master` so we can reliably assume that the
- * leafs of the version tree are unreleased. This convention is enforced by checking the versions we
- * consider to be unreleased against an authoritative source (maven central). We are then able to
- * map the unreleased version to branches in git and Gradle projects that are capable of checking
+ * Each branch has a current version, and expected compatible versions are parsed from the server code's Version` class.
+ * We can reliably figure out which the unreleased versions are due to the convention of always adding the next unreleased
+ * version number to server in all branches when a version is released.
+ * E.x when M.N.c is released M.N.c+1 is added to the Version class mentioned above in all the following branches:
+ *  `M.N`, `M.x` and `master` so we can reliably assume that the leafs of the version tree are unreleased.
+ * This convention is enforced by checking the versions we consider to be unreleased against an
+ * authoritative source (maven central).
+ * We are then able to map the unreleased version to branches in git and Gradle projects that are capable of checking
  * out and building them, so we can include these in the testing plan as well.
  */
 public class BwcVersions {
@@ -138,8 +135,7 @@ public class BwcVersions {
 
         groupByMajor = allVersions.stream()
             // We only care about the last 2 majors when it comes to BWC.
-            // It might take us time to remove the older ones from versionLines, so we
-            // allow them to exist.
+            // It might take us time to remove the older ones from versionLines, so we allow them to exist.
             .filter(version -> version.getMajor() > currentVersion.getMajor() - 2)
             .collect(Collectors.groupingBy(Version::getMajor, Collectors.toList()));
 
@@ -151,11 +147,7 @@ public class BwcVersions {
         for (Version unreleasedVersion : getUnreleased()) {
             unreleased.put(
                 unreleasedVersion,
-                new UnreleasedVersionInfo(
-                    unreleasedVersion,
-                    getBranchFor(unreleasedVersion),
-                    getGradleProjectPathFor(unreleasedVersion)
-                )
+                new UnreleasedVersionInfo(unreleasedVersion, getBranchFor(unreleasedVersion), getGradleProjectPathFor(unreleasedVersion))
             );
         }
         this.unreleased = Collections.unmodifiableMap(unreleased);
@@ -163,9 +155,7 @@ public class BwcVersions {
 
     private void assertNoOlderThanTwoMajors() {
         Set<Integer> majors = groupByMajor.keySet();
-        if (majors.size() != 2
-            && currentVersion.getMinor() != 0
-            && currentVersion.getRevision() != 0) {
+        if (majors.size() != 2 && currentVersion.getMinor() != 0 && currentVersion.getRevision() != 0) {
             throw new IllegalStateException(
                 "Expected exactly 2 majors in parsed versions but found: " + majors
             );
@@ -175,16 +165,16 @@ public class BwcVersions {
     private void assertCurrentVersionMatchesParsed(Version currentVersionProperty) {
         if (currentVersionProperty.equals(currentVersion) == false) {
             throw new IllegalStateException(
-                "Parsed versions latest version does not match the one configured in build properties. "
-                    + "Parsed latest version is "
-                    + currentVersion
-                    + " but the build has "
-                    + currentVersionProperty
+                "Parsed versions latest version does not match the one configured in build properties. " +
+                    "Parsed latest version is " + currentVersion + " but the build has " +
+                    currentVersionProperty
             );
         }
     }
 
-    /** Returns info about the unreleased version, or {@code null} if the version is released. */
+    /**
+      * Returns info about the unreleased version, or {@code null} if the version is released.
+      */
     public UnreleasedVersionInfo unreleasedInfo(Version version) {
         return unreleased.get(version);
     }
@@ -205,8 +195,7 @@ public class BwcVersions {
     }
 
     private String getGradleProjectPathFor(Version version) {
-        // We have Gradle projects set up to check out and build unreleased versions based on the
-        // our branching
+        // We have Gradle projects set up to check out and build unreleased versions based on the our branching
         // conventions described in this classes javadoc
         if (version.equals(currentVersion)) {
             return ":distribution";
@@ -219,9 +208,7 @@ public class BwcVersions {
                 .filter(v -> v.getRevision() == 0)
                 .collect(Collectors.toList());
             if (unreleasedStagedOrMinor.size() > 2) {
-                if (unreleasedStagedOrMinor
-                    .get(unreleasedStagedOrMinor.size() - 2)
-                    .equals(version)) {
+                if (unreleasedStagedOrMinor.get(unreleasedStagedOrMinor.size() - 2).equals(version)) {
                     return ":distribution:bwc:minor";
                 } else {
                     return ":distribution:bwc:staged";
@@ -241,18 +228,15 @@ public class BwcVersions {
     }
 
     private String getBranchFor(Version version) {
-        // based on the rules described in this classes javadoc, figure out the branch on which an
-        // unreleased version
+        // based on the rules described in this classes javadoc, figure out the branch on which an unreleased version
         // lives.
-        // We do this based on the Gradle project path because there's a direct correlation, so we
-        // dont have to duplicate
+        // We do this based on the Gradle project path because there's a direct correlation, so we dont have to duplicate
         // the logic from there
         switch (getGradleProjectPathFor(version)) {
             case ":distribution":
                 return "master";
             case ":distribution:bwc:minor":
-                // The .x branch will always point to the latest minor (for that major), so a
-                // "minor" project will be on the .x branch
+                // The .x branch will always point to the latest minor (for that major), so a "minor" project will be on the .x branch
                 // unless there is more recent (higher) minor.
                 final Version latestInMajor = getLatestVersionByKey(groupByMajor, version.getMajor());
                 if (latestInMajor.getMinor() == version.getMinor()) {
@@ -278,12 +262,8 @@ public class BwcVersions {
         final Version latestOfPreviousMajor = getLatestVersionByKey(this.groupByMajor, currentVersion.getMajor() - 1);
         unreleased.add(latestOfPreviousMajor);
         if (latestOfPreviousMajor.getRevision() == 0) {
-            // if the previous major is a x.y.0 release, then the tip of the minor before that (y-1)
-            // is also unreleased
-            final Version previousMinor = getLatestInMinor(
-                latestOfPreviousMajor.getMajor(),
-                latestOfPreviousMajor.getMinor() - 1
-            );
+            // if the previous major is a x.y.0 release, then the tip of the minor before that (y-1) is also unreleased
+            final Version previousMinor = getLatestInMinor(latestOfPreviousMajor.getMajor(), latestOfPreviousMajor.getMinor() - 1);
             if (previousMinor != null) {
                 unreleased.add(previousMinor);
             }
@@ -308,7 +288,10 @@ public class BwcVersions {
         }
 
         return unmodifiableList(
-            unreleased.stream().sorted().distinct().collect(Collectors.toList())
+            unreleased.stream()
+                .sorted()
+                .distinct()
+                .collect(Collectors.toList())
         );
     }
 
@@ -324,11 +307,7 @@ public class BwcVersions {
         return groupByMajor.getOrDefault(key, emptyList())
             .stream()
             .max(Version::compareTo)
-            .orElseThrow(
-                () -> new IllegalStateException(
-                    "Unexpected number of versions in collection"
-                )
-            );
+            .orElseThrow(() -> new IllegalStateException("Unexpected number of versions in collection"));
     }
 
     private Map<Integer, List<Version>> getReleasedMajorGroupedByMinor() {
@@ -337,8 +316,7 @@ public class BwcVersions {
 
         final Map<Integer, List<Version>> groupByMinor;
         if (currentMajorVersions.size() == 1) {
-            // Current is an unreleased major: x.0.0 so we have to look for other unreleased
-            // versions in the previous major
+            // Current is an unreleased major: x.0.0 so we have to look for other unreleased versions in the previous major
             groupByMinor = previousMajorVersions.stream()
                 .collect(Collectors.groupingBy(Version::getMinor, Collectors.toList()));
         } else {
@@ -353,9 +331,8 @@ public class BwcVersions {
         notReallyReleased.removeAll(authoritativeReleasedVersions);
         if (notReallyReleased.isEmpty() == false) {
             throw new IllegalStateException(
-                "out-of-date released versions"
-                    + "\nFollowing versions are not really released, but the build thinks they are: "
-                    + notReallyReleased
+                "out-of-date released versions" +
+                    "\nFollowing versions are not really released, but the build thinks they are: " + notReallyReleased
             );
         }
 
@@ -363,11 +340,10 @@ public class BwcVersions {
         incorrectlyConsideredUnreleased.retainAll(getUnreleased());
         if (incorrectlyConsideredUnreleased.isEmpty() == false) {
             throw new IllegalStateException(
-                "out-of-date released versions"
-                    + "\nBuild considers versions unreleased, "
-                    + "but they are released according to an authoritative source: "
-                    + incorrectlyConsideredUnreleased
-                    + "\nThe next versions probably needs to be added to Version.java (CURRENT doesn't count)."
+                "out-of-date released versions" +
+                    "\nBuild considers versions unreleased, " +
+                    "but they are released according to an authoritative source: " + incorrectlyConsideredUnreleased +
+                    "\nThe next versions probably needs to be added to Version.java (CURRENT doesn't count)."
             );
         }
     }
@@ -416,4 +392,5 @@ public class BwcVersions {
         unreleasedWireCompatible.retainAll(getUnreleased());
         return unmodifiableList(unreleasedWireCompatible);
     }
+
 }

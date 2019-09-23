@@ -1,16 +1,5 @@
 package org.elasticsearch.gradle.precommit;
 
-import static org.hamcrest.CoreMatchers.containsString;
-
-import java.io.File;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
-import java.security.NoSuchAlgorithmException;
-import java.util.HashMap;
-import java.util.Map;
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
@@ -24,6 +13,18 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.security.NoSuchAlgorithmException;
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.hamcrest.CoreMatchers.containsString;
 
 public class DependencyLicensesTaskTests extends GradleUnitTestCase {
 
@@ -47,8 +48,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
     }
 
     @Test
-    public void givenProjectWithLicensesDirButNoDependenciesThenShouldThrowException()
-        throws Exception {
+    public void givenProjectWithLicensesDirButNoDependenciesThenShouldThrowException() throws Exception {
         expectedException.expect(GradleException.class);
         expectedException.expectMessage(containsString("exists, but there are no dependencies"));
 
@@ -57,20 +57,16 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
     }
 
     @Test
-    public void givenProjectWithoutLicensesDirButWithDependenciesThenShouldThrowException()
-        throws Exception {
+    public void givenProjectWithoutLicensesDirButWithDependenciesThenShouldThrowException() throws Exception {
         expectedException.expect(GradleException.class);
-        expectedException.expectMessage(
-            containsString("does not exist, but there are dependencies")
-        );
+        expectedException.expectMessage(containsString("does not exist, but there are dependencies"));
 
         project.getDependencies().add("compile", dependency);
         task.get().checkDependencies();
     }
 
     @Test
-    public void givenProjectWithoutLicensesDirNorDependenciesThenShouldReturnSilently()
-        throws Exception {
+    public void givenProjectWithoutLicensesDirNorDependenciesThenShouldReturnSilently() throws Exception {
         task.get().checkDependencies();
     }
 
@@ -88,8 +84,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
     }
 
     @Test
-    public void givenProjectWithDependencyButNoLicenseFileThenShouldReturnException()
-        throws Exception {
+    public void givenProjectWithDependencyButNoLicenseFileThenShouldReturnException() throws Exception {
         expectedException.expect(GradleException.class);
         expectedException.expectMessage(containsString("Missing LICENSE for "));
 
@@ -101,8 +96,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
     }
 
     @Test
-    public void givenProjectWithDependencyButNoNoticeFileThenShouldReturnException()
-        throws Exception {
+    public void givenProjectWithDependencyButNoNoticeFileThenShouldReturnException() throws Exception {
         expectedException.expect(GradleException.class);
         expectedException.expectMessage(containsString("Missing NOTICE for "));
 
@@ -115,8 +109,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
     }
 
     @Test
-    public void givenProjectWithDependencyAndEverythingInOrderThenShouldReturnSilently()
-        throws Exception {
+    public void givenProjectWithDependencyAndEverythingInOrderThenShouldReturnSilently() throws Exception {
         project.getDependencies().add("compile", dependency);
 
         File licensesDir = getLicensesDir(project);
@@ -126,8 +119,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
     }
 
     @Test
-    public void givenProjectWithALicenseButWithoutTheDependencyThenShouldThrowException()
-        throws Exception {
+    public void givenProjectWithALicenseButWithoutTheDependencyThenShouldThrowException() throws Exception {
         expectedException.expect(GradleException.class);
         expectedException.expectMessage(containsString("Unused license "));
 
@@ -141,8 +133,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
     }
 
     @Test
-    public void givenProjectWithANoticeButWithoutTheDependencyThenShouldThrowException()
-        throws Exception {
+    public void givenProjectWithANoticeButWithoutTheDependencyThenShouldThrowException() throws Exception {
         expectedException.expect(GradleException.class);
         expectedException.expectMessage(containsString("Unused notice "));
 
@@ -156,8 +147,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
     }
 
     @Test
-    public void givenProjectWithAShaButWithoutTheDependencyThenShouldThrowException()
-        throws Exception {
+    public void givenProjectWithAShaButWithoutTheDependencyThenShouldThrowException() throws Exception {
         expectedException.expect(GradleException.class);
         expectedException.expectMessage(containsString("Unused sha files found: \n"));
 
@@ -180,7 +170,8 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
         File licensesDir = getLicensesDir(project);
         createAllDefaultDependencyFiles(licensesDir, "groovy-all");
 
-        Path groovySha = Files.list(licensesDir.toPath())
+        Path groovySha = Files
+            .list(licensesDir.toPath())
             .filter(file -> file.toFile().getName().contains("sha"))
             .findFirst()
             .get();
@@ -206,8 +197,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
     }
 
     @Test
-    public void givenProjectWithAIgnoreShaConfigurationAndNoShaFileThenShouldReturnSilently()
-        throws Exception {
+    public void givenProjectWithAIgnoreShaConfigurationAndNoShaFileThenShouldReturnSilently() throws Exception {
         project.getDependencies().add("compile", dependency);
 
         File licensesDir = getLicensesDir(project);
@@ -233,8 +223,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
         return project;
     }
 
-    private void createAllDefaultDependencyFiles(File licensesDir, String dependencyName)
-        throws IOException, NoSuchAlgorithmException {
+    private void createAllDefaultDependencyFiles(File licensesDir, String dependencyName) throws IOException, NoSuchAlgorithmException {
         createFileIn(licensesDir, dependencyName + "-LICENSE.txt", "");
         createFileIn(licensesDir, dependencyName + "-NOTICE.txt", "");
 
@@ -258,10 +247,10 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
         Files.write(file, content.getBytes(StandardCharsets.UTF_8));
     }
 
-    private UpdateShasTask createUpdateShasTask(
-        Project project, TaskProvider<DependencyLicensesTask> dependencyLicensesTask
-    ) {
-        UpdateShasTask task = project.getTasks().register("updateShas", UpdateShasTask.class).get();
+    private UpdateShasTask createUpdateShasTask(Project project, TaskProvider<DependencyLicensesTask> dependencyLicensesTask) {
+        UpdateShasTask task = project.getTasks()
+            .register("updateShas", UpdateShasTask.class)
+            .get();
 
         task.setParentTask(dependencyLicensesTask);
         return task;
@@ -269,20 +258,12 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
 
     private TaskProvider<DependencyLicensesTask> createDependencyLicensesTask(Project project) {
         TaskProvider<DependencyLicensesTask> task = project.getTasks()
-            .register(
-                "dependencyLicenses",
-                DependencyLicensesTask.class,
-                new Action<DependencyLicensesTask>() {
-                    @Override
-                    public void execute(
-                        DependencyLicensesTask dependencyLicensesTask
-                    ) {
-                        dependencyLicensesTask.setDependencies(
-                            getDependencies(project)
-                        );
-                    }
+            .register("dependencyLicenses", DependencyLicensesTask.class, new Action<DependencyLicensesTask>() {
+                @Override
+                public void execute(DependencyLicensesTask dependencyLicensesTask) {
+                    dependencyLicensesTask.setDependencies(getDependencies(project));
                 }
-            );
+            });
 
         return task;
     }

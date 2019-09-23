@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.LinkedHashSet;
+
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.tasks.Input;
@@ -32,7 +33,9 @@ import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 
-/** Concatenates a list of files into one and removes duplicate lines. */
+/**
+ * Concatenates a list of files into one and removes duplicate lines.
+ */
 public class ConcatFilesTask extends DefaultTask {
 
     public ConcatFilesTask() {
@@ -96,4 +99,5 @@ public class ConcatFilesTask extends DefaultTask {
             StandardOpenOption.APPEND
         );
     }
+
 }

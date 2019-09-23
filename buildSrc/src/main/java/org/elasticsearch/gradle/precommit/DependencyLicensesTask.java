@@ -18,6 +18,19 @@
  */
 package org.elasticsearch.gradle.precommit;
 
+import org.apache.commons.codec.binary.Hex;
+import org.gradle.api.DefaultTask;
+import org.gradle.api.GradleException;
+import org.gradle.api.InvalidUserDataException;
+import org.gradle.api.file.FileCollection;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
+import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.InputDirectory;
+import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Optional;
+import org.gradle.api.tasks.TaskAction;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -35,55 +48,39 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import org.apache.commons.codec.binary.Hex;
-import org.gradle.api.DefaultTask;
-import org.gradle.api.GradleException;
-import org.gradle.api.InvalidUserDataException;
-import org.gradle.api.file.FileCollection;
-import org.gradle.api.logging.Logger;
-import org.gradle.api.logging.Logging;
-import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.InputDirectory;
-import org.gradle.api.tasks.InputFiles;
-import org.gradle.api.tasks.Optional;
-import org.gradle.api.tasks.TaskAction;
 
 /**
  * A task to check licenses for dependencies.
  *
- * <p>There are two parts to the check:
- *
+ * There are two parts to the check:
  * <ul>
- *   <li>LICENSE and NOTICE files
- *   <li>SHA checksums for each dependency jar
+ *   <li>LICENSE and NOTICE files</li>
+ *   <li>SHA checksums for each dependency jar</li>
  * </ul>
  *
- * The directory to find the license and sha files in defaults to the dir @{code licenses} in the
- * project directory for this task. You can override this directory:
- *
+ * The directory to find the license and sha files in defaults to the dir @{code licenses}
+ * in the project directory for this task. You can override this directory:
  * <pre>
  *   dependencyLicenses {
  *     licensesDir = getProject().file("mybetterlicensedir")
  *   }
  * </pre>
  *
- * The jar files to check default to the dependencies from the default configuration. You can
- * override this, for example, to only check compile dependencies:
- *
+ * The jar files to check default to the dependencies from the default configuration. You
+ * can override this, for example, to only check compile dependencies:
  * <pre>
  *   dependencyLicenses {
  *     dependencies = getProject().configurations.compile
  *   }
  * </pre>
  *
- * Every jar must have a {@code .sha1} file in the licenses dir. These can be managed automatically
- * using the {@code updateShas} helper task that is created along with this task. It will add {@code
- * .sha1} files for new jars that are in dependencies and remove old {@code .sha1} files that are no
- * longer needed.
+ * Every jar must have a {@code .sha1} file in the licenses dir. These can be managed
+ * automatically using the {@code updateShas} helper task that is created along
+ * with this task. It will add {@code .sha1} files for new jars that are in dependencies
+ * and remove old {@code .sha1} files that are no longer needed.
  *
- * <p>Every jar must also have a LICENSE and NOTICE file. However, multiple jars can share LICENSE
- * and NOTICE files by mapping a pattern to the same name.
- *
+ * Every jar must also have a LICENSE and NOTICE file. However, multiple jars can share
+ * LICENSE and NOTICE files by mapping a pattern to the same name.
  * <pre>
  *   dependencyLicenses {
  *     mapping from: &#47;lucene-.*&#47;, to: "lucene"
@@ -113,8 +110,8 @@ public class DependencyLicensesTask extends DefaultTask {
     private Set<String> ignoreShas = new HashSet<>();
 
     /**
-     * Add a mapping from a regex pattern for the jar name, to a prefix to find the LICENSE and
-     * NOTICE file for that jar.
+     * Add a mapping from a regex pattern for the jar name, to a prefix to find
+     * the LICENSE and NOTICE file for that jar.
      */
     public void mapping(Map<String, String> props) {
         String from = props.remove("from");
@@ -126,9 +123,7 @@ public class DependencyLicensesTask extends DefaultTask {
             throw new InvalidUserDataException("Missing \"to\" setting for license name mapping");
         }
         if (props.isEmpty() == false) {
-            throw new InvalidUserDataException(
-                "Unknown properties for mapping on dependencyLicenses: " + props.keySet()
-            );
+            throw new InvalidUserDataException("Unknown properties for mapping on dependencyLicenses: " + props.keySet());
         }
         mappings.put(from, to);
     }
@@ -157,8 +152,8 @@ public class DependencyLicensesTask extends DefaultTask {
     }
 
     /**
-     * Add a rule which will skip SHA checking for the given dependency name. This should be used
-     * for locally build dependencies, which cause the sha to change constantly.
+     * Add a rule which will skip SHA checking for the given dependency name. This should be used for
+     * locally build dependencies, which cause the sha to change constantly.
      */
     public void ignoreSha(String dep) {
         ignoreShas.add(dep);
@@ -172,15 +167,11 @@ public class DependencyLicensesTask extends DefaultTask {
 
         if (dependencies.isEmpty()) {
             if (licensesDir.exists()) {
-                throw new GradleException(
-                    "Licenses dir " + licensesDir + " exists, but there are no dependencies"
-                );
+                throw new GradleException("Licenses dir " + licensesDir + " exists, but there are no dependencies");
             }
             return; // no dependencies to check
         } else if (licensesDir.exists() == false) {
-            throw new GradleException(
-                "Licences dir " + licensesDir + " does not exist, but there are dependencies"
-            );
+            throw new GradleException("Licences dir " + licensesDir + " does not exist, but there are dependencies");
         }
 
         Map<String, Boolean> licenses = new HashMap<>();
@@ -216,9 +207,7 @@ public class DependencyLicensesTask extends DefaultTask {
         }
     }
 
-    private void checkDependencies(
-        Map<String, Boolean> licenses, Map<String, Boolean> notices, Set<File> shaFiles
-    )
+    private void checkDependencies(Map<String, Boolean> licenses, Map<String, Boolean> notices, Set<File> shaFiles)
         throws NoSuchAlgorithmException, IOException {
         for (File dependency : dependencies) {
             String jarName = dependency.getName();
@@ -227,11 +216,7 @@ public class DependencyLicensesTask extends DefaultTask {
             validateSha(shaFiles, dependency, jarName, depName);
 
             String dependencyName = getDependencyName(mappings, depName);
-            logger.info(
-                "mapped dependency name {} to {} for license/notice check",
-                depName,
-                dependencyName
-            );
+            logger.info("mapped dependency name {} to {} for license/notice check", depName, dependencyName);
             checkFile(dependencyName, jarName, licenses, "LICENSE");
             checkFile(dependencyName, jarName, notices, "NOTICE");
         }
@@ -242,12 +227,7 @@ public class DependencyLicensesTask extends DefaultTask {
         if (ignoreShas.contains(depName)) {
             // local deps should not have sha files!
             if (getShaFile(jarName).exists()) {
-                throw new GradleException(
-                    "SHA file "
-                        + getShaFile(jarName)
-                        + " exists for ignored dependency "
-                        + depName
-                );
+                throw new GradleException("SHA file " + getShaFile(jarName) + " exists for ignored dependency " + depName);
             }
         } else {
             logger.info("Checking sha for {}", jarName);
@@ -275,13 +255,10 @@ public class DependencyLicensesTask extends DefaultTask {
         return dependencyName;
     }
 
-    private void checkSha(File jar, String jarName, Set<File> shaFiles)
-        throws NoSuchAlgorithmException, IOException {
+    private void checkSha(File jar, String jarName, Set<File> shaFiles) throws NoSuchAlgorithmException, IOException {
         File shaFile = getShaFile(jarName);
         if (shaFile.exists() == false) {
-            throw new GradleException(
-                "Missing SHA for " + jarName + ". Run \"gradle updateSHAs\" to create them"
-            );
+            throw new GradleException("Missing SHA for " + jarName + ". Run \"gradle updateSHAs\" to create them");
         }
 
         // TODO: shouldn't have to trim, sha files should not have trailing newline
@@ -292,31 +269,19 @@ public class DependencyLicensesTask extends DefaultTask {
 
         if (expectedSha.equals(sha) == false) {
             throw new GradleException(
-                "SHA has changed! Expected "
-                    + expectedSha
-                    + " for "
-                    + jarName
-                    + " but got "
-                    + sha
-                    + ". "
-                    + "\nThis usually indicates a corrupt dependency cache or artifacts changed upstream."
-                    + "\nEither wipe your cache, fix the upstream artifact, or delete "
-                    + shaFile
-                    + " and run updateShas"
+                "SHA has changed! Expected " + expectedSha + " for " + jarName + " but got " + sha + ". " +
+                    "\nThis usually indicates a corrupt dependency cache or artifacts changed upstream." +
+                    "\nEither wipe your cache, fix the upstream artifact, or delete " + shaFile + " and run updateShas"
             );
         }
         shaFiles.remove(shaFile);
     }
 
-    private void checkFile(
-        String name, String jarName, Map<String, Boolean> counters, String type
-    ) {
+    private void checkFile(String name, String jarName, Map<String, Boolean> counters, String type) {
         String fileName = getFileName(name, counters, type);
 
         if (counters.containsKey(fileName) == false) {
-            throw new GradleException(
-                "Missing " + type + " for " + jarName + ", expected in " + fileName
-            );
+            throw new GradleException("Missing " + type + " for " + jarName + ", expected in " + fileName);
         }
 
         counters.put(fileName, true);
@@ -360,4 +325,5 @@ public class DependencyLicensesTask extends DefaultTask {
         char[] encoded = Hex.encodeHex(digest.digest(bytes));
         return String.copyValueOf(encoded);
     }
+
 }

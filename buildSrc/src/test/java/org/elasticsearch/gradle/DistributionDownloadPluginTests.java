@@ -19,11 +19,6 @@
 
 package org.elasticsearch.gradle;
 
-import static org.hamcrest.core.StringContains.containsString;
-
-import java.io.File;
-import java.util.Arrays;
-import java.util.TreeSet;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Flavor;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Platform;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Type;
@@ -31,6 +26,12 @@ import org.elasticsearch.gradle.test.GradleUnitTestCase;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
+
+import java.io.File;
+import java.util.Arrays;
+import java.util.TreeSet;
+
+import static org.hamcrest.core.StringContains.containsString;
 
 public class DistributionDownloadPluginTests extends GradleUnitTestCase {
     private static Project rootProject;
@@ -43,46 +44,14 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
     private static final Version BWC_STAGED_VERSION = Version.fromString("1.0.0");
     private static final Version BWC_BUGFIX_VERSION = Version.fromString("1.0.1");
     private static final Version BWC_MAINTENANCE_VERSION = Version.fromString("0.90.1");
-    private static final BwcVersions BWC_MINOR = new BwcVersions(
-        new TreeSet<>(
-            Arrays.asList(
-                BWC_BUGFIX_VERSION,
-                BWC_MINOR_VERSION,
-                BWC_MAJOR_VERSION
-            )
-        ),
-        BWC_MAJOR_VERSION
-    );
-    private static final BwcVersions BWC_STAGED = new BwcVersions(
-        new TreeSet<>(
-            Arrays.asList(
-                BWC_STAGED_VERSION,
-                BWC_MINOR_VERSION,
-                BWC_MAJOR_VERSION
-            )
-        ),
-        BWC_MAJOR_VERSION
-    );
-    private static final BwcVersions BWC_BUGFIX = new BwcVersions(
-        new TreeSet<>(
-            Arrays.asList(
-                BWC_BUGFIX_VERSION,
-                BWC_MINOR_VERSION,
-                BWC_MAJOR_VERSION
-            )
-        ),
-        BWC_MAJOR_VERSION
-    );
-    private static final BwcVersions BWC_MAINTENANCE = new BwcVersions(
-        new TreeSet<>(
-            Arrays.asList(
-                BWC_MAINTENANCE_VERSION,
-                BWC_STAGED_VERSION,
-                BWC_MINOR_VERSION
-            )
-        ),
-        BWC_MINOR_VERSION
-    );
+    private static final BwcVersions BWC_MINOR =
+        new BwcVersions(new TreeSet<>(Arrays.asList(BWC_BUGFIX_VERSION, BWC_MINOR_VERSION, BWC_MAJOR_VERSION)), BWC_MAJOR_VERSION);
+    private static final BwcVersions BWC_STAGED =
+        new BwcVersions(new TreeSet<>(Arrays.asList(BWC_STAGED_VERSION, BWC_MINOR_VERSION, BWC_MAJOR_VERSION)), BWC_MAJOR_VERSION);
+    private static final BwcVersions BWC_BUGFIX =
+        new BwcVersions(new TreeSet<>(Arrays.asList(BWC_BUGFIX_VERSION, BWC_MINOR_VERSION, BWC_MAJOR_VERSION)), BWC_MAJOR_VERSION);
+    private static final BwcVersions BWC_MAINTENANCE =
+        new BwcVersions(new TreeSet<>(Arrays.asList(BWC_MAINTENANCE_VERSION, BWC_STAGED_VERSION, BWC_MINOR_VERSION)), BWC_MINOR_VERSION);
 
     public void testVersionDefault() {
         ElasticsearchDistribution distro = checkDistro(
@@ -203,10 +172,7 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
 
     public void testCurrentVersionIntegTestZip() {
         Project project = createProject(null);
-        Project archiveProject = ProjectBuilder.builder()
-            .withParent(archivesProject)
-            .withName("integ-test-zip")
-            .build();
+        Project archiveProject = ProjectBuilder.builder().withParent(archivesProject).withName("integ-test-zip").build();
         archiveProject.getConfigurations().create("default");
         archiveProject.getArtifacts().add("default", new File("doesnotmatter"));
         createDistro(
@@ -225,15 +191,11 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
         for (Platform platform : Platform.values()) {
             for (Flavor flavor : Flavor.values()) {
                 for (boolean bundledJdk : new boolean[] { true, false }) {
-                    // create a new project in each iteration, so that we know we are resolving the
-                    // only additional project being created
+                    // create a new project in each iteration, so that we know we are resolving the only additional project being created
                     Project project = createProject(null);
                     String projectName = projectName(platform.toString(), flavor, bundledJdk);
                     projectName += (platform == Platform.WINDOWS ? "-zip" : "-tar");
-                    Project archiveProject = ProjectBuilder.builder()
-                        .withParent(archivesProject)
-                        .withName(projectName)
-                        .build();
+                    Project archiveProject = ProjectBuilder.builder().withParent(archivesProject).withName(projectName).build();
                     archiveProject.getConfigurations().create("default");
                     archiveProject.getArtifacts().add("default", new File("doesnotmatter"));
                     createDistro(
@@ -257,10 +219,7 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
                 for (boolean bundledJdk : new boolean[] { true, false }) {
                     Project project = createProject(null);
                     String projectName = projectName(packageType.toString(), flavor, bundledJdk);
-                    Project packageProject = ProjectBuilder.builder()
-                        .withParent(packagesProject)
-                        .withName(projectName)
-                        .build();
+                    Project packageProject = ProjectBuilder.builder().withParent(packagesProject).withName(projectName).build();
                     packageProject.getConfigurations().create("default");
                     packageProject.getArtifacts().add("default", new File("doesnotmatter"));
                     createDistro(
@@ -285,42 +244,10 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
                 String configName = projectName(platform.toString(), flavor, true);
                 configName += (platform == Platform.WINDOWS ? "-zip" : "-tar");
 
-                checkBwc(
-                    "minor",
-                    configName,
-                    BWC_MINOR_VERSION,
-                    BWC_MINOR,
-                    Type.ARCHIVE,
-                    platform,
-                    flavor
-                );
-                checkBwc(
-                    "staged",
-                    configName,
-                    BWC_STAGED_VERSION,
-                    BWC_STAGED,
-                    Type.ARCHIVE,
-                    platform,
-                    flavor
-                );
-                checkBwc(
-                    "bugfix",
-                    configName,
-                    BWC_BUGFIX_VERSION,
-                    BWC_BUGFIX,
-                    Type.ARCHIVE,
-                    platform,
-                    flavor
-                );
-                checkBwc(
-                    "maintenance",
-                    configName,
-                    BWC_MAINTENANCE_VERSION,
-                    BWC_MAINTENANCE,
-                    Type.ARCHIVE,
-                    platform,
-                    flavor
-                );
+                checkBwc("minor", configName, BWC_MINOR_VERSION, BWC_MINOR, Type.ARCHIVE, platform, flavor);
+                checkBwc("staged", configName, BWC_STAGED_VERSION, BWC_STAGED, Type.ARCHIVE, platform, flavor);
+                checkBwc("bugfix", configName, BWC_BUGFIX_VERSION, BWC_BUGFIX, Type.ARCHIVE, platform, flavor);
+                checkBwc("maintenance", configName, BWC_MAINTENANCE_VERSION, BWC_MAINTENANCE, Type.ARCHIVE, platform, flavor);
             }
         }
     }
@@ -331,42 +258,10 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
                 // note: no non bundled jdk for bwc
                 String configName = projectName(packageType.toString(), flavor, true);
 
-                checkBwc(
-                    "minor",
-                    configName,
-                    BWC_MINOR_VERSION,
-                    BWC_MINOR,
-                    packageType,
-                    null,
-                    flavor
-                );
-                checkBwc(
-                    "staged",
-                    configName,
-                    BWC_STAGED_VERSION,
-                    BWC_STAGED,
-                    packageType,
-                    null,
-                    flavor
-                );
-                checkBwc(
-                    "bugfix",
-                    configName,
-                    BWC_BUGFIX_VERSION,
-                    BWC_BUGFIX,
-                    packageType,
-                    null,
-                    flavor
-                );
-                checkBwc(
-                    "maintenance",
-                    configName,
-                    BWC_MAINTENANCE_VERSION,
-                    BWC_MAINTENANCE,
-                    packageType,
-                    null,
-                    flavor
-                );
+                checkBwc("minor", configName, BWC_MINOR_VERSION, BWC_MINOR, packageType, null, flavor);
+                checkBwc("staged", configName, BWC_STAGED_VERSION, BWC_STAGED, packageType, null, flavor);
+                checkBwc("bugfix", configName, BWC_BUGFIX_VERSION, BWC_BUGFIX, packageType, null, flavor);
+                checkBwc("maintenance", configName, BWC_MAINTENANCE_VERSION, BWC_MAINTENANCE, packageType, null, flavor);
             }
         }
     }
@@ -383,15 +278,7 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
     ) {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> checkDistro(
-                project,
-                name,
-                version,
-                type,
-                platform,
-                flavor,
-                bundledJdk
-            )
+            () -> checkDistro(project, name, version, type, platform, flavor, bundledJdk)
         );
         assertThat(e.getMessage(), containsString(message));
     }
@@ -406,26 +293,23 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
         Boolean bundledJdk
     ) {
         NamedDomainObjectContainer<ElasticsearchDistribution> distros = DistributionDownloadPlugin.getContainer(project);
-        return distros.create(
-            name,
-            distro -> {
-                if (version != null) {
-                    distro.setVersion(version);
-                }
-                if (type != null) {
-                    distro.setType(type);
-                }
-                if (platform != null) {
-                    distro.setPlatform(platform);
-                }
-                if (flavor != null) {
-                    distro.setFlavor(flavor);
-                }
-                if (bundledJdk != null) {
-                    distro.setBundledJdk(bundledJdk);
-                }
+        return distros.create(name, distro -> {
+            if (version != null) {
+                distro.setVersion(version);
             }
-        );
+            if (type != null) {
+                distro.setType(type);
+            }
+            if (platform != null) {
+                distro.setPlatform(platform);
+            }
+            if (flavor != null) {
+                distro.setFlavor(flavor);
+            }
+            if (bundledJdk != null) {
+                distro.setBundledJdk(bundledJdk);
+            }
+        });
     }
 
     // create a distro and finalize its configuration
@@ -469,14 +353,8 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
     private Project createProject(BwcVersions bwcVersions) {
         rootProject = ProjectBuilder.builder().build();
         Project distributionProject = ProjectBuilder.builder().withParent(rootProject).withName("distribution").build();
-        archivesProject = ProjectBuilder.builder()
-            .withParent(distributionProject)
-            .withName("archives")
-            .build();
-        packagesProject = ProjectBuilder.builder()
-            .withParent(distributionProject)
-            .withName("packages")
-            .build();
+        archivesProject = ProjectBuilder.builder().withParent(distributionProject).withName("archives").build();
+        packagesProject = ProjectBuilder.builder().withParent(distributionProject).withName("packages").build();
         bwcProject = ProjectBuilder.builder().withParent(distributionProject).withName("bwc").build();
         Project project = ProjectBuilder.builder().withParent(rootProject).build();
         project.getExtensions().getExtraProperties().set("bwcVersions", bwcVersions);

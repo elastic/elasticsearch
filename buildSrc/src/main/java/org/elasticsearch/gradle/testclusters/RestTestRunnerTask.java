@@ -1,18 +1,18 @@
 package org.elasticsearch.gradle.testclusters;
 
-import static org.elasticsearch.gradle.testclusters.TestDistribution.INTEG_TEST;
-
-import java.util.Collection;
-import java.util.HashSet;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.testing.Test;
 
+import java.util.Collection;
+import java.util.HashSet;
+
+import static org.elasticsearch.gradle.testclusters.TestDistribution.INTEG_TEST;
+
 /**
- * Customized version of Gradle {@link Test} task which tracks a collection of {@link
- * ElasticsearchCluster} as a task input. We must do this as a custom task type because the current
- * {@link org.gradle.api.tasks.TaskInputs} runtime API does not have a way to register {@link
- * Nested} inputs.
+ * Customized version of Gradle {@link Test} task which tracks a collection of {@link ElasticsearchCluster} as a task input. We must do this
+ * as a custom task type because the current {@link org.gradle.api.tasks.TaskInputs} runtime API does not have a way to register
+ * {@link Nested} inputs.
  */
 @CacheableTask
 public class RestTestRunnerTask extends Test implements TestClustersAware {
@@ -24,9 +24,7 @@ public class RestTestRunnerTask extends Test implements TestClustersAware {
         this.getOutputs()
             .doNotCacheIf(
                 "Build cache is only enabled for tests against clusters using the 'integ-test' distribution",
-                task -> clusters.stream()
-                    .flatMap(c -> c.getNodes().stream())
-                    .anyMatch(n -> n.getTestDistribution() != INTEG_TEST)
+                task -> clusters.stream().flatMap(c -> c.getNodes().stream()).anyMatch(n -> n.getTestDistribution() != INTEG_TEST)
             );
     }
 
@@ -40,4 +38,5 @@ public class RestTestRunnerTask extends Test implements TestClustersAware {
     public Collection<ElasticsearchCluster> getClusters() {
         return clusters;
     }
+
 }

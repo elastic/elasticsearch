@@ -18,11 +18,12 @@
  */
 package org.elasticsearch.gradle;
 
-import java.net.URI;
-import java.net.URISyntaxException;
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
 import org.gradle.api.GradleException;
 import org.junit.Test;
+
+import java.net.URI;
+import java.net.URISyntaxException;
 
 public class BuildPluginTests extends GradleUnitTestCase {
 
@@ -57,4 +58,5 @@ public class BuildPluginTests extends GradleUnitTestCase {
         final URI uri = new URI("s3://artifacts.elastic.co/maven");
         BuildPlugin.assertRepositoryURIIsSecure("test", "test", uri);
     }
+
 }

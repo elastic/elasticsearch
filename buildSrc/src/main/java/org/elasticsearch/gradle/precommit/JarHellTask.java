@@ -19,14 +19,17 @@
 
 package org.elasticsearch.gradle.precommit;
 
-import java.io.File;
 import org.elasticsearch.gradle.LoggedExec;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.CompileClasspath;
 import org.gradle.api.tasks.TaskAction;
 
-/** Runs CheckJarHell on a classpath. */
+import java.io.File;
+
+/**
+ * Runs CheckJarHell on a classpath.
+ */
 @CacheableTask
 public class JarHellTask extends PrecommitTask {
 
@@ -47,8 +50,7 @@ public class JarHellTask extends PrecommitTask {
         );
     }
 
-    // We use compile classpath normalization here because class implementation changes are
-    // irrelevant for the purposes of jar hell.
+    // We use compile classpath normalization here because class implementation changes are irrelevant for the purposes of jar hell.
     // We only care about the runtime classpath ABI here.
     @CompileClasspath
     public FileCollection getClasspath() {
@@ -58,4 +60,5 @@ public class JarHellTask extends PrecommitTask {
     public void setClasspath(FileCollection classpath) {
         this.classpath = classpath;
     }
+
 }

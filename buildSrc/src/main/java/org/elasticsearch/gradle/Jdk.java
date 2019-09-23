@@ -19,22 +19,24 @@
 
 package org.elasticsearch.gradle;
 
-import java.io.File;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.regex.Pattern;
 import org.gradle.api.Buildable;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.TaskDependency;
 
+import java.io.File;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.regex.Pattern;
+
 public class Jdk implements Buildable, Iterable<File> {
 
     private static final List<String> ALLOWED_VENDORS = List.of("adoptopenjdk", "openjdk");
-    static final Pattern VERSION_PATTERN = Pattern.compile("(\\d+)(\\.\\d+\\.\\d+)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?");
+    static final Pattern VERSION_PATTERN =
+        Pattern.compile("(\\d+)(\\.\\d+\\.\\d+)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?");
     private static final List<String> ALLOWED_PLATFORMS = Collections.unmodifiableList(Arrays.asList("darwin", "linux", "windows"));
 
     private final String name;
@@ -62,14 +64,7 @@ public class Jdk implements Buildable, Iterable<File> {
 
     public void setVendor(final String vendor) {
         if (ALLOWED_VENDORS.contains(vendor) == false) {
-            throw new IllegalArgumentException(
-                "unknown vendor ["
-                    + vendor
-                    + "] for jdk ["
-                    + name
-                    + "], must be one of "
-                    + ALLOWED_VENDORS
-            );
+            throw new IllegalArgumentException("unknown vendor [" + vendor + "] for jdk [" + name + "], must be one of " + ALLOWED_VENDORS);
         }
         this.vendor.set(vendor);
     }
@@ -80,9 +75,7 @@ public class Jdk implements Buildable, Iterable<File> {
 
     public void setVersion(String version) {
         if (VERSION_PATTERN.matcher(version).matches() == false) {
-            throw new IllegalArgumentException(
-                "malformed version [" + version + "] for jdk [" + name + "]"
-            );
+            throw new IllegalArgumentException("malformed version [" + version + "] for jdk [" + name + "]");
         }
         this.version.set(version);
     }
@@ -94,12 +87,7 @@ public class Jdk implements Buildable, Iterable<File> {
     public void setPlatform(String platform) {
         if (ALLOWED_PLATFORMS.contains(platform) == false) {
             throw new IllegalArgumentException(
-                "unknown platform ["
-                    + platform
-                    + "] for jdk ["
-                    + name
-                    + "], must be one of "
-                    + ALLOWED_PLATFORMS
+                "unknown platform [" + platform + "] for jdk [" + name + "], must be one of " + ALLOWED_PLATFORMS
             );
         }
         this.platform.set(platform);
@@ -145,4 +133,5 @@ public class Jdk implements Buildable, Iterable<File> {
     public Iterator<File> iterator() {
         return configuration.iterator();
     }
+
 }

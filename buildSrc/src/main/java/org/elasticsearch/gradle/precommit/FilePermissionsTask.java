@@ -26,6 +26,7 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+
 import org.apache.tools.ant.taskdefs.condition.Os;
 import org.elasticsearch.gradle.tool.Boilerplate;
 import org.gradle.api.DefaultTask;
@@ -40,10 +41,14 @@ import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.api.tasks.util.PatternSet;
 
-/** Checks source files for correct file permissions. */
+/**
+ * Checks source files for correct file permissions.
+ */
 public class FilePermissionsTask extends DefaultTask {
 
-    /** A pattern set of which files should be checked. */
+    /**
+     * A pattern set of which files should be checked.
+     */
     private final PatternFilterable filesFilter = new PatternSet()
         // we always include all source files, and exclude what should not be checked
         .include("**")
@@ -69,7 +74,9 @@ public class FilePermissionsTask extends DefaultTask {
         }
     }
 
-    /** Returns the files this task will check */
+    /**
+     * Returns the files this task will check
+     */
     @InputFiles
     @SkipWhenEmpty
     public FileCollection getFiles() {
@@ -92,9 +99,7 @@ public class FilePermissionsTask extends DefaultTask {
             .collect(Collectors.toList());
 
         if (!failures.isEmpty()) {
-            throw new GradleException(
-                "Found invalid file permissions:\n" + String.join("\n", failures)
-            );
+            throw new GradleException("Found invalid file permissions:\n" + String.join("\n", failures));
         }
 
         outputMarker.getParentFile().mkdirs();
@@ -105,4 +110,5 @@ public class FilePermissionsTask extends DefaultTask {
     public File getOutputMarker() {
         return outputMarker;
     }
+
 }

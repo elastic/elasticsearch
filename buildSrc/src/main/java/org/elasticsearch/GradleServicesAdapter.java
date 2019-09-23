@@ -18,8 +18,6 @@
  */
 package org.elasticsearch;
 
-import java.io.File;
-import java.nio.file.Path;
 import org.elasticsearch.gradle.LoggedExec;
 import org.gradle.api.Action;
 import org.gradle.api.Project;
@@ -31,16 +29,18 @@ import org.gradle.process.ExecResult;
 import org.gradle.process.ExecSpec;
 import org.gradle.process.JavaExecSpec;
 
+import java.io.File;
+import java.nio.file.Path;
+
 /**
  * Bridge a gap until Gradle offers service injection for plugins.
  *
- * <p>In a future release Gradle will offer service injection, this adapter plays that role until
- * that time. It exposes the service methods that are part of the public API as the classes
- * implementing them are not. Today service injection is <a
- * href="https://github.com/gradle/gradle/issues/2363">not available</a> for extensions.
+ * In a future release Gradle will offer service injection, this adapter plays that role until that time.
+ * It exposes the service methods that are part of the public API as the classes implementing them are not.
+ * Today service injection is <a href="https://github.com/gradle/gradle/issues/2363">not available</a> for
+ * extensions.
  *
- * <p>Everything exposed here must be thread safe. That is the very reason why project is not passed
- * in directly.
+ * Everything exposed here must be thread safe. That is the very reason why project is not passed in directly.
  */
 public class GradleServicesAdapter {
 

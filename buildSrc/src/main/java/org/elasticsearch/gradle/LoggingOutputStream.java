@@ -26,8 +26,8 @@ import java.util.Arrays;
 /**
  * Writes data passed to this stream as log messages.
  *
- * <p>The stream will be flushed whenever a newline is detected. Allows setting an optional prefix
- * before each line of output.
+ * The stream will be flushed whenever a newline is detected.
+ * Allows setting an optional prefix before each line of output.
  */
 public abstract class LoggingOutputStream extends OutputStream {
     /** The starting length of the buffer */

@@ -1,5 +1,16 @@
 package org.elasticsearch.gradle.test;
 
+import org.gradle.api.internal.tasks.testing.logging.FullExceptionFormatter;
+import org.gradle.api.internal.tasks.testing.logging.TestExceptionFormatter;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
+import org.gradle.api.tasks.testing.TestDescriptor;
+import org.gradle.api.tasks.testing.TestListener;
+import org.gradle.api.tasks.testing.TestOutputEvent;
+import org.gradle.api.tasks.testing.TestOutputListener;
+import org.gradle.api.tasks.testing.TestResult;
+import org.gradle.api.tasks.testing.logging.TestLogging;
+
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.Closeable;
@@ -18,16 +29,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import org.gradle.api.internal.tasks.testing.logging.FullExceptionFormatter;
-import org.gradle.api.internal.tasks.testing.logging.TestExceptionFormatter;
-import org.gradle.api.logging.Logger;
-import org.gradle.api.logging.Logging;
-import org.gradle.api.tasks.testing.TestDescriptor;
-import org.gradle.api.tasks.testing.TestListener;
-import org.gradle.api.tasks.testing.TestOutputEvent;
-import org.gradle.api.tasks.testing.TestOutputListener;
-import org.gradle.api.tasks.testing.TestResult;
-import org.gradle.api.tasks.testing.logging.TestLogging;
 
 public class ErrorReportingTestListener implements TestOutputListener, TestListener {
     private static final Logger LOGGER = Logging.getLogger(ErrorReportingTestListener.class);
@@ -55,10 +56,7 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
 
         // Hold on to any repro messages so we can report them immediately on test case failure
         if (outputEvent.getMessage().startsWith(REPRODUCE_WITH_PREFIX)) {
-            Deque<String> lines = reproductionLines.computeIfAbsent(
-                Descriptor.of(suite),
-                d -> new LinkedList<>()
-            );
+            Deque<String> lines = reproductionLines.computeIfAbsent(Descriptor.of(suite), d -> new LinkedList<>());
             lines.add(outputEvent.getMessage());
         }
 
@@ -67,7 +65,9 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
     }
 
     @Override
-    public void beforeSuite(TestDescriptor suite) {}
+    public void beforeSuite(TestDescriptor suite) {
+
+    }
 
     @Override
     public void afterSuite(final TestDescriptor suite, TestResult result) {
@@ -79,10 +79,8 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
                 EventWriter eventWriter = eventWriters.get(descriptor);
 
                 if (eventWriter != null) {
-                    // It's not explicit what the threading guarantees are for TestListener method
-                    // execution so we'll
-                    // be explicitly safe here to avoid interleaving output from multiple test
-                    // suites
+                    // It's not explicit what the threading guarantees are for TestListener method execution so we'll
+                    // be explicitly safe here to avoid interleaving output from multiple test suites
                     synchronized (this) {
                         // make sure we've flushed everything to disk before reading
                         eventWriter.flush();
@@ -120,7 +118,9 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
     }
 
     @Override
-    public void beforeTest(TestDescriptor testDescriptor) {}
+    public void beforeTest(TestDescriptor testDescriptor) {
+
+    }
 
     @Override
     public void afterTest(TestDescriptor testDescriptor, TestResult result) {
@@ -140,24 +140,19 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
                 // include test failure exception stacktraces in test suite output log
                 if (result.getExceptions().size() > 0) {
                     String message = formatter.format(testDescriptor, result.getExceptions()).substring(4);
-                    EventWriter eventWriter = eventWriters.computeIfAbsent(
-                        Descriptor.of(testDescriptor.getParent()),
-                        EventWriter::new
-                    );
+                    EventWriter eventWriter = eventWriters.computeIfAbsent(Descriptor.of(testDescriptor.getParent()), EventWriter::new);
 
-                    eventWriter.write(
-                        new TestOutputEvent() {
-                            @Override
-                            public Destination getDestination() {
-                                return Destination.StdErr;
-                            }
-
-                            @Override
-                            public String getMessage() {
-                                return message;
-                            }
+                    eventWriter.write(new TestOutputEvent() {
+                        @Override
+                        public Destination getDestination() {
+                            return Destination.StdErr;
                         }
-                    );
+
+                        @Override
+                        public String getMessage() {
+                            return message;
+                        }
+                    });
                 }
             }
         }
@@ -168,11 +163,10 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
     }
 
     /**
-     * Class for identifying test output sources. We use this rather than Gradle's {@link
-     * TestDescriptor} as we want to avoid any nasty memory leak issues that come from keeping
-     * Gradle implementation types in memory. Since we use this a the key for our HashMap, it's best
-     * to control the implementation as there's no guarantee that Gradle's various {@link
-     * TestDescriptor} implementations reliably implement equals and hashCode.
+     * Class for identifying test output sources. We use this rather than Gradle's {@link TestDescriptor} as we want
+     * to avoid any nasty memory leak issues that come from keeping Gradle implementation types in memory. Since we
+     * use this a the key for our HashMap, it's best to control the implementation as there's no guarantee that Gradle's
+     * various {@link TestDescriptor} implementations reliably implement equals and hashCode.
      */
     public static class Descriptor {
         private final String name;
@@ -186,11 +180,7 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
         }
 
         public static Descriptor of(TestDescriptor d) {
-            return new Descriptor(
-                d.getName(),
-                d.getClassName(),
-                d.getParent() == null ? null : d.getParent().toString()
-            );
+            return new Descriptor(d.getName(), d.getClassName(), d.getParent() == null ? null : d.getParent().toString());
         }
 
         public String getClassName() {
@@ -208,9 +198,9 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
             if (o == null || getClass() != o.getClass())
                 return false;
             Descriptor that = (Descriptor) o;
-            return Objects.equals(name, that.name)
-                && Objects.equals(className, that.className)
-                && Objects.equals(parent, that.parent);
+            return Objects.equals(name, that.name) &&
+                Objects.equals(className, that.className) &&
+                Objects.equals(parent, that.parent);
         }
 
         @Override

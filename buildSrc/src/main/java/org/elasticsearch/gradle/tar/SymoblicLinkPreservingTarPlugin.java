@@ -25,5 +25,8 @@ import org.gradle.api.Project;
 public class SymoblicLinkPreservingTarPlugin implements Plugin<Project> {
 
     @Override
-    public void apply(final Project target) {}
+    public void apply(final Project target) {
+
+    }
+
 }

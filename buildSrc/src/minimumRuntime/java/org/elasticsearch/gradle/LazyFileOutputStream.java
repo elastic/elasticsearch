@@ -24,7 +24,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 
-/** An outputstream to a File that is lazily opened on the first write. */
+/**
+ * An outputstream to a File that is lazily opened on the first write.
+ */
 class LazyFileOutputStream extends OutputStream {
     private OutputStream delegate;
 

@@ -1,7 +1,9 @@
 package org.elasticsearch.gradle;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.singletonList;
+import org.elasticsearch.gradle.test.GradleUnitTestCase;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -9,10 +11,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.elasticsearch.gradle.test.GradleUnitTestCase;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
+
+import static java.util.Arrays.asList;
+import static java.util.Collections.singletonList;
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -43,7 +44,15 @@ public class BwcVersionsTests extends GradleUnitTestCase {
         // unreleased major and two unreleased minors ( minor in feature freeze )
         sampleVersions.put(
             "8.0.0",
-            asList("7_0_0", "7_0_1", "7_1_0", "7_1_1", "7_2_0", "7_3_0", "8.0.0")
+            asList(
+                "7_0_0",
+                "7_0_1",
+                "7_1_0",
+                "7_1_1",
+                "7_2_0",
+                "7_3_0",
+                "8.0.0"
+            )
         );
         sampleVersions.put(
             "7.0.0-alpha1",
@@ -289,7 +298,16 @@ public class BwcVersionsTests extends GradleUnitTestCase {
                 "6_4_2"
             )
         );
-        sampleVersions.put("7.1.0", asList("7_1_0", "7_0_0", "6_7_0", "6_6_1", "6_6_0"));
+        sampleVersions.put(
+            "7.1.0",
+            asList(
+                "7_1_0",
+                "7_0_0",
+                "6_7_0",
+                "6_6_1",
+                "6_6_0"
+            )
+        );
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -444,6 +462,7 @@ public class BwcVersionsTests extends GradleUnitTestCase {
             asList("6.7.0", "7.0.0", "7.1.0"),
             getVersionCollection("7.1.0").getWireCompatible()
         );
+
     }
 
     public void testWireCompatibleUnreleased() {
@@ -737,11 +756,26 @@ public class BwcVersionsTests extends GradleUnitTestCase {
     }
 
     public void testGetBranch() {
-        assertUnreleasedBranchNames(asList("6.4", "6.x"), getVersionCollection("7.0.0-alpha1"));
-        assertUnreleasedBranchNames(asList("5.6", "6.4"), getVersionCollection("6.5.0"));
-        assertUnreleasedBranchNames(singletonList("5.6"), getVersionCollection("6.4.2"));
-        assertUnreleasedBranchNames(asList("5.6", "6.4", "6.5"), getVersionCollection("6.6.0"));
-        assertUnreleasedBranchNames(asList("7.1", "7.2", "7.x"), getVersionCollection("8.0.0"));
+        assertUnreleasedBranchNames(
+            asList("6.4", "6.x"),
+            getVersionCollection("7.0.0-alpha1")
+        );
+        assertUnreleasedBranchNames(
+            asList("5.6", "6.4"),
+            getVersionCollection("6.5.0")
+        );
+        assertUnreleasedBranchNames(
+            singletonList("5.6"),
+            getVersionCollection("6.4.2")
+        );
+        assertUnreleasedBranchNames(
+            asList("5.6", "6.4", "6.5"),
+            getVersionCollection("6.6.0")
+        );
+        assertUnreleasedBranchNames(
+            asList("7.1", "7.2", "7.x"),
+            getVersionCollection("8.0.0")
+        );
     }
 
     public void testGetGradleProjectPath() {
@@ -758,27 +792,15 @@ public class BwcVersionsTests extends GradleUnitTestCase {
             getVersionCollection("6.4.2")
         );
         assertUnreleasedGradleProjectPaths(
-            asList(
-                ":distribution:bwc:maintenance",
-                ":distribution:bwc:bugfix",
-                ":distribution:bwc:minor"
-            ),
+            asList(":distribution:bwc:maintenance", ":distribution:bwc:bugfix", ":distribution:bwc:minor"),
             getVersionCollection("6.6.0")
         );
         assertUnreleasedGradleProjectPaths(
-            asList(
-                ":distribution:bwc:bugfix",
-                ":distribution:bwc:staged",
-                ":distribution:bwc:minor"
-            ),
+            asList(":distribution:bwc:bugfix", ":distribution:bwc:staged", ":distribution:bwc:minor"),
             getVersionCollection("8.0.0")
         );
         assertUnreleasedGradleProjectPaths(
-            asList(
-                ":distribution:bwc:maintenance",
-                ":distribution:bwc:staged",
-                ":distribution:bwc:minor"
-            ),
+            asList(":distribution:bwc:maintenance", ":distribution:bwc:staged", ":distribution:bwc:minor"),
             getVersionCollection("7.1.0")
         );
     }
@@ -817,7 +839,9 @@ public class BwcVersionsTests extends GradleUnitTestCase {
 
     public void testCompareToAuthoritativeNotReallyRelesed() {
         List<String> listOfVersions = asList("7.0.0", "7.0.1", "7.1.0", "7.1.1", "7.2.0", "7.3.0", "8.0.0");
-        List<Version> authoritativeReleasedVersions = Stream.of("7.0.0", "7.0.1").map(Version::fromString).collect(Collectors.toList());
+        List<Version> authoritativeReleasedVersions = Stream.of("7.0.0", "7.0.1")
+            .map(Version::fromString)
+            .collect(Collectors.toList());
         BwcVersions vc = new BwcVersions(
             listOfVersions.stream()
                 .map(this::formatVersionToLine)
@@ -829,9 +853,7 @@ public class BwcVersionsTests extends GradleUnitTestCase {
         vc.compareToAuthoritative(authoritativeReleasedVersions);
     }
 
-    private void assertUnreleasedGradleProjectPaths(
-        List<String> expectedNAmes, BwcVersions bwcVersions
-    ) {
+    private void assertUnreleasedGradleProjectPaths(List<String> expectedNAmes, BwcVersions bwcVersions) {
         List<String> actualNames = new ArrayList<>();
         bwcVersions.forPreviousUnreleased(
             unreleasedVersion -> actualNames.add(unreleasedVersion.gradleProjectPath)
@@ -839,9 +861,7 @@ public class BwcVersionsTests extends GradleUnitTestCase {
         assertEquals(expectedNAmes, actualNames);
     }
 
-    private void assertUnreleasedBranchNames(
-        List<String> expectedBranches, BwcVersions bwcVersions
-    ) {
+    private void assertUnreleasedBranchNames(List<String> expectedBranches, BwcVersions bwcVersions) {
         List<String> actualBranches = new ArrayList<>();
         bwcVersions.forPreviousUnreleased(
             unreleasedVersionInfo -> actualBranches.add(unreleasedVersionInfo.branch)
@@ -855,14 +875,17 @@ public class BwcVersionsTests extends GradleUnitTestCase {
 
     private void assertVersionsEquals(List<String> expected, List<Version> actual) {
         assertEquals(
-            expected.stream().map(Version::fromString).collect(Collectors.toList()),
+            expected.stream()
+                .map(Version::fromString)
+                .collect(Collectors.toList()),
             actual
         );
     }
 
     private BwcVersions getVersionCollection(String currentVersion) {
         return new BwcVersions(
-            sampleVersions.get(currentVersion).stream()
+            sampleVersions.get(currentVersion)
+                .stream()
                 .map(this::formatVersionToLine)
                 .collect(Collectors.toList()),
             Version.fromString(currentVersion)

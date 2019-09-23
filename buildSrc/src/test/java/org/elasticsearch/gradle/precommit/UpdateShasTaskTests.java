@@ -1,14 +1,5 @@
 package org.elasticsearch.gradle.precommit;
 
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.equalTo;
-
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
-import java.security.NoSuchAlgorithmException;
 import org.apache.commons.io.FileUtils;
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
 import org.gradle.api.Action;
@@ -23,6 +14,16 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.security.NoSuchAlgorithmException;
+
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
 
 public class UpdateShasTaskTests extends GradleUnitTestCase {
 
@@ -40,6 +41,7 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
         project = createProject();
         task = createUpdateShasTask(project);
         dependency = project.getDependencies().localGroovy();
+
     }
 
     @Test
@@ -60,7 +62,10 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
         getLicensesDir(project).mkdir();
         task.updateShas();
 
-        Path groovySha = Files.list(getLicensesDir(project).toPath()).findFirst().get();
+        Path groovySha = Files
+            .list(getLicensesDir(project).toPath())
+            .findFirst()
+            .get();
 
         assertTrue(groovySha.toFile().getName().startsWith("groovy-all"));
     }
@@ -115,7 +120,9 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
     }
 
     private UpdateShasTask createUpdateShasTask(Project project) {
-        UpdateShasTask task = project.getTasks().register("updateShas", UpdateShasTask.class).get();
+        UpdateShasTask task = project.getTasks()
+            .register("updateShas", UpdateShasTask.class)
+            .get();
 
         task.setParentTask(createDependencyLicensesTask(project));
         return task;
@@ -123,20 +130,12 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
 
     private TaskProvider<DependencyLicensesTask> createDependencyLicensesTask(Project project) {
         TaskProvider<DependencyLicensesTask> task = project.getTasks()
-            .register(
-                "dependencyLicenses",
-                DependencyLicensesTask.class,
-                new Action<DependencyLicensesTask>() {
-                    @Override
-                    public void execute(
-                        DependencyLicensesTask dependencyLicensesTask
-                    ) {
-                        dependencyLicensesTask.setDependencies(
-                            getDependencies(project)
-                        );
-                    }
+            .register("dependencyLicenses", DependencyLicensesTask.class, new Action<DependencyLicensesTask>() {
+                @Override
+                public void execute(DependencyLicensesTask dependencyLicensesTask) {
+                    dependencyLicensesTask.setDependencies(getDependencies(project));
                 }
-            );
+            });
 
         return task;
     }

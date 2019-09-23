@@ -19,6 +19,13 @@
 
 package org.elasticsearch.gradle.http;
 
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
+
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManagerFactory;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -40,17 +47,11 @@ import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.KeyManager;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.TrustManagerFactory;
-import org.gradle.api.logging.Logger;
-import org.gradle.api.logging.Logging;
 
 /**
- * A utility to wait for a specific HTTP resource to be available, optionally with customized TLS
- * trusted CAs. This is logically similar to using the Ant Get task to retrieve a resource, but with
- * the difference that it can access resources that do not use the JRE's default trusted CAs.
+ * A utility to wait for a specific HTTP resource to be available, optionally with customized TLS trusted CAs.
+ * This is logically similar to using the Ant Get task to retrieve a resource, but with the difference that it can
+ * access resources that do not use the JRE's default trusted CAs.
  */
 public class WaitForHttpResource {
 
@@ -64,18 +65,8 @@ public class WaitForHttpResource {
     private String username;
     private String password;
 
-    public WaitForHttpResource(String protocol, String host, int numberOfNodes)
-        throws MalformedURLException {
-        this(
-            new URL(
-                protocol
-                    + "://"
-                    + host
-                    + "/_cluster/health?wait_for_nodes=>="
-                    + numberOfNodes
-                    + "&wait_for_status=yellow"
-            )
-        );
+    public WaitForHttpResource(String protocol, String host, int numberOfNodes) throws MalformedURLException {
+        this(new URL(protocol + "://" + host + "/_cluster/health?wait_for_nodes=>=" + numberOfNodes + "&wait_for_status=yellow"));
     }
 
     public WaitForHttpResource(URL url) {
@@ -109,8 +100,7 @@ public class WaitForHttpResource {
         this.password = password;
     }
 
-    public boolean wait(int durationInMs)
-        throws GeneralSecurityException, InterruptedException, IOException {
+    public boolean wait(int durationInMs) throws GeneralSecurityException, InterruptedException, IOException {
         final long waitUntil = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(durationInMs);
         final long sleep = Long.max(durationInMs / 10, 100);
 
@@ -163,9 +153,7 @@ public class WaitForHttpResource {
             if (connection instanceof HttpsURLConnection) {
                 ((HttpsURLConnection) connection).setSSLSocketFactory(ssl.getSocketFactory());
             } else {
-                throw new IllegalStateException(
-                    "SSL trust has been configured, but [" + url + "] is not a 'https' URL"
-                );
+                throw new IllegalStateException("SSL trust has been configured, but [" + url + "] is not a 'https' URL");
             }
         }
     }
@@ -174,19 +162,13 @@ public class WaitForHttpResource {
         if (username != null) {
             if (password == null) {
                 throw new IllegalStateException(
-                    "Basic Auth user ["
-                        + username
+                    "Basic Auth user [" + username
                         + "] has been set, but no password has been configured"
                 );
             }
             connection.setRequestProperty(
                 "Authorization",
-                "Basic "
-                    + Base64.getEncoder()
-                        .encodeToString(
-                            (username + ":" + password)
-                                .getBytes(StandardCharsets.UTF_8)
-                        )
+                "Basic " + Base64.getEncoder().encodeToString((username + ":" + password).getBytes(StandardCharsets.UTF_8))
             );
         }
     }
@@ -207,10 +189,7 @@ public class WaitForHttpResource {
     private KeyStore buildTrustStoreFromFile() throws GeneralSecurityException, IOException {
         KeyStore keyStore = KeyStore.getInstance(trustStoreFile.getName().endsWith(".jks") ? "JKS" : "PKCS12");
         try (InputStream input = new FileInputStream(trustStoreFile)) {
-            keyStore.load(
-                input,
-                trustStorePassword == null ? null : trustStorePassword.toCharArray()
-            );
+            keyStore.load(input, trustStorePassword == null ? null : trustStorePassword.toCharArray());
         }
         return keyStore;
     }
@@ -248,8 +227,6 @@ public class WaitForHttpResource {
                 return;
             }
         }
-        throw new IllegalStateException(
-            "Trust-store does not contain any trusted certificate entries"
-        );
+        throw new IllegalStateException("Trust-store does not contain any trusted certificate entries");
     }
 }

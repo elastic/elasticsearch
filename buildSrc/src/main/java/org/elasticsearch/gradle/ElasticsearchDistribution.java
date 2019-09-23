@@ -19,14 +19,15 @@
 
 package org.elasticsearch.gradle;
 
-import java.io.File;
-import java.util.Iterator;
-import java.util.Locale;
 import org.gradle.api.Buildable;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.TaskDependency;
+
+import java.io.File;
+import java.util.Iterator;
+import java.util.Locale;
 
 public class ElasticsearchDistribution implements Buildable, Iterable<File> {
 
@@ -107,9 +108,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     private final Property<Boolean> bundledJdk;
 
     ElasticsearchDistribution(
-        String name,
-        ObjectFactory objectFactory,
-        Configuration fileConfiguration,
+        String name, ObjectFactory objectFactory, Configuration fileConfiguration,
         Configuration extractedConfiguration
     ) {
         this.name = name;
@@ -176,12 +175,8 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     public Extracted getExtracted() {
         if (getType() == Type.RPM || getType() == Type.DEB) {
             throw new UnsupportedOperationException(
-                "distribution type ["
-                    + getType()
-                    + "] for "
-                    + "elasticsearch distribution ["
-                    + name
-                    + "] cannot be extracted"
+                "distribution type [" + getType() + "] for " +
+                    "elasticsearch distribution [" + name + "] cannot be extracted"
             );
         }
         return extracted;
@@ -208,31 +203,24 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         if (getType() == Type.INTEG_TEST_ZIP) {
             if (platform.isPresent()) {
                 throw new IllegalArgumentException(
-                    "platform not allowed for elasticsearch distribution ["
-                        + name
-                        + "] of type [integ_test_zip]"
+                    "platform not allowed for elasticsearch distribution [" + name + "] of type [integ_test_zip]"
                 );
             }
             if (flavor.isPresent()) {
                 throw new IllegalArgumentException(
-                    "flavor not allowed for elasticsearch distribution ["
-                        + name
-                        + "] of type [integ_test_zip]"
+                    "flavor not allowed for elasticsearch distribution [" + name + "] of type [integ_test_zip]"
                 );
             }
             if (bundledJdk.isPresent()) {
                 throw new IllegalArgumentException(
-                    "bundledJdk not allowed for elasticsearch distribution ["
-                        + name
-                        + "] of type [integ_test_zip]"
+                    "bundledJdk not allowed for elasticsearch distribution [" + name + "] of type [integ_test_zip]"
                 );
             }
             return;
         }
 
         if (getType() == Type.ARCHIVE) {
-            // defaults for archive, set here instead of via convention so integ-test-zip can verify
-            // they are not set
+            // defaults for archive, set here instead of via convention so integ-test-zip can verify they are not set
             if (platform.isPresent() == false) {
                 platform.set(CURRENT_PLATFORM);
             }
@@ -240,10 +228,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
             if (platform.isPresent()) {
                 throw new IllegalArgumentException(
                     "platform not allowed for elasticsearch distribution ["
-                        + name
-                        + "] of type ["
-                        + getType()
-                        + "]"
+                        + name + "] of type [" + getType() + "]"
                 );
             }
         }

@@ -1,8 +1,9 @@
 package org.elasticsearch.gradle.testclusters;
 
+import org.gradle.api.DefaultTask;
+
 import java.util.Collection;
 import java.util.HashSet;
-import org.gradle.api.DefaultTask;
 
 public class DefaultTestClustersTask extends DefaultTask implements TestClustersAware {
 
@@ -12,4 +13,5 @@ public class DefaultTestClustersTask extends DefaultTask implements TestClusters
     public Collection<ElasticsearchCluster> getClusters() {
         return clusters;
     }
+
 }

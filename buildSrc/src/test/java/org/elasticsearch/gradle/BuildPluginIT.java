@@ -18,6 +18,14 @@
  */
 package org.elasticsearch.gradle;
 
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
+import org.gradle.testkit.runner.BuildResult;
+import org.gradle.testkit.runner.GradleRunner;
+import org.junit.Rule;
+import org.junit.rules.TemporaryFolder;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -27,13 +35,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
-import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
-import org.gradle.testkit.runner.BuildResult;
-import org.gradle.testkit.runner.GradleRunner;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
 
 public class BuildPluginIT extends GradleIntegrationTestCase {
 
@@ -41,19 +42,16 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
     public TemporaryFolder tmpDir = new TemporaryFolder();
 
     public void testPluginCanBeApplied() {
-        BuildResult result = getGradleRunner("elasticsearch.build").withArguments("hello", "-s").build();
+        BuildResult result = getGradleRunner("elasticsearch.build")
+            .withArguments("hello", "-s")
+            .build();
         assertTaskSuccessful(result, ":hello");
         assertOutputContains("build plugin can be applied");
     }
 
     public void testCheckTask() {
         BuildResult result = getGradleRunner("elasticsearch.build")
-            .withArguments(
-                "check",
-                "assemble",
-                "-s",
-                "-Dlocal.repo.path=" + getLocalTestRepoPath()
-            )
+            .withArguments("check", "assemble", "-s", "-Dlocal.repo.path=" + getLocalTestRepoPath())
             .build();
         assertTaskSuccessful(result, ":check");
     }
@@ -88,25 +86,13 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
         runInsecureArtifactRepositoryTest(name, url, lines);
     }
 
-    private void runInsecureArtifactRepositoryTest(
-        final String name, final String url, final List<String> lines
-    ) throws IOException {
+    private void runInsecureArtifactRepositoryTest(final String name, final String url, final List<String> lines) throws IOException {
         final File projectDir = getProjectDir("elasticsearch.build");
-        FileUtils.copyDirectory(
-            projectDir,
-            tmpDir.getRoot(),
-            pathname -> pathname.getPath().contains("/build/") == false
-        );
-        final List<String> buildGradleLines = Files.readAllLines(
-            tmpDir.getRoot().toPath().resolve("build.gradle"),
-            StandardCharsets.UTF_8
-        );
+        FileUtils.copyDirectory(projectDir, tmpDir.getRoot(), pathname -> pathname.getPath().contains("/build/") == false);
+        final List<String> buildGradleLines =
+            Files.readAllLines(tmpDir.getRoot().toPath().resolve("build.gradle"), StandardCharsets.UTF_8);
         buildGradleLines.addAll(lines);
-        Files.write(
-            tmpDir.getRoot().toPath().resolve("build.gradle"),
-            buildGradleLines,
-            StandardCharsets.UTF_8
-        );
+        Files.write(tmpDir.getRoot().toPath().resolve("build.gradle"), buildGradleLines, StandardCharsets.UTF_8);
         final BuildResult result = GradleRunner.create()
             .withProjectDir(tmpDir.getRoot())
             .withArguments("clean", "hello", "-s", "-i", "--warning-mode=all", "--scan")
@@ -114,31 +100,18 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
             .buildAndFail();
         assertOutputContains(
             result.getOutput(),
-            "repository ["
-                + name
-                + "] on project with path [:] is not using a secure protocol for artifacts on ["
-                + url
-                + "]"
+            "repository [" + name + "] on project with path [:] is not using a secure protocol for artifacts on [" + url + "]"
         );
     }
 
     public void testLicenseAndNotice() throws IOException {
         BuildResult result = getGradleRunner("elasticsearch.build")
-            .withArguments(
-                "clean",
-                "assemble",
-                "-s",
-                "-Dlocal.repo.path=" + getLocalTestRepoPath()
-            )
+            .withArguments("clean", "assemble", "-s", "-Dlocal.repo.path=" + getLocalTestRepoPath())
             .build();
 
         assertTaskSuccessful(result, ":assemble");
 
-        assertBuildFileExists(
-            result,
-            "elasticsearch.build",
-            "distributions/elasticsearch.build.jar"
-        );
+        assertBuildFileExists(result, "elasticsearch.build", "distributions/elasticsearch.build.jar");
 
         try (ZipFile zipFile = new ZipFile(
             new File(
@@ -150,17 +123,13 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
             ZipEntry noticeEntry = zipFile.getEntry("META-INF/NOTICE.txt");
             assertNotNull("Jar does not have META-INF/LICENSE.txt", licenseEntry);
             assertNotNull("Jar does not have META-INF/NOTICE.txt", noticeEntry);
-            try (InputStream license = zipFile.getInputStream(licenseEntry);
+            try (
+                InputStream license = zipFile.getInputStream(licenseEntry);
                 InputStream notice = zipFile.getInputStream(noticeEntry)) {
-                assertEquals(
-                    "this is a test license file",
-                    IOUtils.toString(license, StandardCharsets.UTF_8.name())
-                );
-                assertEquals(
-                    "this is a test notice file",
-                    IOUtils.toString(notice, StandardCharsets.UTF_8.name())
-                );
+                assertEquals("this is a test license file", IOUtils.toString(license, StandardCharsets.UTF_8.name()));
+                assertEquals("this is a test notice file", IOUtils.toString(notice, StandardCharsets.UTF_8.name()));
             }
         }
     }
+
 }

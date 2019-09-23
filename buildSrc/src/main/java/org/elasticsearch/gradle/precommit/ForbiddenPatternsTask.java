@@ -18,6 +18,20 @@
  */
 package org.elasticsearch.gradle.precommit;
 
+import org.gradle.api.DefaultTask;
+import org.gradle.api.GradleException;
+import org.gradle.api.InvalidUserDataException;
+import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.FileTree;
+import org.gradle.api.plugins.JavaPluginConvention;
+import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.SkipWhenEmpty;
+import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.util.PatternFilterable;
+import org.gradle.api.tasks.util.PatternSet;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -33,21 +47,10 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import org.gradle.api.DefaultTask;
-import org.gradle.api.GradleException;
-import org.gradle.api.InvalidUserDataException;
-import org.gradle.api.file.FileCollection;
-import org.gradle.api.file.FileTree;
-import org.gradle.api.plugins.JavaPluginConvention;
-import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.InputFiles;
-import org.gradle.api.tasks.OutputFile;
-import org.gradle.api.tasks.SkipWhenEmpty;
-import org.gradle.api.tasks.TaskAction;
-import org.gradle.api.tasks.util.PatternFilterable;
-import org.gradle.api.tasks.util.PatternSet;
 
-/** Checks for patterns in source files for the project which are forbidden. */
+/**
+ * Checks for patterns in source files for the project which are forbidden.
+ */
 public class ForbiddenPatternsTask extends DefaultTask {
 
     /*
@@ -78,10 +81,7 @@ public class ForbiddenPatternsTask extends DefaultTask {
 
         // add mandatory rules
         patterns.put("nocommit", "nocommit|NOCOMMIT");
-        patterns.put(
-            "nocommit should be all lowercase or all uppercase",
-            "((?i)nocommit)(?<!(nocommit|NOCOMMIT))"
-        );
+        patterns.put("nocommit should be all lowercase or all uppercase", "((?i)nocommit)(?<!(nocommit|NOCOMMIT))");
         patterns.put("tab", "\t");
     }
 
@@ -113,31 +113,15 @@ public class ForbiddenPatternsTask extends DefaultTask {
                 .boxed()
                 .collect(Collectors.toList());
 
-            String path = getProject()
-                .getRootProject()
-                .getProjectDir()
-                .toURI()
-                .relativize(f.toURI())
-                .toString();
+            String path = getProject().getRootProject().getProjectDir().toURI().relativize(f.toURI()).toString();
             failures.addAll(
                 invalidLines.stream()
                     .map(l -> new AbstractMap.SimpleEntry<>(l + 1, lines.get(l)))
                     .flatMap(
                         kv -> patterns.entrySet()
                             .stream()
-                            .filter(
-                                p -> Pattern.compile(p.getValue())
-                                    .matcher(kv.getValue())
-                                    .find()
-                            )
-                            .map(
-                                p -> "- "
-                                    + p.getKey()
-                                    + " on line "
-                                    + kv.getKey()
-                                    + " of "
-                                    + path
-                            )
+                            .filter(p -> Pattern.compile(p.getValue()).matcher(kv.getValue()).find())
+                            .map(p -> "- " + p.getKey() + " on line " + kv.getKey() + " of " + path)
                     )
                     .collect(Collectors.toList())
             );

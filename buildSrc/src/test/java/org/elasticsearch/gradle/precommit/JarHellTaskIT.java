@@ -25,12 +25,7 @@ public class JarHellTaskIT extends GradleIntegrationTestCase {
 
     public void testJarHellDetected() {
         BuildResult result = getGradleRunner("jarHell")
-            .withArguments(
-                "clean",
-                "precommit",
-                "-s",
-                "-Dlocal.repo.path=" + getLocalTestRepoPath()
-            )
+            .withArguments("clean", "precommit", "-s", "-Dlocal.repo.path=" + getLocalTestRepoPath())
             .buildAndFail();
 
         assertTaskFailed(result, ":jarHell");
@@ -40,4 +35,5 @@ public class JarHellTaskIT extends GradleIntegrationTestCase {
             "class: org.apache.logging.log4j.Logger"
         );
     }
+
 }

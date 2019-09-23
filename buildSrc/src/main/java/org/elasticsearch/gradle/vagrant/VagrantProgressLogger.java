@@ -38,8 +38,8 @@ public class VagrantProgressLogger implements UnaryOperator<String> {
     public String apply(String line) {
         if (line.startsWith("\r\u001b")) {
             /* We don't want to try to be a full terminal emulator but we want to
-            keep the escape sequences from leaking and catch _some_ of the
-            meaning. */
+              keep the escape sequences from leaking and catch _some_ of the
+              meaning. */
             line = line.substring(2);
             if ("[K".equals(line)) {
                 inProgressReport = true;

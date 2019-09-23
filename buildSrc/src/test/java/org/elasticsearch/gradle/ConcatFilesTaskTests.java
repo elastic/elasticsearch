@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Arrays;
+
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
@@ -44,10 +45,7 @@ public class ConcatFilesTaskTests extends GradleUnitTestCase {
 
         concatFilesTask.concatFiles();
 
-        assertEquals(
-            Arrays.asList("Header"),
-            Files.readAllLines(concatFilesTask.getTarget().toPath(), StandardCharsets.UTF_8)
-        );
+        assertEquals(Arrays.asList("Header"), Files.readAllLines(concatFilesTask.getTarget().toPath(), StandardCharsets.UTF_8));
 
         file.delete();
     }
@@ -68,14 +66,8 @@ public class ConcatFilesTaskTests extends GradleUnitTestCase {
         file2.getParentFile().mkdirs();
         file1.createNewFile();
         file2.createNewFile();
-        Files.write(
-            file1.toPath(),
-            ("Hello" + System.lineSeparator() + "Hello").getBytes(StandardCharsets.UTF_8)
-        );
-        Files.write(
-            file2.toPath(),
-            ("Hello" + System.lineSeparator() + "नमस्ते").getBytes(StandardCharsets.UTF_8)
-        );
+        Files.write(file1.toPath(), ("Hello" + System.lineSeparator() + "Hello").getBytes(StandardCharsets.UTF_8));
+        Files.write(file2.toPath(), ("Hello" + System.lineSeparator() + "नमस्ते").getBytes(StandardCharsets.UTF_8));
 
         concatFilesTask.setFiles(project.fileTree(file1.getParentFile().getParentFile()));
 
@@ -85,6 +77,7 @@ public class ConcatFilesTaskTests extends GradleUnitTestCase {
             Arrays.asList("Hello", "नमस्ते"),
             Files.readAllLines(concatFilesTask.getTarget().toPath(), StandardCharsets.UTF_8)
         );
+
     }
 
     private Project createProject() {
@@ -95,4 +88,5 @@ public class ConcatFilesTaskTests extends GradleUnitTestCase {
     private ConcatFilesTask createTask(Project project) {
         return project.getTasks().create("concatFilesTask", ConcatFilesTask.class);
     }
+
 }

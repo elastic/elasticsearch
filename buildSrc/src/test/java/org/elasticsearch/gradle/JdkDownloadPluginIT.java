@@ -19,13 +19,11 @@
 
 package org.elasticsearch.gradle;
 
-import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
-import static com.github.tomakehurst.wiremock.client.WireMock.get;
-import static com.github.tomakehurst.wiremock.client.WireMock.head;
-import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
-import static org.hamcrest.CoreMatchers.equalTo;
-
 import com.github.tomakehurst.wiremock.WireMockServer;
+import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
+import org.gradle.testkit.runner.BuildResult;
+import org.gradle.testkit.runner.GradleRunner;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -33,9 +31,12 @@ import java.nio.file.Paths;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
-import org.gradle.testkit.runner.BuildResult;
-import org.gradle.testkit.runner.GradleRunner;
+
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.head;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
+import static org.hamcrest.CoreMatchers.equalTo;
 
 public abstract class JdkDownloadPluginIT extends GradleIntegrationTestCase {
 
@@ -53,13 +54,7 @@ public abstract class JdkDownloadPluginIT extends GradleIntegrationTestCase {
     }
 
     public final void testDarwinExtraction() throws IOException {
-        assertExtraction(
-            "getDarwinJdk",
-            "osx",
-            "Contents/Home/bin/java",
-            jdkVendor(),
-            jdkVersion()
-        );
+        assertExtraction("getDarwinJdk", "osx", "Contents/Home/bin/java", jdkVendor(), jdkVersion());
     }
 
     public final void testWindowsExtraction() throws IOException {
@@ -71,13 +66,7 @@ public abstract class JdkDownloadPluginIT extends GradleIntegrationTestCase {
     }
 
     public final void testDarwinExtractionOldVersion() throws IOException {
-        assertExtraction(
-            "getDarwinJdk",
-            "osx",
-            "Contents/Home/bin/java",
-            jdkVendor(),
-            oldJdkVersion()
-        );
+        assertExtraction("getDarwinJdk", "osx", "Contents/Home/bin/java", jdkVendor(), oldJdkVersion());
     }
 
     public final void testWindowsExtractionOldVersion() throws IOException {
@@ -85,45 +74,21 @@ public abstract class JdkDownloadPluginIT extends GradleIntegrationTestCase {
     }
 
     public final void testCrossProjectReuse() throws IOException {
-        runBuild(
-            "numConfigurations",
-            "linux",
-            result -> {
-                Matcher matcher = NUM_CONFIGS_LOGLINE.matcher(result.getOutput());
-                assertTrue(
-                    "could not find num configs in output: " + result.getOutput(),
-                    matcher.find()
-                );
-                assertThat(
-                    Integer.parseInt(matcher.group(1)),
-                    equalTo(6)
-                ); // 3 import configs, 3 export configs
-            },
-            jdkVendor(),
-            jdkVersion()
-        );
+        runBuild("numConfigurations", "linux", result -> {
+            Matcher matcher = NUM_CONFIGS_LOGLINE.matcher(result.getOutput());
+            assertTrue("could not find num configs in output: " + result.getOutput(), matcher.find());
+            assertThat(Integer.parseInt(matcher.group(1)), equalTo(6)); // 3 import configs, 3 export configs
+        }, jdkVendor(), jdkVersion());
     }
 
-    private void assertExtraction(
-        String taskname, String platform, String javaBin, String vendor, String version
-    )
-        throws IOException {
-        runBuild(
-            taskname,
-            platform,
-            result -> {
-                Matcher matcher = JDK_HOME_LOGLINE.matcher(result.getOutput());
-                assertTrue(
-                    "could not find jdk home in output: " + result.getOutput(),
-                    matcher.find()
-                );
-                String jdkHome = matcher.group(1);
-                Path javaPath = Paths.get(jdkHome, javaBin);
-                assertTrue(javaPath.toString(), Files.exists(javaPath));
-            },
-            vendor,
-            version
-        );
+    private void assertExtraction(String taskname, String platform, String javaBin, String vendor, String version) throws IOException {
+        runBuild(taskname, platform, result -> {
+            Matcher matcher = JDK_HOME_LOGLINE.matcher(result.getOutput());
+            assertTrue("could not find jdk home in output: " + result.getOutput(), matcher.find());
+            String jdkHome = matcher.group(1);
+            Path javaPath = Paths.get(jdkHome, javaBin);
+            assertTrue(javaPath.toString(), Files.exists(javaPath));
+        }, vendor, version);
     }
 
     protected abstract String urlPath(boolean isOld, String platform, String extension);
@@ -136,24 +101,16 @@ public abstract class JdkDownloadPluginIT extends GradleIntegrationTestCase {
         Consumer<BuildResult> assertions,
         String vendor,
         String version
-    )
-        throws IOException {
+    ) throws IOException {
         WireMockServer wireMock = new WireMockServer(0);
         try {
             String extension = platform.equals("windows") ? "zip" : "tar.gz";
             boolean isOld = version.equals(oldJdkVersion());
 
-            wireMock.stubFor(
-                head(urlEqualTo(urlPath(isOld, platform, extension)))
-                    .willReturn(aResponse().withStatus(200))
-            );
+            wireMock.stubFor(head(urlEqualTo(urlPath(isOld, platform, extension))).willReturn(aResponse().withStatus(200)));
             wireMock.stubFor(
                 get(urlEqualTo(urlPath(isOld, platform, extension)))
-                    .willReturn(
-                        aResponse()
-                            .withStatus(200)
-                            .withBody(filebytes(platform, extension))
-                    )
+                    .willReturn(aResponse().withStatus(200).withBody(filebytes(platform, extension)))
             );
             wireMock.start();
 
@@ -173,9 +130,7 @@ public abstract class JdkDownloadPluginIT extends GradleIntegrationTestCase {
             assertions.accept(result);
         } catch (Exception e) {
             // for debugging
-            System.err.println(
-                "missed requests: " + wireMock.findUnmatchedRequests().getRequests()
-            );
+            System.err.println("missed requests: " + wireMock.findUnmatchedRequests().getRequests());
             throw e;
         } finally {
             wireMock.stop();

@@ -7,8 +7,7 @@ import java.util.Map;
 import java.util.Properties;
 
 /**
- * Accessor for shared dependency versions used by elasticsearch, namely the elasticsearch and
- * lucene versions.
+ * Accessor for shared dependency versions used by elasticsearch, namely the elasticsearch and lucene versions.
  */
 public class VersionProperties {
 

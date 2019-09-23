@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
-import java.io.File;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ReaperPlugin;
 import org.elasticsearch.gradle.ReaperService;
@@ -32,6 +31,8 @@ import org.gradle.api.invocation.Gradle;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.TaskState;
+
+import java.io.File;
 
 public class TestClustersPlugin implements Plugin<Project> {
 
@@ -60,12 +61,9 @@ public class TestClustersPlugin implements Plugin<Project> {
                 .getExtensions()
                 .create("testClusters", TestClustersRegistry.class);
 
-            // When we know what tasks will run, we claim the clusters of those task to
-            // differentiate between clusters
-            // that are defined in the build script and the ones that will actually be used in this
-            // invocation of gradle
-            // we use this information to determine when the last task that required the cluster
-            // executed so that we can
+            // When we know what tasks will run, we claim the clusters of those task to differentiate between clusters
+            // that are defined in the build script and the ones that will actually be used in this invocation of gradle
+            // we use this information to determine when the last task that required the cluster executed so that we can
             // terminate the cluster right away and free up resources.
             configureClaimClustersHook(project.getGradle(), registry);
 
@@ -77,9 +75,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         }
     }
 
-    private NamedDomainObjectContainer<ElasticsearchCluster> createTestClustersContainerExtension(
-        Project project
-    ) {
+    private NamedDomainObjectContainer<ElasticsearchCluster> createTestClustersContainerExtension(Project project) {
         // Create an extensions that allows describing clusters
         NamedDomainObjectContainer<ElasticsearchCluster> container = project.container(
             ElasticsearchCluster.class,
@@ -95,38 +91,28 @@ public class TestClustersPlugin implements Plugin<Project> {
         return container;
     }
 
-    private void createListClustersTask(
-        Project project, NamedDomainObjectContainer<ElasticsearchCluster> container
-    ) {
+    private void createListClustersTask(Project project, NamedDomainObjectContainer<ElasticsearchCluster> container) {
         Task listTask = project.getTasks().create(LIST_TASK_NAME);
         listTask.setGroup("ES cluster formation");
         listTask.setDescription("Lists all ES clusters configured for this project");
         listTask.doLast(
             (Task task) -> container.forEach(
-                cluster -> logger.lifecycle(
-                    "   * {}: {}",
-                    cluster.getName(),
-                    cluster.getNumberOfNodes()
-                )
+                cluster -> logger.lifecycle("   * {}: {}", cluster.getName(), cluster.getNumberOfNodes())
             )
         );
     }
 
     private static void configureClaimClustersHook(Gradle gradle, TestClustersRegistry registry) {
-        // Once we know all the tasks that need to execute, we claim all the clusters that belong to
-        // those and count the
+        // Once we know all the tasks that need to execute, we claim all the clusters that belong to those and count the
         // claims so we'll know when it's safe to stop them.
-        gradle.getTaskGraph()
-            .whenReady(
-                taskExecutionGraph -> {
-                    taskExecutionGraph.getAllTasks()
-                        .stream()
-                        .filter(task -> task instanceof TestClustersAware)
-                        .map(task -> (TestClustersAware) task)
-                        .flatMap(task -> task.getClusters().stream())
-                        .forEach(registry::claimCluster);
-                }
-            );
+        gradle.getTaskGraph().whenReady(taskExecutionGraph -> {
+            taskExecutionGraph.getAllTasks()
+                .stream()
+                .filter(task -> task instanceof TestClustersAware)
+                .map(task -> (TestClustersAware) task)
+                .flatMap(task -> task.getClusters().stream())
+                .forEach(registry::claimCluster);
+        });
     }
 
     private static void configureStartClustersHook(Gradle gradle, TestClustersRegistry registry) {
@@ -137,11 +123,8 @@ public class TestClustersPlugin implements Plugin<Project> {
                     if (task instanceof TestClustersAware == false) {
                         return;
                     }
-                    // we only start the cluster before the actions, so we'll not start it if
-                    // the task is up-to-date
-                    ((TestClustersAware) task)
-                        .getClusters()
-                        .forEach(registry::maybeStartCluster);
+                    // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
+                    ((TestClustersAware) task).getClusters().forEach(registry::maybeStartCluster);
                 }
 
                 @Override
@@ -158,17 +141,10 @@ public class TestClustersPlugin implements Plugin<Project> {
                     if (task instanceof TestClustersAware == false) {
                         return;
                     }
-                    // always unclaim the cluster, even if _this_ task is up-to-date, as others
-                    // might not have been
+                    // always unclaim the cluster, even if _this_ task is up-to-date, as others might not have been
                     // and caused the cluster to start.
-                    ((TestClustersAware) task)
-                        .getClusters()
-                        .forEach(
-                            cluster -> registry.stopCluster(
-                                cluster,
-                                state.getFailure() != null
-                            )
-                        );
+                    ((TestClustersAware) task).getClusters()
+                        .forEach(cluster -> registry.stopCluster(cluster, state.getFailure() != null));
                 }
 
                 @Override
@@ -176,4 +152,5 @@ public class TestClustersPlugin implements Plugin<Project> {
             }
         );
     }
+
 }

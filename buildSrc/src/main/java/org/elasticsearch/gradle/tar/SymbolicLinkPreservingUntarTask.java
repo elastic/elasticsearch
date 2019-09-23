@@ -19,18 +19,6 @@
 
 package org.elasticsearch.gradle.tar;
 
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.attribute.PosixFileAttributeView;
-import java.nio.file.attribute.PosixFilePermission;
-import java.nio.file.attribute.PosixFilePermissions;
-import java.util.Set;
-import java.util.function.Function;
-import javax.inject.Inject;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
@@ -44,11 +32,24 @@ import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.TaskAction;
 
+import javax.inject.Inject;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.util.Set;
+import java.util.function.Function;
+
 /**
  * A custom task that explodes a tar archive that preserves symbolic links.
  *
- * <p>This task is necessary because the built-in task {@link
- * org.gradle.api.internal.file.archive.TarFileTree} does not preserve symbolic links.
+ * This task is necessary because the built-in task {@link org.gradle.api.internal.file.archive.TarFileTree} does not preserve symbolic
+ * links.
  */
 public class SymbolicLinkPreservingUntarTask extends DefaultTask {
 
@@ -69,8 +70,8 @@ public class SymbolicLinkPreservingUntarTask extends DefaultTask {
     private Function<String, Path> transform;
 
     /**
-     * A transform to apply to the tar entry, to derive the relative path from the entry name. If
-     * the return value is null, the entry is dropped from the exploded tar archive.
+     * A transform to apply to the tar entry, to derive the relative path from the entry name. If the return value is null, the entry is
+     * dropped from the exploded tar archive.
      *
      * @param transform the transform
      */
@@ -90,11 +91,8 @@ public class SymbolicLinkPreservingUntarTask extends DefaultTask {
     final void execute() {
         // ensure the target extraction path is empty
         getProject().delete(extractPath);
-        try (TarArchiveInputStream tar = new TarArchiveInputStream(
-            new GzipCompressorInputStream(
-                new FileInputStream(tarFile.getAsFile().get())
-            )
-        )) {
+        try (TarArchiveInputStream tar =
+            new TarArchiveInputStream(new GzipCompressorInputStream(new FileInputStream(tarFile.getAsFile().get())))) {
             final Path destinationPath = extractPath.get().getAsFile().toPath();
             TarArchiveEntry entry = tar.getNextTarEntry();
             while (entry != null) {
@@ -125,9 +123,9 @@ public class SymbolicLinkPreservingUntarTask extends DefaultTask {
                     final PosixFileAttributeView view = Files.getFileAttributeView(destination, PosixFileAttributeView.class);
                     if (view != null) {
                         final Set<PosixFilePermission> permissions = PosixFilePermissions.fromString(
-                            permissions((entry.getMode() >> 6) & 07)
-                                + permissions((entry.getMode() >> 3) & 07)
-                                + permissions((entry.getMode() >> 0) & 07)
+                            permissions((entry.getMode() >> 6) & 07) +
+                                permissions((entry.getMode() >> 3) & 07) +
+                                permissions((entry.getMode() >> 0) & 07)
                         );
                         Files.setPosixFilePermissions(destination, permissions);
                     }
@@ -135,10 +133,7 @@ public class SymbolicLinkPreservingUntarTask extends DefaultTask {
                 entry = tar.getNextTarEntry();
             }
         } catch (final IOException e) {
-            throw new GradleException(
-                "unable to extract tar [" + tarFile.getAsFile().get().toPath() + "]",
-                e
-            );
+            throw new GradleException("unable to extract tar [" + tarFile.getAsFile().get().toPath() + "]", e);
         }
     }
 
@@ -164,4 +159,5 @@ public class SymbolicLinkPreservingUntarTask extends DefaultTask {
         }
         return sb.toString();
     }
+
 }

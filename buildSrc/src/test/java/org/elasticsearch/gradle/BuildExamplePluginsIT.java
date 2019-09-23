@@ -19,6 +19,14 @@
 package org.elasticsearch.gradle;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.apache.commons.io.FileUtils;
+import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
+import org.gradle.testkit.runner.GradleRunner;
+import org.junit.BeforeClass;
+import org.junit.Ignore;
+import org.junit.Rule;
+import org.junit.rules.TemporaryFolder;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -30,28 +38,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import org.apache.commons.io.FileUtils;
-import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
-import org.gradle.testkit.runner.GradleRunner;
-import org.junit.BeforeClass;
-import org.junit.Ignore;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
 
 @Ignore("https://github.com/elastic/elasticsearch/issues/42453")
 public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
 
     private static final List<File> EXAMPLE_PLUGINS = Collections.unmodifiableList(
         Arrays.stream(
-            Objects.requireNonNull(
-                System.getProperty(
-                    "test.build-tools.plugin.examples"
-                )
-            )
+            Objects.requireNonNull(System.getProperty("test.build-tools.plugin.examples"))
                 .split(File.pathSeparator)
-        )
-            .map(File::new)
-            .collect(Collectors.toList())
+        ).map(File::new).collect(Collectors.toList())
     );
 
     private static final String BUILD_TOOLS_VERSION = Objects.requireNonNull(System.getProperty("test.version_under_test"));
@@ -75,17 +70,14 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return EXAMPLE_PLUGINS.stream()
+        return EXAMPLE_PLUGINS
+            .stream()
             .map(each -> new Object[] { each })
             .collect(Collectors.toList());
     }
 
     public void testCurrentExamplePlugin() throws IOException {
-        FileUtils.copyDirectory(
-            examplePlugin,
-            tmpDir.getRoot(),
-            pathname -> pathname.getPath().contains("/build/") == false
-        );
+        FileUtils.copyDirectory(examplePlugin, tmpDir.getRoot(), pathname -> pathname.getPath().contains("/build/") == false);
 
         adaptBuildScriptForTest();
 
@@ -102,28 +94,21 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
     }
 
     private void adaptBuildScriptForTest() throws IOException {
-        // Add the local repo as a build script URL so we can pull in build-tools and apply the
-        // plugin under test
-        // we need to specify the exact version of build-tools because gradle automatically adds its
-        // plugin portal
-        // which appears to mirror jcenter, opening us up to pulling a "later" version of
-        // build-tools
+        // Add the local repo as a build script URL so we can pull in build-tools and apply the plugin under test
+        // we need to specify the exact version of build-tools because gradle automatically adds its plugin portal
+        // which appears to mirror jcenter, opening us up to pulling a "later" version of build-tools
         writeBuildScript(
-            "buildscript {\n"
-                + "    repositories {\n"
-                + "        maven {\n"
-                + "            name = \"test\"\n"
-                + "            url = '"
-                + getLocalTestRepoPath()
-                + "'\n"
-                + "        }\n"
-                + "    }\n"
-                + "    dependencies {\n"
-                + "        classpath \"org.elasticsearch.gradle:build-tools:"
-                + BUILD_TOOLS_VERSION
-                + "\"\n"
-                + "    }\n"
-                + "}\n"
+            "buildscript {\n" +
+                "    repositories {\n" +
+                "        maven {\n" +
+                "            name = \"test\"\n" +
+                "            url = '" + getLocalTestRepoPath() + "'\n" +
+                "        }\n" +
+                "    }\n" +
+                "    dependencies {\n" +
+                "        classpath \"org.elasticsearch.gradle:build-tools:" + BUILD_TOOLS_VERSION + "\"\n" +
+                "    }\n" +
+                "}\n"
         );
         // get the original file
         Files.readAllLines(getTempPath("build.gradle"), StandardCharsets.UTF_8)
@@ -134,29 +119,23 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
         String luceneSnapshotRepo = "";
         String luceneSnapshotRevision = System.getProperty("test.lucene-snapshot-revision");
         if (luceneSnapshotRepo != null) {
-            luceneSnapshotRepo = "  maven {\n"
-                + "    name \"lucene-snapshots\"\n"
-                + "    url \"https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/"
-                + luceneSnapshotRevision
-                + "\"\n"
-                + "  }\n";
+            luceneSnapshotRepo = "  maven {\n" +
+                "    name \"lucene-snapshots\"\n" +
+                "    url \"https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/" + luceneSnapshotRevision + "\"\n" +
+                "  }\n";
         }
         writeBuildScript(
-            "\n"
-                + "repositories {\n"
-                + "  maven {\n"
-                + "    name \"test\"\n"
-                + "    url \""
-                + getLocalTestRepoPath()
-                + "\"\n"
-                + "  }\n"
-                + "  flatDir {\n"
-                + "    dir '"
-                + getLocalTestDownloadsPath()
-                + "'\n"
-                + "  }\n"
-                + luceneSnapshotRepo
-                + "}\n"
+            "\n" +
+                "repositories {\n" +
+                "  maven {\n" +
+                "    name \"test\"\n" +
+                "    url \"" + getLocalTestRepoPath() + "\"\n" +
+                "  }\n" +
+                "  flatDir {\n" +
+                "    dir '" + getLocalTestDownloadsPath() + "'\n" +
+                "  }\n" +
+                luceneSnapshotRepo +
+                "}\n"
         );
         Files.delete(getTempPath("build.gradle"));
         Files.move(getTempPath("build.gradle.new"), getTempPath("build.gradle"));

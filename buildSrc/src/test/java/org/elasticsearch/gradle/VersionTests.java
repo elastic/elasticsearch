@@ -19,12 +19,13 @@ package org.elasticsearch.gradle;
  * under the License.
  */
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
+
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 public class VersionTests extends GradleUnitTestCase {
 
@@ -82,7 +83,10 @@ public class VersionTests extends GradleUnitTestCase {
         );
         Set<Version> subset = new HashSet<>();
         subset.addAll(
-            Arrays.asList(Version.fromString("6.0.1"), Version.fromString("5.2.1-SNAPSHOT"))
+            Arrays.asList(
+                Version.fromString("6.0.1"),
+                Version.fromString("5.2.1-SNAPSHOT")
+            )
         );
         assertTrue(versions.containsAll(subset));
     }
@@ -92,7 +96,10 @@ public class VersionTests extends GradleUnitTestCase {
     }
 
     public void testCompareVersions() {
-        assertEquals(0, new Version(7, 0, 0).compareTo(new Version(7, 0, 0)));
+        assertEquals(
+            0,
+            new Version(7, 0, 0).compareTo(new Version(7, 0, 0))
+        );
     }
 
     public void testExceptionEmpty() {
@@ -117,4 +124,5 @@ public class VersionTests extends GradleUnitTestCase {
         assertEquals(minor, version.getMinor());
         assertEquals(revision, version.getRevision());
     }
+
 }

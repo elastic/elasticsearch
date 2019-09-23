@@ -48,10 +48,9 @@ public class OpenJdkDownloadPluginIT extends JdkDownloadPluginIT {
 
     @Override
     protected byte[] filebytes(final String platform, final String extension) throws IOException {
-        try (InputStream stream = JdkDownloadPluginIT.class.getResourceAsStream(
-            "fake_openjdk_" + platform + "." + extension
-        )) {
+        try (InputStream stream = JdkDownloadPluginIT.class.getResourceAsStream("fake_openjdk_" + platform + "." + extension)) {
             return stream.readAllBytes();
         }
     }
+
 }

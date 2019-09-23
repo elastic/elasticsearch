@@ -33,13 +33,7 @@ public class Util {
         } else if ("false".equals(propertyValue)) {
             return false;
         } else {
-            throw new GradleException(
-                "Sysprop ["
-                    + property
-                    + "] must be [true] or [false] but was ["
-                    + propertyValue
-                    + "]"
-            );
+            throw new GradleException("Sysprop [" + property + "] must be [true] or [false] but was [" + propertyValue + "]");
         }
     }
 }

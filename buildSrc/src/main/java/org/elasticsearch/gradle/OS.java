@@ -76,6 +76,7 @@ public enum OS {
             }
             return conditions.get(OS.current()).get();
         }
+
     }
 
     public static <T> Conditional<T> conditional() {
@@ -85,4 +86,5 @@ public enum OS {
     public static Conditional<String> conditionalString() {
         return conditional();
     }
+
 }

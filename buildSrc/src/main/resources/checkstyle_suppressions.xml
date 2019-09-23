@@ -24,13 +24,6 @@
   <!-- Intentionally has long example curl commands to coinncide with sibling Painless tests. -->
   <suppress files="modules[/\\]lang-painless[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]painless[/\\]ContextExampleTests.java" checks="LineLength" />
 
-  <!-- These files are auto-formatted with google-java-format, which mostly
-       contrains line length to 100 chars, but sometimes its intentation
-       causes long lines. -->
-  <suppress files="buildSrc[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]gradle[/\\]precommit[/\\]TestingConventionsTasks.java" checks="LineLength" />
-  <suppress files="buildSrc[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]gradle[/\\]precommit[/\\]TestingConventionsTasksIT.java" checks="LineLength" />
-  <suppress files="buildSrc[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]gradle[/\\]JdkDownloadPlugin.java" checks="LineLength" />
-
   <!--
     Truly temporary suppressions suppression of snippets included in
     documentation that are so wide that they scroll.

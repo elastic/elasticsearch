@@ -1,11 +1,12 @@
 package org.elasticsearch.gradle.testclusters;
 
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
+
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import org.gradle.api.logging.Logger;
-import org.gradle.api.logging.Logging;
 
 public class TestClustersRegistry {
     private static final Logger logger = Logging.getLogger(TestClustersRegistry.class);
@@ -29,16 +30,15 @@ public class TestClustersRegistry {
 
     public void stopCluster(ElasticsearchCluster cluster, boolean taskFailed) {
         if (taskFailed) {
-            // If the task fails, and other tasks use this cluster, the other task will likely never
-            // be
+            // If the task fails, and other tasks use this cluster, the other task will likely never be
             // executed at all, so we will never be called again to un-claim and terminate it.
             if (allowClusterToSurvive) {
                 logger.info("Not stopping clusters, disabled by property");
                 // task failed or this is the last one to stop
                 for (int i = 1;; i += i) {
                     logger.lifecycle(
-                        "No more test clusters left to run, going to sleep because {} was set,"
-                            + " interrupt (^C) to stop clusters.",
+                        "No more test clusters left to run, going to sleep because {} was set," +
+                            " interrupt (^C) to stop clusters.",
                         TESTCLUSTERS_INSPECT_FAILURE
                     );
                     try {
@@ -62,4 +62,5 @@ public class TestClustersRegistry {
             }
         }
     }
+
 }

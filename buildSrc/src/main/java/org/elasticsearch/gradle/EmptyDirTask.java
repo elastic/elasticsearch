@@ -19,19 +19,25 @@
 package org.elasticsearch.gradle;
 
 import java.io.File;
+
 import javax.inject.Inject;
+
 import org.gradle.api.DefaultTask;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.internal.file.Chmod;
 
-/** Creates an empty directory. */
+/**
+ * Creates an empty directory.
+ */
 public class EmptyDirTask extends DefaultTask {
 
     private File dir;
     private int dirMode = 0755;
 
-    /** Creates an empty directory with the configured permissions. */
+    /**
+     * Creates an empty directory with the configured permissions.
+     */
     @TaskAction
     public void create() {
         dir.mkdirs();
@@ -48,12 +54,16 @@ public class EmptyDirTask extends DefaultTask {
         return dir;
     }
 
-    /** @param dir The directory to create */
+    /**
+     * @param dir The directory to create
+     */
     public void setDir(File dir) {
         this.dir = dir;
     }
 
-    /** @param dir The path of the directory to create. Takes a String and coerces it to a file. */
+    /**
+     * @param dir The path of the directory to create. Takes a String and coerces it to a file.
+     */
     public void setDir(String dir) {
         this.dir = getProject().file(dir);
     }
@@ -63,8 +73,11 @@ public class EmptyDirTask extends DefaultTask {
         return dirMode;
     }
 
-    /** @param dirMode The permissions to apply to the new directory */
+    /**
+     * @param dirMode The permissions to apply to the new directory
+     */
     public void setDirMode(int dirMode) {
         this.dirMode = dirMode;
     }
+
 }

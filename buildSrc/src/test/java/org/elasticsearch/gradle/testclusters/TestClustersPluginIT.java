@@ -18,12 +18,13 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
-import java.util.Arrays;
 import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
 import org.junit.Before;
 import org.junit.Ignore;
+
+import java.util.Arrays;
 
 @Ignore("https://github.com/elastic/elasticsearch/issues/42453")
 public class TestClustersPluginIT extends GradleIntegrationTestCase {
@@ -39,7 +40,10 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         BuildResult result = getTestClustersRunner("listTestClusters").build();
 
         assertTaskSuccessful(result, ":listTestClusters");
-        assertOutputContains(result.getOutput(), "   * myTestCluster:");
+        assertOutputContains(
+            result.getOutput(),
+            "   * myTestCluster:"
+        );
     }
 
     public void testUseClusterByOne() {
@@ -62,8 +66,7 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
 
     public void testUseClusterByUpToDateTask() {
         // Run it once, ignoring the result and again to make sure it's considered up to date.
-        // Gradle randomly considers tasks without inputs and outputs as as up-to-date or success on
-        // the first run
+        // Gradle randomly considers tasks without inputs and outputs as as up-to-date or success on the first run
         getTestClustersRunner(":upToDate1").build();
         BuildResult result = getTestClustersRunner(":upToDate1").build();
         assertTaskUpToDate(result, ":upToDate1");
@@ -97,8 +100,7 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
             "-i",
             "--parallel",
             "-Dlocal.repo.path=" + getLocalTestRepoPath()
-        )
-            .build();
+        ).build();
 
         assertTaskSuccessful(
             result,
@@ -195,7 +197,11 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
     }
 
     private void assertNotStarted(BuildResult result) {
-        assertOutputDoesNotContain(result.getOutput(), "Starting ", "Stopping ");
+        assertOutputDoesNotContain(
+            result.getOutput(),
+            "Starting ",
+            "Stopping "
+        );
     }
 
     private GradleRunner getTestClustersRunner(String... tasks) {
@@ -217,4 +223,5 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
     private void assertStartedAndStoppedOnce(BuildResult result) {
         assertStartedAndStoppedOnce(result, "myTestCluster-0");
     }
+
 }

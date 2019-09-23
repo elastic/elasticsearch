@@ -19,21 +19,6 @@
 
 package org.elasticsearch.gradle.test;
 
-import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertLinuxPath;
-import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertWindowsPath;
-
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Random;
-import java.util.stream.Collectors;
 import org.elasticsearch.gradle.BuildPlugin;
 import org.elasticsearch.gradle.BwcVersions;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
@@ -62,6 +47,22 @@ import org.gradle.api.tasks.TaskInputs;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Random;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertLinuxPath;
+import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertWindowsPath;
+
 public class DistroTestPlugin implements Plugin<Project> {
 
     private static final String SYSTEM_JDK_VERSION = "11.0.2+9";
@@ -84,10 +85,8 @@ public class DistroTestPlugin implements Plugin<Project> {
         project.getPluginManager().apply(DistributionDownloadPlugin.class);
         project.getPluginManager().apply(BuildPlugin.class);
 
-        // TODO: it would be useful to also have the SYSTEM_JAVA_HOME setup in the root project, so
-        // that running from GCP only needs
-        // a java for gradle to run, and the tests are self sufficient and consistent with the java
-        // they use
+        // TODO: it would be useful to also have the SYSTEM_JAVA_HOME setup in the root project, so that running from GCP only needs
+        // a java for gradle to run, and the tests are self sufficient and consistent with the java they use
 
         Version upgradeVersion = getUpgradeVersion(project);
         Provider<Directory> distributionsDir = project.getLayout().getBuildDirectory().dir("packaging/distributions");
@@ -105,82 +104,42 @@ public class DistroTestPlugin implements Plugin<Project> {
             destructiveDistroTest.configure(t -> t.dependsOn(destructiveTask));
         }
         Map<String, TaskProvider<?>> batsTests = new HashMap<>();
-        batsTests.put(
-            "bats oss",
-            configureBatsTest(project, "oss", distributionsDir, copyDistributionsTask)
+        batsTests.put("bats oss", configureBatsTest(project, "oss", distributionsDir, copyDistributionsTask));
+        batsTests.put("bats default", configureBatsTest(project, "default", distributionsDir, copyDistributionsTask));
+        configureBatsTest(project, "plugins", distributionsDir, copyDistributionsTask, copyPluginsTask).configure(
+            t -> t.setPluginsDir(pluginsDir)
         );
-        batsTests.put(
-            "bats default",
-            configureBatsTest(project, "default", distributionsDir, copyDistributionsTask)
+        configureBatsTest(project, "upgrade", distributionsDir, copyDistributionsTask, copyUpgradeTask).configure(
+            t -> t.setUpgradeDir(upgradeDir)
         );
-        configureBatsTest(
-            project,
-            "plugins",
-            distributionsDir,
-            copyDistributionsTask,
-            copyPluginsTask
-        )
-            .configure(t -> t.setPluginsDir(pluginsDir));
-        configureBatsTest(
-            project,
-            "upgrade",
-            distributionsDir,
-            copyDistributionsTask,
-            copyUpgradeTask
-        )
-            .configure(t -> t.setUpgradeDir(upgradeDir));
 
-        project.subprojects(
-            vmProject -> {
-                vmProject.getPluginManager().apply(VagrantBasePlugin.class);
-                vmProject.getPluginManager().apply(JdkDownloadPlugin.class);
-                List<Object> vmDependencies = new ArrayList<>(configureVM(vmProject));
-                vmDependencies.add(
-                    project.getConfigurations().getByName("testRuntimeClasspath")
-                );
+        project.subprojects(vmProject -> {
+            vmProject.getPluginManager().apply(VagrantBasePlugin.class);
+            vmProject.getPluginManager().apply(JdkDownloadPlugin.class);
+            List<Object> vmDependencies = new ArrayList<>(configureVM(vmProject));
+            vmDependencies.add(project.getConfigurations().getByName("testRuntimeClasspath"));
 
-                TaskProvider<Task> distroTest = vmProject.getTasks().register("distroTest");
-                for (ElasticsearchDistribution distribution : distributions) {
-                    String destructiveTaskName = destructiveDistroTestTaskName(distribution);
-                    Platform platform = distribution.getPlatform();
-                    // this condition ensures windows boxes get windows distributions, and linux
-                    // boxes get linux distributions
-                    if (isWindows(vmProject) == (platform == Platform.WINDOWS)) {
-                        TaskProvider<GradleDistroTestTask> vmTask = configureVMWrapperTask(
-                            vmProject,
-                            distribution.getName() + " distribution",
-                            destructiveTaskName,
-                            vmDependencies
-                        );
-                        vmTask.configure(t -> t.dependsOn(distribution));
-                        distroTest.configure(t -> t.dependsOn(vmTask));
-                    }
+            TaskProvider<Task> distroTest = vmProject.getTasks().register("distroTest");
+            for (ElasticsearchDistribution distribution : distributions) {
+                String destructiveTaskName = destructiveDistroTestTaskName(distribution);
+                Platform platform = distribution.getPlatform();
+                // this condition ensures windows boxes get windows distributions, and linux boxes get linux distributions
+                if (isWindows(vmProject) == (platform == Platform.WINDOWS)) {
+                    TaskProvider<GradleDistroTestTask> vmTask =
+                        configureVMWrapperTask(vmProject, distribution.getName() + " distribution", destructiveTaskName, vmDependencies);
+                    vmTask.configure(t -> t.dependsOn(distribution));
+                    distroTest.configure(t -> t.dependsOn(vmTask));
                 }
-
-                batsTests.forEach(
-                    (desc, task) -> {
-                        configureVMWrapperTask(
-                            vmProject,
-                            desc,
-                            task.getName(),
-                            vmDependencies
-                        )
-                            .configure(
-                                t -> {
-                                    t.setProgressHandler(
-                                        new BatsProgressLogger(
-                                            project.getLogger()
-                                        )
-                                    );
-                                    // bats doesn't run on windows
-                                    t.onlyIf(spec -> isWindows(vmProject) == false);
-                                    t.dependsOn(copyDistributionsTask);
-                                }
-                            );
-                    }
-                );
             }
-        );
+
+            batsTests.forEach((desc, task) -> {
+                configureVMWrapperTask(vmProject, desc, task.getName(), vmDependencies).configure(t -> {
+                    t.setProgressHandler(new BatsProgressLogger(project.getLogger()));
+                    t.onlyIf(spec -> isWindows(vmProject) == false); // bats doesn't run on windows
+                    t.dependsOn(copyDistributionsTask);
+                });
+            });
+        });
     }
 
     private static Jdk createJdk(
@@ -207,8 +166,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         ExtraPropertiesExtension extraProperties = project.getExtensions().getByType(ExtraPropertiesExtension.class);
 
         if ((boolean) extraProperties.get("bwc_tests_enabled") == false) {
-            // Upgrade tests will go from current to current when the BWC tests are disabled to skip
-            // real BWC tests
+            // Upgrade tests will go from current to current when the BWC tests are disabled to skip real BWC tests
             return Version.fromString(project.getVersion().toString());
         }
 
@@ -234,10 +192,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         VagrantExtension vagrant = project.getExtensions().getByType(VagrantExtension.class);
         vagrant.setBox(box);
         vagrant.vmEnv("SYSTEM_JAVA_HOME", convertPath(project, vagrant, systemJdk, "", ""));
-        vagrant.vmEnv(
-            "PATH",
-            convertPath(project, vagrant, gradleJdk, "/bin:$PATH", "\\bin;$Env:PATH")
-        );
+        vagrant.vmEnv("PATH", convertPath(project, vagrant, gradleJdk, "/bin:$PATH", "\\bin;$Env:PATH"));
         vagrant.setIsWindowsVM(isWindows(project));
 
         return Arrays.asList(systemJdk, gradleJdk);
@@ -261,9 +216,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         };
     }
 
-    private static TaskProvider<Copy> configureCopyDistributionsTask(
-        Project project, Provider<Directory> distributionsDir
-    ) {
+    private static TaskProvider<Copy> configureCopyDistributionsTask(Project project, Provider<Directory> distributionsDir) {
 
         // temporary, until we have tasks per distribution
         return project.getTasks()
@@ -272,32 +225,26 @@ public class DistroTestPlugin implements Plugin<Project> {
                 Copy.class,
                 t -> {
                     t.into(distributionsDir);
-                    t.from(
-                        project.getConfigurations()
-                            .getByName(DISTRIBUTIONS_CONFIGURATION)
-                    );
+                    t.from(project.getConfigurations().getByName(DISTRIBUTIONS_CONFIGURATION));
 
                     Path distributionsPath = distributionsDir.get().getAsFile().toPath();
                     TaskInputs inputs = t.getInputs();
                     inputs.property("version", VersionProperties.getElasticsearch());
-                    t.doLast(
-                        action -> {
-                            try {
-                                Files.writeString(
-                                    distributionsPath.resolve("version"),
-                                    VersionProperties.getElasticsearch()
-                                );
-                            } catch (IOException e) {
-                                throw new UncheckedIOException(e);
-                            }
+                    t.doLast(action -> {
+                        try {
+                            Files.writeString(distributionsPath.resolve("version"), VersionProperties.getElasticsearch());
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
                         }
-                    );
+                    });
                 }
             );
     }
 
     private static TaskProvider<Copy> configureCopyUpgradeTask(
-        Project project, Version upgradeVersion, Provider<Directory> upgradeDir
+        Project project,
+        Version upgradeVersion,
+        Provider<Directory> upgradeDir
     ) {
         // temporary, until we have tasks per distribution
         return project.getTasks()
@@ -310,10 +257,8 @@ public class DistroTestPlugin implements Plugin<Project> {
 
                     Path upgradePath = upgradeDir.get().getAsFile().toPath();
 
-                    // write bwc version, and append -SNAPSHOT if it is an unreleased
-                    // version
-                    ExtraPropertiesExtension extraProperties = project.getExtensions()
-                        .getByType(ExtraPropertiesExtension.class);
+                    // write bwc version, and append -SNAPSHOT if it is an unreleased version
+                    ExtraPropertiesExtension extraProperties = project.getExtensions().getByType(ExtraPropertiesExtension.class);
                     BwcVersions bwcVersions = (BwcVersions) extraProperties.get("bwcVersions");
                     final String upgradeFromVersion;
                     if (bwcVersions.unreleasedInfo(upgradeVersion) != null) {
@@ -323,34 +268,22 @@ public class DistroTestPlugin implements Plugin<Project> {
                     }
                     TaskInputs inputs = t.getInputs();
                     inputs.property("upgrade_from_version", upgradeFromVersion);
-                    // TODO: this is serializable, need to think how to represent this as an
-                    // input
+                    // TODO: this is serializable, need to think how to represent this as an input
                     // inputs.property("bwc_versions", bwcVersions);
-                    t.doLast(
-                        action -> {
-                            try {
-                                Files.writeString(
-                                    upgradePath.resolve("upgrade_from_version"),
-                                    upgradeFromVersion
-                                );
-                                // this is always true, but bats tests rely on it. It is
-                                // just temporary until bats is removed.
-                                Files.writeString(
-                                    upgradePath.resolve("upgrade_is_oss"),
-                                    ""
-                                );
-                            } catch (IOException e) {
-                                throw new UncheckedIOException(e);
-                            }
+                    t.doLast(action -> {
+                        try {
+                            Files.writeString(upgradePath.resolve("upgrade_from_version"), upgradeFromVersion);
+                            // this is always true, but bats tests rely on it. It is just temporary until bats is removed.
+                            Files.writeString(upgradePath.resolve("upgrade_is_oss"), "");
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
                         }
-                    );
+                    });
                 }
             );
     }
 
-    private static TaskProvider<Copy> configureCopyPluginsTask(
-        Project project, Provider<Directory> pluginsDir
-    ) {
+    private static TaskProvider<Copy> configureCopyPluginsTask(Project project, Provider<Directory> pluginsDir) {
         Configuration pluginsConfiguration = project.getConfigurations().create(PLUGINS_CONFIGURATION);
 
         // temporary, until we have tasks per distribution
@@ -366,7 +299,10 @@ public class DistroTestPlugin implements Plugin<Project> {
     }
 
     private static TaskProvider<GradleDistroTestTask> configureVMWrapperTask(
-        Project project, String type, String destructiveTaskPath, List<Object> dependsOn
+        Project project,
+        String type,
+        String destructiveTaskPath,
+        List<Object> dependsOn
     ) {
         int taskNameStart = destructiveTaskPath.lastIndexOf(':') + "destructive".length() + 1;
         String taskname = destructiveTaskPath.substring(taskNameStart);
@@ -385,9 +321,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             );
     }
 
-    private static TaskProvider<?> configureDistroTest(
-        Project project, ElasticsearchDistribution distribution
-    ) {
+    private static TaskProvider<?> configureDistroTest(Project project, ElasticsearchDistribution distribution) {
         return project.getTasks()
             .register(
                 destructiveDistroTestTaskName(distribution),
@@ -404,7 +338,10 @@ public class DistroTestPlugin implements Plugin<Project> {
     }
 
     private static TaskProvider<BatsTestTask> configureBatsTest(
-        Project project, String type, Provider<Directory> distributionsDir, Object... deps
+        Project project,
+        String type,
+        Provider<Directory> distributionsDir,
+        Object... deps
     ) {
         return project.getTasks()
             .register(
@@ -423,9 +360,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             );
     }
 
-    private List<ElasticsearchDistribution> configureDistributions(
-        Project project, Version upgradeVersion
-    ) {
+    private List<ElasticsearchDistribution> configureDistributions(Project project, Version upgradeVersion) {
         NamedDomainObjectContainer<ElasticsearchDistribution> distributions = DistributionDownloadPlugin.getContainer(project);
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
         List<ElasticsearchDistribution> upgradeDistros = new ArrayList<>();
@@ -433,40 +368,15 @@ public class DistroTestPlugin implements Plugin<Project> {
         for (Type type : Arrays.asList(Type.DEB, Type.RPM)) {
             for (Flavor flavor : Flavor.values()) {
                 for (boolean bundledJdk : Arrays.asList(true, false)) {
-                    addDistro(
-                        distributions,
-                        type,
-                        null,
-                        flavor,
-                        bundledJdk,
-                        VersionProperties.getElasticsearch(),
-                        currentDistros
-                    );
+                    addDistro(distributions, type, null, flavor, bundledJdk, VersionProperties.getElasticsearch(), currentDistros);
                 }
             }
             // upgrade version is always bundled jdk
-            // NOTE: this is mimicking the old VagrantTestPlugin upgrade behavior. It will
-            // eventually be replaced
+            // NOTE: this is mimicking the old VagrantTestPlugin upgrade behavior. It will eventually be replaced
             // witha dedicated upgrade test from every bwc version like other bwc tests
-            addDistro(
-                distributions,
-                type,
-                null,
-                Flavor.DEFAULT,
-                true,
-                upgradeVersion.toString(),
-                upgradeDistros
-            );
+            addDistro(distributions, type, null, Flavor.DEFAULT, true, upgradeVersion.toString(), upgradeDistros);
             if (upgradeVersion.onOrAfter("6.3.0")) {
-                addDistro(
-                    distributions,
-                    type,
-                    null,
-                    Flavor.OSS,
-                    true,
-                    upgradeVersion.toString(),
-                    upgradeDistros
-                );
+                addDistro(distributions, type, null, Flavor.OSS, true, upgradeVersion.toString(), upgradeDistros);
             }
         }
         for (Platform platform : Arrays.asList(Platform.LINUX, Platform.WINDOWS)) {
@@ -515,18 +425,15 @@ public class DistroTestPlugin implements Plugin<Project> {
         if (distributions.findByName(name) != null) {
             return;
         }
-        ElasticsearchDistribution distro = distributions.create(
-            name,
-            d -> {
-                d.setFlavor(flavor);
-                d.setType(type);
-                if (type == Type.ARCHIVE) {
-                    d.setPlatform(platform);
-                }
-                d.setBundledJdk(bundledJdk);
-                d.setVersion(version);
+        ElasticsearchDistribution distro = distributions.create(name, d -> {
+            d.setFlavor(flavor);
+            d.setType(type);
+            if (type == Type.ARCHIVE) {
+                d.setPlatform(platform);
             }
-        );
+            d.setBundledJdk(bundledJdk);
+            d.setVersion(version);
+        });
         container.add(distro);
     }
 
@@ -535,23 +442,11 @@ public class DistroTestPlugin implements Plugin<Project> {
         return project.getName().contains("windows");
     }
 
-    private static String distroId(
-        Type type, Platform platform, Flavor flavor, boolean bundledJdk
-    ) {
-        return flavor
-            + "-"
-            + (type == Type.ARCHIVE ? platform + "-" : "")
-            + type
-            + (bundledJdk ? "" : "-no-jdk");
+    private static String distroId(Type type, Platform platform, Flavor flavor, boolean bundledJdk) {
+        return flavor + "-" + (type == Type.ARCHIVE ? platform + "-" : "") + type + (bundledJdk ? "" : "-no-jdk");
     }
 
     private static String destructiveDistroTestTaskName(ElasticsearchDistribution distro) {
-        return "destructiveDistroTest."
-            + distroId(
-                distro.getType(),
-                distro.getPlatform(),
-                distro.getFlavor(),
-                distro.getBundledJdk()
-            );
+        return "destructiveDistroTest." + distroId(distro.getType(), distro.getPlatform(), distro.getFlavor(), distro.getBundledJdk());
     }
 }

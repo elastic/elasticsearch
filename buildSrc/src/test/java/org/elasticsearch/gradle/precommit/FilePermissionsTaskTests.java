@@ -18,11 +18,12 @@
  */
 package org.elasticsearch.gradle.precommit;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
 import java.io.File;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.util.List;
+
+import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.tools.ant.taskdefs.condition.Os;
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
 import org.gradle.api.GradleException;
@@ -34,10 +35,7 @@ import org.junit.Assert;
 public class FilePermissionsTaskTests extends GradleUnitTestCase {
 
     public void testCheckPermissionsWhenAnExecutableFileExists() throws Exception {
-        RandomizedTest.assumeFalse(
-            "Functionality is Unix specific",
-            Os.isFamily(Os.FAMILY_WINDOWS)
-        );
+        RandomizedTest.assumeFalse("Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
 
         Project project = createProject();
 
@@ -58,10 +56,7 @@ public class FilePermissionsTaskTests extends GradleUnitTestCase {
     }
 
     public void testCheckPermissionsWhenNoFileExists() throws Exception {
-        RandomizedTest.assumeFalse(
-            "Functionality is Unix specific",
-            Os.isFamily(Os.FAMILY_WINDOWS)
-        );
+        RandomizedTest.assumeFalse("Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
 
         Project project = createProject();
 
@@ -75,10 +70,7 @@ public class FilePermissionsTaskTests extends GradleUnitTestCase {
     }
 
     public void testCheckPermissionsWhenNoExecutableFileExists() throws Exception {
-        RandomizedTest.assumeFalse(
-            "Functionality is Unix specific",
-            Os.isFamily(Os.FAMILY_WINDOWS)
-        );
+        RandomizedTest.assumeFalse("Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
 
         Project project = createProject();
 
@@ -106,4 +98,5 @@ public class FilePermissionsTaskTests extends GradleUnitTestCase {
     private FilePermissionsTask createTask(Project project) {
         return project.getTasks().create("filePermissionsTask", FilePermissionsTask.class);
     }
+
 }

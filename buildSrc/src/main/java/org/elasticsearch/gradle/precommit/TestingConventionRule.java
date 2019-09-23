@@ -28,8 +28,8 @@ import java.util.regex.Pattern;
 /**
  * Represent rules for tests enforced by the @{link {@link TestingConventionsTasks}}
  *
- * <p>Rules are identified by name, tests must have this name as a suffix and implement one of the
- * base classes and be part of all the specified tasks.
+ * Rules are identified by name, tests must have this name as a suffix and implement one of the base classes
+ * and be part of all the specified tasks.
  */
 public class TestingConventionRule implements Serializable {
 
@@ -47,7 +47,10 @@ public class TestingConventionRule implements Serializable {
         return suffix;
     }
 
-    /** Alias for @{link getSuffix} as Gradle requires a name property */
+    /**
+     * Alias for @{link getSuffix} as Gradle requires a name property
+     *
+     */
     public String getName() {
         return suffix;
     }

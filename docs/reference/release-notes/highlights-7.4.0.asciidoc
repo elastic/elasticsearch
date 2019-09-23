@@ -1,0 +1,106 @@
+[[release-highlights-7.4.0]]
+== 7.4.0 release highlights
+++++
+<titleabbrev>7.4.0</titleabbrev>
+++++
+
+//NOTE: The notable-highlights tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+// tag::notable-highlights[]
+[float]
+==== Results pinning
+
+With the release of Elasticsearch 7.4.0, we provide the ability to define the first records in a result set (and the order in which they will show up) directly within Elasticsearch. This capability is provided by the new https://www.elastic.co/guide/en/elasticsearch/reference/7.4/query-dsl-pinned-query.html[pinned query].
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== New shape field type
+
+Elasticsearch introduces a new https://www.elastic.co/guide/en/elasticsearch/reference/7.4/shape.html[shape field type], which allows users to position (and query) shapes in an arbitrary geometry of their choosing.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Circle ingest processor
+
+The https://www.elastic.co/guide/en/elasticsearch/reference/7.4/ingest-circle-processor.html[circle ingest processor] translates circles into regular polygons(bounded by the circles), making ingesting, indexing, searching, and aggregating of circles both easy and efficient.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Aggregations on range fields
+
+We have added support for running https://www.elastic.co/guide/en/elasticsearch/reference/7.4/search-aggregations-bucket-histogram-aggregation.html[Histogram] and https://www.elastic.co/guide/en/elasticsearch/reference/7.4/search-aggregations-bucket-datehistogram-aggregation.html[Date Histogram] aggregations on range fields - useful when seeking to count the number of ranges that overlap with specific buckets (e.g. the number of phone calls that took place during a specific minute).
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Cumulative cardinality aggregation
+
+https://www.elastic.co/guide/en/elasticsearch/reference/7.4/search-aggregations-pipeline-cumulative-cardinality-aggregation.html[Cumulative cardinality aggregation] has been introduced as part of our ongoing efforts to provide advanced aggregations. This newly added pipeline aggregation allows users to calculate a net-new total of document occurrences within a given time range.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Snapshot lifecycle management
+
+In 7.4.0, we’re introducing https://www.elastic.co/guide/en/elasticsearch/reference/7.4/getting-started-snapshot-lifecycle-management.html[snapshot lifecycle management], which allows an administrator to define policies (via API or UI) that manage when and how often snapshots are taken. This ensures that appropriate, recent backups are ready if disaster strikes or the data needs to be restored for other reasons. 
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== API key management
+
+Elasticsearch is introducing https://www.elastic.co/guide/en/elastic-stack-overview/7.4/security-privileges.html[new cluster privileges to manage API keys], allowing cluster administrators to manage everything, and regular users to manage their own keys. Users can create API keys and use them to provide long-term credentials while interacting with Elasticsearch. 
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== TLS settings for email notifications
+
+Notifications may contain sensitive information that must be protected over the wire. This requires that communication with the mail server is encrypted and authenticated properly.
+In 7.4.0, Elasticsearch supports custom https://www.elastic.co/guide/en/elasticsearch/reference/7.4/notification-settings.html#ssl-notification-smtp-settings[TLS settings for email notifications], allowing secure connections to servers with custom security configuration.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Automatic query cancellation
+
+With the release of version 7.4.0 automatic query cancellation will (automatically) terminate queries sent through the _search endpoint when the initiating connection is closed.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Added support for AdoptOpenJDK
+
+AdoptOpenJDK 13 is now supported and will ship with Elasticsearch as the pre-bundled JDK (as always, if you want to bring your own JDK, you can still do so by setting `JAVA_HOME` before starting Elasticsearch.) The availabiliity of a notarized AdoptOpenJDK package (per the new requirements for software running on macOS Catalina) will faciltate notarization of Elasticsearch for continued support on macOS. 
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== Regression analysis - Experimental
+
+https://www.elastic.co/guide/en/elastic-stack-overview/7.4/dfa-regression.html[Regression analysis] is a machine learning process for estimating the relationships among a number of feature variables and a dependent variable, then making further predictions based on the described relationship.
+
+// end::notable-highlights[]
+
+// tag::notable-highlights[]
+[float]
+==== New vector distance functions for document script scoring - Experimental
+
+We are introducing two new vector similarity measurements - Manhattan distance (L1 norm) and Euclidean distance (L2 norm). Like the dot product and cosine similarity, the Euclidean and Manhattan distances are provided as https://www.elastic.co/guide/en/elasticsearch/reference/7.4/query-dsl-script-score-query.html#vector-functions[predefined Painless functions] so that they may be incorporated with other query elements as part of a https://www.elastic.co/guide/en/elasticsearch/reference/7.3/query-dsl-script-score-query.html[script_score] query.
+
+// end::notable-highlights[]
+

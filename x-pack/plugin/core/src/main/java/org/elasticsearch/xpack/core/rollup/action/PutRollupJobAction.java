@@ -95,7 +95,7 @@ public class PutRollupJobAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public String[] indices() {
-            return new String[]{this.config.getIndexPattern()};
+            return this.config.indices();
         }
 
         @Override

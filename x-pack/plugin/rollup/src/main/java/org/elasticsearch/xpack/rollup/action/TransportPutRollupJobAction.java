@@ -106,7 +106,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         checkForDeprecatedTZ(request);
 
         FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest()
-            .indices(request.getConfig().getIndexPattern())
+            .indices(request.indices())
             .fields(request.getConfig().getAllFields().toArray(new String[0]));
         fieldCapsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
 

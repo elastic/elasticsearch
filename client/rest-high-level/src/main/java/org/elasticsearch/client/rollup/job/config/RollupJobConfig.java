@@ -22,6 +22,7 @@ import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -113,12 +114,21 @@ public class RollupJobConfig implements Validatable, ToXContentObject {
         }
         if (indexPattern == null || indexPattern.isEmpty()) {
             validationException.addValidationError("Index pattern must be a non-null, non-empty string");
-        } else if (Regex.isMatchAllPattern(indexPattern)) {
-            validationException.addValidationError("Index pattern must not match all indices (as it would match it's own rollup index");
-        } else if (indexPattern != null && indexPattern.equals(rollupIndex)) {
-            validationException.addValidationError("Rollup index may not be the same as the index pattern");
-        } else if (Regex.isSimpleMatchPattern(indexPattern) && Regex.simpleMatch(indexPattern, rollupIndex)) {
-            validationException.addValidationError("Index pattern would match rollup index name which is not allowed");
+        } else {
+            for (String index: Strings.splitStringByCommaToArray(indexPattern)) {
+                if (Regex.isMatchAllPattern(index)) {
+                    validationException.addValidationError("Index pattern must not match all indices (as it would match it's own rollup index");
+                    break;
+                }
+                if (index.equals(rollupIndex)) {
+                    validationException.addValidationError("Rollup index may not be the same as the index pattern");
+                    break;
+                }
+                if (Regex.isSimpleMatchPattern(index) && Regex.simpleMatch(index, rollupIndex)) {
+                    validationException.addValidationError("Index pattern would match rollup index name which is not allowed");
+                    break;
+                }
+            }
         }
 
         if (rollupIndex == null || rollupIndex.isEmpty()) {

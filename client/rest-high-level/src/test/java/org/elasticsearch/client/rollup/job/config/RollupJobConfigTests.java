@@ -122,7 +122,7 @@ public class RollupJobConfigTests extends AbstractXContentTestCase<RollupJobConf
     public void testValidateMatchAllIndexPattern() {
         final RollupJobConfig sample = randomRollupJobConfig(id);
 
-        final RollupJobConfig config = new RollupJobConfig(sample.getId(), "*", sample.getRollupIndex(), sample.getCron(),
+        RollupJobConfig config = new RollupJobConfig(sample.getId(), "*", sample.getRollupIndex(), sample.getCron(),
             sample.getPageSize(), sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout());
 
         Optional<ValidationException> validation = config.validate();
@@ -132,12 +132,23 @@ public class RollupJobConfigTests extends AbstractXContentTestCase<RollupJobConf
         assertThat(validationException.validationErrors().size(), is(1));
         assertThat(validationException.validationErrors(),
             contains("Index pattern must not match all indices (as it would match it's own rollup index"));
+
+        config = new RollupJobConfig(sample.getId(), "test,*", sample.getRollupIndex(), sample.getCron(),
+            sample.getPageSize(), sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout());
+
+        validation = config.validate();
+        assertThat(validation, notNullValue());
+        assertThat(validation.isPresent(), is(true));
+        validationException = validation.get();
+        assertThat(validationException.validationErrors().size(), is(1));
+        assertThat(validationException.validationErrors(),
+            contains("Index pattern must not match all indices (as it would match it's own rollup index"));
     }
 
     public void testValidateIndexPatternMatchesRollupIndex() {
         final RollupJobConfig sample = randomRollupJobConfig(id);
 
-        final RollupJobConfig config = new RollupJobConfig(sample.getId(), "rollup*", "rollup", sample.getCron(),
+        RollupJobConfig config = new RollupJobConfig(sample.getId(), "rollup*", "rollup", sample.getCron(),
             sample.getPageSize(), sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout());
 
         Optional<ValidationException> validation = config.validate();
@@ -146,18 +157,38 @@ public class RollupJobConfigTests extends AbstractXContentTestCase<RollupJobConf
         ValidationException validationException = validation.get();
         assertThat(validationException.validationErrors().size(), is(1));
         assertThat(validationException.validationErrors(), contains("Index pattern would match rollup index name which is not allowed"));
+
+        new RollupJobConfig(sample.getId(), "test,rollup*", "rollup", sample.getCron(),
+            sample.getPageSize(), sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout());
+
+        validation = config.validate();
+        assertThat(validation, notNullValue());
+        assertThat(validation.isPresent(), is(true));
+        validationException = validation.get();
+        assertThat(validationException.validationErrors().size(), is(1));
+        assertThat(validationException.validationErrors(), contains("Index pattern would match rollup index name which is not allowed"));
     }
 
     public void testValidateSameIndexAndRollupPatterns() {
         final RollupJobConfig sample = randomRollupJobConfig(id);
 
-        final RollupJobConfig config = new RollupJobConfig(sample.getId(), "test", "test", sample.getCron(),
+        RollupJobConfig config = new RollupJobConfig(sample.getId(), "test", "test", sample.getCron(),
             sample.getPageSize(), sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout());
 
         Optional<ValidationException> validation = config.validate();
         assertThat(validation, notNullValue());
         assertThat(validation.isPresent(), is(true));
         ValidationException validationException = validation.get();
+        assertThat(validationException.validationErrors().size(), is(1));
+        assertThat(validationException.validationErrors(), contains("Rollup index may not be the same as the index pattern"));
+
+        config = new RollupJobConfig(sample.getId(), "idx,test", "test", sample.getCron(),
+            sample.getPageSize(), sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout());
+
+        validation = config.validate();
+        assertThat(validation, notNullValue());
+        assertThat(validation.isPresent(), is(true));
+        validationException = validation.get();
         assertThat(validationException.validationErrors().size(), is(1));
         assertThat(validationException.validationErrors(), contains("Rollup index may not be the same as the index pattern"));
     }

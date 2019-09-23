@@ -1,5 +1,5 @@
 {
-  "data_frame.put_data_frame_transform":{
+  "transform.put_transform":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/put-transform.html"
     },
@@ -24,11 +24,11 @@
       "defer_validation": {
         "type": "boolean",
         "required": false,
-        "description": "If validations should be deferred until data frame transform starts, defaults to false."
+        "description": "If validations should be deferred until transform starts, defaults to false."
       }
     },
     "body":{
-      "description":"The data frame transform definition",
+      "description":"The transform definition",
       "required":true
     }
   }

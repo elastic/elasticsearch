@@ -1,5 +1,5 @@
 {
-  "data_frame.get_data_frame_transform":{
+  "transform.get_transform":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-transform.html"
     },
@@ -40,7 +40,7 @@
       "allow_no_match":{
         "type":"boolean",
         "required":false,
-        "description":"Whether to ignore if a wildcard expression matches no data frame transforms. (This includes `_all` string or when no data frame transforms have been specified)"
+        "description":"Whether to ignore if a wildcard expression matches no transforms. (This includes `_all` string or when no transforms have been specified)"
       }
     }
   }

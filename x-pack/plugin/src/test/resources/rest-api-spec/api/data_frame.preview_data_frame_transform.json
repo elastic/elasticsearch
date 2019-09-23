@@ -1,5 +1,5 @@
 {
-  "data_frame.preview_data_frame_transform":{
+  "transform.preview_transform":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/preview-transform.html"
     },
@@ -15,7 +15,7 @@
       ]
     },
     "body":{
-      "description":"The definition for the data_frame transform to preview",
+      "description":"The definition for the transform to preview",
       "required":true
     }
   }

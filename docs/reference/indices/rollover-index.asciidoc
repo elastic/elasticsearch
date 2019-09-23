@@ -124,7 +124,7 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=aliases]
 +
 --
 (Required, object)
-Set of conditions the index alias's existing index must met to rollover.
+Set of conditions the index alias's existing index must met to roll over.
 
 Parameters include:
 

@@ -62,7 +62,7 @@ will now have the rollover alias pointing to it as the write index with `is_writ
 
 Because the rollover operation creates a new index to rollover to, the
 <<create-index-wait-for-active-shards,`wait_for_active_shards`>> setting on
-index creation applies to the rollover action as well.
+index creation applies to the rollover action.
 
 
 [[rollover-index-api-path-params]]

@@ -80,7 +80,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         new Setting<>("indices.breaker.request.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
 
     public static final Setting<ByteSizeValue> SINGLE_REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING =
-        Setting.memorySizeSetting("indices.breaker.single_request.limit", "60%", Property.Dynamic, Property.NodeScope);
+        Setting.memorySizeSetting("indices.breaker.single_request.limit", "30%", Property.Dynamic, Property.NodeScope);
 
     public static final Setting<ByteSizeValue> ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING =
         Setting.memorySizeSetting("indices.breaker.accounting.limit", "100%", Property.Dynamic, Property.NodeScope);

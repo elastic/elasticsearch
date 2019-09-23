@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.tasks.Task;
@@ -67,12 +68,15 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
             return;
         }
 
-        if (request.indexPrivileges() != null) {
-            try {
-                DLSRoleQueryValidator.validateQueryField(request.indexPrivileges(), xContentRegistry);
-            } catch (ElasticsearchException | IllegalArgumentException e) {
-                listener.onFailure(e);
-                return;
+        final RoleDescriptor.IndicesPrivileges[] indicesPrivileges = request.indexPrivileges();
+        if (indicesPrivileges != null) {
+            for (int i = 0; i < indicesPrivileges.length; i++) {
+                BytesReference query = indicesPrivileges[i].getQuery();
+                if (query != null) {
+                    listener.onFailure(
+                        new IllegalArgumentException("users may only check the index privileges without any DLS role query"));
+                    return;
+                }
             }
         }
 

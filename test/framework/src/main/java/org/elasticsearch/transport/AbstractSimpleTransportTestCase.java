@@ -1127,7 +1127,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertBusy(appender::assertAllExpectationsMatched);
         } finally {
             Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
-            appender.stop();
+            // Not stopping the mock appender here to avoid logging an error about a stopped appender during a race from the transport
+            // service trying to log something while the appender is being removed
         }
     }
 

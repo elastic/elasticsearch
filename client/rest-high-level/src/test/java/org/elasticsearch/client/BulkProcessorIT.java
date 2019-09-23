@@ -483,11 +483,11 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
     private MultiGetRequest indexDocs(BulkProcessor processor, int numDocs) throws Exception {
         return indexDocs(processor, numDocs, "test", null, null, null, null);
     }
-    
+
     private static void assertResponseItems(List<BulkItemResponse> bulkItemResponses, int numDocs) {
         assertResponseItems(bulkItemResponses, numDocs, MapperService.SINGLE_MAPPING_NAME);
     }
-    
+
     private static void assertResponseItems(List<BulkItemResponse> bulkItemResponses, int numDocs, String expectedType) {
         assertThat(bulkItemResponses.size(), is(numDocs));
         int i = 1;
@@ -505,7 +505,6 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         int i = 1;
         for (MultiGetItemResponse multiGetItemResponse : multiGetResponse) {
             assertThat(multiGetItemResponse.getIndex(), equalTo("test"));
-            assertThat(multiGetItemResponse.getType(), equalTo("_doc"));
             assertThat(multiGetItemResponse.getId(), equalTo(Integer.toString(i++)));
         }
     }

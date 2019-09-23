@@ -1997,6 +1997,7 @@ public final class InternalTestCluster extends TestCluster {
                 .put(settings)
                 .put(Node.NODE_MASTER_SETTING.getKey(), true)
                 .put(Node.NODE_DATA_SETTING.getKey(), false)
+                .put(Node.NODE_INGEST_SETTING.getKey(), false)
                 .build();
         return startNode(settings1);
     }

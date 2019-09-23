@@ -145,7 +145,6 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
                 whenDone.run();
             }
         });
-
     }
 
     public void finish(@Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception,

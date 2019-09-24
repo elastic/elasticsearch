@@ -17,7 +17,7 @@ import java.util.Map;
 public interface PreProcessor extends NamedXContentObject, NamedWriteable {
 
     /**
-     * Process the give fields and their values and return the modified map.
+     * Process the given fields and their values and return the modified map.
      *
      * NOTE: The passed map object COULD be mutated
      * @param fields The fields and their values to process

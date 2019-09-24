@@ -73,7 +73,7 @@ public class TargetMeanEncoding implements PreProcessor {
     }
 
     /**
-     * @return Field name on which to one hot encode
+     * @return Field name on which to target mean encode
      */
     public String getField() {
         return field;
@@ -156,17 +156,9 @@ public class TargetMeanEncoding implements PreProcessor {
             return this;
         }
 
-        public String getFeatureName() {
-            return featureName;
-        }
-
         public Builder setFeatureName(String featureName) {
             this.featureName = featureName;
             return this;
-        }
-
-        public Map<String, Double> getMeanMap() {
-            return meanMap;
         }
 
         public Builder setMeanMap(Map<String, Double> meanMap) {
@@ -177,10 +169,6 @@ public class TargetMeanEncoding implements PreProcessor {
         public Builder addMeanMapEntry(String valueName, double meanEncoding) {
             this.meanMap.put(valueName, meanEncoding);
             return this;
-        }
-
-        public double getDefaultValue() {
-            return defaultValue;
         }
 
         public Builder setDefaultValue(double defaultValue) {

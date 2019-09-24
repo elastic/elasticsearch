@@ -77,7 +77,7 @@ public class TargetMeanEncoding implements LenientlyParsedPreProcessor, Strictly
     }
 
     /**
-     * @return Field name on which to one hot encode
+     * @return Field name on which to target mean encode
      */
     public String getField() {
         return field;

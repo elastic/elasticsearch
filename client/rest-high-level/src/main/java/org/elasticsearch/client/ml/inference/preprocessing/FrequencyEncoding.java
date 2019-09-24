@@ -69,7 +69,7 @@ public class FrequencyEncoding implements PreProcessor {
     }
 
     /**
-     * @return Field name on which to one hot encode
+     * @return Field name on which to frequency encode
      */
     public String getField() {
         return field;
@@ -133,17 +133,9 @@ public class FrequencyEncoding implements PreProcessor {
             this.field = field;
         }
 
-        public String getField() {
-            return field;
-        }
-
         public Builder setField(String field) {
             this.field = field;
             return this;
-        }
-
-        public String getFeatureName() {
-            return featureName;
         }
 
         public Builder setFeatureName(String featureName) {
@@ -159,10 +151,6 @@ public class FrequencyEncoding implements PreProcessor {
         public Builder addFrequency(String valueName, double frequency) {
             this.frequencyMap.put(valueName, frequency);
             return this;
-        }
-
-        public Map<String, Double> getFrequencyMap() {
-            return frequencyMap;
         }
 
         public FrequencyEncoding build() {

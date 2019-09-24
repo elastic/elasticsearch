@@ -72,7 +72,7 @@ public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyP
     }
 
     /**
-     * @return Field name on which to one hot encode
+     * @return Field name on which to frequency encode
      */
     public String getField() {
         return field;

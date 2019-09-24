@@ -116,10 +116,6 @@ public class OneHotEncoding implements PreProcessor {
             this.field = field;
         }
 
-        public String getField() {
-            return field;
-        }
-
         public Builder setField(String field) {
             this.field = field;
             return this;
@@ -133,10 +129,6 @@ public class OneHotEncoding implements PreProcessor {
         public Builder addOneHot(String valueName, String oneHotFeatureName) {
             this.hotMap.put(valueName, oneHotFeatureName);
             return this;
-        }
-
-        public Map<String, String> getHotMap() {
-            return hotMap;
         }
 
         public OneHotEncoding build() {

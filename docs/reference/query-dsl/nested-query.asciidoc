@@ -125,10 +125,9 @@ field `path`.
 ===== Multi-level nested queries
 
 To see how multi-level nested queries work,
-try the following example.
-
-First, create an index, `drivers`,
-with a nested field mapping.
+first you need an index that has nested fields.
+The following request defines mappings for the `drivers` index
+with the `model` field nested under `driver -> vehicle -> model`:
 
 [source,console]
 ----
@@ -142,7 +141,7 @@ PUT /drivers
                     "vehicle" : {
                         "type" : "nested",
                         "properties" : {
-                            "model" : {                 <1>
+                            "model" : {
                                 "type" : "keyword"
                             }
                         }
@@ -153,12 +152,6 @@ PUT /drivers
     }
 }
 ----
-
-<1> Note the `model` field is nested as follows:
-+
-```
-driver → vehicle → model
-```
 
 Next, index a document to the `drivers` index.
 

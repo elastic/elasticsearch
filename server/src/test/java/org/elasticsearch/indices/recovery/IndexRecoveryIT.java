@@ -379,7 +379,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("3").get().isTimedOut());
 
         logger.info("--> request recoveries");
-        // peer recovery from nodeA to node C should be canceled, replica should be allocated to nodeB that has the data copy
+        // peer recovery from nodeA to nodeC should be canceled, replica should be allocated to nodeB that has the data copy
         assertBusy(() -> {
             RecoveryResponse response1 = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
             List<RecoveryState> recoveryStates1 = response1.shardRecoveryStates().get(INDEX_NAME);

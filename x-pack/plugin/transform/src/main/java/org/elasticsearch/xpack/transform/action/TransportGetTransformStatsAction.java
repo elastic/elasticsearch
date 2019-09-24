@@ -26,11 +26,11 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction.Request;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction.Response;
+import org.elasticsearch.xpack.core.transform.transforms.NodeAttributes;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
-import org.elasticsearch.xpack.core.transform.transforms.NodeAttributes;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
@@ -58,9 +58,9 @@ public class TransportGetTransformStatsAction extends
 
     @Inject
     public TransportGetTransformStatsAction(TransportService transportService, ActionFilters actionFilters,
-                                             ClusterService clusterService,
-                                             TransformConfigManager transformsConfigManager,
-                                             TransformCheckpointService transformsCheckpointService) {
+                                            ClusterService clusterService,
+                                            TransformConfigManager transformsConfigManager,
+                                            TransformCheckpointService transformsCheckpointService) {
         super(GetTransformStatsAction.NAME, clusterService, transportService, actionFilters, Request::new, Response::new,
             Response::new, ThreadPool.Names.SAME);
         this.transformConfigManager = transformsConfigManager;

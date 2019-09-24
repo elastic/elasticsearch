@@ -39,7 +39,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
 
     @Inject
     public TransportGetTransformAction(TransportService transportService, ActionFilters actionFilters,
-                                                 Client client, NamedXContentRegistry xContentRegistry) {
+                                       Client client, NamedXContentRegistry xContentRegistry) {
         super(GetTransformAction.NAME, transportService, actionFilters, Request::new, client, xContentRegistry);
     }
 

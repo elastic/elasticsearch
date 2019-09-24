@@ -4,18 +4,22 @@
 Returns search hits that match the query defined in the request.
 
 [source,console]
---------------------------------------------------
-GET /twitter/_search?q=user:kimchy
---------------------------------------------------
+----
+GET /twitter/_search?q=tag:wow
+----
 // TEST[setup:twitter]
 
 
 [[search-search-api-request]]
 ==== {api-request-title}
 
-`GET /<index>/_search` +
+`GET /<index>/_search`
 
-`GET /all/_search`
+`POST /<index>/_search`
+
+`GET /_search`
+
+`POST /_search`
 
 
 [[search-search-api-desc]]
@@ -214,35 +218,184 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
   <<query-dsl,Query DSL>>.
 
 
+[[search-api-response-body]]
+==== {api-response-body-title}
+
+`took`::
++
+--
+(Integer)
+Milliseconds it took {es} to execute the request.
+
+This value is calculated by measuring the time elapsed
+between receipt of a request
+and its execution.
+
+Took time does *not* include:
+
+* Serializing a request into JSON on a client
+* Sending a request over a network
+* Deserializing a request from JSON on a server
+* Serializing a response into JSON on a server
+* Sending a response over a network
+* Deserializing a response from JSON on a client
+--
+
+
+`timed_out`::
++
+--
+(Boolean)
+If `true`,
+the request timed out before completion;
+returned results may be partial or empty.
+--
+
+`_shards`::
++
+--
+(Object)
+Object containing a count of shards used for the request.
+Returned parameters include:
+
+`total`::
+(Integer)
+Total number of shards involved in the request.
+
+`successful`::
+(Integer)
+Number of shards that executed the request.
+
+`skipped`::
+(Integer)
+Number of shards that skipped the request.
+
+`failed`::
+(Integer)
+Number of shards that failed to execute the request.
+
+--
+
+`hits`::
++
+--
+(Object)
+Contains returned documents and metadata.
+Returned parameters include:
+
+`total`::
+(Object)
+Metadata about the number of returned documents.
+Returned parameters include:
++
+* `value`: Total number of returned documents.
+* `relation`: Indicates whether the number of documents returned.
+Returned values are:
+** `eq`: Accurate
+** `gte`: Lower bound
+
+`max_score`::
+(Float)
+Highest returned document `_score`.
++
+The `_score` parameter is a floating point number
+used to determine the relevance of the returned document.
+
+`hits`::
+(Array of objects)
+Array of returned document objects.
+Returned parameters include:
++
+* `_index`: Name of the index containing the returned document.
+* `_id`: Unique identifier for the returned document.
+* `_score`: Floating point number
+  used to determine the relevance of the returned document.
+* `_source`: Object containing the original JSON body
+  passed for the document at index time.
+--
+
+
 [[search-search-api-example]]
 ==== {api-examples-title}
 
-["float",id="search-multi-index"]
-===== Multi-Index
-
-All search APIs can be applied across multiple indices with support for
-the <<multi-index,multi index syntax>>. For
-example, we can search on all documents within the twitter index:
+[[search-api-specific-ex]]
+===== Search a specific index
 
 [source,console]
---------------------------------------------------
+----
 GET /twitter/_search?q=user:kimchy
---------------------------------------------------
-// TEST[setup:twitter]
+----
+// TEST[continued]
 
-We can also search all documents with a certain tag across several indices
-(for example, when there is one index per user):
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "took" : 5,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 1,
+      "relation" : "eq"
+    },
+    "max_score" : 1.3862944,
+    "hits" : [
+      {
+        "_index" : "twitter",
+        "_id" : "0",
+        "_score" : 1.3862944,
+        "_source" : {
+          "date" : "2009-11-15T14:12:12",
+          "likes" : 0,
+          "message" : "trying out Elasticsearch",
+          "user" : "kimchy"
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took" : 5/"took": $body.took/]
+
+[[search-multi-index]]
+===== Search several indices
 
 [source,console]
---------------------------------------------------
+----
 GET /kimchy,elasticsearch/_search?q=tag:wow
---------------------------------------------------
+----
 // TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
 
-Or we can search across all available indices using `_all`:
+[[search-api-all-ex]]
+===== Search all indices
+
+To search all indices in a cluster,
+omit the `<index>` parameter.
 
 [source,console]
----------------------------------------------------
+----
+GET /_search?q=tag:wow
+----
+// TEST[continued]
+
+Alternatively,
+you can use the `_all` or `*` value in the `<index>` parameter.
+
+[source,console]
+----
 GET /_all/_search?q=tag:wow
----------------------------------------------------
-// TEST[setup:twitter]
+----
+// TEST[continued]
+
+[source,console]
+----
+GET /*/_search?q=tag:wow
+----
+// TEST[continued]

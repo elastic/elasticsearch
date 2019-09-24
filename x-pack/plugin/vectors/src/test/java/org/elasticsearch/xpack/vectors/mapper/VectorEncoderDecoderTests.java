@@ -96,21 +96,31 @@ public class VectorEncoderDecoderTests extends ESTestCase {
 
     // imitates the code in DenseVectorFieldMapper::parse
     public static BytesRef mockEncodeDenseVector(float[] values, Version indexVersion) {
-        byte[] bytes = indexVersion.onOrAfter(Version.V_7_5_0)
-            ? new byte[VectorEncoderDecoder.INT_BYTES * values.length + VectorEncoderDecoder.INT_BYTES]
-            : new byte[VectorEncoderDecoder.INT_BYTES * values.length];
-        double dotProduct = 0f;
-
-        ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
-        for (float value : values) {
-            byteBuffer.putFloat(value);
-            dotProduct += value * value;
-        }
+        byte[] bytes;
 
         if (indexVersion.onOrAfter(Version.V_7_5_0)) {
+            bytes = new byte[VectorEncoderDecoder.SHORT_BYTES * values.length + VectorEncoderDecoder.INT_BYTES];
+            double dotProduct = 0f;
+            int offset = 0;
+            for (float value : values) {
+                dotProduct += value * value;
+                int intValue = Float.floatToIntBits(value);
+                bytes[offset++] = (byte) (intValue >> 24);
+                bytes[offset++] = (byte) (intValue >> 16);
+            }
             // encode vector magnitude at the end
             float vectorMagnitude = (float) Math.sqrt(dotProduct);
-            byteBuffer.putFloat(vectorMagnitude);
+            int intValue = Float.floatToIntBits(vectorMagnitude);
+            bytes[offset++] = (byte) (intValue >> 24);
+            bytes[offset++] = (byte) (intValue >> 16);
+            bytes[offset++] = (byte) (intValue >> 8);
+            bytes[offset++] = (byte) intValue;
+        } else {
+            bytes = new byte[VectorEncoderDecoder.INT_BYTES * values.length];
+            ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
+            for (float value : values) {
+                byteBuffer.putFloat(value);
+            }
         }
         return new BytesRef(bytes);
     }

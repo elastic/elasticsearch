@@ -98,13 +98,11 @@ public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
         BytesRef vectorBR = fields[0].binaryValue();
         float[] decodedValues = decodeDenseVector(indexVersion, vectorBR);
         float decodedMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(indexVersion, vectorBR);
-        assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
-        assertArrayEquals(
-            "Decoded dense vector values is not equal to the indexed one.",
-            validVector,
-            decodedValues,
-            0.001f
-        );
+        float errorThreshold = expectedMagnitude / 100; //allow relative 1% error
+        assertEquals(expectedMagnitude, decodedMagnitude, errorThreshold);
+        for (int dim = 0; dim < validVector.length; dim++) {
+            assertEquals(validVector[dim], decodedValues[dim], Math.abs(validVector[dim]/100)); //allow relative 1% error
+        }
     }
 
     public void testAddDocumentsToIndexBefore_V_7_5_0() throws Exception {
@@ -147,9 +145,18 @@ public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
         int dimCount = VectorEncoderDecoder.denseVectorLength(indexVersion, encodedVector);
         float[] vector = new float[dimCount];
 
-        ByteBuffer byteBuffer = ByteBuffer.wrap(encodedVector.bytes, encodedVector.offset, encodedVector.length);
-        for (int dim = 0; dim < dimCount; dim++) {
-            vector[dim] = byteBuffer.getFloat();
+        if (indexVersion.onOrAfter(Version.V_7_5_0)) {
+            int offset = encodedVector.offset;;
+            for (int dim = 0; dim < dimCount; dim++) {
+                int intValue = ((encodedVector.bytes[offset++] & 0xFF) << 24) | ((encodedVector.bytes[offset++] & 0xFF) << 16);
+                vector[dim] = Float.intBitsToFloat(intValue);
+            }
+            return vector;
+        } else {
+            ByteBuffer byteBuffer = ByteBuffer.wrap(encodedVector.bytes, encodedVector.offset, encodedVector.length);
+            for (int dim = 0; dim < dimCount; dim++) {
+                vector[dim] = byteBuffer.getFloat();
+            }
         }
         return vector;
     }

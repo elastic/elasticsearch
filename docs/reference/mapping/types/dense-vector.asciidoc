@@ -53,4 +53,5 @@ PUT my_index/_doc/2
 
 Internally, each document's dense vector is encoded as a binary
 doc value. Its size in bytes is equal to
-`4 * dims + 4`, where `dims`—the number of the vector's dimensions.
+`2 * dims + 4`, where `dims` — the number of the vector's dimensions.
+Each dimension value is represented as bfloat16 value.

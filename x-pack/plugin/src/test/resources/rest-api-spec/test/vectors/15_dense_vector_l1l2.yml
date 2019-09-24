@@ -59,17 +59,20 @@ setup:
 
   - match: {hits.total: 3}
 
+  # result should be 485.18, but we allow 1% error because vectors are indexed as bfloat16
   - match: {hits.hits.0._id: "1"}
-  - gte: {hits.hits.0._score: 485.18}
-  - lte: {hits.hits.0._score: 485.19}
+  - gte: {hits.hits.0._score: 460.92}
+  - lte: {hits.hits.0._score: 509.44}
 
+  # result should be 12.3, but we allow 1% error because vectors are indexed as bfloat16
   - match: {hits.hits.1._id: "2"}
-  - gte: {hits.hits.1._score: 12.29}
-  - lte: {hits.hits.1._score: 12.31}
+  - gte: {hits.hits.1._score: 11.68}
+  - lte: {hits.hits.1._score: 12.91}
 
+  # result here should be 0, but we allow it be up to 0.5 because vectors are indexed as bfloat16
   - match: {hits.hits.2._id: "3"}
   - gte: {hits.hits.2._score: 0.00}
-  - lte: {hits.hits.2._score: 0.01}
+  - lte: {hits.hits.2._score: 0.5}
 
 ---
 "L2 norm":
@@ -89,14 +92,17 @@ setup:
 
   - match: {hits.total: 3}
 
+  # result should be 301.36, but we allow 1% error because vectors are indexed as bfloat16
   - match: {hits.hits.0._id: "1"}
-  - gte: {hits.hits.0._score: 301.36}
-  - lte: {hits.hits.0._score: 301.37}
+  - gte: {hits.hits.0._score: 286.29}
+  - lte: {hits.hits.0._score: 316.43}
 
+  # result should be 11.34, but we allow 1% error because vectors are indexed as bfloat16
   - match: {hits.hits.1._id: "2"}
-  - gte: {hits.hits.1._score: 11.34}
-  - lte: {hits.hits.1._score: 11.35}
+  - gte: {hits.hits.1._score: 10.77}
+  - lte: {hits.hits.1._score: 11.90}
 
+  # result here should be 0, but we allow it be up to 0.5 because vectors are indexed as bfloat16
   - match: {hits.hits.2._id: "3"}
   - gte: {hits.hits.2._score: 0.00}
-  - lte: {hits.hits.2._score: 0.01}
+  - lte: {hits.hits.2._score: 0.5}

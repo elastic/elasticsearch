@@ -50,23 +50,31 @@ public class ScoreScriptUtilsTests extends ESTestCase {
 
         // test dotProduct
         DotProduct dotProduct = new DotProduct(scoreScript, queryVector);
+        double expected = 65425.624;
+        float delta = indexVersion.onOrAfter(Version.V_7_5_0) ? (float) expected/100 : 0.001f; // allow 1% error rate
         double result = dotProduct.dotProduct(dvs);
-        assertEquals("dotProduct result is not equal to the expected value!", 65425.624, result, 0.001);
+        assertEquals("dotProduct result is not equal to the expected value!", expected, result, delta);
 
         // test cosineSimilarity
         CosineSimilarity cosineSimilarity = new CosineSimilarity(scoreScript, queryVector);
+        double expected2 = 0.790;
+        float delta2 = indexVersion.onOrAfter(Version.V_7_5_0) ? (float) expected2/100 : 0.001f;
         double result2 = cosineSimilarity.cosineSimilarity(dvs);
-        assertEquals("cosineSimilarity result is not equal to the expected value!", 0.790, result2, 0.001);
+        assertEquals("cosineSimilarity result is not equal to the expected value!", expected2, result2, delta2);
 
         // test l1Norm
         L1Norm l1norm = new L1Norm(scoreScript, queryVector);
+        double expected3 = 485.184;
+        float delta3 = indexVersion.onOrAfter(Version.V_7_5_0) ? (float) expected3/100 : 0.001f;
         double result3 = l1norm.l1norm(dvs);
-        assertEquals("l1norm result is not equal to the expected value!", 485.184, result3, 0.001);
+        assertEquals("l1norm result is not equal to the expected value!", expected3, result3, delta3);
 
         // test l2norm
         L2Norm l2norm = new L2Norm(scoreScript, queryVector);
+        double expected4 = 301.36;
+        float delta4 = indexVersion.onOrAfter(Version.V_7_5_0) ? (float) expected4/100 : 0.001f;
         double result4 = l2norm.l2norm(dvs);
-        assertEquals("l2norm result is not equal to the expected value!", 301.361, result4, 0.001);
+        assertEquals("l2norm result is not equal to the expected value!", 301.361, result4, delta4);
 
         // test dotProduct fails when queryVector has wrong number of dims
         List<Number> invalidQueryVector = Arrays.asList(0.5, 111.3);

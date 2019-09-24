@@ -84,11 +84,19 @@ public class ScoreScriptUtils {
         public double l1norm(VectorScriptDocValues.DenseVectorScriptDocValues dvs) {
             BytesRef vector = dvs.getEncodedValue();
             validateDocVector(vector);
-            ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
-            double l1norm = 0;
 
-            for (float queryValue : queryVector) {
-                l1norm += Math.abs(queryValue - byteBuffer.getFloat());
+            double l1norm = 0;
+            if (scoreScript._getIndexVersion().onOrAfter(Version.V_7_5_0)) {
+                int offset = vector.offset;
+                for (float queryValue : queryVector) {
+                    int intValue = ((vector.bytes[offset++] & 0xFF) << 24) | ((vector.bytes[offset++] & 0xFF) << 16);
+                    l1norm += Math.abs(queryValue - Float.intBitsToFloat(intValue));
+                }
+            } else {
+                ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
+                for (float queryValue : queryVector) {
+                    l1norm += Math.abs(queryValue - byteBuffer.getFloat());
+                }
             }
             return l1norm;
         }
@@ -104,12 +112,21 @@ public class ScoreScriptUtils {
         public double l2norm(VectorScriptDocValues.DenseVectorScriptDocValues dvs) {
             BytesRef vector = dvs.getEncodedValue();
             validateDocVector(vector);
-            ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
 
             double l2norm = 0;
-            for (float queryValue : queryVector) {
-                double diff = queryValue - byteBuffer.getFloat();
-                l2norm += diff * diff;
+            if (scoreScript._getIndexVersion().onOrAfter(Version.V_7_5_0)) {
+                int offset = vector.offset;
+                for (float queryValue : queryVector) {
+                    int intValue = ((vector.bytes[offset++] & 0xFF) << 24) | ((vector.bytes[offset++] & 0xFF) << 16);
+                    double diff = queryValue - Float.intBitsToFloat(intValue);
+                    l2norm += diff * diff;
+                }
+            } else {
+                ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
+                for (float queryValue : queryVector) {
+                    double diff = queryValue - byteBuffer.getFloat();
+                    l2norm += diff * diff;
+                }
             }
             return Math.sqrt(l2norm);
         }
@@ -125,11 +142,19 @@ public class ScoreScriptUtils {
         public double dotProduct(VectorScriptDocValues.DenseVectorScriptDocValues dvs){
             BytesRef vector = dvs.getEncodedValue();
             validateDocVector(vector);
-            ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
 
             double dotProduct = 0;
-            for (float queryValue : queryVector) {
-                dotProduct += queryValue * byteBuffer.getFloat();
+            if (scoreScript._getIndexVersion().onOrAfter(Version.V_7_5_0)) {
+                int offset = vector.offset;
+                for (float queryValue : queryVector) {
+                    int intValue = ((vector.bytes[offset++] & 0xFF) << 24) | ((vector.bytes[offset++] & 0xFF) << 16);
+                    dotProduct += queryValue * Float.intBitsToFloat(intValue);
+                }
+            } else {
+                ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
+                for (float queryValue : queryVector) {
+                    dotProduct += queryValue * byteBuffer.getFloat();
+                }
             }
             return dotProduct;
         }
@@ -146,16 +171,17 @@ public class ScoreScriptUtils {
             BytesRef vector = dvs.getEncodedValue();
             validateDocVector(vector);
 
-            ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
-
             double dotProduct = 0.0;
             double vectorMagnitude = 0.0f;
             if (scoreScript._getIndexVersion().onOrAfter(Version.V_7_5_0)) {
+                int offset = vector.offset;
                 for (float queryValue : queryVector) {
-                    dotProduct += queryValue * byteBuffer.getFloat();
+                    int intValue = ((vector.bytes[offset++] & 0xFF) << 24) | ((vector.bytes[offset++] & 0xFF) << 16);
+                    dotProduct += queryValue * Float.intBitsToFloat(intValue);
                 }
                 vectorMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(scoreScript._getIndexVersion(), vector);
             } else {
+                ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
                 for (float queryValue : queryVector) {
                     float docValue = byteBuffer.getFloat();
                     dotProduct += queryValue * docValue;

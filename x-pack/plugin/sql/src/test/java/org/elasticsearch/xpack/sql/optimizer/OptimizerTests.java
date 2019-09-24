@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.optimizer;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer.PruneSubqueryAliases;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.expression.Alias;
@@ -439,7 +440,7 @@ public class OptimizerTests extends ESTestCase {
     public void testGenericNullableExpression() {
         FoldNull rule = new FoldNull();
         // date-time
-        assertNullLiteral(rule.rule(new DayName(EMPTY, NULL, randomZone())));
+        assertNullLiteral(rule.rule(new DayName(EMPTY, NULL, TestUtils.randomZone())));
         // math function
         assertNullLiteral(rule.rule(new Cos(EMPTY, NULL)));
         // string function

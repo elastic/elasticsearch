@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.time.DateUtils;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -34,7 +35,7 @@ public class NamedDateTimeProcessor extends BaseDateTimeProcessor {
         }
 
         public final String extract(ZonedDateTime millis, String tzId) {
-            return apply.apply(millis.withZoneSameInstant(ZoneId.of(tzId)));
+            return apply.apply(millis.withZoneSameInstant(DateUtils.of(tzId)));
         }
     }
     

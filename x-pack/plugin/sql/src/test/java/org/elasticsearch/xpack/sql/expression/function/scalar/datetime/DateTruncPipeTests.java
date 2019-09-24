@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.FunctionTestUtils;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.BinaryPipe;
@@ -41,7 +42,7 @@ public class DateTruncPipeTests extends AbstractNodeTestCase<DateTruncPipe, Pipe
                 randomSource(),
                 randomStringLiteral(),
                 randomStringLiteral(),
-                randomZone())
+                TestUtils.randomZone())
                 .makePipe();
     }
 

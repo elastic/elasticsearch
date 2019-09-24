@@ -17,6 +17,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlException;
+import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
@@ -31,7 +32,7 @@ import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase<TopHitsAggExtractor> {
 
     public static TopHitsAggExtractor randomTopHitsAggExtractor() {
-        return new TopHitsAggExtractor(randomAlphaOfLength(16), randomFrom(DataType.values()), randomZone());
+        return new TopHitsAggExtractor(randomAlphaOfLength(16), randomFrom(DataType.values()), TestUtils.randomZone());
     }
 
     @Override
@@ -83,7 +84,7 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
     }
 
     public void testExtractDateValue() {
-        ZoneId zoneId = randomZone();
+        ZoneId zoneId = TestUtils.randomZone();
         TopHitsAggExtractor extractor = new TopHitsAggExtractor("topHitsAgg", DataType.DATETIME, zoneId);
 
         long value = 123456789L;

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
 import org.elasticsearch.xpack.sql.expression.gen.processor.BinaryProcessor;
@@ -58,7 +59,7 @@ public class DateTruncProcessor extends BinaryProcessor {
      * Used in Painless scripting
      */
     public static Object process(Object source1, Object source2, String zoneId) {
-        return process(source1, source2, ZoneId.of(zoneId));
+        return process(source1, source2, DateUtils.of(zoneId));
     }
 
     static Object process(Object source1, Object source2, ZoneId zoneId) {

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.expression.Literal;
 
 import java.time.Instant;
@@ -31,7 +32,7 @@ public final class FunctionTestUtils {
     }
 
     public static Literal randomDatetimeLiteral() {
-        return l(ZonedDateTime.ofInstant(Instant.ofEpochMilli(ESTestCase.randomLong()), ESTestCase.randomZone()));
+        return l(ZonedDateTime.ofInstant(Instant.ofEpochMilli(ESTestCase.randomLong()), TestUtils.randomZone()));
     }
 
     public static class Combinations implements Iterable<BitSet> {

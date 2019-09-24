@@ -14,6 +14,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlException;
+import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -42,7 +43,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
     public static FieldHitExtractor randomFieldHitExtractor() {
         String hitName = randomAlphaOfLength(5);
         String name = randomAlphaOfLength(5) + "." + hitName;
-        return new FieldHitExtractor(name, null, null, randomZone(), randomBoolean(), hitName, false);
+        return new FieldHitExtractor(name, null, null, TestUtils.randomZone(), randomBoolean(), hitName, false);
     }
 
     @Override
@@ -158,7 +159,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
     }
 
     public void testGetDate() {
-        ZoneId zoneId = randomZone();
+        ZoneId zoneId = TestUtils.randomZone();
         long millis = 1526467911780L;
         List<Object> documentFieldValues = Collections.singletonList(Long.toString(millis));
         SearchHit hit = new SearchHit(1);

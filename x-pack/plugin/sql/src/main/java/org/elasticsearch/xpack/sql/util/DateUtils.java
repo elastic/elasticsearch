@@ -80,7 +80,7 @@ public final class DateUtils {
      * Creates a datetime from the millis since epoch then translates the date into the given timezone.
      */
     public static ZonedDateTime asDateTime(long millis, ZoneId id) {
-        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), id);
+        return Instant.ofEpochMilli(millis).atZone(id);
     }
 
     /**
@@ -148,6 +148,4 @@ public final class DateUtils {
         nano = nano - nano % (int) Math.pow(10, (9 - precision));
         return nano;
     }
-
-
 }

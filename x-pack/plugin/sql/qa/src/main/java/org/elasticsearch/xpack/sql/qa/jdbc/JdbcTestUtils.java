@@ -10,6 +10,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
@@ -148,7 +149,7 @@ final class JdbcTestUtils {
     }
     
     static String of(long millis, String zoneId) {
-        return StringUtils.toString(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(zoneId)));
+        return StringUtils.toString(Instant.ofEpochMilli(millis).atZone(DateUtils.of(zoneId)));
     }
 
     /**

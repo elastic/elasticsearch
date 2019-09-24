@@ -13,12 +13,10 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.function.Consumer;
 
@@ -27,7 +25,7 @@ import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilterOrNull
 
 public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTranslateRequest> {
 
-    public Mode testMode;
+    private Mode testMode;
 
     @Before
     public void setup() {
@@ -37,7 +35,7 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
     @Override
     protected SqlTranslateRequest createTestInstance() {
         return new SqlTranslateRequest(randomAlphaOfLength(10), Collections.emptyList(), randomFilterOrNull(random()),
-                randomZone(), between(1, Integer.MAX_VALUE), randomTV(), randomTV(), new RequestInfo(testMode));
+                SqlTestUtils.randomZone(), between(1, Integer.MAX_VALUE), randomTV(), randomTV(), new RequestInfo(testMode));
     }
 
     @Override
@@ -67,11 +65,11 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
     }
 
     @Override
-    protected SqlTranslateRequest mutateInstance(SqlTranslateRequest instance) throws IOException {
+    protected SqlTranslateRequest mutateInstance(SqlTranslateRequest instance) {
         @SuppressWarnings("unchecked")
         Consumer<SqlTranslateRequest> mutator = randomFrom(
                 request -> request.query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),
-                request -> request.zoneId(randomValueOtherThan(request.zoneId(), ESTestCase::randomZone)),
+                request -> request.zoneId(randomValueOtherThan(request.zoneId(), SqlTestUtils::randomZone)),
                 request -> request.fetchSize(randomValueOtherThan(request.fetchSize(), () -> between(1, Integer.MAX_VALUE))),
                 request -> request.requestTimeout(randomValueOtherThan(request.requestTimeout(), this::randomTV)),
                 request -> request.filter(randomValueOtherThan(request.filter(),

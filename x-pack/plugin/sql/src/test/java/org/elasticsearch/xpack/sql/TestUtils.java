@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql;
 
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.session.Configuration;
@@ -58,4 +59,7 @@ public class TestUtils {
                 randomBoolean());
     }
 
+    public static ZoneId randomZone() {
+        return ESTestCase.randomZone().normalized();
+    }
 }

@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.sql.action;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.test.ESTestCase;
 
+import java.time.ZoneId;
 import java.util.Random;
 
 public final class SqlTestUtils {
@@ -38,4 +40,7 @@ public final class SqlTestUtils {
                     .gt(random.nextInt());
     }
 
+    public static ZoneId randomZone() {
+        return ESTestCase.randomZone().normalized();
+    }
 }

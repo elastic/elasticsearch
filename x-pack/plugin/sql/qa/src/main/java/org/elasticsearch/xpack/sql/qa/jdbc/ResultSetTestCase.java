@@ -12,6 +12,7 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.jdbc.EsType;
@@ -1839,6 +1840,6 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     private ZoneId getZoneFromOffset(Long randomLongDate) {
-        return ZoneId.of(ZoneId.of(timeZoneId).getRules().getOffset(Instant.ofEpochMilli(randomLongDate)).toString());
+        return ZoneId.of(DateUtils.of(timeZoneId).getRules().getOffset(Instant.ofEpochMilli(randomLongDate)).toString());
     }
 }

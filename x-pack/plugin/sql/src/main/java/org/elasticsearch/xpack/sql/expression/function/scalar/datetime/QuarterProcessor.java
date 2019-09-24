@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.time.DateUtils;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -44,7 +45,7 @@ public class QuarterProcessor extends BaseDateTimeProcessor {
     }
     
     public static Integer quarter(ZonedDateTime dateTime, String tzId) {
-        return quarter(dateTime.withZoneSameInstant(ZoneId.of(tzId)));
+        return quarter(dateTime.withZoneSameInstant(DateUtils.of(tzId)));
     }
 
     static Integer quarter(ZonedDateTime zdt) {

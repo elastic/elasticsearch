@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
@@ -25,7 +26,7 @@ public abstract class TimeFunction extends DateTimeFunction {
     }
 
     public static Integer dateTimeChrono(OffsetTime time, String tzId, String chronoName) {
-        return dateTimeChrono(asTimeAtZone(time, ZoneId.of(tzId)), ChronoField.valueOf(chronoName));
+        return dateTimeChrono(asTimeAtZone(time, DateUtils.of(tzId)), ChronoField.valueOf(chronoName));
     }
 
     @Override

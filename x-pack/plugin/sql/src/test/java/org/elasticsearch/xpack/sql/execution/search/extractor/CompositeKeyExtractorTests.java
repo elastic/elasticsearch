@@ -11,6 +11,7 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Buck
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.querydsl.container.GroupByRef.Property;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
@@ -59,7 +60,7 @@ public class CompositeKeyExtractorTests extends AbstractSqlWireSerializingTestCa
     public void testExtractBucketCount() {
         Bucket bucket = new TestBucket(emptyMap(), randomLong(), new Aggregations(emptyList()));
         CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.COUNT,
-                randomZone(), false);
+                TestUtils.randomZone(), false);
         assertEquals(bucket.getDocCount(), extractor.extract(bucket));
     }
 
@@ -80,7 +81,8 @@ public class CompositeKeyExtractorTests extends AbstractSqlWireSerializingTestCa
     }
 
     public void testExtractIncorrectDateKey() {
-        CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.VALUE, randomZone(), true);
+        CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.VALUE,
+            TestUtils.randomZone(), true);
 
         Object value = new Object();
         Bucket bucket = new TestBucket(singletonMap(extractor.key(), value), randomLong(), new Aggregations(emptyList()));

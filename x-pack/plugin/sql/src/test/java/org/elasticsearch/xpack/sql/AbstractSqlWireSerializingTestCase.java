@@ -49,6 +49,6 @@ public abstract class AbstractSqlWireSerializingTestCase<T extends Writeable> ex
      * e.g. in bwc serialization and in the extract() method
      */
     protected static ZoneId randomSafeZone() {
-        return randomValueOtherThanMany(zi -> zi.getId().startsWith("SystemV"), () -> randomZone());
+        return randomValueOtherThanMany(zi -> zi.getId().startsWith("SystemV"), TestUtils::randomZone);
     }
 }

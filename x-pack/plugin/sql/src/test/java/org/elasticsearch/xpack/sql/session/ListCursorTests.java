@@ -9,6 +9,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.sql.TestUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,6 +58,6 @@ public class ListCursorTests extends AbstractWireSerializingTestCase<ListCursor>
         if (randomBoolean()) {
             return super.copyInstance(instance, version);
         }
-        return (ListCursor) Cursors.decodeFromString(Cursors.encodeToString(instance, randomZone()));
+        return (ListCursor) Cursors.decodeFromString(Cursors.encodeToString(instance, TestUtils.randomZone()));
     }
 }

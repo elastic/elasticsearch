@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
@@ -103,7 +104,7 @@ public class FunctionRegistryTests extends ESTestCase {
     public void testDateTimeFunction() {
         boolean urIsExtract = randomBoolean();
         UnresolvedFunction ur = uf(urIsExtract ? EXTRACT : STANDARD, mock(Expression.class));
-        ZoneId providedTimeZone = randomZone().normalized();
+        ZoneId providedTimeZone = TestUtils.randomZone();
         Configuration providedConfiguration = randomConfiguration(providedTimeZone);
         FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, (Source l, Expression e, ZoneId zi) -> {
                     assertEquals(providedTimeZone, zi);

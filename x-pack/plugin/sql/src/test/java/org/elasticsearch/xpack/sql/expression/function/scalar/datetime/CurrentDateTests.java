@@ -35,7 +35,7 @@ public class CurrentDateTests extends AbstractNodeTestCase<CurrentDate, Expressi
     protected CurrentDate mutate(CurrentDate instance) {
         ZonedDateTime now = instance.configuration().now();
         ZoneId mutatedZoneId = randomValueOtherThanMany(o -> Objects.equals(now.getOffset(), o.getRules().getOffset(now.toInstant())),
-                () -> randomZone());
+            TestUtils::randomZone);
         return new CurrentDate(instance.source(), TestUtils.randomConfiguration(mutatedZoneId));
     }
 

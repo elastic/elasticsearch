@@ -12,6 +12,7 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Buck
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlException;
+import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
@@ -26,7 +27,7 @@ public class MetricAggExtractorTests extends AbstractSqlWireSerializingTestCase<
 
     public static MetricAggExtractor randomMetricAggExtractor() {
         return new MetricAggExtractor(randomAlphaOfLength(16), randomAlphaOfLength(16), randomAlphaOfLength(16),
-            randomZone(), randomBoolean());
+            TestUtils.randomZone(), randomBoolean());
     }
 
     public static MetricAggExtractor randomMetricAggExtractor(ZoneId zoneId) {
@@ -75,7 +76,7 @@ public class MetricAggExtractorTests extends AbstractSqlWireSerializingTestCase<
     }
 
     public void testSingleValuePropertyDate() {
-        ZoneId zoneId = randomZone();
+        ZoneId zoneId = TestUtils.randomZone();
         MetricAggExtractor extractor = new MetricAggExtractor("my_date_field", "property", "innerKey", zoneId, true);
 
         double value = randomDouble();
@@ -94,7 +95,7 @@ public class MetricAggExtractorTests extends AbstractSqlWireSerializingTestCase<
     }
 
     public void testSingleValueInnerKeyDate() {
-        ZoneId zoneId = randomZone();
+        ZoneId zoneId = TestUtils.randomZone();
         MetricAggExtractor extractor = new MetricAggExtractor("field", "property", "innerKey", zoneId, true);
 
         double innerValue = randomDouble();
@@ -114,7 +115,7 @@ public class MetricAggExtractorTests extends AbstractSqlWireSerializingTestCase<
     }
 
     public void testMultiValuePropertyDate() {
-        ZoneId zoneId = randomZone();
+        ZoneId zoneId = TestUtils.randomZone();
         MetricAggExtractor extractor = new MetricAggExtractor("field", "property", "innerKey", zoneId, true);
 
         double value = randomDouble();

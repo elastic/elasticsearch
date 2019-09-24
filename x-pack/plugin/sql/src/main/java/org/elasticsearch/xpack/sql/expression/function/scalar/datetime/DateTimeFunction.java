@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
@@ -30,7 +31,7 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
     }
 
     public static Integer dateTimeChrono(ZonedDateTime dateTime, String tzId, String chronoName) {
-        ZonedDateTime zdt = dateTime.withZoneSameInstant(ZoneId.of(tzId));
+        ZonedDateTime zdt = dateTime.withZoneSameInstant(DateUtils.of(tzId));
         return dateTimeChrono(zdt, ChronoField.valueOf(chronoName));
     }
 

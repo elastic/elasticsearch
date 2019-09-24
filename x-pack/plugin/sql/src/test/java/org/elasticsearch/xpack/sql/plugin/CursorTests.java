@@ -104,11 +104,11 @@ public class CursorTests extends ESTestCase {
 
     public void testVersionHandling() {
         Cursor cursor = randomNonEmptyCursor();
-        assertEquals(cursor, Cursors.decodeFromString(Cursors.encodeToString(cursor, randomZone())));
+        assertEquals(cursor, Cursors.decodeFromString(Cursors.encodeToString(cursor, TestUtils.randomZone())));
 
         Version nextMinorVersion = Version.fromId(Version.CURRENT.id + 10000);
 
-        String encodedWithWrongVersion = CursorsTestUtil.encodeToString(cursor, nextMinorVersion, randomZone());
+        String encodedWithWrongVersion = CursorsTestUtil.encodeToString(cursor, nextMinorVersion, TestUtils.randomZone());
         SqlException exception = expectThrows(SqlException.class, () -> Cursors.decodeFromString(encodedWithWrongVersion));
 
         assertEquals(LoggerMessageFormat.format("Unsupported cursor version [{}], expected [{}]", nextMinorVersion, Version.CURRENT),

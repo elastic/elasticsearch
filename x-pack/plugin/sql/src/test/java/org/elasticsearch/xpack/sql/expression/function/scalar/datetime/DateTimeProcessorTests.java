@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 
 import java.time.OffsetTime;
@@ -20,7 +21,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class DateTimeProcessorTests extends AbstractSqlWireSerializingTestCase<DateTimeProcessor> {
 
     public static DateTimeProcessor randomDateTimeProcessor() {
-        return new DateTimeProcessor(randomFrom(DateTimeExtractor.values()), randomZone());
+        return new DateTimeProcessor(randomFrom(DateTimeExtractor.values()), TestUtils.randomZone());
     }
 
     @Override
@@ -41,7 +42,7 @@ public class DateTimeProcessorTests extends AbstractSqlWireSerializingTestCase<D
     @Override
     protected DateTimeProcessor mutateInstance(DateTimeProcessor instance) {
         DateTimeExtractor replaced = randomValueOtherThan(instance.extractor(), () -> randomFrom(DateTimeExtractor.values()));
-        return new DateTimeProcessor(replaced, randomZone());
+        return new DateTimeProcessor(replaced, TestUtils.randomZone());
     }
 
     public void testApply_withTimezoneUTC() {

@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.sql.tree.Source;
@@ -30,7 +31,7 @@ public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<
         return new DateTruncProcessor(
             new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)),
             new ConstantProcessor(ZonedDateTime.now()),
-            randomZone());
+            TestUtils.randomZone());
     }
 
     @Override
@@ -53,34 +54,35 @@ public class DateTruncProcessorTests extends AbstractSqlWireSerializingTestCase<
         return new DateTruncProcessor(
             new ConstantProcessor(ESTestCase.randomRealisticUnicodeOfLength(128)),
             new ConstantProcessor(ZonedDateTime.now()),
-            randomValueOtherThan(instance.zoneId(), ESTestCase::randomZone));
+            randomValueOtherThan(instance.zoneId(), TestUtils::randomZone));
     }
 
     public void testInvalidInputs() {
-        SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new DateTrunc(Source.EMPTY, l(5), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));
+        SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class, () -> new DateTrunc(
+            Source.EMPTY, l(5), randomDatetimeLiteral(), TestUtils.randomZone()).makePipe().asProcessor().process(null));
         assertEquals("A string is required; received [5]", siae.getMessage());
 
-        siae = expectThrows(SqlIllegalArgumentException.class,
-            () -> new DateTrunc(Source.EMPTY, l("days"), l("foo"), randomZone()).makePipe().asProcessor().process(null));
+        siae = expectThrows(SqlIllegalArgumentException.class, () -> new DateTrunc(
+            Source.EMPTY, l("days"), l("foo"), TestUtils.randomZone()).makePipe().asProcessor().process(null));
         assertEquals("A datetime/date is required; received [foo]", siae.getMessage());
 
-        siae = expectThrows(SqlIllegalArgumentException.class,
-            () -> new DateTrunc(Source.EMPTY, l("invalid"), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));
+        siae = expectThrows(SqlIllegalArgumentException.class, () -> new DateTrunc(
+            Source.EMPTY, l("invalid"), randomDatetimeLiteral(), TestUtils.randomZone()).makePipe().asProcessor().process(null));
         assertEquals("A value of [MILLENNIUM, CENTURY, DECADE, YEAR, QUARTER, MONTH, WEEK, DAY, HOUR, MINUTE, " +
             "SECOND, MILLISECOND, MICROSECOND, NANOSECOND] or their aliases is required; received [invalid]",
             siae.getMessage());
 
-        siae = expectThrows(SqlIllegalArgumentException.class,
-            () -> new DateTrunc(Source.EMPTY, l("dacede"), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));
+        siae = expectThrows(SqlIllegalArgumentException.class, () -> new DateTrunc(
+            Source.EMPTY, l("dacede"), randomDatetimeLiteral(), TestUtils.randomZone()).makePipe().asProcessor().process(null));
         assertEquals("Received value [dacede] is not valid date part for truncation; did you mean [decade, decades]?",
              siae.getMessage());
     }
 
     public void testWithNulls() {
-        assertNull(new DateTrunc(Source.EMPTY, NULL, randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));
-        assertNull(new DateTrunc(Source.EMPTY, l("days"), NULL, randomZone()).makePipe().asProcessor().process(null));
-        assertNull(new DateTrunc(Source.EMPTY, NULL, NULL, randomZone()).makePipe().asProcessor().process(null));
+        assertNull(new DateTrunc(Source.EMPTY, NULL, randomDatetimeLiteral(),
+            TestUtils.randomZone()).makePipe().asProcessor().process(null));
+        assertNull(new DateTrunc(Source.EMPTY, l("days"), NULL, TestUtils.randomZone()).makePipe().asProcessor().process(null));
+        assertNull(new DateTrunc(Source.EMPTY, NULL, NULL, TestUtils.randomZone()).makePipe().asProcessor().process(null));
     }
 
     public void testTruncation() {

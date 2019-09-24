@@ -54,6 +54,12 @@ public class IndexLifecycleOriginationDateParserTests extends ESTestCase {
             long parsedDate = parseIndexNameAndExtractDate("indexName-2019.09.04-0000001");
             assertThat("indexName-yyyy.MM.dd-\\d+$ is a valid index format", parsedDate, is(expectedDate));
         }
+
+        {
+            long parsedDate = parseIndexNameAndExtractDate("indexName-2019.09.04-2019.09.24");
+            assertThat("indexName-yyyy.MM.dd-yyyy.MM.dd is a valid index format and the first date should be parsed",
+                parsedDate, is(expectedDate));
+        }
     }
 
     public void testParseIndexNameThrowsIllegalArgumentExceptionForInvalidIndexFormat() {
@@ -81,6 +87,12 @@ public class IndexLifecycleOriginationDateParserTests extends ESTestCase {
             IllegalArgumentException.class,
             "indexName-2019.04-00001 does not match the expected pattern as the date does not conform with the yyyy.MM.dd pattern",
             () -> parseIndexNameAndExtractDate("indexName-2019.04-00001")
+        );
+
+        expectThrows(
+            IllegalArgumentException.class,
+            "java.lang.IllegalArgumentException: failed to parse date field [2019.09.04-2018.01.01] with format [yyyy.MM.dd]",
+            () -> parseIndexNameAndExtractDate("index-2019.09.04-2019.09.05-002")
         );
     }
 }

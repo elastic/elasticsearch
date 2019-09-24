@@ -16,8 +16,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 import java.io.IOException;
@@ -26,6 +28,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -69,6 +72,24 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         ActionRequestValidationException validationException = null;
         if (name == null) {
             validationException = addValidationError("role name is missing", validationException);
+        }
+        if (clusterPrivileges != null) {
+            for (String cp : clusterPrivileges) {
+                try {
+                    ClusterPrivilegeResolver.resolve(cp);
+                } catch (IllegalArgumentException ile) {
+                    validationException = addValidationError(ile.getMessage(), validationException);
+                }
+            }
+        }
+        if (indicesPrivileges != null) {
+            for (RoleDescriptor.IndicesPrivileges idp : indicesPrivileges) {
+                try {
+                    IndexPrivilege.get(Set.of(idp.getPrivileges()));
+                } catch (IllegalArgumentException ile) {
+                    validationException = addValidationError(ile.getMessage(), validationException);
+                }
+            }
         }
         if(applicationPrivileges != null) {
             for (RoleDescriptor.ApplicationResourcePrivileges privilege : applicationPrivileges) {

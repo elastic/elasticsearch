@@ -6,7 +6,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.persistence;
 
-public class TransformInternalIndexConstants {
+public final class TransformInternalIndexConstants {
 
     /* Constants for internal indexes of the transform plugin
      * (defined in core to provide wider access)
@@ -32,5 +32,8 @@ public class TransformInternalIndexConstants {
     public static final String AUDIT_TEMPLATE_VERSION = "1";
     public static final String AUDIT_INDEX_PREFIX = ".data-frame-notifications-";
     public static final String AUDIT_INDEX = AUDIT_INDEX_PREFIX + AUDIT_TEMPLATE_VERSION;
+
+    private TransformInternalIndexConstants() {
+    }
 
 }

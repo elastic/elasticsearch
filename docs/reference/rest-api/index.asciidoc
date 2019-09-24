@@ -17,7 +17,7 @@ directly to configure and access {xpack} features.
 * <<migration-api,Migration APIs>>
 * <<rollup-apis,Rollup APIs>>
 * <<security-api,Security APIs>>
-* <<data-frame-apis,{dataframe-transform-cap} APIs>>
+* <<transform-apis,{transform-cap} APIs>>
 * <<watcher-api,Watcher APIs>>
 --
 

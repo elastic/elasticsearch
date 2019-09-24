@@ -117,34 +117,34 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
         RestHighLevelClient client = highLevelClient();
 
-        // tag::put-data-frame-transform-query-config
+        // tag::put-transform-query-config
         QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
-        // end::put-data-frame-transform-query-config
-        // tag::put-data-frame-transform-source-config
+        // end::put-transform-query-config
+        // tag::put-transform-source-config
         SourceConfig sourceConfig = SourceConfig.builder()
             .setIndex("source-index")
             .setQueryConfig(queryConfig).build();
-        // end::put-data-frame-transform-source-config
-        // tag::put-data-frame-transform-group-config
+        // end::put-transform-source-config
+        // tag::put-transform-group-config
         GroupConfig groupConfig = GroupConfig.builder()
             .groupBy("reviewer", // <1>
                 TermsGroupSource.builder().setField("user_id").build()) // <2>
             .build();
-        // end::put-data-frame-transform-group-config
-        // tag::put-data-frame-transform-agg-config
+        // end::put-transform-group-config
+        // tag::put-transform-agg-config
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(
                 AggregationBuilders.avg("avg_rating").field("stars"));  // <1>
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
-        // end::put-data-frame-transform-agg-config
-        // tag::put-data-frame-transform-pivot-config
+        // end::put-transform-agg-config
+        // tag::put-transform-pivot-config
         PivotConfig pivotConfig = PivotConfig.builder()
             .setGroups(groupConfig) // <1>
             .setAggregationConfig(aggConfig) // <2>
             .setMaxPageSearchSize(1000) // <3>
             .build();
-        // end::put-data-frame-transform-pivot-config
-        // tag::put-data-frame-transform-config
+        // end::put-transform-pivot-config
+        // tag::put-transform-config
         DataFrameTransformConfig transformConfig = DataFrameTransformConfig
             .builder()
             .setId("reviewer-avg-rating") // <1>
@@ -153,19 +153,19 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             .setPivotConfig(pivotConfig) // <4>
             .setDescription("This is my test transform") // <5>
             .build();
-        // end::put-data-frame-transform-config
+        // end::put-transform-config
 
         {
-            // tag::put-data-frame-transform-request
+            // tag::put-transform-request
             PutDataFrameTransformRequest request =
                     new PutDataFrameTransformRequest(transformConfig); // <1>
-            // end::put-data-frame-transform-request
+            // end::put-transform-request
 
-            // tag::put-data-frame-transform-execute
+            // tag::put-transform-execute
             AcknowledgedResponse response =
                     client.dataFrame().putDataFrameTransform(
                             request, RequestOptions.DEFAULT);
-            // end::put-data-frame-transform-execute
+            // end::put-transform-execute
             transformsToClean.add(request.getConfig().getId());
 
             assertTrue(response.isAcknowledged());
@@ -179,7 +179,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                 .build();
             PutDataFrameTransformRequest request = new PutDataFrameTransformRequest(configWithDifferentId);
 
-            // tag::put-data-frame-transform-execute-listener
+            // tag::put-transform-execute-listener
             ActionListener<AcknowledgedResponse> listener =
                     new ActionListener<AcknowledgedResponse>() {
                 @Override
@@ -192,16 +192,16 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                     // <2>
                 }
             };
-            // end::put-data-frame-transform-execute-listener
+            // end::put-transform-execute-listener
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
-            // tag::put-data-frame-transform-execute-async
+            // tag::put-transform-execute-async
             client.dataFrame().putDataFrameTransformAsync(
                     request, RequestOptions.DEFAULT, listener); // <1>
-            // end::put-data-frame-transform-execute-async
+            // end::put-transform-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
             transformsToClean.add(request.getConfig().getId());
@@ -232,44 +232,44 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         transformsToClean.add(transformConfig.getId());
 
         {
-            // tag::start-data-frame-transform-request
+            // tag::start-transform-request
             StartDataFrameTransformRequest request =
                     new StartDataFrameTransformRequest("mega-transform");  // <1>
-            // end::start-data-frame-transform-request
+            // end::start-transform-request
 
-            // tag::start-data-frame-transform-request-options
+            // tag::start-transform-request-options
             request.setTimeout(TimeValue.timeValueSeconds(20));  // <1>
-            // end::start-data-frame-transform-request-options
+            // end::start-transform-request-options
 
-            // tag::start-data-frame-transform-execute
+            // tag::start-transform-execute
             StartDataFrameTransformResponse response =
                     client.dataFrame().startDataFrameTransform(
                             request, RequestOptions.DEFAULT);
-            // end::start-data-frame-transform-execute
+            // end::start-transform-execute
 
             assertTrue(response.isAcknowledged());
         }
         {
-            // tag::stop-data-frame-transform-request
+            // tag::stop-transform-request
             StopDataFrameTransformRequest request =
                     new StopDataFrameTransformRequest("mega-transform"); // <1>
-            // end::stop-data-frame-transform-request
+            // end::stop-transform-request
 
-            // tag::stop-data-frame-transform-request-options
+            // tag::stop-transform-request-options
             request.setWaitForCompletion(Boolean.TRUE);  // <1>
             request.setTimeout(TimeValue.timeValueSeconds(30));  // <2>
-            // end::stop-data-frame-transform-request-options
+            // end::stop-transform-request-options
 
-            // tag::stop-data-frame-transform-execute
+            // tag::stop-transform-execute
             StopDataFrameTransformResponse response =
                     client.dataFrame().stopDataFrameTransform(
                             request, RequestOptions.DEFAULT);
-            // end::stop-data-frame-transform-execute
+            // end::stop-transform-execute
 
             assertTrue(response.isAcknowledged());
         }
         {
-            // tag::start-data-frame-transform-execute-listener
+            // tag::start-transform-execute-listener
             ActionListener<StartDataFrameTransformResponse> listener =
                     new ActionListener<StartDataFrameTransformResponse>() {
                         @Override
@@ -283,22 +283,22 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                             // <2>
                         }
                     };
-            // end::start-data-frame-transform-execute-listener
+            // end::start-transform-execute-listener
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
             StartDataFrameTransformRequest request = new StartDataFrameTransformRequest("mega-transform");
-            // tag::start-data-frame-transform-execute-async
+            // tag::start-transform-execute-async
             client.dataFrame().startDataFrameTransformAsync(
                     request, RequestOptions.DEFAULT, listener); // <1>
-            // end::start-data-frame-transform-execute-async
+            // end::start-transform-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
         {
-            // tag::stop-data-frame-transform-execute-listener
+            // tag::stop-transform-execute-listener
             ActionListener<StopDataFrameTransformResponse> listener =
                     new ActionListener<StopDataFrameTransformResponse>() {
                         @Override
@@ -312,17 +312,17 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                             // <2>
                         }
                     };
-            // end::stop-data-frame-transform-execute-listener
+            // end::stop-transform-execute-listener
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
             StopDataFrameTransformRequest request = new StopDataFrameTransformRequest("mega-transform");
-            // tag::stop-data-frame-transform-execute-async
+            // tag::stop-transform-execute-async
             client.dataFrame().stopDataFrameTransformAsync(
                     request, RequestOptions.DEFAULT, listener); // <1>
-            // end::stop-data-frame-transform-execute-async
+            // end::stop-transform-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
@@ -363,21 +363,21 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig2), RequestOptions.DEFAULT);
 
         {
-            // tag::delete-data-frame-transform-request
+            // tag::delete-transform-request
             DeleteDataFrameTransformRequest request =
                     new DeleteDataFrameTransformRequest("mega-transform"); // <1>
-            // end::delete-data-frame-transform-request
+            // end::delete-transform-request
 
-            // tag::delete-data-frame-transform-execute
+            // tag::delete-transform-execute
             AcknowledgedResponse response =
                     client.dataFrame()
                     .deleteDataFrameTransform(request, RequestOptions.DEFAULT);
-            // end::delete-data-frame-transform-execute
+            // end::delete-transform-execute
 
             assertTrue(response.isAcknowledged());
         }
         {
-            // tag::delete-data-frame-transform-execute-listener
+            // tag::delete-transform-execute-listener
             ActionListener<AcknowledgedResponse> listener =
                     new ActionListener<AcknowledgedResponse>() {
                 @Override
@@ -390,7 +390,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                     // <2>
                 }
             };
-            // end::delete-data-frame-transform-execute-listener
+            // end::delete-transform-execute-listener
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
@@ -398,10 +398,10 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
             DeleteDataFrameTransformRequest request = new DeleteDataFrameTransformRequest("mega-transform2");
 
-            // tag::delete-data-frame-transform-execute-async
+            // tag::delete-transform-execute-async
             client.dataFrame().deleteDataFrameTransformAsync(
                     request, RequestOptions.DEFAULT, listener);  // <1>
-            // end::delete-data-frame-transform-execute-async
+            // end::delete-transform-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
@@ -420,7 +420,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
         PivotConfig pivotConfig = PivotConfig.builder().setGroups(groupConfig).setAggregationConfig(aggConfig).build();
 
-        // tag::preview-data-frame-transform-request
+        // tag::preview-transform-request
         DataFrameTransformConfig transformConfig =
             DataFrameTransformConfig.forPreview(
                 SourceConfig.builder()
@@ -430,19 +430,19 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                 pivotConfig); // <2>
         PreviewDataFrameTransformRequest request =
                 new PreviewDataFrameTransformRequest(transformConfig); // <3>
-        // end::preview-data-frame-transform-request
+        // end::preview-transform-request
 
         {
-            // tag::preview-data-frame-transform-execute
+            // tag::preview-transform-execute
             PreviewDataFrameTransformResponse response =
                 client.dataFrame()
                     .previewDataFrameTransform(request, RequestOptions.DEFAULT);
-            // end::preview-data-frame-transform-execute
+            // end::preview-transform-execute
 
             assertNotNull(response.getDocs());
         }
         {
-            // tag::preview-data-frame-transform-execute-listener
+            // tag::preview-transform-execute-listener
             ActionListener<PreviewDataFrameTransformResponse> listener =
                 new ActionListener<PreviewDataFrameTransformResponse>() {
                     @Override
@@ -455,16 +455,16 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                         // <2>
                     }
                 };
-            // end::preview-data-frame-transform-execute-listener
+            // end::preview-transform-execute-listener
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
-            // tag::preview-data-frame-transform-execute-async
+            // tag::preview-transform-execute-async
             client.dataFrame().previewDataFrameTransformAsync(
                     request, RequestOptions.DEFAULT, listener);  // <1>
-            // end::preview-data-frame-transform-execute-async
+            // end::preview-transform-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
@@ -496,21 +496,21 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig), RequestOptions.DEFAULT);
         transformsToClean.add(id);
 
-        // tag::get-data-frame-transform-stats-request
+        // tag::get-transform-stats-request
         GetDataFrameTransformStatsRequest request =
                 new GetDataFrameTransformStatsRequest(id); // <1>
-        // end::get-data-frame-transform-stats-request
+        // end::get-transform-stats-request
 
         {
-            // tag::get-data-frame-transform-stats-execute
+            // tag::get-transform-stats-execute
             GetDataFrameTransformStatsResponse response =
                 client.dataFrame()
                     .getDataFrameTransformStats(request, RequestOptions.DEFAULT);
-            // end::get-data-frame-transform-stats-execute
+            // end::get-transform-stats-execute
 
             assertThat(response.getTransformsStateAndStats(), hasSize(1));
 
-            // tag::get-data-frame-transform-stats-response
+            // tag::get-transform-stats-response
             DataFrameTransformStateAndStats stateAndStats =
                 response.getTransformsStateAndStats().get(0);   // <1>
             DataFrameTransformTaskState taskState =
@@ -521,7 +521,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                 stateAndStats.getTransformStats();              // <4>
             DataFrameTransformProgress progress =
                 stateAndStats.getTransformState().getProgress(); // <5>
-            // end::get-data-frame-transform-stats-response
+            // end::get-transform-stats-response
 
             assertEquals(IndexerState.STOPPED, indexerState);
             assertEquals(DataFrameTransformTaskState.STOPPED, taskState);
@@ -529,7 +529,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             assertNull(progress);
         }
         {
-            // tag::get-data-frame-transform-stats-execute-listener
+            // tag::get-transform-stats-execute-listener
             ActionListener<GetDataFrameTransformStatsResponse> listener =
                     new ActionListener<GetDataFrameTransformStatsResponse>() {
                         @Override
@@ -543,16 +543,16 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                             // <2>
                         }
                     };
-            // end::get-data-frame-transform-stats-execute-listener
+            // end::get-transform-stats-execute-listener
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
-            // tag::get-data-frame-transform-stats-execute-async
+            // tag::get-transform-stats-execute-async
             client.dataFrame().getDataFrameTransformStatsAsync(
                     request, RequestOptions.DEFAULT, listener);  // <1>
-            // end::get-data-frame-transform-stats-execute-async
+            // end::get-transform-stats-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
@@ -586,30 +586,30 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         transformsToClean.add(putTransformConfig.getId());
 
         {
-            // tag::get-data-frame-transform-request
+            // tag::get-transform-request
             GetDataFrameTransformRequest request =
                     new GetDataFrameTransformRequest("mega-transform"); // <1>
-            // end::get-data-frame-transform-request
+            // end::get-transform-request
 
-            // tag::get-data-frame-transform-request-options
+            // tag::get-transform-request-options
             request.setPageParams(new PageParams(0, 100)); // <1>
-            // end::get-data-frame-transform-request-options
+            // end::get-transform-request-options
 
-            // tag::get-data-frame-transform-execute
+            // tag::get-transform-execute
             GetDataFrameTransformResponse response =
                 client.dataFrame()
                     .getDataFrameTransform(request, RequestOptions.DEFAULT);
-            // end::get-data-frame-transform-execute
+            // end::get-transform-execute
 
-            // tag::get-data-frame-transform-response
+            // tag::get-transform-response
             List<DataFrameTransformConfig> transformConfigs =
                     response.getTransformConfigurations();
-            // end::get-data-frame-transform-response
+            // end::get-transform-response
 
             assertEquals(1, transformConfigs.size());
         }
         {
-            // tag::get-data-frame-transform-execute-listener
+            // tag::get-transform-execute-listener
             ActionListener<GetDataFrameTransformResponse> listener =
                 new ActionListener<GetDataFrameTransformResponse>() {
                     @Override
@@ -622,7 +622,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                         // <2>
                     }
                 };
-            // end::get-data-frame-transform-execute-listener
+            // end::get-transform-execute-listener
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
@@ -630,10 +630,10 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
             GetDataFrameTransformRequest request = new GetDataFrameTransformRequest("mega-transform");
 
-            // tag::get-data-frame-transform-execute-async
+            // tag::get-transform-execute-async
             client.dataFrame().getDataFrameTransformAsync(
                     request, RequestOptions.DEFAULT, listener);  // <1>
-            // end::get-data-frame-transform-execute-async
+            // end::get-transform-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

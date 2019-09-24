@@ -1,5 +1,5 @@
 --
-:api: put-data-frame-transform
+:api: put-transform
 :request: PutDataFrameTransformRequest
 :response: AcknowledgedResponse
 --

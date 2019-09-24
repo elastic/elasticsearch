@@ -33,12 +33,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class GetTransformsStatsAction extends ActionType<GetTransformsStatsAction.Response> {
+public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.Response> {
 
-    public static final GetTransformsStatsAction INSTANCE = new GetTransformsStatsAction();
+    public static final GetTransformStatsAction INSTANCE = new GetTransformStatsAction();
     public static final String NAME = "cluster:monitor/data_frame/stats/get";
-    public GetTransformsStatsAction() {
-        super(NAME, GetTransformsStatsAction.Response::new);
+    public GetTransformStatsAction() {
+        super(NAME, GetTransformStatsAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> {

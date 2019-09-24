@@ -23,9 +23,9 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.transform.action.GetTransformsStatsAction;
-import org.elasticsearch.xpack.core.transform.action.GetTransformsStatsAction.Request;
-import org.elasticsearch.xpack.core.transform.action.GetTransformsStatsAction.Response;
+import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
+import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction.Request;
+import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
@@ -45,23 +45,23 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-public class TransportGetTransformsStatsAction extends
+public class TransportGetTransformStatsAction extends
         TransportTasksAction<TransformTask,
-        GetTransformsStatsAction.Request,
-        GetTransformsStatsAction.Response,
-        GetTransformsStatsAction.Response> {
+        GetTransformStatsAction.Request,
+        GetTransformStatsAction.Response,
+        GetTransformStatsAction.Response> {
 
-    private static final Logger logger = LogManager.getLogger(TransportGetTransformsStatsAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportGetTransformStatsAction.class);
 
     private final TransformConfigManager transformConfigManager;
     private final TransformCheckpointService transformCheckpointService;
 
     @Inject
-    public TransportGetTransformsStatsAction(TransportService transportService, ActionFilters actionFilters,
+    public TransportGetTransformStatsAction(TransportService transportService, ActionFilters actionFilters,
                                              ClusterService clusterService,
                                              TransformConfigManager transformsConfigManager,
                                              TransformCheckpointService transformsCheckpointService) {
-        super(GetTransformsStatsAction.NAME, clusterService, transportService, actionFilters, Request::new, Response::new,
+        super(GetTransformStatsAction.NAME, clusterService, transportService, actionFilters, Request::new, Response::new,
             Response::new, ThreadPool.Names.SAME);
         this.transformConfigManager = transformsConfigManager;
         this.transformCheckpointService = transformsCheckpointService;

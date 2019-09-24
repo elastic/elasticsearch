@@ -133,8 +133,8 @@ import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
-import org.elasticsearch.xpack.core.transform.action.GetTransformsAction;
-import org.elasticsearch.xpack.core.transform.action.GetTransformsStatsAction;
+import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
+import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
@@ -1130,8 +1130,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         Role role = Role.builder(roleDescriptor, null).build();
         assertThat(role.cluster().check(DeleteTransformAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetTransformsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetTransformsStatsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetTransformAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetTransformStatsAction.NAME, request, authentication), is(true));
         assertThat(role.cluster().check(PreviewTransformAction.NAME, request, authentication), is(true));
         assertThat(role.cluster().check(PutTransformAction.NAME, request, authentication), is(true));
         assertThat(role.cluster().check(StartTransformAction.NAME, request, authentication), is(true));
@@ -1169,8 +1169,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         Role role = Role.builder(roleDescriptor, null).build();
         assertThat(role.cluster().check(DeleteTransformAction.NAME, request, authentication), is(false));
-        assertThat(role.cluster().check(GetTransformsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetTransformsStatsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetTransformAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetTransformStatsAction.NAME, request, authentication), is(true));
         assertThat(role.cluster().check(PreviewTransformAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(PutTransformAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(StartTransformAction.NAME, request, authentication), is(false));

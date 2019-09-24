@@ -24,23 +24,23 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.AbstractTransportGetResourcesAction;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
-import org.elasticsearch.xpack.core.transform.action.GetTransformsAction;
-import org.elasticsearch.xpack.core.transform.action.GetTransformsAction.Request;
-import org.elasticsearch.xpack.core.transform.action.GetTransformsAction.Response;
+import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
+import org.elasticsearch.xpack.core.transform.action.GetTransformAction.Request;
+import org.elasticsearch.xpack.core.transform.action.GetTransformAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 
 import static org.elasticsearch.xpack.core.transform.TransformField.INDEX_DOC_TYPE;
 
 
-public class TransportGetTransformsAction extends AbstractTransportGetResourcesAction<TransformConfig,
-                                                                                               Request,
-                                                                                               Response> {
+public class TransportGetTransformAction extends AbstractTransportGetResourcesAction<TransformConfig,
+                                                                                     Request,
+                                                                                     Response> {
 
     @Inject
-    public TransportGetTransformsAction(TransportService transportService, ActionFilters actionFilters,
+    public TransportGetTransformAction(TransportService transportService, ActionFilters actionFilters,
                                                  Client client, NamedXContentRegistry xContentRegistry) {
-        super(GetTransformsAction.NAME, transportService, actionFilters, Request::new, client, xContentRegistry);
+        super(GetTransformAction.NAME, transportService, actionFilters, Request::new, client, xContentRegistry);
     }
 
     @Override

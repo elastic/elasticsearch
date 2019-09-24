@@ -12,7 +12,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.xpack.core.transform.action.GetTransformsAction.Response;
+import org.elasticsearch.xpack.core.transform.action.GetTransformAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.elasticsearch.xpack.core.watcher.watch.Payload.XContent;
@@ -22,7 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class GetTransformsActionResponseTests extends AbstractWireSerializingTransformTestCase<Response> {
+public class GetTransformActionResponseTests extends AbstractWireSerializingTransformTestCase<Response> {
 
     public void testInvalidTransforms() throws IOException {
         List<TransformConfig> transforms = new ArrayList<>();

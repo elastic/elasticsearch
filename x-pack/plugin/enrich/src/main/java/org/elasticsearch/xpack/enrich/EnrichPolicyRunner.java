@@ -250,7 +250,7 @@ public class EnrichPolicyRunner implements Runnable {
         client.admin().indices().create(createEnrichIndexRequest, new ActionListener<CreateIndexResponse>() {
             @Override
             public void onResponse(CreateIndexResponse createIndexResponse) {
-                transferDataToEnrichIndex(enrichIndexName);
+                prepareReindexOperation(enrichIndexName);
             }
 
             @Override
@@ -258,6 +258,25 @@ public class EnrichPolicyRunner implements Runnable {
                 listener.onFailure(e);
             }
         });
+    }
+
+    private void prepareReindexOperation(final String destinationIndexName) {
+        // Check to make sure that the enrich pipeline exists, and create it if it is missing.
+        if (EnrichPolicyReindexPipeline.exists(clusterService.state()) == false) {
+            EnrichPolicyReindexPipeline.create(client, new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    transferDataToEnrichIndex(destinationIndexName);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+        } else {
+            transferDataToEnrichIndex(destinationIndexName);
+        }
     }
 
     private void transferDataToEnrichIndex(final String destinationIndexName) {
@@ -277,6 +296,8 @@ public class EnrichPolicyRunner implements Runnable {
             .setSourceIndices(policy.getIndices().toArray(new String[0]));
         reindexRequest.getSearchRequest().source(searchSourceBuilder);
         reindexRequest.getDestination().source(new BytesArray(new byte[0]), XContentType.SMILE);
+        reindexRequest.getDestination().routing("discard");
+        reindexRequest.getDestination().setPipeline(EnrichPolicyReindexPipeline.pipelineName());
         client.execute(ReindexAction.INSTANCE, reindexRequest, new ActionListener<BulkByScrollResponse>() {
             @Override
             public void onResponse(BulkByScrollResponse bulkByScrollResponse) {

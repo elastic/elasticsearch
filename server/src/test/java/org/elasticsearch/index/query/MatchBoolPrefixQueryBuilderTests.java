@@ -31,7 +31,6 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.search.MatchQuery;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -99,7 +98,9 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
     }
 
     @Override
-    protected void doAssertLuceneQuery(MatchBoolPrefixQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(MatchBoolPrefixQueryBuilder queryBuilder,
+                                       Query query,
+                                       QueryShardContext context) throws IOException {
         assertThat(query, notNullValue());
         assertThat(query, anyOf(instanceOf(BooleanQuery.class), instanceOf(PrefixQuery.class)));
 

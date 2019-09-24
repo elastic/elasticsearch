@@ -18,8 +18,7 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.TimeValue;
@@ -34,7 +33,7 @@ import java.util.Objects;
 /**
  * Pojo for forecasting an existing and open Machine Learning Job
  */
-public class ForecastJobRequest extends ActionRequest implements ToXContentObject {
+public class ForecastJobRequest implements Validatable, ToXContentObject {
 
     public static final ParseField DURATION = new ParseField("duration");
     public static final ParseField EXPIRES_IN = new ParseField("expires_in");
@@ -133,8 +132,4 @@ public class ForecastJobRequest extends ActionRequest implements ToXContentObjec
         return builder;
     }
 
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
-    }
 }

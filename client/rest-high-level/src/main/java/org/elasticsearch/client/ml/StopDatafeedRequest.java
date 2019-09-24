@@ -18,8 +18,7 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -39,7 +38,7 @@ import java.util.Objects;
 /**
  * Request to stop Machine Learning Datafeeds
  */
-public class StopDatafeedRequest extends ActionRequest implements ToXContentObject {
+public class StopDatafeedRequest implements Validatable, ToXContentObject {
 
     public static final ParseField TIMEOUT = new ParseField("timeout");
     public static final ParseField FORCE = new ParseField("force");
@@ -142,11 +141,6 @@ public class StopDatafeedRequest extends ActionRequest implements ToXContentObje
      */
     public void setAllowNoDatafeeds(boolean allowNoDatafeeds) {
         this.allowNoDatafeeds = allowNoDatafeeds;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     @Override

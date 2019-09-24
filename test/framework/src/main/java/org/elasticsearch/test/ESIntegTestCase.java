@@ -798,8 +798,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             sb.append(value).append("] results. expected [").append(expectedResults).append("]");
             String failMsg = sb.toString();
             for (SearchHit hit : searchResponse.getHits().getHits()) {
-                sb.append("\n-> _index: [").append(hit.getIndex()).append("] type [").append(hit.getType())
-                    .append("] id [").append(hit.getId()).append("]");
+                sb.append("\n-> _index: [").append(hit.getIndex()).append("] id [").append(hit.getId()).append("]");
             }
             logger.warn("{}", sb);
             fail(failMsg);

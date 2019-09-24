@@ -83,7 +83,6 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -1451,8 +1450,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
     @SuppressWarnings("unchecked")
     public void testPutTemplate() throws Exception {
-        PutIndexTemplateRequest putTemplateRequest = new PutIndexTemplateRequest("my-template")
-            .patterns(Arrays.asList("pattern-1", "name-*"))
+        PutIndexTemplateRequest putTemplateRequest = new PutIndexTemplateRequest("my-template", List.of("pattern-1", "name-*"))
             .order(10)
             .create(randomBoolean())
             .settings(Settings.builder().put("number_of_shards", "3").put("number_of_replicas", "0"))
@@ -1478,8 +1476,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testPutTemplateWithTypesUsingUntypedAPI() throws Exception {
-        PutIndexTemplateRequest putTemplateRequest = new PutIndexTemplateRequest("my-template")
-            .patterns(Arrays.asList("pattern-1", "name-*"))
+        PutIndexTemplateRequest putTemplateRequest = new PutIndexTemplateRequest("my-template", List.of("pattern-1", "name-*"))
             .order(10)
             .create(randomBoolean())
             .settings(Settings.builder().put("number_of_shards", "3").put("number_of_replicas", "0"))
@@ -1541,13 +1538,12 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         // Failed to validate because index patterns are missing
-        PutIndexTemplateRequest withoutPattern = new PutIndexTemplateRequest("t1");
-        ValidationException withoutPatternError = expectThrows(ValidationException.class,
-            () -> execute(withoutPattern, client.indices()::putTemplate, client.indices()::putTemplateAsync));
-        assertThat(withoutPatternError.validationErrors(), contains("index patterns are missing"));
+        IllegalArgumentException withoutPatternError = expectThrows(IllegalArgumentException.class,
+            () -> new PutIndexTemplateRequest("t1", randomBoolean() ? null : List.of()));
+        assertThat(withoutPatternError.getMessage(), containsString("index patterns are missing"));
 
         // Create-only specified but an template exists already
-        PutIndexTemplateRequest goodTemplate = new PutIndexTemplateRequest("t2").patterns(Arrays.asList("qa-*", "prod-*"));
+        PutIndexTemplateRequest goodTemplate = new PutIndexTemplateRequest("t2", List.of("qa-*", "prod-*"));
         assertTrue(execute(goodTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged());
         goodTemplate.create(true);
         ElasticsearchException alreadyExistsError = expectThrows(ElasticsearchException.class,
@@ -1558,8 +1554,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertTrue(execute(goodTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged());
 
         // Rejected due to unknown settings
-        PutIndexTemplateRequest unknownSettingTemplate = new PutIndexTemplateRequest("t3")
-            .patterns(Collections.singletonList("any"))
+        PutIndexTemplateRequest unknownSettingTemplate = new PutIndexTemplateRequest("t3", List.of("any"))
             .settings(Settings.builder().put("this-setting-does-not-exist", 100));
         ElasticsearchStatusException unknownSettingError = expectThrows(ElasticsearchStatusException.class,
             () -> execute(unknownSettingTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync));
@@ -1690,12 +1685,11 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     public void testCRUDIndexTemplate() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
-        PutIndexTemplateRequest putTemplate1 = new PutIndexTemplateRequest("template-1")
-            .patterns(Arrays.asList("pattern-1", "name-1")).alias(new Alias("alias-1"));
+        PutIndexTemplateRequest putTemplate1 = new PutIndexTemplateRequest("template-1", List.of("pattern-1", "name-1"))
+            .alias(new Alias("alias-1"));
         assertThat(execute(putTemplate1, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged(),
             equalTo(true));
-        PutIndexTemplateRequest putTemplate2 = new PutIndexTemplateRequest("template-2")
-            .patterns(Arrays.asList("pattern-2", "name-2"))
+        PutIndexTemplateRequest putTemplate2 = new PutIndexTemplateRequest("template-2", List.of("pattern-2", "name-2"))
             .mapping("{\"properties\": { \"name\": { \"type\": \"text\" }}}", XContentType.JSON)
             .settings(Settings.builder().put("number_of_shards", "2").put("number_of_replicas", "0"));
         assertThat(execute(putTemplate2, client.indices()::putTemplate, client.indices()::putTemplateAsync)
@@ -1770,8 +1764,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         {
             for (String suffix : Arrays.asList("1", "2")) {
 
-                final PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("template-" + suffix)
-                    .patterns(Arrays.asList("pattern-" + suffix, "name-" + suffix))
+                final PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("template-" + suffix,
+                    List.of("pattern-" + suffix, "name-" + suffix))
                     .alias(new Alias("alias-" + suffix));
                 assertTrue(execute(putRequest, client.indices()::putTemplate, client.indices()::putTemplateAsync).isAcknowledged());
 

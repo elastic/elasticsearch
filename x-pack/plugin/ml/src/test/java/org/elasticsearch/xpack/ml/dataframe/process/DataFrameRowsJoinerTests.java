@@ -14,7 +14,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
@@ -236,7 +235,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
     }
 
     private static SearchHit newHit(String json) {
-        SearchHit hit = new SearchHit(randomInt(), randomAlphaOfLength(10), new Text("doc"), Collections.emptyMap());
+        SearchHit hit = new SearchHit(randomInt(), randomAlphaOfLength(10), Collections.emptyMap());
         hit.sourceRef(new BytesArray(json));
         return hit;
     }

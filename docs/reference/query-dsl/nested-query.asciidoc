@@ -168,8 +168,8 @@ PUT /drivers/_doc/1?refresh
 ----
 // TEST[continued]
 
-You can now use a search request with a multi-level nested query
-to return documents based on the `model` field.
+You can now use a multi-level nested query
+to retrieve documents based on the `model` field.
 
 [source,console]
 ----

@@ -42,7 +42,7 @@ This makes ingesting, indexing, searching, and aggregating circles both easy and
 [float]
 ==== Aggregations on range fields
 
-The <<search-aggregations-bucket-histogram-aggregation,Histogram>>
+The <<search-aggregations-bucket-histogram-aggregation,histogram>>
 and <<search-aggregations-bucket-datehistogram-aggregation,Date Histogram>>
 aggregations now support the <<range,`range`>> field type.
 
@@ -72,7 +72,7 @@ within a given time range.
 
 We’re introducing <<getting-started-snapshot-lifecycle-management,snapshot lifecycle management (SLM)>>,
 which allows an administrator to define policies, 
-via API or kibana-ref/index-lifecycle-policies.html[{kib} UI],
+via API or {kibana-ref}/index-lifecycle-policies.html[{kib} UI],
 that manage when and how often snapshots are taken.
 You can use SLM
 to ensure that appropriate, recent backups are ready
@@ -85,7 +85,7 @@ or you need to restore {es} data.
 [float]
 ==== API key management
 
-New <<security-privileges,cluster privileges>> to manage API keys have been added,
+New {stack-ov}/security-privileges.html[cluster privileges] to manage API keys have been added,
 allowing cluster administrators to manage everything,
 and regular users to manage their own keys.
 Users can create API keys
@@ -133,7 +133,7 @@ facilitates notarization of {es} for continued support on macOS.
 [float]
 ==== Regression analysis - Experimental
 
-<<dfa-regression,Regression analysis>> is an experimental machine learning process
+{stack-ov}/dfa-regression.html[Regression analysis] is an experimental machine learning process
 for estimating the relationships among a number of feature variables and a dependent variable,
 then making further predictions based on the described relationship.
 

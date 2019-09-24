@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -43,7 +44,11 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData;
 
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 public class GatewayAllocator {
@@ -59,6 +64,9 @@ public class GatewayAllocator {
         asyncFetchStarted = ConcurrentCollections.newConcurrentMap();
     private final ConcurrentMap<ShardId, AsyncShardFetch<NodeStoreFilesMetaData>>
         asyncFetchStore = ConcurrentCollections.newConcurrentMap();
+
+    // contains ephemeralIds
+    private volatile Set<String> lastDataNodes = Collections.emptySet();
 
     @Inject
     public GatewayAllocator(RerouteService rerouteService, NodeClient client) {
@@ -109,6 +117,7 @@ public class GatewayAllocator {
     public void allocateUnassigned(final RoutingAllocation allocation) {
         assert primaryShardAllocator != null;
         assert replicaShardAllocator != null;
+        ensureAsyncFetchStorePrimaryRecency(allocation);
         innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator);
     }
 
@@ -136,6 +145,42 @@ public class GatewayAllocator {
             assert replicaShardAllocator != null;
             return replicaShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger);
         }
+    }
+
+    /**
+     * Whenever we see a new data node, we clear the information we have on primary to ensure it is at least as recent as the start
+     * of the new node. This reduces risk of making a decision on stale information from primary.
+     */
+    private void ensureAsyncFetchStorePrimaryRecency(RoutingAllocation allocation) {
+        DiscoveryNodes nodes = allocation.nodes();
+        if (hasNewNodes(nodes, lastDataNodes)) {
+            asyncFetchStore.values().forEach(fetch -> clearCacheForPrimary(fetch, allocation));
+            // recalc to also (lazily) clear out old nodes.
+            Set<String> newDataNodes = new HashSet<>(nodes.getDataNodes().size());
+            for (Iterator<DiscoveryNode> iterator = nodes.getDataNodes().valuesIt(); iterator.hasNext(); ) {
+                newDataNodes.add(iterator.next().getEphemeralId());
+            }
+            this.lastDataNodes = newDataNodes;
+        }
+    }
+
+    private void clearCacheForPrimary(AsyncShardFetch<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> fetch,
+                                      RoutingAllocation allocation) {
+        ShardRouting primary = allocation.routingNodes().activePrimary(fetch.shardId);
+        if (primary != null) {
+            fetch.clearCacheForNode(primary.currentNodeId());
+        }
+    }
+
+    private boolean hasNewNodes(DiscoveryNodes nodes, Set<String> lastDataNodes) {
+        for (Iterator<DiscoveryNode> iterator = nodes.getDataNodes().valuesIt(); iterator.hasNext(); ) {
+            DiscoveryNode node = iterator.next();
+            if (lastDataNodes.contains(node.getEphemeralId()) == false) {
+                logger.trace("new node {} found, clearing primary async-fetch-store cache", node);
+                return true;
+            }
+        }
+        return false;
     }
 
     class InternalAsyncFetch<T extends BaseNodeResponse> extends AsyncShardFetch<T> {

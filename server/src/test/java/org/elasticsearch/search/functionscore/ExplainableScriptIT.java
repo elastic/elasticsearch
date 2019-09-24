@@ -103,11 +103,11 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         @Override
         public Explanation explain(Explanation subQueryScore) throws IOException {
             Explanation scoreExp = Explanation.match(subQueryScore.getValue(), "_score: ", subQueryScore);
-            return Explanation.match((float) (execute()), "This script returned " + execute(), scoreExp);
+            return Explanation.match((float) (execute(null)), "This script returned " + execute(null), scoreExp);
         }
 
         @Override
-        public double execute() {
+        public double execute(ExplanationHolder explanation) {
             return ((Number) ((ScriptDocValues) getDoc().get("number_field")).get(0)).doubleValue();
         }
     }

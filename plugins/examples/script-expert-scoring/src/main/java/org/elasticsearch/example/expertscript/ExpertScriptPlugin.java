@@ -115,7 +115,7 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
                      */
                     return new ScoreScript(params, lookup, context) {
                         @Override
-                        public double execute() {
+                        public double execute(ExplanationHolder explanation) {
                             return 0.0d;
                         }
                     };
@@ -138,7 +138,7 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
                         currentDocid = docid;
                     }
                     @Override
-                    public double execute() {
+                    public double execute(ExplanationHolder explanation) {
                         if (postings.docID() != currentDocid) {
                             /*
                              * advance moved past the current doc, so this doc

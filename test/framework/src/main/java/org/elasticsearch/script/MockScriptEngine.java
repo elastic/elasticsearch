@@ -566,7 +566,7 @@ public class MockScriptEngine implements ScriptEngine {
                     Scorable[] scorerHolder = new Scorable[1];
                     return new ScoreScript(params, lookup, ctx) {
                         @Override
-                        public double execute() {
+                        public double execute(ExplanationHolder explanation) {
                             Map<String, Object> vars = new HashMap<>(getParams());
                             vars.put("doc", getDoc());
                             if (scorerHolder[0] != null) {

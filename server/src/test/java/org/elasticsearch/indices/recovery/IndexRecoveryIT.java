@@ -324,6 +324,89 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), numOfDocs);
     }
 
+    public void testCancelNewShardRecoveryAndUsesExistingShardCopy() throws Exception {
+        logger.info("--> start node A");
+        final String nodeA = internalCluster().startNode();
+
+        logger.info("--> create index on node: {}", nodeA);
+        ByteSizeValue shardSize = createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT)
+            .getShards()[0].getStats().getStore().size();
+
+        logger.info("--> start node B");
+        // force a shard recovery from nodeA to nodeB
+        final String nodeB = internalCluster().startNode();
+        Settings nodeBDataPathSettings = internalCluster().dataPathSettings(nodeB);
+
+        logger.info("--> add replica for {} on node: {}", INDEX_NAME, nodeB);
+        assertAcked(client().admin().indices().prepareUpdateSettings(INDEX_NAME)
+            .setSettings(Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)));
+        ensureGreen(INDEX_NAME);
+
+        logger.info("--> start node C");
+        final String nodeC = internalCluster().startNode();
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("3").get().isTimedOut());
+
+        // do sync flush to gen sync id
+        assertBusy(() -> assertThat(client().admin().indices().prepareSyncedFlush(INDEX_NAME).get().failedShards(), equalTo(0)));
+
+        logger.info("--> slowing down recoveries");
+        slowDownRecovery(shardSize);
+
+        logger.info("--> stop node B");
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeB));
+
+        logger.info("--> request recoveries");
+        // nodeB down, peer recovery from nodeA to nodeC
+        RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
+
+        List<RecoveryState> recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
+        List<RecoveryState> nodeARecoveryStates = findRecoveriesForTargetNode(nodeA, recoveryStates);
+        assertThat(nodeARecoveryStates.size(), equalTo(1));
+        List<RecoveryState> nodeCRecoveryStates = findRecoveriesForTargetNode(nodeC, recoveryStates);
+        assertThat(nodeCRecoveryStates.size(), equalTo(1));
+
+        assertRecoveryState(nodeARecoveryStates.get(0), 0, RecoverySource.EmptyStoreRecoverySource.INSTANCE, true,
+            Stage.DONE, null, nodeA);
+        validateIndexRecoveryState(nodeARecoveryStates.get(0).getIndex());
+
+        assertOnGoingRecoveryState(nodeCRecoveryStates.get(0), 0, PeerRecoverySource.INSTANCE, false, nodeA, nodeC);
+        validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
+
+        logger.info("--> start node B again");
+        final String nodeB1 = internalCluster().startNode(nodeBDataPathSettings); // this will use the same data location as the stopped node
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("3").get().isTimedOut());
+
+        logger.info("--> request recoveries");
+        // peer recovery from nodeA to node C should be canceled, replica should be allocated to nodeB that has the data copy
+        assertBusy(() -> {
+            RecoveryResponse response1 = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
+            List<RecoveryState> recoveryStates1 = response1.shardRecoveryStates().get(INDEX_NAME);
+
+            List<RecoveryState> nodeARecoveryStates1 = findRecoveriesForTargetNode(nodeA, recoveryStates1);
+            assertThat(nodeARecoveryStates1.size(), equalTo(1));
+            List<RecoveryState> nodeBRecoveryStates1 = findRecoveriesForTargetNode(nodeB1, recoveryStates1);
+            assertThat(nodeBRecoveryStates1.size(), equalTo(1));
+            List<RecoveryState> nodeCRecoveryStates1 = findRecoveriesForTargetNode(nodeC, recoveryStates1);
+            assertThat(nodeCRecoveryStates1.size(), equalTo(0));
+
+            assertRecoveryState(nodeARecoveryStates1.get(0), 0, RecoverySource.EmptyStoreRecoverySource.INSTANCE, true,
+                Stage.DONE, null, nodeA);
+            validateIndexRecoveryState(nodeARecoveryStates1.get(0).getIndex());
+
+            assertRecoveryState(nodeBRecoveryStates1.get(0), 0, PeerRecoverySource.INSTANCE, false,
+                Stage.DONE, nodeA, nodeB1);
+            validateIndexRecoveryState(nodeBRecoveryStates1.get(0).getIndex());
+        });
+
+        logger.info("--> speeding up recoveries");
+        restoreRecoverySpeed();
+
+        // wait for it to be finished
+        ensureGreen();
+    }
+
     public void testRerouteRecovery() throws Exception {
         logger.info("--> start node A");
         final String nodeA = internalCluster().startNode();

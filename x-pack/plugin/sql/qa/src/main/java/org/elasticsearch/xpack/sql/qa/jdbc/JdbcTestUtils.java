@@ -148,7 +148,7 @@ final class JdbcTestUtils {
     }
     
     static String of(long millis, String zoneId) {
-        return StringUtils.toString(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(zoneId)));
+        return StringUtils.toString(Instant.ofEpochMilli(millis).atZone(ZoneId.of(zoneId)));
     }
 
     /**

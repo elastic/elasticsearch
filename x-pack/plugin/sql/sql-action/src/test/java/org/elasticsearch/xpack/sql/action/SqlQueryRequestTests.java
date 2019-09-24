@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLIENT_IDS;
 
 public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRequest> {
 
-    public RequestInfo requestInfo;
+    private RequestInfo requestInfo;
 
     @Before
     public void setup() {
@@ -54,7 +54,7 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
     @Override
     protected SqlQueryRequest createTestInstance() {
         return new SqlQueryRequest(randomAlphaOfLength(10), randomParameters(), SqlTestUtils.randomFilterOrNull(random()),
-                randomZone(), between(1, Integer.MAX_VALUE), randomTV(),
+                randomZone().normalized(), between(1, Integer.MAX_VALUE), randomTV(),
                 randomTV(), randomBoolean(), randomAlphaOfLength(10), requestInfo,
                 randomBoolean(), randomBoolean()
         );
@@ -105,12 +105,12 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<SqlQueryRe
                 request -> request.requestInfo(randomValueOtherThan(request.requestInfo(), this::randomRequestInfo)),
                 request -> request.query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),
                 request -> request.params(randomValueOtherThan(request.params(), this::randomParameters)),
-                request -> request.zoneId(randomValueOtherThan(request.zoneId(), ESTestCase::randomZone)),
+                request -> request.zoneId(randomValueOtherThan(request.zoneId(), () -> randomZone().normalized())),
                 request -> request.fetchSize(randomValueOtherThan(request.fetchSize(), () -> between(1, Integer.MAX_VALUE))),
                 request -> request.requestTimeout(randomValueOtherThan(request.requestTimeout(), this::randomTV)),
                 request -> request.filter(randomValueOtherThan(request.filter(),
                         () -> request.filter() == null ? randomFilter(random()) : randomFilterOrNull(random()))),
-                request -> request.columnar(randomValueOtherThan(request.columnar(), () -> randomBoolean())),
+                request -> request.columnar(randomValueOtherThan(request.columnar(), ESTestCase::randomBoolean)),
                 request -> request.cursor(randomValueOtherThan(request.cursor(), SqlQueryResponseTests::randomStringCursor))
         );
         SqlQueryRequest newRequest = new SqlQueryRequest(instance.query(), instance.params(), instance.filter(),

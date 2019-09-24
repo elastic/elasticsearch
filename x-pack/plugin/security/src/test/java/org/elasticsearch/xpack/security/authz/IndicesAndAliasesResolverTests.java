@@ -81,6 +81,7 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -775,14 +776,24 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(request.getAliasActions().get(1).aliases(), arrayContainingInAnyOrder("foofoobar", "foobarfoo", "explicit"));
     }
 
-    public void testResolveAliasesWildcardsIndicesAliasesRequestDeleteActionsNoAuthorizedIndices() {
+    public void testResolveAliasesWildcardsIndicesAliasesRequestRemoveAliasActionsNoAuthorizedIndices() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(AliasActions.remove().index("foo*").alias("foo*"));
-        //no authorized aliases match bar*, hence aliases are replaced with no-aliases-expression for that action
         request.addAliasAction(AliasActions.remove().index("*bar").alias("bar*"));
         resolveIndices(request, buildAuthorizedIndices(user, IndicesAliasesAction.NAME));
         assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("foofoobar", "foobarfoo"));
-        assertThat(request.getAliasActions().get(1).aliases(), arrayContaining(IndicesAndAliasesResolver.NO_INDICES_OR_ALIASES_ARRAY));
+        assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("*", "-*"));
+    }
+
+    public void testResolveAliasesWildcardsIndicesAliasesRequestRemoveIndexActions() {
+        IndicesAliasesRequest request = new IndicesAliasesRequest();
+        request.addAliasAction(AliasActions.removeIndex().index("foo*"));
+        request.addAliasAction(AliasActions.removeIndex().index("*bar"));
+        resolveIndices(request, buildAuthorizedIndices(user, IndicesAliasesAction.NAME));
+        assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("foofoo"));
+        assertThat(request.getAliasActions().get(0).aliases(), emptyArray());
+        assertThat(request.getAliasActions().get(1).indices(), arrayContainingInAnyOrder("bar"));
+        assertThat(request.getAliasActions().get(1).aliases(), emptyArray());
     }
 
     public void testResolveWildcardsIndicesAliasesRequestAddAndDeleteActions() {

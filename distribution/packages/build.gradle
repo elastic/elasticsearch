@@ -58,7 +58,7 @@ buildscript {
     }
   }
   dependencies {
-    classpath 'com.netflix.nebula:gradle-ospackage-plugin:4.7.1'
+    classpath 'com.netflix.nebula:gradle-ospackage-plugin:7.4.2'
   }
 }
 
@@ -407,6 +407,9 @@ subprojects {
     'default' buildDist
   }
 
+  if (! (dpkgExists() || rpmExists())) {
+    return;
+  }
   // sanity checks if packages can be extracted
   final File extractionDir = new File(buildDir, 'extracted')
   File packageExtractionDir
@@ -423,6 +426,7 @@ subprojects {
       extractionDir.mkdirs()
     }
   }
+
   check.dependsOn checkExtraction
   if (project.name.contains('deb')) {
     checkExtraction {

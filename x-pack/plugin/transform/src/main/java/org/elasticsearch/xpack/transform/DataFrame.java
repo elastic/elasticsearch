@@ -76,7 +76,6 @@ import org.elasticsearch.xpack.transform.rest.action.RestStartDataFrameTransform
 import org.elasticsearch.xpack.transform.rest.action.RestStopDataFrameTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestUpdateDataFrameTransformAction;
 import org.elasticsearch.xpack.transform.transforms.DataFrameTransformPersistentTasksExecutor;
-import org.elasticsearch.xpack.transform.transforms.DataFrameTransformTask;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -103,6 +102,15 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
     private final SetOnce<DataFrameAuditor> dataFrameAuditor = new SetOnce<>();
     private final SetOnce<DataFrameTransformsCheckpointService> dataFrameTransformsCheckpointService = new SetOnce<>();
     private final SetOnce<SchedulerEngine> schedulerEngine = new SetOnce<>();
+    public static final int DEFAULT_FAILURE_RETRIES = 10;
+    // How many times the transform task can retry on an non-critical failure
+    public static final Setting<Integer> NUM_FAILURE_RETRIES_SETTING = Setting.intSetting(
+        "xpack.data_frame.num_transform_failure_retries",
+        DEFAULT_FAILURE_RETRIES,
+        0,
+        100,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic);
 
     public DataFrame(Settings settings) {
         this.settings = settings;
@@ -227,7 +235,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Collections.singletonList(DataFrameTransformTask.NUM_FAILURE_RETRIES_SETTING);
+        return Collections.singletonList(DataFrame.NUM_FAILURE_RETRIES_SETTING);
     }
 
     @Override

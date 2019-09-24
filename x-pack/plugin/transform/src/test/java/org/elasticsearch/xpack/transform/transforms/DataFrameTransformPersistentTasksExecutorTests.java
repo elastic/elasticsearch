@@ -31,6 +31,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransform;
+import org.elasticsearch.xpack.transform.DataFrame;
 import org.elasticsearch.xpack.transform.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.transform.persistence.DataFrameInternalIndex;
@@ -104,7 +105,7 @@ public class DataFrameTransformPersistentTasksExecutorTests extends ESTestCase {
         DataFrameTransformsCheckpointService dataFrameTransformsCheckpointService = new DataFrameTransformsCheckpointService(client,
             transformsConfigManager, mockAuditor);
         ClusterSettings cSettings = new ClusterSettings(Settings.EMPTY,
-            Collections.singleton(DataFrameTransformTask.NUM_FAILURE_RETRIES_SETTING));
+            Collections.singleton(DataFrame.NUM_FAILURE_RETRIES_SETTING));
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(cSettings);
         when(clusterService.state()).thenReturn(DataFrameInternalIndexTests.STATE_WITH_LATEST_VERSIONED_INDEX_TEMPLATE);

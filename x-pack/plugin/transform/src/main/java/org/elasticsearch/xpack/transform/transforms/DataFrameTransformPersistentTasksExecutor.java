@@ -83,9 +83,9 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         this.auditor = auditor;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-        this.numFailureRetries = DataFrameTransformTask.NUM_FAILURE_RETRIES_SETTING.get(settings);
+        this.numFailureRetries = DataFrame.NUM_FAILURE_RETRIES_SETTING.get(settings);
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(DataFrameTransformTask.NUM_FAILURE_RETRIES_SETTING, this::setNumFailureRetries);
+            .addSettingsUpdateConsumer(DataFrame.NUM_FAILURE_RETRIES_SETTING, this::setNumFailureRetries);
     }
 
     @Override

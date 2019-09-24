@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.transform.persistence.DataFrameTransformsConfigMa
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
 class ClientDataFrameIndexerBuilder {
@@ -36,15 +37,17 @@ class ClientDataFrameIndexerBuilder {
     private DataFrameTransformCheckpoint lastCheckpoint;
     private DataFrameTransformCheckpoint nextCheckpoint;
     private SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex;
+    private TransformContext context;
 
     ClientDataFrameIndexerBuilder() {
         this.initialStats = new DataFrameIndexerTransformStats();
     }
 
-    ClientDataFrameIndexer build(DataFrameTransformTask parentTask) {
+    ClientDataFrameIndexer build(Executor executor) {
         CheckpointProvider checkpointProvider = transformsCheckpointService.getCheckpointProvider(transformConfig);
 
-        return new ClientDataFrameIndexer(this.transformsConfigManager,
+        return new ClientDataFrameIndexer(executor,
+            this.transformsConfigManager,
             checkpointProvider,
             new AtomicReference<>(this.indexerState),
             this.initialPosition,
@@ -57,7 +60,7 @@ class ClientDataFrameIndexerBuilder {
             this.lastCheckpoint,
             this.nextCheckpoint,
             this.seqNoPrimaryTermAndIndex,
-            parentTask);
+            this.context);
     }
 
     ClientDataFrameIndexerBuilder setClient(Client client) {
@@ -126,6 +129,11 @@ class ClientDataFrameIndexerBuilder {
 
     ClientDataFrameIndexerBuilder setSeqNoPrimaryTermAndIndex(SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex) {
         this.seqNoPrimaryTermAndIndex = seqNoPrimaryTermAndIndex;
+        return this;
+    }
+
+    ClientDataFrameIndexerBuilder setContext(TransformContext context) {
+        this.context = context;
         return this;
     }
 }

@@ -13,7 +13,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -33,13 +32,12 @@ import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformTaskState;
+import org.elasticsearch.xpack.transform.DataFrame;
 import org.elasticsearch.xpack.transform.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
 
 import java.util.Arrays;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.transform.DataFrameMessages.DATA_FRAME_CANNOT_START_FAILED_TRANSFORM;
 import static org.elasticsearch.xpack.core.transform.DataFrameMessages.DATA_FRAME_CANNOT_STOP_FAILED_TRANSFORM;
@@ -50,16 +48,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     // Default interval the scheduler sends an event if the config does not specify a frequency
     private static final long SCHEDULER_NEXT_MILLISECONDS = 60000;
     private static final Logger logger = LogManager.getLogger(DataFrameTransformTask.class);
-    private static final int DEFAULT_FAILURE_RETRIES = 10;
-    private volatile int numFailureRetries = DEFAULT_FAILURE_RETRIES;
-    // How many times the transform task can retry on an non-critical failure
-    public static final Setting<Integer> NUM_FAILURE_RETRIES_SETTING = Setting.intSetting(
-        "xpack.data_frame.num_transform_failure_retries",
-        DEFAULT_FAILURE_RETRIES,
-        0,
-        100,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic);
+    private volatile int numFailureRetries = DataFrame.DEFAULT_FAILURE_RETRIES;
     private static final IndexerState[] RUNNING_STATES = new IndexerState[]{IndexerState.STARTED, IndexerState.INDEXING};
     public static final String SCHEDULE_NAME = DataFrameField.TASK_NAME + "/schedule";
 
@@ -69,14 +58,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     private final DataFrameAuditor auditor;
     private final DataFrameIndexerPosition initialPosition;
     private final IndexerState initialIndexerState;
-
+    private final TransformContext context;
     private final SetOnce<ClientDataFrameIndexer> indexer = new SetOnce<>();
-
-    private final AtomicReference<DataFrameTransformTaskState> taskState;
-    private final AtomicReference<String> stateReason;
-    // the checkpoint of this data frame, storing the checkpoint until data indexing from source to dest is _complete_
-    // Note: Each indexer run creates a new future checkpoint which becomes the current checkpoint only after the indexer run finished
-    private final AtomicLong currentCheckpoint;
 
     public DataFrameTransformTask(long id, String type, String action, TaskId parentTask, DataFrameTransform transform,
                                   DataFrameTransformState state, SchedulerEngine schedulerEngine, DataFrameAuditor auditor,
@@ -89,8 +72,9 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         IndexerState initialState = IndexerState.STOPPED;
         DataFrameTransformTaskState initialTaskState = DataFrameTransformTaskState.STOPPED;
         String initialReason = null;
-        long initialGeneration = 0;
+        long initialCheckpoint = 0;
         DataFrameIndexerPosition initialPosition = null;
+
         if (state != null) {
             initialTaskState = state.getTaskState();
             initialReason = state.getReason();
@@ -105,14 +89,13 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 initialState = existingState;
             }
             initialPosition = state.getPosition();
-            initialGeneration = state.getCheckpoint();
+            initialCheckpoint = state.getCheckpoint();
         }
 
         this.initialIndexerState = initialState;
         this.initialPosition = initialPosition;
-        this.currentCheckpoint = new AtomicLong(initialGeneration);
-        this.taskState = new AtomicReference<>(initialTaskState);
-        this.stateReason = new AtomicReference<>(initialReason);
+
+        this.context = new TransformContext(initialTaskState, initialReason, initialCheckpoint);
     }
 
     public String getTransformId() {
@@ -134,19 +117,19 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     public DataFrameTransformState getState() {
         if (getIndexer() == null) {
             return new DataFrameTransformState(
-                taskState.get(),
+                context.getTaskState(),
                 initialIndexerState,
                 initialPosition,
-                currentCheckpoint.get(),
-                stateReason.get(),
+                context.getCheckpoint(),
+                context.getStateReason(),
                 null);
         } else {
            return new DataFrameTransformState(
-               taskState.get(),
+               context.getTaskState(),
                indexer.get().getState(),
                indexer.get().getPosition(),
-               currentCheckpoint.get(),
-               stateReason.get(),
+               context.getCheckpoint(),
+               context.getStateReason(),
                getIndexer().getProgress());
         }
     }
@@ -159,21 +142,13 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         }
     }
 
-    public long getCheckpoint() {
-        return currentCheckpoint.get();
-    }
-
-    long incrementCheckpoint() {
-        return currentCheckpoint.getAndIncrement();
-    }
-
     public void getCheckpointingInfo(DataFrameTransformsCheckpointService transformsCheckpointService,
             ActionListener<DataFrameTransformCheckpointingInfo> listener) {
         ClientDataFrameIndexer indexer = getIndexer();
         if (indexer == null) {
             transformsCheckpointService.getCheckpointingInfo(
                     transform.getId(),
-                    currentCheckpoint.get(),
+                    context.getCheckpoint(),
                     initialPosition,
                     null,
                     listener);
@@ -199,11 +174,11 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     // Here `failOnConflict` is usually true, except when the initial start is called when the task is assigned to the node
     synchronized void start(Long startingCheckpoint, boolean force, boolean failOnConflict, ActionListener<Response> listener) {
         logger.debug("[{}] start called with force [{}] and state [{}].", getTransformId(), force, getState());
-        if (taskState.get() == DataFrameTransformTaskState.FAILED && force == false) {
+        if (context.getTaskState() == DataFrameTransformTaskState.FAILED && force == false) {
             listener.onFailure(new ElasticsearchStatusException(
                 DataFrameMessages.getMessage(DATA_FRAME_CANNOT_START_FAILED_TRANSFORM,
                     getTransformId(),
-                    stateReason.get()),
+                    context.getStateReason()),
                 RestStatus.CONFLICT));
             return;
         }
@@ -211,7 +186,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             // If our state is failed AND the indexer is null, the user needs to _stop?force=true so that the indexer gets
             // fully initialized.
             // If we are NOT failed, then we can assume that `start` was just called early in the process.
-            String msg = taskState.get() == DataFrameTransformTaskState.FAILED ?
+            String msg = context.getTaskState() == DataFrameTransformTaskState.FAILED ?
                 "It failed during the initialization process; force stop to allow reinitialization." :
                 "Try again later.";
             listener.onFailure(new ElasticsearchStatusException("Task for transform [{}] not fully initialized. {}",
@@ -221,7 +196,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             return;
         }
         // If we are already in a `STARTED` state, we should not attempt to call `.start` on the indexer again.
-        if (taskState.get() == DataFrameTransformTaskState.STARTED && failOnConflict) {
+        if (context.getTaskState() == DataFrameTransformTaskState.STARTED && failOnConflict) {
             listener.onFailure(new ElasticsearchStatusException(
                 "Cannot start transform [{}] as it is already STARTED.",
                 RestStatus.CONFLICT,
@@ -235,17 +210,17 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 transform.getId(), newState));
             return;
         }
-        stateReason.set(null);
-        taskState.set(DataFrameTransformTaskState.STARTED);
+        context.resetTaskState();
+
         if (startingCheckpoint != null) {
-            currentCheckpoint.set(startingCheckpoint);
+            context.setCheckpoint(startingCheckpoint);
         }
 
         final DataFrameTransformState state = new DataFrameTransformState(
             DataFrameTransformTaskState.STARTED,
             IndexerState.STOPPED,
             getIndexer().getPosition(),
-            currentCheckpoint.get(),
+            context.getCheckpoint(),
             null,
             getIndexer().getProgress());
 
@@ -298,21 +273,22 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             return;
         }
 
-        if (taskState.get() == DataFrameTransformTaskState.FAILED && force == false) {
+        if (context.getTaskState() == DataFrameTransformTaskState.FAILED && force == false) {
             throw new ElasticsearchStatusException(
                 DataFrameMessages.getMessage(DATA_FRAME_CANNOT_STOP_FAILED_TRANSFORM,
                     getTransformId(),
-                    stateReason.get()),
+                    context.getStateReason()),
                 RestStatus.CONFLICT);
         }
 
         IndexerState state = getIndexer().stop();
-        stateReason.set(null);
+        context.setStateReason(null);
+
         // No reason to keep it in the potentially failed state.
         // Since we have called `stop` against the indexer, we have no more fear of triggering again.
         // But, since `doSaveState` is asynchronous, it is best to set the state as STARTED so that another `start` call cannot be
         // executed while we are wrapping up.
-        taskState.compareAndSet(DataFrameTransformTaskState.FAILED, DataFrameTransformTaskState.STARTED);
+        context.setTaskState(DataFrameTransformTaskState.FAILED, DataFrameTransformTaskState.STARTED);
         if (state == IndexerState.STOPPED) {
             getIndexer().onStop();
             getIndexer().doSaveState(state, getIndexer().getPosition(), () -> {});
@@ -331,10 +307,10 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             return;
         }
 
-        if (taskState.get() == DataFrameTransformTaskState.FAILED || taskState.get() == DataFrameTransformTaskState.STOPPED) {
+        if (context.getTaskState() == DataFrameTransformTaskState.FAILED || context.getTaskState() == DataFrameTransformTaskState.STOPPED) {
             logger.debug("[{}] schedule was triggered for transform but task is [{}]. Ignoring trigger.",
                 getTransformId(),
-                taskState.get());
+                context.getTaskState());
             return;
         }
 
@@ -350,7 +326,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         logger.debug("[{}] data frame indexer schedule has triggered, state: [{}].", event.getJobName(), indexerState);
 
         // if it runs for the 1st time we just do it, if not we check for changes
-        if (currentCheckpoint.get() == 0) {
+        if (context.getCheckpoint() == 0) {
             logger.debug("[{}] trigger initial run.", getTransformId());
             getIndexer().maybeTriggerAsyncJob(System.currentTimeMillis());
         } else if (getIndexer().isContinuous()) {
@@ -386,7 +362,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     synchronized void markAsFailed(String reason, ActionListener<Void> listener) {
         // If we are already flagged as failed, this probably means that a second trigger started firing while we were attempting to
         // flag the previously triggered indexer as failed. Exit early as we are already flagged as failed.
-        if (taskState.get() == DataFrameTransformTaskState.FAILED) {
+        if (context.getTaskState() == DataFrameTransformTaskState.FAILED) {
             logger.warn("[{}] is already failed but encountered new failure; reason [{}].", getTransformId(), reason);
             listener.onResponse(null);
             return;
@@ -410,8 +386,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         // We should not keep retrying. Either the task will be stopped, or started
         // If it is started again, it is registered again.
         deregisterSchedulerJob();
-        taskState.set(DataFrameTransformTaskState.FAILED);
-        stateReason.set(reason);
+        context.setTaskStateToFailed(reason);
+
         DataFrameTransformState newState = getState();
         // Even though the indexer information is persisted to an index, we still need DataFrameTransformTaskState in the clusterstate
         // This keeps track of STARTED, FAILED, STOPPED
@@ -439,7 +415,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     public synchronized void onCancelled() {
         logger.info("[{}] received cancellation request for data frame transform, state: [{}].",
             getTransformId(),
-            taskState.get());
+            context.getTaskState());
         if (getIndexer() != null && getIndexer().abort()) {
             // there is no background transform running, we can shutdown safely
             shutdown();
@@ -478,7 +454,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     }
 
     synchronized void initializeIndexer(ClientDataFrameIndexerBuilder indexerBuilder) {
-        indexer.set(indexerBuilder.build(this));
+        indexer.set(indexerBuilder.build(getThreadPool().executor(ThreadPool.Names.GENERIC)));
     }
 
     ThreadPool getThreadPool() {
@@ -486,14 +462,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     }
 
     DataFrameTransformTaskState getTaskState() {
-        return taskState.get();
+        return context.getTaskState();
     }
 
-    void setStateReason(String reason) {
-        stateReason.set(reason);
-    }
-
-    String getStateReason() {
-        return stateReason.get();
-    }
 }

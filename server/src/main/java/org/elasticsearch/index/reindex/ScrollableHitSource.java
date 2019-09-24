@@ -591,7 +591,8 @@ public abstract class ScrollableHitSource {
         }
 
         // todo: slice handling could complicate this
-        private final long restartFromValue;
+        // package-private for testing.
+        final long restartFromValue;
 
         protected Checkpoint(long restartFromValue) {
             this.restartFromValue = restartFromValue;

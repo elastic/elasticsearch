@@ -105,7 +105,7 @@ GET /my_index/_rank_eval
 The request section contains several search requests typical to your 
 application, along with the document ratings for each particular search request.
 
-[source,console]
+[source,js]
 -----------------------------
 GET /my_index/_rank_eval
 {

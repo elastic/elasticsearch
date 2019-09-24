@@ -882,7 +882,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
 
             assertEquals(i, bulkItemResponse.getItemId());
             assertEquals("index", bulkItemResponse.getIndex());
-            assertEquals("_doc", bulkItemResponse.getType());
             assertEquals(String.valueOf(i), bulkItemResponse.getId());
 
             DocWriteRequest.OpType requestOpType = bulkRequest.requests().get(i).opType();

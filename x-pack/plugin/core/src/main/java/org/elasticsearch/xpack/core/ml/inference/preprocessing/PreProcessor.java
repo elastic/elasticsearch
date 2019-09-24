@@ -19,9 +19,8 @@ public interface PreProcessor extends NamedXContentObject, NamedWriteable {
     /**
      * Process the given fields and their values and return the modified map.
      *
-     * NOTE: The passed map object COULD be mutated
+     * NOTE: The passed map object is mutated directly
      * @param fields The fields and their values to process
-     * @return The modified map where the desired field(s) is processed
      */
-    Map<String, Object> process(Map<String, Object> fields);
+    void process(Map<String, Object> fields);
 }

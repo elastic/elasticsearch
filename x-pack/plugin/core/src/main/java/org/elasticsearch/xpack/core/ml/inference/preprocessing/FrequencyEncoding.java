@@ -98,13 +98,12 @@ public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyP
     }
 
     @Override
-    public Map<String, Object> process(Map<String, Object> fields) {
+    public void process(Map<String, Object> fields) {
         String value = (String)fields.get(field);
         if (value == null) {
-            return fields;
+            return;
         }
         fields.put(featureName, frequencyMap.getOrDefault(value, 0.0));
-        return fields;
     }
 
     @Override

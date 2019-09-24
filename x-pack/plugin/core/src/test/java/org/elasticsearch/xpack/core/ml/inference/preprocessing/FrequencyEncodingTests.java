@@ -65,14 +65,4 @@ public class FrequencyEncodingTests extends PreProcessingTests<FrequencyEncoding
         testProcess(encoding, fieldValues, matchers);
     }
 
-    public void testProcessWithFieldMissing() {
-        String field = "categorical";
-        List<String> values = Arrays.asList("foo", "bar", "foobar", "baz", "farequote");
-        Map<String, Double> valueMap = values.stream().collect(Collectors.toMap(Function.identity(),
-            v -> randomDoubleBetween(0.0, 1.0, false)));
-        String encodedFeatureName = "encoded";
-        FrequencyEncoding encoding = new FrequencyEncoding(field, encodedFeatureName, valueMap);
-        testWithMissingField(encoding);
-    }
-
 }

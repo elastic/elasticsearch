@@ -110,13 +110,12 @@ public class TargetMeanEncoding implements LenientlyParsedPreProcessor, Strictly
     }
 
     @Override
-    public Map<String, Object> process(Map<String, Object> fields) {
+    public void process(Map<String, Object> fields) {
         String value = (String)fields.get(field);
         if (value == null) {
-            return fields;
+            return;
         }
         fields.put(featureName, meanMap.getOrDefault(value, defaultValue));
-        return fields;
     }
 
     @Override

@@ -68,13 +68,4 @@ public class TargetMeanEncodingTests extends PreProcessingTests<TargetMeanEncodi
         testProcess(encoding, fieldValues, matchers);
     }
 
-    public void testProcessWithFieldMissing() {
-        String field = "categorical";
-        List<String> values = Arrays.asList("foo", "bar", "foobar", "baz", "farequote");
-        Map<String, Double> valueMap = values.stream().collect(Collectors.toMap(Function.identity(),
-            v -> randomDoubleBetween(0.0, 1.0, false)));
-        String encodedFeatureName = "encoded";
-        TargetMeanEncoding encoding = new TargetMeanEncoding(field, encodedFeatureName, valueMap, randomDouble());
-        testWithMissingField(encoding);
-    }
 }

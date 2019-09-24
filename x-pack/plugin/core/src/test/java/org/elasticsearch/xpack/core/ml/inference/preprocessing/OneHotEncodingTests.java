@@ -67,11 +67,4 @@ public class OneHotEncodingTests extends PreProcessingTests<OneHotEncoding> {
         testProcess(encoding, fieldValues, matchers);
     }
 
-    public void testProcessWithFieldMissing() {
-        String field = "categorical";
-        List<String> values = Arrays.asList("foo", "bar", "foobar", "baz", "farequote");
-        Map<String, String> valueMap = values.stream().collect(Collectors.toMap(Function.identity(), v -> "Column_" + v));
-        OneHotEncoding encoding = new OneHotEncoding(field, valueMap);
-        testWithMissingField(encoding);
-    }
 }

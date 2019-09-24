@@ -35,16 +35,18 @@ public abstract class PreProcessingTests<T extends PreProcessor> extends Abstrac
     }
 
     void testProcess(PreProcessor preProcessor, Map<String, Object> fieldValues, Map<String, Matcher<? super Object>> assertions) {
-        Map<String, Object> resultFields = preProcessor.process(fieldValues);
+        preProcessor.process(fieldValues);
         assertions.forEach((fieldName, matcher) ->
-            assertThat(resultFields.get(fieldName), matcher)
+            assertThat(fieldValues.get(fieldName), matcher)
         );
     }
 
-    void testWithMissingField(PreProcessor preProcessor) {
-        int numFields = randomIntBetween(1, 5);
+    public void testWithMissingField() {
         Map<String, Object> fields = randomFieldValues();
-        assertThat(fields, equalTo(preProcessor.process(fields)));
+        PreProcessor preProcessor = this.createTestInstance();
+        Map<String, Object> fieldsCopy = new HashMap<>(fields);
+        preProcessor.process(fields);
+        assertThat(fieldsCopy, equalTo(fields));
     }
 
     Map<String, Object> randomFieldValues() {

@@ -844,7 +844,6 @@ Response:
         "hits": [
             {
                 "_index": "twitter",
-                "_type": "_doc",
                 "_id": "1",
                 "_score": 1.601195,
                 "_source": {
@@ -902,7 +901,6 @@ Response:
         "hits": [
             {
                 "_index": "twitter",
-                "_type": "_doc",
                 "_id": "1",
                 "_score": 1.601195,
                 "_source": {

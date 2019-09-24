@@ -54,39 +54,36 @@ public class ExplainActionIT extends ESIntegTestCase {
 
         client().prepareIndex("test", "test", "1").setSource("field", "value1").get();
 
-        ExplainResponse response = client().prepareExplain(indexOrAlias(), "test", "1")
+        ExplainResponse response = client().prepareExplain(indexOrAlias(), "1")
                 .setQuery(QueryBuilders.matchAllQuery()).get();
         assertNotNull(response);
         assertFalse(response.isExists()); // not a match b/c not realtime
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getType(), equalTo("test"));
         assertThat(response.getId(), equalTo("1"));
         assertFalse(response.isMatch()); // not a match b/c not realtime
 
         refresh();
-        response = client().prepareExplain(indexOrAlias(), "test", "1")
+        response = client().prepareExplain(indexOrAlias(), "1")
                 .setQuery(QueryBuilders.matchAllQuery()).get();
         assertNotNull(response);
         assertTrue(response.isMatch());
         assertNotNull(response.getExplanation());
         assertTrue(response.getExplanation().isMatch());
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getType(), equalTo("test"));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getExplanation().getValue(), equalTo(1.0f));
 
-        response = client().prepareExplain(indexOrAlias(), "test", "1")
+        response = client().prepareExplain(indexOrAlias(), "1")
                 .setQuery(QueryBuilders.termQuery("field", "value2")).get();
         assertNotNull(response);
         assertTrue(response.isExists());
         assertFalse(response.isMatch());
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getType(), equalTo("test"));
         assertThat(response.getId(), equalTo("1"));
         assertNotNull(response.getExplanation());
         assertFalse(response.getExplanation().isMatch());
 
-        response = client().prepareExplain(indexOrAlias(), "test", "1")
+        response = client().prepareExplain(indexOrAlias(), "1")
                 .setQuery(QueryBuilders.boolQuery()
                                 .must(QueryBuilders.termQuery("field", "value1"))
                                 .must(QueryBuilders.termQuery("field", "value2"))).get();
@@ -94,19 +91,17 @@ public class ExplainActionIT extends ESIntegTestCase {
         assertTrue(response.isExists());
         assertFalse(response.isMatch());
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getType(), equalTo("test"));
         assertThat(response.getId(), equalTo("1"));
         assertNotNull(response.getExplanation());
         assertFalse(response.getExplanation().isMatch());
         assertThat(response.getExplanation().getDetails().length, equalTo(2));
 
-        response = client().prepareExplain(indexOrAlias(), "test", "2")
+        response = client().prepareExplain(indexOrAlias(), "2")
                 .setQuery(QueryBuilders.matchAllQuery()).get();
         assertNotNull(response);
         assertFalse(response.isExists());
         assertFalse(response.isMatch());
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getType(), equalTo("test"));
         assertThat(response.getId(), equalTo("2"));
     }
 
@@ -126,7 +121,7 @@ public class ExplainActionIT extends ESIntegTestCase {
                                 .endObject()).get();
 
         refresh();
-        ExplainResponse response = client().prepareExplain(indexOrAlias(), "test", "1")
+        ExplainResponse response = client().prepareExplain(indexOrAlias(), "1")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setStoredFields("obj1.field1").get();
         assertNotNull(response);
@@ -142,7 +137,7 @@ public class ExplainActionIT extends ESIntegTestCase {
         assertThat(response.getGetResult().isSourceEmpty(), equalTo(true));
 
         refresh();
-        response = client().prepareExplain(indexOrAlias(), "test", "1")
+        response = client().prepareExplain(indexOrAlias(), "1")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setStoredFields("obj1.field1").setFetchSource(true).get();
         assertNotNull(response);
@@ -157,13 +152,13 @@ public class ExplainActionIT extends ESIntegTestCase {
         assertThat(response.getGetResult().getFields().get("obj1.field1").getValue().toString(), equalTo("value1"));
         assertThat(response.getGetResult().isSourceEmpty(), equalTo(false));
 
-        response = client().prepareExplain(indexOrAlias(), "test", "1")
+        response = client().prepareExplain(indexOrAlias(), "1")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setStoredFields("obj1.field1", "obj1.field2").get();
         assertNotNull(response);
         assertTrue(response.isMatch());
-        String v1 = (String) response.getGetResult().field("obj1.field1").getValue();
-        String v2 = (String) response.getGetResult().field("obj1.field2").getValue();
+        String v1 = response.getGetResult().field("obj1.field1").getValue();
+        String v2 = response.getGetResult().field("obj1.field2").getValue();
         assertThat(v1, equalTo("value1"));
         assertThat(v2, equalTo("value2"));
     }
@@ -183,7 +178,7 @@ public class ExplainActionIT extends ESIntegTestCase {
                                 .endObject()).get();
 
         refresh();
-        ExplainResponse response = client().prepareExplain(indexOrAlias(), "test", "1")
+        ExplainResponse response = client().prepareExplain(indexOrAlias(), "1")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setFetchSource("obj1.field1", null).get();
         assertNotNull(response);
@@ -196,7 +191,7 @@ public class ExplainActionIT extends ESIntegTestCase {
         assertThat(response.getGetResult().getSource().size(), equalTo(1));
         assertThat(((Map<String, Object>) response.getGetResult().getSource().get("obj1")).get("field1").toString(), equalTo("value1"));
 
-        response = client().prepareExplain(indexOrAlias(), "test", "1")
+        response = client().prepareExplain(indexOrAlias(), "1")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setFetchSource(null, "obj1.field2").get();
         assertNotNull(response);
@@ -204,7 +199,7 @@ public class ExplainActionIT extends ESIntegTestCase {
         assertThat(((Map<String, Object>) response.getGetResult().getSource().get("obj1")).get("field1").toString(), equalTo("value1"));
     }
 
-    public void testExplainWithFilteredAlias() throws Exception {
+    public void testExplainWithFilteredAlias() {
         assertAcked(prepareCreate("test")
                 .addMapping("test", "field2", "type=text")
                 .addAlias(new Alias("alias1").filter(QueryBuilders.termQuery("field2", "value2"))));
@@ -213,14 +208,14 @@ public class ExplainActionIT extends ESIntegTestCase {
         client().prepareIndex("test", "test", "1").setSource("field1", "value1", "field2", "value1").get();
         refresh();
 
-        ExplainResponse response = client().prepareExplain("alias1", "test", "1")
+        ExplainResponse response = client().prepareExplain("alias1", "1")
                 .setQuery(QueryBuilders.matchAllQuery()).get();
         assertNotNull(response);
         assertTrue(response.isExists());
         assertFalse(response.isMatch());
     }
 
-    public void testExplainWithFilteredAliasFetchSource() throws Exception {
+    public void testExplainWithFilteredAliasFetchSource() {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .addMapping("test", "field2", "type=text")
                 .addAlias(new Alias("alias1").filter(QueryBuilders.termQuery("field2", "value2"))));
@@ -229,20 +224,19 @@ public class ExplainActionIT extends ESIntegTestCase {
         client().prepareIndex("test", "test", "1").setSource("field1", "value1", "field2", "value1").get();
         refresh();
 
-        ExplainResponse response = client().prepareExplain("alias1", "test", "1")
+        ExplainResponse response = client().prepareExplain("alias1", "1")
                 .setQuery(QueryBuilders.matchAllQuery()).setFetchSource(true).get();
 
         assertNotNull(response);
         assertTrue(response.isExists());
         assertFalse(response.isMatch());
         assertThat(response.getIndex(), equalTo("test"));
-        assertThat(response.getType(), equalTo("test"));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getGetResult(), notNullValue());
         assertThat(response.getGetResult().getIndex(), equalTo("test"));
         assertThat(response.getGetResult().getId(), equalTo("1"));
         assertThat(response.getGetResult().getSource(), notNullValue());
-        assertThat((String)response.getGetResult().getSource().get("field1"), equalTo("value1"));
+        assertThat(response.getGetResult().getSource().get("field1"), equalTo("value1"));
     }
 
     public void testExplainDateRangeInQueryString() {
@@ -256,7 +250,7 @@ public class ExplainActionIT extends ESIntegTestCase {
 
         refresh();
 
-        ExplainResponse explainResponse = client().prepareExplain("test", "type", "1")
+        ExplainResponse explainResponse = client().prepareExplain("test", "1")
             .setQuery(queryStringQuery("past:[now-2M/d TO now/d]")).get();
         assertThat(explainResponse.isExists(), equalTo(true));
         assertThat(explainResponse.isMatch(), equalTo(true));

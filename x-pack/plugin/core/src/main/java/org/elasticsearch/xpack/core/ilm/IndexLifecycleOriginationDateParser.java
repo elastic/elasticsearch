@@ -49,7 +49,8 @@ public class IndexLifecycleOriginationDateParser {
             try {
                 return DATE_FORMATTER.parseMillis(dateAsString);
             } catch (ElasticsearchParseException | IllegalArgumentException e) {
-                throw new IllegalArgumentException("index name [" + indexName + "] does not match pattern '" + INDEX_NAME_REGEX + "'");
+                throw new IllegalArgumentException("index name [" + indexName + "] contains date [" + dateAsString + "] which " +
+                    "couldn't be parsed using the 'yyyy.MM.dd' format", e);
             }
         }
 

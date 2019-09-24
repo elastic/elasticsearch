@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="basic"]
-[[dataframe-examples]]
+[[transform-examples]]
 === {transform-cap} examples
 ++++
 <titleabbrev>Examples</titleabbrev>
@@ -12,9 +12,8 @@ These examples demonstrate how to use {transforms} to derive useful
 insights from your data. All the examples use one of the 
 {kibana-ref}/add-sample-data.html[{kib} sample datasets]. For a more detailed, 
 step-by-step example, see 
-<<ecommerce-dataframes,Transforming your data with {dataframes}>>.
+<<ecommerce-dataframes>>.
 
-* <<ecommerce-dataframes>>
 * <<example-best-customers>>
 * <<example-airline>>
 * <<example-clientips>>

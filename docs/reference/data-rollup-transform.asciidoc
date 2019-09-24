@@ -9,7 +9,7 @@
 * <<xpack-rollup,Rolling up your historical data>>
 +
 include::rollup/index.asciidoc[tag=rollup-intro]
-* <<ml-dataframes,Transforming your data>>
+* <<transforms,Transforming your data>>
 +
 include::transform/index.asciidoc[tag=transform-intro]
 

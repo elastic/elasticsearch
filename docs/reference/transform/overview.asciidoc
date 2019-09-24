@@ -1,5 +1,5 @@
 [role="xpack"]
-[[ml-transform-overview]]
+[[transform-overview]]
 === {transform-cap} overview
 ++++
 <titleabbrev>Overview</titleabbrev>

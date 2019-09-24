@@ -1,5 +1,5 @@
 [role="xpack"]
-[[df-api-quickref]]
+[[transform-api-quickref]]
 === API quick reference
 
 All {transform} endpoints have the following base:

@@ -50,7 +50,6 @@ public class MetadataFetchingIT extends ESIntegTestCase {
             .setFetchSource(false)
             .get();
         assertThat(response.getHits().getAt(0).getId(), nullValue());
-        assertThat(response.getHits().getAt(0).getType(),  equalTo("_doc"));
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
 
         response = client()
@@ -58,7 +57,6 @@ public class MetadataFetchingIT extends ESIntegTestCase {
             .storedFields("_none_")
             .get();
         assertThat(response.getHits().getAt(0).getId(), nullValue());
-        assertThat(response.getHits().getAt(0).getType(),  equalTo("_doc"));
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
     }
 
@@ -82,13 +80,11 @@ public class MetadataFetchingIT extends ESIntegTestCase {
             .get();
         assertThat(response.getHits().getTotalHits().value, equalTo(1L));
         assertThat(response.getHits().getAt(0).getId(), nullValue());
-        assertThat(response.getHits().getAt(0).getType(), equalTo("_doc"));
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
         assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
         SearchHits hits = response.getHits().getAt(0).getInnerHits().get("nested");
         assertThat(hits.getTotalHits().value, equalTo(1L));
         assertThat(hits.getAt(0).getId(), nullValue());
-        assertThat(hits.getAt(0).getType(), equalTo("_doc"));
         assertThat(hits.getAt(0).getSourceAsString(), nullValue());
     }
 
@@ -105,7 +101,6 @@ public class MetadataFetchingIT extends ESIntegTestCase {
             .setFetchSource(false)
             .get();
         assertThat(response.getHits().getAt(0).getId(), nullValue());
-        assertThat(response.getHits().getAt(0).getType(),  equalTo("_doc"));
         assertThat(response.getHits().getAt(0).field("_routing"), nullValue());
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
 
@@ -114,7 +109,6 @@ public class MetadataFetchingIT extends ESIntegTestCase {
             .storedFields("_none_")
             .get();
         assertThat(response.getHits().getAt(0).getId(), nullValue());
-        assertThat(response.getHits().getAt(0).getType(),  equalTo("_doc"));
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
     }
 

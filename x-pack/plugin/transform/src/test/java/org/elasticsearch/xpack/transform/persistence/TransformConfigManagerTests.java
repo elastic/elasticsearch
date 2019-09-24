@@ -37,8 +37,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.transform.persistence.TransformInternalIndex.mappings;
 import static org.elasticsearch.xpack.transform.persistence.TransformConfigManager.TO_XCONTENT_PARAMS;
+import static org.elasticsearch.xpack.transform.persistence.TransformInternalIndex.mappings;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -340,13 +340,15 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         assertAsync(listener -> transformConfigManager.putTransformConfiguration(transformConfig, listener), true, null, null);
 
         assertThat(client().get(new GetRequest(oldIndex).id(docId)).actionGet().isExists(), is(true));
-        assertThat(client().get(new GetRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(), is(true));
+        assertThat(client().get(new GetRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(),
+                is(true));
 
         assertAsync(listener -> transformConfigManager.deleteOldTransformConfigurations(transformId, listener), true, null, null);
 
         client().admin().indices().refresh(new RefreshRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)).actionGet();
         assertThat(client().get(new GetRequest(oldIndex).id(docId)).actionGet().isExists(), is(false));
-        assertThat(client().get(new GetRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(), is(true));
+        assertThat(client().get(new GetRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(),
+                is(true));
     }
 
     public void testDeleteOldTransformStoredDocuments() throws Exception {
@@ -377,7 +379,8 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         client().admin().indices().refresh(new RefreshRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)).actionGet();
 
         assertThat(client().get(new GetRequest(oldIndex).id(docId)).actionGet().isExists(), is(true));
-        assertThat(client().get(new GetRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(), is(true));
+        assertThat(client().get(new GetRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(),
+                is(true));
 
         assertAsync(listener -> transformConfigManager.deleteOldTransformStoredDocuments(transformId, listener),
             true,
@@ -386,6 +389,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
 
         client().admin().indices().refresh(new RefreshRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)).actionGet();
         assertThat(client().get(new GetRequest(oldIndex).id(docId)).actionGet().isExists(), is(false));
-        assertThat(client().get(new GetRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(), is(true));
+        assertThat(client().get(new GetRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(),
+                is(true));
     }
 }

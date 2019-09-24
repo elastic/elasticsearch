@@ -5260,7 +5260,7 @@ public class InternalEngineTests extends EngineTestCase {
                 minTranslogGen = engine.getTranslog().getMinFileGeneration();
             }
 
-            store.trimUnsafeCommits(globalCheckpoint.get(), minTranslogGen,config.getIndexSettings().getIndexVersionCreated());
+            store.trimUnsafeCommits(config.getTranslogConfig().getTranslogPath());
             long safeMaxSeqNo =
                 commitMaxSeqNo.stream().filter(s -> s <= globalCheckpoint.get())
                     .reduce((s1, s2) -> s2) // get the last one.

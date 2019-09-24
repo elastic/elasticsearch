@@ -78,7 +78,7 @@ import static org.elasticsearch.painless.WriterConstants.STRING_TYPE;
 /**
  * The root of all Painless trees.  Contains a series of statements.
  */
-public final class SSource extends AStatement {
+public final class SClass extends AStatement {
 
     private final ScriptClassInfo scriptClassInfo;
     private final String name;
@@ -94,7 +94,7 @@ public final class SSource extends AStatement {
     private final List<org.objectweb.asm.commons.Method> getMethods;
     private byte[] bytes;
 
-    public SSource(ScriptClassInfo scriptClassInfo, String name, String sourceText, Printer debugStream,
+    public SClass(ScriptClassInfo scriptClassInfo, String name, String sourceText, Printer debugStream,
             Location location, List<SFunction> functions, List<AStatement> statements) {
         super(location);
         this.scriptClassInfo = Objects.requireNonNull(scriptClassInfo);

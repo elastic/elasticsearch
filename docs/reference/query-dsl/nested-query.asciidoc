@@ -138,11 +138,17 @@ PUT /drivers
             "driver" : {
                 "type" : "nested",
                 "properties" : {
+                    "last_name" : {
+                        "type" : "text"
+                    },
                     "vehicle" : {
                         "type" : "nested",
                         "properties" : {
+                            "make" : {
+                                "type" : "text"
+                            },
                             "model" : {
-                                "type" : "keyword"
+                                "type" : "text"
                             }
                         }
                     }
@@ -153,16 +159,41 @@ PUT /drivers
 }
 ----
 
-Next, index a document to the `drivers` index.
+Next, index some documents to the `drivers` index.
 
 [source,console]
 ----
-PUT /drivers/_doc/1?refresh
+PUT /drivers/_doc/1
 {
   "driver" : {
-        "vehicle" : {
-            "model" : "Canyonero"
-        }
+        "last_name" : "McQueen",
+        "vehicle" : [
+            {
+                "make" : "Powell Motors",
+                "model" : "Canyonero"
+            },
+            {
+                "make" : "Miller-Meteor",
+                "model" : "Ecto-1"
+            }
+        ]
+    }
+}
+
+PUT /drivers/_doc/2?refresh
+{
+  "driver" : {
+        "last_name" : "Hudson",
+        "vehicle" : [
+            {
+                "make" : "Mifune",
+                "model" : "Mach Five"
+            },
+            {
+                "make" : "Miller-Meteor",
+                "model" : "Ecto-1"
+            }
+        ]
     }
 }
 ----
@@ -182,8 +213,11 @@ GET /drivers/_search
                 "nested" : {
                     "path" :  "driver.vehicle",
                     "query" :  {
-                       "match" : {
-                           "driver.vehicle.model" : "Canyonero"
+                        "bool" : {
+                            "must" : [
+                                { "match" : { "driver.vehicle.make" : "Powell Motors" } },
+                                { "match" : { "driver.vehicle.model" : "Canyonero" } }
+                            ]
                         }
                     }
                 }
@@ -199,7 +233,7 @@ The search request returns the following response:
 [source,console-result]
 ----
 {
-  "took" : 75,
+  "took" : 5,
   "timed_out" : false,
   "_shards" : {
     "total" : 1,
@@ -212,22 +246,30 @@ The search request returns the following response:
       "value" : 1,
       "relation" : "eq"
     },
-    "max_score" : 0.2876821,
+    "max_score" : 3.7349272,
     "hits" : [
       {
         "_index" : "drivers",
         "_id" : "1",
-        "_score" : 0.2876821,
+        "_score" : 3.7349272,
         "_source" : {
           "driver" : {
-            "vehicle" : {
-              "model" : "Canyonero"
-            }
+            "last_name" : "McQueen",
+            "vehicle" : [
+              {
+                "make" : "Powell Motors",
+                "model" : "Canyonero"
+              },
+              {
+                "make" : "Miller-Meteor",
+                "model" : "Ecto-1"
+              }
+            ]
           }
-        },
+        }
       }
     ]
   }
 }
 ----
-// TESTRESPONSE[s/"took" : 75/"took": $body.took/]
+// TESTRESPONSE[s/"took" : 5/"took": $body.took/]

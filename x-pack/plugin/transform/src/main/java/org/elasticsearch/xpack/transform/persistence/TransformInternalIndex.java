@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -45,7 +46,7 @@ public final class TransformInternalIndex {
 
     /* Changelog of internal index versions
      *
-     * Please list changes, increase the version if you are 1st in this release cycle
+     * Please list changes, increase the version in @link{TransformInternalIndexConstants} if you are 1st in this release cycle
      *
      * version 1 (7.2): initial
      * version 2 (7.4): cleanup, add config::version, config::create_time, checkpoint::timestamp, checkpoint::time_upper_bound,
@@ -53,17 +54,6 @@ public final class TransformInternalIndex {
      *                  stats::exponential_avg_checkpoint_duration_ms, stats::exponential_avg_documents_indexed,
      *                  stats::exponential_avg_documents_processed
      */
-
-    // constants for the index
-    public static final String INDEX_VERSION = "2";
-    public static final String INDEX_PATTERN = ".data-frame-internal-";
-    public static final String LATEST_INDEX_VERSIONED_NAME = INDEX_PATTERN + INDEX_VERSION;
-    public static final String LATEST_INDEX_NAME = LATEST_INDEX_VERSIONED_NAME;
-    public static final String INDEX_NAME_PATTERN = INDEX_PATTERN + "*";
-
-    public static final String AUDIT_TEMPLATE_VERSION = "1";
-    public static final String AUDIT_INDEX_PREFIX = ".data-frame-notifications-";
-    public static final String AUDIT_INDEX = AUDIT_INDEX_PREFIX + AUDIT_TEMPLATE_VERSION;
 
     // constants for mappings
     public static final String DYNAMIC = "dynamic";
@@ -82,8 +72,8 @@ public final class TransformInternalIndex {
     public static final String KEYWORD = "keyword";
 
     public static IndexTemplateMetaData getIndexTemplateMetaData() throws IOException {
-        IndexTemplateMetaData transformTemplate = IndexTemplateMetaData.builder(LATEST_INDEX_VERSIONED_NAME)
-                .patterns(Collections.singletonList(LATEST_INDEX_VERSIONED_NAME))
+        IndexTemplateMetaData transformTemplate = IndexTemplateMetaData.builder(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
+                .patterns(Collections.singletonList(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME))
                 .version(Version.CURRENT.id)
                 .settings(Settings.builder()
                         // the configurations are expected to be small
@@ -95,8 +85,8 @@ public final class TransformInternalIndex {
     }
 
     public static IndexTemplateMetaData getAuditIndexTemplateMetaData() throws IOException {
-        IndexTemplateMetaData transformTemplate = IndexTemplateMetaData.builder(AUDIT_INDEX)
-            .patterns(Collections.singletonList(AUDIT_INDEX_PREFIX + "*"))
+        IndexTemplateMetaData transformTemplate = IndexTemplateMetaData.builder(TransformInternalIndexConstants.AUDIT_INDEX)
+            .patterns(Collections.singletonList(TransformInternalIndexConstants.AUDIT_INDEX_PREFIX + "*"))
             .version(Version.CURRENT.id)
             .settings(Settings.builder()
                 // the audits are expected to be small
@@ -318,7 +308,7 @@ public final class TransformInternalIndex {
     }
 
     public static boolean haveLatestVersionedIndexTemplate(ClusterState state) {
-        return state.getMetaData().getTemplates().containsKey(LATEST_INDEX_VERSIONED_NAME);
+        return state.getMetaData().getTemplates().containsKey(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
     }
 
     /**
@@ -344,7 +334,7 @@ public final class TransformInternalIndex {
         try {
             IndexTemplateMetaData indexTemplateMetaData = getIndexTemplateMetaData();
             BytesReference jsonMappings = new BytesArray(indexTemplateMetaData.mappings().get(SINGLE_MAPPING_NAME).uncompressed());
-            PutIndexTemplateRequest request = new PutIndexTemplateRequest(LATEST_INDEX_VERSIONED_NAME)
+            PutIndexTemplateRequest request = new PutIndexTemplateRequest(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
                 .patterns(indexTemplateMetaData.patterns())
                 .version(indexTemplateMetaData.version())
                 .settings(indexTemplateMetaData.settings())

@@ -139,6 +139,7 @@ import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchAction;
@@ -1140,9 +1141,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
-        assertOnlyReadAllowed(role, ".data-frame-notifications-1");
+        assertOnlyReadAllowed(role, TransformInternalIndexConstants.AUDIT_INDEX);
         assertNoAccessAllowed(role, "foo");
-        assertNoAccessAllowed(role, ".data-frame-internal-1"); // internal use only
+        assertNoAccessAllowed(role, TransformInternalIndexConstants.LATEST_INDEX_NAME); // internal use only
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
 
@@ -1179,9 +1180,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
-        assertOnlyReadAllowed(role, ".data-frame-notifications-1");
+        assertOnlyReadAllowed(role, TransformInternalIndexConstants.AUDIT_INDEX);
         assertNoAccessAllowed(role, "foo");
-        assertNoAccessAllowed(role, ".data-frame-internal-1");
+        assertNoAccessAllowed(role, TransformInternalIndexConstants.LATEST_INDEX_NAME);
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
 

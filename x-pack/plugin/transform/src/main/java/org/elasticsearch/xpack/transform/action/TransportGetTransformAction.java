@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
-import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 
 import static org.elasticsearch.xpack.core.transform.TransformField.INDEX_DOC_TYPE;
 
@@ -58,7 +58,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
 
     @Override
     protected String[] getIndices() {
-        return new String[]{TransformInternalIndex.INDEX_NAME_PATTERN};
+        return new String[]{TransformInternalIndexConstants.INDEX_NAME_PATTERN};
     }
 
     @Override

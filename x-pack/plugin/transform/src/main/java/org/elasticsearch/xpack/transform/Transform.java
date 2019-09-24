@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.action.TransportDeleteTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportGetTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportGetTransformStatsAction;
@@ -183,12 +184,12 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
         return templates -> {
             try {
-                templates.put(TransformInternalIndex.LATEST_INDEX_VERSIONED_NAME, TransformInternalIndex.getIndexTemplateMetaData());
+                templates.put(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME, TransformInternalIndex.getIndexTemplateMetaData());
             } catch (IOException e) {
                 logger.error("Error creating data frame index template", e);
             }
             try {
-                templates.put(TransformInternalIndex.AUDIT_INDEX, TransformInternalIndex.getAuditIndexTemplateMetaData());
+                templates.put(TransformInternalIndexConstants.AUDIT_INDEX, TransformInternalIndex.getAuditIndexTemplateMetaData());
             } catch (IOException e) {
                 logger.warn("Error creating data frame audit index", e);
             }

@@ -56,9 +56,11 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertEquals;
 
 public class LeaderCheckerTests extends ESTestCase {
 
@@ -220,7 +222,7 @@ public class LeaderCheckerTests extends ESTestCase {
                     return;
                 }
                 assertThat(action, equalTo(LEADER_CHECK_ACTION_NAME));
-                assertTrue(node.equals(leader));
+                assertEquals(node, leader);
                 final Response response = responseHolder[0];
 
                 deterministicTaskQueue.scheduleNow(new Runnable() {
@@ -340,7 +342,7 @@ public class LeaderCheckerTests extends ESTestCase {
             assertFalse(handler.successfulResponseReceived);
             assertThat(handler.transportException.getRootCause(), instanceOf(CoordinationStateRejectedException.class));
             CoordinationStateRejectedException cause = (CoordinationStateRejectedException) handler.transportException.getRootCause();
-            assertThat(cause.getMessage(), equalTo("leader check from unknown node"));
+            assertThat(cause.getMessage(), is("rejecting leader check since [" + otherNode + "] has been removed from the cluster"));
         }
 
         {
@@ -364,7 +366,7 @@ public class LeaderCheckerTests extends ESTestCase {
             assertFalse(handler.successfulResponseReceived);
             assertThat(handler.transportException.getRootCause(), instanceOf(CoordinationStateRejectedException.class));
             CoordinationStateRejectedException cause = (CoordinationStateRejectedException) handler.transportException.getRootCause();
-            assertThat(cause.getMessage(), equalTo("non-leader rejecting leader check"));
+            assertThat(cause.getMessage(), is("rejecting leader check from [" + otherNode + "] sent to a node that is not the master"));
         }
     }
 

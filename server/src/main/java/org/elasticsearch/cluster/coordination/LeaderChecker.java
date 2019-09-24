@@ -157,7 +157,7 @@ public class LeaderChecker {
         if (discoveryNodes.isLocalNodeElectedMaster() == false) {
             logger.debug("rejecting leader check on non-master {}", request);
             throw new CoordinationStateRejectedException(
-                "rejecting leader check from [" + request.getSender() + "] since this node is not the master");
+                "rejecting leader check from [" + request.getSender() + "] sent to a node that is not the master");
         } else if (discoveryNodes.nodeExists(request.getSender()) == false) {
             logger.debug("rejecting leader check from removed node: {}", request);
             throw new CoordinationStateRejectedException(

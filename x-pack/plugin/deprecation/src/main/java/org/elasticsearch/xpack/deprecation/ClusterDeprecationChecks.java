@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.ingest.IngestService;
@@ -105,12 +104,15 @@ public class ClusterDeprecationChecks {
         state.getMetaData().getTemplates().forEach((templateCursor) -> {
             String templateName = templateCursor.key;
             templateCursor.value.getMappings().forEach((mappingCursor) -> {
-                Map<String, Object> map = XContentHelper.convertToMap(mappingCursor.value.compressedReference(), false, XContentType.JSON)
-                        .v2();
-                // map should contain only type name at this level
-                assert map.size() == 1;
-                String type = map.keySet().iterator().next();
-                if (mapContainsFieldNamesDisabled((Map<?,?>) map.get(type))) {
+                String type = mappingCursor.key;
+                // there should be the type name at this level, but there was a bug where mappings could be stored without a type (#45120)
+                // to make sure, we try to detect this like we try to do in MappingMetaData#sourceAsMap()
+                Map<String, Object> mapping = XContentHelper.convertToMap(mappingCursor.value.compressedReference(), true).v2();
+                if (mapping.size() == 1 && mapping.containsKey(type)) {
+                    // the type name is the root value, reduce it
+                    mapping = (Map<String, Object>) mapping.get(type);
+                }
+                if (mapContainsFieldNamesDisabled(mapping)) {
                     templatesContainingFieldNames.add(templateName);
                 }
             });

@@ -192,6 +192,21 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         }
         badMappingBuilder.endObject();
         assertFieldNamesEnabledTemplate(badMappingBuilder, true);
+
+        // however, there was a bug where mappings could be stored without a type (#45120)
+        // so we also should try to check these cases
+
+        XContentBuilder badMappingWithoutTypeBuilder = jsonBuilder();
+        badMappingWithoutTypeBuilder.startObject();
+        {
+            badMappingWithoutTypeBuilder.startObject(FieldNamesFieldMapper.NAME);
+            {
+                badMappingWithoutTypeBuilder.field("enabled", randomBoolean());
+            }
+            badMappingWithoutTypeBuilder.endObject();
+        }
+        badMappingWithoutTypeBuilder.endObject();
+        assertFieldNamesEnabledTemplate(badMappingWithoutTypeBuilder, true);
     }
 
     private void assertFieldNamesEnabledTemplate(XContentBuilder templateBuilder, boolean expectIssue) throws IOException {

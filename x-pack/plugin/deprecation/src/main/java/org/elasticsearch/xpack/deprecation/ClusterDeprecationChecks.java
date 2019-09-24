@@ -99,6 +99,7 @@ public class ClusterDeprecationChecks {
      * Check templates that use `_field_names` explicitly, which was deprecated in https://github.com/elastic/elasticsearch/pull/42854
      * and will throw an error on new indices in 8.0
      */
+    @SuppressWarnings("unchecked")
     static DeprecationIssue checkTemplatesWithFieldNamesDisabled(ClusterState state) {
         Set<String> templatesContainingFieldNames = new HashSet<>();
         state.getMetaData().getTemplates().forEach((templateCursor) -> {

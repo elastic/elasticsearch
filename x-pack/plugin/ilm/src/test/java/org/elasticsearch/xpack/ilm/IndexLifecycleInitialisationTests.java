@@ -265,6 +265,8 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         // start node
         logger.info("Starting server1");
         internalCluster().startNode();
+        logger.info("Starting server2");
+        internalCluster().startNode();
         logger.info("Creating lifecycle [test_lifecycle]");
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
         PutLifecycleAction.Response putLifecycleResponse = client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get();

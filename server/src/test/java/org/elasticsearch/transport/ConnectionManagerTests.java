@@ -152,7 +152,6 @@ public class ConnectionManagerTests extends ESTestCase {
         };
 
         List<Thread> threads = new ArrayList<>();
-        AtomicReference<AssertionError> failure = new AtomicReference<>();
         AtomicInteger nodeConnectedCount = new AtomicInteger();
         AtomicInteger nodeFailureCount = new AtomicInteger();
 
@@ -169,7 +168,7 @@ public class ConnectionManagerTests extends ESTestCase {
                     ActionListener.wrap(c -> {
                         nodeConnectedCount.incrementAndGet();
                         if (connectionManager.nodeConnected(node) == false) {
-                            failure.set(new AssertionError("Expected node to be connected"));
+                            throw new AssertionError("Expected node to be connected");
                         }
                         assert latch.getCount() == 1;
                         latch.countDown();
@@ -196,11 +195,6 @@ public class ConnectionManagerTests extends ESTestCase {
                 throw new IllegalStateException(e);
             }
         });
-
-
-        if (failure.get() != null) {
-            throw failure.get();
-        }
 
         assertEquals(10, nodeConnectedCount.get() + nodeFailureCount.get());
     }

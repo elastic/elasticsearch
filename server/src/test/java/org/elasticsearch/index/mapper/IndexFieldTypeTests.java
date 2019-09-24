@@ -27,8 +27,11 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryShardException;
 
 import java.util.function.Predicate;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class IndexFieldTypeTests extends FieldTypeTestCase {
 
@@ -46,15 +49,6 @@ public class IndexFieldTypeTests extends FieldTypeTestCase {
         assertEquals(new MatchNoDocsQuery(), ft.prefixQuery("other_ind", null, createContext()));
     }
 
-    public void testRegexpQuery() {
-        MappedFieldType ft = createDefaultFieldType();
-        ft.setName("field");
-        ft.setIndexOptions(IndexOptions.DOCS);
-
-        assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("ind.x", 0, 10, null, createContext()));
-        assertEquals(new MatchNoDocsQuery(), ft.regexpQuery("ind?x", 0, 10, null, createContext()));
-    }
-
     public void testWildcardQuery() {
         MappedFieldType ft = createDefaultFieldType();
         ft.setName("field");
@@ -62,6 +56,16 @@ public class IndexFieldTypeTests extends FieldTypeTestCase {
 
         assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("ind*x", null, createContext()));
         assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("other_ind*x", null, createContext()));
+    }
+
+    public void testRegexpQuery() {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+
+        QueryShardException e = expectThrows(QueryShardException.class, () ->
+            assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("ind.x", 0, 10, null, createContext())));
+        assertThat(e.getMessage(), containsString("Can only use regexp queries on keyword and text fields"));
     }
 
     private QueryShardContext createContext() {

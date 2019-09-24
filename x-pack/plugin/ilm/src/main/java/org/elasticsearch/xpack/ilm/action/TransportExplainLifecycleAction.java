@@ -109,7 +109,7 @@ public class TransportExplainLifecycleAction
                 // If this is requesting only errors, only include indices in the error step or which are using a nonexistent policy
                 if (request.onlyErrors() == false
                     || (ErrorStep.NAME.equals(lifecycleState.getStep()) || indexLifecycleService.policyExists(policyName) == false)) {
-                    Long originationDate = idxMetadata.getSettings().getAsLong(LIFECYCLE_ORIGINATION_DATE, -1L);
+                    Long originationDate = idxSettings.getAsLong(LIFECYCLE_ORIGINATION_DATE, -1L);
                     indexResponse = IndexLifecycleExplainResponse.newManagedIndexResponse(index, policyName,
                         originationDate != -1L ? originationDate : lifecycleState.getLifecycleDate(),
                         lifecycleState.getPhase(),

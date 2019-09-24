@@ -46,7 +46,7 @@ needed:
 
 . A collection of documents you want to evaluate your query performance against, 
   usually one or more indices.
-. a collection of typical search requests that users enter into your system.
+. A collection of typical search requests that users enter into your system.
 . a set of document ratings that judge the documents relevance with respect to a 
   search request.
   

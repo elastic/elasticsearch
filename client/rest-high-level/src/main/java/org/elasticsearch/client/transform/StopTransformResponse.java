@@ -40,7 +40,7 @@ public class StopTransformResponse extends AcknowledgedTasksResponse {
     }
 
     public StopTransformResponse(boolean acknowledged, @Nullable List<TaskOperationFailure> taskFailures,
-                                          @Nullable List<? extends ElasticsearchException> nodeFailures) {
+                                 @Nullable List<? extends ElasticsearchException> nodeFailures) {
         super(acknowledged, taskFailures, nodeFailures);
     }
 

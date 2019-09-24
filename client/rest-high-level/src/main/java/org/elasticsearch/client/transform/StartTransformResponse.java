@@ -41,7 +41,7 @@ public class StartTransformResponse extends AcknowledgedTasksResponse {
     }
 
     public StartTransformResponse(boolean acknowledged, @Nullable List<TaskOperationFailure> taskFailures,
-                                          @Nullable List<? extends ElasticsearchException> nodeFailures) {
+                                  @Nullable List<? extends ElasticsearchException> nodeFailures) {
         super(acknowledged, taskFailures, nodeFailures);
     }
 

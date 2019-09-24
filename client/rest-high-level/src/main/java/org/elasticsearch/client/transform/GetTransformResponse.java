@@ -64,8 +64,8 @@ public class GetTransformResponse {
     private InvalidTransforms invalidTransforms;
 
     public GetTransformResponse(List<TransformConfig> transformConfigurations,
-                                         int count,
-                                         @Nullable InvalidTransforms invalidTransforms) {
+                                int count,
+                                @Nullable InvalidTransforms invalidTransforms) {
         this.transformConfigurations = transformConfigurations;
         this.count = count;
         this.invalidTransforms = invalidTransforms;

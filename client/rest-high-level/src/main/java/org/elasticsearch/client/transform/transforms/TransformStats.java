@@ -68,7 +68,7 @@ public class TransformStats {
     private final TransformCheckpointingInfo checkpointingInfo;
 
     public TransformStats(String id, State state, String reason, NodeAttributes node, TransformIndexerStats stats,
-                                   TransformCheckpointingInfo checkpointingInfo) {
+                          TransformCheckpointingInfo checkpointingInfo) {
         this.id = id;
         this.state = state;
         this.reason = reason;

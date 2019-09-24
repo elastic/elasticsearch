@@ -68,8 +68,8 @@ public class TransformCheckpointStats {
     }
 
     public TransformCheckpointStats(final long checkpoint, final TransformIndexerPosition position,
-                                             final TransformProgress checkpointProgress, final long timestampMillis,
-                                             final long timeUpperBoundMillis) {
+                                    final TransformProgress checkpointProgress, final long timestampMillis,
+                                    final long timeUpperBoundMillis) {
         this.checkpoint = checkpoint;
         this.position = position;
         this.checkpointProgress = checkpointProgress;

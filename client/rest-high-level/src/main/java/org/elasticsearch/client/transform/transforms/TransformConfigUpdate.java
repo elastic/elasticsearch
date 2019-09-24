@@ -75,10 +75,10 @@ public class TransformConfigUpdate implements ToXContentObject {
     private final String description;
 
     public TransformConfigUpdate(final SourceConfig source,
-                                          final DestConfig dest,
-                                          final TimeValue frequency,
-                                          final SyncConfig syncConfig,
-                                          final String description){
+                                 final DestConfig dest,
+                                 final TimeValue frequency,
+                                 final SyncConfig syncConfig,
+                                 final String description) {
         this.source = source;
         this.dest = dest;
         this.frequency = frequency;

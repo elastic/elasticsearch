@@ -68,9 +68,9 @@ public class TransformCheckpointingInfo {
     }
 
     public TransformCheckpointingInfo(TransformCheckpointStats last,
-                                               TransformCheckpointStats next,
-                                               long operationsBehind,
-                                               Instant changesLastDetectedAt) {
+                                      TransformCheckpointStats next,
+                                      long operationsBehind,
+                                      Instant changesLastDetectedAt) {
         this.last = Objects.requireNonNull(last);
         this.next = Objects.requireNonNull(next);
         this.operationsBehind = operationsBehind;

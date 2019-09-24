@@ -68,10 +68,10 @@ public class TransformIndexerStats extends IndexerJobStats {
     private final double expAvgDocumentsProcessed;
 
     public TransformIndexerStats(long numPages, long numInputDocuments, long numOuputDocuments,
-                                          long numInvocations, long indexTime, long searchTime,
-                                          long indexTotal, long searchTotal, long indexFailures, long searchFailures,
-                                          Double expAvgCheckpointDurationMs, Double expAvgDocumentsIndexed,
-                                          Double expAvgDocumentsProcessed) {
+                                 long numInvocations, long indexTime, long searchTime,
+                                 long indexTotal, long searchTotal, long indexFailures, long searchFailures,
+                                 Double expAvgCheckpointDurationMs, Double expAvgDocumentsIndexed,
+                                 Double expAvgDocumentsProcessed) {
         super(numPages, numInputDocuments, numOuputDocuments, numInvocations, indexTime, searchTime,
                 indexTotal, searchTotal, indexFailures, searchFailures);
         this.expAvgCheckpointDurationMs = expAvgCheckpointDurationMs == null ? 0.0 : expAvgCheckpointDurationMs;

@@ -27,11 +27,11 @@ import org.elasticsearch.client.transform.StartTransformResponse;
 import org.elasticsearch.client.transform.StopTransformRequest;
 import org.elasticsearch.client.transform.StopTransformResponse;
 import org.elasticsearch.client.transform.UpdateTransformRequest;
-import org.elasticsearch.client.transform.transforms.TransformConfig;
-import org.elasticsearch.client.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.client.transform.transforms.DestConfig;
 import org.elasticsearch.client.transform.transforms.QueryConfig;
 import org.elasticsearch.client.transform.transforms.SourceConfig;
+import org.elasticsearch.client.transform.transforms.TransformConfig;
+import org.elasticsearch.client.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.client.transform.transforms.pivot.AggregationConfig;
 import org.elasticsearch.client.transform.transforms.pivot.DateHistogramGroupSource;
 import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
@@ -196,19 +196,19 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
     }
 
     protected TransformConfig createTransformConfig(String id,
-                                                             Map<String, SingleGroupSource> groups,
-                                                             AggregatorFactories.Builder aggregations,
-                                                             String destinationIndex,
-                                                             String... sourceIndices) throws Exception {
+                                                    Map<String, SingleGroupSource> groups,
+                                                    AggregatorFactories.Builder aggregations,
+                                                    String destinationIndex,
+                                                    String... sourceIndices) throws Exception {
         return createTransformConfig(id, groups, aggregations, destinationIndex, QueryBuilders.matchAllQuery(), sourceIndices);
     }
 
     protected TransformConfig.Builder createTransformConfigBuilder(String id,
-                                                                            Map<String, SingleGroupSource> groups,
-                                                                            AggregatorFactories.Builder aggregations,
-                                                                            String destinationIndex,
-                                                                            QueryBuilder queryBuilder,
-                                                                            String... sourceIndices) throws Exception {
+                                                                   Map<String, SingleGroupSource> groups,
+                                                                   AggregatorFactories.Builder aggregations,
+                                                                   String destinationIndex,
+                                                                   QueryBuilder queryBuilder,
+                                                                   String... sourceIndices) throws Exception {
         return TransformConfig.builder()
             .setId(id)
             .setSource(SourceConfig.builder().setIndex(sourceIndices).setQueryConfig(createQueryConfig(queryBuilder)).build())
@@ -219,11 +219,11 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
     }
 
     protected TransformConfig createTransformConfig(String id,
-                                                             Map<String, SingleGroupSource> groups,
-                                                             AggregatorFactories.Builder aggregations,
-                                                             String destinationIndex,
-                                                             QueryBuilder queryBuilder,
-                                                             String... sourceIndices) throws Exception {
+                                                    Map<String, SingleGroupSource> groups,
+                                                    AggregatorFactories.Builder aggregations,
+                                                    String destinationIndex,
+                                                    QueryBuilder queryBuilder,
+                                                    String... sourceIndices) throws Exception {
         return createTransformConfigBuilder(id, groups, aggregations, destinationIndex, queryBuilder, sourceIndices).build();
     }
 

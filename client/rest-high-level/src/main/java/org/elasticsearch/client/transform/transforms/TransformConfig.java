@@ -129,14 +129,14 @@ public class TransformConfig implements ToXContentObject {
     }
 
     TransformConfig(final String id,
-                             final SourceConfig source,
-                             final DestConfig dest,
-                             final TimeValue frequency,
-                             final SyncConfig syncConfig,
-                             final PivotConfig pivotConfig,
-                             final String description,
-                             final Instant createTime,
-                             final String version) {
+                    final SourceConfig source,
+                    final DestConfig dest,
+                    final TimeValue frequency,
+                    final SyncConfig syncConfig,
+                    final PivotConfig pivotConfig,
+                    final String description,
+                    final Instant createTime,
+                    final String version) {
         this.id = id;
         this.source = source;
         this.dest = dest;

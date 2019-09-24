@@ -60,10 +60,10 @@ public class TransformProgress {
     private final long documentsIndexed;
 
     public TransformProgress(Long totalDocs,
-                                      Long remainingDocs,
-                                      Double percentComplete,
-                                      Long documentsProcessed,
-                                      Long documentsIndexed) {
+                             Long remainingDocs,
+                             Double percentComplete,
+                             Long documentsProcessed,
+                             Long documentsIndexed) {
         this.totalDocs = totalDocs;
         this.remainingDocs = remainingDocs == null ? totalDocs : remainingDocs;
         this.percentComplete = percentComplete;

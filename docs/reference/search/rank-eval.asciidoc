@@ -156,7 +156,7 @@ have to be repeated all the time in the `requests` section this way. In typical
 search systems where user inputs usually get filled into a small set of query 
 templates, this helps making the evaluation request more succinct.
 
-[source,console]
+[source,js]
 --------------------------------
 GET /my_index/_rank_eval
 { 

@@ -27,14 +27,10 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
@@ -62,10 +58,10 @@ public class BulkProcessorIT extends ESIntegTestCase {
 
         int numDocs = randomIntBetween(10, 100);
         try (BulkProcessor processor = BulkProcessor.builder(client(), listener)
-                //let's make sure that the bulk action limit trips, one single execution will index all the documents
-                .setConcurrentRequests(randomIntBetween(0, 1)).setBulkActions(numDocs)
-                .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
-                .build()) {
+            //let's make sure that the bulk action limit trips, one single execution will index all the documents
+            .setConcurrentRequests(randomIntBetween(0, 1)).setBulkActions(numDocs)
+            .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+            .build()) {
 
             MultiGetRequestBuilder multiGetRequestBuilder = indexDocs(client(), processor, numDocs);
 
@@ -86,9 +82,9 @@ public class BulkProcessorIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(10, 100);
 
         try (BulkProcessor processor = BulkProcessor.builder(client(), listener)
-                //let's make sure that this bulk won't be automatically flushed
-                .setConcurrentRequests(randomIntBetween(0, 10)).setBulkActions(numDocs + randomIntBetween(1, 100))
-                .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB)).build()) {
+            //let's make sure that this bulk won't be automatically flushed
+            .setConcurrentRequests(randomIntBetween(0, 10)).setBulkActions(numDocs + randomIntBetween(1, 100))
+            .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB)).build()) {
 
             MultiGetRequestBuilder multiGetRequestBuilder = indexDocs(client(), processor, numDocs);
 
@@ -121,9 +117,9 @@ public class BulkProcessorIT extends ESIntegTestCase {
         MultiGetRequestBuilder multiGetRequestBuilder;
 
         try (BulkProcessor processor = BulkProcessor.builder(client(), listener)
-                .setConcurrentRequests(concurrentRequests).setBulkActions(bulkActions)
-                //set interval and size to high values
-                .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB)).build()) {
+            .setConcurrentRequests(concurrentRequests).setBulkActions(bulkActions)
+            //set interval and size to high values
+            .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB)).build()) {
 
             multiGetRequestBuilder = indexDocs(client(), processor, numDocs);
 
@@ -146,7 +142,6 @@ public class BulkProcessorIT extends ESIntegTestCase {
         for (BulkItemResponse bulkItemResponse : listener.bulkItems) {
             assertThat(bulkItemResponse.getFailureMessage(), bulkItemResponse.isFailed(), equalTo(false));
             assertThat(bulkItemResponse.getIndex(), equalTo("test"));
-            assertThat(bulkItemResponse.getType(), equalTo("test"));
             //with concurrent requests > 1 we can't rely on the order of the bulk requests
             assertThat(Integer.valueOf(bulkItemResponse.getId()), both(greaterThan(0)).and(lessThanOrEqualTo(numDocs)));
             //we do want to check that we don't get duplicate ids back
@@ -161,11 +156,11 @@ public class BulkProcessorIT extends ESIntegTestCase {
 
         int numDocs = randomIntBetween(10, 100);
         BulkProcessor processor = BulkProcessor.builder(client(), listener)
-                //let's make sure that the bulk action limit trips, one single execution will index all the documents
-                .setConcurrentRequests(randomIntBetween(0, 1)).setBulkActions(numDocs)
-                .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(randomIntBetween(1, 10),
-                        RandomPicks.randomFrom(random(), ByteSizeUnit.values())))
-                .build();
+            //let's make sure that the bulk action limit trips, one single execution will index all the documents
+            .setConcurrentRequests(randomIntBetween(0, 1)).setBulkActions(numDocs)
+            .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(randomIntBetween(1, 10),
+                RandomPicks.randomFrom(random(), ByteSizeUnit.values())))
+            .build();
 
         MultiGetRequestBuilder multiGetRequestBuilder = indexDocs(client(), processor, numDocs);
         assertThat(processor.isOpen(), is(true));
@@ -189,7 +184,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
     public void testBulkProcessorConcurrentRequestsReadOnlyIndex() throws Exception {
         createIndex("test-ro");
         assertAcked(client().admin().indices().prepareUpdateSettings("test-ro")
-                .setSettings(Settings.builder().put(IndexMetaData.SETTING_BLOCKS_WRITE, true)));
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_BLOCKS_WRITE, true)));
         ensureGreen();
 
         int bulkActions = randomIntBetween(10, 100);
@@ -208,9 +203,9 @@ public class BulkProcessorIT extends ESIntegTestCase {
         BulkProcessorTestListener listener = new BulkProcessorTestListener(latch, closeLatch);
 
         try (BulkProcessor processor = BulkProcessor.builder(client(), listener)
-                .setConcurrentRequests(concurrentRequests).setBulkActions(bulkActions)
-                        //set interval and size to high values
-                .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB)).build()) {
+            .setConcurrentRequests(concurrentRequests).setBulkActions(bulkActions)
+            //set interval and size to high values
+            .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB)).build()) {
 
             for (int i = 1; i <= numDocs; i++) {
                 if (randomBoolean()) {
@@ -237,7 +232,6 @@ public class BulkProcessorIT extends ESIntegTestCase {
         Set<String> readOnlyIds = new HashSet<>();
         for (BulkItemResponse bulkItemResponse : listener.bulkItems) {
             assertThat(bulkItemResponse.getIndex(), either(equalTo("test")).or(equalTo("test-ro")));
-            assertThat(bulkItemResponse.getType(), equalTo("test"));
             if (bulkItemResponse.getIndex().equals("test")) {
                 assertThat(bulkItemResponse.isFailed(), equalTo(false));
                 //with concurrent requests > 1 we can't rely on the order of the bulk requests
@@ -259,15 +253,8 @@ public class BulkProcessorIT extends ESIntegTestCase {
     private static MultiGetRequestBuilder indexDocs(Client client, BulkProcessor processor, int numDocs) throws Exception {
         MultiGetRequestBuilder multiGetRequestBuilder = client.prepareMultiGet();
         for (int i = 1; i <= numDocs; i++) {
-            if (randomBoolean()) {
-                processor.add(new IndexRequest("test", "test", Integer.toString(i))
-                    .source(Requests.INDEX_CONTENT_TYPE, "field", randomRealisticUnicodeOfLengthBetween(1, 30)));
-            } else {
-                final String source = "{ \"index\":{\"_index\":\"test\",\"_type\":\"test\",\"_id\":\"" + Integer.toString(i) + "\"} }\n"
-                    + Strings.toString(JsonXContent.contentBuilder()
-                        .startObject().field("field", randomRealisticUnicodeOfLengthBetween(1, 30)).endObject()) + "\n";
-                processor.add(new BytesArray(source), null, null, XContentType.JSON);
-            }
+            processor.add(new IndexRequest("test", "test", Integer.toString(i))
+                .source(Requests.INDEX_CONTENT_TYPE, "field", randomRealisticUnicodeOfLengthBetween(1, 30)));
             multiGetRequestBuilder.add("test", Integer.toString(i));
         }
         return multiGetRequestBuilder;
@@ -278,7 +265,6 @@ public class BulkProcessorIT extends ESIntegTestCase {
         int i = 1;
         for (BulkItemResponse bulkItemResponse : bulkItemResponses) {
             assertThat(bulkItemResponse.getIndex(), equalTo("test"));
-            assertThat(bulkItemResponse.getType(), equalTo("test"));
             assertThat(bulkItemResponse.getId(), equalTo(Integer.toString(i++)));
             assertThat("item " + i + " failed with cause: " + bulkItemResponse.getFailureMessage(),
                 bulkItemResponse.isFailed(), equalTo(false));

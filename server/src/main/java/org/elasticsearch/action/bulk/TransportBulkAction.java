@@ -378,7 +378,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private boolean setResponseFailureIfIndexMatches(AtomicArray<BulkItemResponse> responses, int idx, DocWriteRequest<?> request,
                                                      String index, Exception e) {
         if (index.equals(request.index())) {
-            responses.set(idx, new BulkItemResponse(idx, request.opType(), new BulkItemResponse.Failure(request.index(), request.type(),
+            responses.set(idx, new BulkItemResponse(idx, request.opType(), new BulkItemResponse.Failure(request.index(),
                 request.id(), e)));
             return true;
         }
@@ -455,7 +455,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         default: throw new AssertionError("request type not supported: [" + docWriteRequest.opType() + "]");
                     }
                 } catch (ElasticsearchParseException | IllegalArgumentException | RoutingMissingException e) {
-                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(concreteIndex.getName(), docWriteRequest.type(),
+                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(concreteIndex.getName(),
                         docWriteRequest.id(), e);
                     BulkItemResponse bulkItemResponse = new BulkItemResponse(i, docWriteRequest.opType(), failure);
                     responses.set(i, bulkItemResponse);
@@ -518,7 +518,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
                             DocWriteRequest<?> docWriteRequest = request.request();
                             responses.set(request.id(), new BulkItemResponse(request.id(), docWriteRequest.opType(),
-                                    new BulkItemResponse.Failure(indexName, docWriteRequest.type(), docWriteRequest.id(), e)));
+                                    new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e)));
                         }
                         if (counter.decrementAndGet() == 0) {
                             finishHim();
@@ -598,7 +598,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         private void addFailure(DocWriteRequest<?> request, int idx, Exception unavailableException) {
-            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(request.index(), request.type(), request.id(),
+            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(request.index(), request.id(),
                     unavailableException);
             BulkItemResponse bulkItemResponse = new BulkItemResponse(idx, request.opType(), failure);
             responses.set(idx, bulkItemResponse);
@@ -757,7 +757,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             // 2) Add a bulk item failure for this request
             // 3) Continue with the next request in the bulk.
             failedSlots.set(currentSlot);
-            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(),
+            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexRequest.index(),
                 indexRequest.id(), e);
             itemResponses.add(new BulkItemResponse(currentSlot, indexRequest.opType(), failure));
         }

@@ -62,7 +62,7 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
 
     private List<Failure> randomIndexingFailures() {
         return usually() ? emptyList()
-                : singletonList(new Failure(randomSimpleString(random()), randomSimpleString(random()),
+                : singletonList(new Failure(randomSimpleString(random()),
                         randomSimpleString(random()), new IllegalArgumentException("test")));
     }
 
@@ -91,7 +91,6 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
             Failure expectedFailure = expected.getBulkFailures().get(i);
             Failure actualFailure = actual.getBulkFailures().get(i);
             assertEquals(expectedFailure.getIndex(), actualFailure.getIndex());
-            assertEquals(expectedFailure.getType(), actualFailure.getType());
             assertEquals(expectedFailure.getId(), actualFailure.getId());
             assertEquals(expectedFailure.getMessage(), actualFailure.getMessage());
             assertEquals(expectedFailure.getStatus(), actualFailure.getStatus());
@@ -118,7 +117,6 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
             Failure expectedFailure = expected.getBulkFailures().get(i);
             Failure actualFailure = actual.getBulkFailures().get(i);
             assertEquals(expectedFailure.getIndex(), actualFailure.getIndex());
-            assertEquals(expectedFailure.getType(), actualFailure.getType());
             assertEquals(expectedFailure.getId(), actualFailure.getId());
             assertEquals(expectedFailure.getStatus(), actualFailure.getStatus());
         }

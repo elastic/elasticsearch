@@ -41,35 +41,30 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
         LifecycleExecutionState lifecycleState = LifecycleExecutionState
             .fromIndexMetadata(indexMetaData);
 
+        if (lifecycleState.getLifecycleDate() != null) {
+            return clusterState;
+        }
+
+        IndexMetaData.Builder indexMetadataBuilder = IndexMetaData.builder(indexMetaData);
         if (shouldParseIndexName(indexMetaData.getSettings())) {
             long parsedOriginationDate = parseIndexNameAndExtractDate(index.getName());
-            ClusterState.Builder newClusterStateBuilder = ClusterState.builder(clusterState);
-
-            LifecycleExecutionState.Builder newCustomData = LifecycleExecutionState.builder(lifecycleState);
-            newCustomData.setIndexCreationDate(indexMetaData.getCreationDate());
-            newClusterStateBuilder.metaData(MetaData.builder(clusterState.getMetaData()).put(IndexMetaData
-                .builder(indexMetaData)
-                .settingsVersion(indexMetaData.getSettingsVersion() + 1)
+            indexMetadataBuilder.settingsVersion(indexMetaData.getSettingsVersion() + 1)
                 .settings(Settings.builder()
                     .put(indexMetaData.getSettings())
                     .put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, parsedOriginationDate)
                     .build()
-                )
-                .putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap())));
-            return newClusterStateBuilder.build();
-        }
-
-        if (lifecycleState.getLifecycleDate() != null) {
-            return clusterState;
+                );
         }
 
         ClusterState.Builder newClusterStateBuilder = ClusterState.builder(clusterState);
 
         LifecycleExecutionState.Builder newCustomData = LifecycleExecutionState.builder(lifecycleState);
         newCustomData.setIndexCreationDate(indexMetaData.getCreationDate());
-        newClusterStateBuilder.metaData(MetaData.builder(clusterState.getMetaData()).put(IndexMetaData
-            .builder(indexMetaData)
-            .putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap())));
+        indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap());
+
+        newClusterStateBuilder.metaData(
+            MetaData.builder(clusterState.getMetaData()).put(indexMetadataBuilder)
+        );
         return newClusterStateBuilder.build();
     }
 }

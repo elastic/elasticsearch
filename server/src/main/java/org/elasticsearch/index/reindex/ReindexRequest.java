@@ -20,6 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -67,12 +68,16 @@ import static org.elasticsearch.index.VersionType.INTERNAL;
  */
 public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequest>
                             implements CompositeIndicesRequest, ToXContentObject {
+    private static final TimeValue DEFAULT_CHECKPOINT_INTERVAL = TimeValue.timeValueSeconds(10);
+
     /**
      * Prototype for index requests.
      */
     private IndexRequest destination;
 
     private RemoteInfo remoteInfo;
+
+    private TimeValue checkpointInterval = DEFAULT_CHECKPOINT_INTERVAL;
 
     public ReindexRequest() {
         this(new SearchRequest(), new IndexRequest(), true);
@@ -91,6 +96,10 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         super(in);
         destination = new IndexRequest(in);
         remoteInfo = in.readOptionalWriteable(RemoteInfo::new);
+        // todo: version in backport.
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            checkpointInterval = in.readTimeValue();
+        }
     }
 
     @Override
@@ -260,6 +269,22 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         return remoteInfo;
     }
 
+    /**
+     * Get the checkpoint interval, the interval between persisting progress state.
+     */
+    public TimeValue getCheckpointInterval() {
+        return checkpointInterval;
+    }
+
+    /**
+     * Set the checkpoint interval, the interval between persisting progress state. Defaults to 10 seconds.
+     */
+    public ReindexRequest setCheckpointInterval(TimeValue interval) {
+        assert interval != null;
+        this.checkpointInterval = interval;
+        return this;
+    }
+
     @Override
     public ReindexRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices) {
         ReindexRequest sliced = doForSlice(new ReindexRequest(slice, destination, false), slicingTask, totalSlices);
@@ -272,6 +297,10 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         super.writeTo(out);
         destination.writeTo(out);
         out.writeOptionalWriteable(remoteInfo);
+        // todo: version in backport
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeTimeValue(checkpointInterval);
+        }
     }
 
     @Override
@@ -357,7 +386,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
                 if (ActiveShardCount.DEFAULT.equals(getWaitForActiveShards()) == false) {
                     builder.field("wait_for_active_shards", getWaitForActiveShards().toString());
                 }
-
+                builder.field("checkpoint_interval_millis", getCheckpointInterval().getMillis());
                 builder.endObject();
             }
         }
@@ -434,6 +463,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         }
         if (params.waitForActiveShardCount != null) {
             reindexRequest.setWaitForActiveShards(params.waitForActiveShardCount);
+        }
+        if (params.checkpointInterval != null) {
+            reindexRequest.setCheckpointInterval(params.checkpointInterval);
         }
     }
 
@@ -563,7 +595,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         @SuppressWarnings("unchecked")
         public static final ConstructingObjectParser<ReindexParams, Void> PARAMS_PARSER
             = new ConstructingObjectParser<>("reindex_params", a -> new ReindexParams(
-                (Boolean) a[0], (Long) a[1], (Long) a[2], (Integer) a[3], (Float) a[4], (String) a[5]));
+                (Boolean) a[0], (Long) a[1], (Long) a[2], (Integer) a[3], (Float) a[4], (String) a[5], (Long) a[6]));
 
         static {
             PARAMS_PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), new ParseField("refresh"));
@@ -572,6 +604,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             PARAMS_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField("slices"));
             PARAMS_PARSER.declareFloat(ConstructingObjectParser.optionalConstructorArg(), new ParseField("requests_per_second"));
             PARAMS_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("wait_for_active_shards"));
+            PARAMS_PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), new ParseField("checkpoint_interval_millis"));
         }
 
         private final boolean refresh;
@@ -580,10 +613,10 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         private final Integer slices;
         private final Float requestsPerSecond;
         private final ActiveShardCount waitForActiveShardCount;
-
+        private final TimeValue checkpointInterval;
 
         private ReindexParams(boolean refresh, Long scroll, Long timeout, Integer slices, Float requestsPerSecond,
-                              String waitForActiveShardCount) {
+                              String waitForActiveShardCount, Long checkpointInterval) {
             this.refresh = refresh;
             if (scroll != null) {
                 this.scroll = TimeValue.timeValueMillis(scroll);
@@ -603,6 +636,12 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
                 this.waitForActiveShardCount = ActiveShardCount.parseString(waitForActiveShardCount);
             } else {
                 this.waitForActiveShardCount = null;
+            }
+
+            if (checkpointInterval != null) {
+                this.checkpointInterval = TimeValue.timeValueMillis(checkpointInterval);
+            } else {
+                this.checkpointInterval = null;
             }
         }
 

@@ -45,7 +45,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -86,14 +85,14 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
     }
 
     @Override
-    protected void doAssertLuceneQuery(SpanMultiTermQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(SpanMultiTermQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         if (query instanceof SpanMatchNoDocsQuery) {
             return;
         }
         assertThat(query, either(instanceOf(SpanMultiTermQueryWrapper.class)).or(instanceOf(FieldMaskingSpanQuery.class)));
         if (query instanceof SpanMultiTermQueryWrapper) {
             SpanMultiTermQueryWrapper wrapper = (SpanMultiTermQueryWrapper) query;
-            Query innerQuery = queryBuilder.innerQuery().toQuery(context.getQueryShardContext());
+            Query innerQuery = queryBuilder.innerQuery().toQuery(context);
             if (queryBuilder.innerQuery().boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
                 assertThat(innerQuery, instanceOf(BoostQuery.class));
                 BoostQuery boostQuery = (BoostQuery) innerQuery;

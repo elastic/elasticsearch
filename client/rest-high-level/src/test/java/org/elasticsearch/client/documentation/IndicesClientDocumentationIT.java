@@ -100,7 +100,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -2144,8 +2143,10 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         RestHighLevelClient client = highLevelClient();
 
         // tag::put-template-request
-        PutIndexTemplateRequest request = new PutIndexTemplateRequest("my-template"); // <1>
-        request.patterns(Arrays.asList("pattern-1", "log-*")); // <2>
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest(
+            "my-template", // <1>
+            List.of("pattern-1", "log-*") // <2>
+        );
         // end::put-template-request
 
         // tag::put-template-request-settings
@@ -2292,8 +2293,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
     public void testGetTemplates() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
-            PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("my-template");
-            putRequest.patterns(Arrays.asList("pattern-1", "log-*"));
+            PutIndexTemplateRequest putRequest =
+                new PutIndexTemplateRequest("my-template", List.of("pattern-1", "log-*"));
             putRequest.settings(Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1));
             putRequest.mapping(
                     "{\n" +
@@ -2357,8 +2358,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
     public void testTemplatesExist() throws Exception {
         final RestHighLevelClient client = highLevelClient();
         {
-            final PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("my-template");
-            putRequest.patterns(Collections.singletonList("foo"));
+            final PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("my-template",
+                List.of("foo"));
             assertTrue(client.indices().putTemplate(putRequest, RequestOptions.DEFAULT).isAcknowledged());
         }
 
@@ -2767,8 +2768,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
     public void testDeleteTemplate() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
-            PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("my-template");
-            putRequest.patterns(Arrays.asList("pattern-1", "log-*"));
+            PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("my-template",
+                List.of("pattern-1", "log-*"));
             putRequest.settings(Settings.builder().put("index.number_of_shards", 3));
             assertTrue(client.indices().putTemplate(putRequest, RequestOptions.DEFAULT).isAcknowledged());
         }
@@ -2793,8 +2794,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         assertThat(acknowledged, equalTo(true));
 
         {
-            PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("my-template");
-            putRequest.patterns(Arrays.asList("pattern-1", "log-*"));
+            PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("my-template",
+                List.of("pattern-1", "log-*"));
             putRequest.settings(Settings.builder().put("index.number_of_shards", 3));
             assertTrue(client.indices().putTemplate(putRequest, RequestOptions.DEFAULT).isAcknowledged());
         }

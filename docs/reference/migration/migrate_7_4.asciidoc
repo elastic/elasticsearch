@@ -142,7 +142,7 @@ is deprecated, and will be removed in version 8.0.0. Instead, use
 [[transform_stats_format]]
 ==== Stats response format changes
 
-The response format of the <<get-data-frame-transform-stats>> is very different
+The response format of the <<get-transform-stats>> is very different
 to previous versions:
 
 - `task_state` and `indexer_state` are combined into a single `state` field
@@ -154,7 +154,7 @@ to previous versions:
   checkpoint object. (If there is no `next` checkpoint then no checkpoint is
   in progress and by definition the `last` checkpoint is 100% complete.)
 
-For an example of the new format see <<get-data-frame-transform-stats-example>>.
+For an example of the new format see <<get-transform-stats-example>>.
 
 [discrete]
 [[breaking_74_df_analytics_changes]]

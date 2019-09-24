@@ -88,7 +88,7 @@
  * {@link org.elasticsearch.painless.node.SIf} - Represents an if block.
  * {@link org.elasticsearch.painless.node.SIfElse} - Represents an if/else block.
  * {@link org.elasticsearch.painless.node.SReturn} - Represents a return statement.
- * {@link org.elasticsearch.painless.node.SSource} - The root of all Painless trees.  Contains a series of statements.
+ * {@link org.elasticsearch.painless.node.SClass} - The root of all Painless trees.  Contains a series of statements.
  * {@link org.elasticsearch.painless.node.SSubEachArray} - Represents a for-each loop for arrays.
  * {@link org.elasticsearch.painless.node.SSubEachIterable} - Represents a for-each loop for iterables.
  * {@link org.elasticsearch.painless.node.SThrow} - Represents a throw statement.
@@ -98,7 +98,7 @@
  * Note that internal nodes are generated during the analysis phase by modifying the tree on-the-fly
  * for clarity of development and convenience during the writing phase.
  * <p>
- * All Painless trees must start with an SSource node at the root.  Each node has a constructor that requires
+ * All Painless trees must start with an SClass node at the root.  Each node has a constructor that requires
  * all of its values and children be passed in at the time of instantiation.  This means that Painless trees
  * are build bottom-up; however, this helps enforce tree structure correctness and fits naturally with a
  * standard recursive-descent parser.

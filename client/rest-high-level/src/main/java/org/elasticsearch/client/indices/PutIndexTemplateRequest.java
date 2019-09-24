@@ -21,8 +21,7 @@ package org.elasticsearch.client.indices;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.client.Validatable;
-import org.elasticsearch.client.ValidationException;
+import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -46,7 +45,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -55,7 +53,7 @@ import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 /**
  * A request to create an index template.
  */
-public class PutIndexTemplateRequest implements Validatable, ToXContentFragment {
+public class PutIndexTemplateRequest extends TimedRequest implements ToXContentFragment {
 
     private String name;
 
@@ -75,21 +73,12 @@ public class PutIndexTemplateRequest implements Validatable, ToXContentFragment 
 
     private Integer version;
 
-    private TimeValue masterNodeTimeout = TimeValue.timeValueSeconds(30);
-
     /**
-     * Constructs a new put index template request with the provided name.
+     * Constructs a new put index template request with the provided name and patterns.
      */
-    public PutIndexTemplateRequest(String name) {
+    public PutIndexTemplateRequest(String name, List<String> indexPatterns) {
         this.name(name);
-    }
-
-    @Override
-    public Optional<ValidationException> validate() {
-        if (indexPatterns == null || indexPatterns.size() == 0) {
-            return Optional.of(ValidationException.withError("index patterns are missing"));
-        }
-        return Optional.empty();
+        this.patterns(indexPatterns);
     }
 
     /**
@@ -111,6 +100,9 @@ public class PutIndexTemplateRequest implements Validatable, ToXContentFragment 
     }
 
     public PutIndexTemplateRequest patterns(List<String> indexPatterns) {
+        if (indexPatterns == null || indexPatterns.size() == 0) {
+            throw new IllegalArgumentException("index patterns are missing");
+        }
         this.indexPatterns = indexPatterns;
         return this;
     }
@@ -412,15 +404,19 @@ public class PutIndexTemplateRequest implements Validatable, ToXContentFragment 
         return this;
     }
 
-    public final TimeValue masterNodeTimeout() {
-        return this.masterNodeTimeout;
-    }
-
+    /**
+     * @deprecated Use {@link #setMasterTimeout(TimeValue)} instead
+     */
+    @Deprecated
     public final PutIndexTemplateRequest masterNodeTimeout(TimeValue timeout) {
-        this.masterNodeTimeout = timeout;
+        setMasterTimeout(timeout);
         return this;
     }
 
+    /**
+     * @deprecated Use {@link #setMasterTimeout(TimeValue)} instead
+     */
+    @Deprecated
     public final PutIndexTemplateRequest masterNodeTimeout(String timeout) {
         return masterNodeTimeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".masterNodeTimeout"));
     }

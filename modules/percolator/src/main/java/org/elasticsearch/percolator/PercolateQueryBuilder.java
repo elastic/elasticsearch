@@ -185,6 +185,21 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         this.documentSupplier = null;
     }
 
+    protected PercolateQueryBuilder(String field, Supplier<BytesReference> documentSupplier) {
+        if (field == null) {
+            throw new IllegalArgumentException("[field] is a required argument");
+        }
+        this.field = field;
+        this.documents = Collections.emptyList();
+        this.documentXContentType = null;
+        this.documentSupplier = documentSupplier;
+        indexedDocumentIndex = null;
+        indexedDocumentId = null;
+        indexedDocumentRouting = null;
+        indexedDocumentPreference = null;
+        indexedDocumentVersion = null;
+    }
+
     /**
      * Read from a stream.
      */
@@ -469,7 +484,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             }, listener::onFailure));
         });
 
-        PercolateQueryBuilder rewritten = new PercolateQueryBuilder(field, documentSupplier.get());
+        PercolateQueryBuilder rewritten = new PercolateQueryBuilder(field, documentSupplier::get);
         if (name != null) {
             rewritten.setName(name);
         }

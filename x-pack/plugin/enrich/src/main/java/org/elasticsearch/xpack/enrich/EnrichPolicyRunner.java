@@ -58,6 +58,9 @@ public class EnrichPolicyRunner implements Runnable {
     static final String ENRICH_POLICY_NAME_FIELD_NAME = "enrich_policy_name";
     static final String ENRICH_POLICY_TYPE_FIELD_NAME = "enrich_policy_type";
     static final String ENRICH_MATCH_FIELD_NAME = "enrich_match_field";
+    static final String ENRICH_README_FIELD_NAME = "enrich_readme";
+
+    static final String ENRICH_INDEX_README_TEXT = "This index is managed by Elasticsearch and should not be modified in any way.";
 
     private final String policyName;
     private final EnrichPolicy policy;
@@ -217,6 +220,7 @@ public class EnrichPolicyRunner implements Runnable {
                         .endObject()
                     .endObject()
                     .startObject("_meta")
+                        .field(ENRICH_README_FIELD_NAME, ENRICH_INDEX_README_TEXT)
                         .field(ENRICH_POLICY_NAME_FIELD_NAME, policyName)
                         .field(ENRICH_MATCH_FIELD_NAME, policy.getMatchField())
                         .field(ENRICH_POLICY_TYPE_FIELD_NAME, policy.getType())

@@ -51,6 +51,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
@@ -118,6 +119,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         // Validate Mapping
         Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).get("_doc").sourceAsMap();
+        validateMappingMetadata(mapping, policyName, policy);
         assertThat(mapping.get("dynamic"), is("false"));
         Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
         assertNotNull(properties);
@@ -214,6 +216,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         // Validate Mapping
         Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).get("_doc").sourceAsMap();
+        validateMappingMetadata(mapping, policyName, policy);
         assertThat(mapping.get("dynamic"), is("false"));
         Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
         assertNotNull(properties);
@@ -477,6 +480,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         // Validate Mapping
         Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).get("_doc").sourceAsMap();
+        validateMappingMetadata(mapping, policyName, policy);
         assertThat(mapping.get("dynamic"), is("false"));
         Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
         assertNotNull(properties);
@@ -599,6 +603,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         // Validate Mapping
         Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).get("_doc").sourceAsMap();
+        validateMappingMetadata(mapping, policyName, policy);
         assertThat(mapping.get("dynamic"), is("false"));
         Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
         assertNotNull(properties);
@@ -729,6 +734,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         // Validate Mapping
         Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).get("_doc").sourceAsMap();
+        validateMappingMetadata(mapping, policyName, policy);
         assertThat(mapping.get("dynamic"), is("false"));
         Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
         assertNotNull(properties);
@@ -850,6 +856,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         // Validate Mapping
         Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).get("_doc").sourceAsMap();
+        validateMappingMetadata(mapping, policyName, policy);
         assertThat(mapping.get("dynamic"), is("false"));
         Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
         assertNotNull(properties);
@@ -896,6 +903,16 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
     private ActionListener<PolicyExecutionResult> createTestListener(final CountDownLatch latch,
                                                                      final Consumer<Exception> exceptionConsumer) {
         return new LatchedActionListener<>(ActionListener.wrap((r) -> logger.info("Run complete"), exceptionConsumer), latch);
+    }
+
+    private void validateMappingMetadata(Map<?, ?> mapping, String policyName, EnrichPolicy policy) {
+        Object metadata = mapping.get("_meta");
+        assertThat(metadata, is(notNullValue()));
+        Map<?, ?> metadataMap = (Map<?, ?>) metadata;
+        assertThat(metadataMap.get(EnrichPolicyRunner.ENRICH_README_FIELD_NAME), equalTo(EnrichPolicyRunner.ENRICH_INDEX_README_TEXT));
+        assertThat(metadataMap.get(EnrichPolicyRunner.ENRICH_POLICY_NAME_FIELD_NAME), equalTo(policyName));
+        assertThat(metadataMap.get(EnrichPolicyRunner.ENRICH_MATCH_FIELD_NAME), equalTo(policy.getMatchField()));
+        assertThat(metadataMap.get(EnrichPolicyRunner.ENRICH_POLICY_TYPE_FIELD_NAME), equalTo(policy.getType()));
     }
 
     private void validateSegments(String createdEnrichIndex, int expectedDocs) {

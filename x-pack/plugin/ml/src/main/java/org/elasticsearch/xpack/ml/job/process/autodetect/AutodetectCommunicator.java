@@ -284,7 +284,7 @@ public class AutodetectCommunicator implements Closeable {
     }
 
     @Nullable
-    FlushAcknowledgement waitFlushToCompletion(String flushId) throws InterruptedException {
+    FlushAcknowledgement waitFlushToCompletion(String flushId) throws Exception {
         LOGGER.debug("[{}] waiting for flush", job.getId());
 
         FlushAcknowledgement flushAcknowledgement;

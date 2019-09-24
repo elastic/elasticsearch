@@ -288,14 +288,20 @@ public class AutodetectResultProcessor {
             // Commit previous writes here, effectively continuing
             // the flush from the C++ autodetect process right
             // through to the data store
+            Exception exception = null;
             try {
                 bulkResultsPersister.executeRequest();
                 persister.commitResultWrites(jobId);
             } catch (Exception e) {
-                LOGGER.error("[" + jobId + "] failed to bulk persist results and commit writes during flush acknowledgement.", e);
+                LOGGER.error(
+                    "[" + jobId + "] failed to bulk persist results and commit writes during flush acknowledgement for ID " +
+                        flushAcknowledgement.getId(),
+                    e);
+                exception = e;
+                throw e;
             } finally {
                 LOGGER.debug("[{}] Flush acknowledgement sent to listener for ID {}", jobId, flushAcknowledgement.getId());
-                flushListener.acknowledgeFlush(flushAcknowledgement);
+                flushListener.acknowledgeFlush(flushAcknowledgement, exception);
             }
             // Interim results may have been produced by the flush,
             // which need to be
@@ -397,7 +403,7 @@ public class AutodetectResultProcessor {
      * @return The {@link FlushAcknowledgement} if the flush has completed or the parsing finished; {@code null} if the timeout expired
      */
     @Nullable
-    public FlushAcknowledgement waitForFlushAcknowledgement(String flushId, Duration timeout) throws InterruptedException {
+    public FlushAcknowledgement waitForFlushAcknowledgement(String flushId, Duration timeout) throws Exception {
         return failed ? null : flushListener.waitForFlush(flushId, timeout);
     }
 

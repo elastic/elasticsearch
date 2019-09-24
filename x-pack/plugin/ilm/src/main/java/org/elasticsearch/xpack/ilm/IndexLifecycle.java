@@ -273,6 +273,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
     @Override
     public void onIndexModule(IndexModule indexModule) {
         if (ilmEnabled) {
+            assert indexLifecycleInitialisationService.get() != null;
             indexModule.addIndexEventListener(indexLifecycleInitialisationService.get());
         }
     }

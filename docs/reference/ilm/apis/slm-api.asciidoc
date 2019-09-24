@@ -142,6 +142,7 @@ The output looks similar to the following:
       "retention": {}
     },
     "stats": {
+      "policy": "daily-snapshots",
       "snapshots_taken": 0,
       "snapshots_failed": 0,
       "snapshots_deleted": 0,
@@ -231,6 +232,7 @@ Which, in this case shows an error because the index did not exist:
       "retention": {}
     },
     "stats": {
+      "policy": "daily-snapshots",
       "snapshots_taken": 0,
       "snapshots_failed": 1,
       "snapshots_deleted": 0,
@@ -319,6 +321,7 @@ Which now includes the successful snapshot information:
       "retention": {}
     },
     "stats": {
+      "policy": "daily-snapshots",
       "snapshots_taken": 1,
       "snapshots_failed": 1,
       "snapshots_deleted": 0,
@@ -371,14 +374,15 @@ Which returns a response similar to:
   "retention_timed_out": 0,
   "retention_deletion_time": "1.4s",
   "retention_deletion_time_millis": 1404,
-  "policy_metrics": {
-    "daily-snapshots": {
+  "policy_metrics": [
+    {
+      "policy": "daily-snapshots",
       "snapshots_taken": 1,
       "snapshots_failed": 1,
       "snapshots_deleted": 0,
       "snapshot_deletion_failures": 0
     }
-  },
+  ],
   "total_snapshots_taken": 1,
   "total_snapshots_failed": 1,
   "total_snapshots_deleted": 0,

@@ -46,9 +46,9 @@ include::sql/index.asciidoc[]
 
 include::monitoring/index.asciidoc[]
 
-include::rollup/index.asciidoc[]
-
 include::frozen-indices.asciidoc[]
+
+include::data-rollup-transform.asciidoc[]
 
 include::high-availability.asciidoc[]
 

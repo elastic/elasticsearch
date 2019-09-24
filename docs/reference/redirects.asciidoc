@@ -616,6 +616,12 @@ The `common` terms query is deprecated. Use the <<query-dsl-match-query, `match`
 query>> instead. The `match` query skips blocks of documents efficiently,
 without any configuration, if the total number of hits is not tracked.
 
+[role="exclude",id="indices-types-exists"]
+=== Types Exists
+
+The types exists endpoint has been removed. See <<removal-of-types>> for
+more details.
+
 [role="exclude",id="xpack-api"]
 === X-Pack APIs
 

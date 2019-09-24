@@ -33,7 +33,6 @@ import java.util.function.Function;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasIndex;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasProperty;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasType;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
@@ -138,36 +137,6 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
                 .and(hasIndex("global_index"))));
     }
 
-    public void testGlobalType() throws IOException {
-        BulkRequest request = new BulkRequest(null, "global_type");
-        request.add(new IndexRequest("index").id("1")
-            .source(XContentType.JSON, "field", "bulk1"));
-        request.add(new IndexRequest("index").id("2")
-            .source(XContentType.JSON, "field", "bulk2"));
-
-        bulkWithTypes(request);
-
-        Iterable<SearchHit> hits = searchAll("index");
-        assertThat(hits, everyItem(hasType("global_type")));
-    }
-
-    public void testTypeGlobalAndPerRequest() throws IOException {
-        BulkRequest request = new BulkRequest(null, "global_type");
-        request.add(new IndexRequest("index1", "local_type", "1")
-            .source(XContentType.JSON, "field", "bulk1"));
-        request.add(new IndexRequest("index2").id("2") // will take global type
-            .source(XContentType.JSON, "field", "bulk2"));
-
-        bulkWithTypes(request);
-
-        Iterable<SearchHit> hits = searchAll("index1", "index2");
-        assertThat(hits, containsInAnyOrder(
-            both(hasId("1"))
-                .and(hasType("local_type")),
-            both(hasId("2"))
-                .and(hasType("global_type"))));
-    }
-
     public void testGlobalRouting() throws IOException {
         createIndexWithMultipleShards("index");
         BulkRequest request = new BulkRequest((String) null);
@@ -177,7 +146,7 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
             .source(XContentType.JSON, "field", "bulk1"));
         request.routing("1");
         bulk(request);
-        
+
         Iterable<SearchHit> emptyHits = searchAll(new SearchRequest("index").routing("xxx"));
         assertThat(emptyHits, is(emptyIterable()));
 
@@ -199,7 +168,7 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
         Iterable<SearchHit> hits = searchAll(new SearchRequest("index").routing("globalRouting", "localRouting"));
         assertThat(hits, containsInAnyOrder(hasId("1"), hasId("2")));
     }
-    
+
     public void testGlobalIndexNoTypes() throws IOException {
         BulkRequest request = new BulkRequest("global_index");
         request.add(new IndexRequest().id("1")
@@ -211,20 +180,20 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
 
         Iterable<SearchHit> hits = searchAll("global_index");
         assertThat(hits, everyItem(hasIndex("global_index")));
-    }    
+    }
 
     private BulkResponse bulkWithTypes(BulkRequest request) throws IOException {
-        BulkResponse bulkResponse = execute(request, highLevelClient()::bulk, highLevelClient()::bulkAsync, 
+        BulkResponse bulkResponse = execute(request, highLevelClient()::bulk, highLevelClient()::bulkAsync,
                 expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         assertFalse(bulkResponse.hasFailures());
         return bulkResponse;
     }
-    
+
     private BulkResponse bulk(BulkRequest request) throws IOException {
         BulkResponse bulkResponse = execute(request, highLevelClient()::bulk, highLevelClient()::bulkAsync, RequestOptions.DEFAULT);
         assertFalse(bulkResponse.hasFailures());
         return bulkResponse;
-    }    
+    }
 
     @SuppressWarnings("unchecked")
     private static <T> Function<SearchHit, T> fieldFromSource(String fieldName) {

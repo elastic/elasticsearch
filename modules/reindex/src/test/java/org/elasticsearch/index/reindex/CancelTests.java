@@ -62,7 +62,6 @@ import static org.hamcrest.Matchers.hasSize;
 public class CancelTests extends ReindexTestCase {
 
     protected static final String INDEX = "reindex-cancel-index";
-    protected static final String TYPE = "reindex-cancel-type";
 
     // Semaphore used to allow & block indexing operations during the test
     private static final Semaphore ALLOWED_OPERATIONS = new Semaphore(0);
@@ -93,7 +92,7 @@ public class CancelTests extends ReindexTestCase {
 
         logger.debug("setting up [{}] docs", numDocs);
         indexRandom(true, false, true, IntStream.range(0, numDocs)
-                .mapToObj(i -> client().prepareIndex(INDEX, TYPE, String.valueOf(i)).setSource("n", i))
+                .mapToObj(i -> client().prepareIndex(INDEX, "_doc", String.valueOf(i)).setSource("n", i))
                 .collect(Collectors.toList()));
 
         // Checks that the all documents have been indexed and correctly counted
@@ -210,12 +209,12 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public void testReindexCancel() throws Exception {
-        testCancel(ReindexAction.NAME, reindex().source(INDEX).destination("dest", TYPE), (response, total, modified) -> {
+        testCancel(ReindexAction.NAME, reindex().source(INDEX).destination("dest", "_doc"), (response, total, modified) -> {
             assertThat(response, matcher().created(modified).reasonCancelled(equalTo("by user request")));
 
             refresh("dest");
             assertHitCount(client().prepareSearch("dest").setSize(0).get(), modified);
-        }, equalTo("reindex from [" + INDEX + "] to [dest][" + TYPE + "]"));
+        }, equalTo("reindex from [" + INDEX + "] to [dest][_doc]"));
     }
 
     public void testUpdateByQueryCancel() throws Exception {
@@ -245,13 +244,13 @@ public class CancelTests extends ReindexTestCase {
 
     public void testReindexCancelWithWorkers() throws Exception {
         testCancel(ReindexAction.NAME,
-                reindex().source(INDEX).filter(QueryBuilders.matchAllQuery()).destination("dest", TYPE).setSlices(5),
+                reindex().source(INDEX).filter(QueryBuilders.matchAllQuery()).destination("dest", "_doc").setSlices(5),
                 (response, total, modified) -> {
                     assertThat(response, matcher().created(modified).reasonCancelled(equalTo("by user request")).slices(hasSize(5)));
                     refresh("dest");
                     assertHitCount(client().prepareSearch("dest").setSize(0).get(), modified);
                 },
-                equalTo("reindex from [" + INDEX + "] to [dest][" + TYPE + "]"));
+                equalTo("reindex from [" + INDEX + "] to [dest][" + "_doc" + "]"));
     }
 
     public void testUpdateByQueryCancelWithWorkers() throws Exception {
@@ -309,7 +308,7 @@ public class CancelTests extends ReindexTestCase {
         }
 
         private <T extends Engine.Operation> T preCheck(T operation, String type) {
-            if ((TYPE.equals(type) == false) || (operation.origin() != Origin.PRIMARY)) {
+            if ((operation.origin() != Origin.PRIMARY)) {
                 return operation;
             }
 

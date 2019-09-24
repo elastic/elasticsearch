@@ -31,7 +31,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -104,7 +103,7 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                             createSubSearchContext(context, percolatorLeafReaderContext, document, slot);
                         subSearchContext.parsedQuery(new ParsedQuery(query));
                         hitContext.reset(
-                            new SearchHit(slot, "unknown", new Text(hit.getType()), Collections.emptyMap()),
+                            new SearchHit(slot, "unknown", Collections.emptyMap()),
                             percolatorLeafReaderContext, slot, percolatorIndexSearcher
                         );
                         hitContext.cache().clear();

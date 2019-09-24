@@ -576,7 +576,8 @@ final class RequestConverters {
         return request;
     }
 
-    private static Request prepareDeleteByQueryRequest(DeleteByQueryRequest deleteByQueryRequest, boolean waitForCompletion) throws IOException {
+    private static Request prepareDeleteByQueryRequest(DeleteByQueryRequest deleteByQueryRequest,
+                                                       boolean waitForCompletion) throws IOException {
         String endpoint = endpoint(deleteByQueryRequest.indices(), "_delete_by_query");
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         Params params = new Params()

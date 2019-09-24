@@ -462,15 +462,15 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
         }
         {
             // tag::submit-delete_by_query-task
-            DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(); // <1>
+            DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest();
             deleteByQueryRequest.indices(sourceIndex);
             deleteByQueryRequest.setQuery(new IdsQueryBuilder().addIds("1"));
             deleteByQueryRequest.setRefresh(true);
 
             TaskSubmissionResponse deleteByQuerySubmission = highLevelClient()
-                .submitDeleteByQueryTask(deleteByQueryRequest, RequestOptions.DEFAULT); // <2>
+                .submitDeleteByQueryTask(deleteByQueryRequest, RequestOptions.DEFAULT);
 
-            String taskId = deleteByQuerySubmission.getTask(); // <3>
+            String taskId = deleteByQuerySubmission.getTask();
             // end::submit-delete_by_query-task
 
             assertBusy(checkCompletionStatus(client(), taskId));

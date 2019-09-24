@@ -127,7 +127,7 @@ field `path`.
 To see how multi-level nested queries work,
 first you need an index that has nested fields.
 The following request defines mappings for the `drivers` index
-with the `model` field nested under `driver -> vehicle -> model`:
+with nested `make` and `model` fields.
 
 [source,console]
 ----
@@ -200,7 +200,7 @@ PUT /drivers/_doc/2?refresh
 // TEST[continued]
 
 You can now use a multi-level nested query
-to match documents based on the `model` field.
+to match documents based on the `make` and `model` fields.
 
 [source,console]
 ----

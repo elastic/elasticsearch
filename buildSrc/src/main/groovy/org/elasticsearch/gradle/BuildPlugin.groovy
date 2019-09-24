@@ -843,7 +843,7 @@ class BuildPlugin implements Plugin<Project> {
                 }
 
                 test.jvmArgumentProviders.add(nonInputProperties)
-                test.extensions.getByType(ExtraPropertiesExtension).set('nonInputProperties', nonInputProperties)
+                test.extensions.add('nonInputProperties', nonInputProperties)
 
                 test.executable = "${ext.get('runtimeJavaHome')}/bin/java"
                 test.workingDir = project.file("${project.buildDir}/testrun/${test.name}")
@@ -865,7 +865,8 @@ class BuildPlugin implements Plugin<Project> {
                 }
 
                 // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
-                test.systemProperties 'java.io.tmpdir': './temp',
+                test.systemProperties 'gradle.dist.lib': new File(project.class.location.toURI()).parent,
+                        'java.io.tmpdir': './temp',
                         'java.awt.headless': 'true',
                         'tests.gradle': 'true',
                         'tests.artifact': project.name,
@@ -881,7 +882,6 @@ class BuildPlugin implements Plugin<Project> {
                 }
 
                 // don't track these as inputs since they contain absolute paths and break cache relocatability
-                nonInputProperties.systemProperty('gradle.dist.lib', new File(project.class.location.toURI()).parent)
                 nonInputProperties.systemProperty('gradle.worker.jar', "${project.gradle.getGradleUserHomeDir()}/caches/${project.gradle.gradleVersion}/workerMain/gradle-worker.jar")
                 nonInputProperties.systemProperty('gradle.user.home', project.gradle.getGradleUserHomeDir())
 
@@ -1005,21 +1005,6 @@ class BuildPlugin implements Plugin<Project> {
                     }
                 }
             })
-        }
-    }
-
-    private static class SystemPropertyCommandLineArgumentProvider implements CommandLineArgumentProvider {
-        private final Map<String, Object> systemProperties = [:]
-
-        void systemProperty(String key, Object value) {
-            systemProperties.put(key, value)
-        }
-
-        @Override
-        Iterable<String> asArguments() {
-            return systemProperties.collect { key, value ->
-                "-D${key}=${value.toString()}".toString()
-            }
         }
     }
 }

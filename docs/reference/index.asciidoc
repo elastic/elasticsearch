@@ -20,8 +20,6 @@ include::setup/setup-xes.asciidoc[]
 
 include::monitoring/configuring-monitoring.asciidoc[]
 
-include::{xes-repo-dir}/security/configuring-es.asciidoc[]
-
 include::setup/setup-xclient.asciidoc[]
 
 include::setup/bootstrap-checks-xes.asciidoc[]
@@ -52,11 +50,13 @@ include::sql/index.asciidoc[]
 
 include::monitoring/index.asciidoc[]
 
-include::rollup/index.asciidoc[]
-
 include::frozen-indices.asciidoc[]
 
+include::data-rollup-transform.asciidoc[]
+
 include::high-availability.asciidoc[]
+
+include::security/index.asciidoc[]
 
 include::commands/index.asciidoc[]
 

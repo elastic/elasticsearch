@@ -81,7 +81,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                         id = optionalId;
                     } else if (optionalId != null && id.equals(optionalId) == false) {
                         throw new IllegalArgumentException(
-                                TransformMessages.getMessage(TransformMessages.REST_PUT_DATA_FRAME_INCONSISTENT_ID, id, optionalId));
+                                TransformMessages.getMessage(TransformMessages.REST_PUT_TRANSFORM_INCONSISTENT_ID, id, optionalId));
                     }
 
                     SourceConfig source = (SourceConfig) args[1];
@@ -169,7 +169,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
 
         // at least one function must be defined
         if (this.pivotConfig == null) {
-            throw new IllegalArgumentException(TransformMessages.DATA_FRAME_TRANSFORM_CONFIGURATION_NO_TRANSFORM);
+            throw new IllegalArgumentException(TransformMessages.TRANSFORM_CONFIGURATION_NO_TRANSFORM);
         }
         if (this.description != null && this.description.length() > MAX_DESCRIPTION_LENGTH) {
             throw new IllegalArgumentException("[description] must be less than 1000 characters in length.");

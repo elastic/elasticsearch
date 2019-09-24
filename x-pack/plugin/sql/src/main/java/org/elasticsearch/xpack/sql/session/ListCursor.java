@@ -21,7 +21,7 @@ import static java.util.Collections.emptyList;
 
 public class ListCursor implements Cursor {
 
-    public static final String NAME = "p";
+    public static final String NAME = "l";
 
     private final List<List<?>> data;
     private final int columnCount;

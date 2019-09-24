@@ -491,4 +491,15 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertAckMesssages(XPackField.SQL, randomTrialOrPlatinumMode(), randomBasicStandardOrGold(), 1);
     }
 
+    public void testTransformBasic() throws Exception {
+        assertAllowed(BASIC, true, XPackLicenseState::isTransformAllowed, true);
+    }
+
+    public void testTransformStandard() throws Exception {
+        assertAllowed(STANDARD, true, XPackLicenseState::isTransformAllowed, true);
+    }
+
+    public void testTransformInactiveBasic() {
+        assertAllowed(BASIC, false, XPackLicenseState::isTransformAllowed, false);
+    }
 }

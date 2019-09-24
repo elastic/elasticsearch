@@ -501,8 +501,11 @@ final class RequestConverters {
         if (countRequest.terminateAfter() != 0){
             params.withTerminateAfter(countRequest.terminateAfter());
         }
+        if (countRequest.minScore() != null){
+            params.putParam("min_score", String.valueOf(countRequest.minScore()));
+        }
         request.addParameters(params.asMap());
-        request.setEntity(createEntity(countRequest.source(), REQUEST_BODY_CONTENT_TYPE));
+        request.setEntity(createEntity(countRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

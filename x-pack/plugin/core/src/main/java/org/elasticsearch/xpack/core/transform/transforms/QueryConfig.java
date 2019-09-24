@@ -85,7 +85,7 @@ public class QueryConfig extends AbstractDiffable<QueryConfig> implements Writea
             query = AbstractQueryBuilder.parseInnerQueryBuilder(sourceParser);
         } catch (Exception e) {
             if (lenient) {
-                logger.warn(TransformMessages.LOG_DATA_FRAME_TRANSFORM_CONFIGURATION_BAD_QUERY, e);
+                logger.warn(TransformMessages.LOG_TRANSFORM_CONFIGURATION_BAD_QUERY, e);
             } else {
                 throw e;
             }

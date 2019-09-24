@@ -74,6 +74,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.rankeval.PrecisionAtK;
@@ -1194,13 +1195,12 @@ public class RequestConvertersTests extends ESTestCase {
         setRandomCountParams(countRequest, expectedParams);
         setRandomIndicesOptions(countRequest::indicesOptions, countRequest::indicesOptions, expectedParams);
 
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        if (frequently()) {
-            if (randomBoolean()) {
-                searchSourceBuilder.minScore(randomFloat());
-            }
+        if (randomBoolean()) {
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+            countRequest.source(searchSourceBuilder);
+        } else {
+            countRequest.query(new MatchAllQueryBuilder());
         }
-        countRequest.source(searchSourceBuilder);
         Request request = RequestConverters.count(countRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         String index = String.join(",", indices);
@@ -1215,7 +1215,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals(endpoint.toString(), request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
-        assertToXContentBody(searchSourceBuilder, request.getEntity());
+        assertToXContentBody(countRequest, request.getEntity());
     }
 
     public void testCountNullIndicesAndTypes() {
@@ -1234,9 +1234,13 @@ public class RequestConvertersTests extends ESTestCase {
             countRequest.preference(randomAlphaOfLengthBetween(3, 10));
             expectedParams.put("preference", countRequest.preference());
         }
-        if (randomBoolean()){
+        if (randomBoolean()) {
             countRequest.terminateAfter(randomIntBetween(0, Integer.MAX_VALUE));
             expectedParams.put("terminate_after", String.valueOf(countRequest.terminateAfter()));
+        }
+        if (randomBoolean()) {
+            countRequest.minScore((float) randomIntBetween(1, 10));
+            expectedParams.put("min_score", String.valueOf(countRequest.minScore()));
         }
     }
 

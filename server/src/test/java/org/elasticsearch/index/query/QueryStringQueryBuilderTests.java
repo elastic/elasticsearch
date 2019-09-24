@@ -62,7 +62,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.QueryStringQueryParser;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
@@ -399,7 +398,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     @Override
     protected void doAssertLuceneQuery(QueryStringQueryBuilder queryBuilder,
-                                       Query query, SearchContext context) throws IOException {
+                                       Query query, QueryShardContext context) throws IOException {
         // nothing yet, put additional assertions here.
     }
 

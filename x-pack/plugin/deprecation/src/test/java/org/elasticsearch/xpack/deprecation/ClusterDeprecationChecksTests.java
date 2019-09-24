@@ -224,7 +224,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         if (expectIssue) {
             assertEquals(1, issues.size());
             DeprecationIssue issue = issues.get(0);
-            assertEquals(DeprecationIssue.Level.CRITICAL, issue.getLevel());
+            assertEquals(DeprecationIssue.Level.WARNING, issue.getLevel());
             assertEquals("https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#fieldnames-enabling"
                     , issue.getUrl());
             assertEquals("Index templates contain _field_names settings.", issue.getMessage());

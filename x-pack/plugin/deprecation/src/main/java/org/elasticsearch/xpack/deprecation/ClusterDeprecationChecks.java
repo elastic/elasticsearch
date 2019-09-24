@@ -120,7 +120,7 @@ public class ClusterDeprecationChecks {
         });
 
         if (templatesContainingFieldNames.isEmpty() == false) {
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, "Index templates contain _field_names settings.",
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING, "Index templates contain _field_names settings.",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#fieldnames-enabling",
                     "Index templates " + templatesContainingFieldNames + " use the deprecated `enable` setting for the `"
                             + FieldNamesFieldMapper.NAME + "` field. Using this setting in new index mappings will throw an error "

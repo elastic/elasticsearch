@@ -267,7 +267,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             boolean requestCanOverridePipeline = true;
             String requiredPipeline = null;
             // start to look for default or required pipelines via settings found in the index meta data
-            IndexMetaData indexMetaData = metaData.getIndices().get(originalRequest.index());
+            IndexMetaData indexMetaData = metaData.indices().get(originalRequest.index());
             // check the alias for the index request (this is how normal index requests are modeled)
             if (indexMetaData == null && indexRequest.index() != null) {
                 AliasOrIndex indexOrAlias = metaData.getAliasAndIndexLookup().get(indexRequest.index());

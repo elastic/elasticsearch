@@ -27,7 +27,6 @@ import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -59,14 +58,14 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
     }
 
     @Override
-    protected void doAssertLuceneQuery(SpanTermQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(SpanTermQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(SpanTermQuery.class));
         SpanTermQuery spanTermQuery = (SpanTermQuery) query;
 
         String expectedFieldName = expectedFieldName(queryBuilder.fieldName);
         assertThat(spanTermQuery.getTerm().field(), equalTo(expectedFieldName));
 
-        MappedFieldType mapper = context.getQueryShardContext().fieldMapper(queryBuilder.fieldName());
+        MappedFieldType mapper = context.fieldMapper(queryBuilder.fieldName());
         if (mapper != null) {
             Term term = ((TermQuery) mapper.termQuery(queryBuilder.value(), null)).getTerm();
             assertThat(spanTermQuery.getTerm(), equalTo(term));

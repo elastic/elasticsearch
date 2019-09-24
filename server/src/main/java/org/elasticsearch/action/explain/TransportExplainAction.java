@@ -117,7 +117,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
             Term uidTerm = new Term(IdFieldMapper.NAME, Uid.encodeId(request.id()));
             result = context.indexShard().get(new Engine.Get(false, false, request.id(), uidTerm));
             if (!result.exists()) {
-                return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), false);
+                return new ExplainResponse(shardId.getIndexName(), request.id(), false);
             }
             context.parsedQuery(context.getQueryShardContext().toQuery(request.query()));
             context.preProcess(true);
@@ -133,9 +133,9 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
                 // doc isn't deleted between the initial get and this call.
                 GetResult getResult = context.indexShard().getService().get(result, request.id(), request.storedFields(),
                     request.fetchSourceContext());
-                return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), true, explanation, getResult);
+                return new ExplainResponse(shardId.getIndexName(), request.id(), true, explanation, getResult);
             } else {
-                return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), true, explanation);
+                return new ExplainResponse(shardId.getIndexName(), request.id(), true, explanation);
             }
         } catch (IOException e) {
             throw new ElasticsearchException("Could not explain", e);

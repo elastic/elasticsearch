@@ -8,6 +8,8 @@
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
@@ -37,6 +39,8 @@ import java.util.stream.Stream;
  * Translates cluster privilege names into concrete implementations
  */
 public class ClusterPrivilegeResolver {
+    private static final Logger logger = LogManager.getLogger(ClusterPrivilegeResolver.class);
+
     // shared automatons
     private static final Set<String> ALL_SECURITY_PATTERN = Set.of("cluster:admin/xpack/security/*");
     private static final Set<String> MANAGE_SAML_PATTERN = Set.of("cluster:admin/xpack/security/saml/*",
@@ -156,10 +160,12 @@ public class ClusterPrivilegeResolver {
         if (fixedPrivilege != null) {
             return fixedPrivilege;
         }
-        throw new IllegalArgumentException("unknown cluster privilege [" + name + "]. a privilege must be either " +
+        String errorMessage = "unknown cluster privilege [" + name + "]. a privilege must be either " +
             "one of the predefined cluster privilege names [" +
             Strings.collectionToCommaDelimitedString(VALUES.keySet()) + "] or a pattern over one of the available " +
-            "cluster actions");
+            "cluster actions";
+        logger.debug(errorMessage);
+        throw new IllegalArgumentException(errorMessage);
 
     }
 

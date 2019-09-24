@@ -12,13 +12,11 @@ These examples demonstrate how to use {transforms} to derive useful
 insights from your data. All the examples use one of the 
 {kibana-ref}/add-sample-data.html[{kib} sample datasets]. For a more detailed, 
 step-by-step example, see 
-<<ecommerce-dataframes>>.
+<<ecommerce-transforms>>.
 
 * <<example-best-customers>>
 * <<example-airline>>
 * <<example-clientips>>
-
-include::ecommerce-example.asciidoc[]
 
 [[example-best-customers]]
 ==== Finding your best customers

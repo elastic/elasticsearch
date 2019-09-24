@@ -11,7 +11,7 @@ indices that summarize the behavior of users or sessions or other entities in
 your data.
 
 * <<transform-overview>>
-* <<transforms-usage>>
+* <<transform-usage>>
 * <<transform-api-quickref>>
 * <<transform-examples>>
 * <<transform-troubleshooting>>
@@ -22,6 +22,6 @@ include::usage.asciidoc[]
 include::checkpoints.asciidoc[]
 include::api-quickref.asciidoc[]
 include::ecommerce-tutorial.asciidoc[]
-include::dataframe-examples.asciidoc[]
+include::examples.asciidoc[]
 include::troubleshooting.asciidoc[]
 include::limitations.asciidoc[]

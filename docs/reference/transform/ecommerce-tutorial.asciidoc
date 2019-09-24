@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="basic"]
-[[ecommerce-dataframes]]
+[[ecommerce-transforms]]
 === Tutorial: Transforming the eCommerce sample data
 
 beta[]

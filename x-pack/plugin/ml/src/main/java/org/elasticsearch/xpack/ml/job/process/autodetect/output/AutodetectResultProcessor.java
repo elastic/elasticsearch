@@ -292,6 +292,7 @@ public class AutodetectResultProcessor {
             try {
                 bulkResultsPersister.executeRequest();
                 persister.commitResultWrites(jobId);
+                LOGGER.debug("[{}] Flush acknowledgement sent to listener for ID {}", jobId, flushAcknowledgement.getId());
             } catch (Exception e) {
                 LOGGER.error(
                     "[" + jobId + "] failed to bulk persist results and commit writes during flush acknowledgement for ID " +
@@ -300,7 +301,6 @@ public class AutodetectResultProcessor {
                 exception = e;
                 throw e;
             } finally {
-                LOGGER.debug("[{}] Flush acknowledgement sent to listener for ID {}", jobId, flushAcknowledgement.getId());
                 flushListener.acknowledgeFlush(flushAcknowledgement, exception);
             }
             // Interim results may have been produced by the flush,

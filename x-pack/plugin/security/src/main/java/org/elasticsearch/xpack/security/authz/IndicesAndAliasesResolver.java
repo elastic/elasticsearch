@@ -204,14 +204,15 @@ class IndicesAndAliasesResolver {
                 resolvedIndicesBuilder.addLocal(aliasesRequest.aliases());
             }
             /*
-             * If no aliases are authorized for a get aliases request, then fill in an expression that MetaData#findAliases evaluates to an
-             * empty alias list. We can not put an empty list here because core resolves this as _all. For other request types, this
-             * replacement is not needed and can trigger issues when we rewrite the request on the coordinating node. For example, for a
-             * remove index request, if we did this replacement, the request would be rewritten to include "*", "-*" and for a user that
-             * does not have permissions on "*", the master node would not authorize the request.
+             * If no aliases are authorized, then fill in an expression that MetaData#findAliases evaluates to an
+             * empty alias list. We can not put an empty list here because core resolves this as _all. For other
+             * request types, this replacement is not needed and can trigger issues when we rewrite the request
+             * on the coordinating node. For example, for a remove index request, if we did this replacement,
+             * the request would be rewritten to include "*","-*" and for a user that does not have permissions
+             * on "*", the master node would not authorize the request.
              */
-            if (indicesRequest instanceof GetAliasesRequest && aliasesRequest.aliases().length == 0) {
-                 aliasesRequest.replaceAliases(NO_INDICES_OR_ALIASES_ARRAY);
+            if (aliasesRequest.expandAliasesWildcards() && aliasesRequest.aliases().length == 0) {
+                aliasesRequest.replaceAliases(NO_INDICES_OR_ALIASES_ARRAY);
             }
         }
         return resolvedIndicesBuilder.build();

@@ -782,7 +782,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.addAliasAction(AliasActions.remove().index("*bar").alias("bar*"));
         resolveIndices(request, buildAuthorizedIndices(user, IndicesAliasesAction.NAME));
         assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("foofoobar", "foobarfoo"));
-        assertThat(request.getAliasActions().get(1).aliases(), emptyArray());
+        assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("*", "-*"));
     }
 
     public void testResolveAliasesWildcardsIndicesAliasesRequestRemoveIndexActions() {

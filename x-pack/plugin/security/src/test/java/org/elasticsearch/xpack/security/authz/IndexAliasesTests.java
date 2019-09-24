@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -95,10 +96,9 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
 
     @Before
     public void createBogusIndex() {
-        if (randomBoolean()) {
-            //randomly create an index with two aliases from user admin, to make sure it doesn't affect any of the test results
-            assertAcked(client().admin().indices().prepareCreate("index1").addAlias(new Alias("alias1")).addAlias(new Alias("alias2")));
-        }
+        //randomly create an index with two aliases from user admin, to make sure it doesn't affect any of the test results
+        assertAcked(client().admin().indices().prepareCreate("bogus_index_1").addAlias(new Alias("bogus_alias_1"))
+            .addAlias(new Alias("bogus_alias_2")));
     }
 
     public void testCreateIndexThenAliasesCreateOnlyPermission() {
@@ -182,11 +182,17 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         assertThrowsAuthorizationException(client.admin().indices().prepareGetAliases("_all")
                 .setIndices("test_1").setIndicesOptions(IndicesOptions.lenientExpandOpen())::get, GetAliasesAction.NAME, "create_only");
 
+        assertThrowsAuthorizationException(client.admin().indices().prepareGetAliases("alias*")::get, GetAliasesAction.NAME, "create_only");
+
         assertThrowsAuthorizationException(client.admin().indices().prepareGetAliases().setIndices("test_1")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())::get, GetAliasesAction.NAME, "create_only");
 
         assertThrowsAuthorizationException(
                 client.admin().indices().prepareGetAliases("test_alias")
+                .setIndices("test_*").setIndicesOptions(IndicesOptions.lenientExpandOpen())::get, GetAliasesAction.NAME, "create_only");
+
+        assertThrowsAuthorizationException(
+            client.admin().indices().prepareGetAliases()
                 .setIndices("test_*").setIndicesOptions(IndicesOptions.lenientExpandOpen())::get, GetAliasesAction.NAME, "create_only");
 
         //this throws exception no matter what the indices options are because the aliases part cannot be resolved to any alias
@@ -264,6 +270,12 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
             assertThat(exception.getMessage(), equalTo("aliases [_all] missing"));
         }
 
+        // add unauthorized aliases
+        if (randomBoolean()) {
+            assertAcked(client().admin().indices().prepareAliases().addAlias("test_1", "alias_1").get());
+        }
+        assertAcked(client().admin().indices().prepareAliases().addAlias("test_1", "alias_2").get());
+
         //fails: user doesn't have manage_aliases on alias_1
         assertThrowsAuthorizationException(client.admin().indices().prepareAliases()
                 .removeAlias("test_1", "alias_1")::get, IndicesAliasesAction.NAME, "create_test_aliases_test");
@@ -271,6 +283,10 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         //fails: user doesn't have manage_aliases on alias_1
         assertThrowsAuthorizationException(client.admin().indices().prepareAliases()
                 .removeAlias("test_1", new String[]{"_all", "alias_1"})::get, IndicesAliasesAction.NAME, "create_test_aliases_test");
+
+        AliasesNotFoundException exception = expectThrows(AliasesNotFoundException.class,
+            client.admin().indices().prepareAliases().removeAlias("test_1", "*")::get);
+        assertThat(exception.getMessage(), equalTo("aliases [*] missing"));
     }
 
     public void testGetAliasesCreateAndAliasesPermission() {
@@ -562,8 +578,17 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
             basicAuthHeaderValue("all_on_test", new SecureString("test123".toCharArray())));
         final Client client = client(headers);
 
-        assertAcked(client.admin().indices().prepareCreate("test_1").get());
-        assertAcked(client.admin().indices().prepareAliases().removeIndex("test_*").get());
+        assertAcked(client.admin().indices().prepareCreate("test_delete_1").get());
+        assertAcked(client.admin().indices().prepareCreate("test_1").addAlias(new Alias("test_alias_1")));
+
+        assertAcked(client.admin().indices().prepareAliases().removeIndex("test_delete_*").get());
+        assertAliases(client.admin().indices().prepareGetAliases().setAliases("*"), "test_1", "test_alias_1");
+
+        // test that the remove index wildcard expacnds only to authorized indices
+        assertAcked(client.admin().indices().prepareAliases().removeIndex("*").get());
+        GetAliasesResponse getAliasesResponse = client.admin().indices().prepareGetAliases().setAliases("*").get();
+        assertThat(getAliasesResponse.getAliases().size(), equalTo(0));
+        assertAliases(client().admin().indices().prepareGetAliases().setAliases("*"), "bogus_index_1", "bogus_alias_1", "bogus_alias_2");
     }
 
     private static Client client(final Map<String, String> headers) {

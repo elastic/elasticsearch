@@ -369,7 +369,7 @@ The API returns the following response:
 
 [source,console]
 ----
-GET /kimchy,elasticsearch/_search?q=tag:wow
+GET /kimchy,elasticsearch/_search?q=user:kimchy
 ----
 // TEST[s/^/PUT kimchy\nPUT elasticsearch\n/]
 
@@ -381,7 +381,7 @@ omit the `<index>` parameter.
 
 [source,console]
 ----
-GET /_search?q=tag:wow
+GET /_search?q=user:kimchy
 ----
 // TEST[continued]
 
@@ -390,12 +390,12 @@ you can use the `_all` or `*` value in the `<index>` parameter.
 
 [source,console]
 ----
-GET /_all/_search?q=tag:wow
+GET /_all/_search?q=user:kimchy
 ----
 // TEST[continued]
 
 [source,console]
 ----
-GET /*/_search?q=tag:wow
+GET /*/_search?q=user:kimchy
 ----
 // TEST[continued]

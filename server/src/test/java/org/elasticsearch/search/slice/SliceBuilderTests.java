@@ -30,6 +30,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardIterator;
 import org.elasticsearch.cluster.ClusterState;
@@ -111,7 +112,7 @@ public class SliceBuilderTests extends ESTestCase {
     }
 
     private ShardSearchRequest createRequest(int shardId, String[] routings, String preference) {
-        return new ShardSearchRequest(new SearchRequest().preference(preference).allowPartialSearchResults(true),
+        return new ShardSearchRequest(OriginalIndices.NONE, new SearchRequest().preference(preference).allowPartialSearchResults(true),
             new ShardId("index", "index", shardId), 1, null, 0f, System.currentTimeMillis(), null, routings);
     }
 

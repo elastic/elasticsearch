@@ -79,29 +79,6 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private AliasFilter aliasFilter;
     private SearchSourceBuilder source;
 
-    public ShardSearchRequest(SearchRequest searchRequest,
-                              ShardId shardId,
-                              int numberOfShards,
-                              AliasFilter aliasFilter,
-                              float indexBoost,
-                              long nowInMillis,
-                              @Nullable String clusterAlias,
-                              String[] indexRoutings) {
-        this(new OriginalIndices(searchRequest),
-            shardId,
-            numberOfShards,
-            searchRequest.searchType(),
-            searchRequest.source(),
-            searchRequest.requestCache(),
-            aliasFilter, indexBoost,
-            searchRequest.allowPartialSearchResults(),
-            indexRoutings,
-            searchRequest.preference(),
-            searchRequest.scroll(),
-            nowInMillis,
-            clusterAlias);
-    }
-
     public ShardSearchRequest(OriginalIndices originalIndices,
                               SearchRequest searchRequest,
                               ShardId shardId,
@@ -298,6 +275,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         return preference;
     }
 
+    /**
+     * Returns the cache key for this shard search request, based on its content
+     */
     public BytesReference cacheKey() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         this.innerWriteTo(out, true);

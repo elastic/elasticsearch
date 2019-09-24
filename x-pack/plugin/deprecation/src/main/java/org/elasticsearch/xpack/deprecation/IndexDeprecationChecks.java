@@ -187,13 +187,13 @@ public class IndexDeprecationChecks {
     }
 
     /**
-     * warn about existing explicit "_field_names" enabled settings in existing mappings
+     * warn about existing explicit "_field_names" settings in existing mappings
      */
-    static DeprecationIssue fieldNamesEnabling(IndexMetaData indexMetaData) {
+    static DeprecationIssue fieldNamesDisabledCheck(IndexMetaData indexMetaData) {
         MappingMetaData mapping = indexMetaData.mapping();
         if ((mapping != null) && ClusterDeprecationChecks.mapContainsFieldNamesDisabled(mapping.getSourceAsMap())) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                    "Index mapping contain explicit _field_names enabling settings.",
+                    "Index mapping contains explicit `_field_names` enabling settings.",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
                             "#fieldnames-enabling",
                     "The index mapping contains a deprecated `enabled` setting for `_field_names` that should be removed moving foward.");

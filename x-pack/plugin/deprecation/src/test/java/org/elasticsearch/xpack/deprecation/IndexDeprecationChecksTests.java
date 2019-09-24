@@ -436,7 +436,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertEquals(DeprecationIssue.Level.WARNING, issue.getLevel());
         assertEquals("https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#fieldnames-enabling"
                 , issue.getUrl());
-        assertEquals("Index mapping contain explicit _field_names enabling settings.", issue.getMessage());
+        assertEquals("Index mapping contains explicit `_field_names` enabling settings.", issue.getMessage());
         assertEquals("The index mapping contains a deprecated `enabled` setting for `_field_names` that should be removed moving foward.",
                 issue.getDetails());
     }

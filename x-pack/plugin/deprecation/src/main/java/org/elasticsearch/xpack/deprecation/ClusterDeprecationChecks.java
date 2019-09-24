@@ -101,22 +101,22 @@ public class ClusterDeprecationChecks {
      * and will throw an error on new indices in 8.0
      */
     static DeprecationIssue checkTemplatesWithFieldNamesDisabled(ClusterState state) {
-        Set<String> templatesContainingFieldNamed = new HashSet<>();
+        Set<String> templatesContainingFieldNames = new HashSet<>();
         state.getMetaData().getTemplates().forEach((templateCursor) -> {
             String templateName = templateCursor.key;
             templateCursor.value.getMappings().forEach((mappingCursor) -> {
                 Map<String, Object> map = XContentHelper.convertToMap(mappingCursor.value.compressedReference(), false, XContentType.JSON)
                         .v2();
                 if (mapContainsFieldNamesDisabled(map)) {
-                    templatesContainingFieldNamed.add(templateName);
+                    templatesContainingFieldNames.add(templateName);
                 }
             });
         });
 
-        if (templatesContainingFieldNamed.isEmpty() == false) {
+        if (templatesContainingFieldNames.isEmpty() == false) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, "Index templates contain _field_names settings.",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#fieldnames-enabling",
-                    "Index templates " + templatesContainingFieldNamed + " use the deprecated `enable` setting for the `"
+                    "Index templates " + templatesContainingFieldNames + " use the deprecated `enable` setting for the `"
                             + FieldNamesFieldMapper.NAME + "` field. Using this setting in new index mappings will throw an error "
                                     + "in the next major version and needs to be removed from existing mappings and templates.");
         }

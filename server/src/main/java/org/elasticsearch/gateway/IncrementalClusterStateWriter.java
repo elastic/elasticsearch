@@ -305,11 +305,10 @@ class IncrementalClusterStateWriter {
                 commitCleanupActions.forEach(Runnable::run);
                 finished = true;
             } catch (WriteStateException e) {
-                // if Manifest write results in dirty WriteStateException it's not safe to remove
-                // new metadata files, because if Manifest was actually written to disk and its deletion
-                // fails it will reference these new metadata files.
-                // In the future, we might decide to add more fine grained check to understand if after
-                // WriteStateException Manifest deletion has actually failed.
+                // If the Manifest write results in a dirty WriteStateException it's not safe to roll back, removing the new metadata files,
+                // because if the Manifest was actually written to disk and its deletion fails it will reference these new metadata files.
+                // On master-eligible nodes a dirty WriteStateException here is fatal to the node since we no longer really have any idea
+                // what the state on disk is and the only sensible response is to start again from scratch.
                 if (e.isDirty() == false) {
                     rollback();
                 }

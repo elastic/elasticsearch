@@ -58,7 +58,7 @@ import java.util.function.UnaryOperator;
 /**
  * Loads (and maybe upgrades) cluster metadata at startup, and persistently stores cluster metadata for future restarts.
  *
- * When started, ensures that this version is compatible with the state stored on disk, and perform a state upgrade if necessary.  Note that
+ * When started, ensures that this version is compatible with the state stored on disk, and performs a state upgrade if necessary. Note that
  * the state being loaded when constructing the instance of this class is not necessarily the state that will be used as {@link
  * ClusterState#metaData()} because it might be stale or incomplete. Master-eligible nodes must perform an election to find a complete and
  * non-stale state, and master-ineligible nodes receive the real cluster state from the elected master after joining the cluster.
@@ -118,8 +118,14 @@ public class GatewayMetaState {
                 // cluster state, which is what this does:
                 clusterService.addLowPriorityApplier(new GatewayClusterApplier(incrementalClusterStateWriter));
             }
+
+            // Master-ineligible nodes do not need to persist the cluster state when accepting it because they are not in the voting
+            // configuration, so it's ok if they have a stale or incomplete cluster state when restarted. We track the latest cluster state
+            // in memory instead.
             persistedState.set(new InMemoryPersistedState(manifestClusterStateTuple.v1().getCurrentTerm(), manifestClusterStateTuple.v2()));
         } else {
+            // Master-ineligible nodes must persist the cluster state when accepting it because they must reload the (complete, fresh)
+            // last-accepted cluster state when restarted.
             persistedState.set(new GatewayPersistedState(incrementalClusterStateWriter));
         }
     }

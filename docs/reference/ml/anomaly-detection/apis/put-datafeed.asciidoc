@@ -125,7 +125,8 @@ PUT _ml/datafeeds/datafeed-total-requests
 // TEST[skip:setup:server_metrics_job]
 
 When the {dfeed} is created, you receive the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "datafeed_id": "datafeed-total-requests",

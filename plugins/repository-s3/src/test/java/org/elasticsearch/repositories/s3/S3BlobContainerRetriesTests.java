@@ -21,8 +21,11 @@ package org.elasticsearch.repositories.s3;
 import com.amazonaws.SdkClientException;
 import com.amazonaws.services.s3.internal.MD5DigestCalculatingInputStream;
 import com.amazonaws.util.Base16;
+import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import org.apache.http.ConnectionClosedException;
 import org.apache.http.HttpStatus;
+import org.apache.http.NoHttpResponseException;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
@@ -51,12 +54,15 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.repositories.s3.S3ClientSettings.DISABLE_CHUNKED_ENCODING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTING;
@@ -67,6 +73,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * This class tests how a {@link S3BlobContainer} and its underlying AWS S3 client are retrying requests when reading or writing blobs.
@@ -130,26 +137,41 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
             repositoryMetaData));
     }
 
+    public void testReadNonexistentBlobThrowsNoSuchFileException() {
+        final BlobContainer blobContainer = createBlobContainer(between(1, 5), null, null, null);
+        final Exception exception = expectThrows(NoSuchFileException.class, () -> blobContainer.readBlob("read_nonexistent_blob"));
+        assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("blob object [read_nonexistent_blob] not found"));
+    }
+
     public void testReadBlobWithRetries() throws Exception {
         final int maxRetries = randomInt(5);
         final CountDown countDown = new CountDown(maxRetries + 1);
 
-        final byte[] bytes = randomByteArrayOfLength(randomIntBetween(1, 512));
+        final byte[] bytes = randomBlobContent();
         httpServer.createContext("/bucket/read_blob_max_retries", exchange -> {
             Streams.readFully(exchange.getRequestBody());
             if (countDown.countDown()) {
+                final int rangeStart = getRangeStart(exchange);
+                assertThat(rangeStart, lessThan(bytes.length));
                 exchange.getResponseHeaders().add("Content-Type", "text/plain; charset=utf-8");
-                exchange.sendResponseHeaders(HttpStatus.SC_OK, bytes.length);
-                exchange.getResponseBody().write(bytes);
+                exchange.sendResponseHeaders(HttpStatus.SC_OK, bytes.length - rangeStart);
+                exchange.getResponseBody().write(bytes, rangeStart, bytes.length - rangeStart);
                 exchange.close();
                 return;
             }
-            exchange.sendResponseHeaders(randomFrom(HttpStatus.SC_INTERNAL_SERVER_ERROR, HttpStatus.SC_BAD_GATEWAY,
-                                                    HttpStatus.SC_SERVICE_UNAVAILABLE, HttpStatus.SC_GATEWAY_TIMEOUT), -1);
-            exchange.close();
+            if (randomBoolean()) {
+                exchange.sendResponseHeaders(randomFrom(HttpStatus.SC_INTERNAL_SERVER_ERROR, HttpStatus.SC_BAD_GATEWAY,
+                                                        HttpStatus.SC_SERVICE_UNAVAILABLE, HttpStatus.SC_GATEWAY_TIMEOUT), -1);
+            } else if (randomBoolean()) {
+                sendIncompleteContent(exchange, bytes);
+            }
+            if (randomBoolean()) {
+                exchange.close();
+            }
         });
 
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null);
+        final TimeValue readTimeout = TimeValue.timeValueMillis(between(100, 500));
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, readTimeout, null, null);
         try (InputStream inputStream = blobContainer.readBlob("read_blob_max_retries")) {
             assertArrayEquals(bytes, BytesReference.toBytes(Streams.readFully(inputStream)));
             assertThat(countDown.isCountedDown(), is(true));
@@ -157,8 +179,9 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
     }
 
     public void testReadBlobWithReadTimeouts() {
-        final TimeValue readTimeout = TimeValue.timeValueMillis(randomIntBetween(100, 500));
-        final BlobContainer blobContainer = createBlobContainer(1, readTimeout, null, null);
+        final int maxRetries = randomInt(5);
+        final TimeValue readTimeout = TimeValue.timeValueMillis(between(100, 200));
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, readTimeout, null, null);
 
         // HTTP server does not send a response
         httpServer.createContext("/bucket/read_blob_unresponsive", exchange -> {});
@@ -168,15 +191,8 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         assertThat(exception.getCause(), instanceOf(SocketTimeoutException.class));
 
         // HTTP server sends a partial response
-        final byte[] bytes = randomByteArrayOfLength(randomIntBetween(10, 128));
-        httpServer.createContext("/bucket/read_blob_incomplete", exchange -> {
-            exchange.getResponseHeaders().add("Content-Type", "text/plain; charset=utf-8");
-            exchange.sendResponseHeaders(HttpStatus.SC_OK, bytes.length);
-            exchange.getResponseBody().write(bytes, 0, randomIntBetween(1, bytes.length - 1));
-            if (randomBoolean()) {
-                exchange.getResponseBody().flush();
-            }
-        });
+        final byte[] bytes = randomBlobContent();
+        httpServer.createContext("/bucket/read_blob_incomplete", exchange -> sendIncompleteContent(exchange, bytes));
 
         exception = expectThrows(SocketTimeoutException.class, () -> {
             try (InputStream stream = blobContainer.readBlob("read_blob_incomplete")) {
@@ -184,13 +200,47 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
             }
         });
         assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("read timed out"));
+        assertThat(exception.getSuppressed().length, equalTo(maxRetries));
+    }
+
+    public void testReadBlobWithNoHttpResponse() {
+        final BlobContainer blobContainer = createBlobContainer(randomInt(5), null, null, null);
+
+        // HTTP server closes connection immediately
+        httpServer.createContext("/bucket/read_blob_no_response", HttpExchange::close);
+
+        Exception exception = expectThrows(SdkClientException.class, () -> blobContainer.readBlob("read_blob_no_response"));
+        assertThat(exception.getMessage().toLowerCase(Locale.ROOT), containsString("the target server failed to respond"));
+        assertThat(exception.getCause(), instanceOf(NoHttpResponseException.class));
+        assertThat(exception.getSuppressed().length, equalTo(0));
+    }
+
+    public void testReadBlobWithPrematureConnectionClose() {
+        final int maxRetries = randomInt(20);
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null);
+
+        // HTTP server sends a partial response
+        final byte[] bytes = randomBlobContent();
+        httpServer.createContext("/bucket/read_blob_incomplete", exchange -> {
+            sendIncompleteContent(exchange, bytes);
+            exchange.close();
+        });
+
+        final Exception exception = expectThrows(ConnectionClosedException.class, () -> {
+            try (InputStream stream = blobContainer.readBlob("read_blob_incomplete")) {
+                Streams.readFully(stream);
+            }
+        });
+        assertThat(exception.getMessage().toLowerCase(Locale.ROOT),
+            containsString("premature end of content-length delimited message body"));
+        assertThat(exception.getSuppressed().length, equalTo(Math.min(S3RetryingInputStream.MAX_SUPPRESSED_EXCEPTIONS, maxRetries)));
     }
 
     public void testWriteBlobWithRetries() throws Exception {
         final int maxRetries = randomInt(5);
         final CountDown countDown = new CountDown(maxRetries + 1);
 
-        final byte[] bytes = randomByteArrayOfLength(randomIntBetween(1, frequently() ? 512 : 1 << 20)); // rarely up to 1mb
+        final byte[] bytes = randomBlobContent();
         httpServer.createContext("/bucket/write_blob_max_retries", exchange -> {
             if ("PUT".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery() == null) {
                 if (countDown.countDown()) {
@@ -343,6 +393,35 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         assertThat(countDownComplete.isCountedDown(), is(true));
     }
 
+    private static byte[] randomBlobContent() {
+        return randomByteArrayOfLength(randomIntBetween(1, frequently() ? 512 : 1 << 20)); // rarely up to 1mb
+    }
+
+    private static int getRangeStart(HttpExchange exchange) {
+        final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
+        if (rangeHeader == null) {
+            return 0;
+        }
+
+        final Matcher matcher = Pattern.compile("^bytes=([0-9]+)-9223372036854775806$").matcher(rangeHeader);
+        assertTrue(rangeHeader + " matches expected pattern", matcher.matches());
+        return Math.toIntExact(Long.parseLong(matcher.group(1)));
+    }
+
+    private static void sendIncompleteContent(HttpExchange exchange, byte[] bytes) throws IOException {
+        final int rangeStart = getRangeStart(exchange);
+        assertThat(rangeStart, lessThan(bytes.length));
+        exchange.getResponseHeaders().add("Content-Type", "text/plain; charset=utf-8");
+        exchange.sendResponseHeaders(HttpStatus.SC_OK, bytes.length - rangeStart);
+        final int bytesToSend = randomIntBetween(0, bytes.length - rangeStart - 1);
+        if (bytesToSend > 0) {
+            exchange.getResponseBody().write(bytes, rangeStart, bytesToSend);
+        }
+        if (randomBoolean()) {
+            exchange.getResponseBody().flush();
+        }
+    }
+
     /**
      * A resettable InputStream that only serves zeros.
      **/
@@ -413,7 +492,7 @@ public class S3BlobContainerRetriesTests extends ESTestCase {
         }
 
         @Override
-        public void close() throws IOException {
+        public void close() {
             closed.set(true);
         }
 

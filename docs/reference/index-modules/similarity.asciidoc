@@ -238,7 +238,7 @@ GET /index/_search?explain=true
 
 Which yields:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 12,
@@ -260,7 +260,6 @@ Which yields:
         "_shard": "[index][0]",
         "_node": "OzrdjxNtQGaqs4DmioFw9A",
         "_index": "index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 1.9508477,
         "_source": {
@@ -411,7 +410,7 @@ GET /index/_search?explain=true
 --------------------------------------------------
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 1,
@@ -433,7 +432,6 @@ GET /index/_search?explain=true
         "_shard": "[index][0]",
         "_node": "OzrdjxNtQGaqs4DmioFw9A",
         "_index": "index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 1.9508477,
         "_source": {

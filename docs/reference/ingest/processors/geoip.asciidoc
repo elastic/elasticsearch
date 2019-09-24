@@ -63,12 +63,11 @@ GET my_index/_doc/my_id
 
 Which returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
   "_index": "my_index",
-  "_type": "_doc",
   "_id": "my_id",
   "_version": 1,
   "_seq_no": 55,
@@ -113,12 +112,11 @@ GET my_index/_doc/my_id
 
 returns this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
   "_index": "my_index",
-  "_type": "_doc",
   "_id": "my_id",
   "_version": 1,
   "_seq_no": 65,
@@ -165,11 +163,10 @@ GET my_index/_doc/my_id
 
 Which returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_index" : "my_index",
-  "_type" : "_doc",
   "_id" : "my_id",
   "_version" : 1,
   "_seq_no" : 71,
@@ -249,7 +246,7 @@ GET /my_ip_locations/_search
 --------------------------------------------------
 // TEST[continued]
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took" : 3,
@@ -269,7 +266,6 @@ GET /my_ip_locations/_search
     "hits" : [
       {
         "_index" : "my_ip_locations",
-        "_type" : "_doc",
         "_id" : "1",
         "_score" : 1.0,
         "_source" : {

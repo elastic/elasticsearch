@@ -32,6 +32,7 @@ PUT /_snapshot/my_repository
 
 # snapshot the index
 PUT /_snapshot/my_repository/snap_1?wait_for_completion=true
+{"indices": "index1"}
 
 # delete the index
 DELETE index1
@@ -67,7 +68,8 @@ GET /_recovery?human
 // TEST[continued]
 
 Response:
-[source,js]
+
+[source,console-result]
 --------------------------------------------------
 {
   "index1" : {
@@ -159,7 +161,7 @@ GET _recovery?human&detailed=true
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "index1" : {

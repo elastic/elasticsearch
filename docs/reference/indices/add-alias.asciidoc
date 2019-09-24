@@ -6,7 +6,7 @@
 
 Creates or updates an index alias.
 
-include::{docdir}/glossary.asciidoc[tag=index-alias-def]
+include::{docdir}/glossary.asciidoc[tag=index-alias-desc]
 
 [source,console]
 ----

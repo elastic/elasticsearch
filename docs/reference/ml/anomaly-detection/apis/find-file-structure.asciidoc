@@ -253,7 +253,7 @@ POST _ml/find_file_structure
 
 If the request does not encounter errors, you receive the following result:
 
-[source,js]
+[source,console-result]
 ----
 {
   "num_lines_analyzed" : 24, <1>

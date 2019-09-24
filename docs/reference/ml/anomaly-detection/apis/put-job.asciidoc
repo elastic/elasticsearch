@@ -119,7 +119,8 @@ PUT _ml/anomaly_detectors/total-requests
 --------------------------------------------------
 
 When the job is created, you receive the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "job_id" : "total-requests",

@@ -40,7 +40,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.SearchHit;
 import org.hamcrest.Matcher;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -56,9 +55,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.fieldFromSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasIndex;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasProperty;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasType;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.either;
@@ -360,7 +357,6 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
                 Iterable<SearchHit> hits = searchAll(new SearchRequest("test").routing("routing"));
 
                 assertThat(hits, everyItem(hasProperty(fieldFromSource("fieldNameXYZ"), equalTo("valueXYZ"))));
-                assertThat(hits, everyItem(Matchers.allOf(hasIndex("test"), hasType(globalType))));
                 assertThat(hits, containsInAnyOrder(expectedIds(numDocs)));
             }
 
@@ -391,7 +387,6 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
                 Iterable<SearchHit> hits = searchAll(new SearchRequest("test").routing("routing"));
 
                 assertThat(hits, everyItem(hasProperty(fieldFromSource("fieldNameXYZ"), equalTo("valueXYZ"))));
-                assertThat(hits, everyItem(Matchers.allOf(hasIndex("test"), hasType(localType))));
                 assertThat(hits, containsInAnyOrder(expectedIds(numDocs)));
             }
         }
@@ -422,7 +417,6 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
                 Iterable<SearchHit> hits = searchAll(new SearchRequest("test").routing("routing"));
 
                 assertThat(hits, everyItem(hasProperty(fieldFromSource("fieldNameXYZ"), equalTo("valueXYZ"))));
-                assertThat(hits, everyItem(Matchers.allOf(hasIndex("test"), hasType(customType))));
                 assertThat(hits, containsInAnyOrder(expectedIds(numDocs)));
             }
         }
@@ -483,11 +477,11 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
     private MultiGetRequest indexDocs(BulkProcessor processor, int numDocs) throws Exception {
         return indexDocs(processor, numDocs, "test", null, null, null, null);
     }
-    
+
     private static void assertResponseItems(List<BulkItemResponse> bulkItemResponses, int numDocs) {
         assertResponseItems(bulkItemResponses, numDocs, MapperService.SINGLE_MAPPING_NAME);
     }
-    
+
     private static void assertResponseItems(List<BulkItemResponse> bulkItemResponses, int numDocs, String expectedType) {
         assertThat(bulkItemResponses.size(), is(numDocs));
         int i = 1;
@@ -505,7 +499,6 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         int i = 1;
         for (MultiGetItemResponse multiGetItemResponse : multiGetResponse) {
             assertThat(multiGetItemResponse.getIndex(), equalTo("test"));
-            assertThat(multiGetItemResponse.getType(), equalTo("_doc"));
             assertThat(multiGetItemResponse.getId(), equalTo(Integer.toString(i++)));
         }
     }

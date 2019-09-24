@@ -159,7 +159,8 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
             // snapshot the shard
             final Repository repository = createRepository();
             final Snapshot snapshot = new Snapshot(repository.getMetadata().name(), new SnapshotId(randomAlphaOfLength(10), "_uuid"));
-            snapshotShard(shard, snapshot, repository);
+            final String shardGen = snapshotShard(shard, snapshot, repository);
+            assertNotNull(shardGen);
             final Snapshot snapshotWithSameName = new Snapshot(repository.getMetadata().name(), new SnapshotId(
                 snapshot.getSnapshotId().getName(), "_uuid2"));
             IndexShardSnapshotFailedException isfe = expectThrows(IndexShardSnapshotFailedException.class,

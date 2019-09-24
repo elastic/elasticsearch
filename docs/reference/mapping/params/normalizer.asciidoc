@@ -74,7 +74,7 @@ GET index/_search
 The above queries match documents 1 and 2 since `BÀR` is converted to `bar` at
 both index and query time.
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "took": $body.took,
@@ -94,7 +94,6 @@ both index and query time.
     "hits": [
       {
         "_index": "index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.47000363,
         "_source": {
@@ -103,7 +102,6 @@ both index and query time.
       },
       {
         "_index": "index",
-        "_type": "_doc",
         "_id": "2",
         "_score": 0.47000363,
         "_source": {
@@ -137,7 +135,7 @@ GET index/_search
 
 returns
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "took": 43,

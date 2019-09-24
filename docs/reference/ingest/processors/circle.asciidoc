@@ -70,12 +70,11 @@ GET circles/_doc/1
 
 The response from the above index request:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
   "_index": "circles",
-  "_type": "_doc",
   "_id": "1",
   "_version": 1,
   "_seq_no": 22,
@@ -108,12 +107,11 @@ GET circles/_doc/2
 
 The response from the above index request:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
   "_index": "circles",
-  "_type": "_doc",
   "_id": "2",
   "_version": 1,
   "_seq_no": 22,

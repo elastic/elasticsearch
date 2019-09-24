@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[rollup-search-limitations]]
-== Rollup Search Limitations
+=== {rollup-cap} search limitations
 
 experimental[]
 
@@ -11,7 +11,7 @@ live data is thrown away, you will always lose some flexibility.
 This page highlights the major limitations so that you are aware of them.
 
 [float]
-=== Only one Rollup index per search
+==== Only one {rollup} index per search
 
 When using the <<rollup-search>> endpoint, the `index` parameter accepts one or more indices.  These can be a mix of regular, non-rollup
 indices and rollup indices.  However, only one rollup index can be specified.  The exact list of rules for the `index` parameter are as
@@ -33,7 +33,7 @@ may be able to open this up to multiple rollup jobs.
 
 [float]
 [[aggregate-stored-only]]
-=== Can only aggregate what's been stored
+==== Can only aggregate what's been stored
 
 A perhaps obvious limitation, but rollups can only aggregate on data that has been stored in the rollups.  If you don't configure the
 rollup job to store metrics about the `price` field, you won't be able to use the `price` field in any query or aggregation.
@@ -41,7 +41,7 @@ rollup job to store metrics about the `price` field, you won't be able to use th
 For example, the `temperature` field in the following query has been stored in a rollup job... but not with an `avg` metric.  Which means
 the usage of `avg` here is not allowed:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET sensor_rollup/_rollup_search
 {
@@ -55,13 +55,12 @@ GET sensor_rollup/_rollup_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_prefab_data]
 // TEST[catch:/illegal_argument_exception/]
 
 The response will tell you that the field and aggregation were not possible, because no rollup jobs were found which contained them:
 
-[source,js]
+[source,console-result]
 ----
 {
     "error" : {
@@ -82,7 +81,7 @@ The response will tell you that the field and aggregation were not possible, bec
 // TESTRESPONSE[s/"stack_trace": \.\.\./"stack_trace": $body.$_path/]
 
 [float]
-=== Interval Granularity
+==== Interval granularity
 
 Rollups are stored at a certain granularity, as defined by the `date_histogram` group in the configuration.  This means you
 can only search/aggregate the rollup data with an interval that is greater-than or equal to the configured rollup interval.
@@ -112,7 +111,7 @@ That said, if multiple jobs are present in a single rollup index with varying in
 with the largest interval to satisfy the search request.
 
 [float]
-=== Limited querying components
+==== Limited querying components
 
 The Rollup functionality allows `query`'s in the search request, but with a limited subset of components.  The queries currently allowed are:
 
@@ -129,7 +128,7 @@ If you attempt to use an unsupported query, or the query references a field that
 thrown.  We expect the list of support queries to grow over time as more are implemented.
 
 [float]
-=== Timezones
+==== Timezones
 
 Rollup documents are stored in the timezone of the `date_histogram` group configuration in the job.  If no timezone is specified, the default
 is to rollup timestamps in `UTC`.

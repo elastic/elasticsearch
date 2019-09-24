@@ -176,33 +176,22 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         goodMappingBuilder.endObject();
         assertFieldNamesEnabledTemplate(goodMappingBuilder, false);
 
-        XContentBuilder badMappingWithTypeBuilder = jsonBuilder();
-        badMappingWithTypeBuilder.startObject();
+        XContentBuilder badMappingBuilder = jsonBuilder();
+        badMappingBuilder.startObject();
         {
-            badMappingWithTypeBuilder.startObject("_doc");
+            // we currently always store a type level internally
+            badMappingBuilder.startObject("_doc");
             {
-                badMappingWithTypeBuilder.startObject(FieldNamesFieldMapper.NAME);
+                badMappingBuilder.startObject(FieldNamesFieldMapper.NAME);
                 {
-                    badMappingWithTypeBuilder.field("enabled", randomBoolean());
+                    badMappingBuilder.field("enabled", randomBoolean());
                 }
-                badMappingWithTypeBuilder.endObject();
+                badMappingBuilder.endObject();
             }
-            badMappingWithTypeBuilder.endObject();
+            badMappingBuilder.endObject();
         }
-        badMappingWithTypeBuilder.endObject();
-        assertFieldNamesEnabledTemplate(badMappingWithTypeBuilder, true);
-
-        XContentBuilder badMappingWithoutTypeBuilder = jsonBuilder();
-        badMappingWithoutTypeBuilder.startObject();
-        {
-            badMappingWithoutTypeBuilder.startObject(FieldNamesFieldMapper.NAME);
-            {
-                badMappingWithoutTypeBuilder.field("enabled", randomBoolean());
-            }
-            badMappingWithoutTypeBuilder.endObject();
-        }
-        badMappingWithoutTypeBuilder.endObject();
-        assertFieldNamesEnabledTemplate(badMappingWithoutTypeBuilder, true);
+        badMappingBuilder.endObject();
+        assertFieldNamesEnabledTemplate(badMappingBuilder, true);
     }
 
     private void assertFieldNamesEnabledTemplate(XContentBuilder templateBuilder, boolean expectIssue) throws IOException {

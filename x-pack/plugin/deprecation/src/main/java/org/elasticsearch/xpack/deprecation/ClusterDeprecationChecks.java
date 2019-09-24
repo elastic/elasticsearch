@@ -107,7 +107,10 @@ public class ClusterDeprecationChecks {
             templateCursor.value.getMappings().forEach((mappingCursor) -> {
                 Map<String, Object> map = XContentHelper.convertToMap(mappingCursor.value.compressedReference(), false, XContentType.JSON)
                         .v2();
-                if (mapContainsFieldNamesDisabled(map)) {
+                // map should contain only type name at this level
+                assert map.size() == 1;
+                String type = map.keySet().iterator().next();
+                if (mapContainsFieldNamesDisabled((Map<?,?>) map.get(type))) {
                     templatesContainingFieldNames.add(templateName);
                 }
             });
@@ -127,18 +130,10 @@ public class ClusterDeprecationChecks {
      * check for "_field_names" entries in the map that contain another property "enabled" in the sub-map
      */
     static boolean mapContainsFieldNamesDisabled(Map<?, ?> map) {
-        if (map != null) {
-            Object fieldNamesMapping = map.get(FieldNamesFieldMapper.NAME);
-            if (fieldNamesMapping != null && fieldNamesMapping instanceof Map) {
-                if (((Map<?, ?>) fieldNamesMapping).keySet().contains("enabled")) {
-                    return true;
-                }
-            } else {
-                for (Object value : map.values()) {
-                    if (value instanceof Map) {
-                        return mapContainsFieldNamesDisabled((Map<?, ?>) value);
-                    }
-                }
+        Object fieldNamesMapping = map.get(FieldNamesFieldMapper.NAME);
+        if (fieldNamesMapping != null) {
+            if (((Map<?, ?>) fieldNamesMapping).keySet().contains("enabled")) {
+                return true;
             }
         }
         return false;

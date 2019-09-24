@@ -121,6 +121,151 @@ SELECT WEEK(birth_date) week, birth_date FROM test_emp WHERE WEEK(birth_date) > 
 2              |1953-01-07T00:00:00.000Z
 ;
 
+selectDateTruncWithDateTime
+schema::dt_hour:ts|dt_min:ts|dt_sec:ts|dt_millis:s|dt_micro:s|dt_nano:s
+SELECT DATE_TRUNC('hour', '2019-09-04T11:22:33.123Z'::datetime) as dt_hour, DATE_TRUNC('minute', '2019-09-04T11:22:33.123Z'::datetime) as dt_min,
+DATE_TRUNC('seconds', '2019-09-04T11:22:33.123Z'::datetime) as dt_sec, DATE_TRUNC('ms', '2019-09-04T11:22:33.123Z'::datetime)::string as dt_millis,
+DATE_TRUNC('mcs', '2019-09-04T11:22:33.123Z'::datetime)::string as dt_micro, DATE_TRUNC('nanoseconds', '2019-09-04T11:22:33.123Z'::datetime)::string as dt_nano;
+
+       dt_hour           |       dt_min              |       dt_sec             |       dt_millis          |       dt_micro           |       dt_nano
+-------------------------+---------------------------+--------------------------+--------------------------+--------------------------+-------------------------
+2019-09-04T11:00:00.000Z | 2019-09-04T11:22:00.000Z  | 2019-09-04T11:22:33.000Z | 2019-09-04T11:22:33.123Z | 2019-09-04T11:22:33.123Z | 2019-09-04T11:22:33.123Z
+;
+
+selectDateTruncWithDate
+schema::dt_mil:ts|dt_cent:ts|dt_dec:ts|dt_year:ts|dt_quarter:ts|dt_month:ts|dt_week:ts|dt_day:ts
+SELECT DATE_TRUNC('millennia', '2019-09-04'::date) as dt_mil,  DATE_TRUNC('century', '2019-09-04'::date) as dt_cent,
+DATE_TRUNC('decades', '2019-09-04'::date) as dt_dec,  DATE_TRUNC('year', '2019-09-04'::date) as dt_year,
+DATE_TRUNC('quarter', '2019-09-04'::date) as dt_quarter,  DATE_TRUNC('month', '2019-09-04'::date) as dt_month,
+DATE_TRUNC('week', '2019-09-04'::date) as dt_week,  DATE_TRUNC('day', '2019-09-04'::date) as dt_day;
+
+ dt_mil                  |       dt_cent            |        dt_dec            |        dt_year           |        dt_quarter        |        dt_month          |        dt_week           |        dt_day
+-------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+-------------------------
+2000-01-01T00:00:00.000Z | 2000-01-01T00:00:00.000Z | 2010-01-01T00:00:00.000Z | 2019-01-01T00:00:00.000Z | 2019-07-01T00:00:00.000Z | 2019-09-01T00:00:00.000Z | 2019-09-02T00:00:00.000Z | 2019-09-04T00:00:00.000Z
+;
+
+selectDateTruncWithField
+schema::emp_no:i|birth_date:ts|dt_mil:ts|dt_cent:ts|dt_dec:ts|dt_year:ts|dt_quarter:ts|dt_month:ts|dt_week:ts|dt_day:ts
+SELECT emp_no, birth_date, DATE_TRUNC('millennium', birth_date) as dt_mil, DATE_TRUNC('centuries', birth_date) as dt_cent,
+DATE_TRUNC('decades', birth_date) as dt_dec, DATE_TRUNC('year', birth_date) as dt_year, DATE_TRUNC('quarter', birth_date) as dt_quarter,
+DATE_TRUNC('month', birth_date) as dt_month, DATE_TRUNC('week', birth_date) as dt_week, DATE_TRUNC('day', birth_date) as dt_day
+FROM test_emp WHERE emp_no >= 10032 AND emp_no <= 10042 ORDER BY 1;
+
+ emp_no |     birth_date          |       dt_mil             |       dt_cent            |       dt_dec             |       dt_year            |     dt_quarter           |      dt_month            |       dt_week            |       dt_day
+--------+-------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+-------------------------
+10032   |1960-08-09 00:00:00.000Z | 0999-12-27 00:00:00.000Z | 1900-01-01 00:00:00.000Z | 1960-01-01 00:00:00.000Z | 1960-01-01 00:00:00.000Z | 1960-07-01 00:00:00.000Z | 1960-08-01 00:00:00.000Z | 1960-08-08 00:00:00.000Z | 1960-08-09 00:00:00.000Z
+10033   |1956-11-14 00:00:00.000Z | 0999-12-27 00:00:00.000Z | 1900-01-01 00:00:00.000Z | 1950-01-01 00:00:00.000Z | 1956-01-01 00:00:00.000Z | 1956-10-01 00:00:00.000Z | 1956-11-01 00:00:00.000Z | 1956-11-12 00:00:00.000Z | 1956-11-14 00:00:00.000Z
+10034   |1962-12-29 00:00:00.000Z | 0999-12-27 00:00:00.000Z | 1900-01-01 00:00:00.000Z | 1960-01-01 00:00:00.000Z | 1962-01-01 00:00:00.000Z | 1962-10-01 00:00:00.000Z | 1962-12-01 00:00:00.000Z | 1962-12-24 00:00:00.000Z | 1962-12-29 00:00:00.000Z
+10035   |1953-02-08 00:00:00.000Z | 0999-12-27 00:00:00.000Z | 1900-01-01 00:00:00.000Z | 1950-01-01 00:00:00.000Z | 1953-01-01 00:00:00.000Z | 1953-01-01 00:00:00.000Z | 1953-02-01 00:00:00.000Z | 1953-02-02 00:00:00.000Z | 1953-02-08 00:00:00.000Z
+10036   |1959-08-10 00:00:00.000Z | 0999-12-27 00:00:00.000Z | 1900-01-01 00:00:00.000Z | 1950-01-01 00:00:00.000Z | 1959-01-01 00:00:00.000Z | 1959-07-01 00:00:00.000Z | 1959-08-01 00:00:00.000Z | 1959-08-10 00:00:00.000Z | 1959-08-10 00:00:00.000Z
+10037   |1963-07-22 00:00:00.000Z | 0999-12-27 00:00:00.000Z | 1900-01-01 00:00:00.000Z | 1960-01-01 00:00:00.000Z | 1963-01-01 00:00:00.000Z | 1963-07-01 00:00:00.000Z | 1963-07-01 00:00:00.000Z | 1963-07-22 00:00:00.000Z | 1963-07-22 00:00:00.000Z
+10038   |1960-07-20 00:00:00.000Z | 0999-12-27 00:00:00.000Z | 1900-01-01 00:00:00.000Z | 1960-01-01 00:00:00.000Z | 1960-01-01 00:00:00.000Z | 1960-07-01 00:00:00.000Z | 1960-07-01 00:00:00.000Z | 1960-07-18 00:00:00.000Z | 1960-07-20 00:00:00.000Z
+10039   |1959-10-01 00:00:00.000Z | 0999-12-27 00:00:00.000Z | 1900-01-01 00:00:00.000Z | 1950-01-01 00:00:00.000Z | 1959-01-01 00:00:00.000Z | 1959-10-01 00:00:00.000Z | 1959-10-01 00:00:00.000Z | 1959-09-28 00:00:00.000Z | 1959-10-01 00:00:00.000Z
+10040   | null                    | null                     | null                     | null                     | null                     | null                     | null                     | null                     | null
+10041   | null                    | null                     | null                     | null                     | null                     | null                     | null                     | null                     | null
+10042   | null                    | null                     | null                     | null                     | null                     | null                     | null                     | null                     | null
+;
+
+selectDateTruncWithNullTruncateField
+SELECT DATE_TRUNC(null, birth_date) AS dt FROM test_emp LIMIT 5;
+
+ dt:ts
+------
+null
+null
+null
+null
+null
+;
+
+selectDateTruncWithScalars
+SELECT birth_date, DATE_TRUNC(CAST(CHAR(109) AS VARCHAR), birth_date + INTERVAL 12 YEAR) AS dt FROM test_emp ORDER BY 1 DESC NULLS LAST LIMIT 5;
+
+     birth_date:ts       |         dt:ts
+-------------------------+---------------------
+1965-01-03 00:00:00.000Z | 1977-01-01 00:00:00.000Z
+1964-10-18 00:00:00.000Z | 1976-10-01 00:00:00.000Z
+1964-06-11 00:00:00.000Z | 1976-06-01 00:00:00.000Z
+1964-06-02 00:00:00.000Z | 1976-06-01 00:00:00.000Z
+1964-04-18 00:00:00.000Z | 1976-04-01 00:00:00.000Z
+;
+
+selectDateTruncWithTruncArgFromField
+SELECT DATE_TRUNC(CONCAT(gender, 'illennium'), birth_date) AS dt FROM test_emp WHERE gender='M' ORDER BY 1 DESC LIMIT 2;
+
+     dt:ts
+------------------------
+0999-12-27 00:00:00.000Z
+0999-12-27 00:00:00.000Z
+;
+
+selectDateTruncWithComplexExpressions
+SELECT gender, birth_date, DATE_TRUNC(CASE WHEN gender = 'M' THEN CONCAT(gender, 'onths') WHEN gender = 'F' THEN 'decade' ELSE 'quarter' END,
+birth_date + INTERVAL 10 month) AS dt FROM test_emp WHERE dt > '1954-07-01'::date ORDER BY emp_no LIMIT 10;
+
+   gender:s |   birth_date:ts          |   dt:ts
+------------+--------------------------+---------------------
+F           | 1964-06-02 00:00:00.000Z | 1960-01-01 00:00:00.000Z
+M           | 1959-12-03 00:00:00.000Z | 1960-10-01 00:00:00.000Z
+M           | 1954-05-01 00:00:00.000Z | 1955-03-01 00:00:00.000Z
+M           | 1955-01-21 00:00:00.000Z | 1955-11-01 00:00:00.000Z
+M           | 1958-02-19 00:00:00.000Z | 1958-12-01 00:00:00.000Z
+null        | 1963-06-01 00:00:00.000Z | 1964-04-01 00:00:00.000Z
+null        | 1960-10-04 00:00:00.000Z | 1961-07-01 00:00:00.000Z
+null        | 1963-06-07 00:00:00.000Z | 1964-04-01 00:00:00.000Z
+null        | 1956-02-12 00:00:00.000Z | 1956-10-01 00:00:00.000Z
+null        | 1959-08-19 00:00:00.000Z | 1960-04-01 00:00:00.000Z
+;
+
+dateTruncOrderBy
+schema::emp_no:i|hire_date:ts|dt:ts
+SELECT emp_no, hire_date, DATE_TRUNC('quarter', hire_date) as dt FROM test_emp ORDER BY dt NULLS LAST, emp_no LIMIT 5;
+
+ emp_no |      hire_date           |         dt
+--------+--------------------------+-------------------------
+10009   | 1985-02-18 00:00:00.000Z | 1985-01-01 00:00:00.000Z
+10048   | 1985-02-24 00:00:00.000Z | 1985-01-01 00:00:00.000Z
+10098   | 1985-05-13 00:00:00.000Z | 1985-04-01 00:00:00.000Z
+10061   | 1985-09-17 00:00:00.000Z | 1985-07-01 00:00:00.000Z
+10076   | 1985-07-09 00:00:00.000Z | 1985-07-01 00:00:00.000Z
+;
+
+dateTruncFilter
+schema::emp_no:i|hire_date:ts|dt:ts
+SELECT emp_no, hire_date, DATE_TRUNC('quarter', hire_date) as dt FROM test_emp WHERE DATE_TRUNC('quarter', hire_date) > '1994-07-01T00:00:00.000Z'::timestamp ORDER BY emp_no;
+
+ emp_no |      hire_date           |          dt
+--------+--------------------------+-------------------------
+10016   | 1995-01-27 00:00:00.000Z | 1995-01-01 00:00:00.000Z
+10019   | 1999-04-30 00:00:00.000Z | 1999-04-01 00:00:00.000Z
+10022   | 1995-08-22 00:00:00.000Z | 1995-07-01 00:00:00.000Z
+10024   | 1997-05-19 00:00:00.000Z | 1997-04-01 00:00:00.000Z
+10026   | 1995-03-20 00:00:00.000Z | 1995-01-01 00:00:00.000Z
+10054   | 1995-03-13 00:00:00.000Z | 1995-01-01 00:00:00.000Z
+10084   | 1995-12-15 00:00:00.000Z | 1995-10-01 00:00:00.000Z
+10093   | 1996-11-05 00:00:00.000Z | 1996-10-01 00:00:00.000Z
+;
+
+dateTruncGroupBy
+schema::count:l|dt:ts
+SELECT count(*) as count, DATE_TRUNC('decade', hire_date) dt FROM test_emp GROUP BY dt ORDER BY 2;
+
+ count  |         dt
+--------+-------------------------
+59      | 1980-01-01 00:00:00.000Z
+41      | 1990-01-01 00:00:00.000Z
+;
+
+dateTruncHaving
+schema::gender:s|dt:ts
+SELECT gender, max(hire_date) dt FROM test_emp GROUP BY gender HAVING DATE_TRUNC('year', max(hire_date)) >= '1997-01-01T00:00:00.000Z'::timestamp ORDER BY 1;
+
+ gender |         dt
+--------+-------------------------
+null    | 1999-04-30 00:00:00.000Z
+F       | 1997-05-19 00:00:00.000Z
+;
+
 //
 // Aggregate
 //

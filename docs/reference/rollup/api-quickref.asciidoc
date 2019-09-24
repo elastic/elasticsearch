@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[rollup-api-quickref]]
-== API Quick Reference
+=== {rollup-cap} API quick reference
+++++
+<titleabbrev>API quick reference</titleabbrev>
+++++
 
 experimental[]
 
@@ -15,7 +18,7 @@ Most rollup endpoints have the following base:
 
 [float]
 [[rollup-api-jobs]]
-=== /job/
+==== /job/
 
 * {ref}/rollup-put-job.html[PUT /_rollup/job/<job_id+++>+++]: Create a {rollup-job}
 * {ref}/rollup-get-job.html[GET /_rollup/job]: List {rollup-jobs}
@@ -26,13 +29,13 @@ Most rollup endpoints have the following base:
 
 [float]
 [[rollup-api-data]]
-=== /data/
+==== /data/
 
 * {ref}/rollup-get-rollup-caps.html[GET /_rollup/data/<index_pattern+++>/_rollup_caps+++]: Get Rollup Capabilities
 * {ref}/rollup-get-rollup-index-caps.html[GET /<index_name+++>/_rollup/data/+++]: Get Rollup Index Capabilities
 
 [float]
 [[rollup-api-index]]
-=== /<index_name>/
+==== /<index_name>/
 
 * {ref}/rollup-search.html[GET /<index_name>/_rollup_search]: Search rollup data

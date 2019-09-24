@@ -339,7 +339,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats().get();
             for (ShardStats shardStats : indicesStatsResponse.getShards()) {
                 DocsStats docsStats = shardStats.getStats().docs;
-                logger.info("shard [{}] - count {}, primary {}", shardStats.getShardRouting().id(), docsStats.getCount(), 
+                logger.info("shard [{}] - count {}, primary {}", shardStats.getShardRouting().id(), docsStats.getCount(),
                         shardStats.getShardRouting().primary());
             }
 
@@ -350,7 +350,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
                     ShardId docShard = clusterService.operationRouting().shardId(state, "test", id, null);
                     if (docShard.id() == shard) {
                         for (ShardRouting shardRouting : state.routingTable().shardRoutingTable("test", shard)) {
-                            GetResponse response = client().prepareGet("test", "type", id)
+                            GetResponse response = client().prepareGet("test", id)
                                     .setPreference("_only_nodes:" + shardRouting.currentNodeId()).get();
                             if (response.isExists()) {
                                 logger.info("missing id [{}] on shard {}", id, shardRouting);
@@ -390,13 +390,13 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
     }
 
     private void logSearchResponse(int numberOfShards, long numberOfDocs, int iteration, SearchResponse searchResponse) {
-        logger.info("iteration [{}] - successful shards: {} (expected {})", iteration, 
+        logger.info("iteration [{}] - successful shards: {} (expected {})", iteration,
                 searchResponse.getSuccessfulShards(), numberOfShards);
         logger.info("iteration [{}] - failed shards: {} (expected 0)", iteration, searchResponse.getFailedShards());
         if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
             logger.info("iteration [{}] - shard failures: {}", iteration, Arrays.toString(searchResponse.getShardFailures()));
         }
-        logger.info("iteration [{}] - returned documents: {} (expected {})", iteration, 
+        logger.info("iteration [{}] - returned documents: {} (expected {})", iteration,
                 searchResponse.getHits().getTotalHits().value, numberOfDocs);
     }
 

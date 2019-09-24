@@ -72,7 +72,7 @@ public class DocumentPermissionsTests extends ESTestCase {
         QueryBuilder queryBuilder1 = new TermsQueryBuilder("field", "val1", "val2");
         DocumentPermissions.verifyRoleQuery(queryBuilder1);
 
-        QueryBuilder queryBuilder2 = new TermsQueryBuilder("field", new TermsLookup("_index", "_type", "_id", "_path"));
+        QueryBuilder queryBuilder2 = new TermsQueryBuilder("field", new TermsLookup("_index", "_id", "_path"));
         Exception e = expectThrows(IllegalArgumentException.class, () -> DocumentPermissions.verifyRoleQuery(queryBuilder2));
         assertThat(e.getMessage(), equalTo("terms query with terms lookup isn't supported as part of a role query"));
 
@@ -115,7 +115,7 @@ public class DocumentPermissionsTests extends ESTestCase {
         QueryBuilder queryBuilder1 = new TermsQueryBuilder("field", "val1", "val2");
         DocumentPermissions.failIfQueryUsesClient(queryBuilder1, context);
 
-        QueryBuilder queryBuilder2 = new TermsQueryBuilder("field", new TermsLookup("_index", "_type", "_id", "_path"));
+        QueryBuilder queryBuilder2 = new TermsQueryBuilder("field", new TermsLookup("_index", "_id", "_path"));
         Exception e = expectThrows(IllegalStateException.class,
                 () -> DocumentPermissions.failIfQueryUsesClient(queryBuilder2, context));
         assertThat(e.getMessage(), equalTo("role queries are not allowed to execute additional requests"));

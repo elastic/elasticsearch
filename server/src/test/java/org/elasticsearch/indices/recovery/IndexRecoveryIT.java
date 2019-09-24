@@ -55,6 +55,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimary
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -92,7 +93,6 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.engine.MockEngineSupport;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
@@ -857,14 +857,14 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         }
     }
 
-    @TestIssueLogging(value = "org.elasticsearch:DEBUG", issueUrl = "https://github.com/elastic/elasticsearch/issues/45953")
     public void testHistoryRetention() throws Exception {
         internalCluster().startNodes(3);
 
         final String indexName = "test";
         client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)).get();
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
+            .put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(), 1.0)).get();
         ensureGreen(indexName);
 
         // Perform some replicated operations so the replica isn't simply empty, because ops-based recovery isn't better in that case
@@ -910,7 +910,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         assertThat(recoveryStates, hasSize(1));
         final RecoveryState recoveryState = recoveryStates.get(0);
-        assertThat(recoveryState.toString(), recoveryState.getIndex().totalFileCount(), is(0));
+        assertThat(Strings.toString(recoveryState), recoveryState.getIndex().totalFileCount(), is(0));
         assertThat(recoveryState.getTranslog().recoveredOperations(), greaterThan(0));
     }
 

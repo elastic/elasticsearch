@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gateway;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -27,10 +28,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.transport.TransportService;
-
-import java.io.IOException;
-
-import static org.mockito.Mockito.mock;
 
 /**
  * {@link GatewayMetaState} constructor accepts a lot of arguments.
@@ -41,22 +38,23 @@ import static org.mockito.Mockito.mock;
 public class MockGatewayMetaState extends GatewayMetaState {
     private final DiscoveryNode localNode;
 
-    public MockGatewayMetaState(Settings settings, NodeEnvironment nodeEnvironment,
-                                NamedXContentRegistry xContentRegistry, DiscoveryNode localNode) throws IOException {
-        super(settings, new MetaStateService(nodeEnvironment, xContentRegistry),
-                mock(MetaDataIndexUpgradeService.class), mock(MetaDataUpgrader.class),
-                mock(TransportService.class), mock(ClusterService.class));
+    public MockGatewayMetaState(DiscoveryNode localNode) {
         this.localNode = localNode;
     }
 
     @Override
-    protected void upgradeMetaData(MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader) {
+    void upgradeMetaData(Settings settings, MetaStateService metaStateService, MetaDataIndexUpgradeService metaDataIndexUpgradeService,
+                         MetaDataUpgrader metaDataUpgrader) {
         // MetaData upgrade is tested in GatewayMetaStateTests, we override this method to NOP to make mocking easier
     }
 
     @Override
-    public void applyClusterStateUpdaters() {
+    ClusterState prepareInitialClusterState(TransportService transportService, ClusterService clusterService, ClusterState clusterState) {
         // Just set localNode here, not to mess with ClusterService and IndicesService mocking
-        previousClusterState = ClusterStateUpdaters.setLocalNode(previousClusterState, localNode);
+        return ClusterStateUpdaters.setLocalNode(clusterState, localNode);
+    }
+
+    public void start(Settings settings, NodeEnvironment nodeEnvironment, NamedXContentRegistry xContentRegistry) {
+        start(settings, null, null, new MetaStateService(nodeEnvironment, xContentRegistry), null, null);
     }
 }

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.dataframe;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
@@ -19,6 +20,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -30,10 +32,13 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.dataframe.process.AnalyticsProcessManager;
+import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
 import java.time.Clock;
 import java.util.Objects;
@@ -51,15 +56,17 @@ public class DataFrameAnalyticsManager {
     private final NodeClient client;
     private final DataFrameAnalyticsConfigProvider configProvider;
     private final AnalyticsProcessManager processManager;
+    private final DataFrameAnalyticsAuditor auditor;
 
     public DataFrameAnalyticsManager(NodeClient client, DataFrameAnalyticsConfigProvider configProvider,
-                                     AnalyticsProcessManager processManager) {
+                                     AnalyticsProcessManager processManager, DataFrameAnalyticsAuditor auditor) {
         this.client = Objects.requireNonNull(client);
         this.configProvider = Objects.requireNonNull(configProvider);
         this.processManager = Objects.requireNonNull(processManager);
+        this.auditor = Objects.requireNonNull(auditor);
     }
 
-    public void execute(DataFrameAnalyticsTask task, DataFrameAnalyticsState currentState) {
+    public void execute(DataFrameAnalyticsTask task, DataFrameAnalyticsState currentState, ClusterState clusterState) {
         ActionListener<DataFrameAnalyticsConfig> reindexingStateListener = ActionListener.wrap(
             config -> reindexDataframeAndStartAnalysis(task, config),
             error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
@@ -76,7 +83,13 @@ public class DataFrameAnalyticsManager {
                     case STARTED:
                         task.updatePersistentTaskState(reindexingState, ActionListener.wrap(
                             updatedTask -> reindexingStateListener.onResponse(config),
-                            reindexingStateListener::onFailure));
+                            error -> {
+                                if (error instanceof ResourceNotFoundException) {
+                                    // The task has been stopped
+                                } else {
+                                    reindexingStateListener.onFailure(error);
+                                }
+                            }));
                         break;
                     // The task has fully reindexed the documents and we should continue on with our analyses
                     case ANALYZING:
@@ -112,7 +125,13 @@ public class DataFrameAnalyticsManager {
         );
 
         // Retrieve configuration
-        configProvider.get(task.getParams().getId(), configListener);
+        ActionListener<Boolean> stateAliasListener = ActionListener.wrap(
+            aBoolean -> configProvider.get(task.getParams().getId(), configListener),
+            configListener::onFailure
+        );
+
+        // Make sure the state index and alias exist
+        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, stateAliasListener);
     }
 
     private void reindexDataframeAndStartAnalysis(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {
@@ -143,6 +162,9 @@ public class DataFrameAnalyticsManager {
                     return;
                 }
                 task.setReindexingFinished();
+                auditor.info(
+                    config.getId(),
+                    Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_FINISHED_REINDEXING, config.getDest().getIndex()));
                 ClientHelper.executeAsyncWithOrigin(client,
                     ClientHelper.ML_ORIGIN,
                     RefreshAction.INSTANCE,
@@ -175,6 +197,9 @@ public class DataFrameAnalyticsManager {
         // Create destination index if it does not exist
         ActionListener<GetIndexResponse> destIndexListener = ActionListener.wrap(
             indexResponse -> {
+                auditor.info(
+                    config.getId(),
+                    Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_REUSING_DEST_INDEX, indexResponse.indices()[0]));
                 LOGGER.info("[{}] Using existing destination index [{}]", config.getId(), indexResponse.indices()[0]);
                 DataFrameAnalyticsIndex.updateMappingsToDestIndex(client, config, indexResponse, ActionListener.wrap(
                     acknowledgedResponse -> copyIndexCreatedListener.onResponse(null),
@@ -183,6 +208,9 @@ public class DataFrameAnalyticsManager {
             },
             e -> {
                 if (org.elasticsearch.ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                    auditor.info(
+                        config.getId(),
+                        Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_CREATING_DEST_INDEX, config.getDest().getIndex()));
                     LOGGER.info("[{}] Creating destination index [{}]", config.getId(), config.getDest().getIndex());
                     DataFrameAnalyticsIndex.createDestinationIndex(client, Clock.systemUTC(), config, copyIndexCreatedListener);
                 } else {
@@ -210,10 +238,17 @@ public class DataFrameAnalyticsManager {
                             if (error != null) {
                                 task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage());
                             } else {
+                                auditor.info(config.getId(), Messages.DATA_FRAME_ANALYTICS_AUDIT_FINISHED_ANALYSIS);
                                 task.markAsCompleted();
                             }
                         }),
-                    error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
+                    error -> {
+                        if (error instanceof ResourceNotFoundException) {
+                            // Task has stopped
+                        } else {
+                            task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage());
+                        }
+                    }
                 ));
             },
             error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())

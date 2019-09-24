@@ -35,7 +35,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -204,16 +203,14 @@ public class FetchPhase implements SearchPhase {
                                       int subDocId,
                                       Map<String, Set<String>> storedToRequestedFields,
                                       LeafReaderContext subReaderContext) {
-        DocumentMapper documentMapper = context.mapperService().documentMapper();
-        Text typeText = documentMapper.typeText();
         if (fieldsVisitor == null) {
-            return new SearchHit(docId, null, typeText, null);
+            return new SearchHit(docId, null, null);
         }
 
         Map<String, DocumentField> searchFields = getSearchFields(context, fieldsVisitor, subDocId,
             storedToRequestedFields, subReaderContext);
 
-        SearchHit searchHit = new SearchHit(docId, fieldsVisitor.uid().id(), typeText, searchFields);
+        SearchHit searchHit = new SearchHit(docId, fieldsVisitor.uid().id(), searchFields);
         // Set _source if requested.
         SourceLookup sourceLookup = context.lookup().source();
         sourceLookup.setSegmentAndDocument(subReaderContext, subDocId);
@@ -339,7 +336,7 @@ public class FetchPhase implements SearchPhase {
             XContentType contentType = tuple.v1();
             context.lookup().source().setSourceContentType(contentType);
         }
-        return new SearchHit(nestedTopDocId, uid.id(), documentMapper.typeText(), nestedIdentity, searchFields);
+        return new SearchHit(nestedTopDocId, uid.id(), nestedIdentity, searchFields);
     }
 
     private SearchHit.NestedIdentity getInternalNestedIdentity(SearchContext context, int nestedSubDocId,

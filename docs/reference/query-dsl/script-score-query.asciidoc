@@ -14,7 +14,7 @@ The `script_score` query is useful if, for example, a scoring function is expens
 ==== Example request
 The following `script_score` query assigns each returned document a score equal to the `likes` field value divided by `10`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -30,7 +30,6 @@ GET /_search
      }
 }
 --------------------------------------------------
-// CONSOLE
 
 
 [[script-score-top-level-params]]

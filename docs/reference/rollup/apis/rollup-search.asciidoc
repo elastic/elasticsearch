@@ -51,7 +51,7 @@ omitted entirely.
 
 Imagine we have an index named `sensor-1` full of raw data, and we have created a rollup job with the following configuration:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _rollup/job/sensor
 {
@@ -81,14 +81,13 @@ PUT _rollup/job/sensor
     ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_index]
 
 This rolls up the `sensor-*` pattern and stores the results in `sensor_rollup`.  To search this rolled up data, we
 need to use the `_rollup_search` endpoint.  However, you'll notice that we can use regular query DSL to search the
 rolled-up data:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /sensor_rollup/_rollup_search
 {
@@ -102,7 +101,6 @@ GET /sensor_rollup/_rollup_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_prefab_data]
 // TEST[s/_rollup_search/_rollup_search?filter_path=took,timed_out,terminated_early,_shards,hits,aggregations/]
 
@@ -141,7 +139,7 @@ Rollup searches are limited to functionality that was configured in the rollup j
 the average temperature because `avg` was not one of the configured metrics for the `temperature` field.  If we try
 to execute that search:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET sensor_rollup/_rollup_search
 {
@@ -155,7 +153,6 @@ GET sensor_rollup/_rollup_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 // TEST[catch:/illegal_argument_exception/]
 
@@ -185,7 +182,7 @@ The Rollup Search API has the capability to search across both "live", non-rollu
 data.  This is done by simply adding the live indices to the URI:
 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET sensor-1,sensor_rollup/_rollup_search <1>
 {
@@ -199,7 +196,6 @@ GET sensor-1,sensor_rollup/_rollup_search <1>
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 // TEST[s/_rollup_search/_rollup_search?filter_path=took,timed_out,terminated_early,_shards,hits,aggregations/]
 <1> Note the URI now searches `sensor-1` and `sensor_rollup` at the same time

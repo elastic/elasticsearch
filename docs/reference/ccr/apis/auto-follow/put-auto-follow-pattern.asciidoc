@@ -11,7 +11,7 @@ Creates an auto-follow pattern.
 [[ccr-put-auto-follow-pattern-request]]
 ==== {api-request-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_ccr/auto_follow/<auto_follow_pattern_name>
 {
@@ -23,7 +23,6 @@ PUT /_ccr/auto_follow/<auto_follow_pattern_name>
   "follow_index_pattern" : "<follow_index_pattern>"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:remote_cluster]
 // TEST[s/<auto_follow_pattern_name>/auto_follow_pattern_name/]
 // TEST[s/<remote_cluster>/remote_cluster/]
@@ -32,11 +31,10 @@ PUT /_ccr/auto_follow/<auto_follow_pattern_name>
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_ccr/auto_follow/auto_follow_pattern_name
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 //////////////////////////
@@ -87,7 +85,7 @@ include::../follow-request-body.asciidoc[]
 
 This example creates an auto-follow pattern named `my_auto_follow_pattern`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_ccr/auto_follow/my_auto_follow_pattern
 {
@@ -109,7 +107,6 @@ PUT /_ccr/auto_follow/my_auto_follow_pattern
   "read_poll_timeout" : "30s"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:remote_cluster]
 
 The API returns the following result:
@@ -123,11 +120,10 @@ The API returns the following result:
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_ccr/auto_follow/my_auto_follow_pattern
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 //////////////////////////

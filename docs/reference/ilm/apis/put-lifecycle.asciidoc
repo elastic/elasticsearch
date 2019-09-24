@@ -42,7 +42,7 @@ For more information, see {stack-ov}/security-privileges.html[Security Privilege
 
 The following example creates a new policy named `my_policy`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -66,8 +66,6 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 If the request succeeds, you receive the following result:
 

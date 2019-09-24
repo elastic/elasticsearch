@@ -313,12 +313,12 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class,
             "The parse origination date setting was configured for index " + index.getName() +
                 " but the index name did not match the expected format",
-            () -> indexLifecycleService.beforeIndexCreated(index, indexSettings)
+            () -> indexLifecycleService.beforeIndexAddedToCluster(index, indexSettings)
         );
 
         // disabling the parsing origination date setting should prevent the validation from throwing exception
         try {
-            indexLifecycleService.beforeIndexCreated(index, Settings.EMPTY);
+            indexLifecycleService.beforeIndexAddedToCluster(index, Settings.EMPTY);
         } catch (Exception e) {
             fail("Did not expect the before index validation to throw an exception as the parse origination date setting was not set");
         }

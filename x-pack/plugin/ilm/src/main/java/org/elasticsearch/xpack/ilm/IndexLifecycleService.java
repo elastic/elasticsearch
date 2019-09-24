@@ -154,7 +154,7 @@ public class IndexLifecycleService
     }
 
     @Override
-    public void beforeIndexCreated(Index index, Settings indexSettings) {
+    public void beforeIndexAddedToCluster(Index index, Settings indexSettings) {
         if (shouldParseIndexName(indexSettings)) {
             parseIndexNameAndExtractDate(index.getName());
         }

@@ -1,15 +1,15 @@
 [role="xpack"]
 [testenv="basic"]
-[[data-frame-transform-resource]]
+[[transform-resource]]
 === {transform-cap} resources
 
-{transform-cap} resources relate to the <<data-frame-apis>>.
+{transform-cap} resources relate to the <<transform-apis>>.
 
 For more information, see
 {stack-ov}/ecommerce-dataframes.html[Transforming your data with {dataframes}].
 
 [discrete]
-[[data-frame-transform-properties]]
+[[transform-properties]]
 ==== {api-definitions-title}
 
 `description`::
@@ -17,7 +17,7 @@ For more information, see
 
 `dest`::
   (object) The destination for the {transform}. See
-  <<data-frame-transform-dest>>.
+  <<transform-dest>>.
   
 `frequency`::
   (time units) The interval between checks for changes in the source indices
@@ -31,20 +31,20 @@ For more information, see
 
 `pivot`::
   (object) The method for transforming the data. See
-  <<data-frame-transform-pivot>>. 
+  <<transform-pivot>>. 
 
 `source`:: 
   (object) The source of the data for the {transform}. See
-  <<data-frame-transform-source>>.
+  <<transform-source>>.
 
-[[data-frame-transform-dest]]
+[[transform-dest]]
 ==== Dest objects
 
 {transform-cap} resources contain `dest` objects. For example, when
 you create a {transform}, you must define its destination.
 
 [discrete]
-[[data-frame-transform-dest-properties]]
+[[transform-dest-properties]]
 ===== {api-definitions-title}
 
 `index`:: 
@@ -53,14 +53,14 @@ you create a {transform}, you must define its destination.
 `pipeline`::
   (string) The unique identifier for a <<pipeline,pipeline>>.
 
-[[data-frame-transform-source]]
+[[transform-source]]
 ==== Source objects
 
 {transform-cap} resources contain `source` objects. For example, when
 you create a {transform}, you must define its source.
 
 [discrete]
-[[data-frame-transform-source-properties]]
+[[transform-source-properties]]
 ===== {api-definitions-title}
 
 `index`::
@@ -72,14 +72,14 @@ you create a {transform}, you must define its source.
   (object) A query clause that retrieves a subset of data from the source index.
   See <<query-dsl>>.
   
-[[data-frame-transform-pivot]]
+[[transform-pivot]]
 ==== Pivot objects
 
 {transform-cap} resources contain `pivot` objects, which define the
 pivot function `group by` fields and the aggregation to reduce the data.
 
 [discrete]
-[[data-frame-transform-pivot-properties]]
+[[transform-pivot-properties]]
 ===== {api-definitions-title}
 
 `aggregations` or `aggs`::
@@ -122,8 +122,8 @@ composite aggregations. See
   dynamically adjusted to a lower value. The minimum value is `10` and the
   maximum is `10,000`. The default value is `500`.
 
-[[data-frame-transform-example]]
+[[transform-example]]
 ==== {api-examples-title}
 
 See the
-<<put-data-frame-transform-example,create {transforms} API examples>>.
+<<put-transform-example,create {transforms} API examples>>.

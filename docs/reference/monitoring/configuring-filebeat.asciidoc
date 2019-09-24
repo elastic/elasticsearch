@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[configuring-filebeat]]
-=== Collecting {es} log data with {filebeat}
+== Collecting {es} log data with {filebeat}
 
 [subs="attributes"]
 ++++

@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
@@ -38,6 +40,7 @@ import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
 import static org.elasticsearch.xpack.core.security.support.Automatons.unionAndMinimize;
 
 public final class IndexPrivilege extends Privilege {
+    private static final Logger logger = LogManager.getLogger(IndexPrivilege.class);
 
     private static final Automaton ALL_AUTOMATON = patterns("indices:*", "internal:transport/proxy/indices:*");
     private static final Automaton READ_AUTOMATON = patterns("indices:data/read/*");
@@ -139,10 +142,12 @@ public final class IndexPrivilege extends Privilege {
                 } else if (indexPrivilege != null) {
                     automata.add(indexPrivilege.automaton);
                 } else {
-                    throw new IllegalArgumentException("unknown index privilege [" + part + "]. a privilege must be either " +
-                            "one of the predefined fixed indices privileges [" +
-                            Strings.collectionToCommaDelimitedString(VALUES.entrySet()) + "] or a pattern over one of the available index" +
-                            " actions");
+                    String errorMessage = "unknown index privilege [" + part + "]. a privilege must be either " +
+                        "one of the predefined fixed indices privileges [" +
+                        Strings.collectionToCommaDelimitedString(VALUES.entrySet()) + "] or a pattern over one of the available index" +
+                        " actions";
+                    logger.debug(errorMessage);
+                    throw new IllegalArgumentException(errorMessage);
                 }
             }
         }

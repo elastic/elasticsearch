@@ -62,6 +62,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -1007,6 +1008,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertEquals(total, shardTotal);
     }
 
+    @TestLogging(value = "_root:DEBUG", reason = "https://github.com/elastic/elasticsearch/issues/46701")
     public void testFilterCacheStats() throws Exception {
         Settings settings = Settings.builder().put(indexSettings())
             .put("number_of_replicas", 0)
@@ -1064,11 +1066,14 @@ public class IndexStatsIT extends ESIntegTestCase {
             });
             flush("index");
         }
+        logger.info("--> force merging to a single segment");
         ForceMergeResponse forceMergeResponse =
             client().admin().indices().prepareForceMerge("index").setFlush(true).setMaxNumSegments(1).get();
         assertAllSuccessful(forceMergeResponse);
+        logger.info("--> refreshing");
         refresh();
 
+        logger.info("--> verifying that cache size is 0");
         response = client().admin().indices().prepareStats("index").setQueryCache(true).get();
         assertCumulativeQueryCacheStats(response);
         assertThat(response.getTotal().queryCache.getHitCount(), greaterThan(0L));

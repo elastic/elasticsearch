@@ -220,7 +220,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         assertTrue(processorUnderTest.isDeleteInterimRequired());
 
         verify(persister).bulkPersisterBuilder(JOB_ID);
-        verify(flushListener).acknowledgeFlush(flushAcknowledgement);
+        verify(flushListener).acknowledgeFlush(flushAcknowledgement, null);
         verify(persister).commitResultWrites(JOB_ID);
         verify(bulkBuilder).executeRequest();
     }
@@ -242,7 +242,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         inOrder.verify(persister).persistCategoryDefinition(categoryDefinition);
         inOrder.verify(bulkBuilder).executeRequest();
         inOrder.verify(persister).commitResultWrites(JOB_ID);
-        inOrder.verify(flushListener).acknowledgeFlush(flushAcknowledgement);
+        inOrder.verify(flushListener).acknowledgeFlush(flushAcknowledgement, null);
     }
 
     public void testProcessResult_modelPlot() {
@@ -397,7 +397,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(persister, times(2)).persistModelSnapshot(any(), eq(WriteRequest.RefreshPolicy.IMMEDIATE));
     }
 
-    public void testParsingErrorSetsFailed() throws InterruptedException {
+    public void testParsingErrorSetsFailed() throws Exception {
         @SuppressWarnings("unchecked")
         Iterator<AutodetectResult> iterator = mock(Iterator.class);
         when(iterator.hasNext()).thenThrow(new ElasticsearchParseException("this test throws"));

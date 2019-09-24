@@ -827,25 +827,30 @@ public abstract class IndexShardTestCase extends ESTestCase {
             shard.recoveryState());
     }
 
-    /** Snapshot a shard using a given repository **/
-    protected void snapshotShard(final IndexShard shard,
-                                 final Snapshot snapshot,
-                                 final Repository repository) throws IOException {
-        final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing();
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+    /**
+     * Snapshot a shard using a given repository.
+     *
+     * @return new shard generation
+     */
+    protected String snapshotShard(final IndexShard shard,
+                                   final Snapshot snapshot,
+                                   final Repository repository) throws IOException {
+        final Index index = shard.shardId().getIndex();
+        final IndexId indexId = new IndexId(index.getName(), index.getUUID());
+        final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
+        final PlainActionFuture<String> future = PlainActionFuture.newFuture();
+        final String shardGen;
         try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(true)) {
-            Index index = shard.shardId().getIndex();
-            IndexId indexId = new IndexId(index.getName(), index.getUUID());
-
             repository.snapshotShard(shard.store(), shard.mapperService(), snapshot.getSnapshotId(), indexId,
                 indexCommitRef.getIndexCommit(), snapshotStatus, future);
-            future.actionGet();
+            shardGen = future.actionGet();
         }
 
         final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
         assertEquals(IndexShardSnapshotStatus.Stage.DONE, lastSnapshotStatus.getStage());
         assertEquals(shard.snapshotStoreMetadata().size(), lastSnapshotStatus.getTotalFileCount());
         assertNull(lastSnapshotStatus.getFailure());
+        return shardGen;
     }
 
     /**

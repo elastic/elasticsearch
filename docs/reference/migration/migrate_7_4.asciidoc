@@ -166,7 +166,7 @@ For an example of the new format see <<get-transform-stats-example>>.
 
 The single integer `progress_percent` field at the top level of the
 {dfanalytics-job} stats is replaced by a `progress` field that is an array
-of objects each containing the `phase` name and `progress_percent` of one
+of objects. Each object contains the `phase` name and `progress_percent` of one
 phase of the analytics. For example:
 
 [source,js]

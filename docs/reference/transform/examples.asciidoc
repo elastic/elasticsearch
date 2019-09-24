@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
-[[dataframe-examples]]
-== {transform-cap} examples
+[[transform-examples]]
+=== {transform-cap} examples
 ++++
 <titleabbrev>Examples</titleabbrev>
 ++++
@@ -12,17 +12,14 @@ These examples demonstrate how to use {transforms} to derive useful
 insights from your data. All the examples use one of the 
 {kibana-ref}/add-sample-data.html[{kib} sample datasets]. For a more detailed, 
 step-by-step example, see 
-<<ecommerce-dataframes,Transforming your data with {dataframes}>>.
+<<ecommerce-transforms>>.
 
-* <<ecommerce-dataframes>>
 * <<example-best-customers>>
 * <<example-airline>>
 * <<example-clientips>>
 
-include::ecommerce-example.asciidoc[]
-
 [[example-best-customers]]
-=== Finding your best customers
+==== Finding your best customers
 
 In this example, we use the eCommerce orders sample dataset to find the customers 
 who spent the most in our hypothetical webshop. Let's transform the data such 
@@ -106,7 +103,7 @@ navigate data from a customer centric perspective. In some cases, it can even
 make creating visualizations much simpler.
 
 [[example-airline]]
-=== Finding air carriers with the most delays
+==== Finding air carriers with the most delays
 
 In this example, we use the Flights sample dataset to find out which air carrier 
 had the most delays. First, we filter the source data such that it excludes all 
@@ -193,7 +190,7 @@ or flight stats for any of the featured destination or origin airports.
 
 
 [[example-clientips]]
-=== Finding suspicious client IPs by using scripted metrics
+==== Finding suspicious client IPs by using scripted metrics
 
 With {transforms}, you can use 
 {ref}/search-aggregations-metrics-scripted-metric-aggregation.html[scripted 

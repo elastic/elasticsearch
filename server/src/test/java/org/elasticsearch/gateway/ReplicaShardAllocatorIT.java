@@ -23,11 +23,8 @@ import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -70,7 +67,6 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         ensureGreen(indexName);
         indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, between(10, 100))
             .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v")).collect(Collectors.toList()));
-        ensureGlobalCheckpointSyncedAndPersisted(indexName);
         assertBusy(() -> {
             SyncedFlushResponse syncedFlushResponse = client().admin().indices().prepareSyncedFlush(indexName).get();
             assertThat(syncedFlushResponse.successfulShards(), equalTo(2));
@@ -80,10 +76,8 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, between(10, 100))
                 .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v")).collect(Collectors.toList()));
         }
-        assertBusy(() -> {
-            SyncedFlushResponse syncedFlushResponse = client().admin().indices().prepareSyncedFlush(indexName).get();
-            assertThat(syncedFlushResponse.successfulShards(), equalTo(1));
-        });
+        // destroy sync_id
+        client().admin().indices().prepareFlush(indexName).setForce(true).get();
         CountDownLatch blockRecovery = new CountDownLatch(1);
         CountDownLatch recoveryStarted = new CountDownLatch(1);
         MockTransportService transportServiceOnPrimary
@@ -110,20 +104,5 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         ensureGreen(indexName);
         assertThat(internalCluster().nodesInclude(indexName), hasItem(newNode));
         transportServiceOnPrimary.clearAllRules();
-    }
-
-    private void ensureGlobalCheckpointSyncedAndPersisted(String indexName) throws Exception {
-        assertBusy(() -> {
-            Index index = resolveIndex(indexName);
-            for (String node : internalCluster().nodesInclude(indexName)) {
-                IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-                final IndexService indexService = indicesService.indexService(index);
-                if (indexService != null) {
-                    for (IndexShard shard : indexService) {
-                        assertThat(shard.getLastSyncedGlobalCheckpoint(), equalTo(shard.getLocalCheckpoint()));
-                    }
-                }
-            }
-        });
     }
 }

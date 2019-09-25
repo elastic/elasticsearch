@@ -209,12 +209,12 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         name = in.readOptionalString();
         if (in.getVersion().before(Version.V_8_0_0)) {
             String documentType = in.readOptionalString();
-            assert MapperService.SINGLE_MAPPING_NAME.equals(documentType);
+            assert documentType == null || MapperService.SINGLE_MAPPING_NAME.equals(documentType);
         }
         indexedDocumentIndex = in.readOptionalString();
         if (in.getVersion().before(Version.V_8_0_0)) {
             String indexedDocumentType = in.readOptionalString();
-            assert MapperService.SINGLE_MAPPING_NAME.equals(indexedDocumentType);
+            assert indexedDocumentType == null || MapperService.SINGLE_MAPPING_NAME.equals(indexedDocumentType);
         }
         indexedDocumentId = in.readOptionalString();
         indexedDocumentRouting = in.readOptionalString();

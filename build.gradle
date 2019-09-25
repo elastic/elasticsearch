@@ -100,12 +100,12 @@ subprojects {
     project.licenseFile = project.rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
     project.noticeFile = project.rootProject.file('NOTICE.txt')
 
-    // Projects that should be formatted with Spotless are listed here, by
-    // project path. Once the number of formatted projects is greater than
-    // the number of unformatted projects, this can be switched to an
-    // exclude list, and eventualy removed completely.
+    // Projects that should be formatted and checked with Spotless are
+    // listed here, by project path. Once the number of formatted projects
+    // is greater than the number of unformatted projects, this can be
+    // switched to an exclude list, and eventualy removed completely.
     def projectPathsToFormat = [
-      ':build-tools'
+      // ':build-tools'
     ]
 
     if (projectPathsToFormat.contains(project.path)) {
@@ -115,7 +115,7 @@ subprojects {
         java {
 
           removeUnusedImports()
-          eclipse().configFile rootProject.file('elasticsearch.eclipseformat.xml')
+          eclipse().configFile rootProject.file('.eclipseformat.xml')
           trimTrailingWhitespace()
           endWithNewline()
 

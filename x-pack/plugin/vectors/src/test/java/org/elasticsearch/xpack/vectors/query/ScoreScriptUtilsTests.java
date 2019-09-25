@@ -71,10 +71,10 @@ public class ScoreScriptUtilsTests extends ESTestCase {
 
         // test l2norm
         L2Norm l2norm = new L2Norm(scoreScript, queryVector);
-        double expected4 = 301.36;
+        double expected4 = 301.361;
         float delta4 = indexVersion.onOrAfter(Version.V_7_5_0) ? (float) expected4/100 : 0.001f;
         double result4 = l2norm.l2norm(dvs);
-        assertEquals("l2norm result is not equal to the expected value!", 301.361, result4, delta4);
+        assertEquals("l2norm result is not equal to the expected value!", expected4, result4, delta4);
 
         // test dotProduct fails when queryVector has wrong number of dims
         List<Number> invalidQueryVector = Arrays.asList(0.5, 111.3);

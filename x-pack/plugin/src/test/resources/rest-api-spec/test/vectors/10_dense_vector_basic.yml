@@ -60,18 +60,18 @@ setup:
 
   # result should be 65425.624, but we allow 1% error because vectors are indexed as bfloat16
   - match: {hits.hits.0._id: "1"}
-  - gte: {hits.hits.0._score: 62154.34}
-  - lte: {hits.hits.0._score: 68696.91}
+  - gte: {hits.hits.0._score: 65098.50}
+  - lte: {hits.hits.0._score: 65752.75}
 
   # result should be 37111.98, but we allow 1% error because vectors are indexed as bfloat16
   - match: {hits.hits.1._id: "3"}
-  - gte: {hits.hits.1._score: 35256.38}
-  - lte: {hits.hits.1._score: 38967.58}
+  - gte: {hits.hits.1._score: 36926.42}
+  - lte: {hits.hits.1._score: 37297.54}
 
   # result should be 35853.78, but we allow 1% error because vectors are indexed as bfloat16
   - match: {hits.hits.2._id: "2"}
-  - gte: {hits.hits.2._score: 34061.09}
-  - lte: {hits.hits.2._score: 37646.47}
+  - gte: {hits.hits.2._score: 35674.51}
+  - lte: {hits.hits.2._score: 36033.05}
 
 ---
 "Cosine Similarity":

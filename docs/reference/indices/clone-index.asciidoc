@@ -141,7 +141,7 @@ become `active`. At that  point, Elasticsearch will try to allocate any
 replicas and may decide to relocate the primary shard to another node.
 
 [[clone-wait-active-shards]]
-===== Wait For active shards
+===== Wait for active shards
 
 Because the clone operation creates a new index to clone the shards to,
 the <<create-index-wait-for-active-shards,wait for active shards>> setting

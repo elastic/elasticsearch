@@ -19,7 +19,6 @@ setup:
         index: test
 
   - is_true: hits.hits.0._id
-  - is_true: hits.hits.0._type
   - is_true: hits.hits.0._source
 
   - do:
@@ -30,7 +29,6 @@ setup:
           stored_fields: []
 
   - is_true: hits.hits.0._id
-  - is_true: hits.hits.0._type
   - is_false: hits.hits.0._source
 
   - do:

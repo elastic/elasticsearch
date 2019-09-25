@@ -126,6 +126,11 @@ public class RestIndicesAction extends AbstractCatAction {
 
                 @Override
                 public void onFailure(final Exception e) {
+                    // Temporary logging to help debug https://github.com/elastic/elasticsearch/issues/45652
+                    // TODO: remove this when we understand why _cat/indices sometimes returns a 404
+                    if (e instanceof IndexNotFoundException) {
+                        logger.debug("_cat/indices returning index_not_found_exception", e);
+                    }
                     listener.onFailure(e);
                 }
             });
@@ -227,11 +232,6 @@ public class RestIndicesAction extends AbstractCatAction {
 
             @Override
             public void onFailure(final Exception e) {
-                // Temporary logging to help debug https://github.com/elastic/elasticsearch/issues/45652
-                // TODO: remove this when we understand why _cat/indices sometimes returns a 404
-                if (e instanceof IndexNotFoundException) {
-                    logger.debug("_cat/indices returning index_not_found_exception", e);
-                }
                 listener.onFailure(e);
             }
         }, size);

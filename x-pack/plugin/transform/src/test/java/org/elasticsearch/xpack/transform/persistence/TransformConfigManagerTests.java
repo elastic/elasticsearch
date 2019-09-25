@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDocTests;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
 import org.junit.Before;
 
@@ -36,8 +37,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.transform.persistence.TransformInternalIndex.mappings;
 import static org.elasticsearch.xpack.transform.persistence.TransformConfigManager.TO_XCONTENT_PARAMS;
+import static org.elasticsearch.xpack.transform.persistence.TransformInternalIndex.mappings;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -261,7 +262,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         String transformId = "transform_test_stored_doc_create_read_update";
 
         TransformStoredDoc storedDocs = TransformStoredDocTests.randomTransformStoredDoc(transformId);
-        SeqNoPrimaryTermAndIndex firstIndex = new SeqNoPrimaryTermAndIndex(0, 1, TransformInternalIndex.LATEST_INDEX_NAME);
+        SeqNoPrimaryTermAndIndex firstIndex = new SeqNoPrimaryTermAndIndex(0, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME);
 
         assertAsync(listener -> transformConfigManager.putOrUpdateTransformStoredDoc(storedDocs, null, listener),
             firstIndex,
@@ -272,7 +273,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             null,
             null);
 
-        SeqNoPrimaryTermAndIndex secondIndex = new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndex.LATEST_INDEX_NAME);
+        SeqNoPrimaryTermAndIndex secondIndex = new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME);
         TransformStoredDoc updated = TransformStoredDocTests.randomTransformStoredDoc(transformId);
         assertAsync(listener -> transformConfigManager.putOrUpdateTransformStoredDoc(updated, firstIndex, listener),
             secondIndex,
@@ -297,7 +298,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         List<TransformStoredDoc> expectedDocs = new ArrayList<>();
         for (int i=0; i<numStats; i++) {
             SeqNoPrimaryTermAndIndex initialSeqNo =
-                new SeqNoPrimaryTermAndIndex(i, 1, TransformInternalIndex.LATEST_INDEX_NAME);
+                new SeqNoPrimaryTermAndIndex(i, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME);
             TransformStoredDoc stat =
                     TransformStoredDocTests.randomTransformStoredDoc(randomAlphaOfLength(6) + i);
             expectedDocs.add(stat);
@@ -319,7 +320,7 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
     }
 
     public void testDeleteOldTransformConfigurations() throws Exception {
-        String oldIndex = TransformInternalIndex.INDEX_PATTERN + "1";
+        String oldIndex = TransformInternalIndexConstants.INDEX_PATTERN + "1";
         String transformId = "transform_test_delete_old_configurations";
         String docId = TransformConfig.documentId(transformId);
         TransformConfig transformConfig = TransformConfigTests
@@ -339,17 +340,19 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         assertAsync(listener -> transformConfigManager.putTransformConfiguration(transformConfig, listener), true, null, null);
 
         assertThat(client().get(new GetRequest(oldIndex).id(docId)).actionGet().isExists(), is(true));
-        assertThat(client().get(new GetRequest(TransformInternalIndex.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(), is(true));
+        assertThat(client().get(new GetRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(),
+                is(true));
 
         assertAsync(listener -> transformConfigManager.deleteOldTransformConfigurations(transformId, listener), true, null, null);
 
-        client().admin().indices().refresh(new RefreshRequest(TransformInternalIndex.INDEX_NAME_PATTERN)).actionGet();
+        client().admin().indices().refresh(new RefreshRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)).actionGet();
         assertThat(client().get(new GetRequest(oldIndex).id(docId)).actionGet().isExists(), is(false));
-        assertThat(client().get(new GetRequest(TransformInternalIndex.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(), is(true));
+        assertThat(client().get(new GetRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(),
+                is(true));
     }
 
     public void testDeleteOldTransformStoredDocuments() throws Exception {
-        String oldIndex = TransformInternalIndex.INDEX_PATTERN + "1";
+        String oldIndex = TransformInternalIndexConstants.INDEX_PATTERN + "1";
         String transformId = "transform_test_delete_old_stored_documents";
         String docId = TransformStoredDoc.documentId(transformId);
         TransformStoredDoc transformStoredDoc = TransformStoredDocTests
@@ -369,22 +372,24 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         assertAsync(listener -> transformConfigManager.putOrUpdateTransformStoredDoc(transformStoredDoc,
             new SeqNoPrimaryTermAndIndex(3, 1, oldIndex),
             listener),
-            new SeqNoPrimaryTermAndIndex(0, 1, TransformInternalIndex.LATEST_INDEX_NAME),
+            new SeqNoPrimaryTermAndIndex(0, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME),
             null,
             null);
 
-        client().admin().indices().refresh(new RefreshRequest(TransformInternalIndex.INDEX_NAME_PATTERN)).actionGet();
+        client().admin().indices().refresh(new RefreshRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)).actionGet();
 
         assertThat(client().get(new GetRequest(oldIndex).id(docId)).actionGet().isExists(), is(true));
-        assertThat(client().get(new GetRequest(TransformInternalIndex.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(), is(true));
+        assertThat(client().get(new GetRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(),
+                is(true));
 
         assertAsync(listener -> transformConfigManager.deleteOldTransformStoredDocuments(transformId, listener),
             true,
             null,
             null);
 
-        client().admin().indices().refresh(new RefreshRequest(TransformInternalIndex.INDEX_NAME_PATTERN)).actionGet();
+        client().admin().indices().refresh(new RefreshRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)).actionGet();
         assertThat(client().get(new GetRequest(oldIndex).id(docId)).actionGet().isExists(), is(false));
-        assertThat(client().get(new GetRequest(TransformInternalIndex.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(), is(true));
+        assertThat(client().get(new GetRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).id(docId)).actionGet().isExists(),
+                is(true));
     }
 }

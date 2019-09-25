@@ -49,7 +49,8 @@ my %Group_Labels = (
 my %Area_Overrides = (
     ':ml'            => 'Machine Learning',
     ':Beats'         => 'Beats Plugin',
-    ':Docs'          => 'Docs Infrastructure'
+    ':Docs'          => 'Docs Infrastructure',
+    ':ml/Data Frame' => 'Transforms'
 );
 
 use JSON();

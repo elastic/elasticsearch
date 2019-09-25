@@ -11,10 +11,11 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.joda.JodaDeprecationPatterns;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -27,8 +28,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 
 public class IndexDeprecationChecksTests extends ESTestCase {
@@ -161,6 +162,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "The names of fields that contain chained multi-fields: [[type: _doc, field: invalid-field]]");
         assertEquals(singletonList(expected), issues);
     }
+
     public void testDefinedPatternsDoNotWarn() throws IOException {
         String simpleMapping = "{\n" +
             "\"properties\" : {\n" +
@@ -411,5 +413,31 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         IndexMetaData indexMetaData = IndexMetaData.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
         assertThat(issues, empty());
+    }
+
+    public void testFieldNamesEnabling() throws IOException {
+        XContentBuilder xContent = XContentFactory.jsonBuilder().startObject()
+            .startObject(FieldNamesFieldMapper.NAME)
+                .field("enabled", randomBoolean())
+            .endObject()
+        .endObject();
+        String mapping = BytesReference.bytes(xContent).utf8ToString();
+
+        IndexMetaData simpleIndex = IndexMetaData.builder(randomAlphaOfLengthBetween(5, 10))
+                .settings(settings(
+                        VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT)))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putMapping("_doc", mapping).build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
+        assertEquals(1, issues.size());
+
+        DeprecationIssue issue = issues.get(0);
+        assertEquals(DeprecationIssue.Level.WARNING, issue.getLevel());
+        assertEquals("https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#fieldnames-enabling"
+                , issue.getUrl());
+        assertEquals("Index mapping contains explicit `_field_names` enabling settings.", issue.getMessage());
+        assertEquals("The index mapping contains a deprecated `enabled` setting for `_field_names` that should be removed moving foward.",
+                issue.getDetails());
     }
 }

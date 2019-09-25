@@ -1,7 +1,7 @@
 --
 :api: start-transform
-:request: StartDataFrameTransformRequest
-:response: StartDataFrameTransformResponse
+:request: StartTransformRequest
+:response: StartTransformResponse
 --
 [role="xpack"]
 [id="{upid}-{api}"]

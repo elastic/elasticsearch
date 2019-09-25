@@ -18,7 +18,9 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.exporter.BaseMonitoringDocTestCase;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.enrich.action.EnrichStatsResponseTests.randomTaskInfo;
@@ -71,6 +73,8 @@ public class ExecutingPolicyDocTests extends BaseMonitoringDocTestCase<Executing
 
         final ExecutingPolicyDoc document = new ExecutingPolicyDoc("_cluster", timestamp, intervalMillis, node, executingPolicy);
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
+        Optional<Map.Entry<String, String>> header =
+            executingPolicy.getTaskInfo().getHeaders().entrySet().stream().findAny();
         assertThat(xContent.utf8ToString(), equalTo(
             "{"
                 + "\"cluster_uuid\":\"_cluster\","
@@ -96,7 +100,9 @@ public class ExecutingPolicyDocTests extends BaseMonitoringDocTestCase<Executing
                         + "\"start_time_in_millis\":" + executingPolicy.getTaskInfo().getStartTime() + ","
                         + "\"running_time_in_nanos\":" + executingPolicy.getTaskInfo().getRunningTimeNanos() + ","
                         + "\"cancellable\":" + executingPolicy.getTaskInfo().isCancellable() + ","
-                        + "\"headers\":{}"
+                        + header
+                            .map(entry -> String.format(Locale.ROOT, "\"headers\":{\"%s\":\"%s\"}", entry.getKey(), entry.getValue()))
+                            .orElse("\"headers\":{}")
                     + "}"
                 + "}"
             + "}"

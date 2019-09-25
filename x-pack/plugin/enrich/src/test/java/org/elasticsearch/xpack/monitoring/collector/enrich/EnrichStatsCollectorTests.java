@@ -168,7 +168,7 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
 
         assertThat(documents, hasSize(executingPolicies.size() + coordinatorStats.size()));
 
-        for (int i = 0; i < executingPolicies.size(); i++) {
+        for (int i = 0; i < coordinatorStats.size(); i++) {
             final EnrichCoordinatorDoc actual = (EnrichCoordinatorDoc) documents.get(i);
             final CoordinatorStats expected = coordinatorStats.get(i);
 

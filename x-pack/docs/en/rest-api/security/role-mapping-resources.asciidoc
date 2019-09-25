@@ -26,7 +26,7 @@ A rule is a logical condition that is expressed by using a JSON DSL. The DSL sup
 (array of rules) If *all* of its children are true, it evaluates to `true`.
 `field`::: 
 (object) See <<mapping-roles-rule-field>>. 
-`except`::
+`except`:::
 (object) A single rule as an object. Only valid as a child of an `all` rule. If 
 its child is `false`, the `except` is `true`.
 

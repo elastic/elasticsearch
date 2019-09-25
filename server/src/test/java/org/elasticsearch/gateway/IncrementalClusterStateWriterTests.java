@@ -18,26 +18,35 @@
  */
 package org.elasticsearch.gateway;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
@@ -48,15 +57,18 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
@@ -250,13 +262,19 @@ public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
 
         assertThat(actions, hasSize(3));
 
+        boolean keptPreviousGeneration = false;
+        boolean wroteNewIndex = false;
+        boolean wroteChangedIndex = false;
+
         for (IncrementalClusterStateWriter.IndexMetaDataAction action : actions) {
             if (action instanceof IncrementalClusterStateWriter.KeepPreviousGeneration) {
                 assertThat(action.getIndex(), equalTo(notChangedIndex.getIndex()));
                 IncrementalClusterStateWriter.AtomicClusterStateWriter writer
                     = mock(IncrementalClusterStateWriter.AtomicClusterStateWriter.class);
                 assertThat(action.execute(writer), equalTo(3L));
-                verifyZeroInteractions(writer);
+                verify(writer, times(1)).incrementIndicesSkipped();
+                verifyNoMoreInteractions(writer);
+                keptPreviousGeneration = true;
             }
             if (action instanceof IncrementalClusterStateWriter.WriteNewIndexMetaData) {
                 assertThat(action.getIndex(), equalTo(newIndex.getIndex()));
@@ -264,6 +282,8 @@ public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
                     = mock(IncrementalClusterStateWriter.AtomicClusterStateWriter.class);
                 when(writer.writeIndex("freshly created", newIndex)).thenReturn(0L);
                 assertThat(action.execute(writer), equalTo(0L));
+                verify(writer, times(1)).incrementIndicesWritten();
+                wroteNewIndex = true;
             }
             if (action instanceof IncrementalClusterStateWriter.WriteChangedIndexMetaData) {
                 assertThat(action.getIndex(), equalTo(newVersionChangedIndex.getIndex()));
@@ -273,10 +293,16 @@ public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
                 assertThat(action.execute(writer), equalTo(3L));
                 ArgumentCaptor<String> reason = ArgumentCaptor.forClass(String.class);
                 verify(writer).writeIndex(reason.capture(), eq(newVersionChangedIndex));
+                verify(writer, times(1)).incrementIndicesWritten();
                 assertThat(reason.getValue(), containsString(Long.toString(versionChangedIndex.getVersion())));
                 assertThat(reason.getValue(), containsString(Long.toString(newVersionChangedIndex.getVersion())));
+                wroteChangedIndex = true;
             }
         }
+
+        assertTrue(keptPreviousGeneration);
+        assertTrue(wroteNewIndex);
+        assertTrue(wroteChangedIndex);
     }
 
     private static class MetaStateServiceWithFailures extends MetaStateService {
@@ -425,5 +451,85 @@ public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
 
             assertTrue(possibleMetaData.stream().anyMatch(md -> metaDataEquals(md, loadedMetaData)));
         }
+    }
+
+    @TestLogging(value = "org.elasticsearch.gateway:WARN", reason = "to ensure that we log gateway events on WARN level")
+    public void testSlowLogging() throws WriteStateException, IllegalAccessException {
+        final long slowWriteLoggingThresholdMillis;
+        final Settings settings;
+        if (randomBoolean()) {
+            slowWriteLoggingThresholdMillis = IncrementalClusterStateWriter.SLOW_WRITE_LOGGING_THRESHOLD.get(Settings.EMPTY).millis();
+            settings = Settings.EMPTY;
+        } else {
+            slowWriteLoggingThresholdMillis = randomLongBetween(2, 100000);
+            settings = Settings.builder()
+                .put(IncrementalClusterStateWriter.SLOW_WRITE_LOGGING_THRESHOLD.getKey(), slowWriteLoggingThresholdMillis + "ms")
+                .build();
+        }
+
+        final DiscoveryNode localNode = newNode("node");
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId())).build();
+
+        final long startTimeMillis = randomLongBetween(0L, Long.MAX_VALUE - slowWriteLoggingThresholdMillis * 10);
+        final AtomicLong currentTime = new AtomicLong(startTimeMillis);
+        final AtomicLong writeDurationMillis = new AtomicLong(slowWriteLoggingThresholdMillis);
+
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final IncrementalClusterStateWriter incrementalClusterStateWriter
+            = new IncrementalClusterStateWriter(settings, clusterSettings, mock(MetaStateService.class),
+            new Manifest(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), Collections.emptyMap()),
+            clusterState, () -> currentTime.getAndAdd(writeDurationMillis.get()));
+
+        assertExpectedLogs(clusterState, incrementalClusterStateWriter, new MockLogAppender.SeenEventExpectation(
+            "should see warning at threshold",
+            IncrementalClusterStateWriter.class.getCanonicalName(),
+            Level.WARN,
+            "writing cluster state took [*] which is above the warn threshold of [*]; " +
+                "wrote metadata for [0] indices and skipped [0] unchanged indices"));
+
+        writeDurationMillis.set(randomLongBetween(slowWriteLoggingThresholdMillis, slowWriteLoggingThresholdMillis * 2));
+        assertExpectedLogs(clusterState, incrementalClusterStateWriter, new MockLogAppender.SeenEventExpectation(
+            "should see warning above threshold",
+            IncrementalClusterStateWriter.class.getCanonicalName(),
+            Level.WARN,
+            "writing cluster state took [*] which is above the warn threshold of [*]; " +
+                "wrote metadata for [0] indices and skipped [0] unchanged indices"));
+
+        writeDurationMillis.set(randomLongBetween(1, slowWriteLoggingThresholdMillis - 1));
+        assertExpectedLogs(clusterState, incrementalClusterStateWriter, new MockLogAppender.UnseenEventExpectation(
+            "should not see warning below threshold",
+            IncrementalClusterStateWriter.class.getCanonicalName(),
+            Level.WARN,
+            "*"));
+
+        clusterSettings.applySettings(Settings.builder()
+            .put(IncrementalClusterStateWriter.SLOW_WRITE_LOGGING_THRESHOLD.getKey(), writeDurationMillis.get() + "ms")
+            .build());
+        assertExpectedLogs(clusterState, incrementalClusterStateWriter, new MockLogAppender.SeenEventExpectation(
+            "should see warning at reduced threshold",
+            IncrementalClusterStateWriter.class.getCanonicalName(),
+            Level.WARN,
+            "writing cluster state took [*] which is above the warn threshold of [*]; " +
+                "wrote metadata for [0] indices and skipped [0] unchanged indices"));
+
+        assertThat(currentTime.get(), lessThan(startTimeMillis + 10 * slowWriteLoggingThresholdMillis)); // ensure no overflow
+    }
+
+    private void assertExpectedLogs(ClusterState clusterState, IncrementalClusterStateWriter incrementalClusterStateWriter,
+                                    MockLogAppender.LoggingExpectation expectation) throws IllegalAccessException, WriteStateException {
+        MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        mockAppender.addExpectation(expectation);
+        Logger classLogger = LogManager.getLogger(IncrementalClusterStateWriter.class);
+        Loggers.addAppender(classLogger, mockAppender);
+
+        try {
+            incrementalClusterStateWriter.updateClusterState(clusterState, clusterState);
+        } finally {
+            Loggers.removeAppender(classLogger, mockAppender);
+            mockAppender.stop();
+        }
+        mockAppender.assertAllExpectationsMatched();
     }
 }

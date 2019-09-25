@@ -92,8 +92,10 @@ public class GatewayMetaState {
         }
 
         final IncrementalClusterStateWriter incrementalClusterStateWriter
-            = new IncrementalClusterStateWriter(metaStateService, manifestClusterStateTuple.v1(),
-                prepareInitialClusterState(transportService, clusterService, manifestClusterStateTuple.v2()));
+            = new IncrementalClusterStateWriter(settings, clusterService.getClusterSettings(), metaStateService,
+                manifestClusterStateTuple.v1(),
+                prepareInitialClusterState(transportService, clusterService, manifestClusterStateTuple.v2()),
+                transportService.getThreadPool()::relativeTimeInMillis);
         if (DiscoveryNode.isMasterNode(settings) == false) {
             if (DiscoveryNode.isDataNode(settings)) {
                 // Master-eligible nodes persist index metadata for all indices regardless of whether they hold any shards or not. It's

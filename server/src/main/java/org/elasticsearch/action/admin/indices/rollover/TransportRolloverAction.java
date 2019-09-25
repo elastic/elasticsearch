@@ -124,7 +124,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         final String rolloverIndexName = indexNameExpressionResolver.resolveDateMathExpression(unresolvedName);
         MetaDataCreateIndexService.validateIndexName(rolloverIndexName, state); // will fail if the index already exists
         checkNoDuplicatedAliasInIndexTemplate(metaData, rolloverIndexName, rolloverRequest.getAlias());
-        IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(rolloverRequest.getAlias()).clear().docs(true);
+        IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(sourceIndexName).clear().docs(true);
         statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
         client.execute(IndicesStatsAction.INSTANCE, statsRequest,
             new ActionListener<IndicesStatsResponse>() {

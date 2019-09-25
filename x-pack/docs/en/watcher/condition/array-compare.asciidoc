@@ -1,6 +1,6 @@
 [role="xpack"]
 [[condition-array-compare]]
-=== Array Compare Condition
+=== Array compare condition
 
 Use `array_compare` to compare an array of values in the execution context to a 
 given value. See <<condition-compare-operators,Supported comparison operators>>
@@ -8,7 +8,7 @@ for the operators you can use.
 
 
 
-==== Using an Array Compare Condition
+==== Using an array compare condition
 
 To use the `array_compare` condition, you specify the array in the execution 
 context that you want to evaluate, a
@@ -46,7 +46,7 @@ than or equal to 25:
 NOTE: When using fieldnames that contain a dot this condition will not
 work, use a <<condition-script,script condition>> instead.
 
-==== Array-Compare Condition Attributes
+==== Array-compare condition attributes
 
 [options="header"]
 |======

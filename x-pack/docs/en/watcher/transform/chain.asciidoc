@@ -1,6 +1,6 @@
 [role="xpack"]
 [[transform-chain]]
-=== Chain Transform
+=== Chain transform
 
 A <<transform,transform>> that executes an ordered list of configured transforms
 in a chain, where the output of one transform serves as the input of the next

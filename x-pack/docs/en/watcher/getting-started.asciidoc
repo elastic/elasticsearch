@@ -4,7 +4,8 @@
 
 TIP: To complete these steps, you must obtain a license that includes the
 {alert-features}. For more information about Elastic license levels, see 
-https://www.elastic.co/subscriptions and <<license-management>>.
+https://www.elastic.co/subscriptions and
+{stack-ov}/license-management.html[License management].
 
 [[watch-log-data]]
 To set up a watch to start sending alerts:

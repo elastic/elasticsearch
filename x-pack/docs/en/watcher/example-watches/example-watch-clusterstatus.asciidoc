@@ -1,6 +1,6 @@
 [role="xpack"]
 [[watch-cluster-status]]
-=== Watching the Status of an Elasticsearch Cluster
+=== Watching the status of an Elasticsearch cluster
 
 You can easily configure a basic watch to monitor the health of your
 Elasticsearch cluster:
@@ -15,7 +15,7 @@ Elasticsearch cluster:
 
 [float]
 [[health-add-input]]
-==== Schedule the Watch and Add an Input
+==== Schedule the watch and add an input
 
 A watch <<trigger-schedule,schedule>> controls how often a watch is triggered.
 The watch <<input,input>> gets the data that you want to evaluate.
@@ -124,7 +124,7 @@ GET .watcher-history*/_search
 
 [float]
 [[health-add-condition]]
-==== Add a Condition
+==== Add a condition
 
 A <<condition,condition>> evaluates the data you've loaded into the watch and
 determines if any action is required. Since you've defined an input that loads
@@ -178,7 +178,7 @@ GET .watcher-history*/_search?pretty
 
 [float]
 [[health-take-action]]
-==== Take Action
+==== Take action
 
 Recording `watch_records` in the watch history is nice, but the real power of
 {watcher} is being able to do something in response to an alert. A watch's
@@ -250,7 +250,7 @@ xpack.notification.email.account:
 
 NOTE:   If you have advanced security options enabled for your email account,
         you need to take additional steps to send email from {watcher}. For more
-        information, see <<configuring-email, Working with Various Email Services>>.
+        information, see <<configuring-email>>.
 
 You can check the watch history or the `status_index` to see that the action was
 performed.
@@ -268,7 +268,7 @@ GET .watcher-history*/_search?pretty
 
 [float]
 [[health-delete]]
-==== Delete the Watch
+==== Delete the watch
 
 Since the `cluster_health_watch` is configured to run every 10 seconds, make
 sure you delete it when you're done experimenting. Otherwise, you'll spam yourself

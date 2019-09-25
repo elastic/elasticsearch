@@ -1,7 +1,7 @@
 --
 :api: get-transform
-:request: GetDataFrameTransformRequest
-:response: GetDataFrameTransformResponse
+:request: GetTransformRequest
+:response: GetTransformResponse
 --
 [role="xpack"]
 [id="{upid}-{api}"]

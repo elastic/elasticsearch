@@ -55,25 +55,6 @@ public class Platforms {
     }
 
     /**
-     * The fallback path to the native controller for a plugin with native
-     * components to be used if no program is found using the standard path.
-     * This is a temporary measure to allow developers not working on this
-     * functionality to continue to work with C++ bundles from before or
-     * after the change. This code should never be in a supported release.
-     * TODO: remove this method before release
-     */
-    public static Path fallbackNativeControllerPath(Path plugin) {
-        if (Constants.MAC_OS_X) {
-            return plugin
-                .resolve("platform")
-                .resolve(PLATFORM_NAME)
-                .resolve("bin")
-                .resolve(PROGRAM_NAME);
-        }
-        return null;
-    }
-
-    /**
      * Return the platform name based on the OS name and architecture, for example:
      * - darwin-x86_64
      * - linux-x86-64

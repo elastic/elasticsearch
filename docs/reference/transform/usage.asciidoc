@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
-[[ml-transforms-usage]]
-== When to use {transforms}
+[[transform-usage]]
+=== When to use {transforms}
 
 {es} aggregations are a powerful and flexible feature that enable you to
 summarize and retrieve complex insights about your data. You can summarize

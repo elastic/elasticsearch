@@ -16,8 +16,6 @@ include::getting-started.asciidoc[]
 
 include::setup.asciidoc[]
 
-include::monitoring/configuring-monitoring.asciidoc[]
-
 include::setup/bootstrap-checks-xes.asciidoc[]
 
 include::upgrade.asciidoc[]

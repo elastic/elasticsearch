@@ -1870,13 +1870,6 @@ public abstract class Engine implements Closeable {
     public abstract void skipTranslogRecovery();
 
     /**
-     * Returns <code>true</code> iff this engine is currently recovering from translog.
-     */
-    public boolean isRecovering() {
-        return false;
-    }
-
-    /**
      * Tries to prune buffered deletes from the version map.
      */
     public abstract void maybePruneDeletes();

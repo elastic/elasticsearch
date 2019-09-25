@@ -108,7 +108,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                         int total = snapInfo.totalShards();
                         final SnapshotException e = new SnapshotException(request.repository(), request.snapshot(),
                             "failed to create snapshot successfully, " + failures + " out of " + total + " total shards failed");
-                        // Add each failed shard's exception as suppressed
+                        // Add each failed shard's exception as suppressed, the exception contains
+                        // information about which shard failed
                         snapInfo.shardFailures().forEach(failure -> e.addSuppressed(failure.getCause()));
                         // Call the failure handler to register this as a failure and persist it
                         onFailure(e);

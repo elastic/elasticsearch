@@ -33,12 +33,15 @@ public class DatafeedTimingStatsReporter {
     private volatile DatafeedTimingStats currentTimingStats;
     /** Object used to persist current timing stats. */
     private final DatafeedTimingStatsPersister persister;
+    /** Whether or not timing stats will be persisted by the persister object. */
+    private volatile boolean allowedPersisting;
 
     public DatafeedTimingStatsReporter(DatafeedTimingStats timingStats, DatafeedTimingStatsPersister persister) {
         Objects.requireNonNull(timingStats);
         this.persistedTimingStats = new DatafeedTimingStats(timingStats);
         this.currentTimingStats = new DatafeedTimingStats(timingStats);
         this.persister = Objects.requireNonNull(persister);
+        this.allowedPersisting = true;
     }
 
     /** Gets current timing stats. */
@@ -79,6 +82,11 @@ public class DatafeedTimingStatsReporter {
         }
     }
 
+    /** Disallows persisting timing stats. After this call finishes, no document will be persisted. */
+    public void disallowPersisting() {
+        allowedPersisting = false;
+    }
+
     private void flushIfDifferSignificantly() {
         if (differSignificantly(currentTimingStats, persistedTimingStats)) {
             flush(WriteRequest.RefreshPolicy.NONE);
@@ -87,7 +95,9 @@ public class DatafeedTimingStatsReporter {
 
     private void flush(WriteRequest.RefreshPolicy refreshPolicy) {
         persistedTimingStats = new DatafeedTimingStats(currentTimingStats);
-        persister.persistDatafeedTimingStats(persistedTimingStats, refreshPolicy);
+        if (allowedPersisting) {
+            persister.persistDatafeedTimingStats(persistedTimingStats, refreshPolicy);
+        }
     }
 
     /**

@@ -38,6 +38,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.DocumentSourceMissingException;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -70,7 +71,7 @@ public class UpdateHelper {
      */
     public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis) {
         final GetResult getResult = indexShard.getService().getForUpdate(
-            request.type(), request.id(), request.ifSeqNo(), request.ifPrimaryTerm());
+            request.id(), request.ifSeqNo(), request.ifPrimaryTerm());
         return prepare(indexShard.shardId(), request, getResult, nowInMillis);
     }
 
@@ -139,7 +140,7 @@ public class UpdateHelper {
                         indexRequest.source(upsertResult.v2());
                         break;
                     case NONE:
-                        UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(),
+                        UpdateResponse update = new UpdateResponse(shardId, MapperService.SINGLE_MAPPING_NAME, getResult.getId(),
                                 getResult.getSeqNo(), getResult.getPrimaryTerm(), getResult.getVersion(), DocWriteResponse.Result.NOOP);
                         update.setGetResult(getResult);
                         return new Result(update, DocWriteResponse.Result.NOOP, upsertResult.v2(), XContentType.JSON);
@@ -193,7 +194,7 @@ public class UpdateHelper {
         // We can only actually turn the update into a noop if detectNoop is true to preserve backwards compatibility and to handle cases
         // where users repopulating multi-fields or adding synonyms, etc.
         if (detectNoop && noop) {
-            UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(),
+            UpdateResponse update = new UpdateResponse(shardId, MapperService.SINGLE_MAPPING_NAME, getResult.getId(),
                 getResult.getSeqNo(), getResult.getPrimaryTerm(), getResult.getVersion(), DocWriteResponse.Result.NOOP);
             update.setGetResult(extractGetResult(request, request.index(), getResult.getSeqNo(), getResult.getPrimaryTerm(),
                 getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, getResult.internalSourceRef()));
@@ -224,7 +225,7 @@ public class UpdateHelper {
         Map<String, Object> ctx = new HashMap<>(16);
         ctx.put(ContextFields.OP, UpdateOpType.INDEX.toString()); // The default operation is "index"
         ctx.put(ContextFields.INDEX, getResult.getIndex());
-        ctx.put(ContextFields.TYPE, getResult.getType());
+        ctx.put(ContextFields.TYPE, MapperService.SINGLE_MAPPING_NAME);
         ctx.put(ContextFields.ID, getResult.getId());
         ctx.put(ContextFields.VERSION, getResult.getVersion());
         ctx.put(ContextFields.ROUTING, routing);
@@ -256,7 +257,7 @@ public class UpdateHelper {
                 return new Result(deleteRequest, DocWriteResponse.Result.DELETED, updatedSourceAsMap, updateSourceContentType);
             default:
                 // If it was neither an INDEX or DELETE operation, treat it as a noop
-                UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(),
+                UpdateResponse update = new UpdateResponse(shardId, MapperService.SINGLE_MAPPING_NAME, getResult.getId(),
                         getResult.getSeqNo(), getResult.getPrimaryTerm(), getResult.getVersion(), DocWriteResponse.Result.NOOP);
                 update.setGetResult(extractGetResult(request, request.index(), getResult.getSeqNo(), getResult.getPrimaryTerm(),
                     getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, getResult.internalSourceRef()));
@@ -305,7 +306,7 @@ public class UpdateHelper {
         }
 
         // TODO when using delete/none, we can still return the source as bytes by generating it (using the sourceContentType)
-        return new GetResult(concreteIndex, request.type(), request.id(), seqNo, primaryTerm, version, true, sourceFilteredAsBytes,
+        return new GetResult(concreteIndex, request.id(), seqNo, primaryTerm, version, true, sourceFilteredAsBytes,
             Collections.emptyMap(), Collections.emptyMap());
     }
 

@@ -36,8 +36,7 @@ For more information about the native realm, see
 The clear roles cache API evicts roles from the native role cache. For example, 
 to clear the cache for `my_admin_role`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/role/my_admin_role/_clear_cache
 --------------------------------------------------
-// CONSOLE

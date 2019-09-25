@@ -96,7 +96,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
         client().prepareIndex("test", "type1", "aNullshape").setSource("{\"location\": null}", XContentType.JSON)
             .setRefreshPolicy(IMMEDIATE).get();
-        GetResponse result = client().prepareGet("test", "type1", "aNullshape").get();
+        GetResponse result = client().prepareGet("test", "aNullshape").get();
         assertThat(result.getField("location"), nullValue());
     }
 

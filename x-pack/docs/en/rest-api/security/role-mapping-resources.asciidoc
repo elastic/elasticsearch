@@ -80,7 +80,7 @@ if _at least one_ of the member values matches. For example, the following rule
 matches any user who is a member of the `admin` group, regardless of any
 other groups they belong to:
 
-[source, js]
+[source,js]
 ------------------------------------------------------------
 { "field" : { "groups" : "admin" } }
 ------------------------------------------------------------

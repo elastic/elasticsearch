@@ -366,7 +366,8 @@ public class Node implements Closeable {
                     new ConsistentSettingsService(settings, clusterService, settingsModule.getConsistentSettings())
                             .newHashPublisher());
             final IngestService ingestService = new IngestService(clusterService, threadPool, this.environment,
-                scriptModule.getScriptService(), analysisModule.getAnalysisRegistry(), pluginsService.filterPlugins(IngestPlugin.class));
+                scriptModule.getScriptService(), analysisModule.getAnalysisRegistry(),
+                pluginsService.filterPlugins(IngestPlugin.class), client);
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
             final UsageService usageService = new UsageService();
 
@@ -423,10 +424,10 @@ public class Node implements Closeable {
                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
             final IndicesService indicesService =
-                    new IndicesService(settings, pluginsService, nodeEnvironment, xContentRegistry, analysisModule.getAnalysisRegistry(),
-                            clusterModule.getIndexNameExpressionResolver(), indicesModule.getMapperRegistry(), namedWriteableRegistry,
-                            threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, bigArrays,
-                            scriptModule.getScriptService(), client, metaStateService, engineFactoryProviders, indexStoreFactories);
+                new IndicesService(settings, pluginsService, nodeEnvironment, xContentRegistry, analysisModule.getAnalysisRegistry(),
+                    clusterModule.getIndexNameExpressionResolver(), indicesModule.getMapperRegistry(), namedWriteableRegistry,
+                    threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, bigArrays, scriptModule.getScriptService(),
+                    clusterService, client, metaStateService, engineFactoryProviders, indexStoreFactories);
 
             final AliasValidator aliasValidator = new AliasValidator();
 
@@ -478,8 +479,7 @@ public class Node implements Closeable {
             ).collect(Collectors.toSet());
             final TransportService transportService = newTransportService(settings, transport, threadPool,
                 networkModule.getTransportInterceptor(), localNodeFactory, settingsModule.getClusterSettings(), taskHeaders);
-            final GatewayMetaState gatewayMetaState = new GatewayMetaState(settings, metaStateService,
-                    metaDataIndexUpgradeService, metaDataUpgrader, transportService, clusterService);
+            final GatewayMetaState gatewayMetaState = new GatewayMetaState();
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
             final SearchTransportService searchTransportService =  new SearchTransportService(transportService,
                 SearchExecutionStatsCollector.makeWrapper(responseCollectorService));
@@ -592,6 +592,7 @@ public class Node implements Closeable {
                 .filter(p -> p instanceof LifecycleComponent)
                 .map(p -> (LifecycleComponent) p).collect(Collectors.toList());
             resourcesToClose.addAll(pluginLifecycleComponents);
+            resourcesToClose.add(injector.getInstance(PeerRecoverySourceService.class));
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
             client.initialize(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {}), transportService.getTaskManager(),
                     () -> clusterService.localNode().getId(), transportService.getRemoteClusterService());
@@ -688,14 +689,15 @@ public class Node implements Closeable {
         assert localNodeFactory.getNode() != null;
         assert transportService.getLocalNode().equals(localNodeFactory.getNode())
             : "transportService has a different local node than the factory provided";
-        final MetaData onDiskMetadata;
+        injector.getInstance(PeerRecoverySourceService.class).start();
+
+        // Load (and maybe upgrade) the metadata stored on disk
+        final GatewayMetaState gatewayMetaState = injector.getInstance(GatewayMetaState.class);
+        gatewayMetaState.start(settings(), transportService, clusterService, injector.getInstance(MetaStateService.class),
+            injector.getInstance(MetaDataIndexUpgradeService.class), injector.getInstance(MetaDataUpgrader.class));
         // we load the global state here (the persistent part of the cluster state stored on disk) to
         // pass it to the bootstrap checks to allow plugins to enforce certain preconditions based on the recovered state.
-        if (DiscoveryNode.isMasterNode(settings()) || DiscoveryNode.isDataNode(settings())) {
-            onDiskMetadata = injector.getInstance(GatewayMetaState.class).getMetaData();
-        } else {
-            onDiskMetadata = MetaData.EMPTY_META_DATA;
-        }
+        final MetaData onDiskMetadata = gatewayMetaState.getPersistedState().getLastAcceptedState().metaData();
         assert onDiskMetadata != null : "metadata is null but shouldn't"; // this is never null
         validateNodeBeforeAcceptingRequests(new BootstrapContext(environment, onDiskMetadata), transportService.boundAddress(),
             pluginsService.filterPlugins(Plugin.class).stream()
@@ -833,6 +835,7 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(IndicesService.class));
         // close filter/fielddata caches after indices
         toClose.add(injector.getInstance(IndicesStore.class));
+        toClose.add(injector.getInstance(PeerRecoverySourceService.class));
         toClose.add(() -> stopWatch.stop().start("cluster"));
         toClose.add(injector.getInstance(ClusterService.class));
         toClose.add(() -> stopWatch.stop().start("node_connections_service"));

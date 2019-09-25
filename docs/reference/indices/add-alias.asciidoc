@@ -6,13 +6,12 @@
 
 Creates or updates an index alias.
 
-include::alias-exists.asciidoc[tag=index-alias-def]
+include::{docdir}/glossary.asciidoc[tag=index-alias-desc]
 
-[source,js]
+[source,console]
 ----
 PUT /twitter/_alias/alias1
 ----
-// CONSOLE
 // TEST[setup:twitter]
 
 
@@ -68,11 +67,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index-routing]
 The following request creates an alias, `2030`,
 for the `logs_20302801` index.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /logs_20302801/_alias/2030
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT logs_20302801\n/]
 
 [[add-alias-api-user-ex]]
@@ -81,7 +79,7 @@ PUT /logs_20302801/_alias/2030
 First, create an index, `users`,
 with a mapping for the `user_id` field:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /users
 {
@@ -92,11 +90,10 @@ PUT /users
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 Then add the index alias for a specific user, `user_12`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /users/_alias/user_12
 {
@@ -108,7 +105,6 @@ PUT /users/_alias/user_12
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 [[alias-index-creation]]
@@ -117,7 +113,7 @@ PUT /users/_alias/user_12
 You can use the <<create-index-aliases,create index API>>
 to add an index alias during index creation.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /logs_20302801
 {
@@ -136,4 +132,3 @@ PUT /logs_20302801
     }
 }
 --------------------------------------------------
-// CONSOLE

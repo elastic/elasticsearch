@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -36,7 +37,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -263,15 +263,17 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<Numeric> innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
-            AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
+    protected ValuesSourceAggregatorFactory<Numeric> innerBuild(QueryShardContext queryShardContext,
+                                                                    ValuesSourceConfig<Numeric> config,
+                                                                    AggregatorFactory parent,
+                                                                    Builder subFactoriesBuilder) throws IOException {
         switch (method) {
         case TDIGEST:
-            return new TDigestPercentilesAggregatorFactory(name, config, percents, compression, keyed, context, parent,
+            return new TDigestPercentilesAggregatorFactory(name, config, percents, compression, keyed, queryShardContext, parent,
                     subFactoriesBuilder, metaData);
         case HDR:
-            return new HDRPercentilesAggregatorFactory(name, config, percents, numberOfSignificantValueDigits, keyed, context, parent,
-                    subFactoriesBuilder, metaData);
+            return new HDRPercentilesAggregatorFactory(name, config, percents,
+                numberOfSignificantValueDigits, keyed, queryShardContext, parent, subFactoriesBuilder, metaData);
         default:
             throw new IllegalStateException("Illegal method [" + method + "]");
         }

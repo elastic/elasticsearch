@@ -89,7 +89,7 @@ The API returns the following information:
 
 The following example gets bucket information for the `it-ops-kpi` job:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ml/anomaly_detectors/it-ops-kpi/results/buckets
 {
@@ -97,7 +97,6 @@ GET _ml/anomaly_detectors/it-ops-kpi/results/buckets
   "start": "1454530200001"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:todo]
 
 In this example, the API returns a single result that matches the specified

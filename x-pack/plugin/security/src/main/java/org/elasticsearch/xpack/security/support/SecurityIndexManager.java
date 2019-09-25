@@ -281,9 +281,6 @@ public class SecurityIndexManager implements ClusterStateListener {
         if (indexMetaData != null) {
             for (Object object : indexMetaData.getMappings().values().toArray()) {
                 MappingMetaData mappingMetaData = (MappingMetaData) object;
-                if (mappingMetaData.type().equals(MapperService.DEFAULT_MAPPING)) {
-                    continue;
-                }
                 versions.add(readMappingVersion(aliasName, mappingMetaData, logger));
             }
         }

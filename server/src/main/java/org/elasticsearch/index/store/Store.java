@@ -1484,22 +1484,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
-
-    /**
-     * Checks that the Lucene index contains a history uuid marker. If not, a new one is generated and committed.
-     */
-    public void ensureIndexHasHistoryUUID() throws IOException {
-        metadataLock.writeLock().lock();
-        try (IndexWriter writer = newAppendingIndexWriter(directory, null)) {
-            final Map<String, String> userData = getUserData(writer);
-            if (userData.containsKey(Engine.HISTORY_UUID_KEY) == false) {
-                updateCommitData(writer, Collections.singletonMap(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID()));
-            }
-        } finally {
-            metadataLock.writeLock().unlock();
-        }
-    }
-
     /**
      * Keeping existing unsafe commits when opening an engine can be problematic because these commits are not safe
      * at the recovering time but they can suddenly become safe in the future.

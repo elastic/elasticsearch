@@ -7,7 +7,7 @@
 Deletes an existing index.
 
 ////
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _template/template_1
 {
@@ -17,15 +17,13 @@ PUT _template/template_1
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
 ////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_template/template_1
 --------------------------------------------------
-// CONSOLE
 
 
 [[delete-template-api-request]]

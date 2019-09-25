@@ -931,7 +931,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/25281")
     public void testMasterShutdownDuringFailedSnapshot() throws Exception {
         logger.info("-->  starting two master nodes and two data nodes");
         internalCluster().startMasterOnlyNodes(2);

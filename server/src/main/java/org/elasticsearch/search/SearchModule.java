@@ -667,6 +667,7 @@ public class SearchModule {
         registerValueFormat(DocValueFormat.DateTime.NAME, DocValueFormat.DateTime::new);
         registerValueFormat(DocValueFormat.Decimal.NAME, DocValueFormat.Decimal::new);
         registerValueFormat(DocValueFormat.GEOHASH.getWriteableName(), in -> DocValueFormat.GEOHASH);
+        registerValueFormat(DocValueFormat.GEOTILE.getWriteableName(), in -> DocValueFormat.GEOTILE);
         registerValueFormat(DocValueFormat.IP.getWriteableName(), in -> DocValueFormat.IP);
         registerValueFormat(DocValueFormat.RAW.getWriteableName(), in -> DocValueFormat.RAW);
         registerValueFormat(DocValueFormat.BINARY.getWriteableName(), in -> DocValueFormat.BINARY);

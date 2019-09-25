@@ -59,14 +59,14 @@ final class AzureStorageSettings {
         key -> SecureSetting.secureString(key, null));
 
     /** max_retries: Number of retries in case of Azure errors. Defaults to 3 (RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT). */
-    public static final Setting<Integer> MAX_RETRIES_SETTING =
+    public static final AffixSetting<Integer> MAX_RETRIES_SETTING =
         Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "max_retries",
             (key) -> Setting.intSetting(key, RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT, Setting.Property.NodeScope),
             ACCOUNT_SETTING, KEY_SETTING);
     /**
      * Azure endpoint suffix. Default to core.windows.net (CloudStorageAccount.DEFAULT_DNS).
      */
-    public static final Setting<String> ENDPOINT_SUFFIX_SETTING = Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "endpoint_suffix",
+    public static final AffixSetting<String> ENDPOINT_SUFFIX_SETTING = Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "endpoint_suffix",
         key -> Setting.simpleString(key, Property.NodeScope), ACCOUNT_SETTING, KEY_SETTING);
 
     public static final AffixSetting<TimeValue> TIMEOUT_SETTING = Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "timeout",

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ml.inference.model.tree;
+package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -12,8 +12,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.inference.model.LenientlyParsedModel;
-import org.elasticsearch.xpack.core.ml.inference.model.StrictlyParsedModel;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -29,7 +29,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class Tree implements LenientlyParsedModel, StrictlyParsedModel {
+public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedModel {
 
     public static final ParseField NAME = new ParseField("tree");
 
@@ -39,7 +39,6 @@ public class Tree implements LenientlyParsedModel, StrictlyParsedModel {
     private static final ObjectParser<Tree.Builder, Void> LENIENT_PARSER = createParser(true);
     private static final ObjectParser<Tree.Builder, Void> STRICT_PARSER = createParser(false);
 
-    @SuppressWarnings("unchecked")
     private static ObjectParser<Tree.Builder, Void> createParser(boolean lenient) {
         ObjectParser<Tree.Builder, Void> parser = new ObjectParser<>(
             NAME.getPreferredName(),
@@ -96,7 +95,7 @@ public class Tree implements LenientlyParsedModel, StrictlyParsedModel {
         while(node.isLeaf() == false) {
             node = nodes.get(node.compare(features));
         }
-        return node.getInternalValue();
+        return node.getLeafValue();
     }
 
     /**
@@ -216,11 +215,12 @@ public class Tree implements LenientlyParsedModel, StrictlyParsedModel {
                 nodes.add(null);
             }
 
-            TreeNode.Builder node = TreeNode.builder()
+            TreeNode.Builder node = TreeNode.builder(nodeIndex)
                 .setDefaultLeft(isDefaultLeft)
                 .setLeftChild(leftChild)
                 .setRightChild(rightChild)
-                .setSplitIndex(featureIndex).setThreshold(decisionThreshold);
+                .setSplitFeature(featureIndex)
+                .setThreshold(decisionThreshold);
             nodes.set(nodeIndex, node);
 
             // allocate space for the child nodes
@@ -296,7 +296,7 @@ public class Tree implements LenientlyParsedModel, StrictlyParsedModel {
             for (int i = nodes.size(); i < nodeIndex + 1; i++) {
                 nodes.add(null);
             }
-            nodes.set(nodeIndex, TreeNode.builder().setInternalValue(value));
+            nodes.set(nodeIndex, TreeNode.builder(nodeIndex).setLeafValue(value));
             return this;
         }
 

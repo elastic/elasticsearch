@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ml.inference.model.tree;
+package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -43,19 +43,29 @@ public class TreeNodeTests extends AbstractSerializingTestCase<TreeNode> {
         Integer rgt = randomBoolean() ? randomInt(100) : null;
         Double threshold = lft != null || randomBoolean() ? randomDouble() : null;
         Integer featureIndex = lft != null || randomBoolean() ? randomInt(100) : null;
-        return createRandom(lft, rgt, threshold, featureIndex, randomBoolean() ? null : randomFrom(Operator.values())).build();
+        return createRandom(randomInt(100),
+            lft,
+            rgt,
+            threshold,
+            featureIndex,
+            randomBoolean() ? null : randomFrom(Operator.values())).build();
     }
 
     public static TreeNode createRandomLeafNode(double internalValue) {
-        return TreeNode.builder()
+        return TreeNode.builder(randomInt(100))
             .setDefaultLeft(randomBoolean() ? null : randomBoolean())
-            .setInternalValue(internalValue)
+            .setLeafValue(internalValue)
             .build();
     }
 
-    public static TreeNode.Builder createRandom(Integer left, Integer right, Double threshold, Integer featureIndex, Operator operator) {
-        return TreeNode.builder()
-            .setInternalValue(left == null ? randomDouble() : null)
+    public static TreeNode.Builder createRandom(int nodeId,
+                                                Integer left,
+                                                Integer right,
+                                                Double threshold,
+                                                Integer featureIndex,
+                                                Operator operator) {
+        return TreeNode.builder(nodeId)
+            .setLeafValue(left == null ? randomDouble() : null)
             .setDefaultLeft(randomBoolean() ? null : randomBoolean())
             .setLeftChild(left)
             .setRightChild(right)
@@ -63,7 +73,7 @@ public class TreeNodeTests extends AbstractSerializingTestCase<TreeNode> {
             .setOperator(operator)
             .setSplitFeature(randomBoolean() ? null : randomInt())
             .setSplitGain(randomBoolean() ? null : randomDouble())
-            .setSplitIndex(featureIndex);
+            .setSplitFeature(featureIndex);
     }
 
     @Override
@@ -76,15 +86,15 @@ public class TreeNodeTests extends AbstractSerializingTestCase<TreeNode> {
             () -> createRandomLeafNode(randomDouble()).compare(Collections.singletonList(randomDouble())));
 
         List<Double> featureValues = Arrays.asList(0.1, null);
-        assertThat(createRandom(2, 3, 0.0, 0, null).build().compare(featureValues),
+        assertThat(createRandom(0, 2, 3, 0.0, 0, null).build().compare(featureValues),
             equalTo(3));
-        assertThat(createRandom(2, 3, 0.0, 0, Operator.GT).build().compare(featureValues),
+        assertThat(createRandom(0, 2, 3, 0.0, 0, Operator.GT).build().compare(featureValues),
             equalTo(2));
-        assertThat(createRandom(2, 3, 0.2, 0, null).build().compare(featureValues),
+        assertThat(createRandom(0, 2, 3, 0.2, 0, null).build().compare(featureValues),
             equalTo(2));
-        assertThat(createRandom(2, 3, 0.0, 1, null).setDefaultLeft(true).build().compare(featureValues),
+        assertThat(createRandom(0, 2, 3, 0.0, 1, null).setDefaultLeft(true).build().compare(featureValues),
             equalTo(2));
-        assertThat(createRandom(2, 3, 0.0, 1, null).setDefaultLeft(false).build().compare(featureValues),
+        assertThat(createRandom(0, 2, 3, 0.0, 1, null).setDefaultLeft(false).build().compare(featureValues),
             equalTo(3));
     }
 }

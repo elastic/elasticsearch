@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.client.ml.inference;
 
-import org.elasticsearch.client.ml.inference.model.Model;
-import org.elasticsearch.client.ml.inference.model.tree.Tree;
+import org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel;
+import org.elasticsearch.client.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.client.ml.inference.preprocessing.FrequencyEncoding;
 import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.client.ml.inference.preprocessing.PreProcessor;
@@ -46,7 +46,7 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             FrequencyEncoding::fromXContent));
 
         // Model
-        namedXContent.add(new NamedXContentRegistry.Entry(Model.class, new ParseField(Tree.NAME), Tree::fromXContent));
+        namedXContent.add(new NamedXContentRegistry.Entry(TrainedModel.class, new ParseField(Tree.NAME), Tree::fromXContent));
 
         return namedXContent;
     }

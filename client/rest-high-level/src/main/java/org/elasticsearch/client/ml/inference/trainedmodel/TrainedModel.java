@@ -16,13 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml.inference.model;
+package org.elasticsearch.client.ml.inference.trainedmodel;
 
 import org.elasticsearch.common.xcontent.ToXContentObject;
 
 import java.util.List;
 
-public interface Model extends ToXContentObject {
+public interface TrainedModel extends ToXContentObject {
 
     /**
      * @return List of featureNames expected by the model. In the order that they are expected

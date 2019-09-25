@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml.inference.model.tree;
+package org.elasticsearch.client.ml.inference.trainedmodel.tree;
 
-import org.elasticsearch.client.ml.inference.model.Model;
+import org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public class Tree implements Model {
+public class Tree implements TrainedModel {
 
     public static final String NAME = "tree";
 
@@ -153,11 +153,12 @@ public class Tree implements Model {
                 nodes.add(null);
             }
 
-            TreeNode.Builder node = TreeNode.builder()
+            TreeNode.Builder node = TreeNode.builder(nodeIndex)
                 .setDefaultLeft(isDefaultLeft)
                 .setLeftChild(leftChild)
                 .setRightChild(rightChild)
-                .setSplitIndex(featureIndex).setThreshold(decisionThreshold);
+                .setSplitFeature(featureIndex)
+                .setThreshold(decisionThreshold);
             nodes.set(nodeIndex, node);
 
             // allocate space for the child nodes
@@ -178,7 +179,7 @@ public class Tree implements Model {
             for (int i = nodes.size(); i < nodeIndex + 1; i++) {
                 nodes.add(null);
             }
-            nodes.set(nodeIndex, TreeNode.builder().setInternalValue(value));
+            nodes.set(nodeIndex, TreeNode.builder(nodeIndex).setLeafValue(value));
             return this;
         }
 

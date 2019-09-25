@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ml.inference.model;
+package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 import java.util.List;
 import java.util.Map;
 
-public interface Model extends NamedXContentObject, NamedWriteable {
+public interface TrainedModel extends NamedXContentObject, NamedWriteable {
 
     /**
      * @return List of featureNames expected by the model. In the order that they are expected

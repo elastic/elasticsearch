@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ml.inference.model.tree;
+package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -133,9 +133,9 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
 
     public void testTreeWithInvalidNode() {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> Tree.builder().setNodes(TreeNode.builder()
+            () -> Tree.builder().setNodes(TreeNode.builder(0)
                 .setLeftChild(1)
-                .setSplitIndex(1)
+                .setSplitFeature(1)
                 .setThreshold(randomDouble()))
                 .build());
         assertThat(ex.getMessage(), equalTo("[tree] contains null or missing nodes [1]"));
@@ -143,9 +143,9 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
 
     public void testTreeWithNullNode() {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> Tree.builder().setNodes(TreeNode.builder()
+            () -> Tree.builder().setNodes(TreeNode.builder(0)
                 .setLeftChild(1)
-                .setSplitIndex(1)
+                .setSplitFeature(1)
                 .setThreshold(randomDouble()),
                 null)
                 .build());
@@ -154,13 +154,13 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
 
     public void testTreeWithCycle() {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> Tree.builder().setNodes(TreeNode.builder()
+            () -> Tree.builder().setNodes(TreeNode.builder(0)
                     .setLeftChild(1)
-                    .setSplitIndex(1)
+                    .setSplitFeature(1)
                     .setThreshold(randomDouble()),
-                TreeNode.builder()
+                TreeNode.builder(0)
                     .setLeftChild(0)
-                    .setSplitIndex(1)
+                    .setSplitFeature(1)
                     .setThreshold(randomDouble()))
                 .build());
         assertThat(ex.getMessage(), equalTo("[tree] contains cycle at node 0"));

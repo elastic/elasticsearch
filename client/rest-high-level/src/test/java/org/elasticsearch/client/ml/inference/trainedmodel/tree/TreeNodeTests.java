@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml.inference.model.tree;
+package org.elasticsearch.client.ml.inference.trainedmodel.tree;
 
 import org.elasticsearch.client.ml.job.config.Operator;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -42,27 +42,31 @@ public class TreeNodeTests extends AbstractXContentTestCase<TreeNode> {
         Integer rgt = randomBoolean() ? randomInt(100) : null;
         Double threshold = lft != null || randomBoolean() ? randomDouble() : null;
         Integer featureIndex = lft != null || randomBoolean() ? randomInt(100) : null;
-        return createRandom(lft, rgt, threshold, featureIndex, randomBoolean() ? null : randomFrom(Operator.values())).build();
+        return createRandom(randomInt(), lft, rgt, threshold, featureIndex, randomBoolean() ? null : randomFrom(Operator.values())).build();
     }
 
     public static TreeNode createRandomLeafNode(double internalValue) {
-        return TreeNode.builder()
+        return TreeNode.builder(randomInt(100))
             .setDefaultLeft(randomBoolean() ? null : randomBoolean())
-            .setInternalValue(internalValue)
+            .setLeafValue(internalValue)
             .build();
     }
 
-    public static TreeNode.Builder createRandom(Integer left, Integer right, Double threshold, Integer featureIndex, Operator operator) {
-        return TreeNode.builder()
-            .setInternalValue(left == null ? randomDouble() : null)
+    public static TreeNode.Builder createRandom(int nodeIndex,
+                                                Integer left,
+                                                Integer right,
+                                                Double threshold,
+                                                Integer featureIndex,
+                                                Operator operator) {
+        return TreeNode.builder(nodeIndex)
+            .setLeafValue(left == null ? randomDouble() : null)
             .setDefaultLeft(randomBoolean() ? null : randomBoolean())
             .setLeftChild(left)
             .setRightChild(right)
             .setThreshold(threshold)
             .setOperator(operator)
-            .setSplitFeature(randomBoolean() ? null : randomInt())
-            .setSplitGain(randomBoolean() ? null : randomDouble())
-            .setSplitIndex(featureIndex);
+            .setSplitFeature(featureIndex)
+            .setSplitGain(randomBoolean() ? null : randomDouble());
     }
 
 }

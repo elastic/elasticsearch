@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.core.ml.inference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.inference.model.LenientlyParsedModel;
-import org.elasticsearch.xpack.core.ml.inference.model.Model;
-import org.elasticsearch.xpack.core.ml.inference.model.StrictlyParsedModel;
-import org.elasticsearch.xpack.core.ml.inference.model.tree.Tree;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncoding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.LenientlyParsedPreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
@@ -45,10 +45,10 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             FrequencyEncoding::fromXContentStrict));
 
         // Model Lenient
-        namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedModel.class, Tree.NAME, Tree::fromXContentLenient));
+        namedXContent.add(new NamedXContentRegistry.Entry(LenientlyParsedTrainedModel.class, Tree.NAME, Tree::fromXContentLenient));
 
         // Model Strict
-        namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedModel.class, Tree.NAME, Tree::fromXContentStrict));
+        namedXContent.add(new NamedXContentRegistry.Entry(StrictlyParsedTrainedModel.class, Tree.NAME, Tree::fromXContentStrict));
 
         return namedXContent;
     }
@@ -65,7 +65,7 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             FrequencyEncoding::new));
 
         // Model
-        namedWriteables.add(new NamedWriteableRegistry.Entry(Model.class, Tree.NAME.getPreferredName(), Tree::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(TrainedModel.class, Tree.NAME.getPreferredName(), Tree::new));
 
         return namedWriteables;
     }

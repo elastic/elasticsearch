@@ -65,7 +65,7 @@ import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.Binar
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.ConfusionMatrixMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.PrecisionMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.RecallMetric;
-import org.elasticsearch.client.ml.inference.model.tree.Tree;
+import org.elasticsearch.client.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.client.ml.inference.preprocessing.FrequencyEncoding;
 import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.client.ml.inference.preprocessing.TargetMeanEncoding;
@@ -740,7 +740,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                 RSquaredMetric.NAME));
         assertEquals(Integer.valueOf(3), categories.get(org.elasticsearch.client.ml.inference.preprocessing.PreProcessor.class));
         assertThat(names, hasItems(FrequencyEncoding.NAME, OneHotEncoding.NAME, TargetMeanEncoding.NAME));
-        assertEquals(Integer.valueOf(1), categories.get(org.elasticsearch.client.ml.inference.model.Model.class));
+        assertEquals(Integer.valueOf(1), categories.get(org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel.class));
         assertThat(names, hasItems(Tree.NAME));
     }
 

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.ml.inference.model;
+package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-public interface LenientlyParsedModel extends Model {
+public interface StrictlyParsedTrainedModel extends TrainedModel {
 }

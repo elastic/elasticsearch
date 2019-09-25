@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml.inference.model.tree;
+package org.elasticsearch.client.ml.inference.trainedmodel.tree;
 
 import org.elasticsearch.client.ml.job.config.Operator;
 import org.elasticsearch.common.ParseField;
@@ -39,9 +39,9 @@ public class TreeNode implements ToXContentObject {
     public static final ParseField RIGHT_CHILD = new ParseField("right_child");
     public static final ParseField DEFAULT_LEFT = new ParseField("default_left");
     public static final ParseField SPLIT_FEATURE = new ParseField("split_feature");
-    public static final ParseField SPLIT_INDEX = new ParseField("split_index");
+    public static final ParseField NODE_INDEX = new ParseField("node_index");
     public static final ParseField SPLIT_GAIN = new ParseField("split_gain");
-    public static final ParseField INTERNAL_VALUE = new ParseField("internal_value");
+    public static final ParseField LEAF_VALUE = new ParseField("leaf_value");
 
 
     private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(
@@ -58,9 +58,9 @@ public class TreeNode implements ToXContentObject {
         PARSER.declareInt(Builder::setRightChild, RIGHT_CHILD);
         PARSER.declareBoolean(Builder::setDefaultLeft, DEFAULT_LEFT);
         PARSER.declareInt(Builder::setSplitFeature, SPLIT_FEATURE);
-        PARSER.declareInt(Builder::setSplitIndex, SPLIT_INDEX);
+        PARSER.declareInt(Builder::setNodeIndex, NODE_INDEX);
         PARSER.declareDouble(Builder::setSplitGain, SPLIT_GAIN);
-        PARSER.declareDouble(Builder::setInternalValue, INTERNAL_VALUE);
+        PARSER.declareDouble(Builder::setLeafValue, LEAF_VALUE);
     }
 
     public static Builder fromXContent(XContentParser parser) {
@@ -70,9 +70,9 @@ public class TreeNode implements ToXContentObject {
     private final Operator operator;
     private final Double threshold;
     private final Integer splitFeature;
-    private final Integer splitIndex;
+    private final int nodeIndex;
     private final Double splitGain;
-    private final Double internalValue;
+    private final Double leafValue;
     private final Boolean defaultLeft;
     private final Integer leftChild;
     private final Integer rightChild;
@@ -81,18 +81,18 @@ public class TreeNode implements ToXContentObject {
     TreeNode(Operator operator,
              Double threshold,
              Integer splitFeature,
-             Integer splitIndex,
+             int nodeIndex,
              Double splitGain,
-             Double internalValue,
+             Double leafValue,
              Boolean defaultLeft,
              Integer leftChild,
              Integer rightChild) {
         this.operator = operator;
         this.threshold  = threshold;
         this.splitFeature = splitFeature;
-        this.splitIndex = splitIndex;
+        this.nodeIndex = nodeIndex;
         this.splitGain  = splitGain;
-        this.internalValue = internalValue;
+        this.leafValue = leafValue;
         this.defaultLeft = defaultLeft;
         this.leftChild  = leftChild;
         this.rightChild = rightChild;
@@ -110,16 +110,16 @@ public class TreeNode implements ToXContentObject {
         return splitFeature;
     }
 
-    public Integer getSplitIndex() {
-        return splitIndex;
+    public Integer getNodeIndex() {
+        return nodeIndex;
     }
 
     public Double getSplitGain() {
         return splitGain;
     }
 
-    public Double getInternalValue() {
-        return internalValue;
+    public Double getLeafValue() {
+        return leafValue;
     }
 
     public Boolean isDefaultLeft() {
@@ -141,8 +141,8 @@ public class TreeNode implements ToXContentObject {
         addOptionalField(builder, THRESHOLD, threshold);
         addOptionalField(builder, SPLIT_FEATURE, splitFeature);
         addOptionalField(builder, SPLIT_GAIN, splitGain);
-        addOptionalField(builder, SPLIT_INDEX, splitIndex);
-        addOptionalField(builder, INTERNAL_VALUE, internalValue);
+        addOptionalField(builder, NODE_INDEX, nodeIndex);
+        addOptionalField(builder, LEAF_VALUE, leafValue);
         addOptionalField(builder, DEFAULT_LEFT, defaultLeft );
         addOptionalField(builder, LEFT_CHILD, leftChild);
         addOptionalField(builder, RIGHT_CHILD, rightChild);
@@ -164,9 +164,9 @@ public class TreeNode implements ToXContentObject {
         return Objects.equals(operator, that.operator)
             && Objects.equals(threshold, that.threshold)
             && Objects.equals(splitFeature, that.splitFeature)
-            && Objects.equals(splitIndex, that.splitIndex)
+            && Objects.equals(nodeIndex, that.nodeIndex)
             && Objects.equals(splitGain, that.splitGain)
-            && Objects.equals(internalValue, that.internalValue)
+            && Objects.equals(leafValue, that.leafValue)
             && Objects.equals(defaultLeft, that.defaultLeft)
             && Objects.equals(leftChild, that.leftChild)
             && Objects.equals(rightChild, that.rightChild);
@@ -178,8 +178,8 @@ public class TreeNode implements ToXContentObject {
             threshold,
             splitFeature,
             splitGain,
-            splitIndex,
-            internalValue,
+            nodeIndex,
+            leafValue,
             defaultLeft,
             leftChild,
             rightChild);
@@ -190,20 +190,27 @@ public class TreeNode implements ToXContentObject {
         return Strings.toString(this);
     }
 
-    public static Builder builder() {
-        return new Builder();
+    public static Builder builder(int nodeIndex) {
+        return new Builder(nodeIndex);
     }
     
     public static class Builder {
         private Operator operator;
         private Double threshold;
         private Integer splitFeature;
-        private Integer splitIndex;
+        private int nodeIndex;
         private Double splitGain;
-        private Double internalValue;
+        private Double leafValue;
         private Boolean defaultLeft;
         private Integer leftChild;
         private Integer rightChild;
+
+        public Builder(int nodeIndex) {
+            nodeIndex = nodeIndex;
+        }
+
+        private Builder() {
+        }
 
         public Builder setOperator(Operator operator) {
             this.operator = operator;
@@ -220,8 +227,8 @@ public class TreeNode implements ToXContentObject {
             return this;
         }
 
-        public Builder setSplitIndex(Integer splitIndex) {
-            this.splitIndex = splitIndex;
+        public Builder setNodeIndex(int nodeIndex) {
+            this.nodeIndex = nodeIndex;
             return this;
         }
 
@@ -230,8 +237,8 @@ public class TreeNode implements ToXContentObject {
             return this;
         }
 
-        public Builder setInternalValue(Double internalValue) {
-            this.internalValue = internalValue;
+        public Builder setLeafValue(Double leafValue) {
+            this.leafValue = leafValue;
             return this;
         }
 
@@ -262,9 +269,9 @@ public class TreeNode implements ToXContentObject {
             return new TreeNode(operator,
                 threshold, 
                 splitFeature, 
-                splitIndex, 
+                nodeIndex, 
                 splitGain, 
-                internalValue, 
+                leafValue, 
                 defaultLeft, 
                 leftChild, 
                 rightChild);

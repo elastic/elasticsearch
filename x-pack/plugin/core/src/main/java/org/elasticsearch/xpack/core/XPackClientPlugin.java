@@ -138,8 +138,8 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.P
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.Recall;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.ScoreByThresholdResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.SoftClassificationMetric;
-import org.elasticsearch.xpack.core.ml.inference.model.Model;
-import org.elasticsearch.xpack.core.ml.inference.model.tree.Tree;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncoding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
@@ -448,7 +448,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(PreProcessor.class, OneHotEncoding.NAME.getPreferredName(), OneHotEncoding::new),
                 new NamedWriteableRegistry.Entry(PreProcessor.class, TargetMeanEncoding.NAME.getPreferredName(), TargetMeanEncoding::new),
                 // ML - Inference models
-                new NamedWriteableRegistry.Entry(Model.class, Tree.NAME.getPreferredName(), Tree::new),
+                new NamedWriteableRegistry.Entry(TrainedModel.class, Tree.NAME.getPreferredName(), Tree::new),
 
                 // monitoring
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.MONITORING, MonitoringFeatureSetUsage::new),

@@ -39,6 +39,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -63,14 +64,14 @@ public final class BulkRequestParser {
     private static final ParseField IF_SEQ_NO = new ParseField("if_seq_no");
     private static final ParseField IF_PRIMARY_TERM = new ParseField("if_primary_term");
 
-    private final boolean warnOnTypeUsage;
+    private final boolean errorOnType;
 
     /**
      * Create a new parser.
-     * @param warnOnTypeUsage whether it warns upon types being explicitly specified
+     * @param errorOnType whether to allow _type information in the index line; used by BulkMonitoring
      */
-    public BulkRequestParser(boolean warnOnTypeUsage) {
-        this.warnOnTypeUsage = warnOnTypeUsage;
+    public BulkRequestParser(boolean errorOnType) {
+        this.errorOnType = errorOnType;
     }
 
     private static int findNextMarker(byte marker, int from, BytesReference data) {
@@ -110,7 +111,7 @@ public final class BulkRequestParser {
             @Nullable String defaultRouting, @Nullable FetchSourceContext defaultFetchSourceContext,
             @Nullable String defaultPipeline, boolean allowExplicitIndex,
             XContentType xContentType,
-            Consumer<IndexRequest> indexRequestConsumer,
+            BiConsumer<IndexRequest, String> indexRequestConsumer,
             Consumer<UpdateRequest> updateRequestConsumer,
             Consumer<DeleteRequest> deleteRequestConsumer) throws IOException {
         XContent xContent = xContentType.xContent();
@@ -150,6 +151,7 @@ public final class BulkRequestParser {
                 String action = parser.currentName();
 
                 String index = defaultIndex;
+                String type = null;
                 String id = null;
                 String routing = defaultRouting;
                 FetchSourceContext fetchSourceContext = defaultFetchSourceContext;
@@ -176,6 +178,12 @@ public final class BulkRequestParser {
                                     throw new IllegalArgumentException("explicit index in bulk is not allowed");
                                 }
                                 index = parser.text();
+                            } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
+                                if (errorOnType) {
+                                    throw new IllegalArgumentException("Action/metadata line [" + line + "] contains an unknown parameter ["
+                                        + currentFieldName + "]");
+                                }
+                                type = parser.text();
                             } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                                 id = parser.text();
                             } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -233,19 +241,19 @@ public final class BulkRequestParser {
                             indexRequestConsumer.accept(new IndexRequest(index).id(id).routing(routing)
                                     .version(version).versionType(versionType)
                                     .setPipeline(pipeline).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
-                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker,xContentType), xContentType));
+                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker,xContentType), xContentType), type);
                         } else {
                             indexRequestConsumer.accept(new IndexRequest(index).id(id).routing(routing)
                                     .version(version).versionType(versionType)
                                     .create("create".equals(opType)).setPipeline(pipeline)
                                     .setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
-                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType));
+                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType), type);
                         }
                     } else if ("create".equals(action)) {
                         indexRequestConsumer.accept(new IndexRequest(index).id(id).routing(routing)
                                 .version(version).versionType(versionType)
                                 .create(true).setPipeline(pipeline).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
-                                .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType));
+                                .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType), type);
                     } else if ("update".equals(action)) {
                         if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {
                             throw new IllegalArgumentException("Update requests do not support versioning. " +

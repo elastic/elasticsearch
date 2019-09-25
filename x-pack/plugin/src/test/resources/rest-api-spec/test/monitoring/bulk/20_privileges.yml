@@ -87,15 +87,15 @@ teardown:
         system_api_version: "6"
         interval:           "10s"
         body:
-          - index: {}
+          - index:
+              _type:  logstash_metric
           - metric:
               queue:  10
-            type: logstash_metric
           - index:
               _index: _data
+              _type:  logstash_info
           - info:
               license: basic
-            type: logstash_info
   - is_false: errors
 
   - do:
@@ -125,10 +125,10 @@ teardown:
         system_api_version: "6"
         interval:           "10s"
         body:
-          - index: {}
+          - index:
+              _type:  logstash_metric
           - metric:
               queue:  10
-            type: logstash_metric
   - match: { "error.type": "security_exception" }
   - match: { "error.reason": "action [cluster:admin/xpack/monitoring/bulk] is unauthorized for user [unknown_agent]" }
 

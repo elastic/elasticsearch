@@ -19,11 +19,11 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 import org.elasticsearch.client.indices.CreateIndexRequest;
-import org.elasticsearch.client.transform.GetDataFrameTransformRequest;
-import org.elasticsearch.client.transform.GetDataFrameTransformResponse;
-import org.elasticsearch.client.transform.UpdateDataFrameTransformRequest;
-import org.elasticsearch.client.transform.UpdateDataFrameTransformResponse;
-import org.elasticsearch.client.transform.transforms.DataFrameTransformConfigUpdate;
+import org.elasticsearch.client.transform.GetTransformRequest;
+import org.elasticsearch.client.transform.GetTransformResponse;
+import org.elasticsearch.client.transform.UpdateTransformRequest;
+import org.elasticsearch.client.transform.UpdateTransformResponse;
+import org.elasticsearch.client.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -88,12 +88,12 @@ public class TransformInternalIndexIT extends ESRestTestCase {
             RequestOptions.DEFAULT);
         assertThat(getResponse.isExists(), is(true));
 
-        GetDataFrameTransformResponse response = client.dataFrame()
-            .getDataFrameTransform(new GetDataFrameTransformRequest(transformId), RequestOptions.DEFAULT);
+        GetTransformResponse response = client.transform()
+            .getTransform(new GetTransformRequest(transformId), RequestOptions.DEFAULT);
         assertThat(response.getTransformConfigurations().get(0).getId(), equalTo(transformId));
 
-        UpdateDataFrameTransformResponse updated = client.dataFrame().updateDataFrameTransform(
-            new UpdateDataFrameTransformRequest(DataFrameTransformConfigUpdate.builder().setDescription("updated").build(), transformId),
+        UpdateTransformResponse updated = client.transform().updateTransform(
+            new UpdateTransformRequest(TransformConfigUpdate.builder().setDescription("updated").build(), transformId),
             RequestOptions.DEFAULT);
 
         assertThat(updated.getTransformConfiguration().getId(), equalTo(transformId));

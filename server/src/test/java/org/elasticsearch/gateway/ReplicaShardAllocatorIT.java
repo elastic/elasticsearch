@@ -22,6 +22,7 @@ package org.elasticsearch.gateway;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -76,14 +77,12 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, between(10, 100))
                 .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v")).collect(Collectors.toList()));
         }
-        // destroy sync_id
-        client().admin().indices().prepareFlush(indexName).setForce(true).get();
         CountDownLatch blockRecovery = new CountDownLatch(1);
         CountDownLatch recoveryStarted = new CountDownLatch(1);
         MockTransportService transportServiceOnPrimary
             = (MockTransportService) internalCluster().getInstance(TransportService.class, nodeWithPrimary);
         transportServiceOnPrimary.addSendBehavior((connection, requestId, action, request, options) -> {
-            if (PeerRecoveryTargetService.Actions.CLEAN_FILES.equals(action)) {
+            if (PeerRecoveryTargetService.Actions.FILES_INFO.equals(action)) {
                 recoveryStarted.countDown();
                 try {
                     blockRecovery.await();
@@ -95,11 +94,14 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         });
         String newNode = internalCluster().startDataOnlyNode();
         recoveryStarted.await();
-        // AllocationService only calls GatewayAllocator if there're unassigned shards
-        assertAcked(client().admin().indices().prepareCreate("dummy-index")
-            .setSettings(Settings.builder().put("index.routing.allocation.require.attribute", "not-found"))
-            .setWaitForActiveShards(0));
+        // destroy sync_id after the recovery on the new node has started
+        client().admin().indices().prepareFlush(indexName).setForce(true).get();
+        // AllocationService only calls GatewayAllocator if there are unassigned shards
+        assertAcked(client().admin().indices().prepareCreate("dummy-index").setWaitForActiveShards(0)
+            .setSettings(Settings.builder().put("index.routing.allocation.require.attr", "not-found")));
         internalCluster().startDataOnlyNode(nodeWithReplicaSettings);
+        // need to wait for events to ensure the reroute has happened since we perform it async when a new node joins.
+        client().admin().cluster().prepareHealth(indexName).setWaitForYellowStatus().setWaitForEvents(Priority.LANGUID).get();
         blockRecovery.countDown();
         ensureGreen(indexName);
         assertThat(internalCluster().nodesInclude(indexName), hasItem(newNode));

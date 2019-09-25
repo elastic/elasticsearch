@@ -53,7 +53,6 @@ public class AsyncShardFetchTests extends ESTestCase {
     private final Response response2 = new Response(node2);
     private final Throwable failure2 = new Throwable("simulate failure 2");
 
-
     private ThreadPool threadPool;
     private TestFetch test;
 

@@ -375,7 +375,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
 
         logger.info("--> start node B again");
-        final String nodeB1 = internalCluster().startNode(nodeBDataPathSettings); // this will use the same data location as the stopped node
+        // this will use the same data location as the stopped node
+        final String nodeB1 = internalCluster().startNode(nodeBDataPathSettings); 
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("3").get().isTimedOut());
 
         logger.info("--> request recoveries");

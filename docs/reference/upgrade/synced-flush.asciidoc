@@ -1,9 +1,8 @@
 
-[source,sh]
+[source,console]
 --------------------------------------------------
 POST _flush/synced
 --------------------------------------------------
-// CONSOLE
 
 When you perform a synced flush, check the response to make sure there are
 no failures. Synced flush operations that fail due to pending indexing

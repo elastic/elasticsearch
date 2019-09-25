@@ -24,7 +24,7 @@ https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry[Well Kn
 
 Given the following index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /example
 {
@@ -46,13 +46,12 @@ POST /example/_doc?refresh
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TESTSETUP
 
 The following query will find the point using the Elasticsearch's
 `envelope` GeoJSON extension:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /example/_search
 {
@@ -69,7 +68,6 @@ GET /example/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 ==== Pre-Indexed Shape
 
@@ -90,7 +88,7 @@ Defaults to 'shape'.
 The following is an example of using the Filter with a pre-indexed
 shape:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /shapes
 {
@@ -126,7 +124,6 @@ GET /example/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 ==== Spatial Relations
 

@@ -343,7 +343,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
         try {
-            return createComponents(client, threadPool, clusterService, resourceWatcherService, scriptService);
+            return createComponents(client, threadPool, clusterService, resourceWatcherService, scriptService, xContentRegistry);
         } catch (final Exception e) {
             throw new IllegalStateException("security initialization failed", e);
         }
@@ -351,7 +351,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     // pkg private for testing - tests want to pass in their set of extensions hence we are not using the extension service directly
     Collection<Object> createComponents(Client client, ThreadPool threadPool, ClusterService clusterService,
-                                        ResourceWatcherService resourceWatcherService, ScriptService scriptService) throws Exception {
+                                        ResourceWatcherService resourceWatcherService, ScriptService scriptService,
+                                        NamedXContentRegistry xContentRegistry) throws Exception {
         if (enabled == false) {
             return Collections.singletonList(new SecurityUsageServices(null, null, null, null));
         }
@@ -360,10 +361,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         List<Object> components = new ArrayList<>();
         securityContext.set(new SecurityContext(settings, threadPool.getThreadContext()));
         components.add(securityContext.get());
-
-        if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
-            dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings));
-        }
 
         // audit trail service construction
         final List<AuditTrail> auditTrails = XPackSettings.AUDIT_ENABLED.get(settings)
@@ -408,8 +405,10 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         final NativePrivilegeStore privilegeStore = new NativePrivilegeStore(settings, client, securityIndex.get());
         components.add(privilegeStore);
 
+        dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
-        final FileRolesStore fileRolesStore = new FileRolesStore(settings, env, resourceWatcherService, getLicenseState());
+        final FileRolesStore fileRolesStore = new FileRolesStore(settings, env, resourceWatcherService, getLicenseState(),
+            xContentRegistry);
         final NativeRolesStore nativeRolesStore = new NativeRolesStore(settings, client, getLicenseState(), securityIndex.get());
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
         List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> rolesProviders = new ArrayList<>();

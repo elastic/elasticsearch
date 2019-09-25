@@ -332,28 +332,34 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     static class NestedInnerHitContextBuilder extends InnerHitContextBuilder {
         private final String path;
 
-        NestedInnerHitContextBuilder(String path, QueryBuilder query, InnerHitBuilder innerHitBuilder,
-                                     Map<String, InnerHitContextBuilder> children) {
+        NestedInnerHitContextBuilder(String path,
+                                        QueryBuilder query,
+                                        InnerHitBuilder innerHitBuilder,
+                                        Map<String, InnerHitContextBuilder> children) {
             super(query, innerHitBuilder, children);
             this.path = path;
         }
 
         @Override
-        protected void doBuild(SearchContext parentSearchContext,
-                          InnerHitsContext innerHitsContext) throws IOException {
-            QueryShardContext queryShardContext = parentSearchContext.getQueryShardContext();
+        public void doValidate(QueryShardContext queryShardContext) {
+            if (queryShardContext.getObjectMapper(path) == null
+                    && innerHitBuilder.isIgnoreUnmapped() == false) {
+                throw new IllegalStateException("[" + query.getName() + "] no mapping found for type [" + path + "]");
+            }
+        }
+
+        @Override
+        public void build(SearchContext searchContext, InnerHitsContext innerHitsContext) throws IOException {
+            QueryShardContext queryShardContext = searchContext.getQueryShardContext();
             ObjectMapper nestedObjectMapper = queryShardContext.getObjectMapper(path);
             if (nestedObjectMapper == null) {
-                if (innerHitBuilder.isIgnoreUnmapped() == false) {
-                    throw new IllegalStateException("[" + query.getName() + "] no mapping found for type [" + path + "]");
-                } else {
-                    return;
-                }
+                assert innerHitBuilder.isIgnoreUnmapped() : "should be validated first";
+                return;
             }
             String name =  innerHitBuilder.getName() != null ? innerHitBuilder.getName() : nestedObjectMapper.fullPath();
             ObjectMapper parentObjectMapper = queryShardContext.nestedScope().nextLevel(nestedObjectMapper);
             NestedInnerHitSubContext nestedInnerHits = new NestedInnerHitSubContext(
-                name, parentSearchContext, parentObjectMapper, nestedObjectMapper
+                name, searchContext, parentObjectMapper, nestedObjectMapper
             );
             setupInnerHitsContext(queryShardContext, nestedInnerHits);
             queryShardContext.nestedScope().previousLevel();
@@ -399,9 +405,9 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 LeafReaderContext ctx = searcher().getIndexReader().leaves().get(readerIndex);
 
                 Query childFilter = childObjectMapper.nestedTypeFilter();
-                BitSetProducer parentFilter = context.bitsetFilterCache().getBitSetProducer(rawParentFilter);
+                BitSetProducer parentFilter = bitsetFilterCache().getBitSetProducer(rawParentFilter);
                 Query q = new ParentChildrenBlockJoinQuery(parentFilter, childFilter, parentDocId);
-                Weight weight = context.searcher().createWeight(context.searcher().rewrite(q),
+                Weight weight = searcher().createWeight(searcher().rewrite(q),
                         org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES, 1f);
                 if (size() == 0) {
                     TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
@@ -409,7 +415,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                     result[i] = new TopDocsAndMaxScore(new TopDocs(new TotalHits(totalHitCountCollector.getTotalHits(),
                         TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN);
                 } else {
-                    int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
+                    int topN = Math.min(from() + size(), searcher().getIndexReader().maxDoc());
                     TopDocsCollector<?> topDocsCollector;
                     MaxScoreCollector maxScoreCollector = null;
                     if (sort() != null) {

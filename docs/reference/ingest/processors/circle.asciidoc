@@ -20,7 +20,7 @@ include::common-options.asciidoc[]
 
 image:images/spatial/error_distance.png[]
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT circles
 {
@@ -47,7 +47,6 @@ PUT _ingest/pipeline/polygonize_circles
     ]
 }
 --------------------------------------------------
-// CONSOLE
 
 Using the above pipeline, we can attempt to index a document into the `circles` index.
 The circle can be represented as either a WKT circle or a GeoJSON circle. The resulting
@@ -58,7 +57,7 @@ be translated to a WKT polygon, and GeoJSON circles will be translated to GeoJSO
 
 In this example a circle defined in WKT format is indexed
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT circles/_doc/1?pipeline=polygonize_circles
 {
@@ -67,17 +66,15 @@ PUT circles/_doc/1?pipeline=polygonize_circles
 
 GET circles/_doc/1
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The response from the above index request:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
   "_index": "circles",
-  "_type": "_doc",
   "_id": "1",
   "_version": 1,
   "_seq_no": 22,
@@ -93,7 +90,7 @@ The response from the above index request:
 
 In this example a circle defined in GeoJSON format is indexed
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT circles/_doc/2?pipeline=polygonize_circles
 {
@@ -106,17 +103,15 @@ PUT circles/_doc/2?pipeline=polygonize_circles
 
 GET circles/_doc/2
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The response from the above index request:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found": true,
   "_index": "circles",
-  "_type": "_doc",
   "_id": "2",
   "_version": 1,
   "_seq_no": 22,

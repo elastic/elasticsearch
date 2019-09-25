@@ -40,13 +40,17 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
+import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -64,17 +68,20 @@ public class TransportDeleteDataFrameAnalyticsAction
     private final Client client;
     private final MlMemoryTracker memoryTracker;
     private final DataFrameAnalyticsConfigProvider configProvider;
+    private final DataFrameAnalyticsAuditor auditor;
 
     @Inject
     public TransportDeleteDataFrameAnalyticsAction(TransportService transportService, ClusterService clusterService,
                                                    ThreadPool threadPool, ActionFilters actionFilters,
                                                    IndexNameExpressionResolver indexNameExpressionResolver, Client client,
-                                                   MlMemoryTracker memoryTracker, DataFrameAnalyticsConfigProvider configProvider) {
+                                                   MlMemoryTracker memoryTracker, DataFrameAnalyticsConfigProvider configProvider,
+                                                   DataFrameAnalyticsAuditor auditor) {
         super(DeleteDataFrameAnalyticsAction.NAME, transportService, clusterService, threadPool, actionFilters,
             DeleteDataFrameAnalyticsAction.Request::new, indexNameExpressionResolver);
         this.client = client;
         this.memoryTracker = memoryTracker;
         this.configProvider = configProvider;
+        this.auditor = Objects.requireNonNull(auditor);
     }
 
     @Override
@@ -105,7 +112,7 @@ public class TransportDeleteDataFrameAnalyticsAction
         // We clean up the memory tracker on delete because there is no stop; the task stops by itself
         memoryTracker.removeDataFrameAnalyticsJob(id);
 
-        // Step 2. Delete the config
+        // Step 3. Delete the config
         ActionListener<BulkByScrollResponse> deleteStateHandler = ActionListener.wrap(
             bulkByScrollResponse -> {
                 if (bulkByScrollResponse.isTimedOut()) {
@@ -123,7 +130,7 @@ public class TransportDeleteDataFrameAnalyticsAction
             listener::onFailure
         );
 
-        // Step 1. Delete state
+        // Step 2. Delete state
         ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
             config -> deleteState(parentTaskClient, id, deleteStateHandler),
             listener::onFailure
@@ -145,6 +152,7 @@ public class TransportDeleteDataFrameAnalyticsAction
                 }
                 assert deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
                 LOGGER.info("[{}] Deleted", id);
+                auditor.info(id, Messages.DATA_FRAME_ANALYTICS_AUDIT_DELETED);
                 listener.onResponse(new AcknowledgedResponse(true));
             },
             listener::onFailure
@@ -155,7 +163,7 @@ public class TransportDeleteDataFrameAnalyticsAction
                              ActionListener<BulkByScrollResponse> listener) {
         DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern());
         request.setQuery(QueryBuilders.idsQuery().addIds(
-            TransportStartDataFrameAnalyticsAction.DataFrameAnalyticsTask.progressDocId(analyticsId)));
+            DataFrameAnalyticsTask.progressDocId(analyticsId)));
         request.setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
         request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
         request.setAbortOnVersionConflict(false);

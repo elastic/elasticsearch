@@ -20,6 +20,10 @@ public class DateTimeTestUtils {
         return ZonedDateTime.of(year, month, day, hour, minute, 0, 0, DateUtils.UTC);
     }
 
+    public static ZonedDateTime dateTime(int year, int month, int day, int hour, int minute, int seconds, int nanos) {
+        return ZonedDateTime.of(year, month, day, hour, minute, seconds, nanos, DateUtils.UTC);
+    }
+
     public static ZonedDateTime dateTime(long millisSinceEpoch) {
         return DateUtils.asDateTime(millisSinceEpoch);
     }

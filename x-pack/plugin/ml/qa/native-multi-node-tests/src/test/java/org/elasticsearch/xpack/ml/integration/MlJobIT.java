@@ -394,6 +394,7 @@ public class MlJobIT extends ESRestTestCase {
                         "avoid the clash by assigning a dedicated results index"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45652")
     public void testDeleteJob() throws Exception {
         String jobId = "delete-job-job";
         String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;

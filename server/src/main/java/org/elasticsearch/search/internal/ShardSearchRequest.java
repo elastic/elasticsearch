@@ -181,7 +181,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         }
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
-        out.writeStringArray(Strings.EMPTY_ARRAY);
+        out.writeStringArray(types);
         aliasFilter.writeTo(out);
         out.writeFloat(indexBoost);
         if (asKey == false) {

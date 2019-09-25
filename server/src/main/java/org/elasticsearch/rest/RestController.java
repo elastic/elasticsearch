@@ -264,7 +264,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     threadContext.putHeader(name, httpHeader);
                 }
             }
-        } catch (IllegalStateException e){
+        } catch (IllegalStateException e) {
             channel.sendResponse(
                 BytesRestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, e.getMessage()));
             return;

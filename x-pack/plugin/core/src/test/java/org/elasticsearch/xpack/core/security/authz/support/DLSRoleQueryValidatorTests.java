@@ -27,7 +27,7 @@ public class DLSRoleQueryValidatorTests extends ESTestCase {
         QueryBuilder queryBuilder1 = new TermsQueryBuilder("field", "val1", "val2");
         DLSRoleQueryValidator.verifyRoleQuery(queryBuilder1);
 
-        QueryBuilder queryBuilder2 = new TermsQueryBuilder("field", new TermsLookup("_index", "_type", "_id", "_path"));
+        QueryBuilder queryBuilder2 = new TermsQueryBuilder("field", new TermsLookup("_index", "_id", "_path"));
         Exception e = expectThrows(IllegalArgumentException.class, () -> DLSRoleQueryValidator.verifyRoleQuery(queryBuilder2));
         assertThat(e.getMessage(), equalTo("terms query with terms lookup isn't supported as part of a role query"));
 

@@ -386,14 +386,12 @@ that match the search criteria:
     "max_score" : null,
     "hits" : [ {
       "_index" : "bank",
-      "_type" : "_doc",
       "_id" : "0",
       "sort": [0],
       "_score" : null,
       "_source" : {"account_number":0,"balance":16623,"firstname":"Bradshaw","lastname":"Mckenzie","age":29,"gender":"F","address":"244 Columbus Place","employer":"Euron","email":"bradshawmckenzie@euron.com","city":"Hobucken","state":"CO"}
     }, {
       "_index" : "bank",
-      "_type" : "_doc",
       "_id" : "1",
       "sort": [1],
       "_score" : null,

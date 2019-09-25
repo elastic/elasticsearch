@@ -6,6 +6,8 @@ import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
+testFixtures.useFixture()
+
 configurations {
   dockerPlugins
   dockerSource

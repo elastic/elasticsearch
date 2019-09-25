@@ -464,6 +464,7 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45652")
     public void testDeleteJobAsync() throws Exception {
         String jobId = "delete-job-async-job";
         String indexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;

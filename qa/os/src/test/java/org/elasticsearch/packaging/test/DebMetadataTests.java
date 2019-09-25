@@ -24,6 +24,7 @@ import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.Before;
+import org.junit.Ignore;
 
 import java.util.regex.Pattern;
 
@@ -37,6 +38,7 @@ public class DebMetadataTests extends PackagingTestCase {
         assumeTrue("only deb", distribution.packaging == Distribution.Packaging.DEB);
     }
 
+    @Ignore
     public void test05CheckLintian() {
         sh.run("lintian --fail-on-warnings " + FileUtils.getDistributionFile(distribution()));
     }

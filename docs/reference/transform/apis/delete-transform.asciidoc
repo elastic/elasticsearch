@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="basic"]
-[[delete-data-frame-transform]]
+[[delete-transform]]
 === Delete {transforms} API
 
 [subs="attributes"]
@@ -12,12 +12,12 @@ Deletes an existing {transform}.
 
 beta[]
 
-[[delete-data-frame-transform-request]]
+[[delete-transform-request]]
 ==== {api-request-title}
 
 `DELETE _data_frame/transforms/<transform_id>`
 
-[[delete-data-frame-transform-prereqs]]
+[[delete-transform-prereqs]]
 ==== {api-prereq-title}
 
 * Before you can delete the {transform}, you must stop it.
@@ -28,13 +28,13 @@ see {stack-ov}/security-privileges.html[Security privileges] and
 {stack-ov}/built-in-roles.html[Built-in roles].
 
 
-[[delete-data-frame-transform-path-parms]]
+[[delete-transform-path-parms]]
 ==== {api-path-parms-title}
 
 `<transform_id>`::
   (Required, string) Identifier for the {transform}.
 
-[[delete-data-frame-transform-query-parms]]
+[[delete-transform-query-parms]]
 ==== {api-query-parms-title}
 
 `force`::
@@ -42,7 +42,7 @@ see {stack-ov}/security-privileges.html[Security privileges] and
 current state. The default value is `false`, meaning that the {transform} must be
 `stopped` before it can be deleted.
 
-[[delete-data-frame-transform-examples]]
+[[delete-transform-examples]]
 ==== {api-examples-title}
 
 [source,console]

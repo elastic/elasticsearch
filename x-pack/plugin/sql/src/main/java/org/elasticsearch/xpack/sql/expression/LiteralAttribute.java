@@ -14,8 +14,8 @@ public class LiteralAttribute extends TypedAttribute {
 
     private final Literal literal;
 
-    public LiteralAttribute(Source source, String name, String qualifier, Nullability nullability, ExpressionId id, boolean synthetic,
-                            DataType dataType, Literal literal) {
+    public LiteralAttribute(Source source, String name, DataType dataType, String qualifier, Nullability nullability, ExpressionId id,
+                            boolean synthetic, Literal literal) {
         super(source, name, dataType, qualifier, nullability, id, synthetic);
         this.literal = literal;
     }
@@ -23,13 +23,13 @@ public class LiteralAttribute extends TypedAttribute {
     @Override
     protected NodeInfo<LiteralAttribute> info() {
         return NodeInfo.create(this, LiteralAttribute::new,
-            name(), qualifier(), nullable(), id(), synthetic(), dataType(), literal);
+                name(), dataType(), qualifier(), nullable(), id(), synthetic(), literal);
     }
 
     @Override
-    protected LiteralAttribute clone(Source source, String name, String qualifier, Nullability nullability,
+    protected LiteralAttribute clone(Source source, String name, DataType dataType, String qualifier, Nullability nullability,
                                      ExpressionId id, boolean synthetic) {
-        return new LiteralAttribute(source, name, qualifier, nullability, id, synthetic, dataType(), literal);
+        return new LiteralAttribute(source, name, dataType, qualifier, nullability, id, synthetic, literal);
     }
 
     @Override

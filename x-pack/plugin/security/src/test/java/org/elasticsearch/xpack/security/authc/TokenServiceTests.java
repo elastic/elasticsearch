@@ -112,10 +112,9 @@ public class TokenServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             GetRequestBuilder builder = new GetRequestBuilder(client, GetAction.INSTANCE);
             builder.setIndex((String) invocationOnMock.getArguments()[0])
-                    .setType((String) invocationOnMock.getArguments()[1])
-                    .setId((String) invocationOnMock.getArguments()[2]);
+                    .setId((String) invocationOnMock.getArguments()[1]);
             return builder;
-        }).when(client).prepareGet(anyString(), anyString(), anyString());
+        }).when(client).prepareGet(anyString(), anyString());
         when(client.prepareIndex(any(String.class), any(String.class), any(String.class)))
                 .thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
         when(client.prepareUpdate(any(String.class), any(String.class), any(String.class)))

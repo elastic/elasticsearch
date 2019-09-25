@@ -35,7 +35,8 @@ public class DeprecationChecks {
         Collections.unmodifiableList(Arrays.asList(
             ClusterDeprecationChecks::checkUserAgentPipelines,
             ClusterDeprecationChecks::checkTemplatesWithTooManyFields,
-            ClusterDeprecationChecks::checkPollIntervalTooLow
+            ClusterDeprecationChecks::checkPollIntervalTooLow,
+            ClusterDeprecationChecks::checkTemplatesWithFieldNamesDisabled
         ));
 
 
@@ -51,7 +52,8 @@ public class DeprecationChecks {
             IndexDeprecationChecks::tooManyFieldsCheck,
             IndexDeprecationChecks::chainedMultiFieldsCheck,
             IndexDeprecationChecks::deprecatedDateTimeFormat,
-            IndexDeprecationChecks::translogRetentionSettingCheck
+            IndexDeprecationChecks::translogRetentionSettingCheck,
+            IndexDeprecationChecks::fieldNamesDisabledCheck
         ));
 
     static List<BiFunction<DatafeedConfig, NamedXContentRegistry, DeprecationIssue>> ML_SETTINGS_CHECKS =

@@ -16,9 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import org.gradle.util.GradleVersion
 
-import java.util.regex.Matcher
+import org.gradle.util.GradleVersion
 
 plugins {
   id 'java-gradle-plugin'
@@ -111,7 +110,7 @@ dependencies {
 
   compile 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
   compile 'com.netflix.nebula:nebula-publishing-plugin:4.4.4'
-  compile 'com.netflix.nebula:gradle-info-plugin:3.0.3'
+  compile 'com.netflix.nebula:gradle-info-plugin:5.1.0'
   compile 'org.eclipse.jgit:org.eclipse.jgit:3.2.0.201312181205-r'
   compile 'com.perforce:p4java:2012.3.551082' // THIS IS SUPPOSED TO BE OPTIONAL IN THE FUTURE....
   compile 'org.apache.rat:apache-rat:0.11'
@@ -122,6 +121,7 @@ dependencies {
   testCompile "junit:junit:${props.getProperty('junit')}"
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
   testCompile 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
+  testCompile 'org.mockito:mockito-core:1.9.5'
   minimumRuntimeCompile "junit:junit:${props.getProperty('junit')}"
   minimumRuntimeCompile localGroovy()
   minimumRuntimeCompile gradleApi()

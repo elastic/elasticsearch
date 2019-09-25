@@ -58,7 +58,76 @@ class PluginBuildPlugin implements Plugin<Project> {
         // this afterEvaluate must happen before the afterEvaluate added by integTest creation,
         // so that the file name resolution for installing the plugin will be setup
         project.afterEvaluate {
-            configureAfterEvaluate(project)
+            boolean isXPackModule = project.path.startsWith(':x-pack:plugin')
+            boolean isModule = project.path.startsWith(':modules:') || isXPackModule
+            PluginPropertiesExtension extension1 = project.getExtensions().getByType(PluginPropertiesExtension.class)
+            String name = extension1.name
+            project.archivesBaseName = name
+            project.description = extension1.description
+            configurePublishing(project, extension1)
+            if (project.plugins.hasPlugin(TestClustersPlugin.class) == false) {
+                project.integTestCluster.dependsOn(project.tasks.bundlePlugin)
+                if (isModule) {
+                    project.integTestCluster.module(project)
+                } else {
+                    project.integTestCluster.plugin(project.path)
+                }
+            } else {
+                project.tasks.integTest.dependsOn(project.tasks.bundlePlugin)
+                if (isModule) {
+                    project.testClusters.integTest.module(
+                            project.file(project.tasks.bundlePlugin.archiveFile)
+                    )
+                } else {
+                    project.testClusters.integTest.plugin(
+                            project.file(project.tasks.bundlePlugin.archiveFile)
+                    )
+                }
+
+                project.extensions.getByType(PluginPropertiesExtension).extendedPlugins.each { pluginName ->
+                    // Auto add dependent modules to the test cluster
+                    if (project.findProject(":modules:${pluginName}") != null) {
+                        project.integTest.dependsOn(project.project(":modules:${pluginName}").tasks.bundlePlugin)
+                        project.testClusters.integTest.module(
+                                project.file(project.project(":modules:${pluginName}").tasks.bundlePlugin.archiveFile)
+                        )
+                    }
+                }
+            }
+            if (extension1.name == null) {
+                throw new InvalidUserDataException('name is a required setting for esplugin')
+            }
+            if (extension1.description == null) {
+                throw new InvalidUserDataException('description is a required setting for esplugin')
+            }
+            if (extension1.classname == null) {
+                throw new InvalidUserDataException('classname is a required setting for esplugin')
+            }
+            Copy buildProperties = project.tasks.getByName('pluginProperties')
+            Map<String, String> properties = [
+                    'name'                : extension1.name,
+                    'description'         : extension1.description,
+                    'version'             : extension1.version,
+                    'elasticsearchVersion': Version.fromString(VersionProperties.elasticsearch).toString(),
+                    'javaVersion'         : project.targetCompatibility as String,
+                    'classname'           : extension1.classname,
+                    'extendedPlugins'     : extension1.extendedPlugins.join(','),
+                    'hasNativeController' : extension1.hasNativeController,
+                    'requiresKeystore'    : extension1.requiresKeystore
+            ]
+            buildProperties.expand(properties)
+            buildProperties.inputs.properties(properties)
+            project.tasks.run.dependsOn(project.tasks.bundlePlugin)
+            if (isModule) {
+                project.tasks.run.clusterConfig.distribution = System.getProperty(
+                        'run.distribution', isXPackModule ? 'default' : 'oss'
+                )
+            } else {
+                project.tasks.run.clusterConfig.plugin(project.path)
+            }
+            if (isModule == false || isXPackModule) {
+                addNoticeGeneration(project, extension1)
+            }
         }
         project.tasks.named('testingConventions').configure {
             naming.clear()
@@ -79,89 +148,6 @@ class PluginBuildPlugin implements Plugin<Project> {
         project.tasks.create('run', RunTask) // allow running ES with this plugin in the foreground of a build
     }
 
-    protected static configureAfterEvaluate(Project project) {
-        boolean isXPackModule = project.path.startsWith(':x-pack:plugin')
-        boolean isModule = project.path.startsWith(':modules:') || isXPackModule
-        PluginPropertiesExtension extension = project.getExtensions().getByType(PluginPropertiesExtension.class)
-
-        String name = extension.name
-        project.archivesBaseName = name
-
-        // set the project description so it will be picked up by publishing
-        project.description = extension.description
-
-        configurePublishing(project, extension)
-
-        if (project.plugins.hasPlugin(TestClustersPlugin.class) == false) {
-            project.integTestCluster.dependsOn(project.tasks.bundlePlugin)
-            if (isModule) {
-                project.integTestCluster.module(project)
-            } else {
-                project.integTestCluster.plugin(project.path)
-            }
-        } else {
-            project.tasks.integTest.dependsOn(project.tasks.bundlePlugin)
-            if (isModule) {
-                project.testClusters.integTest.module(
-                        project.file(project.tasks.bundlePlugin.archiveFile)
-                )
-            } else {
-                project.testClusters.integTest.plugin(
-                        project.file(project.tasks.bundlePlugin.archiveFile)
-                )
-            }
-
-            project.extensions.getByType(PluginPropertiesExtension).extendedPlugins.each { pluginName ->
-                // Auto add dependent modules to the test cluster
-                if (project.findProject(":modules:${pluginName}") != null) {
-                    project.integTest.dependsOn(project.project(":modules:${pluginName}").tasks.bundlePlugin)
-                    project.testClusters.integTest.module(
-                            project.file(project.project(":modules:${pluginName}").tasks.bundlePlugin.archiveFile)
-                    )
-                }
-            }
-        }
-        // check require properties are set
-        if (extension.name == null) {
-            throw new InvalidUserDataException('name is a required setting for esplugin')
-        }
-        if (extension.description == null) {
-            throw new InvalidUserDataException('description is a required setting for esplugin')
-        }
-        if (extension.classname == null) {
-            throw new InvalidUserDataException('classname is a required setting for esplugin')
-        }
-
-        Copy buildProperties = project.tasks.getByName('pluginProperties');
-
-        Map<String, String> properties = [
-                'name'                : extension.name,
-                'description'         : extension.description,
-                'version'             : extension.version,
-                'elasticsearchVersion': Version.fromString(VersionProperties.elasticsearch).toString(),
-                'javaVersion'         : project.targetCompatibility as String,
-                'classname'           : extension.classname,
-                'extendedPlugins'     : extension.extendedPlugins.join(','),
-                'hasNativeController' : extension.hasNativeController,
-                'requiresKeystore'    : extension.requiresKeystore
-        ]
-        buildProperties.expand(properties)
-        buildProperties.inputs.properties(properties)
-
-
-        project.tasks.run.dependsOn(project.tasks.bundlePlugin)
-        if (isModule) {
-            project.tasks.run.clusterConfig.distribution = System.getProperty(
-                    'run.distribution', isXPackModule ? 'default' : 'oss'
-            )
-        } else {
-            project.tasks.run.clusterConfig.plugin(project.path)
-        }
-
-        if (isModule == false || isXPackModule) {
-            addNoticeGeneration(project, extension)
-        }
-    }
 
     private static void configurePublishing(Project project, PluginPropertiesExtension extension) {
         if (project.plugins.hasPlugin(MavenPublishPlugin)) {

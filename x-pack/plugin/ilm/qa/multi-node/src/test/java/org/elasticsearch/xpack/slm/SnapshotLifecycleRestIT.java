@@ -41,6 +41,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryItem.CREATE_OPERATION;
@@ -131,7 +133,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             assertHistoryIsPresent(policyName, true, repoId, CREATE_OPERATION);
 
             Map<String, Object> stats = getSLMStats();
-            Map<String, Object> policyStats = (Map<String, Object>) stats.get(SnapshotLifecycleStats.POLICY_STATS.getPreferredName());
+            Map<String, Object> policyStats = policyStatsAsMap(stats);
             Map<String, Object> policyIdStats = (Map<String, Object>) policyStats.get(policyName);
             int snapsTaken = (int) policyIdStats.get(SnapshotLifecycleStats.SnapshotPolicyStats.SNAPSHOTS_TAKEN.getPreferredName());
             int totalTaken = (int) stats.get(SnapshotLifecycleStats.TOTAL_TAKEN.getPreferredName());
@@ -180,7 +182,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             assertHistoryIsPresent(policyName, false, repoName, CREATE_OPERATION);
 
             Map<String, Object> stats = getSLMStats();
-            Map<String, Object> policyStats = (Map<String, Object>) stats.get(SnapshotLifecycleStats.POLICY_STATS.getPreferredName());
+            Map<String, Object> policyStats = policyStatsAsMap(stats);
             Map<String, Object> policyIdStats = (Map<String, Object>) policyStats.get(policyName);
             int snapsFailed = (int) policyIdStats.get(SnapshotLifecycleStats.SnapshotPolicyStats.SNAPSHOTS_FAILED.getPreferredName());
             int totalFailed = (int) stats.get(SnapshotLifecycleStats.TOTAL_FAILED.getPreferredName());
@@ -229,7 +231,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             }
 
             Map<String, Object> stats = getSLMStats();
-            Map<String, Object> policyStats = (Map<String, Object>) stats.get(SnapshotLifecycleStats.POLICY_STATS.getPreferredName());
+            Map<String, Object> policyStats = policyStatsAsMap(stats);
             Map<String, Object> policyIdStats = (Map<String, Object>) policyStats.get(policyName);
             int snapsTaken = (int) policyIdStats.get(SnapshotLifecycleStats.SnapshotPolicyStats.SNAPSHOTS_TAKEN.getPreferredName());
             int totalTaken = (int) stats.get(SnapshotLifecycleStats.TOTAL_TAKEN.getPreferredName());
@@ -301,7 +303,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
                 assertHistoryIsPresent(policyName, true, repoId, DELETE_OPERATION);
 
                 Map<String, Object> stats = getSLMStats();
-                Map<String, Object> policyStats = (Map<String, Object>) stats.get(SnapshotLifecycleStats.POLICY_STATS.getPreferredName());
+                Map<String, Object> policyStats = policyStatsAsMap(stats);
                 Map<String, Object> policyIdStats = (Map<String, Object>) policyStats.get(policyName);
                 int snapsTaken = (int) policyIdStats.get(SnapshotLifecycleStats.SnapshotPolicyStats.SNAPSHOTS_TAKEN.getPreferredName());
                 int snapsDeleted = (int) policyIdStats.get(SnapshotLifecycleStats.SnapshotPolicyStats.SNAPSHOTS_DELETED.getPreferredName());
@@ -481,5 +483,14 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         final Request request = new Request("POST", "/" + index + "/_doc/" + id);
         request.setJsonEntity(Strings.toString(document));
         assertOK(client.performRequest(request));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> policyStatsAsMap(Map<String, Object> stats) {
+        return ((List<Map<String, Object>>) stats.get(SnapshotLifecycleStats.POLICY_STATS.getPreferredName()))
+            .stream()
+            .collect(Collectors.toMap(
+                m -> (String) m.get(SnapshotLifecycleStats.SnapshotPolicyStats.POLICY_ID.getPreferredName()),
+                Function.identity()));
     }
 }

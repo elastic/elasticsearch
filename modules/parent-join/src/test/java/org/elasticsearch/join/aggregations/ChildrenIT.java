@@ -117,7 +117,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
             TopHits topHits = childrenBucket.getAggregations().get("top_comments");
             logger.info("total_hits={}", topHits.getHits().getTotalHits().value);
             for (SearchHit searchHit : topHits.getHits()) {
-                logger.info("hit= {} {} {}", searchHit.getSortValues()[0], searchHit.getType(), searchHit.getId());
+                logger.info("hit= {} {}", searchHit.getSortValues()[0], searchHit.getId());
             }
         }
 

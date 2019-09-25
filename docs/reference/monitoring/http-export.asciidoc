@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[http-exporter]]
-=== HTTP Exporters
+=== HTTP exporters
 
 The `http` exporter is the preferred exporter in {monitoring} because it enables 
 the use of a separate monitoring cluster. As a secondary benefit, it avoids 

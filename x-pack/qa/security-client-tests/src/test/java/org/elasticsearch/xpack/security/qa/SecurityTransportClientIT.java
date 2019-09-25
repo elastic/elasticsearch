@@ -51,9 +51,7 @@ public class SecurityTransportClientIT extends ESIntegTestCase {
 
     public void testThatTransportClientWithoutAuthenticationDoesNotWork() throws Exception {
         try (TransportClient client = transportClient(Settings.EMPTY)) {
-            boolean connected = awaitBusy(() -> {
-                return client.connectedNodes().size() > 0;
-            }, 5L, TimeUnit.SECONDS);
+            boolean connected = waitUntil(() -> client.connectedNodes().size() > 0, 5L, TimeUnit.SECONDS);
 
             assertThat(connected, is(false));
         }
@@ -64,11 +62,7 @@ public class SecurityTransportClientIT extends ESIntegTestCase {
                 .put(SecurityField.USER_SETTING.getKey(), TRANSPORT_USER_PW)
                 .build();
         try (TransportClient client = transportClient(settings)) {
-            boolean connected = awaitBusy(() -> {
-                return client.connectedNodes().size() > 0;
-            }, 5L, TimeUnit.SECONDS);
-
-            assertThat(connected, is(true));
+            assertBusy(() -> assertFalse(client.connectedNodes().isEmpty()), 5L, TimeUnit.SECONDS);
 
             // this checks that the transport client is really running in a limited state
             try {
@@ -86,11 +80,7 @@ public class SecurityTransportClientIT extends ESIntegTestCase {
                 .put(SecurityField.USER_SETTING.getKey(), useTransportUser ? TRANSPORT_USER_PW : ADMIN_USER_PW)
                 .build();
         try (TransportClient client = transportClient(settings)) {
-            boolean connected = awaitBusy(() -> {
-                return client.connectedNodes().size() > 0;
-            }, 5L, TimeUnit.SECONDS);
-
-            assertThat(connected, is(true));
+            assertBusy(() -> assertFalse(client.connectedNodes().isEmpty()), 5L, TimeUnit.SECONDS);
 
             // this checks that the transport client is really running in a limited state
             ClusterHealthResponse response;

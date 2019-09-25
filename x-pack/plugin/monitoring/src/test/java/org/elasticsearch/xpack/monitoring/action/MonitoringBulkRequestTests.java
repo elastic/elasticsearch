@@ -92,6 +92,8 @@ public class MonitoringBulkRequestTests extends ESTestCase {
                             builder.field("_index", "");
                         }
 
+                        builder.field("_type", "_doc");
+
                         if (randomBoolean()) {
                             ids[i] = randomAlphaOfLength(10);
                             builder.field("_id", ids[i]);
@@ -153,6 +155,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
                     builder.startObject("index");
                     {
                         builder.field("_index", "");
+                        builder.field("_type", "_doc");
                         builder.field("_id", String.valueOf(i));
                     }
                     builder.endObject();

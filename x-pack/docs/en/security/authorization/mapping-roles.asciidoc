@@ -67,7 +67,7 @@ this is a common setting in Elasticsearch, changing its value might effect other
 schedules in the system.
 
 While the _role mapping APIs_ is he preferred way to manage role mappings, using
-the `role_mappings.yml` file becomes useful if you want o define fixed role mappings
+the `role_mappings.yml` file becomes useful if you want to define fixed role mappings
 that no one (besides an administrator with physical access to the {es} nodes) would
 be able to change. Please note however, that the role_mappings.yml file is provided
 as a minimal administrative function and is not intended to cover and be used to

@@ -157,10 +157,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
+                // Each index request needs to be evaluated, because this method also modifies the IndexRequest
                 boolean indexRequestHasPipeline = resolveRequiredOrDefaultPipeline(actionRequest, indexRequest, metaData);
-                if (indexRequestHasPipeline) {
-                    hasIndexRequestsWithPipelines = true;
-                }
+                hasIndexRequestsWithPipelines |= indexRequestHasPipeline;
             }
         }
 

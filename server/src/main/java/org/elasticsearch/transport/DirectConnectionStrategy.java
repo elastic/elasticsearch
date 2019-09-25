@@ -47,7 +47,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.common.settings.Setting.intSetting;
 
-public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
+public class DirectConnectionStrategy extends RemoteConnectionStrategy {
 
     /**
      * Whether the connection to the remote cluster is through a proxy.
@@ -65,18 +65,16 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
     private final String clusterAlias;
     private final TransportService transportService;
-    private final ConnectionManager connectionManager;
     private final Predicate<DiscoveryNode> nodePredicate;
     private final SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
     private volatile String proxyAddress;
 
-    ProxyConnectionStrategy(String clusterAlias, TransportService transportService, ConnectionManager connectionManager,
-                            ThreadPool threadPool, String proxyAddress, int maxNumRemoteConnections,
-                            Predicate<DiscoveryNode> nodePredicate) {
+    DirectConnectionStrategy(String clusterAlias, TransportService transportService, ConnectionManager connectionManager,
+                             ThreadPool threadPool, String proxyAddress, int maxNumRemoteConnections,
+                             Predicate<DiscoveryNode> nodePredicate) {
         super(threadPool, connectionManager, maxNumRemoteConnections);
         this.clusterAlias = clusterAlias;
         this.transportService = transportService;
-        this.connectionManager = connectionManager;
         this.proxyAddress = proxyAddress;
         this.nodePredicate = nodePredicate;
     }

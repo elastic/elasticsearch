@@ -44,7 +44,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Object mutex = new Object();
     private final ThreadPool threadPool;
-    private final ConnectionManager connectionManager;
+    protected final ConnectionManager connectionManager;
     private final int maxNumRemoteConnections;
     private List<ActionListener<Void>> listeners = new ArrayList<>();
 

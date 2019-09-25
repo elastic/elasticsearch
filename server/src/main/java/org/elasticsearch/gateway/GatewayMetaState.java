@@ -92,8 +92,11 @@ public class GatewayMetaState {
             throw new ElasticsearchException("failed to load metadata", e);
         }
         final IncrementalClusterStateWriter incrementalClusterStateWriter
-            = new IncrementalClusterStateWriter(metaStateService, manifestClusterStateTuple.v1(),
-                prepareInitialClusterState(transportService, clusterService, manifestClusterStateTuple.v2()));
+            = new IncrementalClusterStateWriter(settings, clusterService.getClusterSettings(), metaStateService,
+            manifestClusterStateTuple.v1(),
+            prepareInitialClusterState(transportService, clusterService, manifestClusterStateTuple.v2()),
+            transportService.getThreadPool()::relativeTimeInMillis);
+
         if (DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings).equals(DiscoveryModule.ZEN_DISCOVERY_TYPE)) {
             // only for tests that simulate mixed Zen1/Zen2 clusters, see Zen1IT
             if (isMasterOrDataNode(settings)) {

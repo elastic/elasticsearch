@@ -26,9 +26,12 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -36,7 +39,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public abstract class RemoteConnectionStrategy implements TransportConnectionListener {
+public abstract class RemoteConnectionStrategy implements TransportConnectionListener, Closeable {
 
     protected static final Logger logger = LogManager.getLogger(RemoteConnectionStrategy.class);
 
@@ -44,14 +47,12 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Object mutex = new Object();
     private final ThreadPool threadPool;
-    protected final ConnectionManager connectionManager;
-    private final int maxNumRemoteConnections;
+    protected final RemoteConnectionManager connectionManager;
     private List<ActionListener<Void>> listeners = new ArrayList<>();
 
-    RemoteConnectionStrategy(ThreadPool threadPool, ConnectionManager connectionManager, int maxNumRemoteConnections) {
+    RemoteConnectionStrategy(ThreadPool threadPool, RemoteConnectionManager connectionManager) {
         this.threadPool = threadPool;
         this.connectionManager = connectionManager;
-        this.maxNumRemoteConnections = maxNumRemoteConnections;
     }
 
     /**
@@ -109,7 +110,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     }
 
     @Override
-    public void onNodeDisconnected(DiscoveryNode node) {
+    public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
         if (shouldOpenMoreConnections()) {
             // try to reconnect and fill up the slot of the disconnected node
             connect(ActionListener.wrap(
@@ -118,9 +119,33 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         }
     }
 
-    protected boolean shouldOpenMoreConnections() {
-        return connectionManager.size() < maxNumRemoteConnections;
+    @Override
+    public void close() throws IOException {
+        final List<ActionListener<Void>> toNotify;
+        synchronized (mutex) {
+            if (closed.compareAndSet(false, true)) {
+                toNotify = listeners;
+                listeners = Collections.emptyList();
+            } else {
+                toNotify = Collections.emptyList();
+            }
+        }
+        ActionListener.onFailure(toNotify, new AlreadyClosedException("connect handler is already closed"));
     }
+
+    public boolean isClosed() {
+        return closed.get();
+    }
+
+    // for testing only
+    boolean assertNoRunningConnections() {
+        synchronized (mutex) {
+            assert listeners.isEmpty();
+        }
+        return true;
+    }
+
+    protected abstract boolean shouldOpenMoreConnections();
 
     protected abstract void connectImpl(ActionListener<Void> listener);
 

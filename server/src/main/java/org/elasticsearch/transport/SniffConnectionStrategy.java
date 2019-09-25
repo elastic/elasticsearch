@@ -47,42 +47,36 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.common.settings.Setting.intSetting;
 
-public class DirectConnectionStrategy extends RemoteConnectionStrategy {
-
-    /**
-     * Whether the connection to the remote cluster is through a proxy.
-     */
-    public static final Setting<Boolean> REMOTE_CONNECTIONS_PER_CLUSTER = Setting.boolSetting(
-        "cluster.remote.proxy_mode", false, Setting.Property.NodeScope);
-
-    /**
-     * The maximum number of connections that will be established to the proxy in front of the remote cluster.
-     */
-    public static final Setting.AffixSetting<Integer> REMOTE_CLUSTER_PROXY_CONNECTIONS = Setting.affixKeySetting(
-        "cluster.remote.",
-        "proxy_connections_per_cluster",
-        key -> intSetting(key, 15, 1, Setting.Property.NodeScope));
+public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
     private final String clusterAlias;
+    private final List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes;
     private final TransportService transportService;
+    private final int maxNumRemoteConnections;
     private final Predicate<DiscoveryNode> nodePredicate;
     private final SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
     private volatile String proxyAddress;
 
-    DirectConnectionStrategy(String clusterAlias, TransportService transportService, ConnectionManager connectionManager,
-                             ThreadPool threadPool, String proxyAddress, int maxNumRemoteConnections,
-                             Predicate<DiscoveryNode> nodePredicate) {
-        super(threadPool, connectionManager, maxNumRemoteConnections);
+    SniffConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
+                            ThreadPool threadPool, String proxyAddress, int maxNumRemoteConnections,
+                            Predicate<DiscoveryNode> nodePredicate, List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes) {
+        super(threadPool, connectionManager);
         this.clusterAlias = clusterAlias;
         this.transportService = transportService;
         this.proxyAddress = proxyAddress;
+        this.maxNumRemoteConnections = maxNumRemoteConnections;
         this.nodePredicate = nodePredicate;
+        this.seedNodes = seedNodes;
     }
 
     @Override
     protected void connectImpl(ActionListener<Void> listener) {
-        final List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes = Collections.emptyList();
         collectRemoteNodes(seedNodes.stream().map(Tuple::v2).iterator(), listener);
+    }
+
+    @Override
+    protected boolean shouldOpenMoreConnections() {
+        return connectionManager.size() < maxNumRemoteConnections;
     }
 
     private void collectRemoteNodes(Iterator<Supplier<DiscoveryNode>> seedNodes, ActionListener<Void> listener) {
@@ -120,7 +114,7 @@ public class DirectConnectionStrategy extends RemoteConnectionStrategy {
 
             final StepListener<TransportService.HandshakeResponse> handShakeStep = new StepListener<>();
             openConnectionStep.whenComplete(connection -> {
-                ConnectionProfile connectionProfile = connectionManager.getConnectionProfile();
+                ConnectionProfile connectionProfile = connectionManager.getConnectionManager().getConnectionProfile();
                 transportService.handshake(connection, connectionProfile.getHandshakeTimeout().millis(),
                     getRemoteClusterNamePredicate(), handShakeStep);
             }, onFailure);

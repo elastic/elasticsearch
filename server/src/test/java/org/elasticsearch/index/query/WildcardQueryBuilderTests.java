@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
@@ -133,20 +132,6 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
                 "}";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[wildcard] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
-    }
-
-    public void testIndexWildcard() throws IOException {
-        QueryShardContext context = createShardContext();
-        String index = context.getFullyQualifiedIndex().getName();
-
-        Query query = new WildcardQueryBuilder("_index", index).doToQuery(context);
-        assertThat(query instanceof MatchAllDocsQuery, equalTo(true));
-
-        query = new WildcardQueryBuilder("_index", index + "*").doToQuery(context);
-        assertThat(query instanceof MatchAllDocsQuery, equalTo(true));
-
-        query = new WildcardQueryBuilder("_index", "index_" + index + "*").doToQuery(context);
-        assertThat(query instanceof MatchNoDocsQuery, equalTo(true));
     }
 
     public void testTypeField() throws IOException {

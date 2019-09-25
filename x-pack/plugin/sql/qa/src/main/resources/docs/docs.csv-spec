@@ -235,16 +235,17 @@ CURRENT_DATE     |SCALAR
 CURRENT_TIME     |SCALAR
 CURRENT_TIMESTAMP|SCALAR
 CURTIME          |SCALAR
+DATE_TRUNC       |SCALAR
 DAY              |SCALAR
 DAYNAME          |SCALAR
-DAYOFMONTH       |SCALAR         
-DAYOFWEEK        |SCALAR         
-DAYOFYEAR        |SCALAR         
-DAY_NAME         |SCALAR         
-DAY_OF_MONTH     |SCALAR         
-DAY_OF_WEEK      |SCALAR         
-DAY_OF_YEAR      |SCALAR         
-DOM              |SCALAR         
+DAYOFMONTH       |SCALAR
+DAYOFWEEK        |SCALAR
+DAYOFYEAR        |SCALAR
+DAY_NAME         |SCALAR
+DAY_OF_MONTH     |SCALAR
+DAY_OF_WEEK      |SCALAR
+DAY_OF_YEAR      |SCALAR
+DOM              |SCALAR
 DOW              |SCALAR         
 DOY              |SCALAR         
 HOUR             |SCALAR         
@@ -2410,6 +2411,58 @@ SELECT DAY_OF_MONTH(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
 ---------------
 19
 // end::dayOfMonth
+;
+
+truncateDateTimeMillennium
+// tag::truncateDateTimeMillennium
+SELECT DATE_TRUNC('millennium', '2019-09-04T11:22:33.123Z'::datetime) AS millennium;
+
+      millennium
+------------------------
+2000-01-01T00:00:00.000Z
+// end::truncateDateTimeMillennium
+;
+
+truncateDateTimeWeek
+// tag::truncateDateTimeWeek
+SELECT DATE_TRUNC('week', '2019-08-24T11:22:33.123Z'::datetime) AS week;
+
+      week
+------------------------
+2019-08-19T00:00:00.000Z
+// end::truncateDateTimeWeek
+;
+
+truncateDateTimeMinutes
+// tag::truncateDateTimeMinutes
+SELECT DATE_TRUNC('mi', '2019-09-04T11:22:33.123Z'::datetime) AS mins;
+
+      mins
+------------------------
+2019-09-04T11:22:00.000Z
+// end::truncateDateTimeMinutes
+;
+
+truncateDateDecades
+schema::decades:ts
+// tag::truncateDateDecades
+SELECT DATE_TRUNC('decade', CAST('2019-09-04' AS DATE)) AS decades;
+
+      decades
+------------------------
+2010-01-01T00:00:00.000Z
+// end::truncateDateDecades
+;
+
+truncateDateQuarter
+schema::quarter:ts
+// tag::truncateDateQuarter
+SELECT DATE_TRUNC('quarters', CAST('2019-09-04' AS DATE)) AS quarter;
+
+      quarter
+------------------------
+2019-07-01T00:00:00.000Z
+// end::truncateDateQuarter
 ;
 
 constantDayOfWeek

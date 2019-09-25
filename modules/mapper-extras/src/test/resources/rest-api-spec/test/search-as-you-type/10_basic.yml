@@ -41,7 +41,6 @@ setup:
   - do:
       get:
         index: test
-        type: _doc
         id: 1
 
   - is_true: found

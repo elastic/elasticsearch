@@ -263,7 +263,6 @@ public class ShapeQueryBuilderTests extends AbstractQueryTestCase<ShapeQueryBuil
         assertThat(indexedShapeToReturn, notNullValue());
         assertThat(indexedShapeId, notNullValue());
         assertThat(getRequest.id(), equalTo(indexedShapeId));
-        assertThat(getRequest.type(), equalTo(indexedType));
         assertThat(getRequest.routing(), equalTo(indexedShapeRouting));
         String expectedShapeIndex = indexedShapeIndex == null ? ShapeQueryBuilder.DEFAULT_SHAPE_INDEX_NAME : indexedShapeIndex;
         assertThat(getRequest.index(), equalTo(expectedShapeIndex));
@@ -285,7 +284,7 @@ public class ShapeQueryBuilderTests extends AbstractQueryTestCase<ShapeQueryBuil
         } catch (IOException ex) {
             throw new ElasticsearchException("boom", ex);
         }
-        return new GetResponse(new GetResult(indexedShapeIndex, indexedType, indexedShapeId, 0, 1, 0, true, new BytesArray(json),
+        return new GetResponse(new GetResult(indexedShapeIndex, indexedShapeId, 0, 1, 0, true, new BytesArray(json),
             null, null));
     }
 }

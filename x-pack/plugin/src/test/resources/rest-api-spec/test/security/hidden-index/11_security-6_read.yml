@@ -63,7 +63,6 @@ teardown:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       get:
         index: ".security-6"
-        type: "doc"
         id: "user-test_user"
 
 ---

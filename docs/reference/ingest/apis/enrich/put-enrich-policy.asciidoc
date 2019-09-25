@@ -9,14 +9,13 @@
 Creates an enrich policy.
 
 ////
-[source,js]
+[source,console]
 ----
 PUT /users
 ----
-// CONSOLE
 ////
 
-[source,js]
+[source,console]
 ----
 PUT /_enrich/policy/my-policy
 {
@@ -27,15 +26,13 @@ PUT /_enrich/policy/my-policy
     }
 }
 ----
-// CONSOLE
 // TEST[continued]
 
 ////
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_enrich/policy/my-policy
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 ////
 
@@ -89,7 +86,7 @@ Instead, you can:
     with the new enrich policy
     in any in-use enrich processors.
 
-.   Use the <<delete-enrich-policy-api, delete enrich policy API>>
+.   Use the <<delete-enrich-policy-api, delete enrich policy>> API
     to delete the previous enrich policy.
 // end::update-enrich-policy[]
 

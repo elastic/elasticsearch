@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -32,7 +33,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -80,9 +80,11 @@ public class MatrixStatsAggregationBuilder
     }
 
     @Override
-    protected MatrixStatsAggregatorFactory innerBuild(SearchContext context, Map<String, ValuesSourceConfig<Numeric>> configs,
-            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new MatrixStatsAggregatorFactory(name, configs, multiValueMode, context, parent, subFactoriesBuilder, metaData);
+    protected MatrixStatsAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+                                                        Map<String, ValuesSourceConfig<Numeric>> configs,
+                                                        AggregatorFactory parent,
+                                                        AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        return new MatrixStatsAggregatorFactory(name, configs, multiValueMode, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 
     @Override

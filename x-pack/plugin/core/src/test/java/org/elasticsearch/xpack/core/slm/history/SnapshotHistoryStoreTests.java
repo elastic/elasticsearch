@@ -77,7 +77,7 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
         final long timestamp = randomNonNegativeLong();
         SnapshotLifecyclePolicy.ResolverContext context = new SnapshotLifecyclePolicy.ResolverContext(timestamp);
         String snapshotId = policy.generateSnapshotName(context);
-        SnapshotHistoryItem record = SnapshotHistoryItem.successRecord(timestamp, policy, snapshotId);
+        SnapshotHistoryItem record = SnapshotHistoryItem.creationSuccessRecord(timestamp, policy, snapshotId);
 
         client.setVerifier((a, r, l) -> {
             fail("the history store is disabled, no action should have been taken");
@@ -94,7 +94,7 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
         SnapshotLifecyclePolicy.ResolverContext context = new SnapshotLifecyclePolicy.ResolverContext(timestamp);
         String snapshotId = policy.generateSnapshotName(context);
         {
-            SnapshotHistoryItem record = SnapshotHistoryItem.successRecord(timestamp, policy, snapshotId);
+            SnapshotHistoryItem record = SnapshotHistoryItem.creationSuccessRecord(timestamp, policy, snapshotId);
 
             AtomicInteger calledTimes = new AtomicInteger(0);
             client.setVerifier((action, request, listener) -> {
@@ -132,7 +132,7 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
         {
             final String cause = randomAlphaOfLength(9);
             Exception failureException = new RuntimeException(cause);
-            SnapshotHistoryItem record = SnapshotHistoryItem.failureRecord(timestamp, policy, snapshotId, failureException);
+            SnapshotHistoryItem record = SnapshotHistoryItem.creationFailureRecord(timestamp, policy, snapshotId, failureException);
 
             AtomicInteger calledTimes = new AtomicInteger(0);
             client.setVerifier((action, request, listener) -> {
@@ -373,7 +373,8 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
             randomAlphaOfLength(4),
             randomSchedule(),
             randomAlphaOfLength(4),
-            config);
+            config,
+            null);
     }
 
     private static String randomSchedule() {

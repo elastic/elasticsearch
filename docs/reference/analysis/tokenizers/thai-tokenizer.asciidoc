@@ -13,7 +13,7 @@ consider using the {plugins}/analysis-icu-tokenizer.html[ICU Tokenizer] instead.
 [float]
 === Example output
 
-[source,js]
+[source,console]
 ---------------------------
 POST _analyze
 {
@@ -21,7 +21,6 @@ POST _analyze
   "text": "การที่ได้ต้องแสดงว่างานดี"
 }
 ---------------------------
-// CONSOLE
 
 /////////////////////
 

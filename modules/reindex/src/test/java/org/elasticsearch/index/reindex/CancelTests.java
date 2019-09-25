@@ -118,10 +118,9 @@ public class CancelTests extends ReindexTestCase {
          * exhausted their slice while others might have quite a bit left
          * to work on. We can't control that. */
         logger.debug("waiting for updates to be blocked");
-        boolean blocked = awaitBusy(
-            () -> ALLOWED_OPERATIONS.hasQueuedThreads() && ALLOWED_OPERATIONS.availablePermits() == 0,
+        assertBusy(
+            () -> assertTrue("updates blocked", ALLOWED_OPERATIONS.hasQueuedThreads() && ALLOWED_OPERATIONS.availablePermits() == 0),
             1, TimeUnit.MINUTES); // 10 seconds is usually fine but on heavily loaded machines this can take a while
-        assertTrue("updates blocked", blocked);
 
         // Status should show the task running
         TaskInfo mainTask = findTaskToCancel(action, builder.request().getSlices());

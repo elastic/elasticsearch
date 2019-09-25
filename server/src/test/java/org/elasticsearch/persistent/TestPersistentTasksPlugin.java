@@ -75,7 +75,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.test.ESTestCase.awaitBusy;
+import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -335,10 +335,15 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                 AtomicInteger phase = new AtomicInteger();
                 while (true) {
                     // wait for something to happen
-                    assertTrue(awaitBusy(() -> testTask.isCancelled() ||
-                                    testTask.getOperation() != null ||
-                                    clusterService.lifecycleState() != Lifecycle.State.STARTED,   // speedup finishing on closed nodes
-                            45, TimeUnit.SECONDS)); // This can take a while during large cluster restart
+                    try {
+                        assertBusy(() -> assertTrue(testTask.isCancelled() ||
+                                testTask.getOperation() != null ||
+                                clusterService.lifecycleState() != Lifecycle.State.STARTED),   // speedup finishing on closed nodes
+                            45, TimeUnit.SECONDS); // This can take a while during large cluster restart
+                    } catch (Exception ex) {
+                        throw new RuntimeException(ex);
+                    }
+
                     if (clusterService.lifecycleState() != Lifecycle.State.STARTED) {
                         return;
                     }

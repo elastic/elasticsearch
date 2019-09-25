@@ -345,8 +345,9 @@ public final class Role {
         public static final String VIEW_INDEX_METADATA = "view_index_metadata";
         public static final String MANAGE_FOLLOW_INDEX = "manage_follow_index";
         public static final String MANAGE_ILM = "manage_ilm";
+        public static final String CREATE_DOC = "create_doc";
         public static final String[] ALL_ARRAY = new String[] { NONE, ALL, READ, READ_CROSS, CREATE, INDEX, DELETE, WRITE, MONITOR, MANAGE,
-                DELETE_INDEX, CREATE_INDEX, VIEW_INDEX_METADATA, MANAGE_FOLLOW_INDEX, MANAGE_ILM };
+                DELETE_INDEX, CREATE_INDEX, VIEW_INDEX_METADATA, MANAGE_FOLLOW_INDEX, MANAGE_ILM, CREATE_DOC };
     }
 
 }

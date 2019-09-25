@@ -57,8 +57,16 @@ public class IndexLifecycleOriginationDateParserTests extends ESTestCase {
 
         {
             long parsedDate = parseIndexNameAndExtractDate("indexName-2019.09.04-2019.09.24");
-            assertThat("indexName-yyyy.MM.dd-yyyy.MM.dd is a valid index format and the first date should be parsed",
-                parsedDate, is(expectedDate));
+            long secondDateInIndexName = dateFormat.parse("2019.09.24").getTime();
+            assertThat("indexName-yyyy.MM.dd-yyyy.MM.dd is a valid index format and the second date should be parsed",
+                parsedDate, is(secondDateInIndexName));
+        }
+
+        {
+            long parsedDate = parseIndexNameAndExtractDate("index-2019.09.04-2019.09.24-00002");
+            long secondDateInIndexName = dateFormat.parse("2019.09.24").getTime();
+            assertThat("indexName-yyyy.MM.dd-yyyy.MM.dd-digits is a valid index format and the second date should be parsed",
+                parsedDate, is(secondDateInIndexName));
         }
     }
 
@@ -77,6 +85,12 @@ public class IndexLifecycleOriginationDateParserTests extends ESTestCase {
 
         expectThrows(
             IllegalArgumentException.class,
+            "indexName-00001 does not match the expected pattern as the origination date is missing",
+            () -> parseIndexNameAndExtractDate("indexName-00001")
+        );
+
+        expectThrows(
+            IllegalArgumentException.class,
             "indexName_2019.09.04_00001 does not match the expected pattern as _ is not the expected delimiter",
             () -> parseIndexNameAndExtractDate("indexName_2019.09.04_00001")
         );
@@ -91,8 +105,8 @@ public class IndexLifecycleOriginationDateParserTests extends ESTestCase {
 
         expectThrows(
             IllegalArgumentException.class,
-            "java.lang.IllegalArgumentException: failed to parse date field [2019.09.04-2018.01.01] with format [yyyy.MM.dd]",
-            () -> parseIndexNameAndExtractDate("index-2019.09.04-2019.09.05-002")
+            "java.lang.IllegalArgumentException: failed to parse date field [2019.09.44] with format [yyyy.MM.dd]",
+            () -> parseIndexNameAndExtractDate("index-2019.09.44")
         );
     }
 }

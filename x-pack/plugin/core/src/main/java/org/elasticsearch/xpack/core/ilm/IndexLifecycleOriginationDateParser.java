@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_ORIGINATION_DATE;
@@ -17,7 +18,7 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_PARSE
 public class IndexLifecycleOriginationDateParser {
 
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("yyyy.MM.dd");
-    private static final String INDEX_NAME_REGEX = "^.*-(.+)(-[\\d]+)?$";
+    private static final String INDEX_NAME_REGEX = "^.*-(\\d{4}.\\d{2}.\\d{2})(-[\\d]+)?$";
     private static final Pattern INDEX_NAME_PATTERN = Pattern.compile(INDEX_NAME_REGEX);
 
     /**
@@ -33,19 +34,9 @@ public class IndexLifecycleOriginationDateParser {
      * format or the date in the index name doesn't match the `yyyy.MM.dd` format it throws an {@link IllegalArgumentException}
      */
     public static long parseIndexNameAndExtractDate(String indexName) {
-        if (INDEX_NAME_PATTERN.matcher(indexName).matches()) {
-            int firstDash = indexName.indexOf("-");
-            assert firstDash != -1 : "no separator '-' found";
-            int dateEndIndex;
-            int lastDash = indexName.lastIndexOf("-");
-            if (lastDash == firstDash) {
-                // only one dash found in the index name so we are assuming the indexName-{date} format
-                dateEndIndex = indexName.length();
-            } else {
-                dateEndIndex = lastDash;
-            }
-
-            String dateAsString = indexName.substring(firstDash + 1, dateEndIndex);
+        Matcher matcher = INDEX_NAME_PATTERN.matcher(indexName);
+        if (matcher.matches()) {
+            String dateAsString = matcher.group(1);
             try {
                 return DATE_FORMATTER.parseMillis(dateAsString);
             } catch (ElasticsearchParseException | IllegalArgumentException e) {

@@ -838,9 +838,9 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             @Override
             public FileVisitResult visitFile(final Path file, final BasicFileAttributes attrs) throws IOException {
                 final String parentDirName = file.getParent().getFileName().toString();
-                if ("bin".equals(parentDirName)) {
-                    setFileAttributes(file, BIN_FILES_PERMS);
-                } else if (Constants.MAC_OS_X && "MacOS".equals(parentDirName)) { // MacOS is an alternative to bin on macOS
+                if ("bin".equals(parentDirName)
+                    // "MacOS" is an alternative to "bin" on macOS
+                    || (Constants.MAC_OS_X && "MacOS".equals(parentDirName))) {
                     setFileAttributes(file, BIN_FILES_PERMS);
                 } else {
                     setFileAttributes(file, PLUGIN_FILES_PERMS);

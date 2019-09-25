@@ -64,10 +64,9 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
             "repositories {",
             "  maven {",
             "    name \"elastic-maven\"",
-            "    url \"" + url + "\"\n",
+            "    url \"" +  url + "\"\n",
             "  }",
-            "}"
-        );
+            "}");
         runInsecureArtifactRepositoryTest(name, url, lines);
     }
 
@@ -79,10 +78,9 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
             "repositories {",
             "  ivy {",
             "    name \"elastic-ivy\"",
-            "    url \"" + url + "\"\n",
+            "    url \"" +  url + "\"\n",
             "  }",
-            "}"
-        );
+            "}");
         runInsecureArtifactRepositoryTest(name, url, lines);
     }
 
@@ -100,8 +98,7 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
             .buildAndFail();
         assertOutputContains(
             result.getOutput(),
-            "repository [" + name + "] on project with path [:] is not using a secure protocol for artifacts on [" + url + "]"
-        );
+            "repository [" + name + "] on project with path [:] is not using a secure protocol for artifacts on [" + url + "]");
     }
 
     public void testLicenseAndNotice() throws IOException {
@@ -113,23 +110,22 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
 
         assertBuildFileExists(result, "elasticsearch.build", "distributions/elasticsearch.build.jar");
 
-        try (ZipFile zipFile = new ZipFile(
-            new File(
-                getBuildDir("elasticsearch.build"),
-                "distributions/elasticsearch.build.jar"
-            )
-        )) {
+        try (ZipFile zipFile = new ZipFile(new File(
+            getBuildDir("elasticsearch.build"), "distributions/elasticsearch.build.jar"
+        ))) {
             ZipEntry licenseEntry = zipFile.getEntry("META-INF/LICENSE.txt");
             ZipEntry noticeEntry = zipFile.getEntry("META-INF/NOTICE.txt");
             assertNotNull("Jar does not have META-INF/LICENSE.txt", licenseEntry);
             assertNotNull("Jar does not have META-INF/NOTICE.txt", noticeEntry);
             try (
                 InputStream license = zipFile.getInputStream(licenseEntry);
-                InputStream notice = zipFile.getInputStream(noticeEntry)) {
+                InputStream notice = zipFile.getInputStream(noticeEntry)
+            ) {
                 assertEquals("this is a test license file", IOUtils.toString(license, StandardCharsets.UTF_8.name()));
                 assertEquals("this is a test notice file", IOUtils.toString(notice, StandardCharsets.UTF_8.name()));
             }
         }
     }
+
 
 }

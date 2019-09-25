@@ -67,7 +67,7 @@ public class BatsProgressLogger implements UnaryOperator<String> {
             testCount = Integer.parseInt(m.group(1));
             int length = String.valueOf(testCount).length();
             String count = "%0" + length + "d";
-            countsFormat = "[" + count + "|" + count + "|" + count + "/" + count + "]";
+            countsFormat = "[" + count +"|" + count + "|" + count + "/" + count + "]";
             return null;
         }
         Matcher m = lineRegex.matcher(line);

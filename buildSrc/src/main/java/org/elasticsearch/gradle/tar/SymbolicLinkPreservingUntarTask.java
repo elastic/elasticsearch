@@ -92,7 +92,7 @@ public class SymbolicLinkPreservingUntarTask extends DefaultTask {
         // ensure the target extraction path is empty
         getProject().delete(extractPath);
         try (TarArchiveInputStream tar =
-            new TarArchiveInputStream(new GzipCompressorInputStream(new FileInputStream(tarFile.getAsFile().get())))) {
+                 new TarArchiveInputStream(new GzipCompressorInputStream(new FileInputStream(tarFile.getAsFile().get())))) {
             final Path destinationPath = extractPath.get().getAsFile().toPath();
             TarArchiveEntry entry = tar.getNextTarEntry();
             while (entry != null) {
@@ -125,8 +125,7 @@ public class SymbolicLinkPreservingUntarTask extends DefaultTask {
                         final Set<PosixFilePermission> permissions = PosixFilePermissions.fromString(
                             permissions((entry.getMode() >> 6) & 07) +
                                 permissions((entry.getMode() >> 3) & 07) +
-                                permissions((entry.getMode() >> 0) & 07)
-                        );
+                                permissions((entry.getMode() >> 0) & 07));
                         Files.setPosixFilePermissions(destination, permissions);
                     }
                 }

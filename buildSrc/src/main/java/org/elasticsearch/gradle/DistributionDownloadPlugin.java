@@ -97,10 +97,8 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             if (distribution.getType() != Type.RPM && distribution.getType() != Type.DEB) {
                 // for the distribution extracted, add a root level task that does the extraction, and depend on that
                 // extracted configuration as an artifact consisting of the extracted distribution directory
-                dependencies.add(
-                    distribution.getExtracted().configuration.getName(),
-                    projectDependency(project, ":", configName("extracted_elasticsearch", distribution))
-                );
+                dependencies.add(distribution.getExtracted().configuration.getName(),
+                    projectDependency(project, ":", configName("extracted_elasticsearch", distribution)));
                 // ensure a root level download task exists
                 setupRootDownload(project.getRootProject(), distribution);
             }
@@ -133,7 +131,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             TaskProvider<Sync> extractTask = rootProject.getTasks().register(extractTaskName, Sync.class, syncTask -> {
                 syncTask.dependsOn(downloadConfig);
                 syncTask.into(extractDir);
-                syncTask.from((Callable<FileTree>) () -> {
+                syncTask.from((Callable<FileTree>)() -> {
                     File archiveFile = archiveGetter.get();
                     String archivePath = archiveFile.toString();
                     if (archivePath.endsWith(".zip")) {
@@ -144,12 +142,9 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
                     throw new IllegalStateException("unexpected file extension on [" + archivePath + "]");
                 });
             });
-            rootProject.getArtifacts()
-                .add(
-                    extractedConfigName,
-                    rootProject.getLayout().getProjectDirectory().dir(extractDir),
-                    artifact -> artifact.builtBy(extractTask)
-                );
+            rootProject.getArtifacts().add(extractedConfigName,
+                rootProject.getLayout().getProjectDirectory().dir(extractDir),
+                artifact -> artifact.builtBy(extractTask));
         }
     }
 
@@ -162,13 +157,10 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             ivyRepo.setUrl("https://artifacts.elastic.co");
             ivyRepo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
             // this header is not a credential but we hack the capability to send this header to avoid polluting our download stats
-            ivyRepo.credentials(
-                HttpHeaderCredentials.class,
-                creds -> {
-                    creds.setName("X-Elastic-No-KPI");
-                    creds.setValue("1");
-                }
-            );
+            ivyRepo.credentials(HttpHeaderCredentials.class, creds -> {
+                creds.setName("X-Elastic-No-KPI");
+                creds.setValue("1");
+            });
             ivyRepo.getAuthentication().create("header", HttpHeaderAuthentication.class);
             ivyRepo.patternLayout(layout -> layout.artifact("/downloads/elasticsearch/[module]-[revision](-[classifier]).[ext]"));
             ivyRepo.content(content -> content.includeGroup(FAKE_IVY_GROUP));

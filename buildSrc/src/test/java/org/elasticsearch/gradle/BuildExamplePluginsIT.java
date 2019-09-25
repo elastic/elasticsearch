@@ -72,7 +72,7 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
     public static Iterable<Object[]> parameters() {
         return EXAMPLE_PLUGINS
             .stream()
-            .map(each -> new Object[] { each })
+            .map(each -> new Object[] {each})
             .collect(Collectors.toList());
     }
 
@@ -119,17 +119,16 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
         String luceneSnapshotRepo = "";
         String luceneSnapshotRevision = System.getProperty("test.lucene-snapshot-revision");
         if (luceneSnapshotRepo != null) {
-            luceneSnapshotRepo = "  maven {\n" +
+            luceneSnapshotRepo =  "  maven {\n" +
                 "    name \"lucene-snapshots\"\n" +
                 "    url \"https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/" + luceneSnapshotRevision + "\"\n" +
                 "  }\n";
         }
-        writeBuildScript(
-            "\n" +
+        writeBuildScript("\n" +
                 "repositories {\n" +
                 "  maven {\n" +
                 "    name \"test\"\n" +
-                "    url \"" + getLocalTestRepoPath() + "\"\n" +
+                "    url \"" + getLocalTestRepoPath()  + "\"\n" +
                 "  }\n" +
                 "  flatDir {\n" +
                 "    dir '" + getLocalTestDownloadsPath() + "'\n" +

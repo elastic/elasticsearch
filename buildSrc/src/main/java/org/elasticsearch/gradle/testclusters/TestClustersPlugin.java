@@ -39,7 +39,7 @@ public class TestClustersPlugin implements Plugin<Project> {
     private static final String LIST_TASK_NAME = "listTestClusters";
     public static final String EXTENSION_NAME = "testClusters";
 
-    private static final Logger logger = Logging.getLogger(TestClustersPlugin.class);
+    private static final Logger logger =  Logging.getLogger(TestClustersPlugin.class);
 
     private ReaperService reaper;
 
@@ -57,8 +57,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         createListClustersTask(project, container);
 
         if (project.getRootProject().getExtensions().findByType(TestClustersRegistry.class) == null) {
-            TestClustersRegistry registry = project.getRootProject()
-                .getExtensions()
+            TestClustersRegistry registry = project.getRootProject().getExtensions()
                 .create("testClusters", TestClustersRegistry.class);
 
             // When we know what tasks will run, we claim the clusters of those task to differentiate between clusters
@@ -91,13 +90,14 @@ public class TestClustersPlugin implements Plugin<Project> {
         return container;
     }
 
+
     private void createListClustersTask(Project project, NamedDomainObjectContainer<ElasticsearchCluster> container) {
         Task listTask = project.getTasks().create(LIST_TASK_NAME);
         listTask.setGroup("ES cluster formation");
         listTask.setDescription("Lists all ES clusters configured for this project");
-        listTask.doLast(
-            (Task task) -> container.forEach(
-                cluster -> logger.lifecycle("   * {}: {}", cluster.getName(), cluster.getNumberOfNodes())
+        listTask.doLast((Task task) ->
+            container.forEach(cluster ->
+                logger.lifecycle("   * {}: {}", cluster.getName(), cluster.getNumberOfNodes())
             )
         );
     }
@@ -106,8 +106,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         // Once we know all the tasks that need to execute, we claim all the clusters that belong to those and count the
         // claims so we'll know when it's safe to stop them.
         gradle.getTaskGraph().whenReady(taskExecutionGraph -> {
-            taskExecutionGraph.getAllTasks()
-                .stream()
+            taskExecutionGraph.getAllTasks().stream()
                 .filter(task -> task instanceof TestClustersAware)
                 .map(task -> (TestClustersAware) task)
                 .flatMap(task -> task.getClusters().stream())
@@ -126,7 +125,6 @@ public class TestClustersPlugin implements Plugin<Project> {
                     // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
                     ((TestClustersAware) task).getClusters().forEach(registry::maybeStartCluster);
                 }
-
                 @Override
                 public void afterActions(Task task) {}
             }
@@ -146,11 +144,11 @@ public class TestClustersPlugin implements Plugin<Project> {
                     ((TestClustersAware) task).getClusters()
                         .forEach(cluster -> registry.stopCluster(cluster, state.getFailure() != null));
                 }
-
                 @Override
                 public void beforeExecute(Task task) {}
             }
         );
     }
+
 
 }

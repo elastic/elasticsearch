@@ -45,25 +45,21 @@ public abstract class Boilerplate {
 
     public static <T> T maybeCreate(NamedDomainObjectContainer<T> collection, String name, Action<T> action) {
         return Optional.ofNullable(collection.findByName(name))
-            .orElseGet(
-                () -> {
-                    T result = collection.create(name);
-                    action.execute(result);
-                    return result;
-                }
-            );
+            .orElseGet(() -> {
+                T result = collection.create(name);
+                action.execute(result);
+                return result;
+            });
 
     }
 
     public static <T> T maybeCreate(PolymorphicDomainObjectContainer<T> collection, String name, Class<T> type, Action<T> action) {
         return Optional.ofNullable(collection.findByName(name))
-            .orElseGet(
-                () -> {
-                    T result = collection.create(name, type);
-                    action.execute(result);
-                    return result;
-                }
-            );
+            .orElseGet(() -> {
+                T result = collection.create(name, type);
+                action.execute(result);
+                return result;
+            });
 
     }
 
@@ -87,8 +83,7 @@ public abstract class Boilerplate {
     }
 
     public static <T extends Task> void maybeConfigure(
-        TaskContainer tasks,
-        String name,
+        TaskContainer tasks, String name,
         Class<? extends T> type,
         Action<? super T> config
     ) {

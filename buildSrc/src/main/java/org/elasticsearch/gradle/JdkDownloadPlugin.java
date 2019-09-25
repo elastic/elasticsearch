@@ -56,9 +56,8 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        NamedDomainObjectContainer<Jdk> jdksContainer = project.container(
-            Jdk.class,
-            name -> new Jdk(name, project)
+        NamedDomainObjectContainer<Jdk> jdksContainer = project.container(Jdk.class, name ->
+            new Jdk(name, project)
         );
         project.getExtensions().add(CONTAINER_NAME, jdksContainer);
 
@@ -84,12 +83,10 @@ public class JdkDownloadPlugin implements Plugin<Project> {
         // all other repos should ignore the special jdk artifacts
         project.getRootProject().getRepositories().all(repo -> {
             if (repo.getName().startsWith(REPO_NAME_PREFIX) == false) {
-                repo.content(
-                    content -> {
-                        content.excludeGroup("adoptopenjdk");
-                        content.excludeGroup("openjdk");
-                    }
-                );
+                repo.content(content -> {
+                    content.excludeGroup("adoptopenjdk");
+                    content.excludeGroup("openjdk");
+                });
             }
         });
     }
@@ -137,8 +134,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                         Locale.ROOT,
                         "adoptopenjdk/OpenJDK%sU-jdk_x64_[module]_hotspot_[revision]_%s.[ext]",
                         jdkMajor,
-                        jdkBuild
-                    );
+                        jdkBuild);
                     ivyRepo.patternLayout(layout -> layout.artifact(pattern));
                     ivyRepo.content(content -> content.includeGroup("adoptopenjdk"));
                 });
@@ -150,11 +146,8 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                         ivyRepo.setName(repoName);
                         ivyRepo.setUrl("https://download.oracle.com");
                         ivyRepo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
-                        ivyRepo.patternLayout(
-                            layout -> layout.artifact(
-                                "java/GA/jdk" + jdkVersion + "/" + hash + "/" + jdkBuild + "/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"
-                            )
-                        );
+                        ivyRepo.patternLayout(layout -> layout.artifact(
+                            "java/GA/jdk" + jdkVersion + "/" + hash + "/" + jdkBuild + "/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"));
                         ivyRepo.content(content -> content.includeGroup("openjdk"));
                     });
                 } else {
@@ -163,11 +156,8 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                         ivyRepo.setName(repoName);
                         ivyRepo.setUrl("https://download.oracle.com");
                         ivyRepo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
-                        ivyRepo.patternLayout(
-                            layout -> layout.artifact(
-                                "java/GA/jdk" + jdkMajor + "/" + jdkBuild + "/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"
-                            )
-                        );
+                        ivyRepo.patternLayout(layout ->
+                            layout.artifact("java/GA/jdk" + jdkMajor + "/" + jdkBuild + "/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"));
                         ivyRepo.content(content -> content.includeGroup("openjdk"));
                     });
                 }
@@ -217,8 +207,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                     String[] pathSegments = details.getRelativePath().getSegments();
                     int index = 0;
                     for (; index < pathSegments.length; index++) {
-                        if (pathSegments[index].matches("jdk-.*"))
-                            break;
+                        if (pathSegments[index].matches("jdk-.*")) break;
                     }
                     assert index + 1 <= pathSegments.length;
                     String[] newPathSegments = Arrays.copyOfRange(pathSegments, index + 1, pathSegments.length);
@@ -264,8 +253,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                         final Path entryName = Paths.get(name);
                         int index = 0;
                         for (; index < entryName.getNameCount(); index++) {
-                            if (entryName.getName(index).toString().matches("jdk-.*"))
-                                break;
+                            if (entryName.getName(index).toString().matches("jdk-.*")) break;
                         }
                         if (index + 1 >= entryName.getNameCount()) {
                             // this happens on the top-level directories in the archive, which we are removing
@@ -273,16 +261,12 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                         }
                         // finally remove the top-level directories from the output path
                         return entryName.subpath(index + 1, entryName.getNameCount());
-                    }
-                );
+                    });
             });
         }
-        rootProject.getArtifacts()
-            .add(
-                localConfigName,
-                extractPath,
-                artifact -> artifact.builtBy(extractTask)
-            );
+        rootProject.getArtifacts().add(localConfigName,
+            extractPath,
+            artifact -> artifact.builtBy(extractTask));
     }
 
     private static String configName(String vendor, String version, String platform) {

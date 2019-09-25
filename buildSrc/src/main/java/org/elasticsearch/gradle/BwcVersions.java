@@ -109,20 +109,15 @@ public class BwcVersions {
     }
 
     protected BwcVersions(List<String> versionLines, Version currentVersionProperty) {
-        this(
-            versionLines.stream()
-                .map(LINE_PATTERN::matcher)
-                .filter(Matcher::matches)
-                .map(
-                    match -> new Version(
-                        Integer.parseInt(match.group(1)),
-                        Integer.parseInt(match.group(2)),
-                        Integer.parseInt(match.group(3))
-                    )
-                )
-                .collect(Collectors.toCollection(TreeSet::new)),
-            currentVersionProperty
-        );
+        this(versionLines.stream()
+            .map(LINE_PATTERN::matcher)
+            .filter(Matcher::matches)
+            .map(match -> new Version(
+                Integer.parseInt(match.group(1)),
+                Integer.parseInt(match.group(2)),
+                Integer.parseInt(match.group(3))
+            ))
+            .collect(Collectors.toCollection(TreeSet::new)), currentVersionProperty);
     }
 
     // for testkit tests, until BwcVersions is extracted into an extension
@@ -145,10 +140,8 @@ public class BwcVersions {
 
         Map<Version, UnreleasedVersionInfo> unreleased = new HashMap<>();
         for (Version unreleasedVersion : getUnreleased()) {
-            unreleased.put(
-                unreleasedVersion,
-                new UnreleasedVersionInfo(unreleasedVersion, getBranchFor(unreleasedVersion), getGradleProjectPathFor(unreleasedVersion))
-            );
+            unreleased.put(unreleasedVersion,
+                new UnreleasedVersionInfo(unreleasedVersion, getBranchFor(unreleasedVersion), getGradleProjectPathFor(unreleasedVersion)));
         }
         this.unreleased = Collections.unmodifiableMap(unreleased);
     }
@@ -182,8 +175,7 @@ public class BwcVersions {
     public void forPreviousUnreleased(Consumer<UnreleasedVersionInfo> consumer) {
         List<UnreleasedVersionInfo> collect = getUnreleased().stream()
             .filter(version -> version.equals(currentVersion) == false)
-            .map(
-                version -> new UnreleasedVersionInfo(
+            .map(version -> new UnreleasedVersionInfo(
                     version,
                     getBranchFor(version),
                     getGradleProjectPathFor(version)
@@ -210,7 +202,7 @@ public class BwcVersions {
             if (unreleasedStagedOrMinor.size() > 2) {
                 if (unreleasedStagedOrMinor.get(unreleasedStagedOrMinor.size() - 2).equals(version)) {
                     return ":distribution:bwc:minor";
-                } else {
+                } else{
                     return ":distribution:bwc:staged";
                 }
             } else {
@@ -237,7 +229,7 @@ public class BwcVersions {
                 return "master";
             case ":distribution:bwc:minor":
                 // The .x branch will always point to the latest minor (for that major), so a "minor" project will be on the .x branch
-                // unless there is more recent (higher) minor.
+                //  unless there is more recent (higher) minor.
                 final Version latestInMajor = getLatestVersionByKey(groupByMajor, version.getMajor());
                 if (latestInMajor.getMinor() == version.getMinor()) {
                     return version.getMajor() + ".x";
@@ -296,16 +288,14 @@ public class BwcVersions {
     }
 
     private Version getLatestInMinor(int major, int minor) {
-        return groupByMajor.get(major)
-            .stream()
+        return groupByMajor.get(major).stream()
             .filter(v -> v.getMinor() == minor)
             .max(Version::compareTo)
             .orElse(null);
     }
 
     private Version getLatestVersionByKey(Map<Integer, List<Version>> groupByMajor, int key) {
-        return groupByMajor.getOrDefault(key, emptyList())
-            .stream()
+        return groupByMajor.getOrDefault(key, emptyList()).stream()
             .max(Version::compareTo)
             .orElseThrow(() -> new IllegalStateException("Unexpected number of versions in collection"));
     }
@@ -350,8 +340,7 @@ public class BwcVersions {
 
     private List<Version> getReleased() {
         List<Version> unreleased = getUnreleased();
-        return groupByMajor.values()
-            .stream()
+        return groupByMajor.values().stream()
             .flatMap(Collection::stream)
             .filter(each -> unreleased.contains(each) == false)
             .collect(Collectors.toList());
@@ -372,7 +361,10 @@ public class BwcVersions {
 
         List<Version> prevMajors = groupByMajor.get(currentVersion.getMajor() - 1);
         int minor = prevMajors.get(prevMajors.size() - 1).getMinor();
-        for (int i = prevMajors.size() - 1; i > 0 && prevMajors.get(i).getMinor() == minor; i--) {
+        for (int i = prevMajors.size() - 1;
+             i > 0 && prevMajors.get(i).getMinor() == minor;
+             i--
+        ) {
             wireCompat.add(prevMajors.get(i));
         }
         wireCompat.addAll(groupByMajor.get(currentVersion.getMajor()));

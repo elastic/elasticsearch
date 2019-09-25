@@ -21,11 +21,8 @@ public class RestTestRunnerTask extends Test implements TestClustersAware {
 
     public RestTestRunnerTask() {
         super();
-        this.getOutputs()
-            .doNotCacheIf(
-                "Build cache is only enabled for tests against clusters using the 'integ-test' distribution",
-                task -> clusters.stream().flatMap(c -> c.getNodes().stream()).anyMatch(n -> n.getTestDistribution() != INTEG_TEST)
-            );
+        this.getOutputs().doNotCacheIf("Build cache is only enabled for tests against clusters using the 'integ-test' distribution",
+            task -> clusters.stream().flatMap(c -> c.getNodes().stream()).anyMatch(n -> n.getTestDistribution() != INTEG_TEST));
     }
 
     @Override

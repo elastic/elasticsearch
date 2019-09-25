@@ -87,8 +87,7 @@ public class Jdk implements Buildable, Iterable<File> {
     public void setPlatform(String platform) {
         if (ALLOWED_PLATFORMS.contains(platform) == false) {
             throw new IllegalArgumentException(
-                "unknown platform [" + platform + "] for jdk [" + name + "], must be one of " + ALLOWED_PLATFORMS
-            );
+                "unknown platform [" + platform + "] for jdk [" + name + "], must be one of " + ALLOWED_PLATFORMS);
         }
         this.platform.set(platform);
     }
@@ -125,8 +124,7 @@ public class Jdk implements Buildable, Iterable<File> {
         }
         version.finalizeValue();
         platform.finalizeValue();
-        vendor.finalizeValue();
-        ;
+        vendor.finalizeValue();;
     }
 
     @Override

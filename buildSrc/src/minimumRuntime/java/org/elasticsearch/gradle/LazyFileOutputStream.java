@@ -37,13 +37,11 @@ class LazyFileOutputStream extends OutputStream {
                 file.getParentFile().mkdirs();
                 delegate = new FileOutputStream(file);
             }
-
             @Override
             public void write(int b) throws IOException {
                 bootstrap();
                 delegate.write(b);
             }
-
             @Override
             public void write(byte b[], int off, int len) throws IOException {
                 bootstrap();

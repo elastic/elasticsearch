@@ -10,5 +10,5 @@ import org.junit.runner.RunWith;
     JUnit4MethodProvider.class,
     JUnit3MethodProvider.class
 })
-public abstract class GradleUnitTestCase extends BaseTestCase {
+public abstract class GradleUnitTestCase extends BaseTestCase  {
 }

@@ -271,8 +271,7 @@ public class DependencyLicensesTask extends DefaultTask {
             throw new GradleException(
                 "SHA has changed! Expected " + expectedSha + " for " + jarName + " but got " + sha + ". " +
                     "\nThis usually indicates a corrupt dependency cache or artifacts changed upstream." +
-                    "\nEither wipe your cache, fix the upstream artifact, or delete " + shaFile + " and run updateShas"
-            );
+                    "\nEither wipe your cache, fix the upstream artifact, or delete " + shaFile + " and run updateShas");
         }
         shaFiles.remove(shaFile);
     }
@@ -319,7 +318,7 @@ public class DependencyLicensesTask extends DefaultTask {
     }
 
     String getSha1(File file) throws IOException, NoSuchAlgorithmException {
-        byte[] bytes = Files.readAllBytes(file.toPath());
+        byte[] bytes =  Files.readAllBytes(file.toPath());
 
         MessageDigest digest = MessageDigest.getInstance("SHA-1");
         char[] encoded = Hex.encodeHex(digest.digest(bytes));

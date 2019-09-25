@@ -104,23 +104,19 @@ public class VagrantMachine {
             return;
         }
 
-        execute(
-            spec -> {
-                spec.setCommand("box");
-                spec.setSubcommand("update");
-            }
-        );
+        execute(spec -> {
+            spec.setCommand("box");
+            spec.setSubcommand("update");
+        });
 
         // Destroying before every execution can be annoying while iterating on tests locally. Therefore, we provide a flag that defaults
         // to true that can be used to control whether or not to destroy any test boxes before test execution.
         boolean destroyVM = Util.getBooleanProperty("vagrant.destroy", true);
         if (destroyVM) {
-            execute(
-                spec -> {
-                    spec.setCommand("destroy");
-                    spec.setArgs("--force");
-                }
-            );
+            execute(spec -> {
+                spec.setCommand("destroy");
+                spec.setArgs("--force");
+            });
         }
 
         // register box to be shutdown if gradle dies
@@ -128,12 +124,10 @@ public class VagrantMachine {
 
         // We lock the provider to virtualbox because the Vagrantfile specifies lots of boxes that only work
         // properly in virtualbox. Virtualbox is vagrant's default but its possible to change that default and folks do.
-        execute(
-            spec -> {
-                spec.setCommand("up");
-                spec.setArgs("--provision", "--provider", "virtualbox");
-            }
-        );
+        execute(spec -> {
+            spec.setCommand("up");
+            spec.setArgs("--provision", "--provider", "virtualbox");
+        });
         isVMStarted = true;
     }
 

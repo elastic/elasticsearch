@@ -160,26 +160,20 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
 
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile.getAsFile().get()))) {
             writer.write("  Gradle Version        : " + getProject().getGradle().getGradleVersion() + "\n");
-            writer.write(
-                "  OS Info               : " + System.getProperty("os.name") + " " + System.getProperty("os.version")
-                    + " (" + System.getProperty("os.arch") + ")\n"
-            );
+            writer.write("  OS Info               : " + System.getProperty("os.name") + " " + System.getProperty("os.version")
+                + " (" + System.getProperty("os.arch") + ")\n");
             if (gradleJavaVersionDetails.equals(compilerJavaVersionDetails) == false
                 || gradleJavaVersionDetails.equals(runtimeJavaVersionDetails) == false) {
                 writer.write("  Compiler JDK Version  : " + compilerJavaVersionEnum + " (" + compilerJavaVersionDetails + ")\n");
                 writer.write("  Compiler java.home    : " + compilerJavaHome + "\n");
                 writer.write("  Runtime JDK Version   : " + runtimeJavaVersionEnum + " (" + runtimeJavaVersionDetails + ")\n");
                 writer.write("  Runtime java.home     : " + runtimeJavaHome + "\n");
-                writer.write(
-                    "  Gradle JDK Version    : " + JavaVersion.toVersion(gradleJavaVersion)
-                        + " (" + gradleJavaVersionDetails + ")\n"
-                );
+                writer.write("  Gradle JDK Version    : " + JavaVersion.toVersion(gradleJavaVersion)
+                    + " (" + gradleJavaVersionDetails + ")\n");
                 writer.write("  Gradle java.home      : " + gradleJavaHome);
             } else {
-                writer.write(
-                    "  JDK Version           : " + JavaVersion.toVersion(gradleJavaVersion)
-                        + " (" + gradleJavaVersionDetails + ")\n"
-                );
+                writer.write("  JDK Version           : " + JavaVersion.toVersion(gradleJavaVersion)
+                    + " (" + gradleJavaVersionDetails + ")\n");
                 writer.write("  JAVA_HOME             : " + gradleJavaHome);
             }
         } catch (IOException e) {

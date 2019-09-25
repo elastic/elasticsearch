@@ -43,33 +43,16 @@ public class DistributionDownloadPluginIT extends GradleIntegrationTestCase {
 
     public void testCurrent() throws Exception {
         String projectName = ":distribution:archives:linux-tar";
-        assertExtractedDistro(
-            VersionProperties.getElasticsearch(),
-            "archive",
-            "linux",
-            null,
-            null,
-            "tests.local_distro.config",
-            "default",
-            "tests.local_distro.project",
-            projectName
-        );
+        assertExtractedDistro(VersionProperties.getElasticsearch(), "archive", "linux", null, null,
+            "tests.local_distro.config", "default",
+            "tests.local_distro.project", projectName);
     }
 
     public void testBwc() throws Exception {
-        assertExtractedDistro(
-            "1.1.0",
-            "archive",
-            "linux",
-            null,
-            null,
-            "tests.local_distro.config",
-            "linux-tar",
-            "tests.local_distro.project",
-            ":distribution:bwc:minor",
-            "tests.current_version",
-            "2.0.0"
-        );
+        assertExtractedDistro("1.1.0", "archive", "linux", null, null,
+            "tests.local_distro.config", "linux-tar",
+            "tests.local_distro.project", ":distribution:bwc:minor",
+            "tests.current_version", "2.0.0");
     }
 
     public void testReleased() throws Exception {
@@ -77,7 +60,7 @@ public class DistributionDownloadPluginIT extends GradleIntegrationTestCase {
         try {
             final byte[] filebytes;
             try (InputStream stream =
-                Files.newInputStream(Paths.get("src/testKit/distribution-download/distribution/files/fake_elasticsearch.zip"))) {
+                     Files.newInputStream(Paths.get("src/testKit/distribution-download/distribution/files/fake_elasticsearch.zip"))) {
                 filebytes = stream.readAllBytes();
             }
             String urlPath = "/downloads/elasticsearch/elasticsearch-1.0.0-windows-x86_64.zip";
@@ -85,15 +68,8 @@ public class DistributionDownloadPluginIT extends GradleIntegrationTestCase {
             wireMock.stubFor(get(urlEqualTo(urlPath)).willReturn(aResponse().withStatus(200).withBody(filebytes)));
             wireMock.start();
 
-            assertExtractedDistro(
-                "1.0.0",
-                "archive",
-                "windows",
-                null,
-                null,
-                "tests.download_service",
-                wireMock.baseUrl()
-            );
+            assertExtractedDistro("1.0.0", "archive", "windows", null, null,
+                "tests.download_service", wireMock.baseUrl());
         } catch (Exception e) {
             // for debugging
             System.err.println("missed requests: " + wireMock.findUnmatchedRequests().getRequests());
@@ -103,28 +79,16 @@ public class DistributionDownloadPluginIT extends GradleIntegrationTestCase {
         }
     }
 
-    private void assertFileDistro(
-        String version,
-        String type,
-        String platform,
-        String flavor,
-        Boolean bundledJdk,
-        String... sysProps
-    ) throws IOException {
+    private void assertFileDistro(String version, String type, String platform, String flavor, Boolean bundledJdk,
+                                  String... sysProps) throws IOException {
         List<String> finalSysProps = new ArrayList<>();
         addDistroSysProps(finalSysProps, version, type, platform, flavor, bundledJdk);
         finalSysProps.addAll(Arrays.asList(sysProps));
         runBuild(":subproj:assertDistroFile", finalSysProps.toArray(new String[0]));
     }
 
-    private void assertExtractedDistro(
-        String version,
-        String type,
-        String platform,
-        String flavor,
-        Boolean bundledJdk,
-        String... sysProps
-    ) throws IOException {
+    private void assertExtractedDistro(String version, String type, String platform, String flavor, Boolean bundledJdk,
+                                       String... sysProps) throws IOException {
         List<String> finalSysProps = new ArrayList<>();
         addDistroSysProps(finalSysProps, version, type, platform, flavor, bundledJdk);
         finalSysProps.addAll(Arrays.asList(sysProps));

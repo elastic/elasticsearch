@@ -48,7 +48,7 @@ public class JdkJarHellCheck {
                         detected.add(
                             entry
                                 .replace("/", ".")
-                                .replace(".class", "")
+                                .replace(".class","")
                         );
                     }
                 }

@@ -84,9 +84,8 @@ public class ExportElasticsearchBuildResourcesTask extends DefaultTask {
 
     public File copy(String resource) {
         if (getState().getExecuted() || getState().getExecuting()) {
-            throw new GradleException(
-                "buildResources can't be configured after the task ran. " +
-                    "Make sure task is not used after configuration time"
+            throw new GradleException("buildResources can't be configured after the task ran. " +
+                "Make sure task is not used after configuration time"
             );
         }
         resources.add(resource);
@@ -98,8 +97,7 @@ public class ExportElasticsearchBuildResourcesTask extends DefaultTask {
         if (resources.isEmpty()) {
             throw new StopExecutionException();
         }
-        resources.stream()
-            .parallel()
+        resources.stream().parallel()
             .forEach(resourcePath -> {
                 Path destination = outputDir.get().file(resourcePath).getAsFile().toPath();
                 try (InputStream is = getClass().getClassLoader().getResourceAsStream(resourcePath)) {

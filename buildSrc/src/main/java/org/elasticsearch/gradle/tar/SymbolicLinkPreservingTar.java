@@ -79,8 +79,7 @@ public class SymbolicLinkPreservingTar extends Tar {
         SymbolicLinkPreservingTarCopyAction(
             final Provider<RegularFile> tarFile,
             final ArchiveOutputStreamFactory compressor,
-            final boolean isPreserveFileTimestamps
-        ) {
+            final boolean isPreserveFileTimestamps) {
             this.tarFile = tarFile;
             this.compressor = compressor;
             this.isPreserveFileTimestamps = isPreserveFileTimestamps;
@@ -137,8 +136,7 @@ public class SymbolicLinkPreservingTar extends Tar {
                     return false;
                 }
                 for (final File symbolicLink : visitedSymbolicLinks) {
-                    if (isChildOf(symbolicLink, file))
-                        return true;
+                    if (isChildOf(symbolicLink, file)) return true;
                 }
                 return false;
             }

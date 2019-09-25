@@ -33,6 +33,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+
 public interface TestClusterConfiguration {
 
     void setVersion(String version);
@@ -110,8 +111,7 @@ public interface TestClusterConfiguration {
     default void waitForConditions(
         LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions,
         long startedAtMillis,
-        long nodeUpTimeout,
-        TimeUnit nodeUpTimeoutUnit,
+        long nodeUpTimeout, TimeUnit nodeUpTimeoutUnit,
         TestClusterConfiguration context
     ) {
         Logger logger = Logging.getLogger(TestClusterConfiguration.class);
@@ -119,7 +119,9 @@ public interface TestClusterConfiguration {
             long thisConditionStartedAt = System.currentTimeMillis();
             boolean conditionMet = false;
             Throwable lastException = null;
-            while (System.currentTimeMillis() - startedAtMillis < TimeUnit.MILLISECONDS.convert(nodeUpTimeout, nodeUpTimeoutUnit)) {
+            while (
+                System.currentTimeMillis() - startedAtMillis < TimeUnit.MILLISECONDS.convert(nodeUpTimeout, nodeUpTimeoutUnit)
+            ) {
                 if (context.isProcessAlive() == false) {
                     throw new TestClustersException(
                         "process was found dead while waiting for " + description + ", " + this
@@ -127,7 +129,7 @@ public interface TestClusterConfiguration {
                 }
 
                 try {
-                    if (predicate.test(context)) {
+                    if(predicate.test(context)) {
                         conditionMet = true;
                         break;
                     }
@@ -158,8 +160,7 @@ public interface TestClusterConfiguration {
             }
             logger.info(
                 "{}: {} took {} seconds",
-                this,
-                description,
+                this,  description,
                 (System.currentTimeMillis() - thisConditionStartedAt) / 1000.0
             );
         });

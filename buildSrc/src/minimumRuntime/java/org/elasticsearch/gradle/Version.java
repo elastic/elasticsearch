@@ -14,7 +14,7 @@ public final class Version implements Comparable<Version> {
     private final int id;
 
     private static final Pattern pattern =
-        Pattern.compile("(\\d)+\\.(\\d+)\\.(\\d+)(-alpha\\d+|-beta\\d+|-rc\\d+)?(-SNAPSHOT)?");
+            Pattern.compile("(\\d)+\\.(\\d+)\\.(\\d+)(-alpha\\d+|-beta\\d+|-rc\\d+)?(-SNAPSHOT)?");
 
     public Version(int major, int minor, int revision) {
         Objects.requireNonNull(major, "major version can't be null");
@@ -45,9 +45,9 @@ public final class Version implements Comparable<Version> {
         }
 
         return new Version(
-            Integer.parseInt(matcher.group(1)),
-            parseSuffixNumber(matcher.group(2)),
-            parseSuffixNumber(matcher.group(3))
+                Integer.parseInt(matcher.group(1)),
+                parseSuffixNumber(matcher.group(2)),
+                parseSuffixNumber(matcher.group(3))
         );
     }
 
@@ -90,14 +90,12 @@ public final class Version implements Comparable<Version> {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         Version version = (Version) o;
         return major == version.major &&
-            minor == version.minor &&
-            revision == version.revision;
+                minor == version.minor &&
+                revision == version.revision;
     }
 
     @Override

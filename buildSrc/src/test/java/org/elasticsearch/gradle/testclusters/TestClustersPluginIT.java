@@ -24,6 +24,7 @@ import org.gradle.testkit.runner.GradleRunner;
 import org.junit.Before;
 import org.junit.Ignore;
 
+
 import java.util.Arrays;
 
 @Ignore("https://github.com/elastic/elasticsearch/issues/42453")
@@ -94,22 +95,12 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
     @Ignore // https://github.com/elastic/elasticsearch/issues/41256
     public void testMultiProject() {
         BuildResult result = getTestClustersRunner(
-            "user1",
-            "user2",
-            "-s",
-            "-i",
-            "--parallel",
-            "-Dlocal.repo.path=" + getLocalTestRepoPath()
+            "user1", "user2", "-s", "-i", "--parallel", "-Dlocal.repo.path=" + getLocalTestRepoPath()
         ).build();
 
         assertTaskSuccessful(
             result,
-            ":user1",
-            ":user2",
-            ":alpha:user1",
-            ":alpha:user2",
-            ":bravo:user1",
-            ":bravo:user2"
+            ":user1", ":user2", ":alpha:user1", ":alpha:user2", ":bravo:user1", ":bravo:user2"
         );
         assertStartedAndStoppedOnce(result);
         assertOutputOnlyOnce(
@@ -223,5 +214,6 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
     private void assertStartedAndStoppedOnce(BuildResult result) {
         assertStartedAndStoppedOnce(result, "myTestCluster-0");
     }
+
 
 }

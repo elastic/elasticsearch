@@ -53,22 +53,18 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             }
         }
 
-        GenerateGlobalBuildInfoTask generateTask = project.getTasks()
-            .create(
-                "generateGlobalBuildInfo",
-                GenerateGlobalBuildInfoTask.class,
-                task -> {
-                    task.setJavaVersions(javaVersions);
-                    task.setMinimumCompilerVersion(minimumCompilerVersion);
-                    task.setMinimumRuntimeVersion(minimumRuntimeVersion);
-                    task.setCompilerJavaHome(compilerJavaHome);
-                    task.setRuntimeJavaHome(runtimeJavaHome);
-                    task.getOutputFile().set(new File(project.getBuildDir(), "global-build-info"));
-                    task.getCompilerVersionFile().set(new File(project.getBuildDir(), "java-compiler-version"));
-                    task.getRuntimeVersionFile().set(new File(project.getBuildDir(), "java-runtime-version"));
-                    task.getFipsJvmFile().set(new File(project.getBuildDir(), "in-fips-jvm"));
-                }
-            );
+        GenerateGlobalBuildInfoTask generateTask = project.getTasks().create("generateGlobalBuildInfo",
+            GenerateGlobalBuildInfoTask.class, task -> {
+                task.setJavaVersions(javaVersions);
+                task.setMinimumCompilerVersion(minimumCompilerVersion);
+                task.setMinimumRuntimeVersion(minimumRuntimeVersion);
+                task.setCompilerJavaHome(compilerJavaHome);
+                task.setRuntimeJavaHome(runtimeJavaHome);
+                task.getOutputFile().set(new File(project.getBuildDir(), "global-build-info"));
+                task.getCompilerVersionFile().set(new File(project.getBuildDir(), "java-compiler-version"));
+                task.getRuntimeVersionFile().set(new File(project.getBuildDir(), "java-runtime-version"));
+                task.getFipsJvmFile().set(new File(project.getBuildDir(), "in-fips-jvm"));
+            });
 
         PrintGlobalBuildInfoTask printTask = project.getTasks().create("printGlobalBuildInfo", PrintGlobalBuildInfoTask.class, task -> {
             task.getBuildInfoFile().set(generateTask.getOutputFile());
@@ -179,7 +175,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
                             if (name.equals("physical id")) {
                                 currentID = value;
                             }
-                            // Number of cores not including hyper-threading
+                            // Number  of cores not including hyper-threading
                             if (name.equals("cpu cores")) {
                                 assert currentID.isEmpty() == false;
                                 socketToCore.put("currentID", Integer.valueOf(value));
@@ -194,13 +190,11 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             } else if (OS.current() == OS.MAC) {
                 // Ask macOS to count physical CPUs for us
                 ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-                project.exec(
-                    spec -> {
-                        spec.setExecutable("sysctl");
-                        spec.args("-n", "hw.physicalcpu");
-                        spec.setStandardOutput(stdout);
-                    }
-                );
+                project.exec(spec -> {
+                    spec.setExecutable("sysctl");
+                    spec.args("-n", "hw.physicalcpu");
+                    spec.setStandardOutput(stdout);
+                });
 
                 _defaultParallel = Integer.parseInt(stdout.toString().trim());
             }

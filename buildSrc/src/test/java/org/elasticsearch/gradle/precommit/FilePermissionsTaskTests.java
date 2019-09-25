@@ -55,6 +55,7 @@ public class FilePermissionsTaskTests extends GradleUnitTestCase {
         file.delete();
     }
 
+
     public void testCheckPermissionsWhenNoFileExists() throws Exception {
         RandomizedTest.assumeFalse("Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
 

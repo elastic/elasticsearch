@@ -67,7 +67,6 @@ public class TestingConventionRule implements Serializable {
     public void taskName(Pattern expression) {
         taskNames.add(expression);
     }
-
     public void taskName(String expression) {
         taskNames.add(Pattern.compile(expression));
     }
@@ -87,10 +86,8 @@ public class TestingConventionRule implements Serializable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         TestingConventionRule that = (TestingConventionRule) o;
         return Objects.equals(suffix, that.suffix);
     }

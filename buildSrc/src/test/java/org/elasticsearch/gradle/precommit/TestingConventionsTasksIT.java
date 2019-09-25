@@ -26,14 +26,14 @@ import org.junit.Before;
 public class TestingConventionsTasksIT extends GradleIntegrationTestCase {
 
     @Before
-    public void setUp() {}
+    public void setUp() {
+    }
 
     public void testInnerClasses() {
         GradleRunner runner = getGradleRunner("testingConventions")
             .withArguments("clean", ":no_tests_in_inner_classes:testingConventions", "-i", "-s");
         BuildResult result = runner.buildAndFail();
-        assertOutputContains(
-            result.getOutput(),
+        assertOutputContains(result.getOutput(),
             "Test classes implemented by inner classes will not run:",
             "  * org.elasticsearch.gradle.testkit.NastyInnerClasses$LooksLikeATestWithoutNamingConvention1",
             "  * org.elasticsearch.gradle.testkit.NastyInnerClasses$LooksLikeATestWithoutNamingConvention2",
@@ -47,8 +47,7 @@ public class TestingConventionsTasksIT extends GradleIntegrationTestCase {
         GradleRunner runner = getGradleRunner("testingConventions")
             .withArguments("clean", ":incorrect_naming_conventions:testingConventions", "-i", "-s");
         BuildResult result = runner.buildAndFail();
-        assertOutputContains(
-            result.getOutput(),
+        assertOutputContains(result.getOutput(),
             "Seem like test classes but don't match naming convention:",
             "  * org.elasticsearch.gradle.testkit.LooksLikeATestWithoutNamingConvention1",
             "  * org.elasticsearch.gradle.testkit.LooksLikeATestWithoutNamingConvention2",
@@ -61,8 +60,7 @@ public class TestingConventionsTasksIT extends GradleIntegrationTestCase {
         GradleRunner runner = getGradleRunner("testingConventions")
             .withArguments("clean", ":empty_test_task:testingConventions", "-i", "-s");
         BuildResult result = runner.buildAndFail();
-        assertOutputContains(
-            result.getOutput(),
+        assertOutputContains(result.getOutput(),
             "Expected at least one test class included in task :empty_test_task:emptyTest, but found none.",
             "Expected at least one test class included in task :empty_test_task:test, but found none."
         );
@@ -72,8 +70,7 @@ public class TestingConventionsTasksIT extends GradleIntegrationTestCase {
         GradleRunner runner = getGradleRunner("testingConventions")
             .withArguments("clean", ":all_classes_in_tasks:testingConventions", "-i", "-s");
         BuildResult result = runner.buildAndFail();
-        assertOutputContains(
-            result.getOutput(),
+        assertOutputContains(result.getOutput(),
             "Test classes are not included in any enabled task (:all_classes_in_tasks:test):",
             "  * org.elasticsearch.gradle.testkit.NamingConventionIT"
         );
@@ -83,14 +80,13 @@ public class TestingConventionsTasksIT extends GradleIntegrationTestCase {
         GradleRunner runner = getGradleRunner("testingConventions")
             .withArguments("clean", ":not_implementing_base:testingConventions", "-i", "-s");
         BuildResult result = runner.buildAndFail();
-        assertOutputContains(
-            result.getOutput(),
+        assertOutputContains(result.getOutput(),
             "Tests classes with suffix `IT` should extend org.elasticsearch.gradle.testkit.Integration but the following classes do not:",
-            "  * org.elasticsearch.gradle.testkit.NamingConventionIT",
-            "  * org.elasticsearch.gradle.testkit.NamingConventionMissmatchIT",
-            "Tests classes with suffix `Tests` should extend org.elasticsearch.gradle.testkit.Unit but the following classes do not:",
-            "  * org.elasticsearch.gradle.testkit.NamingConventionMissmatchTests",
-            "  * org.elasticsearch.gradle.testkit.NamingConventionTests"
+                "  * org.elasticsearch.gradle.testkit.NamingConventionIT",
+                "  * org.elasticsearch.gradle.testkit.NamingConventionMissmatchIT",
+                "Tests classes with suffix `Tests` should extend org.elasticsearch.gradle.testkit.Unit but the following classes do not:",
+                "  * org.elasticsearch.gradle.testkit.NamingConventionMissmatchTests",
+                "  * org.elasticsearch.gradle.testkit.NamingConventionTests"
         );
     }
 
@@ -112,11 +108,10 @@ public class TestingConventionsTasksIT extends GradleIntegrationTestCase {
         GradleRunner runner = getGradleRunner("testingConventions")
             .withArguments("clean", ":tests_in_main:testingConventions", "-i", "-s");
         BuildResult result = runner.buildAndFail();
-        assertOutputContains(
-            result.getOutput(),
-            "Classes matching the test naming convention should be in test not main:",
-            "  * NamingConventionIT",
-            "  * NamingConventionTests"
+        assertOutputContains(result.getOutput(),
+          "Classes matching the test naming convention should be in test not main:",
+              "  * NamingConventionIT",
+              "  * NamingConventionTests"
         );
     }
 

@@ -39,7 +39,6 @@ public abstract class BaseTestCase extends Assert {
     public interface ThrowingRunnable {
         void run() throws Throwable;
     }
-
     public static <T extends Throwable> T expectThrows(Class<T> expectedType, ThrowingRunnable runnable) {
         try {
             runnable.run();
@@ -52,6 +51,6 @@ public abstract class BaseTestCase extends Assert {
             assertion.initCause(e);
             throw assertion;
         }
-        throw new AssertionFailedError("Expected exception " + expectedType.getSimpleName() + " but no exception was thrown");
+        throw new AssertionFailedError("Expected exception "+ expectedType.getSimpleName() + " but no exception was thrown");
     }
 }

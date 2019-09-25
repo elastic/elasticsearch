@@ -124,7 +124,7 @@ the source index will be used for the target index.
 [[monitor-cloning]]
 ===== Monitor the cloning process
 
-The clone process can be monitored with the <<cat-recovery,`_cat recovery`
+The cloning process can be monitored with the <<cat-recovery,`_cat recovery`
 API>>, or the <<cluster-health, `cluster health` API>> can be used to wait
 until all primary shards have been allocated by setting the  `wait_for_status`
 parameter to `yellow`.

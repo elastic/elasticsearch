@@ -1,7 +1,10 @@
 [role="xpack"]
-[[dataframe-limitations]]
-== {dataframe-transform-cap} limitations
+[[transform-limitations]]
+=== {transform-cap} limitations
 [subs="attributes"]
+++++
+<titleabbrev>Limitations</titleabbrev>
+++++
 
 beta[]
 
@@ -9,21 +12,21 @@ The following limitations and known problems apply to the 7.2 release of
 the Elastic {dataframe} feature:
 
 [float]
-[[df-datatype-limitations]]
+[[transform-datatype-limitations]]
 === {dataframe-cap} data type limitation
 
 {dataframes-cap} do not (yet) support fields containing arrays – in the UI or 
 the API. If you try to create one, the UI will fail to show the source index table.
 
 [float]
-[[df-ccs-limitations]]
+[[transform-ccs-limitations]]
 === {ccs-cap} limitation
 
 {ccs-cap} is not supported in 7.2 for {transforms}.
 
 [float]
-[[df-kibana-limitations]]
-=== {kib} only displays up to 100 {dataframe-transforms}
+[[transform-kibana-limitations]]
+=== {kib} only displays up to 100 {transforms}
 
 The {kib} *Machine Learning* > *Data Frames* page lists up to 100 
 {transforms}. You can work-around this limitation by calling the 
@@ -31,7 +34,7 @@ The {kib} *Machine Learning* > *Data Frames* page lists up to 100
 with the `size` parameter.
 
 [float]
-[[df-dateformat-limitations]]
+[[transform-dateformat-limitations]]
 === Date histogram limitation
 
 If you use a {ref}/search-aggregations-bucket-datehistogram-aggregation.html[date 
@@ -67,7 +70,7 @@ the {transform}. For example:
 // NOTCONSOLE
 
 [float]
-[[df-aggresponse-limitations]]
+[[transform-aggresponse-limitations]]
 === Aggregation responses may be incompatible with destination index mappings
 
 {dataframes-cap} use composite aggregations to transform data. In some cases, 

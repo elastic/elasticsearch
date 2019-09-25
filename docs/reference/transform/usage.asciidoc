@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
-[[ml-transforms-usage]]
-== When to use {transforms}
+[[transform-usage]]
+=== When to use {transforms}
 
 beta[]
 

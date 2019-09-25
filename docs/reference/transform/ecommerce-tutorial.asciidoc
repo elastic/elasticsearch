@@ -1,11 +1,11 @@
 [role="xpack"]
 [testenv="basic"]
-[[ecommerce-dataframes]]
-=== Transforming the eCommerce sample data
+[[ecommerce-transforms]]
+=== Tutorial: Transforming the eCommerce sample data
 
 beta[]
 
-<<ml-dataframes,{transforms-cap}>> enable you to retrieve information
+<<transforms,{transforms-cap}>> enable you to retrieve information
 from an {es} index, transform it, and store it in another index. Let's use the
 {kibana-ref}/add-sample-data.html[{kib} sample data] to demonstrate how you can
 pivot and summarize your data with {transforms}.
@@ -23,7 +23,9 @@ You also need `read` and `view_index_metadata` index privileges on the source
 index and `read`, `create_index`, and `index` privileges on the destination
 index. 
 
-For more information, see <<security-privileges>> and <<built-in-roles>>.
+For more information, see
+{stack-ov}/security-privileges.html[Security privileges] and
+{stack-ov}/built-in-roles.html[Built-in roles].
 --
 
 . Choose your _source index_.

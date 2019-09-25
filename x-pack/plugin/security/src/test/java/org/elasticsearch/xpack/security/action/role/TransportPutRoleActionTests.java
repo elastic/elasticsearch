@@ -218,7 +218,7 @@ public class TransportPutRoleActionTests extends ESTestCase {
         assertThat(t, instanceOf(ElasticsearchParseException.class));
         assertThat(t.getMessage(), containsString("failed to parse field 'query' for indices [" +
             Strings.arrayToCommaDelimitedString(new String[]{"idx1"}) +
-            "] at [0]th index privilege from role descriptor"));
+            "] at index privilege [0] of role descriptor"));
     }
 
     public void testCreationOfRoleWithUnsupportedQueryFails() throws Exception {
@@ -254,6 +254,6 @@ public class TransportPutRoleActionTests extends ESTestCase {
         assertThat(t, instanceOf(ElasticsearchParseException.class));
         assertThat(t.getMessage(), containsString("failed to parse field 'query' for indices [" +
             Strings.arrayToCommaDelimitedString(new String[]{"idx1"}) +
-            "] at [0]th index privilege from role descriptor"));
+            "] at index privilege [0] of role descriptor"));
     }
 }

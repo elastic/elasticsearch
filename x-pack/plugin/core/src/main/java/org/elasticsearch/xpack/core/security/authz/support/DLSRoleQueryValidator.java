@@ -65,7 +65,7 @@ public final class DLSRoleQueryValidator {
                 } catch (ParsingException | IllegalArgumentException |  IOException e) {
                     throw new ElasticsearchParseException("failed to parse field 'query' for indices [" +
                         Strings.arrayToCommaDelimitedString(indicesPrivileges[i].getIndices()) +
-                        "] at [" + i + "]th index privilege from role descriptor", e);
+                        "] at index privilege [" + i + "] of role descriptor", e);
                 }
             }
         }

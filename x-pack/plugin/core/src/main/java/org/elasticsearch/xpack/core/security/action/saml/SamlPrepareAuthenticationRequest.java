@@ -83,7 +83,7 @@ public final class SamlPrepareAuthenticationRequest extends ActionRequest {
         super.writeTo(out);
         out.writeOptionalString(realmName);
         out.writeOptionalString(assertionConsumerServiceURL);
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)){
+        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
             out.writeOptionalString(relayState);
         }
     }

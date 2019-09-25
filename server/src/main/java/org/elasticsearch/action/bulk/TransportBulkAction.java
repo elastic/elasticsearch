@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.Assertions;
@@ -57,6 +59,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -82,6 +85,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -644,14 +648,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     }
 
     void processBulkIndexIngestRequest(Task task, BulkRequest original, ActionListener<BulkResponse> listener) {
-        long ingestStartTimeInNanos = System.nanoTime();
-        BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
-        ingestService.executeBulkRequest(() -> bulkRequestModifier,
-            (indexRequest, exception) -> {
-                logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}/{}]",
-                    indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id()), exception);
-                bulkRequestModifier.markCurrentItemAsFailed(exception);
-            }, (exception) -> {
+        final long ingestStartTimeInNanos = System.nanoTime();
+        final BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
+        ingestService.executeBulkRequest(
+            original.numberOfActions(),
+            () -> bulkRequestModifier,
+            bulkRequestModifier::markItemAsFailed,
+            (originalThread, exception) -> {
                 if (exception != null) {
                     logger.error("failed to execute pipeline for a bulk request", exception);
                     listener.onFailure(exception);
@@ -666,26 +669,56 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         // (this will happen if pre-processing all items in the bulk failed)
                         actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));
                     } else {
-                        doExecute(task, bulkRequest, actionListener);
+                        // If a processor went async and returned a response on a different thread then
+                        // before we continue the bulk request we should fork back on a write thread:
+                        if (originalThread == Thread.currentThread()) {
+                            assert Thread.currentThread().getName().contains(ThreadPool.Names.WRITE);
+                            doExecute(task, bulkRequest, actionListener);
+                        } else {
+                            threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
+                                @Override
+                                public void onFailure(Exception e) {
+                                    listener.onFailure(e);
+                                }
+
+                                @Override
+                                protected void doRun() throws Exception {
+                                    doExecute(task, bulkRequest, actionListener);
+                                }
+
+                                @Override
+                                public boolean isForceExecution() {
+                                    // If we fork back to a write thread we **not** should fail, because tp queue is full.
+                                    // (Otherwise the work done during ingest will be lost)
+                                    // It is okay to force execution here. Throttling of write requests happens prior to
+                                    // ingest when a node receives a bulk request.
+                                    return true;
+                                }
+                            });
+                        }
                     }
                 }
             },
-            indexRequest -> bulkRequestModifier.markCurrentItemAsDropped());
+            bulkRequestModifier::markItemAsDropped
+        );
     }
 
     static final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
 
+        private static final Logger LOGGER = LogManager.getLogger(BulkRequestModifier.class);
+
         final BulkRequest bulkRequest;
         final SparseFixedBitSet failedSlots;
         final List<BulkItemResponse> itemResponses;
+        final AtomicIntegerArray originalSlots;
 
-        int currentSlot = -1;
-        int[] originalSlots;
+        volatile int currentSlot = -1;
 
         BulkRequestModifier(BulkRequest bulkRequest) {
             this.bulkRequest = bulkRequest;
             this.failedSlots = new SparseFixedBitSet(bulkRequest.requests().size());
             this.itemResponses = new ArrayList<>(bulkRequest.requests().size());
+            this.originalSlots = new AtomicIntegerArray(bulkRequest.requests().size()); // oversize, but that's ok
         }
 
         @Override
@@ -709,12 +742,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                 int slot = 0;
                 List<DocWriteRequest<?>> requests = bulkRequest.requests();
-                originalSlots = new int[requests.size()]; // oversize, but that's ok
                 for (int i = 0; i < requests.size(); i++) {
                     DocWriteRequest<?> request = requests.get(i);
                     if (failedSlots.get(i) == false) {
                         modifiedBulkRequest.add(request);
-                        originalSlots[slot++] = i;
+                        originalSlots.set(slot++, i);
                     }
                 }
                 return modifiedBulkRequest;
@@ -729,7 +761,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 return ActionListener.delegateFailure(actionListener, (delegatedListener, response) -> {
                     BulkItemResponse[] items = response.getItems();
                     for (int i = 0; i < items.length; i++) {
-                        itemResponses.add(originalSlots[i], response.getItems()[i]);
+                        itemResponses.add(originalSlots.get(i), response.getItems()[i]);
                     }
                     delegatedListener.onResponse(
                         new BulkResponse(
@@ -738,12 +770,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
         }
 
-        void markCurrentItemAsDropped() {
-            IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(currentSlot));
-            failedSlots.set(currentSlot);
+        synchronized void markItemAsDropped(int slot) {
+            IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
+            failedSlots.set(slot);
             final String id = indexRequest.id() == null ? DROPPED_ITEM_WITH_AUTO_GENERATED_ID : indexRequest.id();
             itemResponses.add(
-                new BulkItemResponse(currentSlot, indexRequest.opType(),
+                new BulkItemResponse(slot, indexRequest.opType(),
                     new UpdateResponse(
                         new ShardId(indexRequest.index(), IndexMetaData.INDEX_UUID_NA_VALUE, 0),
                         indexRequest.type(), id, SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
@@ -753,16 +785,19 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             );
         }
 
-        void markCurrentItemAsFailed(Exception e) {
-            IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(currentSlot));
+        synchronized void markItemAsFailed(int slot, Exception e) {
+            IndexRequest indexRequest = getIndexWriteRequest(bulkRequest.requests().get(slot));
+            LOGGER.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}/{}]",
+                indexRequest.getPipeline(), indexRequest.index(), indexRequest.type(), indexRequest.id()), e);
+
             // We hit a error during preprocessing a request, so we:
             // 1) Remember the request item slot from the bulk, so that we're done processing all requests we know what failed
             // 2) Add a bulk item failure for this request
             // 3) Continue with the next request in the bulk.
-            failedSlots.set(currentSlot);
+            failedSlots.set(slot);
             BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(),
                 indexRequest.id(), e);
-            itemResponses.add(new BulkItemResponse(currentSlot, indexRequest.opType(), failure));
+            itemResponses.add(new BulkItemResponse(slot, indexRequest.opType(), failure));
         }
 
     }

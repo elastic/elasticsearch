@@ -16,21 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml.inference.trainedmodel;
+package org.elasticsearch.client.ml.inference.trainedmodel.ensemble;
 
 import org.elasticsearch.client.ml.inference.NamedXContentObject;
 
-import java.util.List;
-
-public interface TrainedModel extends NamedXContentObject {
-
+public interface OutputAggregator extends NamedXContentObject {
     /**
-     * @return List of featureNames expected by the model. In the order that they are expected
-     */
-    List<String> getFeatureNames();
-
-    /**
-     * @return The name of the model
+     * @return The name of the output aggregator
      */
     String getName();
 }

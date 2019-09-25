@@ -18,19 +18,18 @@
  */
 package org.elasticsearch.client.ml.inference.trainedmodel;
 
-import org.elasticsearch.client.ml.inference.NamedXContentObject;
+import java.util.Locale;
 
-import java.util.List;
+public enum TargetType {
 
-public interface TrainedModel extends NamedXContentObject {
+    REGRESSION, CLASSIFICATION;
 
-    /**
-     * @return List of featureNames expected by the model. In the order that they are expected
-     */
-    List<String> getFeatureNames();
+    public static TargetType fromString(String name) {
+        return valueOf(name.trim().toUpperCase(Locale.ROOT));
+    }
 
-    /**
-     * @return The name of the model
-     */
-    String getName();
+    @Override
+    public String toString() {
+        return name().toLowerCase(Locale.ROOT);
+    }
 }

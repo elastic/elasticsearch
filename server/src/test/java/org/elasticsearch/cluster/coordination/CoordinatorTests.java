@@ -586,6 +586,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final ClusterNode follower0 = cluster.getAnyNodeExcept(leader);
             final ClusterNode follower1 = cluster.getAnyNodeExcept(leader, follower0);
 
+            follower0.allowClusterStateApplicationFailure();
             follower0.setClusterStateApplyResponse(ClusterStateApplyResponse.FAIL);
             AckCollector ackCollector = leader.submitValue(randomLong());
             cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
@@ -605,6 +606,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final ClusterNode follower1 = cluster.getAnyNodeExcept(leader, follower0);
             final long startingTerm = leader.coordinator.getCurrentTerm();
 
+            leader.allowClusterStateApplicationFailure();
             leader.setClusterStateApplyResponse(ClusterStateApplyResponse.FAIL);
             AckCollector ackCollector = leader.submitValue(randomLong());
             cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "committing value");

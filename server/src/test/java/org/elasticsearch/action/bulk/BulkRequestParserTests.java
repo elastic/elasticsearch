@@ -95,7 +95,7 @@ public class BulkRequestParserTests extends ESTestCase {
 
     public void testTypesStillParsedForBulkMonitoring() throws IOException {
         BytesArray request = new BytesArray("{ \"index\":{ \"_type\": \"quux\", \"_id\": \"bar\" } }\n{}\n");
-        BulkRequestParser parser = new BulkRequestParser(true);
+        BulkRequestParser parser = new BulkRequestParser(false);
         final AtomicBoolean parsed = new AtomicBoolean();
         parser.parse(request, "foo", null, null, null, false, XContentType.JSON,
             (indexRequest, type) -> {

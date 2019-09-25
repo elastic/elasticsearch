@@ -92,7 +92,7 @@ The API returns the following response:
 [[get-pipeline-api-version-ex]]
 ===== Get the version of an ingest pipeline
 
-When creating an ingest pipeline,
+When you create or update an ingest pipeline,
 you can specify an optional `version` parameter.
 The version is useful for managing changes to pipeline
 and viewing the current pipeline for an ingest node.

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -89,11 +90,11 @@ public final class SBlock extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         for (AStatement statement : statements) {
             statement.continu = continu;
             statement.brake = brake;
-            statement.write(writer, globals);
+            statement.write(classWriter, methodWriter, globals);
         }
     }
 

@@ -150,7 +150,7 @@
  * <li>Create the {@link org.apache.lucene.index.IndexCommit} for the shard to snapshot.</li>
  * <li>Get the {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob
  * with name {@code index-${uuid}} with the {@code uuid} generation returned by
- * {@link org.elasticsearch.repositories.RepositoryData#getShardGen} to get the information of what segment files are
+ * {@link org.elasticsearch.repositories.ShardGenerations#getShardGen} to get the information of what segment files are
  * already available in the blobstore.</li>
  * <li>By comparing the files in the {@code IndexCommit} and the available file list from the previous step, determine the segment files
  * that need to be written to the blob store. For each segment that needs to be added to the blob store, generate a unique name by combining

@@ -59,7 +59,7 @@ public final class ShardGenerations implements ToXContent {
      * @param previous Previous {@code ShardGenerations}
      * @return Map of obsolete shard index generations in indices that are still tracked by this instance
      */
-     Map<IndexId, Map<Integer, String>> obsoleteShardGenerations(ShardGenerations previous) {
+     public Map<IndexId, Map<Integer, String>> obsoleteShardGenerations(ShardGenerations previous) {
         final Map<IndexId, Map<Integer, String>> result = new HashMap<>();
         previous.shardGenerations.forEach(((indexId, oldGens) -> {
             final List<String> updatedGenerations = shardGenerations.get(indexId);
@@ -80,7 +80,15 @@ public final class ShardGenerations implements ToXContent {
         return result;
     }
 
-    String getShardGen(IndexId indexId, int shardId) {
+    /**
+     * Get the generation of the {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob for a given index
+     * and shard.
+     *
+     * @param indexId IndexId
+     * @param shardId Shard Id
+     * @return generation of the {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob
+     */
+    public String getShardGen(IndexId indexId, int shardId) {
         final List<String> generations = shardGenerations.get(indexId);
         if (generations == null) {
             return null;

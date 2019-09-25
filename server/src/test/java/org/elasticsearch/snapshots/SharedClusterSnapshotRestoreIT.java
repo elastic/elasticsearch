@@ -1462,7 +1462,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         for (String index : indices) {
             Path shardZero = indicesPath.resolve(indexIds.get(index).getId()).resolve("0");
             if (randomBoolean()) {
-                Files.delete(shardZero.resolve("index-" + getRepositoryData(repository).getShardGen(indexIds.get(index), 0)));
+                Files.delete(
+                    shardZero.resolve("index-" + getRepositoryData(repository).shardGenerations().getShardGen(indexIds.get(index), 0)));
             }
             Files.delete(shardZero.resolve("snap-" + snapshotInfo.snapshotId().getUUID() + ".dat"));
         }
@@ -3011,7 +3012,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         final IndexId corruptedIndex = indexIds.get(indexName);
         final Path shardIndexFile = repo.resolve("indices")
             .resolve(corruptedIndex.getId()).resolve("0")
-            .resolve("index-" + repositoryData.getShardGen(corruptedIndex, 0));
+            .resolve("index-" + repositoryData.shardGenerations().getShardGen(corruptedIndex, 0));
 
         logger.info("-->  truncating shard index file [{}]", shardIndexFile);
         try (SeekableByteChannel outChan = Files.newByteChannel(shardIndexFile, StandardOpenOption.WRITE)) {

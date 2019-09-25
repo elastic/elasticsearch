@@ -108,26 +108,8 @@ public final class RepositoryData {
         return new RepositoryData(genId, snapshotIds, snapshotStates, indexSnapshots, shardGenerations);
     }
 
-    /**
-     * Computes the obsolete shard index generations that can be deleted if this instance was written to the repository.
-     *
-     * @param previous Previous RepositoryData
-     * @return Map of obsolete shard index generations. The keys in the nested maps are the integer shard ids that have been updated.
-     */
-    public Map<IndexId, Map<Integer, String>> obsoleteShardGenerations(RepositoryData previous) {
-        return shardGenerations.obsoleteShardGenerations(previous.shardGenerations);
-    }
-
-    /**
-     * Get the generation of the {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob for a given index
-     * and shard.
-     *
-     * @param indexId IndexId
-     * @param shardId Shard Id
-     * @return generation of the {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob
-     */
-    public String getShardGen(IndexId indexId, int shardId) {
-        return shardGenerations.getShardGen(indexId, shardId);
+    public ShardGenerations shardGenerations() {
+        return shardGenerations;
     }
 
     /**

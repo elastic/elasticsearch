@@ -828,7 +828,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final List<String> toDelete = new ArrayList<>();
         final int prefixPathLen = basePath().buildAsString().length();
         for (Map.Entry<IndexId, Map<Integer, String>> entry
-            : updatedRepositoryData.obsoleteShardGenerations(existingRepositoryData).entrySet()) {
+            : updatedRepositoryData.shardGenerations().obsoleteShardGenerations(existingRepositoryData.shardGenerations()).entrySet()) {
             final IndexId indexId = entry.getKey();
             for (Map.Entry<Integer, String> shardEntry : entry.getValue().entrySet()) {
                 toDelete.add(shardContainer(indexId, shardEntry.getKey()).path().buildAsString().substring(prefixPathLen)
@@ -1426,7 +1426,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private void deleteShardSnapshotFromMeta(RepositoryData repositoryData, IndexId indexId, ShardId snapshotShardId,
                                              SnapshotId snapshotId, ActionListener<ShardSnapshotMetaDeleteResult> listener) {
         ActionListener.completeWith(listener, () -> {
-            final String shardGen = repositoryData.getShardGen(indexId, snapshotShardId.getId());
+            final String shardGen = repositoryData.shardGenerations().getShardGen(indexId, snapshotShardId.getId());
             final BlobContainer shardContainer = shardContainer(indexId, snapshotShardId);
             final Set<String> blobs;
             try {

@@ -2,7 +2,7 @@
 [[schedule-yearly]]
 ==== Yearly Schedule
 
-A <<trigger-schedule, `schedule`>> that triggers at a specific day and time
+A <<trigger-schedule,`schedule`>> that triggers at a specific day and time
 every year. To use the `yearly` schedule, you specify the month, day, and time
 (or months, days, and times) when you want the scheduler to start the watch
 execution with the `in`, `on`, and `at` attributes.

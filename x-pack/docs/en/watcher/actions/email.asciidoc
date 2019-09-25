@@ -279,14 +279,14 @@ email system.
 For more information about configuring {watcher} to work with different email
 systems, see:
 
-* <<gmail, Sending Email from Gmail>>
-* <<outlook, Sending Email from Outlook>>
-* <<exchange, Sending Email from Exchange>>
-* <<amazon-ses, Sending Email from Amazon SES>>
+* <<gmail,Sending Email from Gmail>>
+* <<outlook,Sending Email from Outlook>>
+* <<exchange,Sending Email from Exchange>>
+* <<amazon-ses,Sending Email from Amazon SES>>
 
 If you configure multiple email accounts, you must either configure a default
 account or specify which account the email should be sent with in the
-<<actions-email, `email`>> action.
+<<actions-email,`email`>> action.
 
 [source,yaml]
 --------------------------------------------------

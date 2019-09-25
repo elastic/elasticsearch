@@ -2,13 +2,13 @@
 [[schedule-daily]]
 ==== Daily Schedule
 
-A <<trigger-schedule, `schedule`>> that triggers at a particular time
+A <<trigger-schedule,`schedule`>> that triggers at a particular time
 every day. To use the `daily` schedule, you specify the time of day (or times)
 when you want the scheduler to start the watch execution with the `at` attribute.
 
 Times are specified in the form `HH:mm` on a 24-hour clock. You can also use the
 reserved values `midnight` and `noon` for `00:00` and `12:00`, and
-<<specifying-times-using-objects, specify times using objects>>.
+<<specifying-times-using-objects,specify times using objects>>.
 
 NOTE: If you don't specify the `at` attribute for a `daily` schedule, it defaults
       to firing once daily at midnight, `00:00`.

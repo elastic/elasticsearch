@@ -19,12 +19,12 @@ condition is met.
 [[log-add-input]]
 === Schedule the Watch and Define an Input
 
-A watch {xpack-ref}/trigger-schedule.html[schedule] controls how often a watch is triggered.
-The watch {xpack-ref}/input.html[input] gets the data that you want to evaluate.
+A watch <<trigger-schedule,schedule>> controls how often a watch is triggered.
+The watch <<input,input>> gets the data that you want to evaluate.
 
 To periodically search log data and load the results into the
-watch, you could use an {xpack-ref}/trigger-schedule.html#schedule-interval[interval] schedule and a
-{xpack-ref}/input-search.html[search] input. For example, the following Watch searches
+watch, you could use an <<schedule-interval,interval>> schedule and a
+<<input-search,search>> input. For example, the following Watch searches
 the `logs` index for errors every 10 seconds:
 
 [source,console]
@@ -76,7 +76,7 @@ GET .watcher-history*/_search?pretty
 [[log-add-condition]]
 === Add a Condition
 
-A {xpack-ref}/condition.html[condition] evaluates the data you've loaded into the watch and
+A <<condition,condition>> evaluates the data you've loaded into the watch and
 determines if any action is required. Now that you've loaded log errors into
 the watch, you can define a condition that checks to see if any errors were
 found.
@@ -107,7 +107,7 @@ PUT _watcher/watch/log_error_watch
 }
 --------------------------------------------------
 
-<1> The {xpack-ref}/condition-compare.html[compare] condition lets you easily compare against
+<1> The <<condition-compare,compare>> condition lets you easily compare against
     values in the execution context.
 
 For this compare condition to evaluate to `true`, you need to add an event
@@ -153,7 +153,7 @@ GET .watcher-history*/_search?pretty
 
 Recording watch records in the watch history is nice, but the real power of
 {watcher} is being able to do something when the watch condition is met. A
-watch's {xpack-ref}/actions.html[actions]  define what to do when the watch condition
+watch's <<actions,actions>> define what to do when the watch condition
 evaluates to `true`. You can send emails, call third-party webhooks, write
 documents to an Elasticsearch index, or log messages to the standard
 Elasticsearch log files.
@@ -200,7 +200,7 @@ delete it when you're done experimenting. Otherwise, the noise from this sample
 watch will make it hard to see what else is going on in your watch history and
 log file.
 
-To remove the watch, use the {ref}/watcher-api-delete-watch.html[DELETE watch API]:
+To remove the watch, use the <<watcher-api-delete-watch,delete watch API>>:
 
 [source,console]
 --------------------------------------------------
@@ -223,9 +223,9 @@ allowed to execute read-only watch operations.
 [[next-steps]]
 === Where to Go Next
 
-* See {xpack-ref}/how-watcher-works.html[How {watcher} Works] for more information about the
+* See <<how-watcher-works>> for more information about the
 anatomy of a watch and the watch lifecycle.
-* See {xpack-ref}/example-watches.html[Example Watches] for more examples of setting up
+* See <<example-watches>> for more examples of setting up
 a watch.
 * See the https://github.com/elastic/examples/tree/master/Alerting[Example
 Watches] in the Elastic Examples repo for additional sample watches you can use

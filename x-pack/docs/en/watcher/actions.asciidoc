@@ -3,7 +3,7 @@
 == Actions
 
 When a watch's condition is met, its actions are executed unless it is being
-<<actions-ack-throttle, throttled>>. A watch can perform multiple actions.
+<<actions-ack-throttle,throttled>>. A watch can perform multiple actions.
 The actions are executed one at a time and each action executes independently.
 Any failures encountered while executing an action are recorded in the
 action result and in the watch history.
@@ -16,9 +16,9 @@ support their execution in any way they need. For example, the payload might
 serve as a model for a templated email body.
 
 {watcher} supports the following types of actions:
-<<actions-email, email>>, <<actions-webhook, webhook>>, <<actions-index, index>>,
-<<actions-logging, logging>>, <<actions-slack, Slack>>,
-and <<actions-pagerduty, pagerduty>>.
+<<actions-email,email>>, <<actions-webhook,webhook>>, <<actions-index,index>>,
+<<actions-logging,logging>>, <<actions-slack,Slack>>,
+and <<actions-pagerduty,pagerduty>>.
 
 [float]
 [[actions-ack-throttle]]
@@ -94,7 +94,7 @@ PUT _watcher/watch/error_logs_alert
 
 <1> There will be at least 15 minutes between subsequent `email_administrator`
 		action executions.
-<2> See <<actions-email, Email Action>> for more information.
+<2> See <<actions-email,Email action>> for more information.
 
 You can also define a throttle period at the watch level. The watch-level
 throttle period serves as the default throttle period for all of the actions

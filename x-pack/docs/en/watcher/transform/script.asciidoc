@@ -2,14 +2,14 @@
 [[transform-script]]
 === Script Transform
 
-A <<transform, Transform>> that executes a script on the current payload in the
+A <<transform,transform>> that executes a script on the current payload in the
 watch execution context and replaces it with a newly generated one. The following
 snippet shows how a simple script transform can be defined on the watch level:
 
 TIP:  The `script` transform is often useful when used in combination with the
-      <<transform-search, `search`>> transform, where the script can extract only
+      <<transform-search,`search`>> transform, where the script can extract only
       the significant data from a search result, and by that, keep the payload
-      minimal. This can be achieved with the <<transform-chain, `chain`>>
+      minimal. This can be achieved with the <<transform-chain,`chain`>>
       transform.
 
 

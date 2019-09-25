@@ -24,8 +24,8 @@ The following snippet shows a simple `index` action definition:
 --------------------------------------------------
 // NOTCONSOLE
 <1> The id of the action
-<2> An optional <<condition, condition>> to restrict action execution
-<3> An optional <<transform, transform>> to transform the payload and prepare the data that should be indexed
+<2> An optional <<condition,condition>> to restrict action execution
+<3> An optional <<transform,transform>> to transform the payload and prepare the data that should be indexed
 <4> The elasticsearch index to store the data to
 <5> An optional `_id` for the document, if it should always be the same document.
 

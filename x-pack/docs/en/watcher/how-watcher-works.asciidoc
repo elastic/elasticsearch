@@ -300,8 +300,8 @@ The following snippet shows the basic structure of the _Watch Execution Context_
 [[scripts]]
 ==== Using Scripts
 
-You can use scripts to define <<condition-script, conditions>> and
-<<transform-script, transforms>>. The default scripting language is
+You can use scripts to define <<condition-script,conditions>> and
+<<transform-script,transforms>>. The default scripting language is
 {ref}/modules-scripting-painless.html[Painless].
 
 NOTE: Starting with 5.0, Elasticsearch is shipped with the new

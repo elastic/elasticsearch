@@ -36,8 +36,8 @@ dynamic scripting.
 To use the `compare` condition, you specify the value in the execution context
 that you want to evaluate, a <<condition-compare-operators,comparison operator>>, 
 and the value you want to compare against. For example, the following `compare` 
-condition returns `true` if the number of the total hits in the <<input-search, 
-search result>> is greater than or equal to 5:
+condition returns `true` if the number of the total hits in the
+<<input-search,search result>> is greater than or equal to 5:
 
 [source,js]
 --------------------------------------------------

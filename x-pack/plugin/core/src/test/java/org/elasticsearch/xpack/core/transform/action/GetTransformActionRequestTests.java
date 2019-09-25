@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.core.transform.action;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.transform.action.GetTransformsAction.Request;
+import org.elasticsearch.xpack.core.transform.action.GetTransformAction.Request;
 
-public class GetTransformsActionRequestTests extends AbstractWireSerializingTestCase<Request> {
+public class GetTransformActionRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {

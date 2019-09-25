@@ -197,8 +197,8 @@ import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
 import org.elasticsearch.xpack.core.transform.TransformFeatureSetUsage;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
-import org.elasticsearch.xpack.core.transform.action.GetTransformsAction;
-import org.elasticsearch.xpack.core.transform.action.GetTransformsStatsAction;
+import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
+import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
@@ -394,8 +394,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 StartTransformAction.INSTANCE,
                 StopTransformAction.INSTANCE,
                 DeleteTransformAction.INSTANCE,
-                GetTransformsAction.INSTANCE,
-                GetTransformsStatsAction.INSTANCE,
+                GetTransformAction.INSTANCE,
+                GetTransformStatsAction.INSTANCE,
                 PreviewTransformAction.INSTANCE
         );
     }

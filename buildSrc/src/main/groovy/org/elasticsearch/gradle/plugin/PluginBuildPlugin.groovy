@@ -53,6 +53,7 @@ class PluginBuildPlugin implements Plugin<Project> {
     @Override
     void apply(Project project) {
         project.pluginManager.apply(BuildPlugin)
+        project.pluginManager.apply(TestClustersPlugin)
 
         PluginPropertiesExtension extension = project.extensions.create(PLUGIN_EXTENSION_NAME, PluginPropertiesExtension, project)
         configureDependencies(project)

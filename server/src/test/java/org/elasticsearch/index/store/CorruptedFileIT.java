@@ -281,17 +281,20 @@ public class CorruptedFileIT extends ESIntegTestCase {
         client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
         client().admin().cluster().prepareReroute().get();
 
-        boolean didClusterTurnRed = awaitBusy(() -> {
+        boolean didClusterTurnRed = waitUntil(() -> {
             ClusterHealthStatus test = client().admin().cluster()
                 .health(Requests.clusterHealthRequest("test")).actionGet().getStatus();
             return test == ClusterHealthStatus.RED;
         }, 5, TimeUnit.MINUTES);// sometimes on slow nodes the replication / recovery is just dead slow
+
         final ClusterHealthResponse response = client().admin().cluster()
             .health(Requests.clusterHealthRequest("test")).get();
+
         if (response.getStatus() != ClusterHealthStatus.RED) {
             logger.info("Cluster turned red in busy loop: {}", didClusterTurnRed);
             logger.info("cluster state:\n{}\n{}",
-                client().admin().cluster().prepareState().get().getState(), client().admin().cluster().preparePendingClusterTasks().get());
+                client().admin().cluster().prepareState().get().getState(),
+                client().admin().cluster().preparePendingClusterTasks().get());
         }
         assertThat(response.getStatus(), is(ClusterHealthStatus.RED));
         ClusterState state = client().admin().cluster().prepareState().get().getState();

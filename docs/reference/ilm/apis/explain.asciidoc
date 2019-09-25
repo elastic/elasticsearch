@@ -96,7 +96,7 @@ GET my_index/_ilm/explain
 When management of the index is first taken over by ILM, `explain` shows
 that the index is managed and in the `new` phase:
 
-[source,console]
+[source,console-result]
 --------------------------------------------------
 {
   "indices": {

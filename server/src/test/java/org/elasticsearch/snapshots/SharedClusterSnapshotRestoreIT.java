@@ -3035,23 +3035,10 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             .setWaitForCompletion(true)
             .get()
             .getSnapshotInfo();
-        assertThat(snapshotInfo2.state(), equalTo(SnapshotState.SUCCESS));
-        assertThat(snapshotInfo2.failedShards(), equalTo(0));
-        assertThat(snapshotInfo2.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        assertThat(snapshotInfo2.state(), equalTo(SnapshotState.PARTIAL));
+        assertThat(snapshotInfo2.failedShards(), equalTo(1));
+        assertThat(snapshotInfo2.successfulShards(), equalTo(snapshotInfo.totalShards() - 1));
         assertThat(snapshotInfo2.indices(), hasSize(1));
-
-        logger.info("-->  deleting index [{}]", indexName);
-        assertAcked(client().admin().indices().prepareDelete(indexName));
-
-        logger.info("-->  restoring snapshot [{}]", snapshot2);
-        client().admin().cluster().prepareRestoreSnapshot("test-repo", snapshot2)
-            .setRestoreGlobalState(randomBoolean())
-            .setWaitForCompletion(true)
-            .get();
-
-        ensureGreen();
-
-        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), 2 * nDocs);
     }
 
     public void testCannotCreateSnapshotsWithSameName() throws Exception {

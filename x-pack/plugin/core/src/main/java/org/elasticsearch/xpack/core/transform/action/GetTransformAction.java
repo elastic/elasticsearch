@@ -28,16 +28,16 @@ import java.util.List;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class GetTransformsAction extends ActionType<GetTransformsAction.Response> {
+public class GetTransformAction extends ActionType<GetTransformAction.Response> {
 
-    public static final GetTransformsAction INSTANCE = new GetTransformsAction();
+    public static final GetTransformAction INSTANCE = new GetTransformAction();
     public static final String NAME = "cluster:monitor/data_frame/get";
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-            LogManager.getLogger(GetTransformsAction.class));
+            LogManager.getLogger(GetTransformAction.class));
 
-    private GetTransformsAction() {
-        super(NAME, GetTransformsAction.Response::new);
+    private GetTransformAction() {
+        super(NAME, GetTransformAction.Response::new);
     }
 
     public static class Request extends AbstractGetResourcesRequest {

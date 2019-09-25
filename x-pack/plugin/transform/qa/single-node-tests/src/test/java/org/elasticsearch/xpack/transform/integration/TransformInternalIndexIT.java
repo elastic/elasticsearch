@@ -17,7 +17,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
-import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.transform.GetTransformRequest;
 import org.elasticsearch.client.transform.GetTransformResponse;
@@ -42,8 +42,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class TransformInternalIndexIT extends ESRestTestCase {
 
 
-    private static final String CURRENT_INDEX = TransformInternalIndex.LATEST_INDEX_NAME;
-    private static final String OLD_INDEX = TransformInternalIndex.INDEX_PATTERN + "1";
+    private static final String CURRENT_INDEX = TransformInternalIndexConstants.LATEST_INDEX_NAME;
+    private static final String OLD_INDEX = TransformInternalIndexConstants.INDEX_PATTERN + "1";
 
 
     public void testUpdateDeletesOldTransformConfig() throws Exception {

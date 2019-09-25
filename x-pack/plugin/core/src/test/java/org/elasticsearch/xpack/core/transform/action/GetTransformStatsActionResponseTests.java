@@ -10,14 +10,14 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.xpack.core.transform.action.GetTransformsStatsAction.Response;
+import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStatsTests;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class GetTransformsStatsActionResponseTests extends AbstractWireSerializingTransformTestCase<Response> {
+public class GetTransformStatsActionResponseTests extends AbstractWireSerializingTransformTestCase<Response> {
     @Override
     protected Response createTestInstance() {
         List<TransformStats> stats = new ArrayList<>();

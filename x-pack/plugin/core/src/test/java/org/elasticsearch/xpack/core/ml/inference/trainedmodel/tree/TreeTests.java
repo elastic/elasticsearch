@@ -67,7 +67,7 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
         builder.setFeatureNames(featureNames);
 
         TreeNode.Builder node = builder.addJunction(0, randomInt(numFeatures), true, randomDouble());
-        List<Integer> childNodes = List.of(node.getLeftChild(), node.getRightChild());
+        List<Integer> childNodes = Arrays.asList(node.getLeftChild(), node.getRightChild());
 
         for (int i = 0; i < depth -1; i++) {
 

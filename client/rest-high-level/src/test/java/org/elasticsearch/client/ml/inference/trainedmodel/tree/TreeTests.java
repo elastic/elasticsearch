@@ -23,6 +23,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -63,7 +64,7 @@ public class TreeTests extends AbstractXContentTestCase<Tree> {
         builder.setFeatureNames(featureNames);
 
         TreeNode.Builder node = builder.addJunction(0, randomInt(numFeatures), true, randomDouble());
-        List<Integer> childNodes = List.of(node.getLeftChild(), node.getRightChild());
+        List<Integer> childNodes = Arrays.asList(node.getLeftChild(), node.getRightChild());
 
         for (int i = 0; i < depth -1; i++) {
 

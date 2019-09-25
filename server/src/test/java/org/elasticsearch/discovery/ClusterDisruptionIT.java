@@ -239,7 +239,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                             logger.debug("validating through node [{}] ([{}] acked docs)", node, ackedDocs.size());
                             for (String id : ackedDocs.keySet()) {
                                 assertTrue("doc [" + id + "] indexed via node [" + ackedDocs.get(id) + "] not found",
-                                    client(node).prepareGet("test", "type", id).setPreference("_local").get().isExists());
+                                    client(node).prepareGet("test", id).setPreference("_local").get().isExists());
                             }
                         } catch (AssertionError | NoShardAvailableActionException e) {
                             throw new AssertionError(e.getMessage() + " (checked via node [" + node + "]", e);
@@ -298,7 +298,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         assertThat(indexResponse.getVersion(), equalTo(1L));
 
         logger.info("Verifying if document exists via node[{}]", notIsolatedNode);
-        GetResponse getResponse = internalCluster().client(notIsolatedNode).prepareGet("test", "type", indexResponse.getId())
+        GetResponse getResponse = internalCluster().client(notIsolatedNode).prepareGet("test", indexResponse.getId())
             .setPreference("_local")
             .get();
         assertThat(getResponse.isExists(), is(true));
@@ -312,7 +312,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
         for (String node : nodes) {
             logger.info("Verifying if document exists after isolating node[{}] via node[{}]", isolatedNode, node);
-            getResponse = internalCluster().client(node).prepareGet("test", "type", indexResponse.getId())
+            getResponse = internalCluster().client(node).prepareGet("test", indexResponse.getId())
                 .setPreference("_local")
                 .get();
             assertThat(getResponse.isExists(), is(true));

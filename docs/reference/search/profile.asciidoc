@@ -375,11 +375,11 @@ The meaning of the stats are as follows:
     {empty} +
     Conjunctions (e.g. `must` clauses in a boolean) are typical consumers of `advance`
 
-`matches`::
+`match`::
 
     Some queries, such as phrase queries, match documents using a "two-phase" process.  First, the document is
     "approximately" matched, and if it matches approximately, it is checked a second time with a more rigorous
-    (and expensive) process.  The second phase verification is what the `matches` statistic measures.
+    (and expensive) process.  The second phase verification is what the `match` statistic measures.
     {empty} +
     {empty} +
     For example, a phrase query first checks a document approximately by ensuring all terms in the phrase are
@@ -388,7 +388,7 @@ The meaning of the stats are as follows:
     of the terms.
     {empty} +
     {empty} +
-    Because this two-phase process is only used by a handful of queries, the `metric` statistic will often be zero
+    Because this two-phase process is only used by a handful of queries, the `match` statistic is often zero
 
 `score`::
 

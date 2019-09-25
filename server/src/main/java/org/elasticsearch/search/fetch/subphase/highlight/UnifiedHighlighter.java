@@ -56,7 +56,7 @@ public class UnifiedHighlighter implements Highlighter {
     public boolean canHighlight(MappedFieldType fieldType) {
         return true;
     }
-    
+
     @Override
     public HighlightField highlight(HighlighterContext highlighterContext) {
         MappedFieldType fieldType = highlighterContext.fieldType;
@@ -70,8 +70,7 @@ public class UnifiedHighlighter implements Highlighter {
         int numberOfFragments;
         try {
 
-            final Analyzer analyzer = getAnalyzer(context.mapperService().documentMapper(hitContext.hit().getType()),
-                    hitContext);
+            final Analyzer analyzer = getAnalyzer(context.mapperService().documentMapper(), hitContext);
             List<Object> fieldValues = loadFieldValues(fieldType, field, context, hitContext);
             if (fieldValues.size() == 0) {
                 return null;
@@ -149,11 +148,11 @@ public class UnifiedHighlighter implements Highlighter {
         return passageFormatter;
     }
 
-    
+
     protected Analyzer getAnalyzer(DocumentMapper docMapper, HitContext hitContext) {
         return docMapper.mappers().indexAnalyzer();
     }
-    
+
     protected List<Object> loadFieldValues(MappedFieldType fieldType, SearchContextHighlight.Field field, SearchContext context,
             FetchSubPhase.HitContext hitContext) throws IOException {
         List<Object> fieldValues = HighlightUtils.loadFieldValues(field, fieldType, context, hitContext);

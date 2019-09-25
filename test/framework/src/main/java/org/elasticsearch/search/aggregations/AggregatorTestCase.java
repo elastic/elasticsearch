@@ -274,14 +274,14 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * sub-tests that need a more complex mock can overwrite this
      */
     protected QueryShardContext queryShardContextMock(IndexSearcher searcher,
-                                                        MapperService mapperService,
-                                                        IndexSettings indexSettings,
-                                                        CircuitBreakerService circuitBreakerService) {
+                                                      MapperService mapperService,
+                                                      IndexSettings indexSettings,
+                                                      CircuitBreakerService circuitBreakerService) {
 
         return new QueryShardContext(0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
             getIndexFieldDataLookup(mapperService, circuitBreakerService),
             mapperService, null, getMockScriptService(), xContentRegistry(),
-            writableRegistry(), null, searcher, System::currentTimeMillis, null);
+            writableRegistry(), null, searcher, System::currentTimeMillis, null, null);
     }
 
     /**

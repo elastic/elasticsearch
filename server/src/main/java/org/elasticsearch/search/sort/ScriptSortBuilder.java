@@ -58,6 +58,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.search.sort.FieldSortBuilder.validateMaxChildrenExistOnlyInTopLevelNestedSort;
 import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
 
 /**
@@ -242,10 +243,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
         Nested nested = null;
         if (nestedSort != null) {
-            if (nestedSort.getNestedSort() != null && nestedSort.getMaxChildren() != Integer.MAX_VALUE)  {
-                throw new QueryShardException(context,
-                    "max_children is only supported on last level of nested sort");
-            }
+            validateMaxChildrenExistOnlyInTopLevelNestedSort(context, nestedSort);
             nested = resolveNested(context, nestedSort);
         }
 

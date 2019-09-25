@@ -29,7 +29,6 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.joda.time.DateTime;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder.Origin;
@@ -74,7 +73,9 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
     }
 
     @Override
-    protected void doAssertLuceneQuery(DistanceFeatureQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(DistanceFeatureQueryBuilder queryBuilder,
+                                       Query query,
+                                       QueryShardContext context) throws IOException {
         String fieldName = expectedFieldName(queryBuilder.fieldName());
         Object origin = queryBuilder.origin().origin();
         String pivot = queryBuilder.pivot();
@@ -85,9 +86,9 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
             double pivotDouble = DistanceUnit.DEFAULT.parse(pivot, DistanceUnit.DEFAULT);
             expectedQuery = LatLonPoint.newDistanceFeatureQuery(fieldName, boost, originGeoPoint.lat(), originGeoPoint.lon(), pivotDouble);
         } else { // if (fieldName.equals(DATE_FIELD_NAME))
-            MapperService mapperService = context.getQueryShardContext().getMapperService();
+            MapperService mapperService = context.getMapperService();
             DateFieldType fieldType = (DateFieldType) mapperService.fullName(fieldName);
-            long originLong = fieldType.parseToLong(origin, true, null, null, context.getQueryShardContext());
+            long originLong = fieldType.parseToLong(origin, true, null, null, context);
             TimeValue pivotVal = TimeValue.parseTimeValue(pivot, DistanceFeatureQueryBuilder.class.getSimpleName() + ".pivot");
             long pivotLong;
             if (fieldType.resolution() == DateFieldMapper.Resolution.MILLISECONDS) {

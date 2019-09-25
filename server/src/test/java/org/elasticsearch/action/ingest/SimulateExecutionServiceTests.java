@@ -34,6 +34,8 @@ import org.junit.Before;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.equalTo;
@@ -66,7 +68,15 @@ public class SimulateExecutionServiceTests extends ESTestCase {
     public void testExecuteVerboseItem() throws Exception {
         TestProcessor processor = new TestProcessor("test-id", "mock", ingestDocument -> {});
         Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor, processor));
-        SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, true);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
+        executionService.executeDocument(pipeline, ingestDocument, true, (r, e) -> {
+            holder.set(r);
+            latch.countDown();
+        });
+        latch.await();
+        SimulateDocumentResult actualItemResponse = holder.getAcquire();
         assertThat(processor.getInvokedCounter(), equalTo(2));
         assertThat(actualItemResponse, instanceOf(SimulateDocumentVerboseResult.class));
         SimulateDocumentVerboseResult simulateDocumentVerboseResult = (SimulateDocumentVerboseResult) actualItemResponse;
@@ -91,7 +101,14 @@ public class SimulateExecutionServiceTests extends ESTestCase {
     public void testExecuteItem() throws Exception {
         TestProcessor processor = new TestProcessor("processor_0", "mock", ingestDocument -> {});
         Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor, processor));
-        SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, false);
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
+        executionService.executeDocument(pipeline, ingestDocument, false, (r, e) -> {
+            holder.set(r);
+            latch.countDown();
+        });
+        latch.await();
+        SimulateDocumentResult actualItemResponse = holder.getAcquire();
         assertThat(processor.getInvokedCounter(), equalTo(2));
         assertThat(actualItemResponse, instanceOf(SimulateDocumentBaseResult.class));
         SimulateDocumentBaseResult simulateDocumentBaseResult = (SimulateDocumentBaseResult) actualItemResponse;
@@ -104,7 +121,14 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         TestProcessor processor2 = new TestProcessor("processor_1", "mock", new RuntimeException("processor failed"));
         TestProcessor processor3 = new TestProcessor("processor_2", "mock", ingestDocument -> {});
         Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor1, processor2, processor3));
-        SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, true);
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
+        executionService.executeDocument(pipeline, ingestDocument, true, (r, e) -> {
+            holder.set(r);
+            latch.countDown();
+        });
+        latch.await();
+        SimulateDocumentResult actualItemResponse = holder.get();
         assertThat(processor1.getInvokedCounter(), equalTo(1));
         assertThat(processor2.getInvokedCounter(), equalTo(1));
         assertThat(processor3.getInvokedCounter(), equalTo(0));
@@ -131,7 +155,14 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         Pipeline pipeline = new Pipeline("_id", "_description", version,
                 new CompoundProcessor(new CompoundProcessor(false, Collections.singletonList(processor1),
                                 Collections.singletonList(processor2)), processor3));
-        SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, true);
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
+        executionService.executeDocument(pipeline, ingestDocument, true, (r, e) -> {
+            holder.set(r);
+            latch.countDown();
+        });
+        latch.await();
+        SimulateDocumentResult actualItemResponse = holder.get();
         assertThat(processor1.getInvokedCounter(), equalTo(1));
         assertThat(processor2.getInvokedCounter(), equalTo(1));
         assertThat(actualItemResponse, instanceOf(SimulateDocumentVerboseResult.class));
@@ -166,7 +197,14 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         TestProcessor testProcessor = new TestProcessor("processor_0", "mock", exception);
         CompoundProcessor processor = new CompoundProcessor(true, Collections.singletonList(testProcessor), Collections.emptyList());
         Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor));
-        SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, true);
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
+        executionService.executeDocument(pipeline, ingestDocument, true, (r, e) -> {
+            holder.set(r);
+            latch.countDown();
+        });
+        latch.await();
+        SimulateDocumentResult actualItemResponse = holder.get();
         assertThat(testProcessor.getInvokedCounter(), equalTo(1));
         assertThat(actualItemResponse, instanceOf(SimulateDocumentVerboseResult.class));
         SimulateDocumentVerboseResult simulateDocumentVerboseResult = (SimulateDocumentVerboseResult) actualItemResponse;
@@ -183,7 +221,14 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         TestProcessor testProcessor = new TestProcessor("processor_0", "mock", ingestDocument -> { });
         CompoundProcessor processor = new CompoundProcessor(true, Collections.singletonList(testProcessor), Collections.emptyList());
         Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor));
-        SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, true);
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
+        executionService.executeDocument(pipeline, ingestDocument, true, (r, e) -> {
+            holder.set(r);
+            latch.countDown();
+        });
+        latch.await();
+        SimulateDocumentResult actualItemResponse = holder.get();
         assertThat(testProcessor.getInvokedCounter(), equalTo(1));
         assertThat(actualItemResponse, instanceOf(SimulateDocumentVerboseResult.class));
         SimulateDocumentVerboseResult simulateDocumentVerboseResult = (SimulateDocumentVerboseResult) actualItemResponse;
@@ -199,7 +244,14 @@ public class SimulateExecutionServiceTests extends ESTestCase {
     public void testExecuteItemWithFailure() throws Exception {
         TestProcessor processor = new TestProcessor(ingestDocument -> { throw new RuntimeException("processor failed"); });
         Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor, processor));
-        SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, false);
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
+        executionService.executeDocument(pipeline, ingestDocument, false, (r, e) -> {
+            holder.set(r);
+            latch.countDown();
+        });
+        latch.await();
+        SimulateDocumentResult actualItemResponse = holder.get();
         assertThat(processor.getInvokedCounter(), equalTo(1));
         assertThat(actualItemResponse, instanceOf(SimulateDocumentBaseResult.class));
         SimulateDocumentBaseResult simulateDocumentBaseResult = (SimulateDocumentBaseResult) actualItemResponse;
@@ -210,12 +262,19 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         assertThat(exception.getMessage(), equalTo("java.lang.IllegalArgumentException: java.lang.RuntimeException: processor failed"));
     }
 
-    public void testDropDocument() {
+    public void testDropDocument() throws Exception {
         TestProcessor processor1 = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("field", "value"));
         Processor processor2 = new DropProcessor.Factory().create(Map.of(), null, Map.of());
         Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor1, processor2));
 
-        SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, false);
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
+        executionService.executeDocument(pipeline, ingestDocument, false, (r, e) -> {
+            holder.set(r);
+            latch.countDown();
+        });
+        latch.await();
+        SimulateDocumentResult actualItemResponse = holder.get();
         assertThat(processor1.getInvokedCounter(), equalTo(1));
         assertThat(actualItemResponse, instanceOf(SimulateDocumentBaseResult.class));
         SimulateDocumentBaseResult simulateDocumentBaseResult = (SimulateDocumentBaseResult) actualItemResponse;
@@ -223,12 +282,19 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         assertThat(simulateDocumentBaseResult.getFailure(), nullValue());
     }
 
-    public void testDropDocumentVerbose() {
+    public void testDropDocumentVerbose() throws Exception {
         TestProcessor processor1 = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("field", "value"));
         Processor processor2 = new DropProcessor.Factory().create(Map.of(), null, Map.of());
         Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor1, processor2));
 
-        SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, true);
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
+        executionService.executeDocument(pipeline, ingestDocument, true, (r, e) -> {
+            holder.set(r);
+            latch.countDown();
+        });
+        latch.await();
+        SimulateDocumentResult actualItemResponse = holder.get();
         assertThat(processor1.getInvokedCounter(), equalTo(1));
         assertThat(actualItemResponse, instanceOf(SimulateDocumentVerboseResult.class));
         SimulateDocumentVerboseResult verboseResult = (SimulateDocumentVerboseResult) actualItemResponse;
@@ -239,13 +305,20 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         assertThat(verboseResult.getProcessorResults().get(1).getFailure(), nullValue());
     }
 
-    public void testDropDocumentVerboseExtraProcessor() {
+    public void testDropDocumentVerboseExtraProcessor() throws Exception {
         TestProcessor processor1 = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("field1", "value"));
         Processor processor2 = new DropProcessor.Factory().create(Map.of(), null, Map.of());
         TestProcessor processor3 = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("field2", "value"));
         Pipeline pipeline = new Pipeline("_id", "_description", version, new CompoundProcessor(processor1, processor2, processor3));
 
-        SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, true);
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<SimulateDocumentResult> holder = new AtomicReference<>();
+        executionService.executeDocument(pipeline, ingestDocument, true, (r, e) -> {
+            holder.set(r);
+            latch.countDown();
+        });
+        latch.await();
+        SimulateDocumentResult actualItemResponse = holder.get();
         assertThat(processor1.getInvokedCounter(), equalTo(1));
         assertThat(processor3.getInvokedCounter(), equalTo(0));
         assertThat(actualItemResponse, instanceOf(SimulateDocumentVerboseResult.class));

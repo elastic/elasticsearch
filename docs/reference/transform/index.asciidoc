@@ -1,27 +1,27 @@
 [role="xpack"]
-[[ml-dataframes]]
-= Transforming data
+[[transforms]]
+== Transforming data
 
-[partintro]
---
-
+// tag::transform-intro[]
 {transforms-cap} enable you to convert existing {es} indices into summarized
-indices, which provide opportunities for new insights and analytics. For example,
-you can use {transforms} to pivot your data into entity-centric indices that
-summarize the behavior of users or sessions or other entities in your data.
+indices, which provide opportunities for new insights and analytics.
+// end::transform-intro[]
+For example, you can use {transforms} to pivot your data into entity-centric
+indices that summarize the behavior of users or sessions or other entities in
+your data.
 
-* <<ml-transform-overview>>
-* <<ml-transforms-usage>>
-* <<df-api-quickref>>
-* <<dataframe-examples>>
-* <<dataframe-troubleshooting>>
-* <<dataframe-limitations>>
---
+* <<transform-overview>>
+* <<transform-usage>>
+* <<transform-api-quickref>>
+* <<transform-examples>>
+* <<transform-troubleshooting>>
+* <<transform-limitations>>
 
 include::overview.asciidoc[]
 include::usage.asciidoc[]
 include::checkpoints.asciidoc[]
 include::api-quickref.asciidoc[]
-include::dataframe-examples.asciidoc[]
+include::ecommerce-tutorial.asciidoc[]
+include::examples.asciidoc[]
 include::troubleshooting.asciidoc[]
 include::limitations.asciidoc[]

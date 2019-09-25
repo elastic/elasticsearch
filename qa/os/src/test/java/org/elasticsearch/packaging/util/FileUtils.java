@@ -188,7 +188,10 @@ public class FileUtils {
         }
         logger.info("Showing contents of directory: {} ({})", logsDir, logsDir.toAbsolutePath());
         try(Stream<Path> fileStream = Files.list(logsDir)) {
-            fileStream.forEach(file -> {
+            fileStream
+                // gc logs are verbose and not useful in this context
+                .filter(file -> file.getFileName().toString().startsWith("gc.log") == false)
+                .forEach(file -> {
                 logger.info("=== Contents of `{}` ({}) ===", file, file.toAbsolutePath());
                 try (Stream<String> stream = Files.lines(file)) {
                     stream.forEach(logger::info);

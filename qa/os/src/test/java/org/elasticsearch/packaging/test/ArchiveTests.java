@@ -27,6 +27,7 @@ import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
+import org.junit.After;
 import org.junit.BeforeClass;
 
 import java.nio.file.Files;
@@ -134,27 +135,23 @@ public class ArchiveTests extends PackagingTestCase {
         Archives.stopElasticsearch(installation);
     }
 
-    public void assertRunsWithJavaHome() throws Exception {
+    public void test51JavaHomeOverride() throws Exception {
         Platforms.onLinux(() -> {
-            String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
-            sh.getEnv().put("JAVA_HOME", systemJavaHome);
+            String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+            sh.getEnv().put("JAVA_HOME", systemJavaHome1);
         });
         Platforms.onWindows(() -> {
-            final String systemJavaHome = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
-            sh.getEnv().put("JAVA_HOME", systemJavaHome);
+            final String systemJavaHome1 = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
+            sh.getEnv().put("JAVA_HOME", systemJavaHome1);
         });
 
         Archives.runElasticsearch(installation, sh);
         ServerUtils.runElasticsearchTests();
         Archives.stopElasticsearch(installation);
 
-        String systemJavaHome = sh.getEnv().get("JAVA_HOME");
+        String systemJavaHome1 = sh.getEnv().get("JAVA_HOME");
         assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"),
-            containsString(systemJavaHome));
-    }
-
-    public void test51JavaHomeOverride() throws Exception {
-        assertRunsWithJavaHome();
+            containsString(systemJavaHome1));
     }
 
     public void test52BundledJdkRemoved() throws Exception {
@@ -163,7 +160,22 @@ public class ArchiveTests extends PackagingTestCase {
         Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
         try {
             mv(installation.bundledJdk, relocatedJdk);
-            assertRunsWithJavaHome();
+            Platforms.onLinux(() -> {
+                String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+                sh.getEnv().put("JAVA_HOME", systemJavaHome1);
+            });
+            Platforms.onWindows(() -> {
+                final String systemJavaHome1 = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
+                sh.getEnv().put("JAVA_HOME", systemJavaHome1);
+            });
+
+            Archives.runElasticsearch(installation, sh);
+            ServerUtils.runElasticsearchTests();
+            Archives.stopElasticsearch(installation);
+
+            String systemJavaHome1 = sh.getEnv().get("JAVA_HOME");
+            assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"),
+                containsString(systemJavaHome1));
         } finally {
             mv(relocatedJdk, installation.bundledJdk);
         }
@@ -402,4 +414,9 @@ public class ArchiveTests extends PackagingTestCase {
         }
     }
 
+    @After
+    public void tearDown() throws Exception {
+        // clean up logs between logs so we only show logs from the running tests if we dump them on failure
+        FileUtils.rm(installation.logs);
+    }
 }

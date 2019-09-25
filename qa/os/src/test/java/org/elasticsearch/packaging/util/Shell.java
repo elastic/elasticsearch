@@ -171,7 +171,7 @@ public class Shell {
     }
 
     private void tryToWaitForThread(Thread stdoutThread) throws InterruptedException {
-        stdoutThread.join(TimeUnit.SECONDS.toMillis(1));
+        stdoutThread.join(TimeUnit.SECONDS.toMillis(3));
         if (stdoutThread.isAlive()) {
             stdoutThread.interrupt();
             stdoutThread.join();
@@ -250,7 +250,7 @@ public class Shell {
 
                 do {
                     while (reader.ready() == false) {
-                        Thread.sleep(100);
+                        Thread.sleep(10);
                     }
                     line = reader.readLine();
                     if (line != null) {

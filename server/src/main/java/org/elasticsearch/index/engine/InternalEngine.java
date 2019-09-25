@@ -88,7 +88,6 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.FsDirectoryFactory;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -98,7 +97,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -203,7 +201,7 @@ public class InternalEngine extends Engine {
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
             throttle = new IndexThrottle();
             try {
-                trimUnsafeCommits(engineConfig);
+                store.trimUnsafeCommits(config().getTranslogConfig().getTranslogPath());
                 translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier(),
                     seqNo -> {
                         final LocalCheckpointTracker tracker = getLocalCheckpointTracker();
@@ -2804,15 +2802,6 @@ public class InternalEngine extends Engine {
         }
         assert seqNo <= maxSeqNoOfUpdates : "id=" + id + " seq_no=" + seqNo + " msu=" + maxSeqNoOfUpdates;
         return true;
-    }
-
-    private static void trimUnsafeCommits(EngineConfig engineConfig) throws IOException {
-        final Store store = engineConfig.getStore();
-        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
-        final Path translogPath = engineConfig.getTranslogConfig().getTranslogPath();
-        final long globalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
-        final long minRetainedTranslogGen = Translog.readMinTranslogGeneration(translogPath, translogUUID);
-        store.trimUnsafeCommits(globalCheckpoint, minRetainedTranslogGen, engineConfig.getIndexSettings().getIndexVersionCreated());
     }
 
     /**

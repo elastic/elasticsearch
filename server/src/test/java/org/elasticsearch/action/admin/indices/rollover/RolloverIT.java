@@ -392,7 +392,7 @@ public class RolloverIT extends ESIntegTestCase {
         assertAcked(prepareCreate(closedIndex).addAlias(new Alias(aliasName)).get());
         assertAcked(prepareCreate(writeIndexPrefix + "000001").addAlias(new Alias(aliasName).writeIndex(true)).get());
 
-        index(closedIndex, SINGLE_MAPPING_NAME, randomAlphaOfLength(5), "{\"foo\": \"bar\"}");
+        index(closedIndex, SINGLE_MAPPING_NAME, null, "{\"foo\": \"bar\"}");
         index(aliasName, SINGLE_MAPPING_NAME, null, "{\"foo\": \"bar\"}");
         index(aliasName, SINGLE_MAPPING_NAME, null, "{\"foo\": \"bar\"}");
         refresh(aliasName);

@@ -202,7 +202,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
             for (String docId : indexer.getIds()) {
                 assertBusy(() -> {
-                    final GetResponse getResponse = followerClient().prepareGet("index2", "_doc", docId).get();
+                    final GetResponse getResponse = followerClient().prepareGet("index2", docId).get();
                     assertTrue("Doc with id [" + docId + "] is missing", getResponse.isExists());
                 });
             }
@@ -229,7 +229,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
             for (String docId : indexer.getIds()) {
                 assertBusy(() -> {
-                    final GetResponse getResponse = followerClient().prepareGet("index2", "_doc", docId).get();
+                    final GetResponse getResponse = followerClient().prepareGet("index2", docId).get();
                     assertTrue("Doc with id [" + docId + "] is missing", getResponse.isExists());
                 });
             }
@@ -561,7 +561,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             int value = i;
             assertBusy(() -> {
-                final GetResponse getResponse = followerClient().prepareGet("index2", "doc", Integer.toString(value)).get();
+                final GetResponse getResponse = followerClient().prepareGet("index2", Integer.toString(value)).get();
                 assertTrue(getResponse.isExists());
                 assertTrue((getResponse.getSource().containsKey("field")));
                 assertThat(XContentMapValues.extractValue("objects.field", getResponse.getSource()),
@@ -1315,7 +1315,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
             for (String docId : indexer.getIds()) {
                 assertBusy(() -> {
-                    final GetResponse getResponse = followerClient().prepareGet("index2", "_doc", docId).get();
+                    final GetResponse getResponse = followerClient().prepareGet("index2", docId).get();
                     assertTrue("Doc with id [" + docId + "] is missing", getResponse.isExists());
                 });
             }
@@ -1453,7 +1453,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
     private CheckedRunnable<Exception> assertExpectedDocumentRunnable(final int key, final int value) {
         return () -> {
-            final GetResponse getResponse = followerClient().prepareGet("index2", "doc", Integer.toString(key)).get();
+            final GetResponse getResponse = followerClient().prepareGet("index2", Integer.toString(key)).get();
             assertTrue("Doc with id [" + key + "] is missing", getResponse.isExists());
             assertTrue((getResponse.getSource().containsKey("f")));
             assertThat(getResponse.getSource().get("f"), equalTo(value));

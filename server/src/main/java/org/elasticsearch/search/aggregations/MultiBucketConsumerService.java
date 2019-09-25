@@ -19,13 +19,13 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 
@@ -40,7 +40,7 @@ import java.util.function.IntConsumer;
  */
 public class MultiBucketConsumerService {
     public static final int DEFAULT_MAX_BUCKETS = 10000;
-    public static final int DEFAULT_CHECK_BUCKETS_STEP_SIZE = 10000;
+    public static final int DEFAULT_CHECK_BUCKETS_STEP_SIZE = 1000;
     public static final Setting<Integer> MAX_BUCKET_SETTING =
         Setting.intSetting("search.max_buckets", DEFAULT_MAX_BUCKETS, 0, Setting.Property.NodeScope, Setting.Property.Dynamic);
 
@@ -130,9 +130,9 @@ public class MultiBucketConsumerService {
                     MAX_BUCKET_SETTING.getKey() + "] cluster level setting.", limit);
             }
 
-            if (value > 0 && this.circuitBreakerService instanceof HierarchyCircuitBreakerService
-                && checkBucketsStepSizeLimit > 0 && count % checkBucketsStepSizeLimit == 0) {
-                ((HierarchyCircuitBreakerService) this.circuitBreakerService).checkParentLimit(0, "check_allocation_buckets");
+            if (value > 0 && checkBucketsStepSizeLimit > 0 && count % checkBucketsStepSizeLimit == 0) {
+                CircuitBreaker breaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
+                breaker.addEstimateBytesAndMaybeBreak(0, "check_allocation_buckets");
             }
         }
 

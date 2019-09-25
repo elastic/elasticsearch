@@ -2,6 +2,9 @@
 [[transform-limitations]]
 === {transform-cap} limitations
 [subs="attributes"]
+++++
+<titleabbrev>Limitations</titleabbrev>
+++++
 
 beta[]
 

@@ -28,12 +28,10 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
@@ -55,9 +53,7 @@ import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -76,9 +72,6 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         final Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(mock(User.class));
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
-        IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true, new
-                FieldPermissions(),
-                DocumentPermissions.filteredBy(singleton(new BytesArray("{\"match_all\" : {}}"))));
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
@@ -90,14 +83,6 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY);
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
-        SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(s -> queryShardContext,
-                bitsetCache, threadContext, licenseState, scriptService) {
-
-            @Override
-            protected IndicesAccessControl getIndicesAccessControl() {
-                return new IndicesAccessControl(true, singletonMap("_index", indexAccessControl));
-            }
-        };
 
         Directory directory = newDirectory();
         IndexWriter iw = new IndexWriter(
@@ -144,17 +129,32 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
         DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), shardId);
         for (int i = 0; i < numValues; i++) {
+            String termQuery = "{\"term\": {\"field\": \""+ values[i] + "\"} }";
+            IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true, new
+                FieldPermissions(),
+                DocumentPermissions.filteredBy(singleton(new BytesArray(termQuery))));
+            SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(s -> queryShardContext,
+                bitsetCache, threadContext, licenseState, scriptService) {
+
+                @Override
+                protected IndicesAccessControl getIndicesAccessControl() {
+                    return new IndicesAccessControl(true, singletonMap("_index", indexAccessControl));
+                }
+            };
+
             ParsedQuery parsedQuery = new ParsedQuery(new TermQuery(new Term("field", values[i])));
-            doReturn(new TermQueryBuilder("field", values[i])).when(queryShardContext).parseInnerQueryBuilder(any(XContentParser.class));
             when(queryShardContext.toQuery(new TermsQueryBuilder("field", values[i]))).thenReturn(parsedQuery);
+
             DirectoryReader wrappedDirectoryReader = wrapper.apply(directoryReader);
             IndexSearcher indexSearcher = new ContextIndexSearcher(wrappedDirectoryReader,
                 IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy());
 
             int expectedHitCount = valuesHitCount[i];
             logger.info("Going to verify hit count with query [{}] with expected total hits [{}]", parsedQuery.query(), expectedHitCount);
+
             TotalHitCountCollector countCollector = new TotalHitCountCollector();
             indexSearcher.search(new MatchAllDocsQuery(), countCollector);
+
             assertThat(countCollector.getTotalHits(), equalTo(expectedHitCount));
             assertThat(wrappedDirectoryReader.numDocs(), equalTo(expectedHitCount));
         }

@@ -98,7 +98,7 @@
       indices.refresh: {}
 
   - do:
-      catch: /\[test\]\[_doc\]\[1\] didn't store _source/
+      catch: /\[test\]\[1\] didn't store _source/
       update_by_query:
         index: test
 

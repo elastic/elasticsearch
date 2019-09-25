@@ -33,7 +33,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
@@ -1052,7 +1051,7 @@ public class JobResultsProviderTests extends ESTestCase {
             fields.put("field_1", new DocumentField("field_1", Collections.singletonList("foo")));
             fields.put("field_2", new DocumentField("field_2", Collections.singletonList("foo")));
 
-            SearchHit hit = new SearchHit(123, String.valueOf(map.hashCode()), new Text("foo"), fields)
+            SearchHit hit = new SearchHit(123, String.valueOf(map.hashCode()), fields)
                     .sourceRef(BytesReference.bytes(XContentFactory.jsonBuilder().map(_source)));
 
             list.add(hit);

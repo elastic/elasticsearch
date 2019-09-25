@@ -1223,7 +1223,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> wait for the index to appear");
         //  that would mean that recovery process started and failing
-        assertThat(waitForIndex("test-idx", TimeValue.timeValueSeconds(10)), equalTo(true));
+        waitForIndex("test-idx", TimeValue.timeValueSeconds(10));
 
         logger.info("--> delete index");
         cluster().wipeIndices("test-idx");
@@ -1661,11 +1661,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         CreateSnapshotResponse createSnapshotResponse =
             client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-2")
                 .setWaitForCompletion(true).setIndices("test-idx-1").get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertEquals(createSnapshotResponse.getSnapshotInfo().successfulShards(), createSnapshotResponse.getSnapshotInfo().totalShards());
+        assertEquals(createSnapshotResponse.getSnapshotInfo().successfulShards(),
+            createSnapshotResponse.getSnapshotInfo().totalShards() - 1);
 
         logger.info("--> restoring the first snapshot, the repository should not have lost any shard data despite deleting index-N, " +
-                        "because it should have iterated over the snap-*.data files as backup");
+                        "because it uses snap-*.data files and not the index-N to determine what files to restore");
         client().admin().indices().prepareDelete("test-idx-1", "test-idx-2").get();
         RestoreSnapshotResponse restoreSnapshotResponse =
             client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-1").setWaitForCompletion(true).get();
@@ -2213,6 +2213,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertEquals("test-snap", response.getSnapshots().get(0).getSnapshot().getSnapshotId().getName());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/46276")
     public void testSnapshotRelocatingPrimary() throws Exception {
         Client client = client();
         logger.info("-->  creating repository");
@@ -2737,8 +2738,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         restoreFut.get();
     }
 
-    private boolean waitForIndex(final String index, TimeValue timeout) throws InterruptedException {
-        return awaitBusy(() -> indexExists(index), timeout.millis(), TimeUnit.MILLISECONDS);
+    private void waitForIndex(final String index, TimeValue timeout) throws Exception {
+        assertBusy(
+            () -> assertTrue("Expected index [" + index + "] to exist", indexExists(index)),
+            timeout.millis(),
+            TimeUnit.MILLISECONDS);
     }
 
     public void testSnapshotName() throws Exception {
@@ -3044,23 +3048,10 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             .setWaitForCompletion(true)
             .get()
             .getSnapshotInfo();
-        assertThat(snapshotInfo2.state(), equalTo(SnapshotState.SUCCESS));
-        assertThat(snapshotInfo2.failedShards(), equalTo(0));
-        assertThat(snapshotInfo2.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        assertThat(snapshotInfo2.state(), equalTo(SnapshotState.PARTIAL));
+        assertThat(snapshotInfo2.failedShards(), equalTo(1));
+        assertThat(snapshotInfo2.successfulShards(), equalTo(snapshotInfo.totalShards() - 1));
         assertThat(snapshotInfo2.indices(), hasSize(1));
-
-        logger.info("-->  deleting index [{}]", indexName);
-        assertAcked(client().admin().indices().prepareDelete(indexName));
-
-        logger.info("-->  restoring snapshot [{}]", snapshot2);
-        client().admin().cluster().prepareRestoreSnapshot("test-repo", snapshot2)
-            .setRestoreGlobalState(randomBoolean())
-            .setWaitForCompletion(true)
-            .get();
-
-        ensureGreen();
-
-        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), 2 * nDocs);
     }
 
     public void testCannotCreateSnapshotsWithSameName() throws Exception {

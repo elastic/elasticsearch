@@ -449,7 +449,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 }
                 // failing to apply a cluster state with an exception indicates a bug in validation or in one of the appliers; if we
                 // continue we will retry with the same cluster state but that might not help.
-                assert false;
+                assert applicationMayFail();
                 task.listener.onFailure(task.source, e);
             }
         }
@@ -664,4 +664,8 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         return threadPool.relativeTimeInMillis();
     }
 
+    // overridden by tests that need to check behaviour in the event of an application failure
+    protected boolean applicationMayFail() {
+        return false;
+    }
 }

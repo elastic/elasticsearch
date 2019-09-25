@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Object for encapsulating the desired Query for a DataFrameTransform
+ * Object for encapsulating the desired Query for a Transform
  */
 public class QueryConfig implements ToXContentObject {
 

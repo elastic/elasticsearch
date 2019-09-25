@@ -94,7 +94,6 @@ The result produced by the above query.
     "hits" : [
       {
         "_index" : "range_index",
-        "_type" : "_doc",
         "_id" : "1",
         "_score" : 1.0,
         "_source" : {
@@ -156,7 +155,6 @@ This query produces a similar result:
     "hits" : [
       {
         "_index" : "range_index",
-        "_type" : "_doc",
         "_id" : "1",
         "_score" : 1.0,
         "_source" : {

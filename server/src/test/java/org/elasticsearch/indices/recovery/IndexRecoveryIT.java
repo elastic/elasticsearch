@@ -55,6 +55,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimary
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -862,7 +863,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final String indexName = "test";
         client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)).get();
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
+            .put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(), 1.0)).get();
         ensureGreen(indexName);
 
         // Perform some replicated operations so the replica isn't simply empty, because ops-based recovery isn't better in that case
@@ -907,8 +909,9 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         recoveryStates.removeIf(r -> r.getTimer().getStartNanoTime() <= desyncNanoTime);
 
         assertThat(recoveryStates, hasSize(1));
-        assertThat(recoveryStates.get(0).getIndex().totalFileCount(), is(0));
-        assertThat(recoveryStates.get(0).getTranslog().recoveredOperations(), greaterThan(0));
+        final RecoveryState recoveryState = recoveryStates.get(0);
+        assertThat(Strings.toString(recoveryState), recoveryState.getIndex().totalFileCount(), is(0));
+        assertThat(recoveryState.getTranslog().recoveredOperations(), greaterThan(0));
     }
 
     public void testDoNotInfinitelyWaitForMapping() {

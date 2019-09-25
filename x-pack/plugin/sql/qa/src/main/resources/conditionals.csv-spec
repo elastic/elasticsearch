@@ -52,6 +52,21 @@ ORDER BY emp_no LIMIT 10;
 10014   | null
 ;
 
+caseWithConditionsFolded
+schema::emp_no:i|CASE_1:byte|CASE_2:i
+SELECT emp_no, CASE WHEN NULL = 1 THEN emp_no WHEN 10 < 5 THEN emp_no ELSE languages END AS "CASE_1",
+CASE WHEN NULL = 1 THEN languages WHEN 10 > 5 THEN emp_no ELSE languages END AS "CASE_2"
+FROM test_emp ORDER BY 1 LIMIT 5;
+
+ emp_no | CASE_1 | CASE_2
+--------+--------+-------
+10001   | 2      | 10001
+10002   | 5      | 10002
+10003   | 4      | 10003
+10004   | 5      | 10004
+10005   | 1      | 10005
+;
+
 caseWhere
 SELECT last_name FROM test_emp WHERE CASE WHEN LENGTH(last_name) < 7 THEN 'ShortName' ELSE 'LongName' END = 'LongName'
 ORDER BY emp_no LIMIT 10;
@@ -233,6 +248,19 @@ ORDER BY emp_no LIMIT 10;
 10012   | null
 10013   | null
 10014   | null
+;
+
+iifWithConditionFolded
+schema::emp_no:i|IIF_1:i|IIF_2:byte|IIF_3:i
+SELECT emp_no, IIF(NULL, emp_no) AS IIF_1, IIF(NULL, emp_no, languages) AS IIF_2, IIF(10 > 5, emp_no, languages) AS IIF_3 FROM test_emp ORDER BY 1 LIMIT 5;
+
+ emp_no | IIF_1 | IIF_2 | IIF_3
+--------+-------+-------+------
+10001   | null  | 2     | 10001
+10002   | null  | 5     | 10002
+10003   | null  | 4     | 10003
+10004   | null  | 5     | 10004
+10005   | null  | 1     | 10005
 ;
 
 iifWhere

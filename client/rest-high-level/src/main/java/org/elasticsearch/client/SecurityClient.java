@@ -31,6 +31,8 @@ import org.elasticsearch.client.security.CreateApiKeyRequest;
 import org.elasticsearch.client.security.CreateApiKeyResponse;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.CreateTokenResponse;
+import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
+import org.elasticsearch.client.security.DelegatePkiAuthenticationResponse;
 import org.elasticsearch.client.security.DeletePrivilegesRequest;
 import org.elasticsearch.client.security.DeletePrivilegesResponse;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
@@ -1004,5 +1006,40 @@ public final class SecurityClient {
                                              final ActionListener<InvalidateApiKeyResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::invalidateApiKey, options,
                 InvalidateApiKeyResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Get an Elasticsearch access token from an {@code X509Certificate} chain. The certificate chain is that of the client from a mutually
+     * authenticated TLS session, and it is validated by the PKI realms with {@code delegation.enabled} toggled to {@code true}.<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delegate-pki-authentication.html"> the
+     * docs</a> for more details.
+     * 
+     * @param request the request containing the certificate chain
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the delegate-pki-authentication API key call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public DelegatePkiAuthenticationResponse delegatePkiAuthentication(DelegatePkiAuthenticationRequest request, RequestOptions options)
+            throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::delegatePkiAuthentication, options,
+                DelegatePkiAuthenticationResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously get an Elasticsearch access token from an {@code X509Certificate} chain. The certificate chain is that of the client
+     * from a mutually authenticated TLS session, and it is validated by the PKI realms with {@code delegation.enabled} toggled to
+     * {@code true}.<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delegate-pki-authentication.html"> the
+     * docs</a> for more details.
+     * 
+     * @param request the request containing the certificate chain
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable delegatePkiAuthenticationAsync(DelegatePkiAuthenticationRequest request, RequestOptions options,
+            ActionListener<DelegatePkiAuthenticationResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::delegatePkiAuthentication, options,
+                DelegatePkiAuthenticationResponse::fromXContent, listener, emptySet());
     }
 }

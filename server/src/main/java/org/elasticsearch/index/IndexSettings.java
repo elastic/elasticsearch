@@ -35,8 +35,10 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.Node;
 
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -173,13 +175,6 @@ public final class IndexSettings {
     public static final Setting<Integer> MAX_RESCORE_WINDOW_SETTING =
             Setting.intSetting("index.max_rescore_window", MAX_RESULT_WINDOW_SETTING, 1,
                 Property.Dynamic, Property.IndexScope);
-    /**
-     * Index setting describing the maximum number of filters clauses that can be used
-     * in an adjacency_matrix aggregation. The max number of buckets produced by
-     * N filters is (N*N)/2 so a limit of 100 filters is imposed by default.
-     */
-    public static final Setting<Integer> MAX_ADJACENCY_MATRIX_FILTERS_SETTING =
-        Setting.intSetting("index.max_adjacency_matrix_filters", 100, 2, Property.Dynamic, Property.IndexScope);
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
     public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING =
         Setting.timeSetting("index.refresh_interval", DEFAULT_REFRESH_INTERVAL, new TimeValue(-1, TimeUnit.MILLISECONDS),
@@ -195,6 +190,14 @@ public final class IndexSettings {
             new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
             Property.Dynamic, Property.IndexScope);
 
+    /**
+     * The minimum size of a merge that triggers a flush in order to free resources
+     */
+    public static final Setting<ByteSizeValue> INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING =
+        Setting.byteSizeSetting("index.flush_after_merge", new ByteSizeValue(512, ByteSizeUnit.MB),
+            new ByteSizeValue(0, ByteSizeUnit.BYTES), // always flush after merge
+            new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES), // never flush after merge
+            Property.Dynamic, Property.IndexScope);
     /**
      * The maximum size of a translog generation. This is independent of the maximum size of
      * translog operations that have not been flushed.
@@ -291,12 +294,67 @@ public final class IndexSettings {
         1000, 1, Property.Dynamic, Property.IndexScope);
 
     public static final Setting<String> DEFAULT_PIPELINE =
-       new Setting<>("index.default_pipeline", IngestService.NOOP_PIPELINE_NAME, s -> {
-           if (s == null || s.isEmpty()) {
-               throw new IllegalArgumentException("Value for [index.default_pipeline] must be a non-empty string.");
-           }
-        return s;
-       }, Property.Dynamic, Property.IndexScope);
+        new Setting<>("index.default_pipeline",
+        IngestService.NOOP_PIPELINE_NAME,
+        Function.identity(),
+        new DefaultPipelineValidator(),
+        Property.Dynamic,
+        Property.IndexScope);
+
+    public static final Setting<String> REQUIRED_PIPELINE =
+        new Setting<>("index.required_pipeline",
+            IngestService.NOOP_PIPELINE_NAME,
+            Function.identity(),
+            new RequiredPipelineValidator(),
+            Property.Dynamic,
+            Property.IndexScope);
+
+    static class DefaultPipelineValidator implements Setting.Validator<String> {
+
+        @Override
+        public void validate(final String value) {
+
+        }
+
+        @Override
+        public void validate(final String value, final Map<Setting<String>, String> settings) {
+            final String requiredPipeline = settings.get(IndexSettings.REQUIRED_PIPELINE);
+            if (value.equals(IngestService.NOOP_PIPELINE_NAME) == false
+                && requiredPipeline.equals(IngestService.NOOP_PIPELINE_NAME) == false) {
+                throw new IllegalArgumentException(
+                    "index has a default pipeline [" + value + "] and a required pipeline [" + requiredPipeline + "]");
+            }
+        }
+
+        @Override
+        public Iterator<Setting<String>> settings() {
+            return List.of(REQUIRED_PIPELINE).iterator();
+        }
+
+    }
+
+    static class RequiredPipelineValidator implements Setting.Validator<String> {
+
+        @Override
+        public void validate(final String value) {
+
+        }
+
+        @Override
+        public void validate(final String value, final Map<Setting<String>, String> settings) {
+            final String defaultPipeline = settings.get(IndexSettings.DEFAULT_PIPELINE);
+            if (value.equals(IngestService.NOOP_PIPELINE_NAME) && defaultPipeline.equals(IngestService.NOOP_PIPELINE_NAME) == false) {
+                throw new IllegalArgumentException(
+                    "index has a required pipeline [" + value + "] and a default pipeline [" + defaultPipeline + "]");
+            }
+        }
+
+        @Override
+        public Iterator<Setting<String>> settings() {
+            return List.of(DEFAULT_PIPELINE).iterator();
+        }
+
+    }
 
     /**
      * Marks an index to be searched throttled. This means that never more than one shard of such an index will be searched concurrently
@@ -338,6 +396,7 @@ public final class IndexSettings {
     private volatile TimeValue translogRetentionAge;
     private volatile ByteSizeValue translogRetentionSize;
     private volatile ByteSizeValue generationThresholdSize;
+    private volatile ByteSizeValue flushAfterMergeThresholdSize;
     private final MergeSchedulerConfig mergeSchedulerConfig;
     private final MergePolicyConfig mergePolicyConfig;
     private final IndexSortConfig indexSortConfig;
@@ -364,7 +423,6 @@ public final class IndexSettings {
     private volatile boolean warmerEnabled;
     private volatile int maxResultWindow;
     private volatile int maxInnerResultWindow;
-    private volatile int maxAdjacencyMatrixFilters;
     private volatile int maxRescoreWindow;
     private volatile int maxDocvalueFields;
     private volatile int maxScriptFields;
@@ -375,6 +433,7 @@ public final class IndexSettings {
     private volatile int maxAnalyzedOffset;
     private volatile int maxTermsCount;
     private volatile String defaultPipeline;
+    private volatile String requiredPipeline;
     private volatile boolean searchThrottled;
 
     /**
@@ -470,6 +529,7 @@ public final class IndexSettings {
         refreshInterval = scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING);
         flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
         generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
+        flushAfterMergeThresholdSize = scopedSettings.get(INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING);
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         softDeleteEnabled = scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
@@ -478,7 +538,6 @@ public final class IndexSettings {
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
         maxInnerResultWindow = scopedSettings.get(MAX_INNER_RESULT_WINDOW_SETTING);
-        maxAdjacencyMatrixFilters = scopedSettings.get(MAX_ADJACENCY_MATRIX_FILTERS_SETTING);
         maxRescoreWindow = scopedSettings.get(MAX_RESCORE_WINDOW_SETTING);
         maxDocvalueFields = scopedSettings.get(MAX_DOCVALUE_FIELDS_SEARCH_SETTING);
         maxScriptFields = scopedSettings.get(MAX_SCRIPT_FIELDS_SETTING);
@@ -520,7 +579,6 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_SYNC_INTERVAL_SETTING, this::setTranslogSyncInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_RESULT_WINDOW_SETTING, this::setMaxResultWindow);
         scopedSettings.addSettingsUpdateConsumer(MAX_INNER_RESULT_WINDOW_SETTING, this::setMaxInnerResultWindow);
-        scopedSettings.addSettingsUpdateConsumer(MAX_ADJACENCY_MATRIX_FILTERS_SETTING, this::setMaxAdjacencyMatrixFilters);
         scopedSettings.addSettingsUpdateConsumer(MAX_RESCORE_WINDOW_SETTING, this::setMaxRescoreWindow);
         scopedSettings.addSettingsUpdateConsumer(MAX_DOCVALUE_FIELDS_SEARCH_SETTING, this::setMaxDocvalueFields);
         scopedSettings.addSettingsUpdateConsumer(MAX_SCRIPT_FIELDS_SETTING, this::setMaxScriptFields);
@@ -530,6 +588,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
         scopedSettings.addSettingsUpdateConsumer(INDEX_GC_DELETES_SETTING, this::setGCDeletes);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING, this::setTranslogFlushThresholdSize);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING, this::setFlushAfterMergeThresholdSize);
         scopedSettings.addSettingsUpdateConsumer(
                 INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING,
                 this::setGenerationThresholdSize);
@@ -544,6 +603,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_IDLE_AFTER, this::setSearchIdleAfter);
         scopedSettings.addSettingsUpdateConsumer(MAX_REGEX_LENGTH_SETTING, this::setMaxRegexLength);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_PIPELINE, this::setDefaultPipeline);
+        scopedSettings.addSettingsUpdateConsumer(REQUIRED_PIPELINE, this::setRequiredPipeline);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_THROTTLED, this::setSearchThrottled);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING, this::setRetentionLeaseMillis);
@@ -553,6 +613,10 @@ public final class IndexSettings {
 
     private void setTranslogFlushThresholdSize(ByteSizeValue byteSizeValue) {
         this.flushThresholdSize = byteSizeValue;
+    }
+
+    private void setFlushAfterMergeThresholdSize(ByteSizeValue byteSizeValue) {
+        this.flushAfterMergeThresholdSize = byteSizeValue;
     }
 
     private void setTranslogRetentionSize(ByteSizeValue byteSizeValue) {
@@ -731,7 +795,7 @@ public final class IndexSettings {
     public void setTranslogSyncInterval(TimeValue translogSyncInterval) {
         this.syncInterval = translogSyncInterval;
     }
-    
+
     /**
      * Returns this interval in which the shards of this index are asynchronously refreshed. {@code -1} means async refresh is disabled.
      */
@@ -743,6 +807,11 @@ public final class IndexSettings {
      * Returns the transaction log threshold size when to forcefully flush the index and clear the transaction log.
      */
     public ByteSizeValue getFlushThresholdSize() { return flushThresholdSize; }
+
+    /**
+     * Returns the merge threshold size when to forcefully flush the index and free resources.
+     */
+    public ByteSizeValue getFlushAfterMergeThresholdSize() { return flushAfterMergeThresholdSize; }
 
     /**
      * Returns the transaction log retention size which controls how much of the translog is kept around to allow for ops based recoveries
@@ -799,17 +868,6 @@ public final class IndexSettings {
 
     private void setMaxInnerResultWindow(int maxInnerResultWindow) {
         this.maxInnerResultWindow = maxInnerResultWindow;
-    }
-
-    /**
-     * Returns the max number of filters in adjacency_matrix aggregation search requests
-     */
-    public int getMaxAdjacencyMatrixFilters() {
-        return this.maxAdjacencyMatrixFilters;
-    }
-
-    private void setMaxAdjacencyMatrixFilters(int maxAdjacencyFilters) {
-        this.maxAdjacencyMatrixFilters = maxAdjacencyFilters;
     }
 
     /**
@@ -963,6 +1021,14 @@ public final class IndexSettings {
 
     public void setDefaultPipeline(String defaultPipeline) {
         this.defaultPipeline = defaultPipeline;
+    }
+
+    public String getRequiredPipeline() {
+        return requiredPipeline;
+    }
+
+    public void setRequiredPipeline(final String requiredPipeline) {
+        this.requiredPipeline = requiredPipeline;
     }
 
     /**

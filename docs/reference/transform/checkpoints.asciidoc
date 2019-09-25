@@ -1,0 +1,88 @@
+[role="xpack"]
+[[transform-checkpoints]]
+=== How {transform} checkpoints work
+++++
+<titleabbrev>How checkpoints work</titleabbrev>
+++++
+
+beta[]
+
+Each time a {transform} examines the source indices and creates or
+updates the destination index, it generates a _checkpoint_.
+
+If your {transform} runs only once, there is logically only one
+checkpoint. If your {transform} runs continuously, however, it creates
+checkpoints as it ingests and transforms new source data.
+
+To create a checkpoint, the {ctransform}:
+
+. Checks for changes to source indices.
++
+Using a simple periodic timer, the {transform} checks for changes to
+the source indices. This check is done based on the interval defined in the
+transform's `frequency` property.
++
+If the source indices remain unchanged or if a checkpoint is already in progress
+then it waits for the next timer.
+
+. Identifies which entities have changed.
++
+The {transform} searches to see which entities have changed since the
+last time it checked. The `sync` configuration object in the {transform}
+identifies a time field in the source indices. The {transform} uses the values
+in that field to synchronize the source and destination indices.
+ 
+. Updates the destination index (the {dataframe}) with the changed entities.
++
+--
+The {transform} applies changes related to either new or changed
+entities to the destination index. The set of changed entities is paginated. For
+each page, the {transform} performs a composite aggregation using a
+`terms` query. After all the pages of changes have been applied, the checkpoint
+is complete.
+--
+
+This checkpoint process involves both search and indexing activity on the
+cluster. We have attempted to favor control over performance while developing
+{transforms}. We decided it was preferable for the
+{transform} to take longer to complete, rather than to finish quickly
+and take precedence in resource consumption. That being said, the cluster still
+requires enough resources to support both the composite aggregation search and
+the indexing of its results. 
+
+TIP: If the cluster experiences unsuitable performance degradation due to the
+{transform}, stop the {transform}. Consider whether you can apply a
+source query to the {transform} to reduce the scope of data it
+processes. Also consider whether the cluster has sufficient resources in place
+to support both the composite aggregation search and the indexing of its
+results.
+
+[discrete]
+[[ml-transform-checkpoint-errors]]
+==== Error handling
+
+Failures in {transforms} tend to be related to searching or indexing.
+To increase the resiliency of {transforms}, the cursor positions of
+the aggregated search and the changed entities search are tracked in memory and
+persisted periodically.
+
+Checkpoint failures can be categorized as follows:
+
+* Temporary failures: The checkpoint is retried. If 10 consecutive failures
+occur, the {transform} has a failed status. For example, this
+situation might occur when there are shard failures and queries return only
+partial results.
+* Irrecoverable failures: The {transform} immediately fails. For
+example, this situation occurs when the source index is not found.
+* Adjustment failures: The {transform} retries with adjusted settings.
+For example, if a parent circuit breaker memory errors occur during the
+composite aggregation, the {transform} receives partial results. The aggregated
+search is retried with a smaller number of buckets. This retry is performed at
+the interval defined in the `frequency` property for the {transform}. If the
+search is retried to the point where it reaches a minimal number of buckets, an
+irrecoverable failure occurs.
+
+If the node running the {transforms} fails, the {transform} restarts
+from the most recent persisted cursor position. This recovery process might
+repeat some of the work the {transform} had already done, but it ensures data
+consistency.

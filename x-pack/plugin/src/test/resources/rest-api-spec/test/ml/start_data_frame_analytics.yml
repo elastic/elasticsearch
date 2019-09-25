@@ -62,6 +62,34 @@
         id: "foo"
 
 ---
+"Test start with compatible fields but no data":
+  - do:
+      indices.create:
+        index: empty-index-with-compatible-fields
+        body:
+          mappings:
+            properties:
+              long_field: { "type": "long" }
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "empty-with-compatible-fields"
+        body: >
+          {
+            "source": {
+              "index": "empty-index-with-compatible-fields"
+            },
+            "dest": {
+              "index": "empty-index-with-compatible-fields-dest"
+            },
+            "analysis": {"outlier_detection":{}}
+          }
+
+  - do:
+      catch: /Unable to start empty-with-compatible-fields as there are no analyzable data in source indices \[empty-index-with-compatible-fields\]/
+      ml.start_data_frame_analytics:
+        id: "empty-with-compatible-fields"
+---
 "Test start with inconsistent body/param ids":
 
   - do:

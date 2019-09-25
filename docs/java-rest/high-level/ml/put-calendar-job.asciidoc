@@ -3,6 +3,7 @@
 :request: PutCalendarJobRequest
 :response: PutCalendarResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Put {anomaly-jobs} in calendar API
 Adds {anomaly-jobs} jobs to an existing {ml} calendar.

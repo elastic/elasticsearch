@@ -18,7 +18,7 @@ setup:
                   "names": "index",
                   "privileges": ["all"],
                   "query" : {
-                    "terms" : { "field" : { "index" : "_index", "type" : "_type", "id" : "_id", "path" : "_path"} }
+                    "terms" : { "field" : { "index" : "_index", "id" : "_id", "path" : "_path"} }
                   }
                 }
               ]

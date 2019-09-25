@@ -28,6 +28,11 @@ you are able to map users to both API-managed roles and file-managed roles
 NOTE: The PKI, LDAP, Kerberos and SAML realms support using
 <<authorization_realms, authorization realms>> as an alternative to role mapping.
 
+NOTE: When <<anonymous-access, anonymous access>> is enabled, the roles
+of the anonymous user are assigned to all the other users as well.
+
+NOTE: Users with no roles assigned will be unauthorized for any action.
+
 [[mapping-roles-api]]
 ==== Using the role mapping API
 
@@ -91,7 +96,8 @@ user:
 <3> The distinguished name of an LDAP or Active Directory user.
 
 You can use the role-mapping API to define equivalent mappings as follows:
-[source,js]
+
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/admins
 {
@@ -100,9 +106,8 @@ PUT /_security/role_mapping/admins
   "enabled": true
 }
 --------------------------------------------------
-// CONSOLE
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/basic_users
 {
@@ -114,7 +119,6 @@ PUT /_security/role_mapping/basic_users
   "enabled": true
 }
 --------------------------------------------------
-// CONSOLE
 
 [float]
 [[pki-role-mapping]]
@@ -135,7 +139,7 @@ user:
 
 The following example creates equivalent mappings using the API:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/admin_user
 {
@@ -144,9 +148,8 @@ PUT /_security/role_mapping/admin_user
   "enabled": true
 }
 --------------------------------------------------
-// CONSOLE
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/basic_user
 {
@@ -155,4 +158,3 @@ PUT /_security/role_mapping/basic_user
   "enabled": true
 }
 --------------------------------------------------
-// CONSOLE

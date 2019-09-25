@@ -117,7 +117,6 @@ public final class BulkRequestParser {
         int line = 0;
         int from = 0;
         byte marker = xContent.streamSeparator();
-        boolean typesDeprecationLogged = false;
         while (true) {
             int nextMarker = findNextMarker(marker, from, data);
             if (nextMarker == -1) {

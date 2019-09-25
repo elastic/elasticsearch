@@ -11,22 +11,22 @@
         system_api_version: "6"
         interval:           "10s"
         body:
-          - index:
-              _type:  test_type
+          - index: {}
           - avg-cpu:
               user:   13.26
               nice:   0.17
               system: 1.51
               iowait: 0.85
               idle:   84.20
-          - index:
-              _type:  test_type
+            type: test_type
+          - index: {}
           - avg-cpu:
               user:   13.23
               nice:   0.17
               system: 1.51
               iowait: 0.85
               idle:   84.24
+            type: test_type
 
   - is_false: errors
 
@@ -50,11 +50,11 @@
         body:
           - '{"index": {}}'
           - '{"field_1": "value_1"}'
-          - '{"index": {"_type": "custom_type"}}'
+          - '{"index": {}}'
           - '{"field_1": "value_2"}'
           - '{"index": {}}'
           - '{"field_1": "value_3"}'
-          - '{"index": {"_index": "_data", "_type": "kibana"}}'
+          - '{"index": {"_index": "_data"}}'
           - '{"field_1": "value_4"}'
 
   - is_false: errors
@@ -99,11 +99,11 @@
         body:
           - '{"index": {}}'
           - '{"field_1": "value_1"}'
-          - '{"index": {"_type": "custom_type"}}'
+          - '{"index": {}}'
           - '{"field_1": "value_2"}'
           - '{"index": {}}'
           - '{"field_1": "value_3"}'
-          - '{"index": {"_index": "_data", "_type": "kibana"}}'
+          - '{"index": {"_index": "_data"}}'
           - '{"field_1": "value_4"}'
 
   - is_false: errors
@@ -177,16 +177,16 @@
         system_api_version: "6"
         interval:           "5s"
         body:
-          - index:
-              _type:  metric_beat
+          - index: {}
           - modules:
               nginx:  true
               mysql:  false
-          - index:
-              _type:  file_beat
+            type: metric_beat
+          - index: {}
           - file:
               path:   /var/log/dmesg
               size:   31kb
+            type: file_beat
 
   - is_false: errors
 
@@ -210,8 +210,8 @@
         system_api_version: "6"
         interval:           "5s"
         body:
-          - index:
-              _type:  file_beat
+          - index: {}
           - file:
               path:   /var/log/auth.log
               size:   5kb
+            type:  file_beat

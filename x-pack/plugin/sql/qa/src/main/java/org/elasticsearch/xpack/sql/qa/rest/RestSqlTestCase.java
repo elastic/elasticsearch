@@ -14,14 +14,12 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.NotEqualMessageBuilder;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.qa.ErrorsTestCase;
 import org.hamcrest.Matcher;
@@ -49,7 +47,7 @@ import static org.hamcrest.Matchers.containsString;
  * Integration test for the rest sql action. The one that speaks json directly to a
  * user rather than to the JDBC driver or CLI.
  */
-public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTestCase {
+public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements ErrorsTestCase {
     
     public static String SQL_QUERY_REST_ENDPOINT = org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
     private static String SQL_TRANSLATE_REST_ENDPOINT = org.elasticsearch.xpack.sql.proto.Protocol.SQL_TRANSLATE_REST_ENDPOINT;
@@ -891,25 +889,5 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         try (InputStream content = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
         }
-    }
-
-    public static String randomMode() {
-        return randomFrom(StringUtils.EMPTY, "jdbc", "plain");
-    }
-    
-    public static String mode(String mode) {
-        return Strings.isEmpty(mode) ? StringUtils.EMPTY : ",\"mode\":\"" + mode + "\"";
-    }
-
-    protected void index(String... docs) throws IOException {
-        Request request = new Request("POST", "/test/_bulk");
-        request.addParameter("refresh", "true");
-        StringBuilder bulk = new StringBuilder();
-        for (String doc : docs) {
-            bulk.append("{\"index\":{}\n");
-            bulk.append(doc + "\n");
-        }
-        request.setJsonEntity(bulk.toString());
-        client().performRequest(request);
     }
 }

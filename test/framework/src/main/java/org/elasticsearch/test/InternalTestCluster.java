@@ -450,7 +450,9 @@ public final class InternalTestCluster extends TestCluster {
             builder.put(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey(), timeValueSeconds(100 + random.nextInt(5 * 60)).getStringRep());
         }
 
-        builder.put(EsExecutors.PROCESSORS_SETTING.getKey(), 1 + random.nextInt(Math.min(4, Runtime.getRuntime().availableProcessors())));
+        builder.put(
+            EsExecutors.NODE_PROCESSORS_SETTING.getKey(),
+            1 + random.nextInt(Math.min(4, Runtime.getRuntime().availableProcessors())));
         if (random.nextBoolean()) {
             if (random.nextBoolean()) {
                 builder.put("indices.fielddata.cache.size", 1 + random.nextInt(1000), ByteSizeUnit.MB);
@@ -873,10 +875,16 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         void startNode() {
+            boolean success = false;
             try {
                 node.start();
+                success = true;
             } catch (NodeValidationException e) {
                 throw new RuntimeException(e);
+            } finally {
+                if (success == false) {
+                    IOUtils.closeWhileHandlingException(node);
+                }
             }
         }
 
@@ -1994,6 +2002,7 @@ public final class InternalTestCluster extends TestCluster {
                 .put(settings)
                 .put(Node.NODE_MASTER_SETTING.getKey(), true)
                 .put(Node.NODE_DATA_SETTING.getKey(), false)
+                .put(Node.NODE_INGEST_SETTING.getKey(), false)
                 .build();
         return startNode(settings1);
     }

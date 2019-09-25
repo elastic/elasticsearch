@@ -81,7 +81,7 @@ public class Recall extends AbstractConfusionMatrixMetric {
         for (int i = 0; i < recalls.length; i++) {
             double threshold = thresholds[i];
             Filter tpAgg = aggs.get(aggName(classInfo, threshold, Condition.TP));
-            Filter fnAgg =aggs.get(aggName(classInfo, threshold, Condition.FN));
+            Filter fnAgg = aggs.get(aggName(classInfo, threshold, Condition.FN));
             long tp = tpAgg.getDocCount();
             long fn = fnAgg.getDocCount();
             recalls[i] = tp + fn == 0 ? 0.0 : (double) tp / (tp + fn);

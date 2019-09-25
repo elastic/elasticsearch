@@ -44,6 +44,7 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.hamcrest.CoreMatchers.equalTo;
 
 public class CreateIndexRequestTests extends ESTestCase {
 
@@ -194,6 +195,15 @@ public class CreateIndexRequestTests extends ESTestCase {
 
         BytesReference finalBytes = toShuffledXContent(parsedCreateIndexRequest, xContentType, EMPTY_PARAMS, humanReadable);
         ElasticsearchAssertions.assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
+    }
+
+    public void testSettingsType() throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        builder.startObject().startArray("settings").endArray().endObject();
+
+        CreateIndexRequest parsedCreateIndexRequest = new CreateIndexRequest();
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parsedCreateIndexRequest.source(builder));
+        assertThat(e.getMessage(), equalTo("key [settings] must be an object"));
     }
 
     public static void assertMappingsEqual(Map<String, String> expected, Map<String, String> actual) throws IOException {

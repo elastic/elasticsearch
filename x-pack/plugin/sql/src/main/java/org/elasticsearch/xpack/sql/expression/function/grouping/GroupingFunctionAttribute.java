@@ -37,11 +37,11 @@ public class GroupingFunctionAttribute extends FunctionAttribute {
     }
 
     @Override
-    protected Attribute clone(Source source, String name, String qualifier, Nullability nullability,
+    protected Attribute clone(Source source, String name, DataType dataType, String qualifier, Nullability nullability,
                               ExpressionId id, boolean synthetic) {
         // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
         // that is the functionId is actually derived from the expression id to easily track it across contexts
-        return new GroupingFunctionAttribute(source, name, dataType(), qualifier, nullability, id, synthetic, functionId());
+        return new GroupingFunctionAttribute(source, name, dataType, qualifier, nullability, id, synthetic, functionId());
     }
 
     public GroupingFunctionAttribute withFunctionId(String functionId, String propertyPath) {

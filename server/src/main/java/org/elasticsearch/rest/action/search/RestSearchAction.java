@@ -19,7 +19,9 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Booleans;
@@ -97,7 +99,10 @@ public class RestSearchAction extends BaseRestHandler {
         request.withContentOrSourceParamParserOrNull(parser ->
             parseSearchRequest(searchRequest, request, parser, setSize));
 
-        return channel -> client.search(searchRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> {
+            RestStatusToXContentListener<SearchResponse> listener = new RestStatusToXContentListener<>(channel);
+            HttpChannelTaskHandler.INSTANCE.execute(client, request.getHttpChannel(), searchRequest, SearchAction.INSTANCE, listener);
+        };
     }
 
     /**

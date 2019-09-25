@@ -21,6 +21,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.BwcVersions
+import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
 
 import java.nio.charset.StandardCharsets
 
@@ -42,7 +43,7 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
 
     File checkoutDir = file("${buildDir}/bwc/checkout-${bwcBranch}")
 
-    final String remote = System.getProperty("tests.bwc.remote", "elastic")
+    final String remote = System.getProperty("bwc.remote", "elastic")
 
     boolean gitFetchLatest
     final String gitFetchLatestProperty = System.getProperty("tests.bwc.git_fetch_latest", "true")
@@ -103,8 +104,8 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
     task checkoutBwcBranch() {
         dependsOn fetchLatest
         doLast {
-            String refspec = System.getProperty("tests.bwc.refspec.${bwcBranch}", "${remote}/${bwcBranch}")
-            if (System.getProperty("tests.bwc.checkout.align") != null) {
+            String refspec = System.getProperty("bwc.refspec.${bwcBranch}") ?: System.getProperty("tests.bwc.refspec.${bwcBranch}") ?: "${remote}/${bwcBranch}"
+            if (System.getProperty("bwc.checkout.align") != null) {
                 /*
                     We use a time based approach to make the bwc versions built deterministic and compatible with the current hash.
                     Most of the time we want to test against latest, but when running delayed exhaustive tests or wanting
@@ -140,11 +141,14 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
                 }
             }
 
-            logger.lifecycle("Checkout hash for ${project.path} is ${refspec}")
+            logger.lifecycle("Performing checkout of ${refspec}...")
             LoggedExec.exec(project) { spec ->
                 spec.workingDir = checkoutDir
                 spec.commandLine "git", "checkout", refspec
             }
+            String checkoutHash = GlobalBuildInfoPlugin.gitRevision(checkoutDir)
+            logger.lifecycle("Checkout hash for ${project.path} is ${checkoutHash}")
+            file("${project.buildDir}/refspec").text = checkoutHash
         }
     }
 
@@ -217,7 +221,16 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
 
     Closure createBuildBwcTask = { projectName, projectDir, projectArtifact ->
         Task bwcTask = createRunBwcGradleTask(buildBwcTaskName(projectName)) {
+            inputs.file("${project.buildDir}/refspec")
+            outputs.files(projectArtifact)
+            outputs.cacheIf("BWC distribution caching is disabled on 'master' branch") {
+                // Don't bother caching in 'master' since the BWC branches move too quickly to make this cost worthwhile
+                project.ext.isCi && System.getenv('GIT_BRANCH')?.endsWith("master") == false
+            }
             args ":${projectDir.replace('/', ':')}:assemble"
+            if (project.gradle.startParameter.buildCacheEnabled) {
+                args "--build-cache"
+            }
             doLast {
                 if (projectArtifact.exists() == false) {
                     throw new InvalidUserDataException("Building ${bwcVersion} didn't generate expected file ${projectArtifact}")

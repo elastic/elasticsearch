@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -45,7 +47,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -155,7 +156,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     }
 
     @Override
-    protected boolean serializeTargetValueType() {
+    protected boolean serializeTargetValueType(Version version) {
         return true;
     }
 
@@ -283,11 +284,13 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(SearchContext context, ValuesSourceConfig<ValuesSource> config,
-            AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
-        SignificanceHeuristic executionHeuristic = this.significanceHeuristic.rewrite(context);
+    protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
+                                                                        ValuesSourceConfig<ValuesSource> config,
+                                                                        AggregatorFactory parent,
+                                                                        Builder subFactoriesBuilder) throws IOException {
+        SignificanceHeuristic executionHeuristic = this.significanceHeuristic.rewrite(queryShardContext);
         return new SignificantTermsAggregatorFactory(name, config, includeExclude, executionHint, filterBuilder,
-                bucketCountThresholds, executionHeuristic, context, parent, subFactoriesBuilder, metaData);
+                bucketCountThresholds, executionHeuristic, queryShardContext, parent, subFactoriesBuilder, metaData);
     }
 
     @Override

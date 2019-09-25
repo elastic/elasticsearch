@@ -55,7 +55,6 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
     /**
      * Test that cluster recovers from a long GC on master that causes other nodes to elect a new one
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43387")
     public void testMasterNodeGCs() throws Exception {
         List<String> nodes = startCluster(3);
 

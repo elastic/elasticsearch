@@ -5,7 +5,7 @@ A mapping type can have custom meta data associated with it. These are not
 used at all by Elasticsearch, but can be used to store application-specific
 metadata, such as the class that a document belongs to:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -20,14 +20,14 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> This `_meta` info can be retrieved with the
     <<indices-get-mapping,GET mapping>> API.
 
 The `_meta` field can be updated on an existing type using the
 <<indices-put-mapping,PUT mapping>> API:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index/_mapping
 {
@@ -40,5 +40,4 @@ PUT my_index/_mapping
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]

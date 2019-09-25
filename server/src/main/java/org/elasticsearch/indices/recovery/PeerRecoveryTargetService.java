@@ -253,7 +253,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 // the issues that a missing call to this could cause are sneaky and hard to debug. If we don't need it on this
                 // call we can potentially remove it altogether which we should do it in a major release only with enough
                 // time to test. This shoudl be done for 7.0 if possible
-                transportService.submitRequest(request.sourceNode(), PeerRecoverySourceService.Actions.START_RECOVERY, request,
+                transportService.sendRequest(request.sourceNode(), PeerRecoverySourceService.Actions.START_RECOVERY, request,
                     new TransportResponseHandler<RecoveryResponse>() {
                         @Override
                         public void handleResponse(RecoveryResponse recoveryResponse) {

@@ -158,7 +158,9 @@ For Eclipse, go to `Preferences->Java->Installed JREs` and add `-ea` to
 Java files in the Elasticsearch codebase are formatted with the Eclipse JDT
 formatter, using the [Spotless
 Gradle](https://github.com/diffplug/spotless/tree/master/plugin-gradle)
-plugin. The formatting check can be run explicitly with:
+plugin. This plugin is configured on a project-by-project basis, via
+`build.gradle` in the root of the repository. So long as at least one
+project is configured, the formatting check can be run explicitly with:
 
     ./gradlew spotlessJavaCheck
 

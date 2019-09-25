@@ -102,6 +102,7 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
         assertFalse(clusterState.getMetaData().hasIndex("should-fail"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47107")
     public void testIndexCreationOverLimitFromTemplate() {
         int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
 

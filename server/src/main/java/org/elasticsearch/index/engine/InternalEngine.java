@@ -2457,7 +2457,7 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void ensureCanFlush() {
+    final void ensureCanFlush() {
         // translog recover happens after the engine is fully constructed
         // if we are in this stage we have to prevent flushes from this
         // engine otherwise we might loose documents if the flush succeeds
@@ -2647,11 +2647,6 @@ public class InternalEngine extends Engine {
         } else {
             return translog.acquireRetentionLock();
         }
-    }
-
-    @Override
-    public boolean isRecovering() {
-        return pendingTranslogRecovery.get();
     }
 
     /**

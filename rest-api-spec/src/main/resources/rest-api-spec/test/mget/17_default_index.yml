@@ -22,17 +22,14 @@
 
   - is_false: docs.0.found
   - match:  { docs.0._index:     test_2      }
-  - match:  { docs.0._type:      null        }
   - match:  { docs.0._id:        "1"         }
 
   - is_false: docs.1.found
   - match:  { docs.1._index:     test_1      }
-  - match:  { docs.1._type:      _doc        }
   - match:  { docs.1._id:        "2"         }
 
   - is_true:  docs.2.found
   - match:  { docs.2._index:     test_1      }
-  - match:  { docs.2._type:      _doc        }
   - match:  { docs.2._id:        "1"         }
   - match:  { docs.2._version:   1           }
   - match:  { docs.2._source:    { foo: bar }}

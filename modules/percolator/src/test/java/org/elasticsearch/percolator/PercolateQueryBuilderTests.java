@@ -40,7 +40,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 
@@ -146,26 +145,25 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     @Override
     protected GetResponse executeGet(GetRequest getRequest) {
         assertThat(getRequest.index(), Matchers.equalTo(indexedDocumentIndex));
-        assertThat(getRequest.type(), Matchers.equalTo(MapperService.SINGLE_MAPPING_NAME));
         assertThat(getRequest.id(), Matchers.equalTo(indexedDocumentId));
         assertThat(getRequest.routing(), Matchers.equalTo(indexedDocumentRouting));
         assertThat(getRequest.preference(), Matchers.equalTo(indexedDocumentPreference));
         assertThat(getRequest.version(), Matchers.equalTo(indexedDocumentVersion));
         if (indexedDocumentExists) {
             return new GetResponse(
-                    new GetResult(indexedDocumentIndex, MapperService.SINGLE_MAPPING_NAME, indexedDocumentId, 0, 1, 0L, true,
+                    new GetResult(indexedDocumentIndex, indexedDocumentId, 0, 1, 0L, true,
                             documentSource.iterator().next(), Collections.emptyMap(), Collections.emptyMap())
             );
         } else {
             return new GetResponse(
-                    new GetResult(indexedDocumentIndex, MapperService.SINGLE_MAPPING_NAME, indexedDocumentId, UNASSIGNED_SEQ_NO, 0, -1,
+                    new GetResult(indexedDocumentIndex, indexedDocumentId, UNASSIGNED_SEQ_NO, 0, -1,
                         false, null, Collections.emptyMap(), Collections.emptyMap())
             );
         }
     }
 
     @Override
-    protected void doAssertLuceneQuery(PercolateQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(PercolateQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, Matchers.instanceOf(PercolateQuery.class));
         PercolateQuery percolateQuery = (PercolateQuery) query;
         assertNull(queryBuilder.getDocumentType());

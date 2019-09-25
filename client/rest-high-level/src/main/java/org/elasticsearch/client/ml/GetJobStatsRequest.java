@@ -18,8 +18,7 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -41,7 +40,7 @@ import java.util.Objects;
  * {@code _all} explicitly gets all the jobs' statistics in the cluster
  * An empty request (no {@code jobId}s) implicitly gets all the jobs' statistics in the cluster
  */
-public class GetJobStatsRequest extends ActionRequest implements ToXContentObject {
+public class GetJobStatsRequest implements Validatable, ToXContentObject {
 
     public static final ParseField ALLOW_NO_JOBS = new ParseField("allow_no_jobs");
 
@@ -126,11 +125,6 @@ public class GetJobStatsRequest extends ActionRequest implements ToXContentObjec
         GetJobStatsRequest that = (GetJobStatsRequest) other;
         return Objects.equals(jobIds, that.jobIds) &&
             Objects.equals(allowNoJobs, that.allowNoJobs);
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     @Override

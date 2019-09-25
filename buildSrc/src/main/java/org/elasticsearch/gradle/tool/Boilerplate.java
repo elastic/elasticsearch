@@ -20,6 +20,7 @@ package org.elasticsearch.gradle.tool;
 
 import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
+import org.gradle.api.PolymorphicDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.UnknownTaskException;
@@ -46,6 +47,16 @@ public abstract class Boilerplate {
         return Optional.ofNullable(collection.findByName(name))
             .orElseGet(() -> {
                 T result = collection.create(name);
+                action.execute(result);
+                return result;
+            });
+
+    }
+
+    public static <T> T maybeCreate(PolymorphicDomainObjectContainer<T> collection, String name, Class<T> type, Action<T> action) {
+        return Optional.ofNullable(collection.findByName(name))
+            .orElseGet(() -> {
+                T result = collection.create(name, type);
                 action.execute(result);
                 return result;
             });

@@ -39,16 +39,17 @@ CURRENT_DATE     |SCALAR
 CURRENT_TIME     |SCALAR
 CURRENT_TIMESTAMP|SCALAR
 CURTIME          |SCALAR
+DATE_TRUNC       |SCALAR
 DAY              |SCALAR
 DAYNAME          |SCALAR
-DAYOFMONTH       |SCALAR         
-DAYOFWEEK        |SCALAR         
-DAYOFYEAR        |SCALAR         
-DAY_NAME         |SCALAR         
-DAY_OF_MONTH     |SCALAR         
-DAY_OF_WEEK      |SCALAR         
-DAY_OF_YEAR      |SCALAR         
-DOM              |SCALAR         
+DAYOFMONTH       |SCALAR
+DAYOFWEEK        |SCALAR
+DAYOFYEAR        |SCALAR
+DAY_NAME         |SCALAR
+DAY_OF_MONTH     |SCALAR
+DAY_OF_WEEK      |SCALAR
+DAY_OF_YEAR      |SCALAR
+DOM              |SCALAR
 DOW              |SCALAR         
 DOY              |SCALAR         
 HOUR             |SCALAR         

@@ -205,7 +205,7 @@ public class NativeUsersStore {
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                            client.prepareGet(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, getIdForUser(USER_DOC_TYPE, user)).request(),
+                            client.prepareGet(SECURITY_MAIN_ALIAS, getIdForUser(USER_DOC_TYPE, user)).request(),
                             new ActionListener<GetResponse>() {
                                 @Override
                                 public void onResponse(GetResponse response) {
@@ -526,7 +526,7 @@ public class NativeUsersStore {
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
                     executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                            client.prepareGet(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, getIdForUser(RESERVED_USER_TYPE, username))
+                            client.prepareGet(SECURITY_MAIN_ALIAS, getIdForUser(RESERVED_USER_TYPE, username))
                                 .request(),
                             new ActionListener<GetResponse>() {
                                 @Override

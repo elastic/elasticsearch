@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="gold"]
 [[configuring-metricbeat]]
-=== Collecting {es} monitoring data with {metricbeat}
+== Collecting {es} monitoring data with {metricbeat}
 
 [subs="attributes"]
 ++++

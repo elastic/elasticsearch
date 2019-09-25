@@ -442,11 +442,10 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testRoutingMissingException() throws IOException {
-        RoutingMissingException ex = serialize(new RoutingMissingException("idx", "type", "id"));
+        RoutingMissingException ex = serialize(new RoutingMissingException("idx", "id"));
         assertEquals("idx", ex.getIndex().getName());
-        assertEquals("type", ex.getType());
         assertEquals("id", ex.getId());
-        assertEquals("routing is required for [idx]/[type]/[id]", ex.getMessage());
+        assertEquals("routing is required for [idx]/[id]", ex.getMessage());
     }
 
     public void testRepositoryException() throws IOException {

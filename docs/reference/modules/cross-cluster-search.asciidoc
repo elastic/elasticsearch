@@ -99,7 +99,6 @@ The API returns the following response:
     "hits": [
       {
         "_index": "cluster_one:twitter", <1>
-        "_type": "_doc",
         "_id": "0",
         "_score": 1,
         "_source": {
@@ -171,7 +170,6 @@ The API returns the following response:
     "hits": [
       {
         "_index": "twitter", <1>
-        "_type": "_doc",
         "_id": "0",
         "_score": 2,
         "_source": {
@@ -183,7 +181,6 @@ The API returns the following response:
       },
       {
         "_index": "cluster_one:twitter", <2>
-        "_type": "_doc",
         "_id": "0",
         "_score": 1,
         "_source": {
@@ -195,7 +192,6 @@ The API returns the following response:
       },
       {
         "_index": "cluster_two:twitter", <3>
-        "_type": "_doc",
         "_id": "0",
         "_score": 1,
         "_source": {

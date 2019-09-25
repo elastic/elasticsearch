@@ -246,6 +246,96 @@
                 },
                 "apm-server": {
                   "properties": {
+                    "acm": {
+                      "properties": {
+                        "request": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "response": {
+                          "properties": {
+                            "count": {
+                                "type": "long"
+                            },
+                            "errors": {
+                              "properties": {
+                                "validate": {
+                                  "type": "long"
+                                },
+                                "internal": {
+                                  "type": "long"
+                                },
+                                "queue": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                },
+                                "decode": {
+                                  "type": "long"
+                                },
+                                "toolarge": {
+                                  "type": "long"
+                                },
+                                "unavailable": {
+                                  "type": "long"
+                                },
+                                "forbidden": {
+                                  "type": "long"
+                                },
+                                "method": {
+                                  "type": "long"
+                                },
+                                "notfound": {
+                                  "type": "long"
+                                },
+                                "invalidquery": {
+                                  "type": "long"
+                                },
+                                "ratelimit": {
+                                  "type": "long"
+                                },
+                                "closed": {
+                                  "type": "long"
+                                },
+                                "unauthorized": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "valid": {
+                              "properties": {
+                                "notmodified": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                },
+                                "ok": {
+                                  "type": "long"
+                                },
+                                "accepted": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "unset": {
+                              "type": "long"
+                            },
+                            "request": {
+                              "properties": {
+                                "count": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
                     "server": {
                       "properties": {
                         "request": {

@@ -204,7 +204,7 @@ final class IndexLifecycleRequestConverters {
     }
 
     static Request executeSnapshotLifecyclePolicy(ExecuteSnapshotLifecyclePolicyRequest executeSnapshotLifecyclePolicyRequest) {
-        Request request = new Request(HttpPut.METHOD_NAME,
+        Request request = new Request(HttpPost.METHOD_NAME,
             new RequestConverters.EndpointBuilder()
                 .addPathPartAsIs("_slm/policy")
                 .addPathPartAsIs(executeSnapshotLifecyclePolicyRequest.getPolicyId())

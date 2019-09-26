@@ -20,16 +20,32 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 public class SniffConnectionStrategyTests extends ESTestCase {
 
+    private final String clusterAlias = "cluster-alias";
+    private final ConnectionProfile profile = RemoteClusterService.buildConnectionProfileFromSettings(Settings.EMPTY, "cluster");
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
     @Override
@@ -38,14 +54,220 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
-    public void testThing() {
-        try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
-            service.start();
-            service.acceptIncomingRequests();
-
-            SniffConnectionStrategy strategy = new SniffConnectionStrategy("cluster", service, null, null, 6, null, null);
-        }
-
+    private MockTransportService startTransport(String id, List<DiscoveryNode> knownNodes, Version version) {
+        return startTransport(id, knownNodes, version, threadPool);
     }
 
+    public static MockTransportService startTransport(String id, List<DiscoveryNode> knownNodes, Version version, ThreadPool threadPool) {
+        return startTransport(id, knownNodes, version, threadPool, Settings.EMPTY);
+    }
+
+    public static MockTransportService startTransport(final String id, final List<DiscoveryNode> knownNodes, final Version version,
+                                                      final ThreadPool threadPool, final Settings settings) {
+        boolean success = false;
+        final Settings s = Settings.builder().put(settings).put("node.name", id).build();
+        ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(s);
+        MockTransportService newService = MockTransportService.createNewService(s, version, threadPool, null);
+        try {
+            newService.registerRequestHandler(ClusterStateAction.NAME, ThreadPool.Names.SAME, ClusterStateRequest::new,
+                (request, channel, task) -> {
+                    DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
+                    for (DiscoveryNode node : knownNodes) {
+                        builder.add(node);
+                    }
+                    ClusterState build = ClusterState.builder(clusterName).nodes(builder.build()).build();
+                    channel.sendResponse(new ClusterStateResponse(clusterName, build, false));
+                });
+            newService.start();
+            newService.acceptIncomingRequests();
+            success = true;
+            return newService;
+        } finally {
+            if (success == false) {
+                newService.close();
+            }
+        }
+    }
+
+    public void testSniffStrategyWillConnectToAndDiscoverNodes() {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
+             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
+            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
+            DiscoveryNode discoverableNode = discoverableTransport.getLocalDiscoNode();
+            knownNodes.add(seedNode);
+            knownNodes.add(discoverableNode);
+            Collections.shuffle(knownNodes, random());
+
+
+            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+                localService.start();
+                localService.acceptIncomingRequests();
+
+                List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes = Collections.singletonList(Tuple.tuple(seedNode.toString(), () -> seedNode));
+                ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
+                try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
+                         null, 3, n -> true, seedNodes)) {
+                    PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    strategy.connect(connectFuture);
+                    connectFuture.actionGet();
+
+                    assertTrue(connectionManager.nodeConnected(seedNode));
+                    assertTrue(connectionManager.nodeConnected(discoverableNode));
+                    assertTrue(strategy.assertNoRunningConnections());
+                }
+
+            }
+        }
+    }
+
+    public void testSniffStrategyWillConnectToMaxAllowedNodesAndOpenNewConnectionsOnDisconnect() throws Exception {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
+             MockTransportService discoverableTransport1 = startTransport("discoverable_node", knownNodes, Version.CURRENT);
+             MockTransportService discoverableTransport2 = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
+            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
+            DiscoveryNode discoverableNode1 = discoverableTransport1.getLocalDiscoNode();
+            DiscoveryNode discoverableNode2 = discoverableTransport2.getLocalDiscoNode();
+            knownNodes.add(seedNode);
+            knownNodes.add(discoverableNode1);
+            knownNodes.add(discoverableNode2);
+            Collections.shuffle(knownNodes, random());
+
+
+            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+                localService.start();
+                localService.acceptIncomingRequests();
+
+                List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes = Collections.singletonList(Tuple.tuple(seedNode.toString(), () -> seedNode));
+                ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
+                try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
+                         null, 2, n -> true, seedNodes)) {
+                    PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    strategy.connect(connectFuture);
+                    connectFuture.actionGet();
+
+                    assertEquals(2, connectionManager.size());
+                    assertTrue(connectionManager.nodeConnected(seedNode));
+
+                    // Assert that one of the discovered nodes is connected. After that, disconnect the connected
+                    // discovered node and ensure the other discovered node is eventually connected
+                    if (connectionManager.nodeConnected(discoverableNode1)) {
+                        assertTrue(connectionManager.nodeConnected(discoverableNode1));
+                        discoverableTransport1.close();
+                        assertBusy(() -> assertTrue(connectionManager.nodeConnected(discoverableNode2)));
+                    } else {
+                        assertTrue(connectionManager.nodeConnected(discoverableNode2));
+                        discoverableTransport2.close();
+                        assertBusy(() -> assertTrue(connectionManager.nodeConnected(discoverableNode1)));
+                    }
+                }
+            }
+        }
+    }
+
+    public void testDiscoverWithSingleIncompatibleSeedNode() {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        Version incompatibleVersion = Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
+             MockTransportService incompatibleSeedTransport = startTransport("discoverable_node", knownNodes, incompatibleVersion);
+             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
+            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
+            DiscoveryNode incompatibleSeedNode = incompatibleSeedTransport.getLocalDiscoNode();
+            DiscoveryNode discoverableNode = discoverableTransport.getLocalDiscoNode();
+            knownNodes.add(seedNode);
+            knownNodes.add(incompatibleSeedNode);
+            knownNodes.add(discoverableNode);
+            Collections.shuffle(knownNodes, random());
+
+
+            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+                localService.start();
+                localService.acceptIncomingRequests();
+
+                List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes = Collections.singletonList(Tuple.tuple(seedNode.toString(), () -> seedNode));
+                ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
+                try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
+                         null, 3, n -> true, seedNodes)) {
+                    PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    strategy.connect(connectFuture);
+                    connectFuture.actionGet();
+
+                    assertEquals(2, connectionManager.size());
+                    assertTrue(connectionManager.nodeConnected(seedNode));
+                    assertTrue(connectionManager.nodeConnected(discoverableNode));
+                    assertFalse(connectionManager.nodeConnected(incompatibleSeedNode));
+                    assertTrue(strategy.assertNoRunningConnections());
+                }
+            }
+        }
+    }
+
+    public void testConnectFailsWithIncompatibleNodes() {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        Version incompatibleVersion = Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
+        try (MockTransportService incompatibleSeedTransport = startTransport("seed_node", knownNodes, incompatibleVersion)) {
+            DiscoveryNode incompatibleSeedNode = incompatibleSeedTransport.getLocalDiscoNode();
+            knownNodes.add(incompatibleSeedNode);
+
+            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+                localService.start();
+                localService.acceptIncomingRequests();
+
+                Tuple<String, Supplier<DiscoveryNode>> tuple = Tuple.tuple(incompatibleSeedNode.toString(), () -> incompatibleSeedNode);
+                List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes = Collections.singletonList(tuple);
+                ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
+                try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
+                         null, 3, n -> true, seedNodes)) {
+                    PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    strategy.connect(connectFuture);
+
+                    expectThrows(Exception.class, connectFuture::actionGet);
+                    assertFalse(connectionManager.nodeConnected(incompatibleSeedNode));
+                    assertTrue(strategy.assertNoRunningConnections());
+                }
+            }
+        }
+    }
+
+    public void testFilterNodesWithNodePredicate() {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
+             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
+            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
+            DiscoveryNode discoverableNode = discoverableTransport.getLocalDiscoNode();
+            knownNodes.add(seedNode);
+            knownNodes.add(discoverableNode);
+            DiscoveryNode rejectedNode = randomBoolean() ? seedNode : discoverableNode;
+            Collections.shuffle(knownNodes, random());
+
+            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
+                localService.start();
+                localService.acceptIncomingRequests();
+
+                List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes = Collections.singletonList(Tuple.tuple(seedNode.toString(), () -> seedNode));
+                ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
+                try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
+                     SniffConnectionStrategy strategy = new SniffConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
+                         null, 3, n -> n.equals(rejectedNode) == false, seedNodes)) {
+                    PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
+                    strategy.connect(connectFuture);
+                    connectFuture.actionGet();
+
+                    if (rejectedNode.equals(seedNode)) {
+                        assertFalse(connectionManager.nodeConnected(seedNode));
+                        assertTrue(connectionManager.nodeConnected(discoverableNode));
+                    } else {
+                        assertTrue(connectionManager.nodeConnected(seedNode));
+                        assertFalse(connectionManager.nodeConnected(discoverableNode));
+                    }
+                    assertTrue(strategy.assertNoRunningConnections());
+                }
+            }
+        }
+    }
 }

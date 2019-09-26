@@ -53,6 +53,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     RemoteConnectionStrategy(ThreadPool threadPool, RemoteConnectionManager connectionManager) {
         this.threadPool = threadPool;
         this.connectionManager = connectionManager;
+        connectionManager.getConnectionManager().addListener(this);
     }
 
     /**
@@ -120,7 +121,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         final List<ActionListener<Void>> toNotify;
         synchronized (mutex) {
             if (closed.compareAndSet(false, true)) {

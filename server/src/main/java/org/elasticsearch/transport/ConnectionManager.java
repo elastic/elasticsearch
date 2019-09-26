@@ -31,10 +31,8 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -150,13 +148,13 @@ public class ConnectionManager implements Closeable {
                         } else {
                             logger.debug("connected to node [{}]", node);
                             try {
-                                connectionListener.onNodeConnected(node);
+                                connectionListener.onNodeConnected(node, conn);
                             } finally {
                                 final Transport.Connection finalConnection = conn;
                                 conn.addCloseListener(ActionListener.wrap(() -> {
                                     logger.trace("unregistering {} after connection close and marking as disconnected", node);
                                     connectedNodes.remove(node, finalConnection);
-                                    connectionListener.onNodeDisconnected(node);
+                                    connectionListener.onNodeDisconnected(node, conn);
                                 }));
                             }
                         }
@@ -218,13 +216,6 @@ public class ConnectionManager implements Closeable {
         return connectedNodes.size();
     }
 
-    /**
-     * Returns the set of nodes this manager is connected to.
-     */
-    public Set<DiscoveryNode> connectedNodes() {
-        return Collections.unmodifiableSet(connectedNodes.keySet());
-    }
-
     @Override
     public void close() {
         internalClose(true);
@@ -283,16 +274,16 @@ public class ConnectionManager implements Closeable {
         private final CopyOnWriteArrayList<TransportConnectionListener> listeners = new CopyOnWriteArrayList<>();
 
         @Override
-        public void onNodeDisconnected(DiscoveryNode key) {
+        public void onNodeDisconnected(DiscoveryNode key, Transport.Connection connection) {
             for (TransportConnectionListener listener : listeners) {
-                listener.onNodeDisconnected(key);
+                listener.onNodeDisconnected(key, connection);
             }
         }
 
         @Override
-        public void onNodeConnected(DiscoveryNode node) {
+        public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
             for (TransportConnectionListener listener : listeners) {
-                listener.onNodeConnected(node);
+                listener.onNodeConnected(node, connection);
             }
         }
 

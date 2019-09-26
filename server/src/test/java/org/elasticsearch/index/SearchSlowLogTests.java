@@ -21,24 +21,18 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchTask;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.TestSearchContext;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -59,98 +53,12 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
     protected SearchContext createSearchContext(IndexService indexService) {
        return createSearchContext(indexService, new String[]{});
     }
+
     protected SearchContext createSearchContext(IndexService indexService, String ... groupStats) {
         BigArrays bigArrays = indexService.getBigArrays();
-        ThreadPool threadPool = indexService.getThreadPool();
+        final ShardSearchRequest request =
+            new ShardSearchRequest(new ShardId(indexService.index(), 0), 0L, null);
         return new TestSearchContext(bigArrays, indexService) {
-            final ShardSearchRequest request = new ShardSearchRequest() {
-                private SearchSourceBuilder searchSourceBuilder;
-                @Override
-                public ShardId shardId() {
-                    return new ShardId(indexService.index(), 0);
-                }
-
-                @Override
-                public SearchSourceBuilder source() {
-                    return searchSourceBuilder;
-                }
-
-                @Override
-                public AliasFilter getAliasFilter() {
-                    return new AliasFilter(QueryBuilders.matchAllQuery(), "foo");
-                }
-
-                @Override
-                public void setAliasFilter(AliasFilter filter) {
-
-                }
-
-                @Override
-                public void source(SearchSourceBuilder source) {
-                    searchSourceBuilder = source;
-                }
-
-                @Override
-                public int numberOfShards() {
-                    return 0;
-                }
-
-                @Override
-                public SearchType searchType() {
-                    return null;
-                }
-
-                @Override
-                public float indexBoost() {
-                    return 1.0f;
-                }
-
-                @Override
-                public long nowInMillis() {
-                    return 0;
-                }
-
-                @Override
-                public Boolean requestCache() {
-                    return null;
-                }
-
-                @Override
-                public boolean allowPartialSearchResults() {
-                    return true;
-                }
-
-                @Override
-                public Scroll scroll() {
-                    return null;
-                }
-
-                @Override
-                public String[] indexRoutings() {
-                    return null;
-                }
-
-                @Override
-                public String preference() {
-                    return null;
-                }
-
-                @Override
-                public BytesReference cacheKey() {
-                    return null;
-                }
-
-                @Override
-                public Rewriteable getRewriteable() {
-                    return null;
-                }
-
-                @Override
-                public String getClusterAlias() {
-                    return null;
-                }
-            };
-
             @Override
             public List<String> groupStats() {
                 return Arrays.asList(groupStats);

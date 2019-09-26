@@ -132,7 +132,7 @@ as using the configuration from our policy right now instead of waiting for
 
 [source,console]
 --------------------------------------------------
-PUT /_slm/policy/nightly-snapshots/_execute
+POST /_slm/policy/nightly-snapshots/_execute
 --------------------------------------------------
 // TEST[skip:we can't easily handle snapshots from docs tests]
 

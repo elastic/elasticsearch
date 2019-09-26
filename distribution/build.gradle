@@ -280,8 +280,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     modulesFiles = { oss, platform ->
       copySpec {
         eachFile {
-          if (it.relativePath.segments[-2] == 'bin') {
+          if (it.relativePath.segments[-2] == 'bin' || (platform == 'darwin' && it.relativePath.segments[-2] == 'MacOS')) {
             // bin files, wherever they are within modules (eg platform specific) should be executable
+            // and MacOS is an alternative to bin on macOS
             it.mode = 0755
           } else {
             it.mode = 0644

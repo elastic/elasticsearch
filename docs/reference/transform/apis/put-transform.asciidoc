@@ -37,8 +37,7 @@ entities are defined by the set of `group_by` fields in the `pivot` object. You
 can also think of the destination index as a two-dimensional tabular data
 structure (known as a {dataframe}). The ID for each document in the
 {dataframe} is generated from a hash of the entity, so there is a unique row
-per entity. For more information, see
-{stack-ov}/ml-dataframes.html[{transforms-cap}].
+per entity. For more information, see <<transforms>>.
 
 When the {transform} is created, a series of validations occur to
 ensure its success. For example, there is a check for the existence of the

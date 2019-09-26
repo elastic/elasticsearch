@@ -743,8 +743,9 @@ solve and still in-progress. :)
 [[profiling-aggregations]]
 ===== Profiling Aggregations
 
+
 [[agg-section]]
-===== `aggregations` Section
+====== `aggregations` Section
 
 
 The `aggregations` section contains detailed timing of the aggregation tree 
@@ -923,8 +924,6 @@ The meaning of the stats are as follows:
 
 [[profiling-considerations]]
 ===== Profiling Considerations
-
-===== Performance Notes
 
 Like any profiler, the Profile API introduces a non-negligible overhead to 
 search execution. The act of instrumenting low-level method calls such as 

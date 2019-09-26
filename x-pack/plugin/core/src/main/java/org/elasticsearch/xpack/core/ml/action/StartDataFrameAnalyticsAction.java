@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -161,7 +162,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedRespon
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), DataFrameAnalyticsConfig.ID);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), DataFrameAnalyticsConfig.VERSION);
-            PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), PhaseProgress.PARSER, PROGRESS_ON_START);
+            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), PhaseProgress.PARSER, PROGRESS_ON_START);
         }
 
         public static TaskParams fromXContent(XContentParser parser) {
@@ -175,11 +176,11 @@ public class StartDataFrameAnalyticsAction extends ActionType<AcknowledgedRespon
         public TaskParams(String id, Version version, List<PhaseProgress> progressOnStart) {
             this.id = Objects.requireNonNull(id);
             this.version = Objects.requireNonNull(version);
-            this.progressOnStart = progressOnStart;
+            this.progressOnStart = Collections.unmodifiableList(progressOnStart);
         }
 
-        private TaskParams(String id, String version, List<PhaseProgress> progressOnStart) {
-            this(id, Version.fromString(version), progressOnStart);
+        private TaskParams(String id, String version, @Nullable List<PhaseProgress> progressOnStart) {
+            this(id, Version.fromString(version), progressOnStart == null ? Collections.emptyList() : progressOnStart);
         }
 
         public TaskParams(StreamInput in) throws IOException {

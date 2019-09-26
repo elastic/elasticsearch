@@ -391,9 +391,6 @@ public class TransportStartDataFrameAnalyticsAction
         private StartContext(DataFrameAnalyticsConfig config, List<PhaseProgress> progressOnStart) {
             this.config = config;
             this.progressOnStart = progressOnStart;
-            for (PhaseProgress phase : progressOnStart) {
-                LOGGER.info("[{}] Progress [{}] is [{}]", config.getId(), phase.getPhase(), phase.getProgressPercent());
-            }
         }
     }
 

@@ -117,7 +117,6 @@ subprojects {
           removeUnusedImports()
           eclipse().configFile rootProject.file('.eclipseformat.xml')
           trimTrailingWhitespace()
-          endWithNewline()
 
           // See CONTRIBUTING.md for details of when to enabled this.
           if (System.getProperty('spotless.paddedcell') != null) {

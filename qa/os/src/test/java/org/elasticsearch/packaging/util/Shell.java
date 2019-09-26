@@ -162,7 +162,7 @@ public class Shell {
             tryToWaitForThread(stderrThread);
 
             Result result = new Result(exitCode, stdout.toString(), stderr.toString());
-            logger.info("Ran: {}\nresult:{}\n", Arrays.toString(command), result);
+            logger.info("Ran: {}\nr{}\n", Arrays.toString(command), result);
             return result;
 
         } catch (IOException | InterruptedException e) {
@@ -171,10 +171,14 @@ public class Shell {
     }
 
     private void tryToWaitForThread(Thread stdoutThread) throws InterruptedException {
+        logger.info("Waiting for appender thread to exit");
         stdoutThread.join(TimeUnit.SECONDS.toMillis(3));
         if (stdoutThread.isAlive()) {
+            logger.info("Appender thread still alive, interrupting it");
             stdoutThread.interrupt();
             stdoutThread.join();
+        } else {
+            logger.info("Appender thread stopped");
         }
     }
 
@@ -185,8 +189,6 @@ public class Shell {
 
     public String toString() {
         return new StringBuilder()
-            .append("<")
-            .append(this.getClass().getName())
             .append(" ")
             .append("env = [")
             .append(env)
@@ -194,7 +196,6 @@ public class Shell {
             .append("workingDirectory = [")
             .append(workingDirectory)
             .append("]")
-            .append(">")
             .toString();
     }
 
@@ -215,21 +216,15 @@ public class Shell {
 
         public String toString() {
             return new StringBuilder()
-                .append("<")
-                .append(this.getClass().getName())
-                .append("\n")
                 .append("exitCode = [")
                 .append(exitCode)
                 .append("]")
-                .append("\n")
                 .append("stdout = [")
-                .append(stdout)
+                .append(stdout.trim())
                 .append("]")
-                .append("\n")
                 .append("stderr = [")
-                .append(stderr)
+                .append(stderr.trim())
                 .append("]")
-                .append(">")
                 .toString();
         }
     }

@@ -26,12 +26,12 @@ is not affected by the beta status.
 
 [float]
 [[transform-ui-limitation]]
-==== {dataframe-cap} UI will not work during a rolling upgrade from 7.2
+==== {transforms-cap} UI will not work during a rolling upgrade from 7.2
 
 If your cluster contains mixed version nodes, for example during a rolling 
 upgrade from 7.2 to a newer version, and {transforms} have been created in 7.2, 
-the {dataframe} UI will not work. Please wait until all nodes have been upgraded 
-to the newer version before using the {dataframe} UI.
+the {transforms} UI (earler {dataframe} UI) will not work. Please wait until all 
+nodes have been upgraded to the newer version before using the {transforms} UI.
 
 
 [float]
@@ -93,7 +93,7 @@ results may not include these changes.
 
 [float]
 [[transform-consistency-limitations]]
-==== {cdataframe-cap} consistency does not account for deleted or updated documents
+==== {ctransform-cap} consistency does not account for deleted or updated documents
 
 While the process for {transforms} allows the continual recalculation of the 
 {transform} as new data is being ingested, it does also have some limitations.

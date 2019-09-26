@@ -1,6 +1,6 @@
 [role="xpack"]
 [[ml-configuring]]
-== Configuring machine learning
+=== Configuring machine learning
 
 If you want to use {ml-features}, there must be at least one {ml} node in
 your cluster and all master-eligible nodes must have {ml} enabled. By default,

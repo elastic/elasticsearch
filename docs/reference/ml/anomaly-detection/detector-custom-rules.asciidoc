@@ -1,6 +1,6 @@
 [role="xpack"]
 [[ml-configuring-detector-custom-rules]]
-=== Customizing detectors with custom rules
+==== Customizing detectors with custom rules
 
 <<ml-rules,Custom rules>> enable you to change the behavior of anomaly
 detectors based on domain-specific knowledge.
@@ -14,7 +14,7 @@ scope and conditions.
 
 Let us see how those can be configured by examples.
 
-==== Specifying custom rule scope
+===== Specifying custom rule scope
 
 Let us assume we are configuring an {anomaly-job} in order to detect DNS data
 exfiltration. Our data contain fields "subdomain" and "highest_registered_domain".
@@ -127,7 +127,7 @@ PUT _ml/anomaly_detectors/scoping_multiple_fields
 Such a detector will skip results when the values of all 3 scoped fields
 are included in the referenced filters.
 
-==== Specifying custom rule conditions
+===== Specifying custom rule conditions
 
 Imagine a detector that looks for anomalies in CPU utilization.
 Given a machine that is idle for long enough, small movement in CPU could
@@ -206,7 +206,7 @@ PUT _ml/anomaly_detectors/rule_with_range
 ----------------------------------
 // TEST[skip:needs-licence]
 
-==== Custom rules in the life-cycle of a job
+===== Custom rules in the life-cycle of a job
 
 Custom rules only affect results created after the rules were applied.
 Let us imagine that we have configured an {anomaly-job} and it has been running
@@ -216,7 +216,7 @@ the {ref}/ml-update-job.html[update {anomaly-job} API] to do so. However, the
 rule we added will only be in effect for any results created from the moment we
 added  the rule onwards. Past results will remain unaffected.
 
-==== Using custom rules vs. filtering data
+===== Using custom rules vs. filtering data
 
 It might appear like using rules is just another way of filtering the data
 that feeds into an {anomaly-job}. For example, a rule that skips results when

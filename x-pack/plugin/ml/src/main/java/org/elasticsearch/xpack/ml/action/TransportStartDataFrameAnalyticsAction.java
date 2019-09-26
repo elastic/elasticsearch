@@ -419,6 +419,7 @@ public class TransportStartDataFrameAnalyticsAction
         private volatile Long reindexingTaskId;
         private volatile boolean isReindexingFinished;
         private volatile boolean isStopping;
+        private volatile boolean isMarkAsCompletedCalled;
         private final ProgressTracker progressTracker = new ProgressTracker();
 
         public DataFrameAnalyticsTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers,
@@ -460,10 +461,17 @@ public class TransportStartDataFrameAnalyticsAction
         public void markAsCompleted() {
             // It is possible that the stop API has been called in the meantime and that
             // may also cause this method to be called. We check whether we have already
-            // been marked completed to avoid doing it twice.
-            if (isCompleted() == false) {
-                persistProgress(() -> super.markAsCompleted());
+            // been marked completed to avoid doing it twice. We need to capture that
+            // locally instead of relying to isCompleted() because of the asynchronous
+            // persistence of progress.
+            synchronized (this) {
+                if (isMarkAsCompletedCalled) {
+                    return;
+                }
+                isMarkAsCompletedCalled = true;
             }
+
+            persistProgress(() -> super.markAsCompleted());
         }
 
         @Override

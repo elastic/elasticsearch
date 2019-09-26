@@ -58,7 +58,7 @@ buildscript {
     }
   }
   dependencies {
-    classpath 'com.netflix.nebula:gradle-ospackage-plugin:7.4.2'
+    classpath 'com.netflix.nebula:gradle-ospackage-plugin:4.7.1'
   }
 }
 
@@ -363,7 +363,7 @@ Closure commonRpmConfig(boolean oss, boolean jdk) {
     prefix '/usr'
     packager 'Elasticsearch'
     version = project.version.replace('-', '_')
-    release = ''
+    release = '1'
     os 'LINUX'
     distribution 'Elasticsearch'
     vendor 'Elasticsearch'

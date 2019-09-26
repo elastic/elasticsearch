@@ -284,7 +284,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public static ElasticsearchException readException(StreamInput input, int id) throws IOException {
         CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> elasticsearchException = ID_TO_SUPPLIER.get(id);
         if (elasticsearchException == null) {
-            if (id == 127 && input.getVersion().before(Version.V_8_0_0)) {
+            if (id == 127 && input.getVersion().before(Version.V_7_5_0)) {
                 // was SearchContextException
                 return new SearchException(input);
             }

@@ -269,7 +269,7 @@ via Slack. You can specify the following Slack account attributes:
 ==== Jira Notification Settings
 You can configure the following Jira notification settings in
 `elasticsearch.yml`. For more information about using notifications
-to create issues in Jira, see <<configuring-jira-actions,Configuring Jira>>.
+to create issues in Jira, see <<configuring-jira-actions>>.
 
 `xpack.notification.jira` ::
 Specifies account information for using notifications to create

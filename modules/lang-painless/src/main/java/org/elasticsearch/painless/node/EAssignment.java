@@ -291,7 +291,8 @@ public final class EAssignment extends AExpression {
                                                                                                        // from dup the value onto the stack
             }
 
-            lhs.store(writer, globals); // store the lhs's value from the stack in its respective variable/field/array
+            // store the lhs's value from the stack in its respective variable/field/array
+            lhs.store(writer, globals);
         } else if (operation != null) {
             // Handle the case where we are doing a compound assignment that
             // does not represent a String concatenation.
@@ -309,9 +310,9 @@ public final class EAssignment extends AExpression {
                                         // to the promotion type between the lhs and rhs types
             rhs.write(writer, globals); // write the bytecode for the rhs
 
-        // XXX: fix these types, but first we need def compound assignment tests.
-        // its tricky here as there are possibly explicit casts, too.
-        // write the operation instruction for compound assignment
+            // XXX: fix these types, but first we need def compound assignment tests.
+            // its tricky here as there are possibly explicit casts, too.
+            // write the operation instruction for compound assignment
             if (promote == def.class) {
                 writer.writeDynamicBinaryInstruction(
                     location, promote, def.class, def.class, operation, DefBootstrap.OPERATOR_COMPOUND_ASSIGNMENT);
@@ -322,23 +323,24 @@ public final class EAssignment extends AExpression {
             writer.writeCast(back); // if necessary cast the promotion type value back to the lhs's type
 
             if (lhs.read && !post) {
-                writer.writeDup(MethodWriter.getType(lhs.actual).getSize(), lhs.accessElementCount()); // dup the value if the lhs is also
-                                                                                                       // read from and is not a post
-                                                                                                       // increment
+                // dup the value if the lhs is also read from and is not a post increment
+                writer.writeDup(MethodWriter.getType(lhs.actual).getSize(), lhs.accessElementCount());
             }
 
-            lhs.store(writer, globals); // store the lhs's value from the stack in its respective variable/field/array
+            // store the lhs's value from the stack in its respective variable/field/array
+            lhs.store(writer, globals);
         } else {
             // Handle the case for a simple write.
 
             rhs.write(writer, globals); // write the bytecode for the rhs rhs
 
             if (lhs.read) {
-                writer.writeDup(MethodWriter.getType(lhs.actual).getSize(), lhs.accessElementCount()); // dup the value if the lhs
-                                                                                                       // is also read from
+                // dup the value if the lhs is also read from
+                writer.writeDup(MethodWriter.getType(lhs.actual).getSize(), lhs.accessElementCount());
             }
 
-            lhs.store(writer, globals); // store the lhs's value from the stack in its respective variable/field/array
+            // store the lhs's value from the stack in its respective variable/field/array
+            lhs.store(writer, globals);
         }
     }
 

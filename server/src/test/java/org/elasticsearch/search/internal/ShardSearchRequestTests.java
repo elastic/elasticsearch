@@ -50,15 +50,15 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
+public class ShardSearchRequestTests extends AbstractSearchTestCase {
     private IndexMetaData baseMetaData = IndexMetaData.builder("test").settings(Settings.builder()
         .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build())
         .numberOfShards(1).numberOfReplicas(1).build();
 
     public void testSerialization() throws Exception {
-        ShardSearchTransportRequest shardSearchTransportRequest = createShardSearchTransportRequest();
-        ShardSearchTransportRequest deserializedRequest =
-            copyWriteable(shardSearchTransportRequest, namedWriteableRegistry, ShardSearchTransportRequest::new);
+        ShardSearchRequest shardSearchTransportRequest = createShardSearchRequest();
+        ShardSearchRequest deserializedRequest =
+            copyWriteable(shardSearchTransportRequest, namedWriteableRegistry, ShardSearchRequest::new);
         assertEquals(deserializedRequest.scroll(), shardSearchTransportRequest.scroll());
         assertEquals(deserializedRequest.getAliasFilter(), shardSearchTransportRequest.getAliasFilter());
         assertArrayEquals(deserializedRequest.indices(), shardSearchTransportRequest.indices());
@@ -81,9 +81,9 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
 
     public void testAllowPartialResultsSerializationPre7_0_0() throws IOException {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_0_0));
-        ShardSearchTransportRequest shardSearchTransportRequest = createShardSearchTransportRequest();
-        ShardSearchTransportRequest deserializedRequest =
-            copyWriteable(shardSearchTransportRequest, namedWriteableRegistry, ShardSearchTransportRequest::new, version);
+        ShardSearchRequest shardSearchTransportRequest = createShardSearchRequest();
+        ShardSearchRequest deserializedRequest =
+            copyWriteable(shardSearchTransportRequest, namedWriteableRegistry, ShardSearchRequest::new, version);
         if (version.before(Version.V_6_3_0)) {
             assertFalse(deserializedRequest.allowPartialSearchResults());
         } else {
@@ -91,7 +91,7 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
         }
     }
 
-    private ShardSearchTransportRequest createShardSearchTransportRequest() throws IOException {
+    private ShardSearchRequest createShardSearchRequest() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
         ShardId shardId = new ShardId(randomAlphaOfLengthBetween(2, 10), randomAlphaOfLengthBetween(2, 10), randomInt());
         final AliasFilter filteringAliases;
@@ -102,7 +102,7 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
             filteringAliases = new AliasFilter(null, Strings.EMPTY_ARRAY);
         }
         final String[] routings = generateRandomStringArray(5, 10, false, true);
-        return new ShardSearchTransportRequest(new OriginalIndices(searchRequest), searchRequest, shardId,
+        return new ShardSearchRequest(new OriginalIndices(searchRequest), searchRequest, shardId,
             randomIntBetween(1, 100), filteringAliases, randomBoolean() ? 1.0f : randomFloat(),
             Math.abs(randomLong()), randomAlphaOfLengthBetween(3, 10), routings);
     }

@@ -16,26 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.client.ml.inference.preprocessing;
 
-package org.elasticsearch.search;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.internal.SearchContext;
 
-import java.io.IOException;
+/**
+ * Describes a pre-processor for a defined machine learning model
+ */
+public interface PreProcessor extends ToXContentObject {
 
-public class SearchContextException extends SearchException {
-
-    public SearchContextException(SearchContext context, String msg) {
-        super(context.shardTarget(), msg);
-    }
-
-    public SearchContextException(SearchContext context, String msg, Throwable t) {
-        super(context.shardTarget(), msg, t);
-    }
-
-    public SearchContextException(StreamInput in) throws IOException {
-        super(in);
-    }
-
+    /**
+     * @return The name of the pre-processor
+     */
+    String getName();
 }

@@ -210,7 +210,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         createSnapshotPolicy(policyName, "snap", "1 2 3 4 5 ?", repoId, indexName, true);
 
         ResponseException badResp = expectThrows(ResponseException.class,
-            () -> client().performRequest(new Request("PUT", "/_slm/policy/" + policyName + "-bad/_execute")));
+            () -> client().performRequest(new Request("POST", "/_slm/policy/" + policyName + "-bad/_execute")));
         assertThat(EntityUtils.toString(badResp.getResponse().getEntity()),
             containsString("no such snapshot lifecycle policy [" + policyName + "-bad]"));
 
@@ -338,7 +338,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
      */
     private String executePolicy(String policyId) {
         try {
-            Response executeRepsonse = client().performRequest(new Request("PUT", "/_slm/policy/" + policyId + "/_execute"));
+            Response executeRepsonse = client().performRequest(new Request("POST", "/_slm/policy/" + policyId + "/_execute"));
             try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION, EntityUtils.toByteArray(executeRepsonse.getEntity()))) {
                 return parser.mapStrings().get("snapshot_name");

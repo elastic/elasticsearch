@@ -156,20 +156,7 @@ public class FetchSizeTestCase extends JdbcIntegrationTestCase {
      * page size affects the result not the intermediate query.
      */
     public void testPivotPaging() throws Exception {
-        Request request = new Request("PUT", "/test_pivot/_bulk");
-        request.addParameter("refresh", "true");
-        StringBuilder bulk = new StringBuilder();
-        String[] continent = new String[] { "AF", "AS", "EU", "NA", "SA", "AQ", "AU" };
-        for (int i = 0; i <= 100; i++) {
-            bulk.append("{\"index\":{}}\n");
-            bulk.append("{\"item\":").append(i % 10)
-                .append(", \"entry\":").append(i)
-                .append(", \"amount\" : ").append(randomInt(999))
-                .append(", \"location\" : \"").append(continent[i % (continent.length)]).append("\"")
-                .append("}\n");
-        }
-        request.setJsonEntity(bulk.toString());
-        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+        addPivotData();
         
         try (Connection c = esJdbc();
              Statement s = c.createStatement()) {
@@ -203,5 +190,51 @@ public class FetchSizeTestCase extends JdbcIntegrationTestCase {
             }
         }
         assertNoSearchContexts();
+    }
+    
+    
+    public void testPivotPagingWithLimit() throws Exception {
+        addPivotData();
+
+        try (Connection c = esJdbc();
+             Statement s = c.createStatement()) {
+            
+            // run a query with a limit that is not a multiple of the fetch size
+            String query = "SELECT * FROM "
+                    + "(SELECT item, amount, location FROM test_pivot)"
+                    + " PIVOT (AVG(amount) FOR location IN ( 'EU', 'NA' ) ) LIMIT 5";
+            // set size smaller than an agg page
+            s.setFetchSize(20);
+            try (ResultSet rs = s.executeQuery(query)) {
+                assertEquals(3, rs.getMetaData().getColumnCount());
+                for (int i = 0; i < 4; i++) {
+                    assertTrue(rs.next());
+                    assertEquals(2, rs.getFetchSize());
+                    assertEquals(Long.valueOf(i), rs.getObject("item"));
+                }
+                // last entry
+                assertTrue(rs.next());
+                assertEquals(1, rs.getFetchSize());
+                assertFalse("LIMIT should be reached", rs.next());
+            }
+        }
+        assertNoSearchContexts();
+    }
+
+    private void addPivotData() throws Exception {
+        Request request = new Request("PUT", "/test_pivot/_bulk");
+        request.addParameter("refresh", "true");
+        StringBuilder bulk = new StringBuilder();
+        String[] continent = new String[] { "AF", "AS", "EU", "NA", "SA", "AQ", "AU" };
+        for (int i = 0; i <= 100; i++) {
+            bulk.append("{\"index\":{}}\n");
+            bulk.append("{\"item\":").append(i % 10)
+                .append(", \"entry\":").append(i)
+                .append(", \"amount\" : ").append(randomInt(999))
+                .append(", \"location\" : \"").append(continent[i % (continent.length)]).append("\"")
+                .append("}\n");
+        }
+        request.setJsonEntity(bulk.toString());
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
     }
 }

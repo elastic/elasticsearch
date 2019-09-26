@@ -3,7 +3,7 @@
 === Array compare condition
 
 Use `array_compare` to compare an array of values in the execution context to a 
-given value. See <<condition-compare-operators,Supported comparison operators>>
+given value. See <<condition-compare-operators>>
 for the operators you can use. 
 
 

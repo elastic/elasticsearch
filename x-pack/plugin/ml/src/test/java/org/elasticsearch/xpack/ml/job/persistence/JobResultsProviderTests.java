@@ -1037,10 +1037,6 @@ public class JobResultsProviderTests extends ESTestCase {
         verifyNoMoreInteractions(client);
     }
 
-    private Bucket createBucketAtEpochTime(long epoch) {
-        return new Bucket("foo", new Date(epoch), 123);
-    }
-
     private JobResultsProvider createProvider(Client client) {
         return new JobResultsProvider(client, Settings.EMPTY);
     }

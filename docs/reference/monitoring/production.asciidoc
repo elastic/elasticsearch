@@ -34,7 +34,7 @@ is `false`.
 --
 For example, you can use the following APIs to review and change this setting:
 
-[source,js]
+[source,console]
 ----------------------------------
 GET _cluster/settings
 
@@ -45,7 +45,7 @@ PUT _cluster/settings
   }
 }
 ----------------------------------
-// CONSOLE
+
 --
 
 .. If the {es} {security-features} are enabled on the monitoring cluster, create 

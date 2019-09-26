@@ -58,9 +58,9 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     private volatile String proxyAddress;
 
     SniffConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
-                            ThreadPool threadPool, String proxyAddress, int maxNumRemoteConnections,
-                            Predicate<DiscoveryNode> nodePredicate, List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes) {
-        super(threadPool, connectionManager);
+                            String proxyAddress, int maxNumRemoteConnections, Predicate<DiscoveryNode> nodePredicate,
+                            List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes) {
+        super(transportService.getThreadPool(), connectionManager);
         this.clusterAlias = clusterAlias;
         this.transportService = transportService;
         this.proxyAddress = proxyAddress;

@@ -95,7 +95,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
         this.clusterAlias = clusterAlias;
         this.remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
         this.connectionStrategy = new SniffConnectionStrategy(clusterAlias, transportService, remoteConnectionManager,
-            transportService.getThreadPool(), proxyAddress, maxNumRemoteConnections, nodePredicate,
+            proxyAddress, maxNumRemoteConnections, nodePredicate,
             Collections.unmodifiableList(seedNodes));
         connectionManager.addListener(this.connectionStrategy);
         // we register the transport service here as a listener to make sure we notify handlers on disconnect etc.

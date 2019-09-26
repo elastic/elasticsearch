@@ -19,5 +19,33 @@
 
 package org.elasticsearch.transport;
 
-public class SniffConnectionStrategyTests {
+import org.elasticsearch.Version;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.concurrent.TimeUnit;
+
+public class SniffConnectionStrategyTests extends ESTestCase {
+
+    private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
+
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+        ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+    }
+
+    public void testThing() {
+        try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+            service.start();
+            service.acceptIncomingRequests();
+
+            SniffConnectionStrategy strategy = new SniffConnectionStrategy("cluster", service, null, null, 6, null, null);
+        }
+
+    }
+
 }

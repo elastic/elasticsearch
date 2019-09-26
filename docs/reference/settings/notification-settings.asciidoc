@@ -166,7 +166,7 @@ can specify the following email account attributes:
 `xpack.notification.email.html.sanitization.allow`::
 Specifies the HTML elements that are allowed in email notifications. For
 more information, see
-<<email-html-sanitization,Configuring HTML sanitization options>>. You can
+<<email-html-sanitization>>. You can
 specify individual HTML elements and the following HTML feature groups:
 +
 --

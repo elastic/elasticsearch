@@ -289,7 +289,7 @@ issues in Jira. You can specify the following Jira account attributes:
 
   `issue_defaults`;;
   Default fields values for the issue created in Jira. See
-  <<jira-action-attributes,Jira action attributes>> for more information.
+  <<jira-action-attributes>> for more information.
   Optional.
 --
 

@@ -12,12 +12,6 @@ GET /twitter/_recovery
 ----
 // TEST[setup:twitter]
 
-[source,console]
-----
-GET /twitter/_recovery?detailed=true&active_only=true&index=twitter
-----
-// TEST[setup:twitter]
-
 
 [[index-recovery-api-request]]
 ==== {api-request-title}

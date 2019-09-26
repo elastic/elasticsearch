@@ -185,7 +185,7 @@ To take an immediate snapshot using a policy, use the following
 
 [source,console]
 --------------------------------------------------
-PUT /_slm/policy/daily-snapshots/_execute
+POST /_slm/policy/daily-snapshots/_execute
 --------------------------------------------------
 // TEST[skip:we can't easily handle snapshots from docs tests]
 
@@ -279,7 +279,7 @@ Another snapshot can immediately be executed to ensure the new policy works:
 
 [source,console]
 --------------------------------------------------
-PUT /_slm/policy/daily-snapshots/_execute
+POST /_slm/policy/daily-snapshots/_execute
 --------------------------------------------------
 // TEST[skip:we can't handle snapshots in docs tests]
 

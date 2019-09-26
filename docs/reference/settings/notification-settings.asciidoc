@@ -298,7 +298,7 @@ issues in Jira. You can specify the following Jira account attributes:
 ==== PagerDuty Notification Settings
 You can configure the following PagerDuty notification settings in
 `elasticsearch.yml`. For more information about sending notifications
-via PagerDuty, see <<configuring-pagerduty-actions,Configuring PagerDuty>>.
+via PagerDuty, see <<configuring-pagerduty-actions>>.
 
 
 [[pagerduty-account-attributes]]

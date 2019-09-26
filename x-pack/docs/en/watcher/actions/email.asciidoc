@@ -275,7 +275,7 @@ For more information about configuring {watcher} to work with different email
 systems, see:
 
 * <<gmail>>
-* <<outlook,Sending Email from Outlook>>
+* <<outlook>>
 * <<exchange,Sending Email from Exchange>>
 * <<amazon-ses,Sending Email from Amazon SES>>
 

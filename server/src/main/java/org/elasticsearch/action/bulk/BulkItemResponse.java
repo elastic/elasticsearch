@@ -229,8 +229,9 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         public Failure(StreamInput in) throws IOException {
             index = in.readString();
             if (in.getVersion().before(Version.V_8_0_0)) {
-                String type = in.readString();
-                assert type == null || MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expecting null or _doc but got [" + type + "]";
+                in.readString();
+                // can't make an assertion about type names here because too many tests still set their own
+                // types bypassing various checks
             }
             id = in.readOptionalString();
             cause = in.readException();

@@ -319,7 +319,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         when(result.getModelSnapshot()).thenReturn(modelSnapshot);
 
         when(persister.persistModelSnapshot(any(), any()))
-            .thenReturn(new IndexResponse(new ShardId("ml", "uid", 0), "doc", "1", 0L, 0L, 0L, true));
+            .thenReturn(new IndexResponse(new ShardId("ml", "uid", 0), "1", 0L, 0L, 0L, true));
 
         processorUnderTest.setDeleteInterimRequired(false);
         processorUnderTest.processResult(result);

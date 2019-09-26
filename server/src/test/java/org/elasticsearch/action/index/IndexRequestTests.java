@@ -125,11 +125,10 @@ public class IndexRequestTests extends ESTestCase {
 
     public void testIndexResponse() {
         ShardId shardId = new ShardId(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10), randomIntBetween(0, 1000));
-        String type = randomAlphaOfLengthBetween(3, 10);
         String id = randomAlphaOfLengthBetween(3, 10);
         long version = randomLong();
         boolean created = randomBoolean();
-        IndexResponse indexResponse = new IndexResponse(shardId, type, id, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, version, created);
+        IndexResponse indexResponse = new IndexResponse(shardId, id, SequenceNumbers.UNASSIGNED_SEQ_NO, 0, version, created);
         int total = randomIntBetween(1, 10);
         int successful = randomIntBetween(1, 10);
         ReplicationResponse.ShardInfo shardInfo = new ReplicationResponse.ShardInfo(total, successful);
@@ -139,7 +138,6 @@ public class IndexRequestTests extends ESTestCase {
             forcedRefresh = randomBoolean();
             indexResponse.setForcedRefresh(forcedRefresh);
         }
-        assertEquals(type, indexResponse.getType());
         assertEquals(id, indexResponse.getId());
         assertEquals(version, indexResponse.getVersion());
         assertEquals(shardId, indexResponse.getShardId());
@@ -147,7 +145,7 @@ public class IndexRequestTests extends ESTestCase {
         assertEquals(total, indexResponse.getShardInfo().getTotal());
         assertEquals(successful, indexResponse.getShardInfo().getSuccessful());
         assertEquals(forcedRefresh, indexResponse.forcedRefresh());
-        assertEquals("IndexResponse[index=" + shardId.getIndexName() + ",type=" + type + ",id="+ id +
+        assertEquals("IndexResponse[index=" + shardId.getIndexName() + ",id="+ id +
                 ",version=" + version + ",result=" + (created ? "created" : "updated") +
                 ",seqNo=" + SequenceNumbers.UNASSIGNED_SEQ_NO +
                 ",primaryTerm=" + 0 +

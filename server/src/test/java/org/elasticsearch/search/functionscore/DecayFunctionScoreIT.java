@@ -450,10 +450,10 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num1").field("type", "date").endObject().endObject().endObject().endObject()));
         client().index(
-                indexRequest("test").type("type1").id("1")
+                indexRequest("test").id("1")
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-27").endObject())).actionGet();
         client().index(
-                indexRequest("test").type("type1").id("2")
+                indexRequest("test").id("2")
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-28").endObject())).actionGet();
         refresh();
 
@@ -485,10 +485,10 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                         .endObject()
                     .endObject()
                 .endObject()));
-        client().index(indexRequest("test").type("type1").id("1")
+        client().index(indexRequest("test").id("1")
                 .source(jsonBuilder().startObject().field("test", "value").field("num1", System.currentTimeMillis()).endObject()))
                 .actionGet();
-        client().index(indexRequest("test").type("type1").id("2").source(jsonBuilder().startObject().field("test", "value")
+        client().index(indexRequest("test").id("2").source(jsonBuilder().startObject().field("test", "value")
                 .field("num1", System.currentTimeMillis() - (1000 * 60 * 60 * 24)).endObject())).actionGet();
         refresh();
 
@@ -520,18 +520,18 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
 
         client().index(
-                indexRequest("test").type("type1").id("1")
+                indexRequest("test").id("1")
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-27").field("num2", "1.0")
                                 .endObject())).actionGet();
         client().index(
-                indexRequest("test").type("type1").id("2")
+                indexRequest("test").id("2")
                         .source(jsonBuilder().startObject().field("test", "value").field("num2", "1.0").endObject())).actionGet();
         client().index(
-                indexRequest("test").type("type1").id("3")
+                indexRequest("test").id("3")
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-30").field("num2", "1.0")
                                 .endObject())).actionGet();
         client().index(
-                indexRequest("test").type("type1").id("4")
+                indexRequest("test").id("4")
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-30").endObject())).actionGet();
 
         refresh();
@@ -570,19 +570,19 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         String docDateString = docDate.getYear() + "-" + String.format(Locale.ROOT, "%02d", docDate.getMonthValue()) + "-"
                 + String.format(Locale.ROOT, "%02d", docDate.getDayOfMonth());
         client().index(
-                indexRequest("test").type("type1").id("1")
+                indexRequest("test").id("1")
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", docDateString).endObject())).actionGet();
         docDate = dt.minusDays(2);
         docDateString = docDate.getYear() + "-" + String.format(Locale.ROOT, "%02d", docDate.getMonthValue()) + "-"
                 + String.format(Locale.ROOT, "%02d", docDate.getDayOfMonth());
         client().index(
-                indexRequest("test").type("type1").id("2")
+                indexRequest("test").id("2")
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", docDateString).endObject())).actionGet();
         docDate = dt.minusDays(3);
         docDateString = docDate.getYear() + "-" + String.format(Locale.ROOT, "%02d", docDate.getMonthValue()) + "-"
                 + String.format(Locale.ROOT, "%02d", docDate.getDayOfMonth());
         client().index(
-                indexRequest("test").type("type1").id("3")
+                indexRequest("test").id("3")
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", docDateString).endObject())).actionGet();
 
         refresh();
@@ -670,7 +670,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                         .endObject().startObject("geo").field("type", "geo_point").endObject().endObject().endObject().endObject()));
         int numDocs = 2;
         client().index(
-                indexRequest("test").type("type").source(
+                indexRequest("test").source(
                         jsonBuilder().startObject().field("test", "value").startObject("geo").field("lat", 1).field("lon", 2).endObject()
                                 .endObject())).actionGet();
         refresh();
@@ -697,7 +697,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num").field("type", "text").endObject().endObject().endObject().endObject()));
         client().index(
-                indexRequest("test").type("type").source(
+                indexRequest("test").source(
                         jsonBuilder().startObject().field("test", "value").field("num", Integer.toString(1)).endObject())).actionGet();
         refresh();
         // so, we indexed a string field, but now we try to score a num field
@@ -718,7 +718,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num").field("type", "double").endObject().endObject().endObject().endObject()));
         client().index(
-                indexRequest("test").type("type").source(jsonBuilder().startObject().field("test", "value").field("num", 1.0).endObject()))
+                indexRequest("test").source(jsonBuilder().startObject().field("test", "value").field("num", 1.0).endObject()))
                 .actionGet();
         refresh();
         // so, we indexed a string field, but now we try to score a num field

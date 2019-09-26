@@ -62,12 +62,11 @@ public final class IngestDocument {
     // Contains all pipelines that have been executed for this document
     private final Set<Pipeline> executedPipelines = Collections.newSetFromMap(new IdentityHashMap<>());
 
-    public IngestDocument(String index, String type, String id, String routing,
+    public IngestDocument(String index, String id, String routing,
                           Long version, VersionType versionType, Map<String, Object> source) {
         this.sourceAndMetadata = new HashMap<>();
         this.sourceAndMetadata.putAll(source);
         this.sourceAndMetadata.put(MetaData.INDEX.getFieldName(), index);
-        this.sourceAndMetadata.put(MetaData.TYPE.getFieldName(), type);
         this.sourceAndMetadata.put(MetaData.ID.getFieldName(), id);
         if (routing != null) {
             this.sourceAndMetadata.put(MetaData.ROUTING.getFieldName(), routing);

@@ -500,7 +500,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                     throw new AssertionError(e);
                 }
                 final String source = String.format(Locale.ROOT, "{\"f\":%d}", counter++);
-                IndexRequest indexRequest = new IndexRequest("index1", "doc")
+                IndexRequest indexRequest = new IndexRequest("index1")
                     .source(source, XContentType.JSON)
                     .timeout(TimeValue.timeValueSeconds(1));
                 bulkProcessor.add(indexRequest);

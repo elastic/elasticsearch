@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.actions.Action.Result.Status;
@@ -82,7 +83,6 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         }
 
         indexRequest.index(getField(actionId, ctx.id().watchId(), "index", data, INDEX_FIELD, action.index));
-        indexRequest.type(getField(actionId, ctx.id().watchId(), "type",data, TYPE_FIELD, action.docType));
         indexRequest.id(getField(actionId, ctx.id().watchId(), "id",data, ID_FIELD, action.docId));
 
         data = addTimestampToDocument(data, ctx.executionTime());
@@ -92,8 +92,8 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         }
 
         if (ctx.simulateAction(actionId)) {
-            return new IndexAction.Simulated(indexRequest.index(), indexRequest.type(), indexRequest.id(), action.refreshPolicy,
-                    new XContentSource(indexRequest.source(), XContentType.JSON));
+            return new IndexAction.Simulated(indexRequest.index(), MapperService.SINGLE_MAPPING_NAME, indexRequest.id(),
+                action.refreshPolicy, new XContentSource(indexRequest.source(), XContentType.JSON));
         }
 
         IndexResponse response = ClientHelper.executeWithHeaders(ctx.watch().status().getHeaders(), ClientHelper.WATCHER_ORIGIN, client,
@@ -128,7 +128,6 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
 
             IndexRequest indexRequest = new IndexRequest();
             indexRequest.index(getField(actionId, ctx.id().watchId(), "index", doc, INDEX_FIELD, action.index));
-            indexRequest.type(getField(actionId, ctx.id().watchId(), "type",doc, TYPE_FIELD, action.docType));
             indexRequest.id(getField(actionId, ctx.id().watchId(), "id",doc, ID_FIELD, action.docId));
 
             doc = addTimestampToDocument(doc, ctx.executionTime());
@@ -214,7 +213,6 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
                 .field("result", response.getResult().getLowercase())
                 .field("id", response.getId())
                 .field("version", response.getVersion())
-                .field("type", response.getType())
                 .field("index", response.getIndex())
                 .endObject();
     }

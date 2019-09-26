@@ -41,7 +41,6 @@ public class DocWriteResponseTests extends ESTestCase {
         final DocWriteResponse response =
                 new DocWriteResponse(
                         new ShardId("index", "uuid", 0),
-                        "type",
                         "id",
                         SequenceNumbers.UNASSIGNED_SEQ_NO,
                         17,
@@ -55,7 +54,6 @@ public class DocWriteResponseTests extends ESTestCase {
         final DocWriteResponse response =
                 new DocWriteResponse(
                         new ShardId("index", "uuid", 0),
-                        "type",
                         "❤",
                         SequenceNumbers.UNASSIGNED_SEQ_NO,
                         17,
@@ -69,7 +67,6 @@ public class DocWriteResponseTests extends ESTestCase {
         final DocWriteResponse response =
                 new DocWriteResponse(
                         new ShardId("index", "uuid", 0),
-                        "type",
                         "a b",
                         SequenceNumbers.UNASSIGNED_SEQ_NO,
                         17,
@@ -87,7 +84,6 @@ public class DocWriteResponseTests extends ESTestCase {
         DocWriteResponse response =
             new DocWriteResponse(
                 new ShardId("index", "uuid", 0),
-                "type",
                 "id",
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
                 17,

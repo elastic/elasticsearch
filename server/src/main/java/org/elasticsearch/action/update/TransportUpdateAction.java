@@ -50,6 +50,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -182,7 +183,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 client.bulk(toSingleItemBulkRequest(upsertRequest), wrapBulkResponse(
                         ActionListener.<IndexResponse>wrap(response -> {
                             UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(),
-                                response.getType(), response.getId(), response.getSeqNo(), response.getPrimaryTerm(),
+                                response.getId(), response.getSeqNo(), response.getPrimaryTerm(),
                                 response.getVersion(), response.getResult());
                             if (request.fetchSource() != null && request.fetchSource().fetchSource()) {
                                 Tuple<XContentType, Map<String, Object>> sourceAndContent =
@@ -206,7 +207,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 client.bulk(toSingleItemBulkRequest(indexRequest), wrapBulkResponse(
                         ActionListener.<IndexResponse>wrap(response -> {
                             UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(),
-                                response.getType(), response.getId(), response.getSeqNo(), response.getPrimaryTerm(),
+                                response.getId(), response.getSeqNo(), response.getPrimaryTerm(),
                                 response.getVersion(), response.getResult());
                             update.setGetResult(UpdateHelper.extractGetResult(request, request.concreteIndex(),
                                 response.getSeqNo(), response.getPrimaryTerm(), response.getVersion(),
@@ -220,7 +221,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 DeleteRequest deleteRequest = result.action();
                 client.bulk(toSingleItemBulkRequest(deleteRequest), wrapBulkResponse(
                         ActionListener.<DeleteResponse>wrap(response -> {
-                            UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(),
+                            UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(),
                                 response.getId(), response.getSeqNo(), response.getPrimaryTerm(), response.getVersion(),
                                 response.getResult());
                             update.setGetResult(UpdateHelper.extractGetResult(request, request.concreteIndex(),
@@ -237,7 +238,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 if (indexServiceOrNull !=  null) {
                     IndexShard shard = indexService.getShardOrNull(shardId.getId());
                     if (shard != null) {
-                        shard.noopUpdate(request.type());
+                        shard.noopUpdate(MapperService.SINGLE_MAPPING_NAME);
                     }
                 }
                 listener.onResponse(update);

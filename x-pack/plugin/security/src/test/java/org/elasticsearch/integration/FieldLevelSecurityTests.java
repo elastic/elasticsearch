@@ -1431,7 +1431,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         BulkResponse bulkResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue
                 ("user1", USERS_PASSWD)))
                 .prepareBulk()
-                .add(new UpdateRequest("test", "type", "1").doc(Requests.INDEX_CONTENT_TYPE, "field2", "value3"))
+                .add(new UpdateRequest("test", "1").doc(Requests.INDEX_CONTENT_TYPE, "field2", "value3"))
                 .get();
         assertEquals(1, bulkResponse.getItems().length);
         BulkItemResponse bulkItem = bulkResponse.getItems()[0];
@@ -1445,7 +1445,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(client().prepareGet("test", "1").get().getSource().get("field2").toString(), equalTo("value2"));
 
         client().prepareBulk()
-                .add(new UpdateRequest("test", "type", "1").doc(Requests.INDEX_CONTENT_TYPE, "field2", "value3"))
+                .add(new UpdateRequest("test", "1").doc(Requests.INDEX_CONTENT_TYPE, "field2", "value3"))
                 .get();
         assertThat(client().prepareGet("test", "1").get().getSource().get("field2").toString(), equalTo("value3"));
     }

@@ -633,7 +633,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .addAlias(new Alias("alias4").filter(termQuery("field", "value"))).get();
 
         client().prepareIndex("a1", "test", "test").setSource("{}", XContentType.JSON).get();
-        BulkResponse response = client().prepareBulk().add(new IndexRequest("a2", "test", "test").source("{}", XContentType.JSON)).get();
+        BulkResponse response = client().prepareBulk().add(new IndexRequest("a2").id("test").source("{}", XContentType.JSON)).get();
         assertThat(response.hasFailures(), is(false));
         assertThat(response.getItems()[0].isFailed(), equalTo(false));
         assertThat(response.getItems()[0].getIndex(), equalTo("a2"));
@@ -650,7 +650,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         // an index that doesn't exist yet will succeed
         client().prepareIndex("b1", "test", "test").setSource("{}", XContentType.JSON).get();
 
-        response = client().prepareBulk().add(new IndexRequest("b2", "test", "test").source("{}", XContentType.JSON)).get();
+        response = client().prepareBulk().add(new IndexRequest("b2").id("test").source("{}", XContentType.JSON)).get();
         assertThat(response.hasFailures(), is(false));
         assertThat(response.getItems()[0].isFailed(), equalTo(false));
         assertThat(response.getItems()[0].getId(), equalTo("test"));

@@ -452,7 +452,6 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             BulkResponse bulkResponse = client()
                 .prepareBulk()
                 .add(Requests.indexRequest(indexOrAlias())
-                             .type("type1")
                              .id("1")
                              .source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
                 .execute()
@@ -473,7 +472,6 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             BulkResponse bulkResponse = client()
                 .prepareBulk()
                 .add(Requests.indexRequest(indexOrAlias())
-                             .type("type1")
                              .id("1")
                              .routing("0")
                              .source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
@@ -483,7 +481,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         }
 
         {
-            BulkResponse bulkResponse = client().prepareBulk().add(new UpdateRequest(indexOrAlias(), "type1", "1")
+            BulkResponse bulkResponse = client().prepareBulk().add(new UpdateRequest(indexOrAlias(), "1")
                 .doc(Requests.INDEX_CONTENT_TYPE, "field", "value2"))
                                                 .execute().actionGet();
             assertThat(bulkResponse.getItems().length, equalTo(1));
@@ -499,14 +497,14 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         }
 
         {
-            BulkResponse bulkResponse = client().prepareBulk().add(new UpdateRequest(indexOrAlias(), "type1", "1")
+            BulkResponse bulkResponse = client().prepareBulk().add(new UpdateRequest(indexOrAlias(), "1")
                 .doc(Requests.INDEX_CONTENT_TYPE, "field", "value2")
                 .routing("0")).execute().actionGet();
             assertThat(bulkResponse.hasFailures(), equalTo(false));
         }
 
         {
-            BulkResponse bulkResponse = client().prepareBulk().add(Requests.deleteRequest(indexOrAlias()).type("type1").id("1"))
+            BulkResponse bulkResponse = client().prepareBulk().add(Requests.deleteRequest(indexOrAlias()).id("1"))
                                                 .execute().actionGet();
             assertThat(bulkResponse.getItems().length, equalTo(1));
             assertThat(bulkResponse.hasFailures(), equalTo(true));
@@ -521,7 +519,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         }
 
         {
-            BulkResponse bulkResponse = client().prepareBulk().add(Requests.deleteRequest(indexOrAlias()).type("type1").id("1")
+            BulkResponse bulkResponse = client().prepareBulk().add(Requests.deleteRequest(indexOrAlias()).id("1")
                                                                            .routing("0")).execute().actionGet();
             assertThat(bulkResponse.getItems().length, equalTo(1));
             assertThat(bulkResponse.hasFailures(), equalTo(false));

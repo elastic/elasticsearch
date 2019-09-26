@@ -90,19 +90,19 @@ public class WriteActionsTests extends SecurityIntegTestCase {
     public void testBulk() {
         createIndex("test1", "test2", "test3", "index1");
         BulkResponse bulkResponse = client().prepareBulk()
-                .add(new IndexRequest("test1", "type", "id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
-                .add(new IndexRequest("index1", "type", "id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
-                .add(new IndexRequest("test4", "type", "id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
-                .add(new IndexRequest("missing", "type", "id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
-                .add(new DeleteRequest("test1", "type", "id"))
-                .add(new DeleteRequest("index1", "type", "id"))
-                .add(new DeleteRequest("test4", "type", "id"))
-                .add(new DeleteRequest("missing", "type", "id"))
-                .add(new IndexRequest("test1", "type", "id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
-                .add(new UpdateRequest("test1", "type", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value"))
-                .add(new UpdateRequest("index1", "type", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value"))
-                .add(new UpdateRequest("test4", "type", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value"))
-                .add(new UpdateRequest("missing", "type", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value")).get();
+                .add(new IndexRequest("test1").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
+                .add(new IndexRequest("index1").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
+                .add(new IndexRequest("test4").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
+                .add(new IndexRequest("missing").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
+                .add(new DeleteRequest("test1", "id"))
+                .add(new DeleteRequest("index1", "id"))
+                .add(new DeleteRequest("test4", "id"))
+                .add(new DeleteRequest("missing", "id"))
+                .add(new IndexRequest("test1").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
+                .add(new UpdateRequest("test1", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value"))
+                .add(new UpdateRequest("index1", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value"))
+                .add(new UpdateRequest("test4", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value"))
+                .add(new UpdateRequest("missing", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value")).get();
         assertTrue(bulkResponse.hasFailures());
         assertThat(bulkResponse.getItems().length, equalTo(13));
         assertThat(bulkResponse.getItems()[0].getFailure(), nullValue());

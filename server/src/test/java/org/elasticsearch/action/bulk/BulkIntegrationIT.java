@@ -79,7 +79,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         client().admin().indices().prepareCreate("index3")
             .addAlias(new Alias("alias1").indexRouting("1").writeIndex(true)).setSettings(twoShardsSettings).get();
 
-        IndexRequest indexRequestWithAlias = new IndexRequest("alias1", "type", "id");
+        IndexRequest indexRequestWithAlias = new IndexRequest("alias1").id("id");
         if (randomBoolean()) {
             indexRequestWithAlias.routing("1");
         }

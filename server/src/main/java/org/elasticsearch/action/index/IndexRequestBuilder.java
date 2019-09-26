@@ -47,9 +47,10 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
 
     /**
      * Sets the type to index the document to.
+     * @deprecated has no effect as types are being removed
      */
+    @Deprecated
     public IndexRequestBuilder setType(String type) {
-        request.type(type);
         return this;
     }
 

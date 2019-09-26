@@ -134,7 +134,7 @@ public class IngestServiceTests extends ESTestCase {
         when(threadPool.executor(anyString())).thenReturn(executorService);
         IngestService ingestService = new IngestService(mock(ClusterService.class), threadPool, null, null,
             null, Collections.singletonList(DUMMY_PLUGIN), client);
-        final IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(emptyMap()).setPipeline("_id");
+        final IndexRequest indexRequest = new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline("_id");
 
         final SetOnce<Boolean> failure = new SetOnce<>();
         final BiConsumer<Integer, Exception> failureHandler = (slot, e) -> {
@@ -623,7 +623,7 @@ public class IngestServiceTests extends ESTestCase {
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         final SetOnce<Boolean> failure = new SetOnce<>();
-        final IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(emptyMap()).setPipeline(id);
+        final IndexRequest indexRequest = new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline(id);
         final BiConsumer<Integer, Exception> failureHandler = (slot, e) -> {
             assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
             assertThat(e.getCause().getCause(), instanceOf(IllegalStateException.class));
@@ -653,10 +653,10 @@ public class IngestServiceTests extends ESTestCase {
 
         BulkRequest bulkRequest = new BulkRequest();
 
-        IndexRequest indexRequest1 = new IndexRequest("_index", "_type", "_id").source(emptyMap()).setPipeline("_id");
+        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline("_id");
         bulkRequest.add(indexRequest1);
         IndexRequest indexRequest2 =
-            new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap()).setPipeline("does_not_exist");
+            new IndexRequest("_index").id("_id").source(Collections.emptyMap()).setPipeline("does_not_exist");
         bulkRequest.add(indexRequest2);
         @SuppressWarnings("unchecked")
         BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
@@ -691,7 +691,7 @@ public class IngestServiceTests extends ESTestCase {
         ClusterState previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        final IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(emptyMap()).setPipeline("_id");
+        final IndexRequest indexRequest = new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline("_id");
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
@@ -709,7 +709,7 @@ public class IngestServiceTests extends ESTestCase {
         ClusterState previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        final IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(emptyMap()).setPipeline("_id");
+        final IndexRequest indexRequest = new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline("_id");
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
@@ -748,7 +748,7 @@ public class IngestServiceTests extends ESTestCase {
             handler.accept(ingestDocument, null);
             return null;
         }).when(processor).execute(any(), any());
-        final IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(emptyMap()).setPipeline("_id");
+        final IndexRequest indexRequest = new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline("_id");
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
@@ -758,7 +758,6 @@ public class IngestServiceTests extends ESTestCase {
         verify(failureHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
         assertThat(indexRequest.index(), equalTo("update_index"));
-        assertThat(indexRequest.type(), equalTo("update_type"));
         assertThat(indexRequest.id(), equalTo("update_id"));
         assertThat(indexRequest.routing(), equalTo("update_routing"));
         assertThat(indexRequest.version(), equalTo(newVersion));
@@ -775,7 +774,7 @@ public class IngestServiceTests extends ESTestCase {
         ClusterState previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        final IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(emptyMap()).setPipeline("_id");
+        final IndexRequest indexRequest = new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline("_id");
         doThrow(new RuntimeException())
             .when(processor)
             .execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), emptyMap()), any());
@@ -819,7 +818,7 @@ public class IngestServiceTests extends ESTestCase {
         ClusterState previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        final IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(emptyMap()).setPipeline("_id");
+        final IndexRequest indexRequest = new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline("_id");
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
@@ -847,7 +846,7 @@ public class IngestServiceTests extends ESTestCase {
         ClusterState previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        final IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(emptyMap()).setPipeline("_id");
+        final IndexRequest indexRequest = new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline("_id");
         doThrow(new RuntimeException())
             .when(onFailureOnFailureProcessor)
             .execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), emptyMap()), any());
@@ -877,12 +876,12 @@ public class IngestServiceTests extends ESTestCase {
             DocWriteRequest request;
             if (randomBoolean()) {
                 if (randomBoolean()) {
-                    request = new DeleteRequest("_index", "_type", "_id");
+                    request = new DeleteRequest("_index", "_id");
                 } else {
-                    request = new UpdateRequest("_index", "_type", "_id");
+                    request = new UpdateRequest("_index", "_id");
                 }
             } else {
-                IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").setPipeline(pipelineId);
+                IndexRequest indexRequest = new IndexRequest("_index").id("_id").setPipeline(pipelineId);
                 indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
                 request = indexRequest;
                 numIndexRequests++;
@@ -935,7 +934,7 @@ public class IngestServiceTests extends ESTestCase {
         logger.info("Using [{}], not randomly determined default [{}]", xContentType, Requests.INDEX_CONTENT_TYPE);
         int numRequest = scaledRandomIntBetween(8, 64);
         for (int i = 0; i < numRequest; i++) {
-            IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").setPipeline(pipelineId);
+            IndexRequest indexRequest = new IndexRequest("_index").id("_id").setPipeline(pipelineId);
             indexRequest.source(xContentType, "field1", "value1");
             bulkRequest.add(indexRequest);
         }
@@ -1146,7 +1145,7 @@ public class IngestServiceTests extends ESTestCase {
         ClusterState previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        final IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(emptyMap()).setPipeline("_id");
+        final IndexRequest indexRequest = new IndexRequest("_index").id("_id").source(emptyMap()).setPipeline("_id");
         @SuppressWarnings("unchecked")
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
@@ -1250,11 +1249,11 @@ public class IngestServiceTests extends ESTestCase {
         private final IngestDocument ingestDocument;
 
         IngestDocumentMatcher(String index, String type, String id, Map<String, Object> source) {
-            this.ingestDocument = new IngestDocument(index, type, id, null, null, null, source);
+            this.ingestDocument = new IngestDocument(index, id, null, null, null, source);
         }
 
         IngestDocumentMatcher(String index, String type, String id, Long version, VersionType versionType, Map<String, Object> source) {
-            this.ingestDocument = new IngestDocument(index, type, id, null, version, versionType, source);
+            this.ingestDocument = new IngestDocument(index, id, null, version, versionType, source);
         }
 
         @Override

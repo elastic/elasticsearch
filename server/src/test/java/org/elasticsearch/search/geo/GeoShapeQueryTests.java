@@ -710,15 +710,15 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
         String doc1 = "{\"geo\": {\r\n" + "\"coordinates\": [\r\n" + "-33.918711,\r\n" + "18.847685\r\n" + "],\r\n" +
                 "\"type\": \"Point\"\r\n" + "}}";
-        client().index(new IndexRequest("test", "doc", "1").source(doc1, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
+        client().index(new IndexRequest("test").id("1").source(doc1, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
 
         String doc2 = "{\"geo\": {\r\n" + "\"coordinates\": [\r\n" + "-49.0,\r\n" + "18.847685\r\n" + "],\r\n" +
             "\"type\": \"Point\"\r\n" + "}}";
-        client().index(new IndexRequest("test", "doc", "2").source(doc2, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
+        client().index(new IndexRequest("test").id("2").source(doc2, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
 
         String doc3 = "{\"geo\": {\r\n" + "\"coordinates\": [\r\n" + "49.0,\r\n" + "18.847685\r\n" + "],\r\n" +
             "\"type\": \"Point\"\r\n" + "}}";
-        client().index(new IndexRequest("test", "doc", "3").source(doc3, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
+        client().index(new IndexRequest("test").id("3").source(doc3, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
 
         @SuppressWarnings("unchecked") CheckedSupplier<GeoShapeQueryBuilder, IOException> querySupplier = randomFrom(
             () -> QueryBuilders.geoShapeQuery(

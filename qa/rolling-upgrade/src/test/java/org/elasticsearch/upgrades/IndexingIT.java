@@ -19,6 +19,7 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -27,6 +28,7 @@ import org.elasticsearch.rest.action.document.RestBulkAction;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.hamcrest.Matchers.containsString;
@@ -142,14 +144,32 @@ public class IndexingIT extends AbstractRollingTestCase {
                 Request waitForGreen = new Request("GET", "/_cluster/health");
                 waitForGreen.addParameter("wait_for_nodes", "3");
                 client().performRequest(waitForGreen);
-                ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(bulk));
-                assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
-                assertThat(e.getMessage(),
+
+                Version minNodeVersion = null;
+                Map<?, ?> response = entityAsMap(client().performRequest(new Request("GET", "_nodes/plugins")));
+                Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
+                for (Map.Entry<?, ?> node : nodes.entrySet()) {
+                    Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
+                    Version nodeVersion = Version.fromString(nodeInfo.get("version").toString());
+                    if (minNodeVersion == null) {
+                        minNodeVersion = nodeVersion;
+                    } else if (nodeVersion.before(minNodeVersion)) {
+                        minNodeVersion = nodeVersion;
+                    }
+                }
+
+                if (minNodeVersion.before(Version.V_8_0_0)) {
+                    ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(bulk));
+                    assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+                    assertThat(e.getMessage(),
                         // if request goes to 8.0+ node
                         either(containsString("optype create not supported for indexing requests without explicit id until"))
                             // if request goes to 7.x node
                             .or(containsString("an id must be provided if version type or value are set")
-                        ));
+                            ));
+                } else {
+                    client().performRequest(bulk);
+                }
                 break;
             case UPGRADED:
                 client().performRequest(bulk);

@@ -113,7 +113,7 @@ Depending on your use case, you may wish to recreate the {transform} entirely
 after deletions. Alternatively, if your use case is tolerant to historical 
 archiving, you may wish to include a max ingest timestamp in your aggregation. 
 This will allow you to exclude results that have not been recently updated when 
-viewing the {dataframe} destination index.
+viewing the destination index.
 
 
 [float]

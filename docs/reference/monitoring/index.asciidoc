@@ -17,6 +17,7 @@ performance of your {es} cluster.
 * <<config-monitoring-indices>>
 * <<es-monitoring-collectors>>
 * <<es-monitoring-exporters>>
+* <<monitoring-troubleshooting>>
 
 --
 
@@ -40,3 +41,5 @@ include::collectors.asciidoc[]
 include::exporters.asciidoc[]
 include::local-export.asciidoc[]
 include::http-export.asciidoc[]
+
+include::troubleshooting.asciidoc[]

@@ -276,7 +276,7 @@ systems, see:
 
 * <<gmail>>
 * <<outlook>>
-* <<exchange,Sending Email from Exchange>>
+* <<exchange>>
 * <<amazon-ses,Sending Email from Amazon SES>>
 
 If you configure multiple email accounts, you must either configure a default

@@ -12,6 +12,12 @@ GET /twitter/_recovery
 ----
 // TEST[setup:twitter]
 
+[source,console]
+----
+GET /twitter/_recovery?detailed=true&active_only=true&index=twitter
+----
+// TEST[setup:twitter]
+
 
 [[index-recovery-api-request]]
 ==== {api-request-title}
@@ -48,17 +54,11 @@ Use a value of `_all` to retrieve information for all indices in the cluster.
 [[index-recovery-api-query-params]]
 ==== {api-query-parms-title}
 
-`active_only`::
-(Optional, boolean)
-If `true`,
-the response only includes ongoing shard recoveries.
-Defaults to `false`.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=active-only]
 
-`detailed`::
-(Optional, boolean)
-If `true`,
-the response includes detailed information about shard recoveries.
-Defaults to `false`.
+include::{docdir}/rest-api/common-parms.asciidoc[tag=detailed]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-query-parm]
 
 
 [[index-recovery-api-response-body]]

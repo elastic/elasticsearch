@@ -72,7 +72,7 @@ This API supports the following fields:
                                               instead of executing its own input.
 
 | `action_modes`      | no       | null     | Determines how to handle the watch actions as part of the
-                                              watch execution. See <<watcher-api-execute-watch-action-mode, Action execution modes>>
+                                              watch execution. See <<watcher-api-execute-watch-action-mode>>
                                               for more information.
 
 | `record_execution`  | no       | false    | When set to `true`, the watch record representing the watch

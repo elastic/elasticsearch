@@ -48,9 +48,9 @@ final class FetchSearchPhase extends SearchPhase {
     private final BiFunction<InternalSearchResponse, String, SearchPhase> nextPhaseFactory;
     private final SearchPhaseContext context;
     private final Logger logger;
-    private final InitialSearchPhase.SearchPhaseResults<SearchPhaseResult> resultConsumer;
+    private final SearchPhaseResults<SearchPhaseResult> resultConsumer;
 
-    FetchSearchPhase(InitialSearchPhase.SearchPhaseResults<SearchPhaseResult> resultConsumer,
+    FetchSearchPhase(SearchPhaseResults<SearchPhaseResult> resultConsumer,
                      SearchPhaseController searchPhaseController,
                      SearchPhaseContext context) {
         this(resultConsumer, searchPhaseController, context,
@@ -58,7 +58,7 @@ final class FetchSearchPhase extends SearchPhase {
                 (finalResponse) -> sendResponsePhase(finalResponse, scrollId, context)));
     }
 
-    FetchSearchPhase(InitialSearchPhase.SearchPhaseResults<SearchPhaseResult> resultConsumer,
+    FetchSearchPhase(SearchPhaseResults<SearchPhaseResult> resultConsumer,
                      SearchPhaseController searchPhaseController,
                      SearchPhaseContext context, BiFunction<InternalSearchResponse, String, SearchPhase> nextPhaseFactory) {
         super("fetch");

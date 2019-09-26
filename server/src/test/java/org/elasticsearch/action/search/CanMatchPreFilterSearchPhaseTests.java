@@ -23,12 +23,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -179,7 +176,6 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
 
-
         final SearchTransportService searchTransportService =
                 new SearchTransportService(null, null) {
                     @Override
@@ -213,35 +209,13 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 timeProvider,
                 0,
                 null,
-                (iter) -> new InitialSearchPhase<SearchPhaseResult>("test", searchRequest,
-                        iter, logger, randomIntBetween(1, 32), executor) {
+                iter -> new SearchPhase("next") {
                     @Override
-                    void onPhaseDone() {
+                    public void run() {
                         latch.countDown();
                     }
-
-                    @Override
-                    void onShardFailure(final int shardIndex, final SearchShardTarget shardTarget, final Exception ex) {
-
-                    }
-
-                    @Override
-                    void onShardSuccess(final SearchPhaseResult result) {
-
-                    }
-
-                    @Override
-                    protected void executePhaseOnShard(
-                            final SearchShardIterator shardIt,
-                            final ShardRouting shard,
-                            final SearchActionListener<SearchPhaseResult> listener) {
-                        if (randomBoolean()) {
-                            listener.onResponse(new SearchPhaseResult() {});
-                        } else {
-                            listener.onFailure(new Exception("failure"));
-                        }
-                    }
-                }, SearchResponse.Clusters.EMPTY);
+                },
+                SearchResponse.Clusters.EMPTY);
 
         canMatchPhase.start();
         latch.await();

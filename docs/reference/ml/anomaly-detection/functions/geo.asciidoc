@@ -1,6 +1,6 @@
 [role="xpack"]
 [[ml-geo-functions]]
-=== Geographic functions
+==== Geographic functions
 
 The geographic functions detect anomalies in the geographic location of the
 input data.

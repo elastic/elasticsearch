@@ -1,6 +1,6 @@
 [role="xpack"]
 [[customizing-watches]]
-== Customizing Watches
+== Customizing watches
 
 Now that you've seen how to set up simple watches to
 <<watch-log-data,watch your log data>> and
@@ -10,7 +10,7 @@ look at how you can customize a watch by modifying its <<changing-inputs,inputs>
 <<customizing-actions,actions>>.
 
 [[changing-inputs]]
-=== Changing Inputs
+=== Changing inputs
 
 The Watch Input is called when the watch triggered to load an initial payload.
 This payload is stored in the _Watch Execution Context_ and from then on is
@@ -22,7 +22,7 @@ be evaluated based on the data in this payload).
 <<input-chain,chain>>.
 
 [[loading-static-data]]
-==== Loading a Static Payload with the Simple Input
+==== Loading a static payload with the simple input
 
 To load static data into the watch payload for testing purposes, you can use the
 <<input-simple,simple>> input. For example, the following input stores three
@@ -43,7 +43,7 @@ fields in the payload:
 See <<input-simple>> for more details.
 
 [[loading-search-results]]
-==== Loading a Payload from Elasticsearch with the Search Input
+==== Loading a payload from Elasticsearch with the search input
 
 You can use the `search` input to load Elasticsearch search results as the watch
 initial payload.
@@ -83,7 +83,7 @@ For example, the following `search` input loads the latest VIX quote:
 See <<input-search>> for more details.
 
 [[loading-http-data]]
-==== Loading a Payload from a remote HTTP Service with HTTP Input
+==== Loading a payload from a remote HTTP service with HTTP input
 
 Use the `http` input to issue an HTTP request and load the returned response as
 the watch initial payload. This input expects the response body content type
@@ -113,7 +113,7 @@ Amsterdam using http://openweathermap.org/appid[OpenWeatherMap] online service:
 See <<input-http>> for more details.
 
 [[chaining-inputs]]
-==== Chaining Inputs
+==== Chaining inputs
 
 You can create an <<input-chain,input chain>> to load data from multiple sources
 into a watch payload. The inputs in a chain are processed in order, so the the
@@ -122,7 +122,7 @@ data loaded by one input can be used by subsequent inputs.
 See <<input-chain>> for more details.
 
 [[changing-conditions]]
-=== Changing Conditions
+=== Changing conditions
 
 The Watch Condition is evaluated as part of the watch execution. The condition
 determines whether the actions associated with the watch should execute or not.
@@ -134,7 +134,7 @@ determines whether the actions associated with the watch should execute or not.
 The first two are pretty self-explanatory--they are shortcuts for setting a
 watch's condition to `true` or `false`.
 
-==== Simple Value Comparison with the Compare Condition
+==== Simple value comparison with the compare condition
 
 The `compare` condition enables you to perform simple comparisons against values
 in the Watch payload. While you can also do this with a `script` condition, with
@@ -153,7 +153,7 @@ returned any hits:
 // NOTCONSOLE
 See <<condition-compare>> for more details.
 
-==== Powerful Comparison Logic with the Script Condition
+==== Powerful comparison logic with the script condition
 
 For more complex conditional logic you can use the `script` condition. The
 `script` condition accepts a script that when executed returns `true` (indicating
@@ -184,7 +184,7 @@ VIX quote loaded by the `http` input is either greater than 5% or lower than -5%
 See <<condition-script>> for more details.
 
 [[using-transforms]]
-=== Using Transforms
+=== Using transforms
 
 Transforms are constructs in a watch that can change the current payload
 associated with the watch execution context.
@@ -198,7 +198,7 @@ enables you to perform a series of `search` and `script` transforms.
 See <<transform>> for more details.
 
 [[customizing-actions]]
-=== Customizing Actions
+=== Customizing actions
 
 Actions are associated with a watch and are executed as part of the watch execution
 only when the watch condition is met.

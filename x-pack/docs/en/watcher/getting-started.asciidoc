@@ -18,7 +18,7 @@ condition is met.
 
 [float]
 [[log-add-input]]
-=== Schedule the Watch and Define an Input
+=== Schedule the watch and define an input
 
 A watch <<trigger-schedule,schedule>> controls how often a watch is triggered.
 The watch <<input,input>> gets the data that you want to evaluate.
@@ -75,7 +75,7 @@ GET .watcher-history*/_search?pretty
 
 [float]
 [[log-add-condition]]
-=== Add a Condition
+=== Add a condition
 
 A <<condition,condition>> evaluates the data you've loaded into the watch and
 determines if any action is required. Now that you've loaded log errors into
@@ -150,7 +150,7 @@ GET .watcher-history*/_search?pretty
 
 [float]
 [[log-take-action]]
-=== Configure an Action
+=== Configure an action
 
 Recording watch records in the watch history is nice, but the real power of
 {watcher} is being able to do something when the watch condition is met. A
@@ -211,7 +211,7 @@ DELETE _watcher/watch/log_error_watch
 
 [float]
 [[required-security-privileges]]
-=== Required Security Privileges
+=== Required security privileges
 To enable users to create and manipulate watches, assign them the `watcher_admin`
 security role. Watcher admins can also view watches, watch history, and triggered
 watches.
@@ -222,7 +222,7 @@ allowed to execute read-only watch operations.
 
 [float]
 [[next-steps]]
-=== Where to Go Next
+=== Where to go next
 
 * See <<how-watcher-works>> for more information about the
 anatomy of a watch and the watch lifecycle.

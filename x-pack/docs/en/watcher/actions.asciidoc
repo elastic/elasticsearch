@@ -22,7 +22,7 @@ and <<actions-pagerduty,pagerduty>>.
 
 [float]
 [[actions-ack-throttle]]
-=== Acknowledgement and Throttling
+=== Acknowledgement and throttling
 
 During the watch execution, once the condition is met, a decision is made per
 configured action as to whether it should be throttled. The main purpose of
@@ -165,15 +165,14 @@ xpack.watcher.execution.default_throttle_period: 15m
 --------------------------------------------------
 
 {watcher} also supports acknowledgement-based throttling. You can acknowledge a
-watch using the {ref}/watcher-api-ack-watch.html[Ack Watch API] to prevent the
+watch using the <<watcher-api-ack-watch,ack watch API>> to prevent the
 watch actions from being executed again while the watch condition remains `true`.
 This essentially tells {watcher} "I received the notification and I'm handling
 it, please do not notify me about this error again". An acknowledged watch action
 remains in the `acked` state until the watch's condition evaluates to `false`.
 When that happens, the action's state changes to `awaits_successful_execution`.
 
-To acknowledge an action, you use the
-{ref}/watcher-api-ack-watch.html[Ack Watch API]:
+To acknowledge an action, you use the <<watcher-api-ack-watch,ack watch API>>:
 
 [source,console]
 ----------------------------------------------------------------------

@@ -17,6 +17,7 @@ Replication is pull-based. This means that replication is driven by the
 follower index. This simplifies state management on the leader index and means
 that {ccr} does not interfere with indexing on the leader index.
 
+IMPORTANT: {ccr-cap} requires <<modules-remote-clusters, remote clusters>>.
 
 ==== Configuring replication
 

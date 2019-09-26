@@ -103,7 +103,7 @@ can specify the following email account attributes:
   `email_defaults.*` (<<cluster-update-settings,Dynamic>>);;
   An optional set of email attributes to use as defaults
   for the emails sent from the account. See
-  <<email-action-attributes,Email action attributes>> for the supported
+  <<email-action-attributes>> for the supported
   attributes.
 
   `smtp.auth` (<<cluster-update-settings,Dynamic>>);;

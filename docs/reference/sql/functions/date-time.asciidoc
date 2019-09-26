@@ -249,7 +249,7 @@ Currently, using a _precision_ greater than 3 doesn't make any difference to the
 function as the maximum number of second fractional digits returned is 3 (milliseconds).
 
 [[sql-functions-datetime-trunc]]
-==== `DATE_TRUNC`
+==== `DATE_TRUNC/DATETRUNC`
 
 .Synopsis:
 [source, sql]

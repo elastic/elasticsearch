@@ -43,6 +43,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
+import org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.shard.IndexShardRecoveryException;
 import org.elasticsearch.index.shard.ShardId;
@@ -293,7 +294,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, ActionListener<Void> listener) {
+                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus, ActionListener<String> listener) {
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
     }
 
@@ -333,10 +334,13 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                                 ActionListener.wrap(
                                         r -> {},
                                         e -> {
-                                            assert e instanceof ElasticsearchSecurityException == false : e;
-                                            logger.warn(new ParameterizedMessage(
-                                                            "{} background renewal of retention lease [{}] failed during restore", shardId,
-                                                    retentionLeaseId), e);
+                                            final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                                            assert cause instanceof ElasticsearchSecurityException == false : cause;
+                                            if (cause instanceof RetentionLeaseInvalidRetainingSeqNoException == false) {
+                                                logger.warn(new ParameterizedMessage(
+                                                    "{} background renewal of retention lease [{}] failed during restore", shardId,
+                                                    retentionLeaseId), cause);
+                                            }
                                         }));
                     }
                 },

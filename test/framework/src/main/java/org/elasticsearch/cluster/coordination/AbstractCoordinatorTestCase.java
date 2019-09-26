@@ -703,8 +703,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     if (rarely()) {
                         nodeEnvironment = newNodeEnvironment();
                         nodeEnvironments.add(nodeEnvironment);
-                        delegate = new MockGatewayMetaState(Settings.EMPTY, nodeEnvironment, xContentRegistry(), localNode)
-                            .getPersistedState(Settings.EMPTY, null);
+                        final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(localNode);
+                        gatewayMetaState.start(Settings.EMPTY, nodeEnvironment, xContentRegistry());
+                        delegate = gatewayMetaState.getPersistedState();
                     } else {
                         nodeEnvironment = null;
                         delegate = new InMemoryPersistedState(0L,
@@ -734,8 +735,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                                 new Manifest(updatedTerm, manifest.getClusterStateVersion(), manifest.getGlobalGeneration(),
                                     manifest.getIndexGenerations()));
                         }
-                        delegate = new MockGatewayMetaState(Settings.EMPTY, nodeEnvironment, xContentRegistry(), newLocalNode)
-                            .getPersistedState(Settings.EMPTY, null);
+                        final MockGatewayMetaState gatewayMetaState = new MockGatewayMetaState(newLocalNode);
+                        gatewayMetaState.start(Settings.EMPTY, nodeEnvironment, xContentRegistry());
+                        delegate = gatewayMetaState.getPersistedState();
                     } else {
                         nodeEnvironment = null;
                         BytesStreamOutput outStream = new BytesStreamOutput();
@@ -1170,6 +1172,10 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             private boolean isNotUsefullyBootstrapped() {
                 return getLocalNode().isMasterNode() == false || coordinator.isInitialConfigurationSet() == false;
             }
+
+            void allowClusterStateApplicationFailure() {
+                clusterApplierService.allowClusterStateApplicationFailure();
+            }
         }
 
         private List<TransportAddress> provideSeedHosts(SeedHostsProvider.HostsResolver ignored) {
@@ -1280,6 +1286,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         private final String nodeName;
         private final DeterministicTaskQueue deterministicTaskQueue;
         ClusterStateApplyResponse clusterStateApplyResponse = ClusterStateApplyResponse.SUCCEED;
+        private boolean applicationMayFail;
 
         DisruptableClusterApplierService(String nodeName, Settings settings, ClusterSettings clusterSettings,
                                          DeterministicTaskQueue deterministicTaskQueue, Function<Runnable, Runnable> runnableWrapper) {
@@ -1323,6 +1330,15 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         @Override
         protected void connectToNodesAndWait(ClusterState newClusterState) {
             // don't do anything, and don't block
+        }
+
+        @Override
+        protected boolean applicationMayFail() {
+            return this.applicationMayFail;
+        }
+
+        void allowClusterStateApplicationFailure() {
+            this.applicationMayFail = true;
         }
     }
 

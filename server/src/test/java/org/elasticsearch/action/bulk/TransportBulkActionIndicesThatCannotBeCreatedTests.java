@@ -110,7 +110,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
         when(state.getMetaData()).thenReturn(MetaData.EMPTY_META_DATA);
         when(clusterService.state()).thenReturn(state);
         DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
-        when(state.nodes()).thenReturn(discoveryNodes);
+        when(state.getNodes()).thenReturn(discoveryNodes);
         when(discoveryNodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
         DiscoveryNode localNode = mock(DiscoveryNode.class);
         when(clusterService.localNode()).thenReturn(localNode);

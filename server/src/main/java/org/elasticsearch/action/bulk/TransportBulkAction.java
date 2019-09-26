@@ -158,7 +158,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         boolean hasIndexRequestsWithPipelines = false;
         final MetaData metaData = clusterService.state().getMetaData();
-        final Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
+        final Version minNodeVersion = clusterService.state().getNodes().getMinNodeVersion();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {

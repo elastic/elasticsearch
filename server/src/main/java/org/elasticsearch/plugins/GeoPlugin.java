@@ -24,7 +24,7 @@ import java.util.Collections;
 import java.util.List;
 
 public interface GeoPlugin {
-    default List<GeoShapeFieldMapper.CRSHandler> getCRSHandlers() {
+    default List<GeoShapeFieldMapper.CRSHandlerFactory> getCRSHandlerFactories() {
         return Collections.emptyList();
     }
 }

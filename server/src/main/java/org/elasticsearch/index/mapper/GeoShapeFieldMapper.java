@@ -19,6 +19,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.LatLonShape;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
@@ -55,7 +56,7 @@ import java.util.Map;
 public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, Geometry> {
     public static final String CONTENT_TYPE = "geo_shape";
 
-    public static List<CRSHandler> CRS_HANDLERS = new ArrayList<>();
+    public static List<CRSHandlerFactory> CRS_HANDLER_FACTORIES = new ArrayList<>();
 
     public static class Defaults extends AbstractGeometryFieldMapper.Defaults {
         public static final Explicit<String> CRS = new Explicit<>("EPSG:4326", false);
@@ -72,7 +73,7 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
         public Builder(String name, Map<String, Object> params) {
             this(name);
             this.crs = params.containsKey("crs") ? (String)params.get("crs") : Defaults.CRS.value();
-            this.crsHandler = resolveCRSHandler(this.crs());
+            this.crsHandler = resolveCRSHandler(this.crs().value());
         }
 
         @Override
@@ -169,27 +170,42 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
         }
     }
 
-    public static void registerCRSHandlers(List<CRSHandler> crsHandlers) {
-        CRS_HANDLERS.addAll(crsHandlers);
+    public static void registerCRSHandlers(List<CRSHandlerFactory> crsHandlerFactories) {
+        CRS_HANDLER_FACTORIES.addAll(crsHandlerFactories);
     }
 
-    private static CRSHandler resolveCRSHandler(Explicit<String> crs) {
-        for (CRSHandler handler : CRS_HANDLERS) {
-            if (handler.supportsCRS(crs.value())) {
-                return handler;
+    public static CRSHandler resolveCRSHandler(String crs) {
+        CRSHandler crsHandler;
+        for (CRSHandlerFactory factory : CRS_HANDLER_FACTORIES) {
+            if ((crsHandler = factory.newCRSHandler(crs)) != null) {
+                return crsHandler;
             }
         }
-        throw new IllegalArgumentException("crs [" + crs.value() + "] not supported");
+        throw new IllegalArgumentException("crs [" + crs + "] not supported");
+    }
+
+    public interface CRSHandlerFactory {
+        CRSHandler newCRSHandler(String crs);
     }
 
     public interface CRSHandler {
         Indexer newIndexer(boolean orientation, String fieldName);
         QueryProcessor newQueryProcessor();
 
-        boolean supportsCRS(String crs);
+        Object resolveCRS(String crsSpec);
     }
 
-    public static CRSHandler DEFAULT_CRS_HANDLER = new CRSHandler() {
+    public static CRSHandlerFactory DEFAULT_CRS_HANDLER_FACTORY = new CRSHandlerFactory() {
+        @Override
+        public CRSHandler newCRSHandler(String crs) {
+            if (crs.equals(Defaults.CRS.value())) {
+                return new DefaultCRSHandler();
+            }
+            return null;
+        }
+    };
+
+    protected static class DefaultCRSHandler implements CRSHandler {
         @Override
         public Indexer newIndexer(boolean orientation, String fieldName) {
             return new GeoShapeIndexer(orientation, fieldName);
@@ -201,12 +217,12 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
         }
 
         @Override
-        public boolean supportsCRS(String crs) {
-            return crs.equals(Defaults.CRS.value());
+        public Object resolveCRS(String crsSpec) {
+            throw new ElasticsearchException("resolveCRS not supported for default CRSHandler");
         }
     };
 
     static {
-        CRS_HANDLERS.add(DEFAULT_CRS_HANDLER);
+        CRS_HANDLER_FACTORIES.add(DEFAULT_CRS_HANDLER_FACTORY);
     }
 }

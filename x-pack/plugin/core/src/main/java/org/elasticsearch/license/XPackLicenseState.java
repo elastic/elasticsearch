@@ -752,6 +752,23 @@ public class XPackLicenseState {
     }
 
     /**
+     * Determine if spatial projection support should be enabled.
+     * <p>
+     * Spatial projection support is only disabled when the mode is not:
+     * <ul>
+     * <li>{@link OperationMode#GOLD}</li>
+     * <li>{@link OperationMode#PLATINUM}</li>
+     * <li>{@link OperationMode#TRIAL}</li>
+     * </ul>
+     *
+     * @return {@code true} to enable spatial projections. Otherwise {@code false}.
+     */
+    public synchronized boolean isSpatialProjectionAllowed() {
+        OperationMode mode = status.mode;
+        return mode == OperationMode.TRIAL || mode == OperationMode.GOLD || mode == OperationMode.PLATINUM;
+    }
+
+    /**
      * Datascience is always available as long as there is a valid license
      *
      * @return true if the license is active

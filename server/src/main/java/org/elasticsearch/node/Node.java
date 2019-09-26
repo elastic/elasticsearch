@@ -382,7 +382,7 @@ public class Node implements Closeable {
 
             // register CRS handlers w/ GeoShapeFieldMapper
             for (GeoPlugin plugin : pluginsService.filterPlugins(GeoPlugin.class)) {
-                GeoShapeFieldMapper.registerCRSHandlers(((GeoPlugin)plugin).getCRSHandlers());
+                GeoShapeFieldMapper.registerCRSHandlers((plugin).getCRSHandlerFactories());
             }
 
             SearchModule searchModule = new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class));

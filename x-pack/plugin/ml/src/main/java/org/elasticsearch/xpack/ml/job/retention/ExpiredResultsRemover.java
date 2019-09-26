@@ -88,6 +88,14 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         DeleteByQueryRequest request = new DeleteByQueryRequest();
         request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
 
+        // Delete the documents gradually.
+        // With DEFAULT_SCROLL_SIZE = 1000 this implies we spread deletion of 1 million documents over 5000 seconds ~= 83 minutes.
+        // And we delete a maximum of 10000 batches per day (= 10 million documents per day if DEFAULT_SCROLL_SIZE = 1000).
+        // If more documents than this have expired then some will be deleted on a subsequent day.
+        request.setBatchSize(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE);
+        request.setRequestsPerSecond(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE / 5);
+        request.setMaxDocs(10000 * AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE);
+
         request.indices(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()));
         QueryBuilder excludeFilter = QueryBuilders.termsQuery(Result.RESULT_TYPE.getPreferredName(),
                 ModelSizeStats.RESULT_TYPE_VALUE, ForecastRequestStats.RESULT_TYPE_VALUE, Forecast.RESULT_TYPE_VALUE);

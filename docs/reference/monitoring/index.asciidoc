@@ -10,6 +10,7 @@ performance of your {es} cluster.
 
 * <<monitoring-overview>>
 * <<how-monitoring-works>>
+* <<monitoring-production>>
 * <<collecting-monitoring-data>>
 * <<configuring-metricbeat>>
 * <<configuring-filebeat>>
@@ -22,6 +23,8 @@ performance of your {es} cluster.
 include::overview.asciidoc[]
 
 include::how-monitoring-works.asciidoc[]
+
+include::production.asciidoc[]
 
 include::collecting-monitoring-data.asciidoc[]
 include::pause-export.asciidoc[]

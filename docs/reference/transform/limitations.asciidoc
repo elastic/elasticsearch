@@ -144,7 +144,7 @@ availability issue.
 
 For a batch {transform}, the number of buckets requested is only ever adjusted 
 downwards. The lowering of value may result in a longer duration for the 
-{transform} checkpoint to complete. For {cdataframes}, the number of buckets 
+{transform} checkpoint to complete. For {ctransforms}, the number of buckets 
 requested is reset back to its default at the start of every checkpoint and it 
 is possible for circuit breaker exceptions to occur repeatedly in the {es} logs. 
 

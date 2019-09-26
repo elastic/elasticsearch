@@ -295,6 +295,27 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         }
     }
 
+    public void run(Boolean debug) {
+        nodes.forEach(ElasticsearchNode::configureForRun);
+        if (debug) {
+            int port = 8000;
+            for (ElasticsearchNode node : nodes) {
+                LOGGER.lifecycle("Running elasticsearch in debug mode, suspending until connected on port {}", port);
+                node.jvmArgs("-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=" + port);
+                port += 1;
+            }
+        }
+        start();
+        nodes.forEach(node -> {
+            try {
+                node.waitForProcessToExit();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        });
+    }
+
     @Override
     public void restart() {
         nodes.forEach(ElasticsearchNode::restart);

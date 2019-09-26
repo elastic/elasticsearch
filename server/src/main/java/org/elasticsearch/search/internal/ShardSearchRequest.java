@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
@@ -160,9 +161,20 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         nowInMillis = in.readVLong();
         requestCache = in.readOptionalBoolean();
         clusterAlias = in.readOptionalString();
-        allowPartialSearchResults = in.readBoolean();
-        indexRoutings = in.readStringArray();
-        preference = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+            allowPartialSearchResults = in.readBoolean();
+        } else if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+            allowPartialSearchResults = in.readOptionalBoolean();
+        } else {
+            allowPartialSearchResults = false;
+        }
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            indexRoutings = in.readStringArray();
+            preference = in.readOptionalString();
+        } else {
+            indexRoutings = Strings.EMPTY_ARRAY;
+            preference = null;
+        }
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
@@ -189,10 +201,16 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         }
         out.writeOptionalBoolean(requestCache);
         out.writeOptionalString(clusterAlias);
-        out.writeBoolean(allowPartialSearchResults);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            out.writeBoolean(allowPartialSearchResults);
+        } else if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+            out.writeOptionalBoolean(allowPartialSearchResults);
+        }
         if (asKey == false) {
-            out.writeStringArray(indexRoutings);
-            out.writeOptionalString(preference);
+            if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
+                out.writeStringArray(indexRoutings);
+                out.writeOptionalString(preference);
+            }
         }
     }
 

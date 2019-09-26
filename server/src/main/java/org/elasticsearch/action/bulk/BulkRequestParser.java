@@ -19,14 +19,12 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -49,8 +47,6 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
  */
 public final class BulkRequestParser {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(BulkRequestParser.class));
-
     private static final ParseField INDEX = new ParseField("_index");
     private static final ParseField TYPE = new ParseField("_type");
     private static final ParseField ID = new ParseField("_id");
@@ -64,6 +60,7 @@ public final class BulkRequestParser {
     private static final ParseField IF_SEQ_NO = new ParseField("if_seq_no");
     private static final ParseField IF_PRIMARY_TERM = new ParseField("if_primary_term");
 
+    // TODO: Remove this parameter once the BulkMonitoring endpoint has been removed
     private final boolean errorOnType;
 
     /**

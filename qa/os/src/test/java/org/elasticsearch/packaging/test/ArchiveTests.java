@@ -418,5 +418,7 @@ public class ArchiveTests extends PackagingTestCase {
     public void tearDown() throws Exception {
         // clean up logs between logs so we only show logs from the running tests if we dump them on failure
         FileUtils.rm(installation.logs);
+        Files.createDirectories(installation.logs);
+        sh.chown(installation.logs);
     }
 }

@@ -45,4 +45,8 @@ abstract class IdentifierBuilder extends AbstractBuilder {
     private static String unquoteIdentifier(String identifier) {
         return identifier.replace("\"\"", "\"");
     }
+
+    static String quoteIdentifier(String identifier) {
+        return "'" + identifier + "'";
+    }
 }

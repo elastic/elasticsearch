@@ -230,7 +230,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             index = in.readString();
             if (in.getVersion().before(Version.V_8_0_0)) {
                 String type = in.readString();
-                assert type == null || MapperService.SINGLE_MAPPING_NAME.equals(type);
+                assert type == null || MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expecting null or _doc but got [" + type + "]";
             }
             id = in.readOptionalString();
             cause = in.readException();

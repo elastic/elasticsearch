@@ -277,7 +277,7 @@ systems, see:
 * <<gmail>>
 * <<outlook>>
 * <<exchange>>
-* <<amazon-ses,Sending Email from Amazon SES>>
+* <<amazon-ses>>
 
 If you configure multiple email accounts, you must either configure a default
 account or specify which account the email should be sent with in the

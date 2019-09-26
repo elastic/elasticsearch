@@ -123,10 +123,6 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         this(field, Collections.singletonList(document), documentXContentType);
     }
 
-    private PercolateQueryBuilder(String field, BytesReference document) {
-        this(field, document, XContentHelper.xContentType(document));
-    }
-
     /**
      * Creates a percolator query builder instance for percolating a provided document.
      *
@@ -209,12 +205,12 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         name = in.readOptionalString();
         if (in.getVersion().before(Version.V_8_0_0)) {
             String documentType = in.readOptionalString();
-            assert documentType == null || MapperService.SINGLE_MAPPING_NAME.equals(documentType);
+            assert documentType == null;
         }
         indexedDocumentIndex = in.readOptionalString();
         if (in.getVersion().before(Version.V_8_0_0)) {
             String indexedDocumentType = in.readOptionalString();
-            assert indexedDocumentType == null || MapperService.SINGLE_MAPPING_NAME.equals(indexedDocumentType);
+            assert indexedDocumentType == null;
         }
         indexedDocumentId = in.readOptionalString();
         indexedDocumentRouting = in.readOptionalString();

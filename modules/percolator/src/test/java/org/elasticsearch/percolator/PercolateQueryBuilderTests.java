@@ -332,7 +332,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         Supplier<BytesReference> supplier = () -> new BytesArray("{\"test\": \"test\"}");
         String testName = "name1";
         QueryShardContext shardContext = createShardContext();
-        PercolateQueryBuilder percolateQueryBuilder = new PercolateQueryBuilder(queryField, supplier::get);
+        PercolateQueryBuilder percolateQueryBuilder = new PercolateQueryBuilder(queryField, supplier);
         percolateQueryBuilder.setName(testName);
 
         QueryBuilder rewrittenQueryBuilder = percolateQueryBuilder.doRewrite(shardContext);

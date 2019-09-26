@@ -228,7 +228,7 @@ include::ssl-settings.asciidoc[]
 ==== Slack Notification Settings
 You can configure the following Slack notification settings in
 `elasticsearch.yml`. For more information about sending notifications
-via Slack, see <<configuring-slack-actions,Configuring Slack>>.
+via Slack, see <<configuring-slack-actions>>.
 
 `xpack.notification.slack` ::
 Specifies account information for sending notifications

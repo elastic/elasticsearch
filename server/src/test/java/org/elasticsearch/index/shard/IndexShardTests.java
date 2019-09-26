@@ -3818,18 +3818,42 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testCloseShardWhileResettingEngine() throws Exception {
         CountDownLatch readyToCloseLatch = new CountDownLatch(1);
         CountDownLatch closeDoneLatch = new CountDownLatch(1);
-        IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config) {
-            @Override
-            public InternalEngine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner,
-                                                      long recoverUpToSeqNo) throws IOException {
+        AtomicBoolean resetWasStarted = new AtomicBoolean();
+        IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> {
+            if (resetWasStarted.get() && randomBoolean()) {
                 readyToCloseLatch.countDown();
-                try {
-                    closeDoneLatch.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
-                return super.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo);
             }
+            final InternalEngine engine = new InternalEngine(config) {
+                @Override
+                public InternalEngine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner,
+                                                          long recoverUpToSeqNo) throws IOException {
+                    readyToCloseLatch.countDown();
+                    try {
+                        if (randomBoolean()) {
+                            closeDoneLatch.await();
+                        }
+                    } catch (InterruptedException e) {
+                        throw new AssertionError(e);
+                    }
+                    return super.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo);
+                }
+            };
+            if (resetWasStarted.get() && randomBoolean()) {
+                readyToCloseLatch.countDown();
+                int numDocs = randomIntBetween(0, 100);
+                for (int i = 0; i < numDocs; i++) {
+                    try {
+                        ParsedDocument doc = EngineTestCase.createParsedDoc(Integer.toString(i), null);
+                        engine.index(new Engine.Index(EngineTestCase.newUid(doc), config.getPrimaryTermSupplier().getAsLong(), doc));
+                        if (rarely()) {
+                            engine.syncTranslog();
+                        }
+                    } catch (IOException e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            }
+            return engine;
         });
 
         Thread closeShardThread = new Thread(() -> {
@@ -3851,6 +3875,7 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.acquireAllReplicaOperationsPermits(shard.getOperationPrimaryTerm(), shard.getLastKnownGlobalCheckpoint(), 0L,
             ActionListener.wrap(r -> {
                 try (r) {
+                    resetWasStarted.set(true);
                     shard.resetEngineToGlobalCheckpoint();
                 } finally {
                     engineResetLatch.countDown();
@@ -3872,19 +3897,29 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testSnapshotWhileResettingEngine() throws Exception {
         CountDownLatch readyToSnapshotLatch = new CountDownLatch(1);
         CountDownLatch snapshotDoneLatch = new CountDownLatch(1);
-        IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config) {
-            @Override
-            public InternalEngine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner,
-                                                      long recoverUpToSeqNo) throws IOException {
-                InternalEngine internalEngine = super.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo);
+        AtomicBoolean resetWasStarted = new AtomicBoolean();
+        IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> {
+            if (resetWasStarted.get() && randomBoolean()) {
                 readyToSnapshotLatch.countDown();
-                try {
-                    snapshotDoneLatch.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
-                return internalEngine;
             }
+            final InternalEngine engine = new InternalEngine(config) {
+                @Override
+                public InternalEngine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner,
+                                                          long recoverUpToSeqNo) throws IOException {
+                    InternalEngine internalEngine = super.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo);
+                    readyToSnapshotLatch.countDown();
+                    try {
+                        snapshotDoneLatch.await();
+                    } catch (InterruptedException e) {
+                        throw new AssertionError(e);
+                    }
+                    return internalEngine;
+                }
+            };
+            if (resetWasStarted.get() && randomBoolean()) {
+                readyToSnapshotLatch.countDown();
+            }
+            return engine;
         });
 
         indexOnReplicaWithGaps(shard, between(0, 1000), Math.toIntExact(shard.getLocalCheckpoint()));
@@ -3914,6 +3949,7 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.acquireAllReplicaOperationsPermits(shard.getOperationPrimaryTerm(), shard.getLastKnownGlobalCheckpoint(), 0L,
             ActionListener.wrap(r -> {
                 try (r) {
+                    resetWasStarted.set(true);
                     shard.resetEngineToGlobalCheckpoint();
                 } finally {
                     engineResetLatch.countDown();
@@ -4126,7 +4162,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(readonlyShard);
     }
 
-    public void testCloseShardWhileEngineIsWarming() throws Exception {
+    public void testEngineWarmingDoesNotBlockClusterUpdate() throws Exception {
         CountDownLatch warmerStarted = new CountDownLatch(1);
         CountDownLatch warmerBlocking = new CountDownLatch(1);
         IndexShard shard = newShard(true, Settings.EMPTY, config -> {
@@ -4148,16 +4184,25 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.getPrimaryTermSupplier(), config.getTombstoneDocSupplier());
             return new InternalEngine(configWithWarmer);
         });
-        Thread recoveryThread = new Thread(() -> expectThrows(AlreadyClosedException.class, () -> recoverShardFromStore(shard)));
+        Thread recoveryThread = new Thread(() -> {
+            try {
+                recoverShardFromStore(shard);
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
         recoveryThread.start();
         try {
             warmerStarted.await();
-            shard.close("testing", false);
-            assertThat(shard.state, equalTo(IndexShardState.CLOSED));
+            assertThat(shard.state, equalTo(IndexShardState.RECOVERING));
+            shard.updateShardState(shard.routingEntry(), shard.getOperationPrimaryTerm(), (indexShard, listener) -> {},
+                0L, Collections.singleton(shard.routingEntry().allocationId().getId()),
+                new IndexShardRoutingTable.Builder(shard.routingEntry().shardId()).addShard(shard.routingEntry()).build());
         } finally {
             warmerBlocking.countDown();
         }
         recoveryThread.join();
-        shard.store().close();
+        assertThat(shard.state, equalTo(IndexShardState.STARTED));
+        closeShards(shard);
     }
 }

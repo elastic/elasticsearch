@@ -16,7 +16,7 @@ support their execution in any way they need. For example, the payload might
 serve as a model for a templated email body.
 
 {watcher} supports the following types of actions:
-<<actions-email,email>>, <<actions-webhook,webhook>>, <<actions-index,index>>,
+<<actions-email,`email`>>, <<actions-webhook,`webhook`>>, <<actions-index,`index`>>,
 <<actions-logging,logging>>, <<actions-slack,Slack>>,
 and <<actions-pagerduty,pagerduty>>.
 

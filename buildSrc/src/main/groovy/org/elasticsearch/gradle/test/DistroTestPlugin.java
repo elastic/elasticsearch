@@ -66,7 +66,9 @@ import static org.elasticsearch.gradle.vagrant.VagrantMachine.convertWindowsPath
 public class DistroTestPlugin implements Plugin<Project> {
 
     private static final String SYSTEM_JDK_VERSION = "11.0.2+9";
+    private static final String SYSTEM_JDK_VENDOR = "openjdk";
     private static final String GRADLE_JDK_VERSION = "12.0.1+12@69cfe15208a647278a19ef0990eea691";
+    private static final String GRADLE_JDK_VENDOR = "openjdk";
 
     // all distributions used by distro tests. this is temporary until tests are per distribution
     private static final String DISTRIBUTIONS_CONFIGURATION = "distributions";
@@ -139,8 +141,10 @@ public class DistroTestPlugin implements Plugin<Project> {
         });
     }
 
-    private static Jdk createJdk(NamedDomainObjectContainer<Jdk> jdksContainer, String name, String version, String platform) {
+    private static Jdk createJdk(
+        NamedDomainObjectContainer<Jdk> jdksContainer, String name, String vendor, String version, String platform) {
         Jdk jdk = jdksContainer.create(name);
+        jdk.setVendor(vendor);
         jdk.setVersion(version);
         jdk.setPlatform(platform);
         return jdk;
@@ -172,11 +176,11 @@ public class DistroTestPlugin implements Plugin<Project> {
         String box = project.getName();
 
         // setup jdks used by the distro tests, and by gradle executing
-        
+
         NamedDomainObjectContainer<Jdk> jdksContainer = JdkDownloadPlugin.getContainer(project);
         String platform = box.contains("windows") ? "windows" : "linux";
-        Jdk systemJdk = createJdk(jdksContainer, "system", SYSTEM_JDK_VERSION, platform);
-        Jdk gradleJdk = createJdk(jdksContainer, "gradle", GRADLE_JDK_VERSION, platform);
+        Jdk systemJdk = createJdk(jdksContainer, "system", SYSTEM_JDK_VENDOR, SYSTEM_JDK_VERSION, platform);
+        Jdk gradleJdk = createJdk(jdksContainer, "gradle", GRADLE_JDK_VENDOR, GRADLE_JDK_VERSION, platform);
 
         // setup VM used by these tests
         VagrantExtension vagrant = project.getExtensions().getByType(VagrantExtension.class);
@@ -309,7 +313,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                 }
             });
     }
-    
+
     private List<ElasticsearchDistribution> configureDistributions(Project project, Version upgradeVersion) {
         NamedDomainObjectContainer<ElasticsearchDistribution> distributions = DistributionDownloadPlugin.getContainer(project);
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();

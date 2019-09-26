@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -35,7 +36,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -107,13 +107,13 @@ public class MedianAbsoluteDeviationAggregationBuilder extends LeafOnly<ValuesSo
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource.Numeric> innerBuild(SearchContext context,
-                                                                                ValuesSourceConfig<ValuesSource.Numeric> config,
-                                                                                AggregatorFactory parent,
-                                                                                AggregatorFactories.Builder subFactoriesBuilder)
-                                                                                throws IOException {
-
-        return new MedianAbsoluteDeviationAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metaData, compression);
+    protected ValuesSourceAggregatorFactory<ValuesSource.Numeric> innerBuild(QueryShardContext queryShardContext,
+                                                                             ValuesSourceConfig<ValuesSource.Numeric> config,
+                                                                             AggregatorFactory parent,
+                                                                             AggregatorFactories.Builder subFactoriesBuilder)
+        throws IOException {
+        return new MedianAbsoluteDeviationAggregatorFactory(name, config, queryShardContext,
+            parent, subFactoriesBuilder, metaData, compression);
     }
 
     @Override

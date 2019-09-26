@@ -167,20 +167,20 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.hasItem;
-import static org.hamcrest.CoreMatchers.hasItems;
-import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class MachineLearningIT extends ESRestHighLevelClientTestCase {
@@ -872,7 +872,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         // b) is slightly more efficient since we may not need to wait an entire second for the timestamp to increment
         assertBusy(() -> {
             long timeNow = System.currentTimeMillis() / 1000;
-            assertFalse(prevJobTimeStamp >= timeNow);
+            assertThat(prevJobTimeStamp, lessThan(timeNow));
         });
 
         // Update snapshot timestamp to force it out of snapshot retention window
@@ -890,7 +890,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         waitForForecastToComplete(jobId, forecastJobResponse.getForecastId());
 
         // Wait for the forecast to expire
-        awaitBusy(() -> false, 1, TimeUnit.SECONDS);
+        // FIXME: We should wait for something specific to change, rather than waiting for time to pass.
+        waitUntil(() -> false, 1, TimeUnit.SECONDS);
 
         // Run up to now
         startDatafeed(datafeedId, String.valueOf(0), String.valueOf(nowMillis));
@@ -934,7 +935,9 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         assertTrue(response.getDeleted());
 
-        awaitBusy(() -> false, 1, TimeUnit.SECONDS);
+        // Wait for the forecast to expire
+        // FIXME: We should wait for something specific to change, rather than waiting for time to pass.
+        waitUntil(() -> false, 1, TimeUnit.SECONDS);
 
         GetModelSnapshotsRequest getModelSnapshotsRequest1 = new GetModelSnapshotsRequest(jobId);
         GetModelSnapshotsResponse getModelSnapshotsResponse1 = execute(getModelSnapshotsRequest1, machineLearningClient::getModelSnapshots,
@@ -2048,8 +2051,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         updateSnapshotRequest.doc(snapshotUpdate.getBytes(StandardCharsets.UTF_8), XContentType.JSON);
         highLevelClient().update(updateSnapshotRequest, RequestOptions.DEFAULT);
     }
-
-
 
     private String createAndPutDatafeed(String jobId, String indexName) throws IOException {
         String datafeedId = jobId + "-feed";

@@ -39,7 +39,6 @@ If `inner_hits` is defined on a query that supports it then each search hit will
                  "total": ...,
                  "hits": [
                     {
-                       "_type": ...,
                        "_id": ...,
                        ...
                     },
@@ -83,7 +82,7 @@ Inner hits also supports the following per document features:
 
 The nested `inner_hits` can be used to include nested inner objects as inner hits to a search hit.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT test
 {
@@ -124,7 +123,6 @@ POST test/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> The inner hit definition in the nested query. No other options need to be defined.
 
@@ -143,7 +141,6 @@ An example of a response snippet that could be generated from the above search r
     "hits": [
       {
         "_index": "test",
-        "_type": "_doc",
         "_id": "1",
         "_score": 1.0,
         "_source": ...,
@@ -158,7 +155,6 @@ An example of a response snippet that could be generated from the above search r
               "hits": [
                 {
                   "_index": "test",
-                  "_type": "_doc",
                   "_id": "1",
                   "_nested": {
                     "field": "comments",
@@ -207,7 +203,7 @@ has an impact on the time it takes to execute the entire search request, especia
 are set higher than the default. To avoid the relatively expensive source extraction for nested inner hits, one can disable
 including the source and solely rely on doc values fields. Like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT test
 {
@@ -253,7 +249,6 @@ POST test/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 ////
 
@@ -272,7 +267,6 @@ Response not included in text but tested for completeness sake.
     "hits": [
       {
         "_index": "test",
-        "_type": "_doc",
         "_id": "1",
         "_score": 1.0444684,
         "_source": ...,
@@ -287,7 +281,6 @@ Response not included in text but tested for completeness sake.
               "hits": [
                 {
                   "_index": "test",
-                  "_type": "_doc",
                   "_id": "1",
                   "_nested": {
                     "field": "comments",
@@ -321,7 +314,7 @@ If a mapping has multiple levels of hierarchical nested object fields each level
 For example if there is a `comments` nested field that contains a `votes` nested field and votes should directly be returned
 with the root hits then the following path can be defined:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT test
 {
@@ -374,7 +367,6 @@ POST test/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Which would look like:
 
@@ -391,7 +383,6 @@ Which would look like:
     "hits": [
       {
         "_index": "test",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.6931472,
         "_source": ...,
@@ -406,7 +397,6 @@ Which would look like:
               "hits": [
                 {
                   "_index": "test",
-                  "_type": "_doc",
                   "_id": "1",
                   "_nested": {
                     "field": "comments",
@@ -441,7 +431,7 @@ This indirect referencing is only supported for nested inner hits.
 
 The parent/child `inner_hits` can be used to include parent or child:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT test
 {
@@ -487,7 +477,6 @@ POST test/_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 <1> The inner hit definition like in the nested example.
 
@@ -506,7 +495,6 @@ An example of a response snippet that could be generated from the above search r
         "hits": [
             {
                 "_index": "test",
-                "_type": "_doc",
                 "_id": "1",
                 "_score": 1.0,
                 "_source": {
@@ -524,7 +512,6 @@ An example of a response snippet that could be generated from the above search r
                             "hits": [
                                 {
                                     "_index": "test",
-                                    "_type": "_doc",
                                     "_id": "2",
                                     "_score": 1.0,
                                     "_routing": "1",

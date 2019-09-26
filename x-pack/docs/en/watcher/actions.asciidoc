@@ -17,7 +17,7 @@ serve as a model for a templated email body.
 
 {watcher} supports the following types of actions:
 <<actions-email,`email`>>, <<actions-webhook,`webhook`>>, <<actions-index,`index`>>,
-<<actions-logging,logging>>, <<actions-slack,Slack>>,
+<<actions-logging,`logging`>>, <<actions-slack,`slack`>>,
 and <<actions-pagerduty,pagerduty>>.
 
 [float]

@@ -175,8 +175,8 @@ public final class ELambda extends AExpression implements ILambda {
 
         // desugar lambda body into a synthetic method
         String name = locals.getNextSyntheticName();
-        desugared = new SFunction(
-                location, PainlessLookupUtility.typeToCanonicalTypeName(returnType), name, paramTypes, paramNames, statements, true);
+        desugared = new SFunction(location, PainlessLookupUtility.typeToCanonicalTypeName(returnType), name, paramTypes, paramNames,
+                new SBlock(location, statements), true);
         desugared.storeSettings(settings);
         desugared.generateSignature(locals.getPainlessLookup());
         desugared.analyze(Locals.newLambdaScope(locals.getProgramScope(), desugared.name, returnType,

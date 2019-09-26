@@ -464,11 +464,10 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     }
 
     @After
-    public void wipeSecurityIndex() throws InterruptedException {
+    public void wipeSecurityIndex() throws Exception {
         // get the token service and wait until token expiration is not in progress!
         for (TokenService tokenService : internalCluster().getInstances(TokenService.class)) {
-            final boolean done = awaitBusy(() -> tokenService.isExpirationInProgress() == false);
-            assertTrue(done);
+            assertBusy(() -> assertFalse(tokenService.isExpirationInProgress()));
         }
         super.deleteSecurityIndex();
     }

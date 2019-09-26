@@ -24,7 +24,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
@@ -180,13 +179,6 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
 
         Iterable<SearchHit> hits = searchAll("global_index");
         assertThat(hits, everyItem(hasIndex("global_index")));
-    }
-
-    private BulkResponse bulkWithTypes(BulkRequest request) throws IOException {
-        BulkResponse bulkResponse = execute(request, highLevelClient()::bulk, highLevelClient()::bulkAsync,
-                expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
-        assertFalse(bulkResponse.hasFailures());
-        return bulkResponse;
     }
 
     private BulkResponse bulk(BulkRequest request) throws IOException {

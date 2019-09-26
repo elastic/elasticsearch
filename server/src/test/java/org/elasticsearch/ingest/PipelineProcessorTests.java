@@ -64,7 +64,7 @@ public class PipelineProcessorTests extends ESTestCase {
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
         Map<String, Object> config = new HashMap<>();
         config.put("name", pipelineId);
-        factory.create(Collections.emptyMap(), null, config).execute(testIngestDocument);
+        factory.create(Collections.emptyMap(), null, config).execute(testIngestDocument, (result, e) -> {});
         assertEquals(testIngestDocument, invoked.get());
     }
 
@@ -74,12 +74,11 @@ public class PipelineProcessorTests extends ESTestCase {
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
         Map<String, Object> config = new HashMap<>();
         config.put("name", "missingPipelineId");
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> factory.create(Collections.emptyMap(), null, config).execute(testIngestDocument)
-        );
+        IllegalStateException[] e = new IllegalStateException[1];
+        factory.create(Collections.emptyMap(), null, config)
+            .execute(testIngestDocument, (result, e1) -> e[0] = (IllegalStateException) e1);
         assertEquals(
-            "Pipeline processor configured for non-existent pipeline [missingPipelineId]", e.getMessage()
+            "Pipeline processor configured for non-existent pipeline [missingPipelineId]", e[0].getMessage()
         );
     }
 
@@ -104,12 +103,11 @@ public class PipelineProcessorTests extends ESTestCase {
         when(ingestService.getPipeline(outerPipelineId)).thenReturn(outer);
         when(ingestService.getPipeline(innerPipelineId)).thenReturn(inner);
         outerConfig.put("name", innerPipelineId);
-        ElasticsearchException e = expectThrows(
-            ElasticsearchException.class,
-            () -> factory.create(Collections.emptyMap(), null, outerConfig).execute(testIngestDocument)
-        );
+        ElasticsearchException[] e = new ElasticsearchException[1];
+        factory.create(Collections.emptyMap(), null, outerConfig)
+            .execute(testIngestDocument, (result, e1) -> e[0] = (ElasticsearchException) e1);
         assertEquals(
-            "Cycle detected for pipeline: inner", e.getRootCause().getMessage()
+            "Cycle detected for pipeline: inner", e[0].getRootCause().getMessage()
         );
     }
 
@@ -125,8 +123,8 @@ public class PipelineProcessorTests extends ESTestCase {
         );
         when(ingestService.getPipeline(innerPipelineId)).thenReturn(inner);
         Processor outerProc = factory.create(Collections.emptyMap(), null, outerConfig);
-        outerProc.execute(testIngestDocument);
-        outerProc.execute(testIngestDocument);
+        outerProc.execute(testIngestDocument, (result, e) -> {});
+        outerProc.execute(testIngestDocument, (result, e) -> {});
     }
 
     public void testPipelineProcessorWithPipelineChain() throws Exception {
@@ -177,7 +175,7 @@ public class PipelineProcessorTests extends ESTestCase {
 
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         //start the chain
-        ingestDocument.executePipeline(pipeline1);
+        ingestDocument.executePipeline(pipeline1, (result, e) -> {});
         assertNotNull(ingestDocument.getSourceAndMetadata().get(key1));
 
         //check the stats

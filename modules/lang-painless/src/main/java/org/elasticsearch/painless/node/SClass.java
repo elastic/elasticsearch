@@ -144,7 +144,7 @@ public final class SClass extends AStatement {
             String key = FunctionTable.buildLocalFunctionKey(function.name, function.parameters.size());
 
             if (table.getFunction(key) != null) {
-                throw createError(new IllegalArgumentException("Illegal duplicate functions [" + key + "]."));
+                throw createError(new IllegalArgumentException("function [" + key + "] already defined"));
             }
 
             table.addFunction(function.name, function.returnType, function.typeParameters, false);

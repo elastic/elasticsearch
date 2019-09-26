@@ -20,19 +20,19 @@
 package org.elasticsearch.search.dfs;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.SearchContextException;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.SearchException;
+import org.elasticsearch.search.SearchShardTarget;
 
 import java.io.IOException;
 
-public class DfsPhaseExecutionException extends SearchContextException {
+public class DfsPhaseExecutionException extends SearchException {
 
-    public DfsPhaseExecutionException(SearchContext context, String msg, Throwable t) {
-        super(context, "Dfs Failed [" + msg + "]", t);
+    public DfsPhaseExecutionException(SearchShardTarget shardTarget, String msg, Throwable t) {
+        super(shardTarget, "Dfs Failed [" + msg + "]", t);
     }
 
-    public DfsPhaseExecutionException(SearchContext context, String msg) {
-        super(context, "Dfs Failed [" + msg + "]");
+    public DfsPhaseExecutionException(SearchShardTarget shardTarget, String msg) {
+        super(shardTarget, "Dfs Failed [" + msg + "]");
     }
 
     public DfsPhaseExecutionException(StreamInput in) throws IOException {

@@ -12,6 +12,8 @@ archivesBaseName = 'x-pack-enrich'
 dependencies {
     compileOnly project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    testCompile project(path: ':modules:ingest-common')
+    testCompile project(path: xpackModule('monitoring'), configuration: 'testArtifacts')
     if (isEclipse) {
         testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
     }

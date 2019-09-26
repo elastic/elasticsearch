@@ -20,13 +20,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
+import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.CoordinatorStats;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.ExecutingPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
-import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorStatsAction.NodeResponse;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 public class TransportEnrichStatsAction extends TransportMasterNodeAction<EnrichStatsAction.Request, EnrichStatsAction.Response> {
@@ -73,8 +72,9 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
                     return;
                 }
 
-                Map<String, EnrichStatsAction.Response.CoordinatorStats> coordinatorStats = response.getNodes().stream()
-                    .collect(Collectors.toMap(nodeResponse -> nodeResponse.getNode().getId(), NodeResponse::getCoordinatorStats));
+                List<CoordinatorStats> coordinatorStats = response.getNodes().stream()
+                    .map(EnrichCoordinatorStatsAction.NodeResponse::getCoordinatorStats)
+                    .collect(Collectors.toList());
                 List<ExecutingPolicy> policyExecutionTasks = taskManager.getTasks().values().stream()
                     .filter(t -> t.getAction().equals(ExecuteEnrichPolicyAction.NAME))
                     .map(t -> t.taskInfo(clusterService.localNode().getId(), true))

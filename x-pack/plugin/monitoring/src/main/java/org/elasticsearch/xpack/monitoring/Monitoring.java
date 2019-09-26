@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 import org.elasticsearch.xpack.monitoring.collector.ccr.StatsCollector;
 import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStatsCollector;
+import org.elasticsearch.xpack.monitoring.collector.enrich.EnrichStatsCollector;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndexRecoveryCollector;
 import org.elasticsearch.xpack.monitoring.collector.indices.IndexStatsCollector;
 import org.elasticsearch.xpack.monitoring.collector.ml.JobStatsCollector;
@@ -144,6 +145,7 @@ public class Monitoring extends Plugin implements ActionPlugin {
         collectors.add(new IndexRecoveryCollector(clusterService, getLicenseState(), client));
         collectors.add(new JobStatsCollector(settings, clusterService, getLicenseState(), client));
         collectors.add(new StatsCollector(settings, clusterService, getLicenseState(), client));
+        collectors.add(new EnrichStatsCollector(clusterService, getLicenseState(), client, settings));
 
         final MonitoringService monitoringService = new MonitoringService(settings, clusterService, threadPool, collectors, exporters);
 
@@ -184,6 +186,7 @@ public class Monitoring extends Plugin implements ActionPlugin {
         settings.add(JobStatsCollector.JOB_STATS_TIMEOUT);
         settings.add(StatsCollector.CCR_STATS_TIMEOUT);
         settings.add(NodeStatsCollector.NODE_STATS_TIMEOUT);
+        settings.add(EnrichStatsCollector.STATS_TIMEOUT);
         settings.addAll(Exporters.getSettings());
         return Collections.unmodifiableList(settings);
     }

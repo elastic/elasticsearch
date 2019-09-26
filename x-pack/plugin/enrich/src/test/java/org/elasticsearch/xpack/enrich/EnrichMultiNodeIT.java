@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
+import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.CoordinatorStats;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
@@ -165,8 +166,13 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
             client().execute(EnrichStatsAction.INSTANCE, new EnrichStatsAction.Request()).actionGet();
         assertThat(statsResponse.getCoordinatorStats().size(), equalTo(internalCluster().size()));
         String nodeId = internalCluster().getInstance(ClusterService.class, coordinatingNode).localNode().getId();
-        assertThat(statsResponse.getCoordinatorStats().get(nodeId).getRemoteRequestsTotal(), greaterThanOrEqualTo(1L));
-        assertThat(statsResponse.getCoordinatorStats().get(nodeId).getExecutedSearchesTotal(), equalTo((long) numDocs));
+        CoordinatorStats stats = statsResponse.getCoordinatorStats().stream()
+            .filter(s -> s.getNodeId().equals(nodeId))
+            .findAny()
+            .get();
+        assertThat(stats.getNodeId(), equalTo(nodeId));
+        assertThat(stats.getRemoteRequestsTotal(), greaterThanOrEqualTo(1L));
+        assertThat(stats.getExecutedSearchesTotal(), equalTo((long) numDocs));
     }
 
     private static List<String> createSourceIndex(int numDocs) {

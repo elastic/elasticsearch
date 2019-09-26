@@ -681,6 +681,22 @@ public class XPackLicenseState {
     }
 
     /**
+     * Determine if the enrich processor and related APIs are allowed to be used.
+     * <p>
+     * This is available in for all license types except
+     * {@link OperationMode#MISSING}
+     *
+     * @return {@code true} as long as the license is valid. Otherwise
+     *         {@code false}.
+     */
+    public boolean isEnrichAllowed() {
+        // status is volatile
+        Status localStatus = status;
+        // Should work on all active licenses
+        return localStatus.active;
+    }
+
+    /**
      * Determine if SQL support should be enabled.
      * <p>
      *  SQL is available for all license types except {@link OperationMode#MISSING}

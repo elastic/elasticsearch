@@ -86,7 +86,7 @@ include::ssl-settings.asciidoc[]
 ==== Email Notification Settings
 You can configure the following email notification settings in
 `elasticsearch.yml`. For more information about sending notifications
-via email, see <<configuring-email-actions,Configuring email>>.
+via email, see <<configuring-email-actions>>.
 
 `xpack.notification.email.account`::
 Specifies account information for sending notifications via email. You

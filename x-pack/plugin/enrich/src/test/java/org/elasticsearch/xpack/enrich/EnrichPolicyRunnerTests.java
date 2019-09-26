@@ -13,7 +13,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -907,7 +906,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                     "\"field3\":\"ignored\"," +
                     "\"field4\":\"ignored\"," +
                     "\"field5\":\"value5\"" +
-                    "}",
+                "}",
                 XContentType.JSON)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
         ).actionGet();
@@ -945,11 +944,6 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             @Override
             protected void ensureSingleSegment(String destinationIndexName, int attempt) {
                 forceMergeAttempts.incrementAndGet();
-                IndicesSegmentResponse indicesSegmentResponse = client().admin().indices()
-                    .segments(new IndicesSegmentsRequest(createdEnrichIndex)).actionGet();
-                IndexSegments indexSegments = indicesSegmentResponse.getIndices().get(createdEnrichIndex);
-                IndexShardSegments shardSegments = indexSegments.getShards().get(0);
-                ShardSegments shard = shardSegments.getShards()[0];
                 if (attempt == 1) {
                     // Put and flush a document to increase the number of segments, simulating not
                     // all segments were merged on the first try.

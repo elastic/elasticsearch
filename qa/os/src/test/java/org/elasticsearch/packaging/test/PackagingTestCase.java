@@ -25,8 +25,11 @@ import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
+import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.Shell;
 import org.junit.Assert;
@@ -39,9 +42,12 @@ import org.junit.rules.TestWatcher;
 import org.junit.runner.Description;
 import org.junit.runner.RunWith;
 
+import java.nio.file.Files;
 import java.nio.file.Paths;
 
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
@@ -110,6 +116,10 @@ public abstract class PackagingTestCase extends Assert {
         assumeFalse(failed); // skip rest of tests once one fails
 
         sh = newShell();
+
+        if (installation != null && Files.exists(installation.logs.resolve("elasticsearch.log"))) {
+            FileUtils.rm(installation.logs.resolve("elasticsearch.log"));
+        }
     }
 
     /** The {@link Distribution} that should be tested in this case */
@@ -130,4 +140,77 @@ public abstract class PackagingTestCase extends Assert {
         return sh;
     }
 
+    public Shell.Result startElasticsearch() throws Exception {
+        if (distribution.isPackage()) {
+            return Packages.startElasticsearch(sh);
+        } else {
+            assertThat(distribution.isArchive(), equalTo(true));
+            return Archives.startElasticsearch(installation, sh);
+        }
+    }
+
+    public Shell.Result startElasticsearchStandardInputPassword(String password) {
+        assertThat("Only archives support passwords on standard input", distribution().isArchive(), equalTo(true));
+        return Archives.startElasticsearch(installation, sh, password);
+    }
+
+    public Shell.Result startElasticsearchTtyPassword(String password) throws Exception {
+        assertThat("Only archives support passwords on TTY", distribution().isArchive(), equalTo(true));
+        return Archives.startElasticsearchWithTty(installation, sh, password);
+    }
+
+    public void stopElasticsearch() throws Exception {
+        if (distribution.isPackage()) {
+            Packages.stopElasticsearch(sh);
+        } else {
+            assertThat(distribution().isArchive(), equalTo(true));
+            Archives.stopElasticsearch(installation, sh);
+        }
+    }
+
+    public void awaitElasticsearchStartup(Shell.Result result) throws Exception {
+        assertThat("Startup command should succeed", result.exitCode, equalTo(0));
+        if (distribution.isPackage()) {
+            Packages.assertElasticsearchStarted(sh);
+        } else {
+            assertThat(distribution().isArchive(), equalTo(true));
+            Archives.assertElasticsearchStarted(installation, sh);
+        }
+    }
+
+    public void assertElasticsearchFailure(Shell.Result result, String expectedMessage) {
+
+        if (Files.exists(installation.logs.resolve("elasticsearch.log"))) {
+
+            // If log file exists, then we have bootstrapped our logging and the
+            // error should be in the logs
+            assertTrue("log file exists", Files.exists(installation.logs.resolve("elasticsearch.log")));
+            String logfile = FileUtils.slurp(installation.logs.resolve("elasticsearch.log"));
+            assertThat(logfile, containsString(expectedMessage));
+
+        } else if (distribution().isPackage() && Platforms.isSystemd()) {
+
+            // For systemd, retrieve the error from journalctl
+            assertThat(result.stderr, containsString("Job for elasticsearch.service failed"));
+            Shell.Result error = sh.run("journalctl --boot --unit elasticsearch.service");
+            assertThat(error.stdout, containsString(expectedMessage));
+
+        } else if (Platforms.WINDOWS == true) {
+
+            // In Windows, we have written our stdout and stderr to files in order to run
+            // in the background
+            String wrapperPid = result.stdout.trim();
+            sh.runIgnoreExitCode("Wait-Process -Timeout 15 -Id " + wrapperPid);
+            sh.runIgnoreExitCode("Get-EventSubscriber | " +
+                "where {($_.EventName -eq 'OutputDataReceived' -Or $_.EventName -eq 'ErrorDataReceived' |" +
+                "Unregister-EventSubscriber -Force");
+            assertThat(FileUtils.slurp(installation.home.resolve("output.err")), containsString(expectedMessage));
+
+        } else {
+
+            // Otherwise, error should be on shell stderr
+            assertThat(result.stderr, containsString(expectedMessage));
+
+        }
+    }
 }

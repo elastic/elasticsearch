@@ -43,7 +43,7 @@ import static org.elasticsearch.packaging.util.FileUtils.mv;
 import static org.elasticsearch.packaging.util.FileUtils.slurp;
 import static org.elasticsearch.packaging.util.Platforms.isDPKG;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.isEmptyOrNullString;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.hamcrest.core.Is.is;
@@ -257,11 +257,11 @@ public class Archives {
         ).forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));
     }
 
-    public static void runElasticsearch(Installation installation, Shell sh) throws Exception {
-        runElasticsearch(installation, sh, "");
+    public static Shell.Result startElasticsearch(Installation installation, Shell sh) {
+        return startElasticsearch(installation, sh, "");
     }
 
-    public static void runElasticsearchWithTty(Installation installation, Shell sh, String keystorePassword) throws Exception {
+    public static Shell.Result startElasticsearchWithTty(Installation installation, Shell sh, String keystorePassword) throws Exception {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
         final Installation.Executables bin = installation.executables();
 
@@ -274,40 +274,33 @@ public class Archives {
             "EXPECT\n" +
             ")\"";
 
-        sh.run(script);
-
-        ServerUtils.waitForElasticsearch();
-
-        assertTrue(Files.exists(pidFile));
-        String pid = slurp(pidFile).trim();
-        assertThat(pid, not(isEmptyOrNullString()));
-
-        Platforms.onLinux(() -> sh.run("ps " + pid));
-        Platforms.onWindows(() -> sh.run("Get-Process -Id " + pid));
+        return sh.runIgnoreExitCode(script);
     }
 
-    public static void runElasticsearch(Installation installation, Shell sh, String keystorePassword) throws Exception {
+    public static Shell.Result startElasticsearch(Installation installation, Shell sh, String keystorePassword) {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
 
         final Installation.Executables bin = installation.executables();
 
-        Platforms.onLinux(() -> {
+        if (Platforms.WINDOWS == false) {
             // If jayatana is installed then we try to use it. Elasticsearch should ignore it even when we try.
             // If it doesn't ignore it then Elasticsearch will fail to start because of security errors.
             // This line is attempting to emulate the on login behavior of /usr/share/upstart/sessions/jayatana.conf
             if (Files.exists(Paths.get("/usr/share/java/jayatanaag.jar"))) {
                 sh.getEnv().put("JAVA_TOOL_OPTIONS", "-javaagent:/usr/share/java/jayatanaag.jar");
             }
-            sh.run("sudo -E -u " + ARCHIVE_OWNER + " " + bin.elasticsearch + " -d -p " + pidFile +
+            return sh.runIgnoreExitCode("sudo -E -u " + ARCHIVE_OWNER + " " + bin.elasticsearch + " -d -p " + pidFile +
                 " <<<'" + keystorePassword + "'");
-        });
+        }
 
-        Platforms.onWindows(() -> {
-            // this starts the server in the background. the -d flag is unsupported on windows
-            // these tests run as Administrator. we don't want to run the server as Administrator, so we provide the current user's
-            // username and password to the process which has the effect of starting it not as Administrator.
-            sh.run(
-                "$password = ConvertTo-SecureString 'vagrant' -AsPlainText -Force; " +
+        final Path stdout = installation.home.resolve("output.out");
+        final Path stderr = installation.home.resolve("output.err");
+
+        // this starts the server in the background. the -d flag is unsupported on windows
+        // these tests run as Administrator. we don't want to run the server as Administrator, so we provide the current user's
+        // username and password to the process which has the effect of starting it not as Administrator.
+        Shell.Result result = sh.runIgnoreExitCode(
+            "$password = ConvertTo-SecureString 'vagrant' -AsPlainText -Force; " +
                 "$processInfo = New-Object System.Diagnostics.ProcessStartInfo; " +
                 "$processInfo.FileName = '" + bin.elasticsearch + "'; " +
                 "$processInfo.Arguments = '-p " + pidFile + "'; " +
@@ -322,34 +315,50 @@ public class Archives {
                 "$processInfo.UseShellExecute = $false; " +
                 "$process = New-Object System.Diagnostics.Process; " +
                 "$process.StartInfo = $processInfo; " +
+
+                // set up some asynchronous output handlers
+                "$outScript = { $EventArgs.Data | Out-File -Encoding UTF8 -Append '" + stdout + "' }; " +
+                "$errScript = { $EventArgs.Data | Out-File -Encoding UTF8 -Append '" + stderr + "' }; " +
+                "$stdOutEvent = Register-ObjectEvent -InputObject $process " +
+                    "-Action $outScript -EventName 'OutputDataReceived'; " +
+                "$stdErrEvent = Register-ObjectEvent -InputObject $process " +
+                    "-Action $errScript -EventName 'ErrorDataReceived'; " +
+
                 "$process.Start() | Out-Null; " +
-                // begin asynchronous draining of stderr and stdout - prevent cmd from hanging
                 "$process.BeginOutputReadLine(); " +
                 "$process.BeginErrorReadLine(); " +
                 "$process.StandardInput.WriteLine('" + keystorePassword + "'); " +
+                "Wait-Process -Timeout 15 -Id $process.Id; " +
                 "$process.Id;"
-            );
-        });
+        );
 
-        ServerUtils.waitForElasticsearch();
-
-        assertTrue(Files.exists(pidFile));
-        String pid = slurp(pidFile).trim();
-        assertThat(pid, not(isEmptyOrNullString()));
-
-        Platforms.onLinux(() -> sh.run("ps " + pid));
-        Platforms.onWindows(() -> sh.run("Get-Process -Id " + pid));
+        return result;
     }
 
-    public static void stopElasticsearch(Installation installation) throws Exception {
-        Path pidFile = installation.home.resolve("elasticsearch.pid");
-        assertTrue(Files.exists(pidFile));
-        String pid = slurp(pidFile).trim();
-        assertThat(pid, not(isEmptyOrNullString()));
+    public static void assertElasticsearchStarted(Installation installation, Shell sh) throws Exception {
+        final Path pidFile = installation.home.resolve("elasticsearch.pid");
+        ServerUtils.waitForElasticsearch();
 
-        final Shell sh = new Shell();
+        assertTrue("pid file should exist", Files.exists(pidFile));
+        String pid = slurp(pidFile).trim();
+        assertThat(pid, is(not(emptyOrNullString())));
+    }
+
+    public static void stopElasticsearch(Installation installation, Shell sh) throws Exception {
+        Path pidFile = installation.home.resolve("elasticsearch.pid");
+        assertTrue("pid file should exist", Files.exists(pidFile));
+        String pid = slurp(pidFile).trim();
+        assertThat(pid, is(not(emptyOrNullString())));
+
         Platforms.onLinux(() -> sh.run("kill -SIGTERM " + pid));
-        Platforms.onWindows(() -> sh.run("Get-Process -Id " + pid + " | Stop-Process -Force"));
+        Platforms.onWindows(() -> {
+            sh.run("Stop-Process -Force -Id " + pid + " ; Wait-Process -Id " + pid);
+
+            // Clear the asynchronous event handlers
+            sh.runIgnoreExitCode("Get-EventSubscriber | " +
+                "where {($_.EventName -eq 'OutputDataReceived' -Or $_.EventName -eq 'ErrorDataReceived' |" +
+                "Unregister-EventSubscriber -Force");
+        });
     }
 
 }

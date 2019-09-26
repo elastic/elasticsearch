@@ -93,12 +93,12 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test50StartAndStop() throws Exception {
-        Archives.runElasticsearch(installation, sh);
+        awaitElasticsearchStartup(Archives.startElasticsearch(installation, sh));
 
         assertTrue("gc logs exist", Files.exists(installation.logs.resolve("gc.log")));
         ServerUtils.runElasticsearchTests();
 
-        Archives.stopElasticsearch(installation);
+        Archives.stopElasticsearch(installation, sh);
     }
 
     public void assertRunsWithJavaHome() throws Exception {
@@ -111,9 +111,9 @@ public class ArchiveTests extends PackagingTestCase {
             sh.getEnv().put("JAVA_HOME", systemJavaHome);
         });
 
-        Archives.runElasticsearch(installation, sh);
+        awaitElasticsearchStartup(Archives.startElasticsearch(installation, sh));
         ServerUtils.runElasticsearchTests();
-        Archives.stopElasticsearch(installation);
+        Archives.stopElasticsearch(installation, sh);
 
         String systemJavaHome = sh.getEnv().get("JAVA_HOME");
         assertThat(FileUtils.slurpAllLogs(installation.logs, "elasticsearch.log", "*.log.gz"),
@@ -146,9 +146,9 @@ public class ArchiveTests extends PackagingTestCase {
                 sh.getEnv().put("JAVA_HOME", "C:\\Program Files (x86)\\java");
 
                 //verify ES can start, stop and run plugin list
-                Archives.runElasticsearch(installation, sh);
+                awaitElasticsearchStartup(Archives.startElasticsearch(installation, sh));
 
-                Archives.stopElasticsearch(installation);
+                Archives.stopElasticsearch(installation, sh);
 
                 String pluginListCommand = installation.bin + "/elasticsearch-plugin list";
                 Result result = sh.run(pluginListCommand);
@@ -176,9 +176,9 @@ public class ArchiveTests extends PackagingTestCase {
                 sh.getEnv().put("JAVA_HOME", testJavaHome);
 
                 //verify ES can start, stop and run plugin list
-                Archives.runElasticsearch(installation, sh);
+                awaitElasticsearchStartup(Archives.startElasticsearch(installation, sh));
 
-                Archives.stopElasticsearch(installation);
+                Archives.stopElasticsearch(installation, sh);
 
                 String pluginListCommand = installation.bin + "/elasticsearch-plugin list";
                 Result result = sh.run(pluginListCommand);
@@ -222,13 +222,13 @@ public class ArchiveTests extends PackagingTestCase {
             sh.getEnv().put("ES_PATH_CONF", tempConf.toString());
             sh.getEnv().put("ES_JAVA_OPTS", "-XX:-UseCompressedOops");
 
-            Archives.runElasticsearch(installation, sh);
+            awaitElasticsearchStartup(Archives.startElasticsearch(installation, sh));
 
             final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
             assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
 
-            Archives.stopElasticsearch(installation);
+            Archives.stopElasticsearch(installation, sh);
 
         } finally {
             rm(tempConf);
@@ -264,12 +264,12 @@ public class ArchiveTests extends PackagingTestCase {
 
             sh.setWorkingDirectory(temp);
             sh.getEnv().put("ES_PATH_CONF", "config");
-            Archives.runElasticsearch(installation, sh);
+            awaitElasticsearchStartup(Archives.startElasticsearch(installation, sh));
 
             final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
             assertThat(nodesResponse, containsString("\"name\":\"relative\""));
 
-            Archives.stopElasticsearch(installation);
+            Archives.stopElasticsearch(installation, sh);
 
         } finally {
             rm(tempConf);
@@ -334,8 +334,8 @@ public class ArchiveTests extends PackagingTestCase {
 
         sh.setWorkingDirectory(getTempDir());
 
-        Archives.runElasticsearch(installation, sh);
-        Archives.stopElasticsearch(installation);
+        awaitElasticsearchStartup(Archives.startElasticsearch(installation, sh));
+        Archives.stopElasticsearch(installation, sh);
 
         Result result = sh.run("echo y | " + installation.executables().elasticsearchNode + " unsafe-bootstrap");
         assertThat(result.stdout, containsString("Master node was successfully bootstrapped"));

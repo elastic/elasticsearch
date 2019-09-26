@@ -186,11 +186,25 @@ public class Docker {
      */
     public static void removeContainer() {
         if (containerId != null) {
-            // Remove the container, forcibly killing it if necessary
-            logger.debug("Removing container " + containerId);
-            sh.run("docker rm -f " + containerId);
+            try {
+                // Remove the container, forcibly killing it if necessary
+                logger.debug("Removing container " + containerId);
+                final String command = "docker rm -f " + containerId;
+                final Shell.Result result = sh.runIgnoreExitCode(command);
 
-            containerId = null;
+                if (result.isSuccess() == false) {
+                    // I'm not sure why we're already removing this container, but that's OK.
+                    if (result.stderr.contains("removal of container " + " is already in progress") == false) {
+                        throw new RuntimeException(
+                            "Command was not successful: [" + command + "] result: " + result.toString());
+                    }
+                }
+            } finally {
+                // Null out the containerId under all circumstances, so that even if the remove command fails
+                // for some reason, the other tests will still proceed. Otherwise they can get stuck, continually
+                // trying to remove a non-existent container ID.
+                containerId = null;
+            }
         }
     }
 

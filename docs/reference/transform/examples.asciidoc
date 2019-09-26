@@ -277,7 +277,7 @@ POST _data_frame/transforms/_preview
 
 <1> This range query limits the {transform} to documents that are within the 
 last 30 days at the point in time the {transform} checkpoint is processed. For 
-batch {dataframes} this occurs once.
+batch {transforms} this occurs once.
 <2> This is the destination index for the {dataframe}. It is ignored by 
 `_preview`.
 <3> The data is grouped by the `clientip` field. 

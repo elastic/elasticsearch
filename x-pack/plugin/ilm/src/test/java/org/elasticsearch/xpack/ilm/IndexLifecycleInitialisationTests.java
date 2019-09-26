@@ -57,7 +57,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -314,12 +313,12 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         // setting the lifecycle origination date to an explicit value overrides the date parsing
         long originationDate = 42L;
-        Map<String, Object> settings = new HashMap<>();
-        settings.put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true);
-        settings.put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, originationDate);
         client().admin().indices().prepareUpdateSettings(indexName)
-            .setSettings(settings)
-            .get();
+            .setSettings(
+                Map.of(
+                    LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true,
+                    LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, originationDate)
+            ).get();
 
         assertBusy(() -> {
             IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse(indexName);

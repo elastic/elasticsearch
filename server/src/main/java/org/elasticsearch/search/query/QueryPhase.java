@@ -88,7 +88,7 @@ public class QueryPhase implements SearchPhase {
 
     @Override
     public void preProcess(SearchContext context) {
-        context.preProcess(true);
+        context.rewriteQuery();
     }
 
     @Override
@@ -142,6 +142,7 @@ public class QueryPhase implements SearchPhase {
             Query query = searchContext.query();
             assert query == searcher.rewrite(query); // already rewritten
 
+            int terminateAfter = searchContext.terminateAfter();
             final ScrollContext scrollContext = searchContext.scrollContext();
             if (scrollContext != null) {
                 if (scrollContext.totalHits == null) {
@@ -162,7 +163,7 @@ public class QueryPhase implements SearchPhase {
                                 .build();
                         }
                         // ... and stop collecting after ${size} matches
-                        searchContext.terminateAfter(searchContext.size());
+                        terminateAfter = searchContext.size();
                     } else if (canEarlyTerminate(reader, searchContext.sort())) {
                         // now this gets interesting: since the search sort is a prefix of the index sort, we can directly
                         // skip to the desired doc
@@ -179,10 +180,10 @@ public class QueryPhase implements SearchPhase {
             final LinkedList<QueryCollectorContext> collectors = new LinkedList<>();
             // whether the chain contains a collector that filters documents
             boolean hasFilterCollector = false;
-            if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
+            if (terminateAfter != SearchContext.DEFAULT_TERMINATE_AFTER) {
                 // add terminate_after before the filter collectors
                 // it will only be applied on documents accepted by these filter collectors
-                collectors.add(createEarlyTerminationCollectorContext(searchContext.terminateAfter()));
+                collectors.add(createEarlyTerminationCollectorContext(terminateAfter));
                 // this collector can filter documents during the collection
                 hasFilterCollector = true;
             }
@@ -273,7 +274,7 @@ public class QueryPhase implements SearchPhase {
             } catch (TimeExceededException e) {
                 assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
 
-                if (searchContext.request().allowPartialSearchResults() == false) {
+                if (searchContext.allowPartialSearchResults() == false) {
                     // Can't rethrow TimeExceededException because not serializable
                     throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
                 }

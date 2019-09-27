@@ -50,9 +50,14 @@ public class ScriptFieldsContext {
         }
     }
 
-    private List<ScriptField> fields = new ArrayList<>();
+    private final List<ScriptField> fields;
 
     public ScriptFieldsContext() {
+        this(new ArrayList<>());
+    }
+
+    public ScriptFieldsContext(List<ScriptField> fields) {
+        this.fields = fields;
     }
 
     public void add(ScriptField field) {

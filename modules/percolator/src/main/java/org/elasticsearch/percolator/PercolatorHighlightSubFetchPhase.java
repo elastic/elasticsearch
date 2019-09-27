@@ -39,7 +39,6 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.SubSearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -99,9 +98,8 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
                     for (Object matchedSlot : field.getValues()) {
                         int slot = (int) matchedSlot;
                         BytesReference document = percolateQuery.getDocuments().get(slot);
-                        SubSearchContext subSearchContext =
-                            createSubSearchContext(context, percolatorLeafReaderContext, document, slot);
-                        subSearchContext.parsedQuery(new ParsedQuery(query));
+                        SearchContext subSearchContext =
+                            createSubSearchContext(context, query, percolatorLeafReaderContext, document, slot);
                         hitContext.reset(
                             new SearchHit(slot, "unknown", Collections.emptyMap()),
                             percolatorLeafReaderContext, slot, percolatorIndexSearcher
@@ -166,12 +164,28 @@ final class PercolatorHighlightSubFetchPhase implements FetchSubPhase {
         return Collections.emptyList();
     }
 
-    private SubSearchContext createSubSearchContext(SearchContext context, LeafReaderContext leafReaderContext,
-                                                    BytesReference source, int docId) {
-        SubSearchContext subSearchContext = new SubSearchContext(context);
-        subSearchContext.highlight(new SearchContextHighlight(context.highlight().fields()));
+    private SearchContext createSubSearchContext(SearchContext parentContext,
+                                                 Query query,
+                                                 LeafReaderContext leafReaderContext,
+                                                 BytesReference source,
+                                                 int docId) {
+        SearchContext.Builder builder = new SearchContext.Builder(parentContext.id(),
+            parentContext.getTask(),
+            parentContext.nodeId(),
+            parentContext.indexShard(),
+            parentContext.getQueryShardContext(),
+            parentContext.searcher(),
+            parentContext.fetchPhase(),
+            parentContext.shardTarget().getClusterAlias(),
+            parentContext.numberOfShards(),
+            parentContext::getRelativeTimeInMillis,
+            parentContext.source());
         // Enforce highlighting by source, because MemoryIndex doesn't support stored fields.
-        subSearchContext.highlight().globalForceSource(true);
+        SearchContextHighlight highlight = new SearchContextHighlight(parentContext.highlight().fields());
+        highlight.globalForceSource(true);
+        builder.setHighlight(highlight);
+        builder.setQuery(new ParsedQuery(query));
+        SearchContext subSearchContext = builder.build(() -> {});
         subSearchContext.lookup().source().setSegmentAndDocument(leafReaderContext, docId);
         subSearchContext.lookup().source().setSource(source);
         return subSearchContext;

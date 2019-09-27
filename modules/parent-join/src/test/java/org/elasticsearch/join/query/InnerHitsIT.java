@@ -24,6 +24,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -470,7 +471,12 @@ public class InnerHitsIT extends ParentChildTestCase {
         assertAcked(prepareCreate("index1")
             .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         client().admin().indices().prepareUpdateSettings("index1")
-            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH))
+            .setSettings(
+                Settings.builder()
+                    .put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH)
+                    .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH)
+                    .build()
+            )
             .get();
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(createIndexRequest("index1", "parent", "1", null));

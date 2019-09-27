@@ -51,7 +51,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 
@@ -74,10 +73,10 @@ class TopHitsAggregator extends MetricsAggregator {
     }
 
     private final FetchPhase fetchPhase;
-    private final SubSearchContext subSearchContext;
+    private final SearchContext subSearchContext;
     private final LongObjectPagedHashMap<Collectors> topDocsCollectors;
 
-    TopHitsAggregator(FetchPhase fetchPhase, SubSearchContext subSearchContext, String name, SearchContext context,
+    TopHitsAggregator(FetchPhase fetchPhase, SearchContext subSearchContext, String name, SearchContext context,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.fetchPhase = fetchPhase;
@@ -133,7 +132,7 @@ class TopHitsAggregator extends MetricsAggregator {
                     if (sort == null) {
                         collectors = new Collectors(TopScoreDocCollector.create(topN, Integer.MAX_VALUE), null);
                     } else {
-                        // TODO: can we pass trackTotalHits=subSearchContext.trackTotalHits(){
+                        // TODO: can we pass trackTotalHits=searchContext.trackTotalHits(){
                         // Note that this would require to catch CollectionTerminatedException
                         collectors = new Collectors(
                                 TopFieldCollector.create(sort.sort, topN, Integer.MAX_VALUE),
@@ -189,7 +188,7 @@ class TopHitsAggregator extends MetricsAggregator {
         for (int i = 0; i < topDocs.scoreDocs.length; i++) {
             docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
         }
-        subSearchContext.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
+        subSearchContext.setDocIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
         fetchPhase.execute(subSearchContext);
         FetchSearchResult fetchResult = subSearchContext.fetchResult();
         SearchHit[] internalHits = fetchResult.fetchResult().hits().getHits();

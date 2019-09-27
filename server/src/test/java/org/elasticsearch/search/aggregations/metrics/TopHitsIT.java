@@ -972,24 +972,37 @@ public class TopHitsIT extends ESIntegTestCase {
     }
 
     public void testUseMaxDocInsteadOfSize() throws Exception {
-        client().admin().indices().prepareUpdateSettings("idx")
-            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH))
-            .get();
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(terms("terms")
-                                .executionHint(randomExecutionHint())
-                                .field(TERMS_AGGS_FIELD)
-                                .subAggregation(
-                                        topHits("hits").size(ArrayUtil.MAX_ARRAY_LENGTH - 1)
-                                            .sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
-                                )
+        try {
+            client().admin().indices().prepareUpdateSettings("idx")
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH)
+                        .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH)
+                        .build()
                 )
                 .get();
-        assertNoFailures(response);
-        client().admin().indices().prepareUpdateSettings("idx")
-            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), null))
-            .get();
+            SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(terms("terms")
+                    .executionHint(randomExecutionHint())
+                    .field(TERMS_AGGS_FIELD)
+                    .subAggregation(
+                        topHits("hits").size(ArrayUtil.MAX_ARRAY_LENGTH - 1)
+                            .sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
+                    )
+                )
+                .get();
+            assertNoFailures(response);
+        } finally {
+            client().admin().indices().prepareUpdateSettings("idx")
+                .setSettings(
+                    Settings.builder()
+                        .putNull(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey())
+                        .putNull(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey())
+                        .build()
+                )
+                .get();
+        }
     }
 
     public void testTooHighResultWindow() throws Exception {

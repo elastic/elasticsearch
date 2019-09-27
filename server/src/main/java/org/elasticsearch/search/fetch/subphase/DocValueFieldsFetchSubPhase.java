@@ -41,7 +41,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -63,18 +62,6 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
 
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
-
-        if (context.collapse() != null) {
-            // retrieve the `doc_value` associated with the collapse field
-            String name = context.collapse().getFieldName();
-            if (context.docValueFieldsContext() == null) {
-                context.docValueFieldsContext(new DocValueFieldsContext(
-                        Collections.singletonList(new FieldAndFormat(name, null))));
-            } else if (context.docValueFieldsContext().fields().stream().map(ff -> ff.field).anyMatch(name::equals) == false) {
-                context.docValueFieldsContext().fields().add(new FieldAndFormat(name, null));
-            }
-        }
-
         if (context.docValueFieldsContext() == null) {
             return;
         }

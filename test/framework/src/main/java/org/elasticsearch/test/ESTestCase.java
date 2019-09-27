@@ -72,6 +72,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -95,6 +96,10 @@ import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -102,6 +107,8 @@ import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MockSearchService;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -146,9 +153,12 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
+import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
@@ -1360,5 +1370,54 @@ public abstract class ESTestCase extends LuceneTestCase {
         final int startAt = workerId == null ? 0 : Math.floorMod(Long.valueOf(workerId), 223);
         assert startAt >= 0 : "Unexpected test worker Id, resulting port range would be negative";
         return 10300 + (startAt * 100);
+    }
+
+    /**
+     * Creates an empty {@link SearchContext}.
+     */
+    protected SearchContext.Builder createTestSearchContext() {
+        return createTestSearchContext(Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+    }
+
+    /**
+     * Creates a {@link SearchContext} with the provided {@link Settings}.
+     */
+    protected SearchContext.Builder createTestSearchContext(Settings indexSettings) {
+        IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.shardId()).thenReturn(new ShardId("index", "index", 0));
+        MapperService mapperService = mock(MapperService.class);
+        final long nowInMillis = randomNonNegativeLong();
+        IndexMetaData emptySettings = IndexMetaData.builder("index")
+            .settings(indexSettings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        QueryShardContext queryShardContext = new QueryShardContext(0,
+            new IndexSettings(emptySettings, Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build()),
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            null,
+            mapperService,
+            null,
+            null,
+            xContentRegistry(),
+            writableRegistry(),
+            null,
+            null,
+            () -> nowInMillis,
+            null,
+            null);
+        return new SearchContext.Builder(0,
+            null,
+            "node",
+            indexShard,
+            queryShardContext,
+            null,
+            null,
+            null,
+            1,
+            () -> 0L,
+            new SearchSourceBuilder());
     }
 }

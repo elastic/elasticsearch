@@ -23,15 +23,9 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
@@ -57,35 +51,35 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
     private static final Script INIT_SCRIPT = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "initScript", Collections.emptyMap());
     private static final Script MAP_SCRIPT = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "mapScript", Collections.emptyMap());
     private static final Script COMBINE_SCRIPT = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "combineScript",
-            Collections.emptyMap());
+        Collections.emptyMap());
     private static final Script REDUCE_SCRIPT = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "reduceScript",
         Collections.emptyMap());
 
     private static final Script INIT_SCRIPT_SCORE = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "initScriptScore",
-            Collections.emptyMap());
+        Collections.emptyMap());
     private static final Script MAP_SCRIPT_SCORE = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "mapScriptScore",
-            Collections.emptyMap());
+        Collections.emptyMap());
     private static final Script COMBINE_SCRIPT_SCORE = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "combineScriptScore",
-            Collections.emptyMap());
+        Collections.emptyMap());
     private static final Script COMBINE_SCRIPT_NOOP = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "combineScriptNoop",
         Collections.emptyMap());
 
     private static final Script INIT_SCRIPT_PARAMS = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "initScriptParams",
-            Collections.singletonMap("initialValue", 24));
+        Collections.singletonMap("initialValue", 24));
     private static final Script MAP_SCRIPT_PARAMS = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "mapScriptParams",
-            Collections.singletonMap("itemValue", 12));
+        Collections.singletonMap("itemValue", 12));
     private static final Script COMBINE_SCRIPT_PARAMS = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "combineScriptParams",
-            Collections.singletonMap("multiplier", 4));
+        Collections.singletonMap("multiplier", 4));
     private static final Script REDUCE_SCRIPT_PARAMS = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "reduceScriptParams",
-            Collections.singletonMap("additional", 2));
+        Collections.singletonMap("additional", 2));
     private static final String CONFLICTING_PARAM_NAME = "initialValue";
 
     private static final Script INIT_SCRIPT_SELF_REF = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "initScriptSelfRef",
-            Collections.emptyMap());
+        Collections.emptyMap());
     private static final Script MAP_SCRIPT_SELF_REF = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "mapScriptSelfRef",
-            Collections.emptyMap());
+        Collections.emptyMap());
     private static final Script COMBINE_SCRIPT_SELF_REF = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "combineScriptSelfRef",
-            Collections.emptyMap());
+        Collections.emptyMap());
 
     private static final Map<String, Function<Map<String, Object>, Object>> SCRIPTS = new HashMap<>();
 
@@ -132,7 +126,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
 
         SCRIPTS.put("initScriptParams", params -> {
             Map<String, Object> state = (Map<String, Object>) params.get("state");
-            Integer initialValue = (Integer)params.get("initialValue");
+            Integer initialValue = (Integer) params.get("initialValue");
             ArrayList<Integer> collector = new ArrayList<>();
             collector.add(initialValue);
             state.put("collector", collector);
@@ -150,9 +144,9 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             return ((List<Integer>) state.get("collector")).stream().mapToInt(Integer::intValue).map(i -> i * multiplier).sum();
         });
         SCRIPTS.put("reduceScriptParams", params ->
-            ((List)params.get("states")).stream().mapToInt(i -> (int)i).sum() +
-                    (int)params.get("aggs_param") + (int)params.get("additional") -
-                    ((List)params.get("states")).size()*24*4
+            ((List) params.get("states")).stream().mapToInt(i -> (int) i).sum() +
+                (int) params.get("aggs_param") + (int) params.get("additional") -
+                ((List) params.get("states")).size() * 24 * 4
         );
 
         SCRIPTS.put("initScriptSelfRef", params -> {
@@ -169,9 +163,9 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         });
 
         SCRIPTS.put("combineScriptSelfRef", params -> {
-           Map<String, Object> state = (Map<String, Object>) params.get("state");
-           state.put("selfRef", state);
-           return state;
+            Map<String, Object> state = (Map<String, Object>) params.get("state");
+            state.put("selfRef", state);
+            return state;
         });
     }
 
@@ -309,7 +303,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
     public void testAggParamsPassedToReduceScript() throws IOException {
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, SCRIPTS, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
-        ScriptService scriptService =  new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+        ScriptService scriptService = new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
 
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
@@ -321,10 +315,10 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
                 aggregationBuilder.params(Collections.singletonMap("aggs_param", 1))
-                        .initScript(INIT_SCRIPT_PARAMS).mapScript(MAP_SCRIPT_PARAMS)
-                        .combineScript(COMBINE_SCRIPT_PARAMS).reduceScript(REDUCE_SCRIPT_PARAMS);
+                    .initScript(INIT_SCRIPT_PARAMS).mapScript(MAP_SCRIPT_PARAMS)
+                    .combineScript(COMBINE_SCRIPT_PARAMS).reduceScript(REDUCE_SCRIPT_PARAMS);
                 ScriptedMetric scriptedMetric = searchAndReduce(
-                        newSearcher(indexReader, true, true), new MatchAllDocsQuery(), aggregationBuilder, 0);
+                    newSearcher(indexReader, true, true), new MatchAllDocsQuery(), aggregationBuilder, 0);
 
                 // The result value depends on the script params.
                 assertEquals(4803, scriptedMetric.aggregation());
@@ -410,22 +404,5 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 assertEquals("Iterable object is self-referencing itself (Scripted metric aggs combine script)", ex.getMessage());
             }
         }
-    }
-
-    /**
-     * We cannot use Mockito for mocking QueryShardContext in this case because
-     * script-related methods (e.g. QueryShardContext#getLazyExecutableScript)
-     * is final and cannot be mocked
-     */
-    @Override
-    protected QueryShardContext queryShardContextMock(IndexSearcher searcher,
-                                                        MapperService mapperService,
-                                                        IndexSettings indexSettings,
-                                                        CircuitBreakerService circuitBreakerService) {
-        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, SCRIPTS, Collections.emptyMap());
-        Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
-        ScriptService scriptService =  new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
-        return new QueryShardContext(0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null, mapperService, null, scriptService,
-                xContentRegistry(), writableRegistry(), null, null, System::currentTimeMillis, null, null);
     }
 }

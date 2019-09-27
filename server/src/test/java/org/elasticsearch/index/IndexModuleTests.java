@@ -76,7 +76,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.engine.MockEngineFactory;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -278,8 +277,9 @@ public class IndexModuleTests extends ESTestCase {
         assertEquals(SearchSlowLog.class, indexService.getSearchOperationListener().get(0).getClass());
         assertSame(listener, indexService.getSearchOperationListener().get(1));
 
+        SearchContext searchContext = createTestSearchContext().build(() -> {});
         for (SearchOperationListener l : indexService.getSearchOperationListener()) {
-            l.onNewContext(new TestSearchContext(null));
+            l.onNewContext(searchContext);
         }
         assertTrue(executed.get());
         indexService.close("simon says", false);
@@ -459,5 +459,4 @@ public class IndexModuleTests extends ESTestCase {
             return null;
         }
     }
-
 }

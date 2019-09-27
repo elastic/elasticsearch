@@ -50,6 +50,7 @@ import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -350,24 +351,23 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
         @Override
         public void build(SearchContext searchContext, InnerHitsContext innerHitsContext) throws IOException {
-            QueryShardContext queryShardContext = searchContext.getQueryShardContext();
-            ObjectMapper nestedObjectMapper = queryShardContext.getObjectMapper(path);
+            ObjectMapper nestedObjectMapper = searchContext.getQueryShardContext().getObjectMapper(path);
             if (nestedObjectMapper == null) {
                 assert innerHitBuilder.isIgnoreUnmapped() : "should be validated first";
                 return;
             }
             String name =  innerHitBuilder.getName() != null ? innerHitBuilder.getName() : nestedObjectMapper.fullPath();
-            ObjectMapper parentObjectMapper = queryShardContext.nestedScope().nextLevel(nestedObjectMapper);
+            QueryShardContext cloneShardContext = new QueryShardContext(searchContext.getQueryShardContext());
+            ObjectMapper parentObjectMapper = cloneShardContext.nestedScope().nextLevel(nestedObjectMapper);
+            SearchContext subSearchContext = createSubSearchContext(cloneShardContext, searchContext);
             NestedInnerHitSubContext nestedInnerHits = new NestedInnerHitSubContext(
-                name, searchContext, parentObjectMapper, nestedObjectMapper
+                name, subSearchContext, parentObjectMapper, nestedObjectMapper
             );
-            setupInnerHitsContext(queryShardContext, nestedInnerHits);
-            queryShardContext.nestedScope().previousLevel();
             innerHitsContext.addInnerHitDefinition(nestedInnerHits);
         }
     }
 
-    static final class NestedInnerHitSubContext extends InnerHitsContext.InnerHitSubContext {
+    static final class NestedInnerHitSubContext extends InnerHitsContext.InnerHitsSubContext {
 
         private final ObjectMapper parentObjectMapper;
         private final ObjectMapper childObjectMapper;
@@ -376,12 +376,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             super(name, context);
             this.parentObjectMapper = parentObjectMapper;
             this.childObjectMapper = childObjectMapper;
-        }
-
-        @Override
-        public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
-            assert seqNoAndPrimaryTerm() == false;
-            if (seqNoAndPrimaryTerm) {
+            if (context.seqNoAndPrimaryTerm()) {
                 throw new UnsupportedOperationException("nested documents are not assigned sequence numbers");
             }
         }
@@ -400,27 +395,32 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 }
 
                 int parentDocId = hit.docId();
-                final int readerIndex = ReaderUtil.subIndex(parentDocId, searcher().getIndexReader().leaves());
+                final int readerIndex = ReaderUtil.subIndex(parentDocId, searchContext.searcher().getIndexReader().leaves());
                 // With nested inner hits the nested docs are always in the same segement, so need to use the other segments
-                LeafReaderContext ctx = searcher().getIndexReader().leaves().get(readerIndex);
+                LeafReaderContext ctx = searchContext.searcher().getIndexReader().leaves().get(readerIndex);
 
                 Query childFilter = childObjectMapper.nestedTypeFilter();
-                BitSetProducer parentFilter = bitsetFilterCache().getBitSetProducer(rawParentFilter);
+                BitSetProducer parentFilter = searchContext.bitsetFilterCache().getBitSetProducer(rawParentFilter);
                 Query q = new ParentChildrenBlockJoinQuery(parentFilter, childFilter, parentDocId);
-                Weight weight = searcher().createWeight(searcher().rewrite(q),
-                        org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES, 1f);
-                if (size() == 0) {
+                Weight weight = searchContext.searcher()
+                    .createWeight(searchContext.searcher().rewrite(q), org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES, 1f);
+                if (searchContext.size() == 0) {
                     TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
-                    intersect(weight, innerHitQueryWeight, totalHitCountCollector, ctx);
+                    try {
+                        intersect(weight, innerHitQueryWeight, totalHitCountCollector, ctx);
+                    } finally {
+                        searchContext.clearReleasables(Lifetime.COLLECTION);
+                    }
                     result[i] = new TopDocsAndMaxScore(new TopDocs(new TotalHits(totalHitCountCollector.getTotalHits(),
                         TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN);
                 } else {
-                    int topN = Math.min(from() + size(), searcher().getIndexReader().maxDoc());
+                    int topN = Math.min(searchContext.from() + searchContext.size(),
+                        searchContext.searcher().getIndexReader().maxDoc());
                     TopDocsCollector<?> topDocsCollector;
                     MaxScoreCollector maxScoreCollector = null;
-                    if (sort() != null) {
-                        topDocsCollector = TopFieldCollector.create(sort().sort, topN, Integer.MAX_VALUE);
-                        if (trackScores()) {
+                    if (searchContext.sort() != null) {
+                        topDocsCollector = TopFieldCollector.create(searchContext.sort().sort, topN, Integer.MAX_VALUE);
+                        if (searchContext.trackScores()) {
                             maxScoreCollector = new MaxScoreCollector();
                         }
                     } else {
@@ -430,10 +430,10 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                     try {
                         intersect(weight, innerHitQueryWeight, MultiCollector.wrap(topDocsCollector, maxScoreCollector), ctx);
                     } finally {
-                        clearReleasables(Lifetime.COLLECTION);
+                        searchContext.clearReleasables(Lifetime.COLLECTION);
                     }
 
-                    TopDocs td = topDocsCollector.topDocs(from(), size());
+                    TopDocs td = topDocsCollector.topDocs(searchContext.from(), searchContext.size());
                     float maxScore = Float.NaN;
                     if (maxScoreCollector != null) {
                         maxScore = maxScoreCollector.getMaxScore();

@@ -25,6 +25,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.lease.Releasables;
@@ -76,7 +77,7 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
             mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
         }
         this.format = config.format();
-        this.pointConverter = getPointReaderOrNull(context, parent, config);
+        this.pointConverter = getPointReaderOrNull(context.query(), parent, config);
         if (pointConverter != null) {
             pointField = config.fieldContext().field();
         } else {
@@ -168,14 +169,14 @@ class MinAggregator extends NumericMetricsAggregator.SingleValue {
      * Returns a converter for point values if early termination is applicable to
      * the context or <code>null</code> otherwise.
      *
-     * @param context The {@link SearchContext} of the aggregation.
+     * @param query The {@link Query} to run.
      * @param parent The parent aggregator.
      * @param config The config for the values source metric.
      */
-    static Function<byte[], Number> getPointReaderOrNull(SearchContext context, Aggregator parent,
-                                                                ValuesSourceConfig<ValuesSource.Numeric> config) {
-        if (context.query() != null &&
-                context.query().getClass() != MatchAllDocsQuery.class) {
+    static Function<byte[], Number> getPointReaderOrNull(Query query,
+                                                         Aggregator parent,
+                                                         ValuesSourceConfig<ValuesSource.Numeric> config) {
+        if (query != null && query.getClass() != MatchAllDocsQuery.class) {
             return null;
         }
         if (parent != null) {

@@ -19,11 +19,14 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.lucene.search.Sort;
+import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.FieldAndFormat;
@@ -31,16 +34,16 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 class TopHitsAggregatorFactory extends AggregatorFactory {
-
+    private final QueryShardContext cloneShardContext;
     private final int from;
     private final int size;
     private final boolean explain;
@@ -84,42 +87,74 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
         this.docValueFields = docValueFields;
         this.scriptFields = scriptFields;
         this.fetchSourceContext = fetchSourceContext;
+        this.cloneShardContext = new QueryShardContext(queryShardContext);
+        if (queryShardContext.nestedScope().getObjectMapper() != null) {
+            cloneShardContext.nestedScope().nextLevel(queryShardContext.nestedScope().getObjectMapper());
+        }
     }
 
     @Override
     public Aggregator createInternal(SearchContext searchContext,
-                                        Aggregator parent,
-                                        boolean collectsFromSingleBucket,
-                                        List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
-        SubSearchContext subSearchContext = new SubSearchContext(searchContext);
-        subSearchContext.parsedQuery(searchContext.parsedQuery());
-        subSearchContext.explain(explain);
-        subSearchContext.version(version);
-        subSearchContext.seqNoAndPrimaryTerm(seqNoAndPrimaryTerm);
-        subSearchContext.trackScores(trackScores);
-        subSearchContext.from(from);
-        subSearchContext.size(size);
+                                     Aggregator parent,
+                                     boolean collectsFromSingleBucket,
+                                     List<PipelineAggregator> pipelineAggregators,
+                                     Map<String, Object> metaData) throws IOException {
+        SearchContext.Builder builder = new SearchContext.Builder(searchContext.id(),
+            searchContext.getTask(),
+            searchContext.nodeId(),
+            searchContext.indexShard(),
+            cloneShardContext,
+            searchContext.searcher(),
+            searchContext.fetchPhase(),
+            searchContext.shardTarget().getClusterAlias(),
+            searchContext.numberOfShards(),
+            searchContext::getRelativeTimeInMillis,
+            new SearchSourceBuilder());
+        parse(builder);
+        builder.setQuery(new ParsedQuery(searchContext.parsedQuery().query(),
+            searchContext.parsedQuery().namedFilters()));
+        builder.setExplain(explain);
+        builder.setVersion(version);
+        builder.setSeqAndPrimaryTerm(seqNoAndPrimaryTerm);
+        builder.setTrackScores(trackScores);
+        if (from != -1) {
+            builder.setFrom(from);
+        }
+        if (size != -1) {
+            builder.setSize(size);
+        } else {
+            builder.setSize(3);
+        }
         if (sort.isPresent()) {
-            subSearchContext.sort(sort.get());
+            builder.setSort(sort.get());
         }
         if (storedFieldsContext != null) {
-            subSearchContext.storedFieldsContext(storedFieldsContext);
+            builder.setStoredFields(storedFieldsContext);
         }
         if (docValueFields != null) {
-            subSearchContext.docValueFieldsContext(new DocValueFieldsContext(docValueFields));
+            builder.setDocValueFields(new DocValueFieldsContext(docValueFields));
         }
-        for (ScriptFieldsContext.ScriptField field : scriptFields) {
-            subSearchContext.scriptFields().add(field);
-            }
+        if (scriptFields != null && scriptFields.isEmpty() == false) {
+            builder.setScriptFields(new ScriptFieldsContext(scriptFields));
+        }
         if (fetchSourceContext != null) {
-            subSearchContext.fetchSourceContext(fetchSourceContext);
+            builder.setFetchSource(fetchSourceContext);
         }
         if (highlightBuilder != null) {
-            subSearchContext.highlight(highlightBuilder.build(searchContext.getQueryShardContext()));
+            builder.buildHighlight(highlightBuilder);
         }
-        return new TopHitsAggregator(searchContext.fetchPhase(), subSearchContext, name, searchContext, parent,
-                pipelineAggregators, metaData);
+        if (searchContext.rescore().size() > 0
+                && (sort.isPresent() == false || Sort.RELEVANCE.equals(sort.get().sort))) {
+            // copy the main rescorers if tophits are sorted by relevancy.
+            builder.setRescorers(new ArrayList<>(searchContext.rescore()));
+        }
+        return new TopHitsAggregator(searchContext.fetchPhase(), builder.build(() -> {}), name,
+            searchContext, parent, pipelineAggregators, metaData);
+    }
+
+    private SearchContext.Builder parse(SearchContext.Builder builder) {
+
+        return builder;
     }
 
 }

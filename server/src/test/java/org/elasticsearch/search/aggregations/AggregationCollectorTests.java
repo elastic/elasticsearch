@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -58,7 +59,7 @@ public class AggregationCollectorTests extends ESSingleNodeTestCase {
     private boolean needsScores(IndexService index, String agg) throws IOException {
         try (XContentParser aggParser = createParser(JsonXContent.jsonXContent, agg)) {
             aggParser.nextToken();
-            SearchContext context = createSearchContext(index);
+            SearchContext context = createSearchContext(index, new SearchSourceBuilder()).build(() -> {});
             final AggregatorFactories factories =
                 AggregatorFactories.parseAggregators(aggParser).build(context.getQueryShardContext(), null);
             final Aggregator[] aggregators = factories.createTopLevelAggregators(context);

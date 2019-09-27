@@ -44,8 +44,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.mockito.Mockito.when;
-
 public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
 
     public void testReplay() throws Exception {
@@ -67,38 +65,40 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         Query rewrittenQuery = indexSearcher.rewrite(termQuery);
         TopDocs topDocs = indexSearcher.search(termQuery, numDocs);
 
-        SearchContext searchContext = createSearchContext(indexSearcher, createIndexSettings(), rewrittenQuery, null);
-        when(searchContext.query()).thenReturn(rewrittenQuery);
-        BestBucketsDeferringCollector collector = new BestBucketsDeferringCollector(searchContext, false) {
-            @Override
-            public ScoreMode scoreMode() {
-                return ScoreMode.COMPLETE;
-            }
-        };
-        Set<Integer> deferredCollectedDocIds = new HashSet<>();
-        collector.setDeferredCollector(Collections.singleton(bla(deferredCollectedDocIds)));
-        collector.preCollection();
-        indexSearcher.search(termQuery, collector);
-        collector.postCollection();
-        collector.replay(0);
+        try (SearchContext searchContext = createSearchContext(indexSearcher, createIndexSettings(), rewrittenQuery, null)) {
+            BestBucketsDeferringCollector collector = new BestBucketsDeferringCollector(searchContext, false) {
+                @Override
+                public ScoreMode scoreMode() {
+                    return ScoreMode.COMPLETE;
+                }
+            };
+            Set<Integer> deferredCollectedDocIds = new HashSet<>();
+            collector.setDeferredCollector(Collections.singleton(bla(deferredCollectedDocIds)));
+            collector.preCollection();
+            indexSearcher.search(termQuery, collector);
+            collector.postCollection();
+            collector.replay(0);
 
-        assertEquals(topDocs.scoreDocs.length, deferredCollectedDocIds.size());
-        for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
-            assertTrue("expected docid [" + scoreDoc.doc + "] is missing", deferredCollectedDocIds.contains(scoreDoc.doc));
+            assertEquals(topDocs.scoreDocs.length, deferredCollectedDocIds.size());
+            for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+                assertTrue("expected docid [" + scoreDoc.doc + "] is missing", deferredCollectedDocIds.contains(scoreDoc.doc));
+            }
         }
 
-        topDocs = indexSearcher.search(new MatchAllDocsQuery(), numDocs);
-        collector = new BestBucketsDeferringCollector(searchContext, true);
-        deferredCollectedDocIds = new HashSet<>();
-        collector.setDeferredCollector(Collections.singleton(bla(deferredCollectedDocIds)));
-        collector.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), collector);
-        collector.postCollection();
-        collector.replay(0);
+        try (SearchContext searchContext = createSearchContext(indexSearcher, createIndexSettings(), rewrittenQuery, null)) {
+            topDocs = indexSearcher.search(new MatchAllDocsQuery(), numDocs);
+            BestBucketsDeferringCollector collector = new BestBucketsDeferringCollector(searchContext, true);
+            Set<Integer> deferredCollectedDocIds = new HashSet<>();
+            collector.setDeferredCollector(Collections.singleton(bla(deferredCollectedDocIds)));
+            collector.preCollection();
+            indexSearcher.search(new MatchAllDocsQuery(), collector);
+            collector.postCollection();
+            collector.replay(0);
 
-        assertEquals(topDocs.scoreDocs.length, deferredCollectedDocIds.size());
-        for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
-            assertTrue("expected docid [" + scoreDoc.doc + "] is missing", deferredCollectedDocIds.contains(scoreDoc.doc));
+            assertEquals(topDocs.scoreDocs.length, deferredCollectedDocIds.size());
+            for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+                assertTrue("expected docid [" + scoreDoc.doc + "] is missing", deferredCollectedDocIds.contains(scoreDoc.doc));
+            }
         }
         indexReader.close();
         directory.close();

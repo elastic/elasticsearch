@@ -112,7 +112,7 @@ public class PlainHighlighter implements Highlighter {
                 if (text.length() > maxAnalyzedOffset) {
                     throw new IllegalArgumentException(
                         "The length of [" + highlighterContext.fieldName + "] field of [" + hitContext.hit().getId() +
-                            "] doc of [" + context.indexShard().shardId().getIndexName() + "] index " +
+                            "] doc of [" + context.shardId().getIndexName() + "] index " +
                             "has exceeded [" + maxAnalyzedOffset + "] - maximum allowed to be analyzed for highlighting. " +
                             "This maximum can be set by changing the [" + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() +
                             "] index level setting. " + "For large texts, indexing with offsets or term vectors, and highlighting " +

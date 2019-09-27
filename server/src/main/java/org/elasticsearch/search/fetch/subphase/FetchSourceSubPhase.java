@@ -39,7 +39,7 @@ public final class FetchSourceSubPhase implements FetchSubPhase {
             return;
         }
         final boolean nestedHit = hitContext.hit().getNestedIdentity() != null;
-        SourceLookup source = context.lookup().source();
+        SourceLookup source = context.getQueryShardContext().lookup().source();
         FetchSourceContext fetchSourceContext = context.fetchSourceContext();
         assert fetchSourceContext.fetchSource();
 
@@ -47,7 +47,7 @@ public final class FetchSourceSubPhase implements FetchSubPhase {
         if (source.source() == null && source.internalSourceRef() == null) {
             if (containsFilters(fetchSourceContext)) {
                 throw new IllegalArgumentException("unable to fetch fields from _source field: _source is disabled in the mappings " +
-                    "for index [" + context.indexShard().shardId().getIndexName() + "]");
+                    "for index [" + context.shardId().getIndexName() + "]");
             }
             return;
         }

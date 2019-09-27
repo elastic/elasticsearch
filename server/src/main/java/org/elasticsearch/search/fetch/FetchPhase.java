@@ -38,7 +38,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -51,8 +50,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsFetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -98,10 +95,6 @@ public class FetchPhase implements SearchPhase {
         StoredFieldsContext storedFieldsContext = context.storedFieldsContext();
 
         if (storedFieldsContext == null) {
-            // no fields specified, default to return source if no explicit indication
-            if (!context.hasScriptFields() && !context.hasFetchSourceContext()) {
-                context.fetchSourceContext(new FetchSourceContext(true));
-            }
             fieldsVisitor = new FieldsVisitor(context.sourceRequested());
         } else if (storedFieldsContext.fetchFields() == false) {
             // disable stored fields entirely
@@ -109,9 +102,8 @@ public class FetchPhase implements SearchPhase {
         } else {
             for (String fieldNameOrPattern : context.storedFieldsContext().fieldNames()) {
                 if (fieldNameOrPattern.equals(SourceFieldMapper.NAME)) {
-                    FetchSourceContext fetchSourceContext = context.hasFetchSourceContext() ? context.fetchSourceContext()
-                        : FetchSourceContext.FETCH_SOURCE;
-                    context.fetchSourceContext(new FetchSourceContext(true, fetchSourceContext.includes(), fetchSourceContext.excludes()));
+                    assert context.sourceRequested();
+                    // ignore _source
                     continue;
                 }
 
@@ -147,7 +139,7 @@ public class FetchPhase implements SearchPhase {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
-                int docId = context.docIdsToLoad()[context.docIdsToLoadFrom() + index];
+                int docId = context.docIdToLoad()[context.docIdsToLoadFrom() + index];
                 int readerIndex = ReaderUtil.subIndex(docId, context.searcher().getIndexReader().leaves());
                 LeafReaderContext subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
                 int subDocId = docId - subReaderContext.docBase;
@@ -213,7 +205,7 @@ public class FetchPhase implements SearchPhase {
 
         SearchHit searchHit = new SearchHit(docId, fieldsVisitor.uid().id(), searchFields);
         // Set _source if requested.
-        SourceLookup sourceLookup = context.lookup().source();
+        SourceLookup sourceLookup = context.getQueryShardContext().lookup().source();
         sourceLookup.setSegmentAndDocument(subReaderContext, subDocId);
         if (fieldsVisitor.source() != null) {
             sourceLookup.setSource(fieldsVisitor.source());
@@ -261,7 +253,7 @@ public class FetchPhase implements SearchPhase {
         final Uid uid;
         final BytesReference source;
         final boolean needSource = context.sourceRequested() || context.highlight() != null;
-        if (needSource || (context instanceof InnerHitsContext.InnerHitSubContext == false)) {
+        if (needSource || context.docUid() == null) {
             FieldsVisitor rootFieldsVisitor = new FieldsVisitor(needSource);
             loadStoredFields(context.shardTarget(), subReaderContext, rootFieldsVisitor, rootSubDocId);
             rootFieldsVisitor.postProcess(context.mapperService());
@@ -269,12 +261,12 @@ public class FetchPhase implements SearchPhase {
             source = rootFieldsVisitor.source();
         } else {
             // In case of nested inner hits we already know the uid, so no need to fetch it from stored fields again!
-            uid = ((InnerHitsContext.InnerHitSubContext) context).getUid();
+            uid = context.docUid();
             source = null;
         }
 
         Map<String, DocumentField> searchFields = null;
-        if (context.hasStoredFields() && !context.storedFieldsContext().fieldNames().isEmpty()) {
+        if (context.hasStoredFields() && context.storedFieldsContext().fieldNames().isEmpty() == false) {
             FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(storedToRequestedFields.keySet(), false);
             searchFields = getSearchFields(context, nestedFieldsVisitor, nestedSubDocId,
                 storedToRequestedFields, subReaderContext);
@@ -349,7 +341,6 @@ public class FetchPhase implements SearchPhase {
         ObjectMapper current = nestedObjectMapper;
         String originalName = nestedObjectMapper.name();
         SearchHit.NestedIdentity nestedIdentity = null;
-        final IndexSettings indexSettings = context.getQueryShardContext().getIndexSettings();
         do {
             Query parentFilter;
             nestedParentObjectMapper = current.getParentObjectMapper(mapperService);

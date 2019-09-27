@@ -119,13 +119,13 @@ import static java.lang.reflect.Modifier.isInterface;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
-import static org.elasticsearch.test.TestSearchContext.SHARD_TARGET;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class ExceptionSerializationTests extends ESTestCase {
+    public static final SearchShardTarget SHARD_TARGET =
+        new SearchShardTarget("test", new ShardId("test", "test", 0), null, OriginalIndices.NONE);
 
-    public void testExceptionRegistration()
-            throws ClassNotFoundException, IOException, URISyntaxException {
+    public void testExceptionRegistration() throws ClassNotFoundException, IOException, URISyntaxException {
         final Set<Class<?>> notRegistered = new HashSet<>();
         final Set<Class<?>> hasDedicatedWrite = new HashSet<>();
         final Set<Class<?>> registered = new HashSet<>();

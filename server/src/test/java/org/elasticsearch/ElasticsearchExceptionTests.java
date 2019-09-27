@@ -72,7 +72,7 @@ import java.util.Map;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.test.TestSearchContext.SHARD_TARGET;
+import static org.elasticsearch.ExceptionSerializationTests.SHARD_TARGET;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.hasItems;

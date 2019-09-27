@@ -35,7 +35,6 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.SubSearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -46,17 +45,17 @@ import java.util.Map;
  * Context used for inner hits retrieval
  */
 public final class InnerHitsContext {
-    private final Map<String, InnerHitSubContext> innerHits;
+    private final Map<String, InnerHitsSubContext> innerHits;
 
     public InnerHitsContext() {
         this.innerHits = new HashMap<>();
     }
 
-    public Map<String, InnerHitSubContext> getInnerHits() {
+    public Map<String, InnerHitsSubContext> getInnerHits() {
         return innerHits;
     }
 
-    public void addInnerHitDefinition(InnerHitSubContext innerHit) {
+    public void addInnerHitDefinition(InnerHitsSubContext innerHit) {
         if (innerHits.containsKey(innerHit.getName())) {
             throw new IllegalArgumentException("inner_hit definition with the name [" + innerHit.getName() +
                     "] already exists. Use a different inner_hit name or define one explicitly");
@@ -66,19 +65,20 @@ public final class InnerHitsContext {
     }
 
     /**
-     * A {@link SubSearchContext} that associates {@link TopDocs} to each {@link SearchHit}
+     * Inner hits context that associates {@link TopDocs} to each {@link SearchHit}
      * in the parent search context
      */
-    public abstract static class InnerHitSubContext extends SubSearchContext {
+    public abstract static class InnerHitsSubContext {
 
         private final String name;
+        protected final SearchContext searchContext;
 
         // TODO: when types are complete removed just use String instead for the id:
         private Uid uid;
 
-        protected InnerHitSubContext(String name, SearchContext context) {
-            super(context);
+        protected InnerHitsSubContext(String name, SearchContext subSearchContext) {
             this.name = name;
+            this.searchContext = subSearchContext;
         }
 
         public abstract TopDocsAndMaxScore[] topDocs(SearchHit[] hits) throws IOException;
@@ -88,8 +88,10 @@ public final class InnerHitsContext {
         }
 
         protected Weight createInnerHitQueryWeight() throws IOException {
-            final boolean needsScores = size() != 0 && (sort() == null || sort().sort.needsScores());
-            return searcher().createWeight(searcher().rewrite(query()),
+            final boolean needsScores = searchContext.size() != 0 &&
+                (searchContext.sort() == null || searchContext.sort().sort.needsScores());
+            return searchContext.searcher()
+                .createWeight(searchContext.searcher().rewrite(searchContext.query()),
                     needsScores ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES, 1f);
         }
 

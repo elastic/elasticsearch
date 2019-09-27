@@ -128,7 +128,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                 hitField = new DocumentField(NAME, new ArrayList<>(1));
                 hitContext.hit().getFields().put(NAME, hitField);
             }
-            TermVectorsRequest termVectorsRequest = new TermVectorsRequest(context.indexShard().shardId().getIndex().getName(),
+            TermVectorsRequest termVectorsRequest = new TermVectorsRequest(context.shardId().getIndex().getName(),
                     hitContext.hit().getId());
             TermVectorsResponse termVector = TermVectorsService.getTermVectors(context.indexShard(), termVectorsRequest);
             try {

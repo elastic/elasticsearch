@@ -19,9 +19,12 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
+import org.apache.lucene.index.MultiReader;
+import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterName;
@@ -33,7 +36,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -43,6 +45,8 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.node.MockNode;
@@ -50,7 +54,10 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportSettings;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -315,9 +322,27 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     /**
      * Create a new search context.
      */
-    protected SearchContext createSearchContext(IndexService indexService) {
-        BigArrays bigArrays = indexService.getBigArrays();
-        return new TestSearchContext(bigArrays, indexService);
+    protected SearchContext.Builder createSearchContext(IndexService indexService, SearchSourceBuilder source) throws IOException {
+        QueryShardContext queryShardContext =
+            indexService.newQueryShardContext(0, new IndexSearcher(new MultiReader()), () -> 0, null);
+        IndexShard indexShard = indexService.getShardOrNull(0);
+        ContextIndexSearcher searcher = new ContextIndexSearcher(queryShardContext.searcher().getIndexReader(),
+            queryShardContext.searcher().getSimilarity(),
+            queryShardContext.searcher().getQueryCache(),
+            queryShardContext.searcher().getQueryCachingPolicy());
+        SearchTask task = new SearchTask(0, "n/a", "n/a", "test", null,
+            Collections.singletonMap(Task.X_OPAQUE_ID, "my_id"));
+        return new SearchContext.Builder(0,
+            task,
+            "node",
+            indexShard,
+            queryShardContext,
+            searcher,
+            null,
+            null,
+            1,
+            indexService.getThreadPool()::relativeTimeInMillis,
+            source);
     }
 
     /**

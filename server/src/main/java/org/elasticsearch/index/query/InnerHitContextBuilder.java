@@ -20,8 +20,6 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.script.FieldScript;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -33,9 +31,13 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * A builder for {@link InnerHitsContext.InnerHitSubContext}
+ * A builder for {@link InnerHitsContext.InnerHitsSubContext}
  */
 public abstract class InnerHitContextBuilder {
+    // By default return 3 hits per bucket. A higher default would make the response really large by default, since
+    // the to hits are returned per bucket.
+    private static final int DEFAULT_SIZE = 3;
+
     protected final QueryBuilder query;
     protected final InnerHitBuilder innerHitBuilder;
     protected final Map<String, InnerHitContextBuilder> children;
@@ -77,43 +79,53 @@ public abstract class InnerHitContextBuilder {
         }
     }
 
-    protected void setupInnerHitsContext(QueryShardContext queryShardContext,
-                                         InnerHitsContext.InnerHitSubContext innerHitsContext) throws IOException {
-        innerHitsContext.from(innerHitBuilder.getFrom());
-        innerHitsContext.size(innerHitBuilder.getSize());
-        innerHitsContext.explain(innerHitBuilder.isExplain());
-        innerHitsContext.version(innerHitBuilder.isVersion());
-        innerHitsContext.seqNoAndPrimaryTerm(innerHitBuilder.isSeqNoAndPrimaryTerm());
-        innerHitsContext.trackScores(innerHitBuilder.isTrackScores());
+    protected SearchContext createSubSearchContext(QueryShardContext cloneShardContext, SearchContext parentContext) throws IOException {
+        SearchContext.Builder builder = new SearchContext.Builder(parentContext.id(),
+            parentContext.getTask(),
+            parentContext.nodeId(),
+            parentContext.indexShard(),
+            cloneShardContext,
+            parentContext.searcher(),
+            parentContext.fetchPhase(),
+            parentContext.shardTarget().getClusterAlias(),
+            parentContext.numberOfShards(),
+            parentContext::getRelativeTimeInMillis,
+            parentContext.source());
+        if (innerHitBuilder.getFrom() != -1) {
+            builder.setFrom(innerHitBuilder.getFrom());
+        }
+        if (innerHitBuilder.getSize() != -1) {
+            builder.setSize(innerHitBuilder.getSize());
+        } else {
+            builder.setSize(DEFAULT_SIZE);
+        }
+        builder.setExplain(innerHitBuilder.isExplain());
+        builder.setVersion(innerHitBuilder.isVersion());
+        builder.setSeqAndPrimaryTerm(innerHitBuilder.isSeqNoAndPrimaryTerm());
+        builder.setTrackScores(innerHitBuilder.isTrackScores());
         if (innerHitBuilder.getStoredFieldsContext() != null) {
-            innerHitsContext.storedFieldsContext(innerHitBuilder.getStoredFieldsContext());
+            builder.setStoredFields(innerHitBuilder.getStoredFieldsContext());
         }
         if (innerHitBuilder.getDocValueFields() != null) {
-            innerHitsContext.docValueFieldsContext(new DocValueFieldsContext(innerHitBuilder.getDocValueFields()));
+            builder.setDocValueFields(new DocValueFieldsContext(innerHitBuilder.getDocValueFields()));
         }
-        if (innerHitBuilder.getScriptFields() != null) {
-            for (SearchSourceBuilder.ScriptField field : innerHitBuilder.getScriptFields()) {
-                QueryShardContext innerContext = innerHitsContext.getQueryShardContext();
-                FieldScript.Factory factory = innerContext.getScriptService().compile(field.script(), FieldScript.CONTEXT);
-                FieldScript.LeafFactory fieldScript = factory.newFactory(field.script().getParams(), innerHitsContext.lookup());
-                innerHitsContext.scriptFields().add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
-                    field.fieldName(), fieldScript, field.ignoreFailure()));
-            }
+        if (innerHitBuilder.getScriptFields() != null && innerHitBuilder.getSize() != 0) {
+            builder.buildScriptFields(cloneShardContext.getScriptService(), innerHitBuilder.getScriptFields());
         }
         if (innerHitBuilder.getFetchSourceContext() != null) {
-            innerHitsContext.fetchSourceContext(innerHitBuilder.getFetchSourceContext() );
+            builder.setFetchSource(innerHitBuilder.getFetchSourceContext());
         }
         if (innerHitBuilder.getSorts() != null) {
-            Optional<SortAndFormats> optionalSort = SortBuilder.buildSort(innerHitBuilder.getSorts(), queryShardContext);
+            Optional<SortAndFormats> optionalSort = SortBuilder.buildSort(innerHitBuilder.getSorts(), cloneShardContext);
             if (optionalSort.isPresent()) {
-                innerHitsContext.sort(optionalSort.get());
+                builder.setSort(optionalSort.get());
             }
         }
         if (innerHitBuilder.getHighlightBuilder() != null) {
-            innerHitsContext.highlight(innerHitBuilder.getHighlightBuilder().build(queryShardContext));
+            builder.buildHighlight(innerHitBuilder.getHighlightBuilder());
         }
-        ParsedQuery parsedQuery = new ParsedQuery(query.toQuery(queryShardContext), queryShardContext.copyNamedQueries());
-        innerHitsContext.parsedQuery(parsedQuery);
-        innerHitsContext.innerHits(children);
+        builder.setInnerHits(children);
+        builder.setQuery(new ParsedQuery(query.toQuery(cloneShardContext), cloneShardContext.copyNamedQueries()));
+        return builder.build(() -> {});
     }
 }

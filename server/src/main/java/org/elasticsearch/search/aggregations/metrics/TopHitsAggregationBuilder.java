@@ -585,7 +585,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         }
 
         List<ScriptFieldsContext.ScriptField> fields = new ArrayList<>();
-        if (scriptFields != null) {
+        if (scriptFields != null && size != 0) {
             for (ScriptField field : scriptFields) {
                 FieldScript.Factory factory = queryShardContext.getScriptService().compile(field.script(), FieldScript.CONTEXT);
                 FieldScript.LeafFactory searchScript = factory.newFactory(field.script().getParams(), queryShardContext.lookup());

@@ -55,12 +55,13 @@ import java.util.function.Predicate;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.test.TestSearchContext.SHARD_TARGET;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RankEvalResponseTests extends ESTestCase {
+    private static final SearchShardTarget SHARD_TARGET =
+        new SearchShardTarget("test", new ShardId("test", "test", 0), null, OriginalIndices.NONE);
 
     private static final Exception[] RANDOM_EXCEPTIONS = new Exception[] {
             new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)),

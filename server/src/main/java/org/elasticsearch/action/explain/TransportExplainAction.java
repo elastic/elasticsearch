@@ -41,6 +41,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -109,17 +110,16 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     @Override
     protected ExplainResponse shardOperation(ExplainRequest request, ShardId shardId) throws IOException {
         ShardSearchRequest shardSearchLocalRequest = new ShardSearchRequest(shardId, request.nowInMillis, request.filteringAlias());
-        SearchContext context = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
+        shardSearchLocalRequest.source(new SearchSourceBuilder().query(request.query()));
         Engine.GetResult result = null;
-        try {
+        try (SearchContext context = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT)) {
             // No need to check the type, IndexShard#get does it for us
             Term uidTerm = new Term(IdFieldMapper.NAME, Uid.encodeId(request.id()));
             result = context.indexShard().get(new Engine.Get(false, false, request.id(), uidTerm));
             if (!result.exists()) {
                 return new ExplainResponse(shardId.getIndexName(), request.id(), false);
             }
-            context.parsedQuery(context.getQueryShardContext().toQuery(request.query()));
-            context.preProcess(true);
+            context.rewriteQuery();
             int topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().docBase;
             Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
             for (RescoreContext ctx : context.rescore()) {
@@ -139,7 +139,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         } catch (IOException e) {
             throw new ElasticsearchException("Could not explain", e);
         } finally {
-            Releasables.close(result, context);
+            Releasables.close(result);
         }
     }
 

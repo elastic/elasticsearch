@@ -29,7 +29,6 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 
@@ -40,11 +39,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class MultiBucketAggregatorWrapperTests extends ESTestCase {
+public class MultiBucketAggregatorWrapperTests extends AggregatorTestCase {
 
     public void testNoNullScorerIsDelegated() throws Exception {
         LeafReaderContext leafReaderContext = MemoryIndex.fromDocument(Collections.emptyList(), new MockAnalyzer(random()))
-                .createSearcher().getIndexReader().leaves().get(0);
+            .createSearcher().getIndexReader().leaves().get(0);
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         when(queryShardContext.bigArrays()).thenReturn(bigArrays);

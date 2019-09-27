@@ -55,8 +55,8 @@ public final class InnerHitsFetchSubPhase implements FetchSubPhase {
             entry.getValue().build(context, innerHitsContext);
         }
 
-        for (Map.Entry<String, InnerHitsContext.InnerHitSubContext> entry : innerHitsContext.getInnerHits().entrySet()) {
-            InnerHitsContext.InnerHitSubContext innerHits = entry.getValue();
+        for (Map.Entry<String, InnerHitsContext.InnerHitsSubContext> entry : innerHitsContext.getInnerHits().entrySet()) {
+            InnerHitsContext.InnerHitsSubContext innerHits = entry.getValue();
             TopDocsAndMaxScore[] topDocs = innerHits.topDocs(hits);
             for (int i = 0; i < hits.length; i++) {
                 SearchHit hit = hits[i];
@@ -66,15 +66,16 @@ public final class InnerHitsFetchSubPhase implements FetchSubPhase {
                 if (results == null) {
                     hit.setInnerHits(results = new HashMap<>());
                 }
-                innerHits.queryResult().topDocs(topDoc, innerHits.sort() == null ? null : innerHits.sort().formats);
+                innerHits.searchContext.queryResult()
+                    .topDocs(topDoc, innerHits.searchContext.sort() == null ? null : innerHits.searchContext.sort().formats);
                 int[] docIdsToLoad = new int[topDoc.topDocs.scoreDocs.length];
                 for (int j = 0; j < topDoc.topDocs.scoreDocs.length; j++) {
                     docIdsToLoad[j] = topDoc.topDocs.scoreDocs[j].doc;
                 }
-                innerHits.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
-                innerHits.setUid(new Uid(MapperService.SINGLE_MAPPING_NAME, hit.getId()));
-                fetchPhase.execute(innerHits);
-                FetchSearchResult fetchResult = innerHits.fetchResult();
+                innerHits.searchContext.setDocIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
+                innerHits.searchContext.setDocUid(new Uid(MapperService.SINGLE_MAPPING_NAME, hit.getId()));
+                fetchPhase.execute(innerHits.searchContext);
+                FetchSearchResult fetchResult = innerHits.searchContext.fetchResult();
                 SearchHit[] internalHits = fetchResult.fetchResult().hits().getHits();
                 for (int j = 0; j < internalHits.length; j++) {
                     ScoreDoc scoreDoc = topDoc.topDocs.scoreDocs[j];
@@ -82,7 +83,7 @@ public final class InnerHitsFetchSubPhase implements FetchSubPhase {
                     searchHitFields.score(scoreDoc.score);
                     if (scoreDoc instanceof FieldDoc) {
                         FieldDoc fieldDoc = (FieldDoc) scoreDoc;
-                        searchHitFields.sortValues(fieldDoc.fields, innerHits.sort().formats);
+                        searchHitFields.sortValues(fieldDoc.fields, innerHits.searchContext.sort().formats);
                     }
                 }
                 results.put(entry.getKey(), fetchResult.hits());

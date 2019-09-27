@@ -37,13 +37,12 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -196,11 +195,9 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         String error = null;
         ShardSearchRequest shardSearchLocalRequest = new ShardSearchRequest(request.shardId(),
             request.nowInMillis(), request.filteringAliases());
-        SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
-        try {
-            ParsedQuery parsedQuery = searchContext.getQueryShardContext().toQuery(request.query());
-            searchContext.parsedQuery(parsedQuery);
-            searchContext.preProcess(request.rewrite());
+        shardSearchLocalRequest.source(new SearchSourceBuilder().query(request.query()));
+        try (SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT)) {
+            searchContext.rewriteQuery();
             valid = true;
             explanation = explain(searchContext, request.rewrite());
         } catch (QueryShardException|ParsingException e) {
@@ -209,8 +206,6 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         } catch (AssertionError e) {
             valid = false;
             error = e.getMessage();
-        } finally {
-            Releasables.close(searchContext);
         }
 
         return new ShardValidateQueryResponse(request.shardId(), valid, explanation, error);

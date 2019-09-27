@@ -160,7 +160,7 @@ public final class SearchSlowLog implements SearchOperationListener {
 
         private static Map<String, Object> prepareMap(SearchContext context, long tookInNanos) {
             Map<String, Object> messageFields = new HashMap<>();
-            messageFields.put("message", context.indexShard().shardId());
+            messageFields.put("message", context.shardId());
             messageFields.put("took", TimeValue.timeValueNanos(tookInNanos));
             messageFields.put("took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
             if (context.queryResult().getTotalHits() != null) {
@@ -173,8 +173,8 @@ public final class SearchSlowLog implements SearchOperationListener {
             messageFields.put("search_type", context.searchType());
             messageFields.put("total_shards", context.numberOfShards());
 
-            if (context.request().source() != null) {
-                String source = escapeJson(context.request().source().toString(FORMAT_PARAMS));
+            if (context.source() != null) {
+                String source = escapeJson(context.source().toString(FORMAT_PARAMS));
 
                 messageFields.put("source", source);
             } else {
@@ -188,7 +188,7 @@ public final class SearchSlowLog implements SearchOperationListener {
         // Message will be used in plaintext logs
         private static String message(SearchContext context, long tookInNanos) {
             StringBuilder sb = new StringBuilder();
-            sb.append(context.indexShard().shardId())
+            sb.append(context.shardId())
                 .append(" ")
                 .append("took[").append(TimeValue.timeValueNanos(tookInNanos)).append("], ")
                 .append("took_millis[").append(TimeUnit.NANOSECONDS.toMillis(tookInNanos)).append("], ")
@@ -208,8 +208,8 @@ public final class SearchSlowLog implements SearchOperationListener {
             }
             sb.append("search_type[").append(context.searchType()).append("], total_shards[")
                 .append(context.numberOfShards()).append("], ");
-            if (context.request().source() != null) {
-                sb.append("source[").append(context.request().source().toString(FORMAT_PARAMS)).append("], ");
+            if (context.source() != null) {
+                sb.append("source[").append(context.source().toString(FORMAT_PARAMS)).append("], ");
             } else {
                 sb.append("source[], ");
             }

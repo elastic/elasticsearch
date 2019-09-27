@@ -23,24 +23,16 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestSearchContext;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
 public class FetchSourceSubPhaseTests extends ESTestCase {
-
     public void testFetchSource() throws IOException {
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
             .field("field", "value")
@@ -109,7 +101,8 @@ public class FetchSourceSubPhaseTests extends ESTestCase {
         hitContext = hitExecute(null, false, null, null);
         assertNull(hitContext.hit().getSourceAsMap());
 
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> hitExecute(null, true, "field1", null));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> hitExecute(null, true, "field1", null));
         assertEquals("unable to fetch fields from _source field: _source is disabled in the mappings " +
                 "for index [index]", exception.getMessage());
 
@@ -149,49 +142,15 @@ public class FetchSourceSubPhaseTests extends ESTestCase {
     private FetchSubPhase.HitContext hitExecuteMultiple(XContentBuilder source, boolean fetchSource, String[] includes, String[] excludes,
                                                             SearchHit.NestedIdentity nestedIdentity) {
         FetchSourceContext fetchSourceContext = new FetchSourceContext(fetchSource, includes, excludes);
-        SearchContext searchContext = new FetchSourceSubPhaseTestSearchContext(fetchSourceContext,
-                source == null ? null : BytesReference.bytes(source));
+        SearchContext searchContext = createTestSearchContext()
+            .setFetchSource(fetchSourceContext)
+            .build(() -> {});
+        searchContext.lookup().source().setSource(source == null ? null : BytesReference.bytes(source));
         FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
         final SearchHit searchHit = new SearchHit(1, null, nestedIdentity, null);
         hitContext.reset(searchHit, null, 1, null);
         FetchSourceSubPhase phase = new FetchSourceSubPhase();
         phase.hitExecute(searchContext, hitContext);
         return hitContext;
-    }
-
-    private static class FetchSourceSubPhaseTestSearchContext extends TestSearchContext {
-        final FetchSourceContext context;
-        final BytesReference source;
-        final IndexShard indexShard;
-
-        FetchSourceSubPhaseTestSearchContext(FetchSourceContext context, BytesReference source) {
-            super(null);
-            this.context = context;
-            this.source = source;
-            this.indexShard = mock(IndexShard.class);
-            when(indexShard.shardId()).thenReturn(new ShardId("index", "index", 1));
-        }
-
-        @Override
-        public boolean sourceRequested() {
-            return context != null && context.fetchSource();
-        }
-
-        @Override
-        public FetchSourceContext fetchSourceContext() {
-            return context;
-        }
-
-        @Override
-        public SearchLookup lookup() {
-            SearchLookup lookup = new SearchLookup(this.mapperService(), this::getForField);
-            lookup.source().setSource(source);
-            return lookup;
-        }
-
-        @Override
-        public IndexShard indexShard() {
-            return indexShard;
-        }
     }
 }

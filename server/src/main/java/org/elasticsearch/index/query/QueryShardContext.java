@@ -420,6 +420,13 @@ public class QueryShardContext extends QueryRewriteContext {
         return mapperService;
     }
 
+    /**
+     * Return the SimilarityService.
+     */
+    public SimilarityService getSimilarityService() {
+        return similarityService;
+    }
+
     /** Return the current {@link IndexReader}, or {@code null} if no index reader is available,
      *  for instance if this rewrite context is used to index queries (percolation). */
     public IndexReader getIndexReader() {
@@ -446,11 +453,7 @@ public class QueryShardContext extends QueryRewriteContext {
         return bigArrays;
     }
 
-    public SimilarityService getSimilarityService() {
-        return similarityService;
-    }
-
-    public BitsetFilterCache getBitsetFilterCache() {
+    public BitsetFilterCache bitsetFilterCache() {
         return bitsetFilterCache;
     }
 }

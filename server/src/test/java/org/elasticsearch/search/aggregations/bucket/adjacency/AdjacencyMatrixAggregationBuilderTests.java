@@ -29,9 +29,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestSearchContext;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -57,9 +55,7 @@ public class AdjacencyMatrixAggregationBuilderTests extends ESTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
         when(indexShard.indexSettings()).thenReturn(indexSettings);
         when(queryShardContext.getIndexSettings()).thenReturn(indexSettings);
-        SearchContext context = new TestSearchContext(queryShardContext, indexShard);
-        
-        int maxFilters = SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.get(context.indexShard().indexSettings().getSettings());
+        int maxFilters = SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.get(queryShardContext.getIndexSettings().getSettings());
         int maxFiltersPlusOne = maxFilters + 1;
         
 
@@ -72,7 +68,7 @@ public class AdjacencyMatrixAggregationBuilderTests extends ESTestCase {
         }
         AdjacencyMatrixAggregationBuilder builder = new AdjacencyMatrixAggregationBuilder("dummy", filters);
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> builder.doBuild(context.getQueryShardContext(), null, new AggregatorFactories.Builder()));
+            () -> builder.doBuild(queryShardContext, null, new AggregatorFactories.Builder()));
         assertThat(ex.getMessage(), equalTo("Number of filters is too large, must be less than or equal to: ["+ maxFilters
                 +"] but was ["+ maxFiltersPlusOne +"]."
             + "This limit can be set by changing the [" + SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey()
@@ -82,7 +78,7 @@ public class AdjacencyMatrixAggregationBuilderTests extends ESTestCase {
         Map<String, QueryBuilder> emptyFilters = Collections.emptyMap();
 
         AdjacencyMatrixAggregationBuilder aggregationBuilder = new AdjacencyMatrixAggregationBuilder("dummy", emptyFilters);
-        AggregatorFactory factory = aggregationBuilder.doBuild(context.getQueryShardContext(), null, new AggregatorFactories.Builder());
+        AggregatorFactory factory = aggregationBuilder.doBuild(queryShardContext, null, new AggregatorFactories.Builder());
         assertThat(factory instanceof AdjacencyMatrixAggregatorFactory, is(true));
         assertThat(factory.name(), equalTo("dummy"));
     }

@@ -670,7 +670,12 @@ public class InnerHitsIT extends ESIntegTestCase {
     public void testUseMaxDocInsteadOfSize() throws Exception {
         assertAcked(prepareCreate("index2").addMapping("type", "nested", "type=nested"));
         client().admin().indices().prepareUpdateSettings("index2")
-            .setSettings(Collections.singletonMap(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH))
+            .setSettings(
+                Settings.builder()
+                    .put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH)
+                    .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH)
+                    .build()
+            )
             .get();
         client().prepareIndex("index2", "type", "1").setSource(jsonBuilder().startObject()
             .startArray("nested")

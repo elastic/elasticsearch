@@ -47,11 +47,11 @@ public interface SearchPhase {
         @Override
         public String toString() {
             StringBuilder builder = new StringBuilder();
-            builder.append(searchContext.indexShard().shardId());
+            builder.append(searchContext.shardId());
             builder.append(" ");
-            if (searchContext.request() != null &&
-                    searchContext.request().source() != null) {
-                builder.append("source[").append(searchContext.request().source().toString()).append("], ");
+            if (searchContext.source() != null &&
+                    searchContext.source() != null) {
+                builder.append("source[").append(searchContext.source().toString()).append("], ");
             } else {
                 builder.append("source[], ");
             }

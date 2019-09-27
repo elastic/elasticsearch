@@ -64,7 +64,7 @@ public class UnifiedHighlighter implements Highlighter {
         SearchContext context = highlighterContext.context;
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
         Encoder encoder = field.fieldOptions().encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
-        final int maxAnalyzedOffset = context.indexShard().indexSettings().getHighlightMaxAnalyzedOffset();
+        final int maxAnalyzedOffset = context.indexSettings().getHighlightMaxAnalyzedOffset();
 
         List<Snippet> snippets = new ArrayList<>();
         int numberOfFragments;
@@ -83,7 +83,7 @@ public class UnifiedHighlighter implements Highlighter {
             if ((offsetSource == OffsetSource.ANALYSIS) && (fieldValue.length() > maxAnalyzedOffset)) {
                 throw new IllegalArgumentException(
                     "The length of [" + highlighterContext.fieldName + "] field of [" + hitContext.hit().getId() +
-                        "] doc of [" + context.indexShard().shardId().getIndexName() + "] index " + "has exceeded [" +
+                        "] doc of [" + context.shardId().getIndexName() + "] index " + "has exceeded [" +
                         maxAnalyzedOffset + "] - maximum allowed to be analyzed for highlighting. " +
                         "This maximum can be set by changing the [" + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() +
                         "] index level setting. " + "For large texts, indexing with offsets or term vectors is recommended!");

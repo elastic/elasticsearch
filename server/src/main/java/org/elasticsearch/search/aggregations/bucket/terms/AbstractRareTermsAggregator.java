@@ -60,7 +60,7 @@ public abstract class AbstractRareTermsAggregator<T extends ValuesSource,
         super(name, factories, context, parent, pipelineAggregators, metaData);
 
         // We seed the rng with the ShardID so results are deterministic and don't change randomly
-        this.filter = new SetBackedScalingCuckooFilter(10000, new Random(context.indexShard().shardId().hashCode()), precision);
+        this.filter = new SetBackedScalingCuckooFilter(10000, new Random(context.shardId().hashCode()), precision);
         this.filter.registerBreaker(this::addRequestCircuitBreakerBytes);
 
         this.maxDocCount = maxDocCount;

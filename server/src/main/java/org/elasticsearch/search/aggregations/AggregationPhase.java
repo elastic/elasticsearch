@@ -146,8 +146,10 @@ public class AggregationPhase implements SearchPhase {
         context.queryResult().aggregations(new InternalAggregations(aggregations, siblingPipelineAggregators));
 
         // disable aggregations so that they don't run on next pages in case of scrolling
-        context.aggregations(null);
-        context.queryCollectors().remove(AggregationPhase.class);
+        if (context.scrollContext() != null) {
+            context.clearAggregations();
+            context.queryCollectors().remove(AggregationPhase.class);
+        }
     }
 
 }

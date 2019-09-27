@@ -24,21 +24,15 @@ import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.TestSearchContext;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
@@ -50,34 +44,22 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class SearchSlowLogTests extends ESSingleNodeTestCase {
     @Override
-    protected SearchContext createSearchContext(IndexService indexService) {
-       return createSearchContext(indexService, new String[]{});
+    protected SearchContext.Builder createSearchContext(IndexService indexService,
+                                                        SearchSourceBuilder source) throws IOException {
+       return createSearchContext(indexService, source, new String[]{});
     }
 
-    protected SearchContext createSearchContext(IndexService indexService, String ... groupStats) {
-        BigArrays bigArrays = indexService.getBigArrays();
-        final ShardSearchRequest request =
-            new ShardSearchRequest(new ShardId(indexService.index(), 0), 0L, null);
-        return new TestSearchContext(bigArrays, indexService) {
-            @Override
-            public List<String> groupStats() {
-                return Arrays.asList(groupStats);
-            }
-
-            @Override
-            public ShardSearchRequest request() {
-                return request;
-            }
-        };
+    protected SearchContext.Builder createSearchContext(IndexService indexService,
+                                                        SearchSourceBuilder source,
+                                                        String ... groupStats) throws IOException {
+        return super.createSearchContext(indexService, source)
+            .setGroupStats(Arrays.asList(groupStats));
     }
 
     public void testSlowLogHasJsonFields() throws IOException {
         IndexService index = createIndex("foo");
-        SearchContext searchContext = createSearchContext(index);
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
-        searchContext.request().source(source);
-        searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
-            Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
+        SearchContext searchContext = createSearchContext(index, source).build(() -> {});
         SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
 
         assertThat(p.getValueFor("message"), equalTo("[foo][0]"));
@@ -85,25 +67,23 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         assertThat(p.getValueFor("took_millis"), equalTo("0"));
         assertThat(p.getValueFor("total_hits"), equalTo("-1"));
         assertThat(p.getValueFor("stats"), equalTo("[]"));
-        assertThat(p.getValueFor("search_type"), Matchers.nullValue());
+        assertThat(p.getValueFor("search_type"), equalTo("QUERY_THEN_FETCH"));
         assertThat(p.getValueFor("total_shards"), equalTo("1"));
         assertThat(p.getValueFor("source"), equalTo("{\\\"query\\\":{\\\"match_all\\\":{\\\"boost\\\":1.0}}}"));
     }
 
     public void testSlowLogsWithStats() throws IOException {
         IndexService index = createIndex("foo");
-        SearchContext searchContext = createSearchContext(index,"group1");
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
-        searchContext.request().source(source);
+        SearchContext searchContext = createSearchContext(index, source, "group1").build(() -> {});
         searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
             Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
 
         SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
         assertThat(p.getValueFor("stats"), equalTo("[\\\"group1\\\"]"));
 
-        searchContext = createSearchContext(index, "group1", "group2");
         source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
-        searchContext.request().source(source);
+        searchContext = createSearchContext(index, source, "group1", "group2").build(() -> {});
         searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
             Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
         p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
@@ -112,9 +92,8 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
 
     public void testSlowLogSearchContextPrinterToLog() throws IOException {
         IndexService index = createIndex("foo");
-        SearchContext searchContext = createSearchContext(index);
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
-        searchContext.request().source(source);
+        SearchContext searchContext = createSearchContext(index, source).build(() -> {});
         searchContext.setTask(new SearchTask(0, "n/a", "n/a", "test", null,
             Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
         SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);

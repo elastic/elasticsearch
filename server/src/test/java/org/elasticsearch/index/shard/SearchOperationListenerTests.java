@@ -20,7 +20,6 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequest.Empty;
 
@@ -35,7 +34,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class SearchOperationListenerTests extends ESTestCase {
-
     // this test also tests if calls are correct if one or more listeners throw exceptions
     public void testListenersAreExecuted() {
         AtomicInteger preQuery = new AtomicInteger();
@@ -137,7 +135,7 @@ public class SearchOperationListenerTests extends ESTestCase {
         Collections.shuffle(indexingOperationListeners, random());
         SearchOperationListener.CompositeListener compositeListener =
             new SearchOperationListener.CompositeListener(indexingOperationListeners, logger);
-        SearchContext ctx = new TestSearchContext(null);
+        SearchContext ctx = createTestSearchContext().build(() -> {});
         compositeListener.onQueryPhase(ctx, timeInNanos.get());
         assertEquals(0, preFetch.get());
         assertEquals(0, preQuery.get());

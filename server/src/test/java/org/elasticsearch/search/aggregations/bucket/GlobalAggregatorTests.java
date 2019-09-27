@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
@@ -62,9 +63,8 @@ public class GlobalAggregatorTests extends AggregatorTestCase {
     }
 
     // Note that `global`'s fancy support for ignoring the query comes from special code in AggregationPhase. We don't test that here.
-
-    private void testCase(CheckedConsumer<RandomIndexWriter, IOException> buildIndex, BiConsumer<InternalGlobal, InternalMin> verify)
-            throws IOException {
+    private void testCase(CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+                          BiConsumer<InternalGlobal, InternalMin> verify) throws IOException {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         buildIndex.accept(indexWriter);
@@ -79,11 +79,13 @@ public class GlobalAggregatorTests extends AggregatorTestCase {
         fieldType.setName("number");
 
         GlobalAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
-        InternalGlobal result = (InternalGlobal) aggregator.buildAggregation(0L);
-        verify.accept(result, (InternalMin) result.getAggregations().asMap().get("in_global"));
+        try (SearchContext context = aggregator.context()) {
+            aggregator.preCollection();
+            indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+            aggregator.postCollection();
+            InternalGlobal result = (InternalGlobal) aggregator.buildAggregation(0L);
+            verify.accept(result, (InternalMin) result.getAggregations().asMap().get("in_global"));
+        }
 
         indexReader.close();
         directory.close();

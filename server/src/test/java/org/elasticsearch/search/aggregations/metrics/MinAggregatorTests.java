@@ -226,42 +226,42 @@ public class MinAggregatorTests extends AggregatorTestCase {
         for (NumberFieldMapper.NumberType type : NumberFieldMapper.NumberType.values()) {
             assertNotNull(
                 MinAggregator.getPointReaderOrNull(
-                    mockSearchContext(new MatchAllDocsQuery()),
+                    new MatchAllDocsQuery(),
                     null,
                     mockNumericValuesSourceConfig("number", type, true)
                 )
             );
             assertNotNull(
                 MinAggregator.getPointReaderOrNull(
-                    mockSearchContext(null),
+                    null,
                     null,
                     mockNumericValuesSourceConfig("number", type, true)
                 )
             );
             assertNull(
                 MinAggregator.getPointReaderOrNull(
-                    mockSearchContext(null),
+                    null,
                     mockAggregator(),
                     mockNumericValuesSourceConfig("number", type, true)
                 )
             );
             assertNull(
                 MinAggregator.getPointReaderOrNull(
-                    mockSearchContext(new TermQuery(new Term("foo", "bar"))),
+                    new TermQuery(new Term("foo", "bar")),
                     null,
                     mockNumericValuesSourceConfig("number", type, true)
                 )
             );
             assertNull(
                 MinAggregator.getPointReaderOrNull(
-                    mockSearchContext(null),
+                    null,
                     mockAggregator(),
                     mockNumericValuesSourceConfig("number", type, true)
                 )
             );
             assertNull(
                 MinAggregator.getPointReaderOrNull(
-                    mockSearchContext(null),
+                    null,
                     null,
                     mockNumericValuesSourceConfig("number", type, false)
                 )
@@ -269,35 +269,35 @@ public class MinAggregatorTests extends AggregatorTestCase {
         }
         assertNotNull(
             MinAggregator.getPointReaderOrNull(
-                mockSearchContext(new MatchAllDocsQuery()),
+                new MatchAllDocsQuery(),
                 null,
                 mockDateValuesSourceConfig("number", true)
             )
         );
         assertNull(
             MinAggregator.getPointReaderOrNull(
-                mockSearchContext(new MatchAllDocsQuery()),
+                new MatchAllDocsQuery(),
                 mockAggregator(),
                 mockDateValuesSourceConfig("number", true)
             )
         );
         assertNull(
             MinAggregator.getPointReaderOrNull(
-                mockSearchContext(new TermQuery(new Term("foo", "bar"))),
+                new TermQuery(new Term("foo", "bar")),
                 null,
                 mockDateValuesSourceConfig("number", true)
             )
         );
         assertNull(
             MinAggregator.getPointReaderOrNull(
-                mockSearchContext(null),
+                null,
                 mockAggregator(),
                 mockDateValuesSourceConfig("number", true)
             )
         );
         assertNull(
             MinAggregator.getPointReaderOrNull(
-                mockSearchContext(null),
+                null,
                 null,
                 mockDateValuesSourceConfig("number", false)
             )

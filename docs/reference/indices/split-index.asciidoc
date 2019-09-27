@@ -85,7 +85,7 @@ compared to searching an index that would have +M+N+ shards.
 
 Create a new index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_source_index
 {
@@ -94,14 +94,13 @@ PUT my_source_index
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 In order to split an index, the index must be marked as read-only,
 and have <<cluster-health,health>> `green`.
 
 This can be achieved with the following request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /my_source_index/_settings
 {
@@ -110,7 +109,6 @@ PUT /my_source_index/_settings
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 <1> Prevents write operations to this index while still allowing metadata
@@ -122,7 +120,7 @@ PUT /my_source_index/_settings
 To split `my_source_index` into a new index called `my_target_index`, issue
 the following request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST my_source_index/_split/my_target_index
 {
@@ -131,7 +129,6 @@ POST my_source_index/_split/my_target_index
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The above request returns immediately once the target index has been added to
@@ -157,7 +154,7 @@ Indices can only be split if they satisfy the following requirements:
 The `_split` API is similar to the <<indices-create-index, `create index` API>>
 and accepts `settings` and `aliases` parameters for the target index:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST my_source_index/_split/my_target_index
 {
@@ -169,7 +166,6 @@ POST my_source_index/_split/my_target_index
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT my_source_index\n{"settings": {"index.blocks.write": true, "index.number_of_shards": "1"}}\n/]
 
 <1> The number of shards in the target index. This must be a factor of the

@@ -151,7 +151,7 @@ PUT /_cluster/settings
 
 For example:
 
-[source,js]
+[source,console]
 -------------------------------
 PUT /_cluster/settings
 {
@@ -160,7 +160,6 @@ PUT /_cluster/settings
   }
 }
 -------------------------------
-// CONSOLE
 
 This is most appropriate when you need to dynamically need to adjust a logging
 level on an actively-running cluster.
@@ -216,6 +215,7 @@ log level to `error`.
 
 You can identify what is triggering deprecated functionality if `X-Opaque-Id` was used as an HTTP header.
 The user ID is included in the `X-Opaque-ID` field in deprecation JSON logs.
+
 [source,js]
 ---------------------------
 {

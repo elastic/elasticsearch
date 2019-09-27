@@ -9,6 +9,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -30,23 +31,26 @@ public class StubAggregatorFactory extends AggregatorFactory {
 
     private final Aggregator aggregator;
 
-    private StubAggregatorFactory(SearchContext context, Aggregator aggregator) throws IOException {
-        super("_name", context, null, new AggregatorFactories.Builder(), Collections.emptyMap());
+    private StubAggregatorFactory(QueryShardContext queryShardContext, Aggregator aggregator) throws IOException {
+        super("_name", queryShardContext, null, new AggregatorFactories.Builder(), Collections.emptyMap());
         this.aggregator = aggregator;
     }
 
     @Override
-    protected Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket, List list, Map metaData) throws IOException {
+    protected Aggregator createInternal(SearchContext searchContext,
+                                            Aggregator parent,
+                                            boolean collectsFromSingleBucket,
+                                            List list, Map metaData) throws IOException {
         return aggregator;
     }
 
     public static StubAggregatorFactory createInstance() throws IOException {
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
-        SearchContext searchContext = mock(SearchContext.class);
-        when(searchContext.bigArrays()).thenReturn(bigArrays);
+        QueryShardContext queryShardContext = mock(QueryShardContext.class);
+        when(queryShardContext.bigArrays()).thenReturn(bigArrays);
 
         Aggregator aggregator = mock(Aggregator.class);
 
-        return new StubAggregatorFactory(searchContext, aggregator);
+        return new StubAggregatorFactory(queryShardContext, aggregator);
     }
 }

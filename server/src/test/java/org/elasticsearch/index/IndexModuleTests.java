@@ -150,7 +150,7 @@ public class IndexModuleTests extends ESTestCase {
 
     private IndexService newIndexService(IndexModule module) throws IOException {
         return module.newIndexService(CREATE_INDEX, nodeEnvironment, xContentRegistry(), deleter, circuitBreakerService, bigArrays,
-                threadPool, scriptService, null, indicesQueryCache, mapperRegistry,
+                threadPool, scriptService, clusterService, null, indicesQueryCache, mapperRegistry,
                 new IndicesFieldDataCache(settings, listener), writableRegistry());
     }
 

@@ -18,7 +18,7 @@ codes, or tags, it is likely that you should rather use a <<keyword,`keyword`>> 
 
 Below is an example of a mapping for a text field:
 
-[source,js]
+[source,console]
 --------------------------------
 PUT my_index
 {
@@ -31,7 +31,6 @@ PUT my_index
   }
 }
 --------------------------------
-// CONSOLE
 
 [[text-multi-fields]]
 ==== Use a field as both text and keyword

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -89,19 +90,19 @@ public final class SIf extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeStatementOffset(location);
 
         Label fals = new Label();
 
-        condition.write(writer, globals);
-        writer.ifZCmp(Opcodes.IFEQ, fals);
+        condition.write(classWriter, methodWriter, globals);
+        methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
         ifblock.continu = continu;
         ifblock.brake = brake;
-        ifblock.write(writer, globals);
+        ifblock.write(classWriter, methodWriter, globals);
 
-        writer.mark(fals);
+        methodWriter.mark(fals);
     }
 
     @Override

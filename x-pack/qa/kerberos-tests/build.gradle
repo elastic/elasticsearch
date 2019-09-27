@@ -1,13 +1,12 @@
 import java.nio.file.Path
 import java.nio.file.Paths
-import java.nio.file.Files
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
 
-testFixtures.useFixture ":test:fixtures:krb5kdc-fixture"
+testFixtures.useFixture ":test:fixtures:krb5kdc-fixture", "peppa"
 
 dependencies {
     testCompile project(':x-pack:plugin:core')

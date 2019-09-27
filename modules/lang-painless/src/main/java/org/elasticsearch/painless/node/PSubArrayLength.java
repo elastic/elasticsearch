@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -67,9 +68,9 @@ final class PSubArrayLength extends AStoreable {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
-        writer.arrayLength();
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
+        methodWriter.arrayLength();
     }
 
     @Override
@@ -88,17 +89,17 @@ final class PSubArrayLength extends AStoreable {
     }
 
     @Override
-    void setup(MethodWriter writer, Globals globals) {
+    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         throw new IllegalStateException("Illegal tree structure.");
     }
 
     @Override
-    void load(MethodWriter writer, Globals globals) {
+    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         throw new IllegalStateException("Illegal tree structure.");
     }
 
     @Override
-    void store(MethodWriter writer, Globals globals) {
+    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         throw new IllegalStateException("Illegal tree structure.");
     }
 

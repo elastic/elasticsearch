@@ -50,21 +50,20 @@ For example, to tell {es} to allocate shards from the `test` index to either
 `big` or `medium` nodes, use `index.routing.allocation.include`:
 +
 --
-[source,js]
+[source,console]
 ------------------------
 PUT test/_settings
 {
   "index.routing.allocation.include.size": "big,medium"
 }
 ------------------------
-// CONSOLE
 // TEST[s/^/PUT test\n/]
 
 If you specify multiple filters, all conditions must be satisfied for shards to
 be relocated. For example, to move the `test` index to `big` nodes in `rack1`,
 you could specify:
 
-[source,js]
+[source,console]
 ------------------------
 PUT test/_settings
 {
@@ -72,7 +71,6 @@ PUT test/_settings
   "index.routing.allocation.include.rack": "rack1"
 }
 ------------------------
-// CONSOLE
 // TEST[s/^/PUT test\n/]
 --
 
@@ -106,12 +104,11 @@ The index allocation settings support the following built-in attributes:
 
 You can use wildcards when specifying attribute values, for example:
 
-[source,js]
+[source,console]
 ------------------------
 PUT test/_settings
 {
   "index.routing.allocation.include._ip": "192.168.2.*"
 }
 ------------------------
-// CONSOLE
 // TEST[skip:indexes don't assign]

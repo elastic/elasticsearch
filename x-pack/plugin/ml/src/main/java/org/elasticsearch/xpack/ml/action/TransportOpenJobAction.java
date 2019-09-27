@@ -81,6 +81,8 @@ import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
 */
 public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAction.Request, AcknowledgedResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportOpenJobAction.class);
+
     static final PersistentTasksCustomMetaData.Assignment AWAITING_MIGRATION =
             new PersistentTasksCustomMetaData.Assignment(null, "job cannot be assigned until it has been migrated.");
 
@@ -161,10 +163,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             return true;
         }
         return node.getVersion().onOrAfter(job.getModelSnapshotMinVersion());
-    }
-
-    private static boolean jobHasRules(Job job) {
-        return job.getAnalysisConfig().getDetectors().stream().anyMatch(d -> d.getRules().isEmpty() == false);
     }
 
     public static String nodeFilter(DiscoveryNode node, Job job) {

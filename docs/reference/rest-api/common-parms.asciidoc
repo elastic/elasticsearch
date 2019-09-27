@@ -385,6 +385,12 @@ tag::pipeline[]
 (Optional, string) ID of the pipeline to use to preprocess incoming documents.
 end::pipeline[]
 
+tag::path-pipeline[]
+`<pipeline>`::
+(Optional, string) Comma-separated list or wildcard expression of pipeline IDs
+used to limit the request.
+end::path-pipeline[]
+
 tag::preference[]
 `preference`::
 (Optional, string) Specifies the node or shard the operation should be 

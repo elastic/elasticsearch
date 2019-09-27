@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
@@ -51,16 +52,13 @@ import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.TimeZone;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -288,12 +286,11 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
             ).actionGet();
         assertAcked(createIndexResponse);
 
-        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd", Locale.getDefault());
-        dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
-        long parsedLifecycleDate = dateFormat.parse("2019.09.14").getTime();
+        DateFormatter dateFormatter = DateFormatter.forPattern("yyyy.MM.dd");
+        long expectedDate = dateFormatter.parseMillis("2019.09.14");
         assertBusy(() -> {
             IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse(indexName);
-            assertThat(indexResponse.getLifecycleDate(), is(parsedLifecycleDate));
+            assertThat(indexResponse.getLifecycleDate(), is(expectedDate));
         });
 
         // disabling the lifecycle parsing would maintain the parsed value as that was set as the origination date
@@ -302,7 +299,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         assertBusy(() -> {
             IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse(indexName);
-            assertThat(indexResponse.getLifecycleDate(), is(parsedLifecycleDate));
+            assertThat(indexResponse.getLifecycleDate(), is(expectedDate));
         });
 
         // setting the lifecycle origination date setting to null should make the lifecyle date fallback on the index creation date
@@ -311,7 +308,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         assertBusy(() -> {
             IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse(indexName);
-            assertThat(indexResponse.getLifecycleDate(), is(greaterThan(parsedLifecycleDate)));
+            assertThat(indexResponse.getLifecycleDate(), is(greaterThan(expectedDate)));
         });
 
         // setting the lifecycle origination date to an explicit value overrides the date parsing

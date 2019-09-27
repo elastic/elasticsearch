@@ -988,7 +988,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 throw new IndexShardSnapshotFailedException(shardId, "failed to list blobs", e);
             }
 
-            Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(blobs, shardContainer);
+            Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(blobs.keySet(), shardContainer);
             BlobStoreIndexShardSnapshots snapshots = tuple.v1();
             long fileListGeneration = tuple.v2();
 
@@ -1233,7 +1233,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * Delete shard snapshot
      */
-    private void deleteShardSnapshot(RepositoryData repositoryData, IndexId indexId, ShardId snapshotShardId, SnapshotId snapshotId) {
+    private void deleteShardSnapshot(RepositoryData repositoryData, IndexId indexId, ShardId snapshotShardId, SnapshotId snapshotId)
+            throws IOException {
         final BlobContainer shardContainer = shardContainer(indexId, snapshotShardId);
         final Map<String, BlobMetaData> blobs;
         try {
@@ -1242,7 +1243,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             throw new IndexShardSnapshotException(snapshotShardId, "Failed to list content of shard directory", e);
         }
 
-        Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(blobs, shardContainer);
+        Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(blobs.keySet(), shardContainer);
         BlobStoreIndexShardSnapshots snapshots = tuple.v1();
         long fileListGeneration = tuple.v2();
 
@@ -1313,21 +1314,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param blobs list of blobs in repository
      * @return tuple of BlobStoreIndexShardSnapshots and the last snapshot index generation
      */
-    private Tuple<BlobStoreIndexShardSnapshots, Long> buildBlobStoreIndexShardSnapshots(Map<String, BlobMetaData> blobs,
-                                                                                           BlobContainer shardContainer) {
-        Set<String> blobKeys = blobs.keySet();
-        long latest = latestGeneration(blobKeys);
+    private Tuple<BlobStoreIndexShardSnapshots, Long> buildBlobStoreIndexShardSnapshots(Set<String> blobs, BlobContainer shardContainer)
+            throws IOException {
+        long latest = latestGeneration(blobs);
         if (latest >= 0) {
-            try {
-                final BlobStoreIndexShardSnapshots shardSnapshots =
-                    indexShardSnapshotsFormat.read(shardContainer, Long.toString(latest));
-                return new Tuple<>(shardSnapshots, latest);
-            } catch (IOException e) {
-                final String file = SNAPSHOT_INDEX_PREFIX + latest;
-                logger.warn(() -> new ParameterizedMessage("failed to read index file [{}]", file), e);
-            }
-        } else if (blobKeys.isEmpty() == false) {
-            logger.warn("Could not find a readable index-N file in a non-empty shard snapshot directory [{}]", shardContainer.path());
+            final BlobStoreIndexShardSnapshots shardSnapshots = indexShardSnapshotsFormat.read(shardContainer, Long.toString(latest));
+            return new Tuple<>(shardSnapshots, latest);
+        } else if (blobs.stream().anyMatch(b -> b.startsWith(SNAPSHOT_PREFIX) || b.startsWith(INDEX_FILE_PREFIX)
+                                                                              || b.startsWith(DATA_BLOB_PREFIX))) {
+            throw new IllegalStateException(
+                "Could not find a readable index-N file in a non-empty shard snapshot directory [" + shardContainer.path() + "]");
         }
         return new Tuple<>(BlobStoreIndexShardSnapshots.EMPTY, latest);
     }

@@ -18,6 +18,13 @@ If specified,
 the index alias only applies to documents returned by the filter.
 end::index-alias-filter[]
 
+tag::target-index-aliases[]
+`aliases`::
+(Optional, <<indices-aliases,alias object>>)
+Index aliases which include the target index.
+See <<indices-aliases>>.
+end::target-index-aliases[]
+
 tag::allow-no-indices[]
 `allow_no_indices`::
 (Optional, boolean) If `true`,
@@ -399,6 +406,12 @@ tag::pipeline[]
 (Optional, string) ID of the pipeline to use to preprocess incoming documents.
 end::pipeline[]
 
+tag::path-pipeline[]
+`<pipeline>`::
+(Optional, string) Comma-separated list or wildcard expression of pipeline IDs
+used to limit the request.
+end::path-pipeline[]
+
 tag::preference[]
 `preference`::
 (Optional, string) Specifies the node or shard the operation should be
@@ -494,15 +507,22 @@ the segment has most likely been written to disk
 but needs a <<indices-refresh,refresh>> to be searchable.
 end::segment-search[]
 
+tag::segment-size[]
+Disk space used by the segment, such as `50kb`.
+end::segment-size[]
+
 tag::settings[]
 `settings`::
 (Optional, <<index-modules-settings,index setting object>>) Configuration
 options for the index. See <<index-modules-settings>>.
 end::settings[]
 
-tag::segment-size[]
-Disk space used by the segment, such as `50kb`.
-end::segment-size[]
+tag::target-index-settings[]
+`settings`::
+(Optional, <<index-modules-settings,index setting object>>)
+Configuration options for the target index.
+See <<index-modules-settings>>.
+end::target-index-settings[]
 
 tag::slices[]
 `slices`::
@@ -538,6 +558,17 @@ tag::stats[]
 (Optional, string) Specific `tag` of the request for logging and statistical
 purposes.
 end::stats[]
+
+tag::target-index[]
+`<target-index>`::
++
+--
+(Required, string)
+Name of the target index to create.
+
+include::{docdir}/indices/create-index.asciidoc[tag=index-name-reqs]
+--
+end::target-index[]
 
 tag::terminate_after[]
 `terminate_after`::

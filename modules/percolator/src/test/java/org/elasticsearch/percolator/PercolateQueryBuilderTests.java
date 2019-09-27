@@ -40,7 +40,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 
@@ -165,7 +164,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     }
 
     @Override
-    protected void doAssertLuceneQuery(PercolateQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(PercolateQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, Matchers.instanceOf(PercolateQuery.class));
         PercolateQuery percolateQuery = (PercolateQuery) query;
         assertNull(queryBuilder.getDocumentType());

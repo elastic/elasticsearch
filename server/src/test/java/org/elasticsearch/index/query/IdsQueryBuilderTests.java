@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -70,15 +69,15 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
     }
 
     @Override
-    protected void doAssertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         boolean allTypes = queryBuilder.types().length == 0 ||
                 queryBuilder.types().length == 1 && "_all".equals(queryBuilder.types()[0]);
         if (queryBuilder.ids().size() == 0
                 // no types
-                || context.getQueryShardContext().fieldMapper(IdFieldMapper.NAME) == null
+                || context.fieldMapper(IdFieldMapper.NAME) == null
                 // there are types, but disjoint from the query
                 || (allTypes == false &&
-                    Arrays.asList(queryBuilder.types()).indexOf(context.mapperService().documentMapper().type()) == -1)) {
+                    Arrays.asList(queryBuilder.types()).indexOf(context.getMapperService().documentMapper().type()) == -1)) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {
             assertThat(query, instanceOf(TermInSetQuery.class));

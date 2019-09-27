@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportService;
 
@@ -97,7 +98,7 @@ public abstract class FaultDetection implements Closeable {
 
     private class FDConnectionListener implements TransportConnectionListener {
         @Override
-        public void onNodeDisconnected(DiscoveryNode node) {
+        public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
             AbstractRunnable runnable = new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {

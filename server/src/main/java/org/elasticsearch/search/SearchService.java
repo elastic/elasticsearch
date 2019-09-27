@@ -730,11 +730,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    private void parseSource(DefaultSearchContext context, SearchSourceBuilder source) throws SearchContextException {
+    private void parseSource(DefaultSearchContext context, SearchSourceBuilder source) throws SearchException {
         // nothing to parse...
         if (source == null) {
             return;
         }
+        SearchShardTarget shardTarget = context.shardTarget();
         QueryShardContext queryShardContext = context.getQueryShardContext();
         context.from(source.from());
         context.size(source.size());
@@ -760,14 +761,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     context.sort(optionalSort.get());
                 }
             } catch (IOException e) {
-                throw new SearchContextException(context, "failed to create sort elements", e);
+                throw new SearchException(shardTarget, "failed to create sort elements", e);
             }
         }
         context.trackScores(source.trackScores());
         if (source.trackTotalHitsUpTo() != null
                 && source.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE
                 && context.scrollContext() != null) {
-            throw new SearchContextException(context, "disabling [track_total_hits] is not allowed in a scroll context");
+            throw new SearchException(shardTarget, "disabling [track_total_hits] is not allowed in a scroll context");
         }
         if (source.trackTotalHitsUpTo() != null) {
             context.trackTotalHitsUpTo(source.trackTotalHitsUpTo());
@@ -794,7 +795,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             try {
                 context.suggest(source.suggest().build(queryShardContext));
             } catch (IOException e) {
-                throw new SearchContextException(context, "failed to create SuggestionSearchContext", e);
+                throw new SearchException(shardTarget, "failed to create SuggestionSearchContext", e);
             }
         }
         if (source.rescores() != null) {
@@ -803,7 +804,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     context.addRescore(rescore.buildContext(queryShardContext));
                 }
             } catch (IOException e) {
-                throw new SearchContextException(context, "failed to create RescoreSearchContext", e);
+                throw new SearchException(shardTarget, "failed to create RescoreSearchContext", e);
             }
         }
         if (source.explain() != null) {
@@ -834,7 +835,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             try {
                 context.highlight(highlightBuilder.build(queryShardContext));
             } catch (IOException e) {
-                throw new SearchContextException(context, "failed to create SearchContextHighlighter", e);
+                throw new SearchException(shardTarget, "failed to create SearchContextHighlighter", e);
             }
         }
         if (source.scriptFields() != null && source.size() != 0) {
@@ -869,10 +870,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         if (source.searchAfter() != null && source.searchAfter().length > 0) {
             if (context.scrollContext() != null) {
-                throw new SearchContextException(context, "`search_after` cannot be used in a scroll context.");
+                throw new SearchException(shardTarget, "`search_after` cannot be used in a scroll context.");
             }
             if (context.from() > 0) {
-                throw new SearchContextException(context, "`from` parameter must be set to 0 when `search_after` is used.");
+                throw new SearchException(shardTarget, "`from` parameter must be set to 0 when `search_after` is used.");
             }
             FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(context.sort(), source.searchAfter());
             context.searchAfter(fieldDoc);
@@ -880,7 +881,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         if (source.slice() != null) {
             if (context.scrollContext() == null) {
-                throw new SearchContextException(context, "`slice` cannot be used outside of a scroll context");
+                throw new SearchException(shardTarget, "`slice` cannot be used outside of a scroll context");
             }
             context.sliceBuilder(source.slice());
         }
@@ -888,10 +889,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.storedFields() != null) {
             if (source.storedFields().fetchFields() == false) {
                 if (context.version()) {
-                    throw new SearchContextException(context, "`stored_fields` cannot be disabled if version is requested");
+                    throw new SearchException(shardTarget, "`stored_fields` cannot be disabled if version is requested");
                 }
                 if (context.sourceRequested()) {
-                    throw new SearchContextException(context, "`stored_fields` cannot be disabled if _source is requested");
+                    throw new SearchException(shardTarget, "`stored_fields` cannot be disabled if _source is requested");
                 }
             }
             context.storedFieldsContext(source.storedFields());
@@ -899,13 +900,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         if (source.collapse() != null) {
             if (context.scrollContext() != null) {
-                throw new SearchContextException(context, "cannot use `collapse` in a scroll context");
+                throw new SearchException(shardTarget, "cannot use `collapse` in a scroll context");
             }
             if (context.searchAfter() != null) {
-                throw new SearchContextException(context, "cannot use `collapse` in conjunction with `search_after`");
+                throw new SearchException(shardTarget, "cannot use `collapse` in conjunction with `search_after`");
             }
             if (context.rescore() != null && context.rescore().isEmpty() == false) {
-                throw new SearchContextException(context, "cannot use `collapse` in conjunction with `rescore`");
+                throw new SearchException(shardTarget, "cannot use `collapse` in conjunction with `rescore`");
             }
             final CollapseContext collapseContext = source.collapse().build(queryShardContext);
             context.collapse(collapseContext);

@@ -103,6 +103,7 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
         this.shards = Objects.requireNonNull(shards);
         this.includeGlobalState = includeGlobalState;
         shardsStats = new SnapshotShardsStats(shards);
+        assert time >= 0 : "time must be >= 0 but received [" + time + "]";
         updateShardStats(startTime, time);
     }
 

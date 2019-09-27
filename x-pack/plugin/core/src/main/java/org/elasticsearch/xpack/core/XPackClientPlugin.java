@@ -149,6 +149,12 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.P
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.Recall;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.ScoreByThresholdResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification.SoftClassificationMetric;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncoding;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.TargetMeanEncoding;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
 import org.elasticsearch.xpack.core.rollup.RollupFeatureSetUsage;
@@ -208,8 +214,8 @@ import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
 import org.elasticsearch.xpack.core.transform.TransformFeatureSetUsage;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
-import org.elasticsearch.xpack.core.transform.action.GetTransformsAction;
-import org.elasticsearch.xpack.core.transform.action.GetTransformsStatsAction;
+import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
+import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
@@ -429,8 +435,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 StartTransformAction.INSTANCE,
                 StopTransformAction.INSTANCE,
                 DeleteTransformAction.INSTANCE,
-                GetTransformsAction.INSTANCE,
-                GetTransformsStatsAction.INSTANCE,
+                GetTransformAction.INSTANCE,
+                GetTransformStatsAction.INSTANCE,
                 PreviewTransformAction.INSTANCE,
                 // enrich
                 DeleteEnrichPolicyAction.INSTANCE,
@@ -481,6 +487,12 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(EvaluationMetricResult.class, ScoreByThresholdResult.NAME, ScoreByThresholdResult::new),
                 new NamedWriteableRegistry.Entry(EvaluationMetricResult.class, ConfusionMatrix.NAME.getPreferredName(),
                         ConfusionMatrix.Result::new),
+                // ML - Inference preprocessing
+                new NamedWriteableRegistry.Entry(PreProcessor.class, FrequencyEncoding.NAME.getPreferredName(), FrequencyEncoding::new),
+                new NamedWriteableRegistry.Entry(PreProcessor.class, OneHotEncoding.NAME.getPreferredName(), OneHotEncoding::new),
+                new NamedWriteableRegistry.Entry(PreProcessor.class, TargetMeanEncoding.NAME.getPreferredName(), TargetMeanEncoding::new),
+                // ML - Inference models
+                new NamedWriteableRegistry.Entry(TrainedModel.class, Tree.NAME.getPreferredName(), Tree::new),
 
                 // monitoring
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.MONITORING, MonitoringFeatureSetUsage::new),

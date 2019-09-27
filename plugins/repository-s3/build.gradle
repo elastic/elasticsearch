@@ -29,7 +29,7 @@ esplugin {
 }
 
 versions << [
-  'aws': '1.11.562'
+  'aws': '1.11.636'
 ]
 
 dependencies {
@@ -146,6 +146,9 @@ task thirdPartyTest(type: Test) {
 
 if (useFixture) {
   apply plugin: 'elasticsearch.test.fixtures'
+
+  testFixtures.useFixture()
+
   task writeDockerFile {
     File minioDockerfile = new File("${project.buildDir}/minio-docker/Dockerfile")
     outputs.file(minioDockerfile)

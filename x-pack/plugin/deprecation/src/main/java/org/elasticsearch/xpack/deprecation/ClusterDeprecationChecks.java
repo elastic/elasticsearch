@@ -12,15 +12,19 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -89,6 +93,53 @@ public class ClusterDeprecationChecks {
                     "multi_match to fail if fields are not explicitly specified in the query.");
         }
         return null;
+    }
+
+    /**
+     * Check templates that use `_field_names` explicitly, which was deprecated in https://github.com/elastic/elasticsearch/pull/42854
+     * and will throw an error on new indices in 8.0
+     */
+    @SuppressWarnings("unchecked")
+    static DeprecationIssue checkTemplatesWithFieldNamesDisabled(ClusterState state) {
+        Set<String> templatesContainingFieldNames = new HashSet<>();
+        state.getMetaData().getTemplates().forEach((templateCursor) -> {
+            String templateName = templateCursor.key;
+            templateCursor.value.getMappings().forEach((mappingCursor) -> {
+                String type = mappingCursor.key;
+                // there should be the type name at this level, but there was a bug where mappings could be stored without a type (#45120)
+                // to make sure, we try to detect this like we try to do in MappingMetaData#sourceAsMap()
+                Map<String, Object> mapping = XContentHelper.convertToMap(mappingCursor.value.compressedReference(), true).v2();
+                if (mapping.size() == 1 && mapping.containsKey(type)) {
+                    // the type name is the root value, reduce it
+                    mapping = (Map<String, Object>) mapping.get(type);
+                }
+                if (mapContainsFieldNamesDisabled(mapping)) {
+                    templatesContainingFieldNames.add(templateName);
+                }
+            });
+        });
+
+        if (templatesContainingFieldNames.isEmpty() == false) {
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING, "Index templates contain _field_names settings.",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#fieldnames-enabling",
+                    "Index templates " + templatesContainingFieldNames + " use the deprecated `enable` setting for the `"
+                            + FieldNamesFieldMapper.NAME + "` field. Using this setting in new index mappings will throw an error "
+                                    + "in the next major version and needs to be removed from existing mappings and templates.");
+        }
+        return null;
+    }
+
+    /**
+     * check for "_field_names" entries in the map that contain another property "enabled" in the sub-map
+     */
+    static boolean mapContainsFieldNamesDisabled(Map<?, ?> map) {
+        Object fieldNamesMapping = map.get(FieldNamesFieldMapper.NAME);
+        if (fieldNamesMapping != null) {
+            if (((Map<?, ?>) fieldNamesMapping).keySet().contains("enabled")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     static DeprecationIssue checkPollIntervalTooLow(ClusterState state) {

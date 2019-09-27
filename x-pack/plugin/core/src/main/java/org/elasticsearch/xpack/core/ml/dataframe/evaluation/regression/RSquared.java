@@ -23,9 +23,11 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResu
 import java.io.IOException;
 import java.text.MessageFormat;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Calculates R-Squared between two known numerical fields.
@@ -53,34 +55,40 @@ public class RSquared implements RegressionMetric {
         return PARSER.apply(parser, null);
     }
 
-    public RSquared(StreamInput in) {
+    private EvaluationMetricResult result;
 
-    }
+    public RSquared(StreamInput in) {}
 
-    public RSquared() {
-
-    }
+    public RSquared() {}
 
     @Override
-    public String getMetricName() {
+    public String getName() {
         return NAME.getPreferredName();
     }
 
     @Override
     public List<AggregationBuilder> aggs(String actualField, String predictedField) {
+        if (result != null) {
+            return Collections.emptyList();
+        }
         return Arrays.asList(
             AggregationBuilders.sum(SS_RES).script(new Script(buildScript(actualField, predictedField))),
             AggregationBuilders.extendedStats(ExtendedStatsAggregationBuilder.NAME + "_actual").field(actualField));
     }
 
     @Override
-    public EvaluationMetricResult evaluate(Aggregations aggs) {
+    public void process(Aggregations aggs) {
         NumericMetricsAggregation.SingleValue residualSumOfSquares = aggs.get(SS_RES);
         ExtendedStats extendedStats = aggs.get(ExtendedStatsAggregationBuilder.NAME + "_actual");
         // extendedStats.getVariance() is the statistical sumOfSquares divided by count
-        return residualSumOfSquares == null || extendedStats == null || extendedStats.getCount() == 0 ?
+        result = residualSumOfSquares == null || extendedStats == null || extendedStats.getCount() == 0 ?
             new Result(0.0) :
             new Result(1 - (residualSumOfSquares.value() / (extendedStats.getVariance() * extendedStats.getCount())));
+    }
+
+    @Override
+    public Optional<EvaluationMetricResult> getResult() {
+        return Optional.ofNullable(result);
     }
 
     @Override
@@ -132,7 +140,7 @@ public class RSquared implements RegressionMetric {
         }
 
         @Override
-        public String getName() {
+        public String getMetricName() {
             return NAME.getPreferredName();
         }
 

@@ -148,7 +148,7 @@ public class GatewayAllocator {
     }
 
     /**
-     * Whenever we see a new data node, we clear the information we have on primary to ensure it is at least as recent as the start
+     * Clear the fetched data for the primary to ensure we do not cancel recoveries based on excessively stale data.
      * of the new node. This reduces risk of making a decision on stale information from primary.
      */
     private void ensureAsyncFetchStorePrimaryRecency(RoutingAllocation allocation) {

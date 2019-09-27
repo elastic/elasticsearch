@@ -318,7 +318,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         String getShardAction = GetAction.NAME + "[s]";
         interceptTransportActions(getShardAction);
 
-        GetRequest getRequest = new GetRequest(randomIndexOrAlias(), "type", "id");
+        GetRequest getRequest = new GetRequest(randomIndexOrAlias(), "id");
         internalCluster().coordOnlyNodeClient().get(getRequest).actionGet();
 
         clearInterceptedActions();
@@ -329,7 +329,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         String explainShardAction = ExplainAction.NAME + "[s]";
         interceptTransportActions(explainShardAction);
 
-        ExplainRequest explainRequest = new ExplainRequest(randomIndexOrAlias(), "type", "id").query(QueryBuilders.matchAllQuery());
+        ExplainRequest explainRequest = new ExplainRequest(randomIndexOrAlias(), "id").query(QueryBuilders.matchAllQuery());
         internalCluster().coordOnlyNodeClient().explain(explainRequest).actionGet();
 
         clearInterceptedActions();
@@ -374,7 +374,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         int numDocs = iterations(1, 30);
         for (int i = 0; i < numDocs; i++) {
             String indexOrAlias = randomIndexOrAlias();
-            multiGetRequest.add(indexOrAlias, "type", Integer.toString(i));
+            multiGetRequest.add(indexOrAlias, Integer.toString(i));
             indices.add(indexOrAlias);
         }
         internalCluster().coordOnlyNodeClient().multiGet(multiGetRequest).actionGet();

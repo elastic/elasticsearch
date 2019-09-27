@@ -134,7 +134,7 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
             || original instanceof Boolean) {
             clone = original;
         } else {
-            throw new SearchParseException(context,
+            throw new SearchParseException(context.shardTarget(),
                 "Can only clone primitives, String, ArrayList, and HashMap. Found: " + original.getClass().getCanonicalName(), null);
         }
         return clone;

@@ -113,6 +113,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         shardSearchLocalRequest.source(new SearchSourceBuilder().query(request.query()));
         Engine.GetResult result = null;
         try (SearchContext context = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT)) {
+            context.rewriteQuery();
             // No need to check the type, IndexShard#get does it for us
             Term uidTerm = new Term(IdFieldMapper.NAME, Uid.encodeId(request.id()));
             result = context.indexShard().get(new Engine.Get(false, false, request.id(), uidTerm));

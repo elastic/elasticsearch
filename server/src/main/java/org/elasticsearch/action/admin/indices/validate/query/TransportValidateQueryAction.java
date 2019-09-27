@@ -197,7 +197,9 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
             request.nowInMillis(), request.filteringAliases());
         shardSearchLocalRequest.source(new SearchSourceBuilder().query(request.query()));
         try (SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT)) {
-            searchContext.rewriteQuery();
+            if (request.rewrite()) {
+                searchContext.rewriteQuery();
+            }
             valid = true;
             explanation = explain(searchContext, request.rewrite());
         } catch (QueryShardException|ParsingException e) {

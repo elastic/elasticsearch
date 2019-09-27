@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gateway;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.AsyncShardFetch.Lister;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardId;
@@ -45,11 +47,11 @@ import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData;
 
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 public class GatewayAllocator {
 
@@ -66,7 +68,7 @@ public class GatewayAllocator {
         asyncFetchStore = ConcurrentCollections.newConcurrentMap();
 
     // contains ephemeralIds
-    private volatile Set<String> lastDataNodes = Collections.emptySet();
+    private Set<String> lastSeenEphemeralIds = Collections.emptySet();
 
     @Inject
     public GatewayAllocator(RerouteService rerouteService, NodeClient client) {
@@ -153,24 +155,23 @@ public class GatewayAllocator {
      */
     private void ensureAsyncFetchStorePrimaryRecency(RoutingAllocation allocation) {
         DiscoveryNodes nodes = allocation.nodes();
-        if (hasNewNodes(nodes, lastDataNodes)) {
+        if (hasNewNodes(nodes, lastSeenEphemeralIds)) {
+            final Set<String> newEphemeralIds = StreamSupport.stream(nodes.getDataNodes().spliterator(), false)
+                .map(node -> node.value.getEphemeralId()).collect(Collectors.toSet());
             // Invalidate the cache if a data node has been added to the cluster. This ensures that we do not cancel a recovery if a node
             // drops out, we fetch the shard data, then some indexing happens and then the node rejoins the cluster again. There are other
             // ways we could decide to cancel a recovery based on stale data (e.g. changing allocation filters or a primary failure) but
             // making the wrong decision here is not catastrophic so we only need to cover the common case.
-            logger.trace("new node {} found, clearing primary async-fetch-store cache", node);
+            logger.trace(() -> new ParameterizedMessage(
+                "new nodes {} found, clearing primary async-fetch-store cache", Sets.difference(newEphemeralIds, lastSeenEphemeralIds)));
             asyncFetchStore.values().forEach(fetch -> clearCacheForPrimary(fetch, allocation));
             // recalc to also (lazily) clear out old nodes.
-            Set<String> newDataNodes = new HashSet<>(nodes.getDataNodes().size());
-            for (Iterator<DiscoveryNode> iterator = nodes.getDataNodes().valuesIt(); iterator.hasNext(); ) {
-                newDataNodes.add(iterator.next().getEphemeralId());
-            }
-            this.lastDataNodes = newDataNodes;
+            this.lastSeenEphemeralIds = newEphemeralIds;
         }
     }
 
-    private void clearCacheForPrimary(AsyncShardFetch<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> fetch,
-                                      RoutingAllocation allocation) {
+    private static void clearCacheForPrimary(AsyncShardFetch<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> fetch,
+                                             RoutingAllocation allocation) {
         ShardRouting primary = allocation.routingNodes().activePrimary(fetch.shardId);
         if (primary != null) {
             fetch.clearCacheForNode(primary.currentNodeId());
@@ -178,9 +179,8 @@ public class GatewayAllocator {
     }
 
     private boolean hasNewNodes(DiscoveryNodes nodes, Set<String> lastDataNodes) {
-        for (Iterator<DiscoveryNode> iterator = nodes.getDataNodes().valuesIt(); iterator.hasNext(); ) {
-            DiscoveryNode node = iterator.next();
-            if (lastDataNodes.contains(node.getEphemeralId()) == false) {
+        for (ObjectObjectCursor<String, DiscoveryNode> node : nodes.getDataNodes()) {
+            if (lastDataNodes.contains(node.value.getEphemeralId()) == false) {
                 logger.trace("new node {} found, clearing primary async-fetch-store cache", node);
                 return true;
             }

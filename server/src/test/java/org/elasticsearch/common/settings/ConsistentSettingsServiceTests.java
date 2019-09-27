@@ -69,10 +69,12 @@ public class ConsistentSettingsServiceTests extends ESTestCase {
         assertThat(consistentService.areAllConsistent(), is(true));
         // change value
         secureSettings.setString(stringSetting.getKey(), "_TYPO_somethingsecure");
+        consistentService.clusterChanged(null);
         assertThat(consistentService.areAllConsistent(), is(false));
         assertThat(new ConsistentSettingsService(settings, clusterService, List.of(stringSetting)).areAllConsistent(), is(false));
         // publish change
         new ConsistentSettingsService(settings, clusterService, List.of(stringSetting)).newHashPublisher().onMaster();
+        consistentService.clusterChanged(null);
         assertThat(consistentService.areAllConsistent(), is(true));
         assertThat(new ConsistentSettingsService(settings, clusterService, List.of(stringSetting)).areAllConsistent(), is(true));
     }
@@ -96,10 +98,12 @@ public class ConsistentSettingsServiceTests extends ESTestCase {
         assertThat(consistentService.areAllConsistent(), is(true));
         // change value
         secureSettings.setString("test.affix.second.bar", "_TYPO_second_secure");
+        consistentService.clusterChanged(null);
         assertThat(consistentService.areAllConsistent(), is(false));
         assertThat(new ConsistentSettingsService(settings, clusterService, List.of(affixStringSetting)).areAllConsistent(), is(false));
         // publish change
         new ConsistentSettingsService(settings, clusterService, List.of(affixStringSetting)).newHashPublisher().onMaster();
+        consistentService.clusterChanged(null);
         assertThat(consistentService.areAllConsistent(), is(true));
         assertThat(new ConsistentSettingsService(settings, clusterService, List.of(affixStringSetting)).areAllConsistent(), is(true));
         // add value
@@ -110,6 +114,7 @@ public class ConsistentSettingsServiceTests extends ESTestCase {
         assertThat(new ConsistentSettingsService(settings, clusterService, List.of(affixStringSetting)).areAllConsistent(), is(false));
         // publish
         new ConsistentSettingsService(settings, clusterService, List.of(affixStringSetting)).newHashPublisher().onMaster();
+        consistentService.clusterChanged(null);
         assertThat(new ConsistentSettingsService(settings, clusterService, List.of(affixStringSetting)).areAllConsistent(), is(true));
         // remove value
         secureSettings = new MockSecureSettings();

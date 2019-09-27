@@ -40,12 +40,8 @@ public class DatePart extends BinaryDateTimeFunction {
         HOUR(DateTimeExtractor.HOUR_OF_DAY::extract, "hours", "hh"),
         MINUTE(DateTimeExtractor.MINUTE_OF_HOUR::extract, "minutes", "mi", "n"),
         SECOND(DateTimeExtractor.SECOND_OF_MINUTE::extract, "seconds", "ss", "s"),
-        MILLISECOND(dt -> {
-                return dt.get(ChronoField.MILLI_OF_SECOND);
-            }, "milliseconds", "ms"),
-        MICROSECOND(dt -> {
-            return dt.get(ChronoField.MICRO_OF_SECOND);
-            }, "microseconds", "mcs"),
+        MILLISECOND(dt -> dt.get(ChronoField.MILLI_OF_SECOND), "milliseconds", "ms"),
+        MICROSECOND(dt -> dt.get(ChronoField.MICRO_OF_SECOND), "microseconds", "mcs"),
         NANOSECOND(ZonedDateTime::getNano, "nanoseconds", "ns"),
         TZOFFSET(dt -> dt.getOffset().getTotalSeconds() / 60, "tz");
 

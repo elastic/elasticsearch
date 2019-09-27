@@ -60,7 +60,7 @@ public class DateTruncProcessor extends BinaryDateTimeProcessor {
             }
         }
 
-        if (!(source2 instanceof ZonedDateTime)) {
+        if (source2 instanceof ZonedDateTime == false) {
             throw new SqlIllegalArgumentException("A datetime/date is required; received [{}]", source2);
         }
 

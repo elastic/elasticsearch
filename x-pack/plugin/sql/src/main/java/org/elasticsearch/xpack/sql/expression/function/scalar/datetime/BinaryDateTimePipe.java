@@ -51,6 +51,11 @@ public class BinaryDateTimePipe extends BinaryPipe {
     }
 
     @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), zoneId, operation);
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) {
             return true;
@@ -64,10 +69,5 @@ public class BinaryDateTimePipe extends BinaryPipe {
         BinaryDateTimePipe that = (BinaryDateTimePipe) o;
         return Objects.equals(zoneId, that.zoneId) &&
             operation == that.operation;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), zoneId, operation);
     }
 }

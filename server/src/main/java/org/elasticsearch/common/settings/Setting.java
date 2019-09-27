@@ -1243,6 +1243,15 @@ public class Setting<T> implements ToXContentObject {
         return listSetting(key, null, singleValueParser, (s) -> defaultStringValue, properties);
     }
 
+    public static <T> Setting<List<T>> listSetting(
+        final String key,
+        final List<String> defaultStringValue,
+        final Function<String, T> singleValueParser,
+        final Validator<List<T>> validator,
+        final Property... properties) {
+        return listSetting(key, null, singleValueParser, (s) -> defaultStringValue, validator, properties);
+    }
+
     // TODO this one's two argument get is still broken
     public static <T> Setting<List<T>> listSetting(
             final String key,
@@ -1266,13 +1275,23 @@ public class Setting<T> implements ToXContentObject {
             final Function<String, T> singleValueParser,
             final Function<Settings, List<String>> defaultStringValue,
             final Property... properties) {
+        return listSetting(key, fallbackSetting, singleValueParser, defaultStringValue, v -> {}, properties);
+    }
+
+    static <T> Setting<List<T>> listSetting(
+        final String key,
+        final @Nullable Setting<List<T>> fallbackSetting,
+        final Function<String, T> singleValueParser,
+        final Function<Settings, List<String>> defaultStringValue,
+        final Validator<List<T>> validator,
+        final Property... properties) {
         if (defaultStringValue.apply(Settings.EMPTY) == null) {
             throw new IllegalArgumentException("default value function must not return null");
         }
         Function<String, List<T>> parser = (s) ->
-                parseableStringToList(s).stream().map(singleValueParser).collect(Collectors.toList());
+            parseableStringToList(s).stream().map(singleValueParser).collect(Collectors.toList());
 
-        return new ListSetting<>(key, fallbackSetting, defaultStringValue, parser, properties);
+        return new ListSetting<>(key, fallbackSetting, defaultStringValue, parser, validator, properties);
     }
 
     private static List<String> parseableStringToList(String parsableString) {
@@ -1319,13 +1338,14 @@ public class Setting<T> implements ToXContentObject {
                 final @Nullable Setting<List<T>> fallbackSetting,
                 final Function<Settings, List<String>> defaultStringValue,
                 final Function<String, List<T>> parser,
+                final Validator<List<T>> validator,
                 final Property... properties) {
             super(
                     new ListKey(key),
                     fallbackSetting,
                     s -> Setting.arrayToParsableString(defaultStringValue.apply(s)),
                     parser,
-                    v -> {},
+                    validator,
                     properties);
             this.defaultStringValue = defaultStringValue;
         }

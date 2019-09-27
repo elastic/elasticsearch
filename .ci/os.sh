@@ -1,7 +1,10 @@
 #!/bin/bash
 
 # opensuse 15 has a missing dep for systemd 
-sudo zypper install -y insserv-compat
+
+if which zypper > /dev/null ; then
+    sudo zypper install -y insserv-compat
+fi
 
 # Required by bats
 sudo touch /etc/is_vagrant_vm

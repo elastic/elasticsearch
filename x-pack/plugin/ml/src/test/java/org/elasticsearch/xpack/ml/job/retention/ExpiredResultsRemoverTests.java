@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
@@ -70,7 +71,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         givenClientRequestsSucceed();
         givenJobs(Collections.emptyList());
 
-        createExpiredResultsRemover().remove(listener);
+        createExpiredResultsRemover().remove(listener, () -> false);
 
         verify(listener).onResponse(true);
         verify(client).search(any());
@@ -84,7 +85,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
                 JobTests.buildJobBuilder("bar").build()
         ));
 
-        createExpiredResultsRemover().remove(listener);
+        createExpiredResultsRemover().remove(listener, () -> false);
 
         verify(listener).onResponse(true);
         verify(client).search(any());
@@ -99,7 +100,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
                 JobTests.buildJobBuilder("results-2").setResultsRetentionDays(20L).build()
         ));
 
-        createExpiredResultsRemover().remove(listener);
+        createExpiredResultsRemover().remove(listener, () -> false);
 
         assertThat(capturedDeleteByQueryRequests.size(), equalTo(2));
         DeleteByQueryRequest dbqRequest = capturedDeleteByQueryRequests.get(0);
@@ -107,6 +108,22 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         dbqRequest = capturedDeleteByQueryRequests.get(1);
         assertThat(dbqRequest.indices(), equalTo(new String[] {AnomalyDetectorsIndex.jobResultsAliasedName("results-2")}));
         verify(listener).onResponse(true);
+    }
+
+    public void testRemove_GivenTimeout() throws Exception {
+        givenClientRequestsSucceed();
+        givenJobs(Arrays.asList(
+            JobTests.buildJobBuilder("results-1").setResultsRetentionDays(10L).build(),
+            JobTests.buildJobBuilder("results-2").setResultsRetentionDays(20L).build()
+        ));
+
+        final int timeoutAfter = randomIntBetween(0, 1);
+        AtomicInteger attemptsLeft = new AtomicInteger(timeoutAfter);
+
+        createExpiredResultsRemover().remove(listener, () -> (attemptsLeft.getAndDecrement() <= 0));
+
+        assertThat(capturedDeleteByQueryRequests.size(), equalTo(timeoutAfter));
+        verify(listener).onResponse(false);
     }
 
     public void testRemove_GivenClientRequestsFailed() throws IOException {
@@ -117,7 +134,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
                 JobTests.buildJobBuilder("results-2").setResultsRetentionDays(20L).build()
         ));
 
-        createExpiredResultsRemover().remove(listener);
+        createExpiredResultsRemover().remove(listener, () -> false);
 
         assertThat(capturedDeleteByQueryRequests.size(), equalTo(1));
         DeleteByQueryRequest dbqRequest = capturedDeleteByQueryRequests.get(0);

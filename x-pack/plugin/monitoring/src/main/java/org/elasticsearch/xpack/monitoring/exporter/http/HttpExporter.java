@@ -90,7 +90,7 @@ public class HttpExporter extends Exporter {
                     Function.identity(),
                     hosts -> {
                         if (hosts.isEmpty()) {
-                            throw new SettingsException("missing required setting [" + key + "]");
+                            throw new SettingsException("host list for [" + key + "] is empty");
                         }
 
                         boolean httpHostFound = false;

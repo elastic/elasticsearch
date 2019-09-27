@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
@@ -39,13 +37,18 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.OLD_TEMPLATE_IDS;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.PIPELINE_IDS;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_IDS;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
@@ -80,6 +83,67 @@ public class HttpExporterTests extends ESTestCase {
         when(clusterState.nodes()).thenReturn(nodes);
         // always let the watcher resources run for these tests; HttpExporterResourceTests tests it flipping on/off
         when(nodes.isLocalNodeElectedMaster()).thenReturn(true);
+    }
+
+    public void testEmptyHostListDefault() {
+        runTestEmptyHostList(true);
+    }
+
+    public void testEmptyHostListExplicit() {
+        runTestEmptyHostList(false);
+    }
+
+    private void runTestEmptyHostList(final boolean useDefault) {
+        final String prefix = "xpack.monitoring.exporters.example";
+        final Settings.Builder builder = Settings.builder().put(prefix + ".type", "http");
+        if (useDefault == false) {
+            builder.putList(prefix + ".host", Collections.emptyList());
+        }
+        final Settings settings = builder.build();
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HttpExporter.HOST_SETTING.getConcreteSetting(prefix + ".host").get(settings));
+        assertThat(e, hasToString(containsString("Failed to parse value [[]] for setting [" + prefix + ".host]")));
+        assertThat(e.getCause(), instanceOf(SettingsException.class));
+        assertThat(e.getCause(), hasToString(containsString("host list for [" + prefix + ".host] is empty")));
+    }
+
+    public void testInvalidHost() {
+        final String prefix = "xpack.monitoring.exporters.example";
+        final String host = "https://example.com:443/";
+        final Settings settings = Settings.builder()
+            .put(prefix + ".type", "http")
+            .put(prefix + ".host", host)
+            .build();
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HttpExporter.HOST_SETTING.getConcreteSetting(prefix + ".host").get(settings));
+        assertThat(
+            e,
+            hasToString(containsString("Failed to parse value [[\"" + host + "\"]] for setting [" + prefix + ".host]")));
+        assertThat(e.getCause(), instanceOf(SettingsException.class));
+        assertThat(e.getCause(), hasToString(containsString("[" + prefix + ".host] invalid host: [" + host + "]")));
+        assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(e.getCause().getCause(), hasToString(containsString("HttpHosts do not use paths [/].")));
+    }
+
+    public void testMixedSchemes() {
+        final String prefix = "xpack.monitoring.exporters.example";
+        final String httpHost = "http://example.com:443";
+        final String httpsHost = "https://example.com:443";
+        final Settings settings = Settings.builder()
+            .put(prefix + ".type", "http")
+            .putList(prefix + ".host", List.of(httpHost, httpsHost))
+            .build();
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HttpExporter.HOST_SETTING.getConcreteSetting(prefix + ".host").get(settings));
+        assertThat(
+            e,
+            hasToString(containsString(
+                "Failed to parse value [[\"" + httpHost + "\",\"" + httpsHost + "\"]] for setting [" + prefix + ".host]")));
+        assertThat(e.getCause(), instanceOf(SettingsException.class));
+        assertThat(e.getCause(), hasToString(containsString("[" + prefix + ".host] must use a consistent scheme: http or https")));
     }
 
     public void testExporterWithBlacklistedHeaders() {

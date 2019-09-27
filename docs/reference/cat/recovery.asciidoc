@@ -13,7 +13,7 @@ to the <<indices-recovery, indices recovery>> API.
 
 `GET /_cat/recovery/<index>`
 
-`GET /_cat/recovery
+`GET /_cat/recovery`
 
 
 [[cat-recovery-api-desc]]

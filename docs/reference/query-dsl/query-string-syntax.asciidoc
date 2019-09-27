@@ -271,15 +271,27 @@ of a sub-query:
 If you need to use any of the characters which function as operators in your
 query itself (and not as operators), then you should escape them with
 a leading backslash. For instance, to search for `(1+1)=2`, you would
-need to write your query as `\(1\+1\)\=2`.
+need to write your query as `\(1\+1\)\=2`. In the case of using JSON format for the request body, two preceding backslashes (`\\`) required; since backslash is reserved escaping character in JSON strings.
 
 The reserved characters are:  `+ - = && || > < ! ( ) { } [ ] ^ " ~ * ? : \ /`
 
-Failing to escape these special characters correctly could lead to a syntax
-error which prevents your query from running.
+[source,console]
+----
+GET /twitter/_search
+Content-Type: application/json
 
-NOTE: Since \ (backslash) is a special character in JSON strings, it needs 
-to be escaped, hence two backslashes should be used.
+{
+  "query" : {
+    "query_string" : {
+      "query" : "kimchy\\!",
+      "fields"  : ["user"]
+    }
+  }
+}
+----
+// TEST[setup:twitter]
+
+Failing to escape these special characters correctly could lead to a syntax error which prevents your query from running. 
 
 NOTE: `<` and `>` can't be escaped at all. The only way to prevent them from
 attempting to create a range query is to remove them from the query string

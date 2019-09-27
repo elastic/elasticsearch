@@ -87,9 +87,8 @@ final class JvmOptionsParser {
                         .filter(Predicate.not(String::isBlank))
                         .collect(Collectors.toUnmodifiableList()));
             }
-            final String esTmpdir = System.getenv("ES_TMPDIR");
             final List<String> substitutedJvmOptions =
-                jvmOptions.stream().map(s -> s.replace("${ES_TMPDIR}", esTmpdir)).collect(Collectors.toList());
+                substitutePlaceholders(jvmOptions, Map.of("ES_TMPDIR", System.getenv("ES_TMPDIR")));
             final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions);
             substitutedJvmOptions.addAll(ergonomicJvmOptions);
             final String spaceDelimitedJvmOptions = spaceDelimitJvmOptions(substitutedJvmOptions);
@@ -116,6 +115,24 @@ final class JvmOptionsParser {
             }
             Launchers.exit(1);
         }
+    }
+
+    static List<String> substitutePlaceholders(final List<String> jvmOptions, Map<String, String> substitutions) {
+        final Map<String, String> placeholderSubstitutions =
+            substitutions.entrySet().stream().collect(Collectors.toMap(e -> "${" + e.getKey() + "}", Map.Entry::getValue));
+        final List<String> substitutedJvmOptions = new ArrayList<>(jvmOptions.size());
+        for (final String jvmOption : jvmOptions) {
+            if (jvmOption.matches(".*\\$\\{[^}]+\\}.*")) {
+                String actualJvmOption = jvmOption;
+                for (final Map.Entry<String, String> placeholderSubstitution : placeholderSubstitutions.entrySet()) {
+                   actualJvmOption = actualJvmOption.replace(placeholderSubstitution.getKey(), placeholderSubstitution.getValue());
+                }
+                substitutedJvmOptions.add(actualJvmOption);
+            } else {
+                substitutedJvmOptions.add(jvmOption);
+            }
+        }
+        return substitutedJvmOptions;
     }
 
     /**

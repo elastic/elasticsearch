@@ -203,66 +203,6 @@ public class HttpExporterTests extends ESTestCase {
         assertThat(exception.getMessage(), equalTo(expected));
     }
 
-    public void testExporterWithMissingHost() {
-        // forgot host!
-        final Settings.Builder builder = Settings.builder()
-                .put("xpack.monitoring.exporters._http.type", HttpExporter.TYPE);
-
-        if (randomBoolean()) {
-            builder.put("xpack.monitoring.exporters._http.host", "");
-        } else if (randomBoolean()) {
-            builder.putList("xpack.monitoring.exporters._http.host");
-        } else if (randomBoolean()) {
-            builder.putNull("xpack.monitoring.exporters._http.host");
-        }
-
-        final Config config = createConfig(builder.build());
-
-        final SettingsException exception =
-                expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService, threadContext));
-
-        assertThat(exception.getMessage(), equalTo("missing required setting [xpack.monitoring.exporters._http.host]"));
-    }
-
-    public void testExporterWithInconsistentSchemes() {
-        final Settings.Builder builder = Settings.builder()
-                .put("xpack.monitoring.exporters._http.type", HttpExporter.TYPE)
-                .putList("xpack.monitoring.exporters._http.host", "http://localhost:9200", "https://localhost:9201");
-
-        final Config config = createConfig(builder.build());
-
-        final SettingsException exception =
-                expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService, threadContext));
-
-        assertThat(exception.getMessage(),
-                   equalTo("[xpack.monitoring.exporters._http.host] must use a consistent scheme: http or https"));
-    }
-
-    public void testExporterWithInvalidHost() {
-        final String invalidHost = randomFrom("://localhost:9200", "gopher!://xyz.my.com");
-
-        final Settings.Builder builder = Settings.builder()
-                .put("xpack.monitoring.exporters._http.type", HttpExporter.TYPE);
-
-        // sometimes add a valid URL with it
-        if (randomBoolean()) {
-            if (randomBoolean()) {
-                builder.putList("xpack.monitoring.exporters._http.host", "localhost:9200", invalidHost);
-            } else {
-                builder.putList("xpack.monitoring.exporters._http.host", invalidHost, "localhost:9200");
-            }
-        } else {
-            builder.put("xpack.monitoring.exporters._http.host", invalidHost);
-        }
-
-        final Config config = createConfig(builder.build());
-
-        final SettingsException exception =
-                expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService, threadContext));
-
-        assertThat(exception.getMessage(), equalTo("[xpack.monitoring.exporters._http.host] invalid host: [" + invalidHost + "]"));
-    }
-
     public void testExporterWithUnknownBlacklistedClusterAlerts() {
         final SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
         when(sslService.sslIOSessionStrategy(any(Settings.class))).thenReturn(sslStrategy);
@@ -339,18 +279,6 @@ public class HttpExporterTests extends ESTestCase {
         assertThat(HttpExporter.createSniffer(config, client, listener), nullValue());
 
         verifyZeroInteractions(client, listener);
-    }
-
-    public void testCreateSnifferWithoutHosts() {
-        final Settings.Builder builder = Settings.builder()
-                .put("xpack.monitoring.exporters._http.type", "http")
-                .put("xpack.monitoring.exporters._http.sniff.enabled", true);
-
-        final Config config = createConfig(builder.build());
-        final RestClient client = mock(RestClient.class);
-        final NodeFailureListener listener = mock(NodeFailureListener.class);
-
-        expectThrows(IndexOutOfBoundsException.class, () -> HttpExporter.createSniffer(config, client, listener));
     }
 
     public void testCreateSniffer() throws IOException {

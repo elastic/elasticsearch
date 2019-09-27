@@ -8,7 +8,7 @@
       "parts": {
         "index": {
           "type" : "list",
-          "description": "A comma-separated list of index names to limit the returned information"
+          "description": "Comma-separated list or wildcard expression of index names to limit the returned information"
         }
       },
       "params": {
@@ -16,10 +16,20 @@
           "type" : "string",
           "description" : "a short version of the Accept header, e.g. json, yaml"
         },
+        "active_only":{
+          "type":"boolean",
+          "description":"If `true`, the response only includes ongoing shard recoveries",
+          "default":false
+        },
         "bytes": {
           "type": "enum",
           "description" : "The unit in which to display byte values",
           "options": [ "b", "k", "kb", "m", "mb", "g", "gb", "t", "tb", "p", "pb" ]
+        },
+        "detailed":{
+          "type":"boolean",
+          "description":"If `true`, the response includes detailed information about shard recoveries",
+          "default":false
         },
         "master_timeout": {
           "type" : "time",
@@ -33,6 +43,10 @@
           "type": "boolean",
           "description": "Return help information",
           "default": false
+        },
+        "index":{
+          "type":"list",
+          "description":"Comma-separated list or wildcard expression of index names to limit the returned information"
         },
         "s": {
           "type": "list",

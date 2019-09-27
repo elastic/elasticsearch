@@ -335,7 +335,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         final int numDocs = between(1, 100);
         final List<Translog.Operation> operations = new ArrayList<>(numDocs);
         for (int i = 0; i < numDocs; i++) {
-            operations.add(new Translog.Index("type", Integer.toString(i), i, primaryTerm, 0, source, null, -1));
+            operations.add(new Translog.Index(Integer.toString(i), i, primaryTerm, 0, source, null, -1));
         }
         Future<Void> recoveryFuture = null;
         Settings settings = Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)

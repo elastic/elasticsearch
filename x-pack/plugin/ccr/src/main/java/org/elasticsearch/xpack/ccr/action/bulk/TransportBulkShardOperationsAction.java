@@ -77,7 +77,6 @@ public class TransportBulkShardOperationsAction
             case INDEX:
                 final Translog.Index index = (Translog.Index) operation;
                 operationWithPrimaryTerm = new Translog.Index(
-                    index.type(),
                     index.id(),
                     index.seqNo(),
                     primaryTerm,
@@ -89,7 +88,6 @@ public class TransportBulkShardOperationsAction
             case DELETE:
                 final Translog.Delete delete = (Translog.Delete) operation;
                 operationWithPrimaryTerm = new Translog.Delete(
-                    delete.type(),
                     delete.id(),
                     delete.uid(),
                     delete.seqNo(),

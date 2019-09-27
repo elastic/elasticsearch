@@ -28,11 +28,11 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
-
 import java.io.IOException;
 import java.util.Collection;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class IndexFieldMapperTests extends ESSingleNodeTestCase {
 
@@ -47,7 +47,7 @@ public class IndexFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
             .parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "type", "1",
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", "value")

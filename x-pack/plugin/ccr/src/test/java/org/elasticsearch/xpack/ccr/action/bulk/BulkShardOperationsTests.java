@@ -57,11 +57,11 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
                     randomValueOtherThan(Translog.Operation.Type.CREATE, () -> randomFrom(Translog.Operation.Type.values()));
             switch (type) {
                 case INDEX:
-                    operations.add(new Translog.Index("_doc", id, seqNo, primaryTerm, 0, SOURCE, null, -1));
+                    operations.add(new Translog.Index(id, seqNo, primaryTerm, 0, SOURCE, null, -1));
                     break;
                 case DELETE:
                     operations.add(
-                        new Translog.Delete("_doc", id, new Term("_id", Uid.encodeId(id)), seqNo, primaryTerm, 0));
+                        new Translog.Delete(id, new Term("_id", Uid.encodeId(id)), seqNo, primaryTerm, 0));
                     break;
                 case NO_OP:
                     operations.add(new Translog.NoOp(seqNo, primaryTerm, "test"));
@@ -103,9 +103,9 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
             final String id = Integer.toString(between(1, 100));
             final Translog.Operation op;
             if (randomBoolean()) {
-                op = new Translog.Index("_doc", id, seqno++, primaryTerm, 0, SOURCE, null, -1);
+                op = new Translog.Index(id, seqno++, primaryTerm, 0, SOURCE, null, -1);
             } else if (randomBoolean()) {
-                op = new Translog.Delete("_doc", id, new Term("_id", Uid.encodeId(id)), seqno++, primaryTerm, 0);
+                op = new Translog.Delete(id, new Term("_id", Uid.encodeId(id)), seqno++, primaryTerm, 0);
             } else {
                 op = new Translog.NoOp(seqno++, primaryTerm, "test-" + i);
             }

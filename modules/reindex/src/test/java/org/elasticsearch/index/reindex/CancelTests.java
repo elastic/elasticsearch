@@ -298,15 +298,15 @@ public class CancelTests extends ReindexTestCase {
 
         @Override
         public Engine.Index preIndex(ShardId shardId, Engine.Index index) {
-            return preCheck(index, index.type());
+            return preCheck(index);
         }
 
         @Override
         public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
-            return preCheck(delete, delete.type());
+            return preCheck(delete);
         }
 
-        private <T extends Engine.Operation> T preCheck(T operation, String type) {
+        private <T extends Engine.Operation> T preCheck(T operation) {
             if ((operation.origin() != Origin.PRIMARY)) {
                 return operation;
             }

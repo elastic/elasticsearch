@@ -71,7 +71,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field", true)
@@ -142,7 +142,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                     .field("field", randomValue)
                 .endObject());
         MapperParsingException ex = expectThrows(MapperParsingException.class,
-                () -> defaultMapper.parse(new SourceToParse("test", "type", "1", source, XContentType.JSON)));
+                () -> defaultMapper.parse(new SourceToParse("test", "1", source, XContentType.JSON)));
         assertEquals("failed to parse field [field] of type [boolean] in document with id '1'. " +
             "Preview of field's value: '" + randomValue + "'", ex.getMessage());
     }
@@ -169,7 +169,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
             .endObject());
         MapperParsingException ex = expectThrows(MapperParsingException.class,
-                () -> defaultMapper.parse(new SourceToParse("test", "type", "1", source, XContentType.JSON)));
+                () -> defaultMapper.parse(new SourceToParse("test", "1", source, XContentType.JSON)));
         assertEquals("failed to parse field [field] of type [boolean] in document with id '1'. " +
             "Preview of field's value: '{inner_field=" + randomValue + "}'", ex.getMessage());
     }
@@ -196,7 +196,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject()
                     .field("field", false)
                 .endObject());
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", source, XContentType.JSON));
+        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", source, XContentType.JSON));
         assertNotNull(doc.rootDoc().getField("field.as_string"));
     }
 
@@ -219,7 +219,7 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper defaultMapper = indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-        ParsedDocument parsedDoc = defaultMapper.parse(new SourceToParse("test", "type", "1", BytesReference
+        ParsedDocument parsedDoc = defaultMapper.parse(new SourceToParse("test", "1", BytesReference
                 .bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("bool1", true)

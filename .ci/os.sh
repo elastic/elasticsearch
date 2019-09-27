@@ -13,8 +13,8 @@ set -e
 RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
 BUILD_JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
 
-sudo rm -Rfv $HOME/.gradle/init.d
-sudo mkdir -p $HOME/.gradle/init.d
+rm -Rfv $HOME/.gradle/init.d
+mkdir -p $HOME/.gradle/init.d
 sudo rm -Rf /root/.gradle
 sudo cp -v .ci/init.gradle $HOME/.gradle/init.d
 # levarage the packar cache and init files when ran with root
@@ -42,7 +42,7 @@ SUDOERS_VARS
 sudo chmod 0440 /etc/sudoers.d/elasticsearch_vars
 
 # Bats tests still use this locationa
-rm -Rf /elasticsearch
+sudo rm -Rf /elasticsearch
 sudo mkdir -p /elasticsearch/qa/ && sudo chown jenkins /elasticsearch/qa/ && ln -s $PWD/qa/vagrant /elasticsearch/qa/
 
 # sudo sets it's own PATH thus we use env to override that and call sudo annother time so we keep the secure root PATH 

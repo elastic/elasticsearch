@@ -130,8 +130,8 @@ public class Shell {
         final Path stdOut;
         final Path stdErr;
         try {
-            stdOut = Files.createTempFile(Paths.get(System.getProperty("tmp.dir")), getClass().getName(), ".out");
-            stdErr = Files.createTempFile(Paths.get(System.getProperty("tmp.dir")), getClass().getName(), ".err");
+            stdOut = Files.createTempFile(Paths.get(System.getProperty("java.io.tmpdir")), getClass().getName(), ".out");
+            stdErr = Files.createTempFile(Paths.get(System.getProperty("java.io.tmpdir")), getClass().getName(), ".err");
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

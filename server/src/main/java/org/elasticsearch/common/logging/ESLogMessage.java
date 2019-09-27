@@ -24,6 +24,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.SuppressLoggerChecks;
 
 import java.nio.charset.Charset;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -45,6 +46,10 @@ public abstract class ESLogMessage extends ParameterizedMessage {
         this.fields = fields;
     }
 
+    public ESLogMessage with(String key, Object value) {
+        fields.put(key, value);
+        return this;
+    }
     public static String escapeJson(String text) {
         byte[] sourceEscaped = JSON_STRING_ENCODER.quoteAsUTF8(text);
         return new String(sourceEscaped, Charset.defaultCharset());
@@ -75,5 +80,10 @@ public abstract class ESLogMessage extends ParameterizedMessage {
         return "[" + stream
             .map(ESLogMessage::inQuotes)
             .collect(Collectors.joining(", ")) + "]";
+    }
+
+    public static ESLogMessage message(String messagePattern, Object... args){
+        return new ESLogMessage(new LinkedHashMap<>(), messagePattern, args) {
+        };
     }
 }

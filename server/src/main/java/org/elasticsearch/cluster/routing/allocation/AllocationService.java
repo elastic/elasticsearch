@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.gateway.GatewayAllocator;
 
 import java.util.ArrayList;
@@ -378,7 +379,10 @@ public class AllocationService {
         ClusterHealthStatus previousHealth = previousStateHealth.getStatus();
         ClusterHealthStatus currentHealth = newStateHealth.getStatus();
         if (!previousHealth.equals(currentHealth)) {
-            logger.info("Cluster health status changed from [{}] to [{}] (reason: [{}]).", previousHealth, currentHealth, reason);
+            logger.info(ESLogMessage.message("Cluster health status changed from [{}] to [{}] (reason: [{}]).", previousHealth, currentHealth, reason)
+                                    .with("previous.health", previousHealth)
+                                    .with("current.health", currentHealth)
+                                    .with("reason", reason));
         }
     }
 

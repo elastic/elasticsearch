@@ -101,15 +101,38 @@ public class JsonLoggerTests extends ESTestCase {
         }
     }
 
-    public void testMessageOverride() throws IOException {
-        class CustomMessage extends ESLogMessage{
-            CustomMessage() {
-                super(Map.of("message","overriden"), "some message");
-            }
+    public void testMessageOverrideWithNoValue() throws IOException {
+        //message field is meant to be overriden (see custom.test config), but is not provided.
+        //Expected is that it will be emptied
+        final Logger testLogger = LogManager.getLogger("custom.test");
+
+        testLogger.info(ESLogMessage.message("some message"));
+
+        final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
+            System.getProperty("es.logs.cluster_name") + "_custom.json");
+        try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
+            List<Map<String, String>> jsonLogs = stream
+                .collect(Collectors.toList());
+
+            assertThat(jsonLogs, contains(
+                allOf(
+                    hasEntry("type", "custom"),
+                    hasEntry("level", "INFO"),
+                    hasEntry("component", "c.test"),
+                    hasEntry("cluster.name", "elasticsearch"),
+                    hasEntry("node.name", "sample-name"))
+                )
+            );
         }
+    }
+
+
+    public void testMessageOverride() throws IOException {
 
         final Logger testLogger = LogManager.getLogger("custom.test");
-        testLogger.info(new CustomMessage());
+
+        testLogger.info(ESLogMessage.message("some message")
+                .with("message","overriden"));
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
             System.getProperty("es.logs.cluster_name") + "_custom.json");
@@ -140,6 +163,7 @@ public class JsonLoggerTests extends ESTestCase {
 
         final Logger testLogger = LogManager.getLogger("custom.test");
         testLogger.info(new CustomMessage());
+
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
             System.getProperty("es.logs.cluster_name") + "_custom.json");

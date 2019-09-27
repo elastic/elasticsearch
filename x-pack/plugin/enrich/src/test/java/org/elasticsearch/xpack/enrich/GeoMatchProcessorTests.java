@@ -11,20 +11,15 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -47,11 +42,11 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class GeoMatchProcessorTests extends ESTestCase {
 
-    public void testBasics() throws Exception {
+    public void testBasics() {
         int maxMatches = randomIntBetween(1, 8);
         MockSearchFunction mockSearch = mockedSearchFunction(Map.of("key", Map.of("shape", "object", "zipcode",94040)));
         GeoMatchProcessor processor = new GeoMatchProcessor("_tag", mockSearch, "_name", "location", "entry",
-            "shape", false, true, maxMatches);
+            false, true, "shape", maxMatches, ShapeRelation.INTERSECTS);
         IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL,
             Map.of("location", "37.386637, -122.084110"));
         // Run
@@ -73,9 +68,7 @@ public class GeoMatchProcessorTests extends ESTestCase {
         GeoShapeQueryBuilder shapeQueryBuilder = (GeoShapeQueryBuilder) ((ConstantScoreQueryBuilder) request.source().query()).innerQuery();
         assertThat(shapeQueryBuilder.fieldName(), equalTo("shape"));
         assertThat(shapeQueryBuilder.shape(), equalTo(new Point(-122.084110, 37.386637)));
-        o
 
-        shapeQueryBuilder.toQuery()
         // Check result
         List<?> entries = ingestDocument.getFieldValue("entry", List.class);
         Map<?, ?> entry = (Map<?, ?>) entries.get(0);
@@ -128,13 +121,8 @@ public class GeoMatchProcessorTests extends ESTestCase {
     }
 
     public SearchResponse mockResponse(Map<String, Map<String, ?>> documents) {
-
-        final QueryShardContext context = new QueryShardContext(0, new IndexSettings(new IndexMetaData(), Settings.EMPTY), null, null, null, mapperService,
-            null, null, xContentRegistry(), writableRegistry(), client, leaf.reader(), () -> nowInMillis, null);
-
         SearchHit[] searchHits = documents.entrySet().stream().map(e -> {
-            SearchHit searchHit = new SearchHit(randomInt(100), e.getKey(), new Text(MapperService.SINGLE_MAPPING_NAME),
-                Collections.emptyMap());
+            SearchHit searchHit = new SearchHit(randomInt(100), e.getKey(), Collections.emptyMap());
             try (XContentBuilder builder = XContentBuilder.builder(XContentType.SMILE.xContent())) {
                 builder.map(e.getValue());
                 builder.flush();

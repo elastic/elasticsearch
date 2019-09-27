@@ -196,12 +196,13 @@ public class EnrichPolicyRunner implements Runnable {
 
     private XContentBuilder resolveEnrichMapping(final EnrichPolicy policy) {
         // Currently the only supported policy type is EnrichPolicy.MATCH_TYPE, which is a keyword type
-        String keyType;
+        final String keyType;
+        final MatchFieldMapping matchFieldMapping;
         if (EnrichPolicy.MATCH_TYPE.equals(policy.getType())) {
-            keyType = "keyword";
+            matchFieldMapping = (builder) -> builder.field("type", "keyword").field("doc_values", false);
             // No need to also configure index_options, because keyword type defaults to 'docs'.
         } else if (EnrichPolicy.GEO_MATCH_TYPE.equals(policy.getType())) {
-            keyType = "geo_shape";
+            matchFieldMapping = (builder) -> builder.field("type", "geo_shape");
         } else {
             throw new ElasticsearchException("Unrecognized enrich policy type [{}]", policy.getType());
         }
@@ -209,18 +210,15 @@ public class EnrichPolicyRunner implements Runnable {
         // Enable _source on enrich index. Explicitly mark key mapping type.
         try {
             XContentBuilder builder = JsonXContent.contentBuilder();
-            builder.startObject()
+            builder = builder.startObject()
                 .startObject(MapperService.SINGLE_MAPPING_NAME)
                     .field("dynamic", false)
                     .startObject("_source")
                         .field("enabled", true)
                     .endObject()
                     .startObject("properties")
-                        .startObject(policy.getMatchField())
-                            .field("type", keyType)
-                            .field("doc_values", false)
-                        .endObject()
-                    .endObject()
+                        .startObject(policy.getMatchField());
+            builder = matchFieldMapping.build(builder).endObject().endObject()
                     .startObject("_meta")
                         .field(ENRICH_README_FIELD_NAME, ENRICH_INDEX_README_TEXT)
                         .field(ENRICH_POLICY_NAME_FIELD_NAME, policyName)
@@ -412,5 +410,10 @@ public class EnrichPolicyRunner implements Runnable {
                 listener.onFailure(e);
             }
         });
+    }
+
+    @FunctionalInterface
+    private interface MatchFieldMapping {
+        XContentBuilder build(XContentBuilder builder) throws IOException;
     }
 }

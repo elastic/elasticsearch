@@ -122,7 +122,7 @@ public class UnifiedHighlighter implements Highlighter {
                 }
             }
         } catch (IOException e) {
-            throw new FetchPhaseExecutionException(context,
+            throw new FetchPhaseExecutionException(context.shardTarget(),
                 "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
         }
 

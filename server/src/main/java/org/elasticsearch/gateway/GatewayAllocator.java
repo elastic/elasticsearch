@@ -151,11 +151,10 @@ public class GatewayAllocator {
 
     /**
      * Clear the fetched data for the primary to ensure we do not cancel recoveries based on excessively stale data.
-     * of the new node. This reduces risk of making a decision on stale information from primary.
      */
     private void ensureAsyncFetchStorePrimaryRecency(RoutingAllocation allocation) {
         DiscoveryNodes nodes = allocation.nodes();
-        if (hasNewNodes(nodes, lastSeenEphemeralIds)) {
+        if (hasNewNodes(nodes)) {
             final Set<String> newEphemeralIds = StreamSupport.stream(nodes.getDataNodes().spliterator(), false)
                 .map(node -> node.value.getEphemeralId()).collect(Collectors.toSet());
             // Invalidate the cache if a data node has been added to the cluster. This ensures that we do not cancel a recovery if a node
@@ -178,10 +177,9 @@ public class GatewayAllocator {
         }
     }
 
-    private boolean hasNewNodes(DiscoveryNodes nodes, Set<String> lastDataNodes) {
+    private boolean hasNewNodes(DiscoveryNodes nodes) {
         for (ObjectObjectCursor<String, DiscoveryNode> node : nodes.getDataNodes()) {
-            if (lastDataNodes.contains(node.value.getEphemeralId()) == false) {
-                logger.trace("new node {} found, clearing primary async-fetch-store cache", node);
+            if (lastSeenEphemeralIds.contains(node.value.getEphemeralId()) == false) {
                 return true;
             }
         }

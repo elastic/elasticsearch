@@ -50,7 +50,7 @@ public final class SFunction extends AStatement {
     public final String name;
     private final List<String> paramTypeStrs;
     private final List<String> paramNameStrs;
-    private final List<AStatement> statements;
+    private final SBlock block;
     public final boolean synthetic;
 
     private CompilerSettings settings;
@@ -65,7 +65,7 @@ public final class SFunction extends AStatement {
     private Variable loop = null;
 
     public SFunction(Location location, String rtnType, String name,
-                     List<String> paramTypes, List<String> paramNames, List<AStatement> statements,
+                     List<String> paramTypes, List<String> paramNames, SBlock block,
                      boolean synthetic) {
         super(location);
 
@@ -73,27 +73,23 @@ public final class SFunction extends AStatement {
         this.name = Objects.requireNonNull(name);
         this.paramTypeStrs = Collections.unmodifiableList(paramTypes);
         this.paramNameStrs = Collections.unmodifiableList(paramNames);
-        this.statements = Collections.unmodifiableList(statements);
+        this.block = Objects.requireNonNull(block);
         this.synthetic = synthetic;
     }
 
     @Override
     void storeSettings(CompilerSettings settings) {
-        for (AStatement statement : statements) {
-            statement.storeSettings(settings);
-        }
+        block.storeSettings(settings);
 
         this.settings = settings;
     }
 
     @Override
     void extractVariables(Set<String> variables) {
-        for (AStatement statement : statements) {
-            // we reset the list for function scope
-            // note this is not stored for this node
-            // but still required for lambdas
-            statement.extractVariables(new HashSet<>());
-        }
+        // we reset the list for function scope
+        // note this is not stored for this node
+        // but still required for lambdas
+        block.extractVariables(new HashSet<>());
     }
 
     void generateSignature(PainlessLookup painlessLookup) {
@@ -131,28 +127,14 @@ public final class SFunction extends AStatement {
 
     @Override
     void analyze(Locals locals) {
-        if (statements == null || statements.isEmpty()) {
+        if (block.statements.isEmpty()) {
             throw createError(new IllegalArgumentException("Cannot generate an empty function [" + name + "]."));
         }
 
         locals = Locals.newLocalScope(locals);
-
-        AStatement last = statements.get(statements.size() - 1);
-
-        for (AStatement statement : statements) {
-            // Note that we do not need to check after the last statement because
-            // there is no statement that can be unreachable after the last.
-            if (allEscape) {
-                throw createError(new IllegalArgumentException("Unreachable statement."));
-            }
-
-            statement.lastSource = statement == last;
-
-            statement.analyze(locals);
-
-            methodEscape = statement.methodEscape;
-            allEscape = statement.allEscape;
-        }
+        block.lastSource = true;
+        block.analyze(locals);
+        methodEscape = block.methodEscape;
 
         if (!methodEscape && returnType != void.class) {
             throw createError(new IllegalArgumentException("Not all paths provide a return value for method [" + name + "]."));
@@ -184,9 +166,7 @@ public final class SFunction extends AStatement {
             function.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
         }
 
-        for (AStatement statement : statements) {
-            statement.write(function, globals);
-        }
+        block.write(function, globals);
 
         if (!methodEscape) {
             if (returnType == void.class) {
@@ -205,6 +185,6 @@ public final class SFunction extends AStatement {
         if (false == (paramTypeStrs.isEmpty() && paramNameStrs.isEmpty())) {
             description.add(joinWithName("Args", pairwiseToString(paramTypeStrs, paramNameStrs), emptyList()));
         }
-        return multilineToString(description, statements);
+        return multilineToString(description, block.statements);
     }
 }

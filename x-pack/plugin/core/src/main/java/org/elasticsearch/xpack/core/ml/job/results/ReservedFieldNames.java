@@ -199,8 +199,7 @@ public final class ReservedFieldNames {
             ExponentialAverageCalculationContext.PREVIOUS_EXPONENTIAL_AVERAGE_MS.getPreferredName(),
 
             GetResult._ID,
-            GetResult._INDEX,
-            GetResult._TYPE
+            GetResult._INDEX
    };
 
     /**
@@ -315,7 +314,6 @@ public final class ReservedFieldNames {
 
             GetResult._ID,
             GetResult._INDEX,
-            GetResult._TYPE
     };
 
     /**

@@ -26,7 +26,6 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -50,7 +49,7 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
     }
 
     @Override
-    protected void doAssertLuceneQuery(SpanNearQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(SpanNearQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, either(instanceOf(SpanNearQuery.class))
             .or(instanceOf(SpanTermQuery.class))
             .or(instanceOf(SpanBoostQuery.class))
@@ -63,11 +62,11 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
             assertThat(spanNearQuery.getClauses().length, equalTo(queryBuilder.clauses().size()));
             Iterator<SpanQueryBuilder> spanQueryBuilderIterator = queryBuilder.clauses().iterator();
             for (SpanQuery spanQuery : spanNearQuery.getClauses()) {
-                assertThat(spanQuery, equalTo(spanQueryBuilderIterator.next().toQuery(context.getQueryShardContext())));
+                assertThat(spanQuery, equalTo(spanQueryBuilderIterator.next().toQuery(context)));
             }
         } else if (query instanceof SpanTermQuery || query instanceof SpanBoostQuery) {
             assertThat(queryBuilder.clauses().size(), equalTo(1));
-            assertThat(query, equalTo(queryBuilder.clauses().get(0).toQuery(context.getQueryShardContext())));
+            assertThat(query, equalTo(queryBuilder.clauses().get(0).toQuery(context)));
         }
     }
 

@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
+import javax.crypto.SecretKeyFactory;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -93,8 +94,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import javax.crypto.SecretKeyFactory;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
@@ -333,7 +332,7 @@ public class ApiKeyService {
             if (credentials != null) {
                 final String docId = credentials.getId();
                 final GetRequest getRequest = client
-                        .prepareGet(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, docId)
+                        .prepareGet(SECURITY_MAIN_ALIAS, docId)
                         .setFetchSource(true)
                         .request();
                 executeAsyncWithOrigin(ctx, SECURITY_ORIGIN, getRequest, ActionListener.<GetResponse>wrap(response -> {

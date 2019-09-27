@@ -1067,7 +1067,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
     }
 
     private void assertExpectedDocument(final String followerIndex, final int value) {
-        final GetResponse getResponse = followerClient().prepareGet(followerIndex, "doc", Integer.toString(value)).get();
+        final GetResponse getResponse = followerClient().prepareGet(followerIndex, Integer.toString(value)).get();
         assertTrue("doc with id [" + value + "] is missing", getResponse.isExists());
         assertTrue((getResponse.getSource().containsKey("f")));
         assertThat(getResponse.getSource().get("f"), equalTo(value));

@@ -199,7 +199,6 @@ now returns matches from the new index:
     "hits": [
       {
         "_index": "new_index", <1>
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.13076457,
         "_source": {
@@ -390,7 +389,6 @@ This results in a response like this:
     "hits": [
       {
         "_index": "test_index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.13076457,
         "_source": {
@@ -547,7 +545,6 @@ GET /my_queries1/_search
     "hits": [
       {
         "_index": "my_queries1",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.18864399,
         "_source": {

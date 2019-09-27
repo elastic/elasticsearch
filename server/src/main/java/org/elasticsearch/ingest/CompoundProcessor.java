@@ -28,6 +28,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -114,58 +115,78 @@ public class CompoundProcessor implements Processor {
 
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        for (Tuple<Processor, IngestMetric> processorWithMetric : processorsWithMetrics) {
-            Processor processor = processorWithMetric.v1();
-            IngestMetric metric = processorWithMetric.v2();
-            long startTimeInNanos = relativeTimeProvider.getAsLong();
-            try {
-                metric.preIngest();
-                if (processor.execute(ingestDocument) == null) {
-                    return null;
-                }
-            } catch (Exception e) {
-                metric.ingestFailed();
-                if (ignoreFailure) {
-                    continue;
-                }
-
-                ElasticsearchException compoundProcessorException =
-                    newCompoundProcessorException(e, processor.getType(), processor.getTag());
-                if (onFailureProcessors.isEmpty()) {
-                    throw compoundProcessorException;
-                } else {
-                    if (executeOnFailure(ingestDocument, compoundProcessorException) == false) {
-                        return null;
-                    }
-                    break;
-                }
-            } finally {
-                long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
-                metric.postIngest(ingestTimeInMillis);
-            }
-        }
-        return ingestDocument;
+        throw new UnsupportedOperationException("this method should not get executed");
     }
 
-    /**
-     * @return true if execution should continue, false if document is dropped.
-     */
-    boolean executeOnFailure(IngestDocument ingestDocument, ElasticsearchException exception) throws Exception {
-        try {
-            putFailureMetadata(ingestDocument, exception);
-            for (Processor processor : onFailureProcessors) {
-                try {
-                    if (processor.execute(ingestDocument) == null) {
-                        return false;
+    @Override
+    public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+        innerExecute(0, ingestDocument, handler);
+    }
+
+    void innerExecute(int currentProcessor, IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+        if (currentProcessor == processorsWithMetrics.size()) {
+            handler.accept(ingestDocument, null);
+            return;
+        }
+
+        Tuple<Processor, IngestMetric> processorWithMetric = processorsWithMetrics.get(currentProcessor);
+        final Processor processor = processorWithMetric.v1();
+        final IngestMetric metric = processorWithMetric.v2();
+        final long startTimeInNanos = relativeTimeProvider.getAsLong();
+        metric.preIngest();
+        processor.execute(ingestDocument, (result, e) -> {
+            long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
+            metric.postIngest(ingestTimeInMillis);
+
+            if (e != null) {
+                metric.ingestFailed();
+                if (ignoreFailure) {
+                    innerExecute(currentProcessor + 1, ingestDocument, handler);
+                } else {
+                    ElasticsearchException compoundProcessorException =
+                        newCompoundProcessorException(e, processor.getType(), processor.getTag());
+                    if (onFailureProcessors.isEmpty()) {
+                        handler.accept(null, compoundProcessorException);
+                    } else {
+                        executeOnFailureAsync(0, ingestDocument, compoundProcessorException, handler);
                     }
-                } catch (Exception e) {
-                    throw newCompoundProcessorException(e, processor.getType(), processor.getTag());
+                }
+            } else {
+                if (result != null) {
+                    innerExecute(currentProcessor + 1, result, handler);
+                } else {
+                    handler.accept(null, null);
                 }
             }
-        } finally {
-            removeFailureMetadata(ingestDocument);
+        });
+    }
+
+    void executeOnFailureAsync(int currentOnFailureProcessor, IngestDocument ingestDocument, ElasticsearchException exception,
+                               BiConsumer<IngestDocument, Exception> handler) {
+        if (currentOnFailureProcessor == 0) {
+            putFailureMetadata(ingestDocument, exception);
         }
-        return true;
+
+        if (currentOnFailureProcessor == onFailureProcessors.size()) {
+            removeFailureMetadata(ingestDocument);
+            handler.accept(ingestDocument, null);
+            return;
+        }
+
+        final Processor onFailureProcessor = onFailureProcessors.get(currentOnFailureProcessor);
+        onFailureProcessor.execute(ingestDocument, (result, e) -> {
+            if (e != null) {
+                removeFailureMetadata(ingestDocument);
+                handler.accept(null, newCompoundProcessorException(e, onFailureProcessor.getType(), onFailureProcessor.getTag()));
+                return;
+            }
+            if (result == null) {
+                removeFailureMetadata(ingestDocument);
+                handler.accept(null, null);
+                return;
+            }
+            executeOnFailureAsync(currentOnFailureProcessor + 1, ingestDocument, exception, handler);
+        });
     }
 
     private void putFailureMetadata(IngestDocument ingestDocument, ElasticsearchException cause) {

@@ -29,7 +29,7 @@ not be included yet.
 * <<search, Search APIs>>
 * <<security-api,Security APIs>>
 * <<snapshot-lifecycle-management-api,Snapshot lifecycle management APIs>>
-* <<data-frame-apis,{transform-cap} APIs>>
+* <<transform-apis,{transform-cap} APIs>>
 * <<watcher-api,Watcher APIs>>
 --
 

@@ -148,13 +148,6 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
         return randomFrom(MonitoredSystem.LOGSTASH, MonitoredSystem.KIBANA, MonitoredSystem.BEATS);
     }
 
-    /**
-     * Returns a {@link String} representing a {@link MonitoredSystem} supported by the Monitoring Bulk API
-     */
-    private static String randomSystemId() {
-        return randomSystem().getSystem();
-    }
-
     private void prepareRequest(final RestRequest restRequest) throws Exception {
         final NodeClient client = mock(NodeClient.class);
         final CheckedConsumer<RestChannel, Exception> consumer = action.prepareRequest(restRequest, client);

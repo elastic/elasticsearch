@@ -236,6 +236,7 @@ CURRENT_TIME     |SCALAR
 CURRENT_TIMESTAMP|SCALAR
 CURTIME          |SCALAR
 DATEPART         |SCALAR
+DATETRUNC        |SCALAR
 DATE_PART        |SCALAR
 DATE_TRUNC       |SCALAR
 DAY              |SCALAR
@@ -2501,7 +2502,7 @@ SELECT DATE_TRUNC('millennium', '2019-09-04T11:22:33.123Z'::datetime) AS millenn
 
 truncateDateTimeWeek
 // tag::truncateDateTimeWeek
-SELECT DATE_TRUNC('week', '2019-08-24T11:22:33.123Z'::datetime) AS week;
+SELECT DATETRUNC('week', '2019-08-24T11:22:33.123Z'::datetime) AS week;
 
       week
 ------------------------
@@ -2533,7 +2534,7 @@ SELECT DATE_TRUNC('decade', CAST('2019-09-04' AS DATE)) AS decades;
 truncateDateQuarter
 schema::quarter:ts
 // tag::truncateDateQuarter
-SELECT DATE_TRUNC('quarters', CAST('2019-09-04' AS DATE)) AS quarter;
+SELECT DATETRUNC('quarters', CAST('2019-09-04' AS DATE)) AS quarter;
 
       quarter
 ------------------------

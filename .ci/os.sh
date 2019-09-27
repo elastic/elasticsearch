@@ -16,7 +16,7 @@ set -e
 RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
 BUILD_JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
 
-rm -Rfv $HOME/.gradle/init.d
+rm -Rfv $HOME/.gradle/init.d/init.gradle
 mkdir -p $HOME/.gradle/init.d
 cp -v .ci/init.gradle $HOME/.gradle/init.d
 # levarage the packar cache and init files when ran with root

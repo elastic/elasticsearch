@@ -67,10 +67,7 @@ class JavaDateFormatter implements DateFormatter {
         }
 
         private static DateTimeFormatter firstFrom(List<DateTimeFormatter> roundUpParsers) {
-            if(roundUpParsers != null && roundUpParsers.size()>0){
-                return roundUpParsers.get(0);
-            }
-            return null;
+            return roundUpParsers.get(0);
         }
 
         @Override

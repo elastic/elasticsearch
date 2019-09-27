@@ -47,11 +47,11 @@ public class JavaDateMathParser implements DateMathParser {
 
     private final JavaDateFormatter formatter;
     private final String format;
-    private JavaDateFormatter roundUpFormatter;
+    private final JavaDateFormatter roundupParser;
 
-    JavaDateMathParser(String format, JavaDateFormatter formatter, JavaDateFormatter roundUpFormatter) {
+    JavaDateMathParser(String format, JavaDateFormatter formatter, JavaDateFormatter roundupParser) {
         this.format = format;
-        this.roundUpFormatter = roundUpFormatter;
+        this.roundupParser = roundupParser;
         Objects.requireNonNull(formatter);
         this.formatter = formatter;
     }
@@ -215,7 +215,7 @@ public class JavaDateMathParser implements DateMathParser {
             throw new ElasticsearchParseException("cannot parse empty date");
         }
 
-        JavaDateFormatter formatter = roundUpIfNoTime ? this.roundUpFormatter : this.formatter;
+        DateFormatter formatter = roundUpIfNoTime ? this.roundupParser : this.formatter;
         try {
             if (timeZone == null) {
                 return DateFormatters.from(formatter.parse(value)).toInstant();

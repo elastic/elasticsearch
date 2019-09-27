@@ -1158,7 +1158,7 @@ public class DateFormatters {
                                       .withResolverStyle(ResolverStyle.STRICT));
 
     /*
-     * Returns a formatter for a four digit weekyear. (uuuu)
+     * Returns a formatter for a four digit year. (uuuu)
      */
     private static final DateFormatter YEAR = new JavaDateFormatter("year",
         new DateTimeFormatterBuilder().appendValue(ChronoField.YEAR).toFormatter(IsoLocale.ROOT)

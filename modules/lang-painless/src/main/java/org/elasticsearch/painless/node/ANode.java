@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -75,7 +76,7 @@ public abstract class ANode {
     /**
      * Writes ASM based on the data collected during the analysis phase.
      */
-    abstract void write(MethodWriter writer, Globals globals);
+    abstract void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals);
 
     /**
      * Create an error with location information pointing to this node.

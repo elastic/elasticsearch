@@ -133,12 +133,13 @@ import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
-import org.elasticsearch.xpack.core.transform.action.GetTransformsAction;
-import org.elasticsearch.xpack.core.transform.action.GetTransformsStatsAction;
+import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
+import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchAction;
@@ -1130,8 +1131,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         Role role = Role.builder(roleDescriptor, null).build();
         assertThat(role.cluster().check(DeleteTransformAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetTransformsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetTransformsStatsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetTransformAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetTransformStatsAction.NAME, request, authentication), is(true));
         assertThat(role.cluster().check(PreviewTransformAction.NAME, request, authentication), is(true));
         assertThat(role.cluster().check(PutTransformAction.NAME, request, authentication), is(true));
         assertThat(role.cluster().check(StartTransformAction.NAME, request, authentication), is(true));
@@ -1140,9 +1141,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
-        assertOnlyReadAllowed(role, ".data-frame-notifications-1");
+        assertOnlyReadAllowed(role, TransformInternalIndexConstants.AUDIT_INDEX);
         assertNoAccessAllowed(role, "foo");
-        assertNoAccessAllowed(role, ".data-frame-internal-1"); // internal use only
+        assertNoAccessAllowed(role, TransformInternalIndexConstants.LATEST_INDEX_NAME); // internal use only
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
 
@@ -1169,8 +1170,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         Role role = Role.builder(roleDescriptor, null).build();
         assertThat(role.cluster().check(DeleteTransformAction.NAME, request, authentication), is(false));
-        assertThat(role.cluster().check(GetTransformsAction.NAME, request, authentication), is(true));
-        assertThat(role.cluster().check(GetTransformsStatsAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetTransformAction.NAME, request, authentication), is(true));
+        assertThat(role.cluster().check(GetTransformStatsAction.NAME, request, authentication), is(true));
         assertThat(role.cluster().check(PreviewTransformAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(PutTransformAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(StartTransformAction.NAME, request, authentication), is(false));
@@ -1179,9 +1180,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
-        assertOnlyReadAllowed(role, ".data-frame-notifications-1");
+        assertOnlyReadAllowed(role, TransformInternalIndexConstants.AUDIT_INDEX);
         assertNoAccessAllowed(role, "foo");
-        assertNoAccessAllowed(role, ".data-frame-internal-1");
+        assertNoAccessAllowed(role, TransformInternalIndexConstants.LATEST_INDEX_NAME);
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
 

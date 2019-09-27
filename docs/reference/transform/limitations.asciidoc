@@ -1,6 +1,6 @@
 [role="xpack"]
-[[dataframe-limitations]]
-== {transform-cap} limitations
+[[transform-limitations]]
+=== {transform-cap} limitations
 [subs="attributes"]
 ++++
 <titleabbrev>Limitations</titleabbrev>
@@ -12,8 +12,8 @@ The following limitations and known problems apply to the 7.4 release of
 the Elastic {dataframe} feature:
 
 [float]
-[[df-compatibility-limitations]]
-=== Beta {transforms} do not have guaranteed backwards or forwards compatibility
+[[transform-compatibility-limitations]]
+==== Beta {transforms} do not have guaranteed backwards or forwards compatibility
 
 Whilst {transforms} are beta, it is not guaranteed that a 
 {transform} created in a previous version of the {stack} will be able 
@@ -25,8 +25,8 @@ destination index. This is a normal {es} index and is not affected by the beta
 status. 
 
 [float]
-[[df-ui-limitation]]
-=== {dataframe-cap} UI will not work during a rolling upgrade from 7.2
+[[transform-ui-limitation]]
+==== {dataframe-cap} UI will not work during a rolling upgrade from 7.2
 
 If your cluster contains mixed version nodes, for example during a rolling 
 upgrade from 7.2 to a newer version, and {transforms} have been 
@@ -35,22 +35,22 @@ have been upgraded to the newer version before using the {dataframe} UI.
 
 
 [float]
-[[df-datatype-limitations]]
-=== {dataframe-cap} data type limitation
+[[transform-datatype-limitations]]
+==== {dataframe-cap} data type limitation
 
 {dataframes-cap} do not (yet) support fields containing arrays – in the UI or 
 the API. If you try to create one, the UI will fail to show the source index 
 table.
 
 [float]
-[[df-ccs-limitations]]
-=== {ccs-cap} is not supported
+[[transform-ccs-limitations]]
+==== {ccs-cap} is not supported
 
 {ccs-cap} is not supported for {transforms}.
 
 [float]
-[[df-kibana-limitations]]
-=== Up to 1,000 {transforms} are supported
+[[transform-kibana-limitations]]
+==== Up to 1,000 {transforms} are supported
 
 A single cluster will support up to 1,000 {transforms}.
 When using the 
@@ -59,8 +59,8 @@ When using the
 enumerate through the full list.
 
 [float]
-[[df-aggresponse-limitations]]
-=== Aggregation responses may be incompatible with destination index mappings
+[[transform-aggresponse-limitations]]
+==== Aggregation responses may be incompatible with destination index mappings
 
 When a {transform} is first started, it will deduce the mappings 
 required for the destination index. This process is based on the field types of 
@@ -77,8 +77,8 @@ workaround, you may define custom mappings prior to starting the
 {ref}/indices-templates.html[define an index template].
 
 [float]
-[[df-batch-limitations]]
-=== Batch {transforms} may not account for changed documents
+[[transform-batch-limitations]]
+==== Batch {transforms} may not account for changed documents
 
 A batch {transform} uses a 
 {ref}/search-aggregations-bucket-composite-aggregation.html[composite aggregation]
@@ -88,8 +88,8 @@ do not yet support a search context, therefore if the source data is changed
 results may not include these changes.
 
 [float]
-[[df-consistency-limitations]]
-=== {cdataframe-cap} consistency does not account for deleted or updated documents
+[[transform-consistency-limitations]]
+==== {cdataframe-cap} consistency does not account for deleted or updated documents
 
 While the process for {transforms} allows the continual recalculation 
 of the {transform} as new data is being ingested, it does also have 
@@ -114,16 +114,16 @@ updated when viewing the {dataframe} destination index.
 
 
 [float]
-[[df-deletion-limitations]]
-=== Deleting a {transform} does not delete the {dataframe} destination index or {kib} index pattern
+[[transform-deletion-limitations]]
+==== Deleting a {transform} does not delete the {dataframe} destination index or {kib} index pattern
 
 When deleting a {transform} using `DELETE _data_frame/transforms/index` 
 neither the {dataframe} destination index nor the {kib} index pattern, should 
 one have been created, are deleted. These objects must be deleted separately.
 
 [float]
-[[df-aggregation-page-limitations]]
-=== Handling dynamic adjustment of aggregation page size
+[[transform-aggregation-page-limitations]]
+==== Handling dynamic adjustment of aggregation page size
 
 During the development of {transforms}, control was favoured over 
 performance. In the design considerations, it is preferred for the 
@@ -153,8 +153,8 @@ requested has been reduced to its minimum, then the {transform} will
 be set to a failed state.
 
 [float]
-[[df-dynamic-adjustments-limitations]]
-=== Handling dynamic adjustments for many terms
+[[transform-dynamic-adjustments-limitations]]
+==== Handling dynamic adjustments for many terms
 
 For each checkpoint, entities are identified that have changed since the last 
 time the check was performed. This list of changed entities is supplied as a 
@@ -176,8 +176,8 @@ Using smaller values for `max_page_search_size` may result in a longer duration
 for the {transform} checkpoint to complete.
 
 [float]
-[[df-scheduling-limitations]]
-=== {cdataframe-cap} scheduling limitations
+[[transform-scheduling-limitations]]
+==== {cdataframe-cap} scheduling limitations
 
 A {cdataframe} periodically checks for changes to source data. The functionality 
 of the scheduler is currently limited to a basic periodic timer which can be 
@@ -188,8 +188,8 @@ search/index operations has other users in your cluster. Also note that retries
 occur at `frequency` interval.
 
 [float]
-[[df-failed-limitations]]
-=== Handling of failed {transforms}
+[[transform-failed-limitations]]
+==== Handling of failed {transforms}
 
 Failed {transforms} remain as a persistent task and should be handled 
 appropriately, either by deleting it or by resolving the root cause of the 
@@ -199,8 +199,8 @@ When using the API to delete a failed {transform}, first stop it using
 `_stop?force=true`, then delete it.
 
 [float]
-[[df-availability-limitations]]
-=== {cdataframes-cap} may give incorrect results if documents are not yet available to search
+[[transform-availability-limitations]]
+==== {cdataframes-cap} may give incorrect results if documents are not yet available to search
 
 After a document is indexed, there is a very small delay until it is available 
 to search.

@@ -360,10 +360,6 @@ public class IndexCreationTaskTests extends ESTestCase {
             .numberOfReplicas(numReplicas);
     }
 
-    private Map<String, String> createCustom() {
-        return Collections.singletonMap("a", "b");
-    }
-
     private interface MetaDataBuilderConfigurator {
         void configure(IndexTemplateMetaData.Builder builder) throws IOException;
     }

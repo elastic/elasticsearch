@@ -23,6 +23,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.snapshots.SnapshotException;
+import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.slm.SnapshotInvocationRecord;
@@ -91,16 +93,32 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                 public void onResponse(CreateSnapshotResponse createSnapshotResponse) {
                     logger.debug("snapshot response for [{}]: {}",
                         policyMetadata.getPolicy().getId(), Strings.toString(createSnapshotResponse));
-                    final long timestamp = Instant.now().toEpochMilli();
-                    clusterService.submitStateUpdateTask("slm-record-success-" + policyMetadata.getPolicy().getId(),
-                        WriteJobStatus.success(policyMetadata.getPolicy().getId(), request.snapshot(), timestamp));
-                    historyStore.putAsync(SnapshotHistoryItem.creationSuccessRecord(timestamp, policyMetadata.getPolicy(),
-                        request.snapshot()));
+                    final SnapshotInfo snapInfo = createSnapshotResponse.getSnapshotInfo();
+
+                    // Check that there are no failed shards, since the request may not entirely
+                    // fail, but may still have failures (such as in the case of an aborted snapshot)
+                    if (snapInfo.failedShards() == 0) {
+                        final long timestamp = Instant.now().toEpochMilli();
+                        clusterService.submitStateUpdateTask("slm-record-success-" + policyMetadata.getPolicy().getId(),
+                            WriteJobStatus.success(policyMetadata.getPolicy().getId(), request.snapshot(), timestamp));
+                        historyStore.putAsync(SnapshotHistoryItem.creationSuccessRecord(timestamp, policyMetadata.getPolicy(),
+                            request.snapshot()));
+                    } else {
+                        int failures = snapInfo.failedShards();
+                        int total = snapInfo.totalShards();
+                        final SnapshotException e = new SnapshotException(request.repository(), request.snapshot(),
+                            "failed to create snapshot successfully, " + failures + " out of " + total + " total shards failed");
+                        // Add each failed shard's exception as suppressed, the exception contains
+                        // information about which shard failed
+                        snapInfo.shardFailures().forEach(failure -> e.addSuppressed(failure.getCause()));
+                        // Call the failure handler to register this as a failure and persist it
+                        onFailure(e);
+                    }
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error("failed to issue create snapshot request for snapshot lifecycle policy [{}]: {}",
+                    logger.error("failed to create snapshot for snapshot lifecycle policy [{}]: {}",
                         policyMetadata.getPolicy().getId(), e);
                     final long timestamp = Instant.now().toEpochMilli();
                     clusterService.submitStateUpdateTask("slm-record-failure-" + policyMetadata.getPolicy().getId(),

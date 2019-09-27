@@ -154,6 +154,11 @@ public class GatewayAllocator {
     private void ensureAsyncFetchStorePrimaryRecency(RoutingAllocation allocation) {
         DiscoveryNodes nodes = allocation.nodes();
         if (hasNewNodes(nodes, lastDataNodes)) {
+            // Invalidate the cache if a data node has been added to the cluster. This ensures that we do not cancel a recovery if a node
+            // drops out, we fetch the shard data, then some indexing happens and then the node rejoins the cluster again. There are other
+            // ways we could decide to cancel a recovery based on stale data (e.g. changing allocation filters or a primary failure) but
+            // making the wrong decision here is not catastrophic so we only need to cover the common case.
+            logger.trace("new node {} found, clearing primary async-fetch-store cache", node);
             asyncFetchStore.values().forEach(fetch -> clearCacheForPrimary(fetch, allocation));
             // recalc to also (lazily) clear out old nodes.
             Set<String> newDataNodes = new HashSet<>(nodes.getDataNodes().size());

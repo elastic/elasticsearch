@@ -123,4 +123,11 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
     public void testCleanup() throws Exception {
         super.testCleanup();
     }
+
+    // override here to mute only for Azure, please remove this overload when un-muting
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47202")
+    @Override
+    public void testListChildren() throws Exception {
+        super.testListChildren();
+    }
 }

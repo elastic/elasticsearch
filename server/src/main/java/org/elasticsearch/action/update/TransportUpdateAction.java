@@ -237,7 +237,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 if (indexServiceOrNull !=  null) {
                     IndexShard shard = indexService.getShardOrNull(shardId.getId());
                     if (shard != null) {
-                        shard.noopUpdate(request.type());
+                        shard.noopUpdate();
                     }
                 }
                 listener.onResponse(update);

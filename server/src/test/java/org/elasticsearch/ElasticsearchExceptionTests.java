@@ -57,7 +57,6 @@ import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.transport.RemoteTransportException;
 
 import java.io.EOFException;
@@ -73,6 +72,7 @@ import java.util.Map;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.test.TestSearchContext.SHARD_TARGET;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.hasItems;
@@ -307,7 +307,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                     "\"caused_by\":{\"type\":\"illegal_argument_exception\",\"reason\":\"foo\"}}");
         }
         {
-            ElasticsearchException e = new SearchParseException(new TestSearchContext(null), "foo", new XContentLocation(1,0));
+            ElasticsearchException e = new SearchParseException(SHARD_TARGET, "foo", new XContentLocation(1,0));
             assertExceptionAsJson(e, "{\"type\":\"search_parse_exception\",\"reason\":\"foo\",\"line\":1,\"col\":0}");
         }
         {
@@ -927,7 +927,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 expected = new ElasticsearchException("Elasticsearch exception [type=parsing_exception, reason=Unknown identifier]");
                 break;
             case 2:
-                actual = new SearchParseException(new TestSearchContext(null), "Parse failure", new XContentLocation(12, 98));
+                actual = new SearchParseException(SHARD_TARGET, "Parse failure", new XContentLocation(12, 98));
                 expected = new ElasticsearchException("Elasticsearch exception [type=search_parse_exception, reason=Parse failure]");
                 break;
             case 3:

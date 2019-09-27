@@ -520,16 +520,9 @@ public class SearchContext extends AbstractRefCounted implements Releasable {
     }
 
     /**
-     * The query to execute, in its rewritten form.
+     * The query to execute.
      */
     public Query query() {
-        return query(true);
-    }
-
-    private Query query(boolean rewrite) {
-        if (rewrite) {
-            rewriteQuery();
-        }
         return query;
     }
 
@@ -779,7 +772,7 @@ public class SearchContext extends AbstractRefCounted implements Releasable {
                 result.append("scroll=[null]");
             }
         }
-        result.append(" query=[").append(query(false)).append("]");
+        result.append(" query=[").append(query()).append("]");
         return result.toString();
     }
 

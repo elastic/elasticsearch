@@ -843,7 +843,7 @@ public class SearchContext extends AbstractRefCounted implements Releasable {
          * @param relativeTimeSupplier The relative time supplier to use for timers.
          * @param source The original source builder.
          *
-         * @warning This constructor does not parse the provided {@link SearchSourceBuilder}, it is only used
+         * WARNING: This constructor does not parse the provided {@link SearchSourceBuilder}, it is only used
          * as the original source for logging/debug purpose.
          */
         public Builder(long id,

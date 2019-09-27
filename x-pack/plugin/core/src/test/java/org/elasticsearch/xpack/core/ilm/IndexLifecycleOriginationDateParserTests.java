@@ -6,18 +6,18 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.test.ESTestCase;
 
 import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Locale;
-import java.util.TimeZone;
 
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.parseIndexNameAndExtractDate;
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.shouldParseIndexName;
 import static org.hamcrest.Matchers.is;
 
 public class IndexLifecycleOriginationDateParserTests extends ESTestCase {
+
+    private static final DateFormatter dateFormatter = DateFormatter.forPattern("yyyy.MM.dd");
 
     public void testShouldParseIndexNameReturnsFalseWhenOriginationDateIsSet() {
         Settings settings = Settings.builder()
@@ -41,10 +41,7 @@ public class IndexLifecycleOriginationDateParserTests extends ESTestCase {
     }
 
     public void testParseIndexNameThatMatchesExpectedFormat() throws ParseException {
-        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy.MM.dd", Locale.getDefault());
-        dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
-        long expectedDate = dateFormat.parse("2019.09.04").getTime();
-
+        long expectedDate = dateFormatter.parseMillis("2019.09.04");
         {
             long parsedDate = parseIndexNameAndExtractDate("indexName-2019.09.04");
             assertThat("indexName-yyyy.MM.dd is a valid index format", parsedDate, is(expectedDate));
@@ -57,14 +54,14 @@ public class IndexLifecycleOriginationDateParserTests extends ESTestCase {
 
         {
             long parsedDate = parseIndexNameAndExtractDate("indexName-2019.09.04-2019.09.24");
-            long secondDateInIndexName = dateFormat.parse("2019.09.24").getTime();
+            long secondDateInIndexName = dateFormatter.parseMillis("2019.09.24");
             assertThat("indexName-yyyy.MM.dd-yyyy.MM.dd is a valid index format and the second date should be parsed",
                 parsedDate, is(secondDateInIndexName));
         }
 
         {
             long parsedDate = parseIndexNameAndExtractDate("index-2019.09.04-2019.09.24-00002");
-            long secondDateInIndexName = dateFormat.parse("2019.09.24").getTime();
+            long secondDateInIndexName = dateFormatter.parseMillis("2019.09.24");
             assertThat("indexName-yyyy.MM.dd-yyyy.MM.dd-digits is a valid index format and the second date should be parsed",
                 parsedDate, is(secondDateInIndexName));
         }

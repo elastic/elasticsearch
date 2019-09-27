@@ -172,9 +172,10 @@ public class AnalyticsProcessManager {
         process.writeRecord(headerRecord);
     }
 
-    private AnalyticsProcess<AnalyticsResult> createProcess(DataFrameAnalyticsTask task, AnalyticsProcessConfig analyticsProcessConfig) {
+    private AnalyticsProcess<AnalyticsResult> createProcess(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config,
+                                                            AnalyticsProcessConfig analyticsProcessConfig) {
         ExecutorService executorService = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
-        AnalyticsProcess<AnalyticsResult> process = processFactory.createAnalyticsProcess(task.getParams().getId(), analyticsProcessConfig,
+        AnalyticsProcess<AnalyticsResult> process = processFactory.createAnalyticsProcess(config, analyticsProcessConfig,
             executorService, onProcessCrash(task));
         if (process.isProcessAlive() == false) {
             throw ExceptionsHelper.serverError("Failed to start data frame analytics process");
@@ -289,7 +290,7 @@ public class AnalyticsProcessManager {
                 LOGGER.info("[{}] no data found to analyze. Will not start analytics native process.", config.getId());
                 return false;
             }
-            process = createProcess(task, analyticsProcessConfig);
+            process = createProcess(task, config, analyticsProcessConfig);
             DataFrameRowsJoiner dataFrameRowsJoiner = new DataFrameRowsJoiner(config.getId(), client,
                 dataExtractorFactory.newExtractor(true));
             resultProcessor = new AnalyticsResultProcessor(id, dataFrameRowsJoiner, this::isProcessKilled, task.getProgressTracker());
@@ -299,7 +300,7 @@ public class AnalyticsProcessManager {
         private AnalyticsProcessConfig createProcessConfig(DataFrameAnalyticsConfig config, DataFrameDataExtractor dataExtractor) {
             DataFrameDataExtractor.DataSummary dataSummary = dataExtractor.collectDataSummary();
             Set<String> categoricalFields = dataExtractor.getCategoricalFields();
-            AnalyticsProcessConfig processConfig = new AnalyticsProcessConfig(dataSummary.rows, dataSummary.cols,
+            AnalyticsProcessConfig processConfig = new AnalyticsProcessConfig(config.getId(), dataSummary.rows, dataSummary.cols,
                 config.getModelMemoryLimit(), 1, config.getDest().getResultsField(), categoricalFields, config.getAnalysis());
             return processConfig;
         }

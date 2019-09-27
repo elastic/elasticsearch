@@ -13,7 +13,7 @@ dependencies {
     }
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
 }
-testFixtures.useFixture ":x-pack:test:idp-fixture"
+testFixtures.useFixture ":x-pack:test:idp-fixture", "oidc-provider"
 
 String ephemeralPort;
 task setupPorts {

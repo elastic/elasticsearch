@@ -115,6 +115,13 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         assertProgress(id, 100, 100, 100, 100);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
+        assertThatAuditMessagesMatch(id,
+            "Created analytics with analysis type [outlier_detection]",
+            "Estimated memory usage for this analytics to be",
+            "Started analytics",
+            "Creating destination index [test-outlier-detection-with-few-docs-results]",
+            "Finished reindexing to destination index [test-outlier-detection-with-few-docs-results]",
+            "Finished analysis");
     }
 
     public void testOutlierDetectionWithEnoughDocumentsToScroll() throws Exception {
@@ -162,6 +169,13 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         assertProgress(id, 100, 100, 100, 100);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
+        assertThatAuditMessagesMatch(id,
+            "Created analytics with analysis type [outlier_detection]",
+            "Estimated memory usage for this analytics to be",
+            "Started analytics",
+            "Creating destination index [test-outlier-detection-with-enough-docs-to-scroll-results]",
+            "Finished reindexing to destination index [test-outlier-detection-with-enough-docs-to-scroll-results]",
+            "Finished analysis");
     }
 
     public void testOutlierDetectionWithMoreFieldsThanDocValueFieldLimit() throws Exception {
@@ -234,9 +248,16 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         assertProgress(id, 100, 100, 100, 100);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
+        assertThatAuditMessagesMatch(id,
+            "Created analytics with analysis type [outlier_detection]",
+            "Estimated memory usage for this analytics to be",
+            "Started analytics",
+            "Creating destination index [test-outlier-detection-with-more-fields-than-docvalue-limit-results]",
+            "Finished reindexing to destination index [test-outlier-detection-with-more-fields-than-docvalue-limit-results]",
+            "Finished analysis");
     }
 
-    public void testStopOutlierDetectionWithEnoughDocumentsToScroll() {
+    public void testStopOutlierDetectionWithEnoughDocumentsToScroll() throws Exception {
         String sourceIndex = "test-stop-outlier-detection-with-enough-docs-to-scroll";
 
         client().admin().indices().prepareCreate(sourceIndex)
@@ -284,6 +305,13 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         } else {
             logger.debug("We stopped during reindexing: [{}] < [{}]", searchResponse.getHits().getTotalHits().value, docCount);
         }
+
+        assertThatAuditMessagesMatch(id,
+            "Created analytics with analysis type [outlier_detection]",
+            "Estimated memory usage for this analytics to be",
+            "Started analytics",
+            "Creating destination index [test-stop-outlier-detection-with-enough-docs-to-scroll-results]",
+            "Stopped analytics");
     }
 
     public void testOutlierDetectionWithMultipleSourceIndices() throws Exception {
@@ -338,6 +366,13 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         assertProgress(id, 100, 100, 100, 100);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
+        assertThatAuditMessagesMatch(id,
+            "Created analytics with analysis type [outlier_detection]",
+            "Estimated memory usage for this analytics to be",
+            "Started analytics",
+            "Creating destination index [test-outlier-detection-with-multiple-source-indices-results]",
+            "Finished reindexing to destination index [test-outlier-detection-with-multiple-source-indices-results]",
+            "Finished analysis");
     }
 
     public void testOutlierDetectionWithPreExistingDestIndex() throws Exception {
@@ -388,9 +423,16 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         assertProgress(id, 100, 100, 100, 100);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
+        assertThatAuditMessagesMatch(id,
+            "Created analytics with analysis type [outlier_detection]",
+            "Estimated memory usage for this analytics to be",
+            "Started analytics",
+            "Using existing destination index [test-outlier-detection-with-pre-existing-dest-index-results]",
+            "Finished reindexing to destination index [test-outlier-detection-with-pre-existing-dest-index-results]",
+            "Finished analysis");
     }
 
-    public void testModelMemoryLimitLowerThanEstimatedMemoryUsage() {
+    public void testModelMemoryLimitLowerThanEstimatedMemoryUsage() throws Exception {
         String sourceIndex = "test-model-memory-limit";
 
         client().admin().indices().prepareCreate(sourceIndex)
@@ -429,5 +471,9 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             exception.getMessage(),
             startsWith("Cannot start because the configured model memory limit [" + modelMemoryLimit +
                 "] is lower than the expected memory usage"));
+
+        assertThatAuditMessagesMatch(id,
+            "Created analytics with analysis type [outlier_detection]",
+            "Estimated memory usage for this analytics to be");
     }
 }

@@ -23,7 +23,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
@@ -53,7 +52,6 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -78,7 +76,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
     private static final Logger logger = LogManager.getLogger(RemoteClusterConnection.class);
 
     private final TransportService transportService;
-    private final ConnectionManager connectionManager;
+    private final RemoteConnectionManager remoteConnectionManager;
     private final String clusterAlias;
     private final int maxNumRemoteConnections;
     private final Predicate<DiscoveryNode> nodePredicate;
@@ -116,7 +114,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
         this.maxNumRemoteConnections = maxNumRemoteConnections;
         this.nodePredicate = nodePredicate;
         this.clusterAlias = clusterAlias;
-        this.connectionManager = connectionManager;
+        this.remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
         this.seedNodes = Collections.unmodifiableList(seedNodes);
         this.skipUnavailable = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE
             .getConcreteSettingForNamespace(clusterAlias).get(settings);
@@ -168,8 +166,8 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
     }
 
     @Override
-    public void onNodeDisconnected(DiscoveryNode node) {
-        if (connectionManager.size() < maxNumRemoteConnections) {
+    public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+        if (remoteConnectionManager.size() < maxNumRemoteConnections) {
             // try to reconnect and fill up the slot of the disconnected node
             connectHandler.connect(ActionListener.wrap(
                 ignore -> logger.trace("successfully connected after disconnect of {}", node),
@@ -182,7 +180,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
      * will invoke the listener immediately.
      */
     void ensureConnected(ActionListener<Void> voidActionListener) {
-        if (connectionManager.size() == 0) {
+        if (remoteConnectionManager.size() == 0) {
             connectHandler.connect(voidActionListener);
         } else {
             voidActionListener.onResponse(null);
@@ -211,8 +209,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                 request.clear();
                 request.nodes(true);
                 request.local(true); // run this on the node that gets the request it's as good as any other
-                final DiscoveryNode node = getAnyConnectedNode();
-                Transport.Connection connection = connectionManager.getConnection(node);
+                Transport.Connection connection = remoteConnectionManager.getAnyRemoteConnection();
                 transportService.sendRequest(connection, ClusterStateAction.NAME, request, TransportRequestOptions.EMPTY,
                     new TransportResponseHandler<ClusterStateResponse>() {
 
@@ -256,12 +253,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
      * If such node is not connected, the returned connection will be a proxy connection that redirects to it.
      */
     Transport.Connection getConnection(DiscoveryNode remoteClusterNode) {
-        if (connectionManager.nodeConnected(remoteClusterNode)) {
-            return connectionManager.getConnection(remoteClusterNode);
-        }
-        DiscoveryNode discoveryNode = getAnyConnectedNode();
-        Transport.Connection connection = connectionManager.getConnection(discoveryNode);
-        return new ProxyConnection(connection, remoteClusterNode);
+        return remoteConnectionManager.getRemoteConnection(remoteClusterNode);
     }
 
     private Predicate<ClusterName> getRemoteClusterNamePredicate() {
@@ -280,65 +272,17 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
             };
     }
 
-
-    static final class ProxyConnection implements Transport.Connection {
-        private final Transport.Connection proxyConnection;
-        private final DiscoveryNode targetNode;
-
-        private ProxyConnection(Transport.Connection proxyConnection, DiscoveryNode targetNode) {
-            this.proxyConnection = proxyConnection;
-            this.targetNode = targetNode;
-        }
-
-        @Override
-        public DiscoveryNode getNode() {
-            return targetNode;
-        }
-
-        @Override
-        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-                throws IOException, TransportException {
-            proxyConnection.sendRequest(requestId, TransportActionProxy.getProxyAction(action),
-                    TransportActionProxy.wrapRequest(targetNode, request), options);
-        }
-
-        @Override
-        public void close() {
-            assert false: "proxy connections must not be closed";
-        }
-
-        @Override
-        public void addCloseListener(ActionListener<Void> listener) {
-            proxyConnection.addCloseListener(listener);
-        }
-
-        @Override
-        public boolean isClosed() {
-            return proxyConnection.isClosed();
-        }
-
-        @Override
-        public Version getVersion() {
-            return proxyConnection.getVersion();
-        }
-    }
-
     Transport.Connection getConnection() {
-        return connectionManager.getConnection(getAnyConnectedNode());
+        return remoteConnectionManager.getAnyRemoteConnection();
     }
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(connectHandler);
-        connectionManager.closeNoBlock();
+        IOUtils.close(connectHandler, remoteConnectionManager);
     }
 
     public boolean isClosed() {
         return connectHandler.isClosed();
-    }
-
-    public String getProxyAddress() {
-        return proxyAddress;
     }
 
     public List<Tuple<String, Supplier<DiscoveryNode>>> getSeedNodes() {
@@ -456,14 +400,14 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                 final ConnectionProfile profile = ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG);
                 final StepListener<Transport.Connection> openConnectionStep = new StepListener<>();
                 try {
-                    connectionManager.openConnection(seedNode, profile, openConnectionStep);
+                    remoteConnectionManager.openConnection(seedNode, profile, openConnectionStep);
                 } catch (Exception e) {
                     onFailure.accept(e);
                 }
 
                 final StepListener<TransportService.HandshakeResponse> handShakeStep = new StepListener<>();
                 openConnectionStep.whenComplete(connection -> {
-                    ConnectionProfile connectionProfile = connectionManager.getConnectionProfile();
+                    ConnectionProfile connectionProfile = remoteConnectionManager.getConnectionManager().getConnectionProfile();
                     transportService.handshake(connection, connectionProfile.getHandshakeTimeout().millis(),
                         getRemoteClusterNamePredicate(), handShakeStep);
                 }, onFailure);
@@ -472,8 +416,8 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
                 handShakeStep.whenComplete(handshakeResponse -> {
                     final DiscoveryNode handshakeNode = maybeAddProxyAddress(proxyAddress, handshakeResponse.getDiscoveryNode());
 
-                    if (nodePredicate.test(handshakeNode) && connectionManager.size() < maxNumRemoteConnections) {
-                        connectionManager.connectToNode(handshakeNode, null,
+                    if (nodePredicate.test(handshakeNode) && remoteConnectionManager.size() < maxNumRemoteConnections) {
+                        remoteConnectionManager.connectToNode(handshakeNode, null,
                             transportService.connectionValidator(handshakeNode), fullConnectionStep);
                     } else {
                         fullConnectionStep.onResponse(null);
@@ -565,8 +509,8 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
             private void handleNodes(Iterator<DiscoveryNode> nodesIter) {
                 while (nodesIter.hasNext()) {
                     final DiscoveryNode node = maybeAddProxyAddress(proxyAddress, nodesIter.next());
-                    if (nodePredicate.test(node) && connectionManager.size() < maxNumRemoteConnections) {
-                        connectionManager.connectToNode(node, null,
+                    if (nodePredicate.test(node) && remoteConnectionManager.size() < maxNumRemoteConnections) {
+                        remoteConnectionManager.connectToNode(node, null,
                             transportService.connectionValidator(node), new ActionListener<>() {
                                 @Override
                                 public void onResponse(Void aVoid) {
@@ -625,20 +569,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
     }
 
     boolean isNodeConnected(final DiscoveryNode node) {
-        return connectionManager.nodeConnected(node);
-    }
-
-    private final AtomicLong nextNodeId = new AtomicLong();
-
-    DiscoveryNode getAnyConnectedNode() {
-        List<DiscoveryNode> nodes = new ArrayList<>(connectionManager.connectedNodes());
-        if (nodes.isEmpty()) {
-            throw new NoSuchRemoteClusterException(clusterAlias);
-        } else {
-            long curr;
-            while ((curr = nextNodeId.incrementAndGet()) == Long.MIN_VALUE);
-            return nodes.get(Math.floorMod(curr, nodes.size()));
-        }
+        return remoteConnectionManager.getConnectionManager().nodeConnected(node);
     }
 
     /**
@@ -655,7 +586,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
     }
 
     int getNumNodesConnected() {
-        return connectionManager.size();
+        return remoteConnectionManager.size();
     }
 
     private static ConnectionManager createConnectionManager(ConnectionProfile connectionProfile, TransportService transportService) {
@@ -663,6 +594,6 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
     }
 
     ConnectionManager getConnectionManager() {
-        return connectionManager;
+        return remoteConnectionManager.getConnectionManager();
     }
 }

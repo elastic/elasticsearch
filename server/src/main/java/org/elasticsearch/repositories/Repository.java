@@ -209,7 +209,7 @@ public interface Repository extends LifecycleComponent {
      * @param listener            listener invoked on completion
      */
     void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                       IndexShardSnapshotStatus snapshotStatus, ActionListener<Void> listener);
+                       IndexShardSnapshotStatus snapshotStatus, ActionListener<String> listener);
 
     /**
      * Restores snapshot of the shard.

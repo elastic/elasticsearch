@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[rollup-getting-started]]
-== Getting Started
+=== Getting started with {rollups}
+++++
+<titleabbrev>Getting started</titleabbrev>
+++++
 
 experimental[]
 
@@ -23,7 +26,7 @@ look like this:
 // NOTCONSOLE
 
 [float]
-=== Creating a Rollup Job
+==== Creating a rollup job
 
 We'd like to rollup these documents into hourly summaries, which will allow us to generate reports and dashboards with any time interval
 one hour or greater.  A rollup job might look like this:
@@ -103,7 +106,7 @@ After you execute the above command and create the job, you'll receive the follo
 ----
 
 [float]
-=== Starting the job
+==== Starting the job
 
 After the job is created, it will be sitting in an inactive state.  Jobs need to be started before they begin processing data (this allows
 you to stop them later as a way to temporarily pause, without deleting the configuration).
@@ -117,7 +120,7 @@ POST _rollup/job/sensor/_start
 // TEST[setup:sensor_rollup_job]
 
 [float]
-=== Searching the Rolled results
+==== Searching the rolled results
 
 After the job has run and processed some data, we can use the <<rollup-search>> endpoint to do some searching.  The Rollup feature is designed
 so that you can use the same Query DSL syntax that you are accustomed to... it just happens to run on the rolled up data instead.
@@ -292,7 +295,7 @@ In addition to being more complicated (date histogram and a terms aggregation, p
 the date_histogram uses a `7d` interval instead of `60m`.
 
 [float]
-=== Conclusion
+==== Conclusion
 
 This quickstart should have provided a concise overview of the core functionality that Rollup exposes.  There are more tips and things
 to consider when setting up Rollups, which you can find throughout the rest of this section.  You may also explore the <<rollup-api-quickref,REST API>>

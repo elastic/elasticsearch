@@ -243,7 +243,6 @@ The output from the above is:
     "hits": [
       {
         "_index": "my_index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.2876821,
         "_source": {

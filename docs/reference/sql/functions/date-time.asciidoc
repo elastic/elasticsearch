@@ -269,7 +269,7 @@ DATE_TRUNC(
 .Description:
 
 Truncate the date/datetime to the specified unit by setting all fields that are less significant than the specified
-one to zero (or one, for day, day of week and month).
+one to zero (or one, for day, day of week and month). If any of the two arguments is `null` a `null` is returned.
 
 [cols="^,^"]
 |===

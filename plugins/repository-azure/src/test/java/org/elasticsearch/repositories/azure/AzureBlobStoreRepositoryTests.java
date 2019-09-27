@@ -171,7 +171,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                 } else if (Regex.simpleMatch("HEAD /container/*", request)) {
                     final BytesReference blob = blobs.get(exchange.getRequestURI().getPath());
                     if (blob == null) {
-                        exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                        TestUtils.sendError(exchange, RestStatus.NOT_FOUND);
                         return;
                     }
                     exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(blob.length()));
@@ -181,7 +181,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                 } else if (Regex.simpleMatch("GET /container/*", request)) {
                     final BytesReference blob = blobs.get(exchange.getRequestURI().getPath());
                     if (blob == null) {
-                        exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                        TestUtils.sendError(exchange, RestStatus.NOT_FOUND);
                         return;
                     }
 
@@ -228,7 +228,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                     exchange.getResponseBody().write(response);
 
                 } else {
-                    exchange.sendResponseHeaders(RestStatus.BAD_REQUEST.getStatus(), -1);
+                    TestUtils.sendError(exchange, RestStatus.BAD_REQUEST);
                 }
             } finally {
                 exchange.close();
@@ -247,6 +247,13 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
 
         AzureErroneousHttpHandler(final HttpHandler delegate, final int maxErrorsPerRequest) {
             super(delegate, maxErrorsPerRequest);
+        }
+
+        @Override
+        protected void handleAsError(final HttpExchange exchange) throws IOException {
+            Streams.readFully(exchange.getRequestBody());
+            TestUtils.sendError(exchange, randomFrom(RestStatus.INTERNAL_SERVER_ERROR, RestStatus.SERVICE_UNAVAILABLE));
+            exchange.close();
         }
 
         @Override

@@ -2445,6 +2445,26 @@ SELECT DATE_PART('mi', '2019-09-04T11:22:33.123Z'::datetime) AS mins;
 // end::datePartDateTimeMinutes
 ;
 
+datePartDateTimeTzOffsetPlus-Ignore
+// tag::datePartDateTimeTzOffsetPlus
+SELECT DATE_PART('tzoffset', '2019-09-04T11:22:33.123+05:15'::datetime) AS tz_mins;
+
+   tz_mins
+--------------
+315
+// end::datePartDateTimeTzOffsetPlus
+;
+
+datePartDateTimeTzOffsetMinus-Ignore
+// tag::datePartDateTimeTzOffsetMinus
+SELECT DATE_PART('tzoffset', '2019-09-04T11:22:33.123-03:49'::datetime) AS tz_mins;
+
+   tz_mins
+--------------
+-229
+// end::datePartDateTimeTzOffsetMinus
+;
+
 datePartDateQuarter
 // tag::datePartDateQuarter
 SELECT DATE_PART('quarters', CAST('2019-09-24' AS DATE)) AS quarter;

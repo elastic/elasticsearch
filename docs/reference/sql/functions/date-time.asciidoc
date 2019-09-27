@@ -329,6 +329,16 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[datePartDateTimeWeek]
 [NOTE]
 The `tzoffset` returns the total number of minutes (signed) that represent the time zone's offset.
 
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[datePartDateTimeTzOffsetPlus]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[datePartDateTimeTzOffsetMinus]
+--------------------------------------------------
+
 [[sql-functions-datetime-trunc]]
 ==== `DATE_TRUNC`
 

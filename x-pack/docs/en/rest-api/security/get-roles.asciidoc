@@ -15,8 +15,9 @@ Retrieves roles in the native realm.
 
 ==== Description
 
-For more information about the native realm, see 
-{stack-ov}/realms.html[Realms] and <<configuring-native-realm>>. 
+The role management APIs are generally the preferred way to manage roles, rather than using
+{stack-ov}/defining-roles.html#roles-management-file[file-based role management]. The get roles
+API cannot retrieve roles that are defined in roles files.
 
 ==== Path Parameters
 

@@ -120,7 +120,7 @@ public class AucRoc implements SoftClassificationMetric {
     @Override
     public List<AggregationBuilder> aggs(String actualField, List<ClassInfo> classInfos) {
         if (result != null) {
-            return List.of();
+            return Arrays.asList();
         }
         double[] percentiles = IntStream.range(1, 100).mapToDouble(v -> (double) v).toArray();
         List<AggregationBuilder> aggs = new ArrayList<>();

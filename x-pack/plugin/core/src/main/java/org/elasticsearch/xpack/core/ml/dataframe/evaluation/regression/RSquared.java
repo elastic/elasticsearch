@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResu
 
 import java.io.IOException;
 import java.text.MessageFormat;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -67,9 +68,9 @@ public class RSquared implements RegressionMetric {
     @Override
     public List<AggregationBuilder> aggs(String actualField, String predictedField) {
         if (result != null) {
-            return List.of();
+            return Arrays.asList();
         }
-        return List.of(
+        return Arrays.asList(
             AggregationBuilders.sum(SS_RES).script(new Script(buildScript(actualField, predictedField))),
             AggregationBuilders.extendedStats(ExtendedStatsAggregationBuilder.NAME + "_actual").field(actualField));
     }

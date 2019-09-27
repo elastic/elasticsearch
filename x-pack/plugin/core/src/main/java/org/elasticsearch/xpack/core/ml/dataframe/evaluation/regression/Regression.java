@@ -108,7 +108,8 @@ public class Regression implements Evaluation {
     @Override
     public SearchSourceBuilder buildSearch(QueryBuilder userProvidedQueryBuilder) {
         ExceptionsHelper.requireNonNull(userProvidedQueryBuilder, "userProvidedQueryBuilder");
-        SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder(List.of(actualField, predictedField), userProvidedQueryBuilder);
+        SearchSourceBuilder searchSourceBuilder =
+            newSearchSourceBuilder(Arrays.asList(actualField, predictedField), userProvidedQueryBuilder);
         for (RegressionMetric metric : metrics) {
             List<AggregationBuilder> aggs = metric.aggs(actualField, predictedField);
             aggs.forEach(searchSourceBuilder::aggregation);

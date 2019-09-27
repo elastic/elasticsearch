@@ -157,7 +157,7 @@ public class BinarySoftClassification implements Evaluation {
     public SearchSourceBuilder buildSearch(QueryBuilder userProvidedQueryBuilder) {
         ExceptionsHelper.requireNonNull(userProvidedQueryBuilder, "userProvidedQueryBuilder");
         SearchSourceBuilder searchSourceBuilder =
-            newSearchSourceBuilder(List.of(actualField, predictedProbabilityField), userProvidedQueryBuilder);
+            newSearchSourceBuilder(Arrays.asList(actualField, predictedProbabilityField), userProvidedQueryBuilder);
         BinaryClassInfo binaryClassInfo = new BinaryClassInfo();
         for (SoftClassificationMetric metric : metrics) {
             List<AggregationBuilder> aggs = metric.aggs(actualField, Collections.singletonList(binaryClassInfo));

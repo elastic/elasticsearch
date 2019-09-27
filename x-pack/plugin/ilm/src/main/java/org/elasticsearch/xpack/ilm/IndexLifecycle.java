@@ -146,7 +146,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING,
             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING,
             LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING,
-            LifecycleSettings.SLM_RETENTION_SCHEDULE_SETTING);
+            LifecycleSettings.SLM_RETENTION_SCHEDULE_SETTING,
+            LifecycleSettings.SLM_RETENTION_DURATION_SETTING);
     }
 
     @Override

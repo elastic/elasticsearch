@@ -87,8 +87,8 @@ public final class SearchSlowLog implements SearchOperationListener {
 
     public SearchSlowLog(IndexSettings indexSettings) {
 
-        this.queryLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
-        this.fetchLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");
+        this.queryLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query." + indexSettings.getUUID());
+        this.fetchLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch." + indexSettings.getUUID());
 
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING,
             this::setQueryWarnThreshold);

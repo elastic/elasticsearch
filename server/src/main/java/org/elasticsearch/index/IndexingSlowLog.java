@@ -94,7 +94,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             }, Property.Dynamic, Property.IndexScope);
 
     IndexingSlowLog(IndexSettings indexSettings) {
-        this.indexLogger = LogManager.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index");
+        this.indexLogger = LogManager.getLogger(INDEX_INDEXING_SLOWLOG_PREFIX + ".index." + indexSettings.getUUID());
         this.index = indexSettings.getIndex();
 
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING, this::setReformat);

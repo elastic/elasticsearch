@@ -130,8 +130,10 @@ public class Shell {
         final Path stdOut;
         final Path stdErr;
         try {
-            stdOut = Files.createTempFile(Paths.get(System.getProperty("java.io.tmpdir")), getClass().getName(), ".out");
-            stdErr = Files.createTempFile(Paths.get(System.getProperty("java.io.tmpdir")), getClass().getName(), ".err");
+            Path tmpDir = Paths.get(System.getProperty("java.io.tmpdir"));
+            Files.createDirectories(tmpDir);
+            stdOut = Files.createTempFile(tmpDir, getClass().getName(), ".out");
+            stdErr = Files.createTempFile(tmpDir, getClass().getName(), ".err");
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -171,9 +173,9 @@ public class Shell {
         }
     }
 
-    private String readFileIfExists(Path stdOut) throws IOException {
-        if (Files.exists(stdOut)) {
-            return Files.readString(stdOut, StandardCharsets.UTF_8);
+    private String readFileIfExists(Path path) throws IOException {
+        if (Files.exists(path)) {
+            return Files.readString(path, StandardCharsets.UTF_8);
         } else {
             return "";
         }

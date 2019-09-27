@@ -401,6 +401,12 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         assertThat(newIndex.get("_index"), equalTo(expectedMonitoringIndex));
     }
 
+    public void testInvalidConfig() {
+        //bad config could result in cluster state not applying properly see: https://github.com/elastic/elasticsearch/issues/47125
+        client().admin().cluster().prepareUpdateSettings()
+            .setTransientSettings(Collections.singletonMap("xpack.monitoring.exporters.foo.use_ingest", true)).execute().actionGet(5000);
+    }
+
     private void assertMonitorVersion(final MockWebServer webServer) throws Exception {
         assertMonitorVersion(webServer, null, null);
     }

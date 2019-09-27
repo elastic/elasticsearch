@@ -68,8 +68,13 @@ public class Exporters extends AbstractLifecycleComponent {
 
     private void setExportersSetting(Settings exportersSetting) {
         if (this.lifecycle.started()) {
-            Map<String, Exporter> updated = initExporters(exportersSetting);
-            closeExporters(logger, this.exporters.getAndSet(updated));
+            try {
+                Map<String, Exporter> updated = initExporters(exportersSetting);
+                closeExporters(logger, this.exporters.getAndSet(updated));
+            }catch (Exception e){
+                //swallow exception here since this can be called from cluster state applier
+                logger.error("Unable set monitoring exporter settings", e);
+            }
         }
     }
 

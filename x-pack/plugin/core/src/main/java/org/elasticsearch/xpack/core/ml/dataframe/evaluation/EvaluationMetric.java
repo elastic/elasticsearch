@@ -8,13 +8,21 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 
+import java.util.Optional;
+
 /**
- * The result of an evaluation metric
+ * {@link EvaluationMetric} class represents a metric to evaluate.
  */
-public interface EvaluationMetricResult extends ToXContentObject, NamedWriteable {
+public interface EvaluationMetric extends ToXContentObject, NamedWriteable {
 
     /**
      * Returns the name of the metric (which may differ to the writeable name)
      */
-    String getMetricName();
+    String getName();
+
+    /**
+     * Gets the evaluation result for this metric.
+     * @return {@code Optional.empty()} if the result is not available yet, {@code Optional.of(result)} otherwise
+     */
+    Optional<EvaluationMetricResult> getResult();
 }

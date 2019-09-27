@@ -2446,6 +2446,8 @@ SELECT DATE_PART('mi', '2019-09-04T11:22:33.123Z'::datetime) AS mins;
 ;
 
 datePartDateTimeTzOffsetPlus-Ignore
+// The timezone is currently ignored when casting a string to datetime
+// Awaits fix: https://github.com/elastic/elasticsearch/issues/40692
 // tag::datePartDateTimeTzOffsetPlus
 SELECT DATE_PART('tzoffset', '2019-09-04T11:22:33.123+05:15'::datetime) AS tz_mins;
 
@@ -2456,6 +2458,8 @@ SELECT DATE_PART('tzoffset', '2019-09-04T11:22:33.123+05:15'::datetime) AS tz_mi
 ;
 
 datePartDateTimeTzOffsetMinus-Ignore
+// The timezone is currently ignored when casting a string to datetime
+// Awaits fix: https://github.com/elastic/elasticsearch/issues/40692
 // tag::datePartDateTimeTzOffsetMinus
 SELECT DATE_PART('tzoffset', '2019-09-04T11:22:33.123-03:49'::datetime) AS tz_mins;
 

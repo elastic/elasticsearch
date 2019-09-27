@@ -15,7 +15,7 @@ import org.locationtech.proj4j.ProjCoordinate;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 
-public class GeospatialProjectionsTest extends ESTestCase {
+public class GeospatialProjectionsTests extends ESTestCase {
     private boolean verbose = false;
     private static final CoordinateTransformFactory ctFactory = new CoordinateTransformFactory();
     private static CRSFactory crsFactory = AccessController.doPrivileged((PrivilegedAction<CRSFactory>) () -> new CRSFactory());
@@ -51,30 +51,7 @@ public class GeospatialProjectionsTest extends ESTestCase {
         double dx = Math.abs(pout.x - p2.x);
         double dy = Math.abs(pout.y - p2.y);
         double delta = Math.max(dx, dy);
-
-        if (verbose) {
-            System.out.println(crsDisplay(srcCRS) + " => " + crsDisplay(tgtCRS));
-            System.out.println(
-                p.toShortString()
-                    + " -> "
-                    + pout.toShortString()
-                    + " (expected: " + p2.toShortString()
-                    + " tol: " + tolerance + " diff: " + delta
-                    + " )"
-            );
-        }
-
         boolean isInTol = delta <= tolerance;
-
-        if (verbose && !isInTol) {
-            System.out.println("FAIL");
-            System.out.println("Src CRS: " + srcCRS.getParameterString());
-            System.out.println("Tgt CRS: " + tgtCRS.getParameterString());
-        }
-
-        if (verbose) {
-            System.out.println();
-        }
 
         return isInTol;
     }

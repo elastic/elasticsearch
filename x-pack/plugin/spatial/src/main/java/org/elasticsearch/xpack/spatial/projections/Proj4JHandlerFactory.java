@@ -53,11 +53,13 @@ public class Proj4JHandlerFactory implements CRSHandlerFactory {
 
         protected Proj4JHandler(CoordinateReferenceSystem crs, CRSFactory projCRSFactory) {
             this.projCRSFactory = projCRSFactory;
-            this.projCTFactory = AccessController.doPrivileged(((PrivilegedAction<CoordinateTransformFactory>) () -> new CoordinateTransformFactory()));
+            this.projCTFactory = AccessController.doPrivileged(
+                (PrivilegedAction<CoordinateTransformFactory>) () -> new CoordinateTransformFactory());
             this.crs = crs;
         }
 
         @Override
+        @SuppressWarnings("rawtypes")
         public AbstractGeometryFieldMapper.Indexer newIndexer(boolean orientation, String fieldName) {
             if (crs.isGeographic() == false) {
                 return new ShapeIndexer(fieldName);
@@ -66,6 +68,7 @@ public class Proj4JHandlerFactory implements CRSHandlerFactory {
         }
 
         @Override
+        @SuppressWarnings("rawtypes")
         public AbstractGeometryFieldMapper.QueryProcessor newQueryProcessor() {
             if (crs.isGeographic() == false) {
                 return new ShapeQueryProcessor();

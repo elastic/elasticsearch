@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -63,9 +64,9 @@ final class PSubBrace extends AStoreable {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        setup(writer, globals);
-        load(writer, globals);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        setup(classWriter, methodWriter, globals);
+        load(classWriter, methodWriter, globals);
     }
 
     @Override
@@ -84,21 +85,21 @@ final class PSubBrace extends AStoreable {
     }
 
     @Override
-    void setup(MethodWriter writer, Globals globals) {
-        index.write(writer, globals);
-        writeIndexFlip(writer, MethodWriter::arrayLength);
+    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        index.write(classWriter, methodWriter, globals);
+        writeIndexFlip(methodWriter, MethodWriter::arrayLength);
     }
 
     @Override
-    void load(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
-        writer.arrayLoad(MethodWriter.getType(actual));
+    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
+        methodWriter.arrayLoad(MethodWriter.getType(actual));
     }
 
     @Override
-    void store(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
-        writer.arrayStore(MethodWriter.getType(actual));
+    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
+        methodWriter.arrayStore(MethodWriter.getType(actual));
     }
 
     @Override

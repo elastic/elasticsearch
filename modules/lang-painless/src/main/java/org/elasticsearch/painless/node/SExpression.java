@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -76,14 +77,14 @@ public final class SExpression extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
-        expression.write(writer, globals);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeStatementOffset(location);
+        expression.write(classWriter, methodWriter, globals);
 
         if (methodEscape) {
-            writer.returnValue();
+            methodWriter.returnValue();
         } else {
-            writer.writePop(MethodWriter.getType(expression.expected).getSize());
+            methodWriter.writePop(MethodWriter.getType(expression.expected).getSize());
         }
     }
 

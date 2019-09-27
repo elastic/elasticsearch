@@ -87,9 +87,12 @@ final class JvmOptionsParser {
                         .filter(Predicate.not(String::isBlank))
                         .collect(Collectors.toUnmodifiableList()));
             }
-            final List<String> ergonomicJvmOptions = JvmErgonomics.choose(jvmOptions);
-            jvmOptions.addAll(ergonomicJvmOptions);
-            final String spaceDelimitedJvmOptions = spaceDelimitJvmOptions(jvmOptions);
+            final String esTmpdir = System.getenv("ES_TMPDIR");
+            final List<String> substitutedJvmOptions =
+                jvmOptions.stream().map(s -> s.replace("${ES_TMPDIR}", esTmpdir)).collect(Collectors.toList());
+            final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions);
+            substitutedJvmOptions.addAll(ergonomicJvmOptions);
+            final String spaceDelimitedJvmOptions = spaceDelimitJvmOptions(substitutedJvmOptions);
             Launchers.outPrintln(spaceDelimitedJvmOptions);
             Launchers.exit(0);
         } else {

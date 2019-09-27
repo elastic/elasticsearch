@@ -23,16 +23,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.SuppressForbidden;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
@@ -119,67 +119,62 @@ public class Shell {
     private Result runScriptIgnoreExitCode(String[] command) {
         ProcessBuilder builder = new ProcessBuilder();
         builder.command(command);
-
-
         if (workingDirectory != null) {
             setWorkingDirectory(builder, workingDirectory);
         }
-
         if (env != null && env.isEmpty() == false) {
             for (Map.Entry<String, String> entry : env.entrySet()) {
                 builder.environment().put(entry.getKey(), entry.getValue());
             }
         }
+        final Path stdOut;
+        final Path stdErr;
+        try {
+            stdOut = Files.createTempFile(Paths.get(System.getProperty("tmp.dir")), getClass().getName(), ".out");
+            stdErr = Files.createTempFile(Paths.get(System.getProperty("tmp.dir")), getClass().getName(), ".err");
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
+        redirectOutAndErr(builder, stdOut, stdErr);
 
         try {
-
             Process process = builder.start();
-
-            StringBuffer stdout = new StringBuffer();
-            StringBuffer stderr = new StringBuffer();
-
-            Thread stdoutThread = new Thread(new StreamCollector(process.getInputStream(), stdout));
-            Thread stderrThread = new Thread(new StreamCollector(process.getErrorStream(), stderr));
-
-            stdoutThread.start();
-            stderrThread.start();
-
             if (process.waitFor(10, TimeUnit.MINUTES) == false) {
-                // Try to wait for thread
-                tryToWaitForThread(stdoutThread);
-                tryToWaitForThread(stderrThread);
-
-                Result result = new Result(-1, stdout.toString(), stderr.toString());
+                if (process.isAlive()) {
+                    process.destroyForcibly();
+                }
+                Result result = new Result(
+                    -1,
+                    Files.readString(stdOut, StandardCharsets.UTF_8),
+                    Files.readString(stdErr, StandardCharsets.UTF_8)
+                );
                 throw new IllegalStateException(
                     "Timed out running shell command: " + command + "\n" +
                     "Result:\n" + result
                 );
             }
-            int exitCode = process.exitValue();
 
-            // Try to wait for thread
-            tryToWaitForThread(stdoutThread);
-            tryToWaitForThread(stderrThread);
-
-            Result result = new Result(exitCode, stdout.toString(), stderr.toString());
+            Result result = new Result(
+                process.exitValue(),
+                Files.readString(stdOut, StandardCharsets.UTF_8),
+                Files.readString(stdErr, StandardCharsets.UTF_8)
+            );
             logger.info("Ran: {}\nr{}\n", Arrays.toString(command), result);
             return result;
 
-        } catch (IOException | InterruptedException e) {
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
     }
 
-    private void tryToWaitForThread(Thread stdoutThread) throws InterruptedException {
-        logger.info("Waiting for appender thread to exit");
-        stdoutThread.join(TimeUnit.SECONDS.toMillis(3));
-        if (stdoutThread.isAlive()) {
-            logger.info("Appender thread still alive, interrupting it");
-            stdoutThread.interrupt();
-            stdoutThread.join();
-        } else {
-            logger.info("Appender thread stopped");
-        }
+    @SuppressForbidden(reason = "ProcessBuilder expects java.io.File")
+    private void redirectOutAndErr(ProcessBuilder builder, Path stdOut, Path stdErr) {
+        builder.redirectOutput(stdOut.toFile());
+        builder.redirectError(stdErr.toFile());
     }
 
     @SuppressForbidden(reason = "ProcessBuilder expects java.io.File")
@@ -229,41 +224,4 @@ public class Shell {
         }
     }
 
-    private static class StreamCollector implements Runnable {
-        private final InputStream input;
-        private final Appendable appendable;
-
-        StreamCollector(InputStream input, Appendable appendable) {
-            this.input = Objects.requireNonNull(input);
-            this.appendable = Objects.requireNonNull(appendable);
-        }
-
-        public void run() {
-            try {
-                BufferedReader reader = new BufferedReader(reader(input));
-                String line;
-
-                do {
-                    while (reader.ready() == false) {
-                        Thread.sleep(10);
-                    }
-                    line = reader.readLine();
-                    if (line != null) {
-                        appendable.append(line);
-                        appendable.append("\n");
-                    }
-                } while (line != null);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            } catch (InterruptedException e) {
-                // It's expected that the control thread will interrupt, just exit
-                return;
-            }
-        }
-
-        @SuppressForbidden(reason = "the system's default character set is a best guess of what subprocesses will use")
-        private static InputStreamReader reader(InputStream inputStream) {
-            return new InputStreamReader(inputStream);
-        }
-    }
 }

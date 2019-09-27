@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResu
 import java.io.IOException;
 import java.text.MessageFormat;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -63,7 +64,7 @@ public class MeanSquaredError implements RegressionMetric {
     @Override
     public List<AggregationBuilder> aggs(String actualField, String predictedField) {
         if (result != null) {
-            return Arrays.asList();
+            return Collections.emptyList();
         }
         return Arrays.asList(AggregationBuilders.avg(AGG_NAME).script(new Script(buildScript(actualField, predictedField))));
     }

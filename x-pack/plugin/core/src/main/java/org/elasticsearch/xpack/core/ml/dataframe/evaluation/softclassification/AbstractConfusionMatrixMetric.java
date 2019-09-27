@@ -18,8 +18,8 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResu
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -63,7 +63,7 @@ abstract class AbstractConfusionMatrixMetric implements SoftClassificationMetric
     @Override
     public final List<AggregationBuilder> aggs(String actualField, List<ClassInfo> classInfos) {
         if (result != null) {
-            return Arrays.asList();
+            return Collections.emptyList();
         }
         List<AggregationBuilder> aggs = new ArrayList<>();
         for (double threshold : thresholds) {

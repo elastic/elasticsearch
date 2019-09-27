@@ -151,6 +151,10 @@ public abstract class Terminal {
         }
     }
 
+    public void flush() {
+        this.getErrorWriter().flush();
+    }
+
     private static class ConsoleTerminal extends Terminal {
 
         private static final Console CONSOLE = System.console();

@@ -91,6 +91,12 @@ class Elasticsearch extends EnvironmentAwareCommand {
         final Elasticsearch elasticsearch = new Elasticsearch();
         int status = main(args, elasticsearch, Terminal.DEFAULT);
         if (status != ExitCodes.OK) {
+            Terminal.DEFAULT.errorPrintln("ERROR: Elasticsearch did not exit normally - check the logs at " +
+                System.getProperty("es.logs.base_path") +
+                System.getProperty("file.separator") +
+                System.getProperty("es.logs.cluster_name") +
+                ".log"
+            );
             exit(status);
         }
     }

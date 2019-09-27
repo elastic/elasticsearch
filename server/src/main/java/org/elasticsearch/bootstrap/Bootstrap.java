@@ -346,10 +346,6 @@ final class Bootstrap {
             }
 
             INSTANCE.start();
-
-            if (closeStandardStreams) {
-                closeSysError();
-            }
         } catch (NodeValidationException | RuntimeException e) {
             // disable console logging, so user does not see the exception twice (jvm will show it already)
             final Logger rootLogger = LogManager.getRootLogger();
@@ -395,11 +391,6 @@ final class Bootstrap {
     @SuppressForbidden(reason = "System#out")
     private static void closeSystOut() {
         System.out.close();
-    }
-
-    @SuppressForbidden(reason = "System#err")
-    private static void closeSysError() {
-        System.err.close();
     }
 
     private static void checkLucene() {

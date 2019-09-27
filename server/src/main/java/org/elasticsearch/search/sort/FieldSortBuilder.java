@@ -409,16 +409,15 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                         throw new QueryShardException(context,
                             "max_children is only supported on last level of nested sort");
                     }
-                    // new nested sorts takes priority
+                    validateMaxChildrenExistOnlyInTopLevelNestedSort(context, nestedSort);
                     nested = resolveNested(context, nestedSort);
                 } else {
                     nested = resolveNested(context, nestedPath, nestedFilter);
                 }
             }
-
             IndexFieldData<?> fieldData = context.getForField(fieldType);
             if (fieldData instanceof IndexNumericFieldData == false
-                    && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {
+                && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {
                 throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
             }
             final SortField field;
@@ -434,6 +433,18 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 field = fieldData.sortField(missing, localSortMode, nested, reverse);
             }
             return new SortFieldAndFormat(field, fieldType.docValueFormat(null, null));
+        }
+    }
+
+    /**
+     * Throws an exception if max children is not located at top level nested sort.
+     */
+    static void validateMaxChildrenExistOnlyInTopLevelNestedSort(QueryShardContext context, NestedSortBuilder nestedSort) {
+        for (NestedSortBuilder child = nestedSort.getNestedSort(); child != null; child = child.getNestedSort()) {
+            if (child.getMaxChildren() != Integer.MAX_VALUE) {
+                throw new QueryShardException(context,
+                    "max_children is only supported on top level of nested sort");
+            }
         }
     }
 

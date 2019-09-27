@@ -25,6 +25,10 @@ public class ExpressionId {
         this.id = COUNTER.incrementAndGet();
     }
 
+    public ExpressionId(long id) {
+        this.id = id;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(id);

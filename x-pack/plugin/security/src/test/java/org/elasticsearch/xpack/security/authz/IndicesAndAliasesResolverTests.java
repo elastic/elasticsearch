@@ -47,7 +47,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
-import org.elasticsearch.search.internal.ShardSearchTransportRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
@@ -83,6 +83,7 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -196,7 +197,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     public void testDashIndicesAreAllowedInShardLevelRequests() {
         //indices with names starting with '-' or '+' can be created up to version  2.x and can be around in 5.x
         //aliases with names starting with '-' or '+' can be created up to version 5.x and can be around in 6.x
-        ShardSearchTransportRequest request = mock(ShardSearchTransportRequest.class);
+        ShardSearchRequest request = mock(ShardSearchRequest.class);
         when(request.indices()).thenReturn(new String[]{"-index10", "-index20", "+index30"});
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME))
                 .getLocal();
@@ -206,7 +207,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public void testWildcardsAreNotAllowedInShardLevelRequests() {
-        ShardSearchTransportRequest request = mock(ShardSearchTransportRequest.class);
+        ShardSearchRequest request = mock(ShardSearchRequest.class);
         when(request.indices()).thenReturn(new String[]{"index*"});
         IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
                 () -> resolveIndices(request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME))
@@ -216,7 +217,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public void testAllIsNotAllowedInShardLevelRequests() {
-        ShardSearchTransportRequest request = mock(ShardSearchTransportRequest.class);
+        ShardSearchRequest request = mock(ShardSearchRequest.class);
         if (randomBoolean()) {
             when(request.indices()).thenReturn(new String[]{"_all"});
         } else {
@@ -777,14 +778,24 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(request.getAliasActions().get(1).aliases(), arrayContainingInAnyOrder("foofoobar", "foobarfoo", "explicit"));
     }
 
-    public void testResolveAliasesWildcardsIndicesAliasesRequestDeleteActionsNoAuthorizedIndices() {
+    public void testResolveAliasesWildcardsIndicesAliasesRequestRemoveAliasActionsNoAuthorizedIndices() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(AliasActions.remove().index("foo*").alias("foo*"));
-        //no authorized aliases match bar*, hence aliases are replaced with no-aliases-expression for that action
         request.addAliasAction(AliasActions.remove().index("*bar").alias("bar*"));
         resolveIndices(request, buildAuthorizedIndices(user, IndicesAliasesAction.NAME));
         assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("foofoobar", "foobarfoo"));
-        assertThat(request.getAliasActions().get(1).aliases(), arrayContaining(IndicesAndAliasesResolver.NO_INDICES_OR_ALIASES_ARRAY));
+        assertThat(request.getAliasActions().get(1).aliases(), arrayContaining("*", "-*"));
+    }
+
+    public void testResolveAliasesWildcardsIndicesAliasesRequestRemoveIndexActions() {
+        IndicesAliasesRequest request = new IndicesAliasesRequest();
+        request.addAliasAction(AliasActions.removeIndex().index("foo*"));
+        request.addAliasAction(AliasActions.removeIndex().index("*bar"));
+        resolveIndices(request, buildAuthorizedIndices(user, IndicesAliasesAction.NAME));
+        assertThat(request.getAliasActions().get(0).indices(), arrayContainingInAnyOrder("foofoo"));
+        assertThat(request.getAliasActions().get(0).aliases(), emptyArray());
+        assertThat(request.getAliasActions().get(1).indices(), arrayContainingInAnyOrder("bar"));
+        assertThat(request.getAliasActions().get(1).aliases(), emptyArray());
     }
 
     public void testResolveWildcardsIndicesAliasesRequestAddAndDeleteActions() {

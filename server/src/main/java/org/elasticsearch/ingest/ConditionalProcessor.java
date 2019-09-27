@@ -30,6 +30,7 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -74,21 +75,28 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
     }
 
     @Override
-    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+    public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
         if (evaluate(ingestDocument)) {
-            long startTimeInNanos = relativeTimeProvider.getAsLong();
-            try {
-                metric.preIngest();
-                return processor.execute(ingestDocument);
-            } catch (Exception e) {
-                metric.ingestFailed();
-                throw e;
-            } finally {
+            final long startTimeInNanos = relativeTimeProvider.getAsLong();
+            metric.preIngest();
+            processor.execute(ingestDocument, (result, e) -> {
                 long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
                 metric.postIngest(ingestTimeInMillis);
-            }
+                if (e != null) {
+                    metric.ingestFailed();
+                    handler.accept(null, e);
+                } else {
+                    handler.accept(result, null);
+                }
+            });
+        } else {
+            handler.accept(ingestDocument, null);
         }
-        return ingestDocument;
+    }
+
+    @Override
+    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+        throw new UnsupportedOperationException("this method should not get executed");
     }
 
     boolean evaluate(IngestDocument ingestDocument) {

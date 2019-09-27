@@ -20,9 +20,12 @@ package org.elasticsearch.gradle.testfixtures;
 
 import com.avast.gradle.dockercompose.ComposeExtension;
 import com.avast.gradle.dockercompose.DockerComposePlugin;
+import com.avast.gradle.dockercompose.ServiceInfo;
 import com.avast.gradle.dockercompose.tasks.ComposeUp;
 import org.elasticsearch.gradle.OS;
+import org.elasticsearch.gradle.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.precommit.TestingConventionsTasks;
+import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -56,9 +59,6 @@ public class TestFixturesPlugin implements Plugin<Project> {
         ext.set("testFixturesDir", testfixturesDir);
 
         if (project.file(DOCKER_COMPOSE_YML).exists()) {
-            // the project that defined a test fixture can also use it
-            extension.fixtures.add(project);
-
             Task buildFixture = project.getTasks().create("buildFixture");
             Task pullFixture = project.getTasks().create("pullFixture");
             Task preProcessFixture = project.getTasks().create("preProcessFixture");
@@ -104,6 +104,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 configureServiceInfoForTask(
                     postProcessFixture,
                     project,
+                    false,
                     (name, port) -> postProcessFixture.getExtensions()
                         .getByType(ExtraPropertiesExtension.class).set(name, port)
                 );
@@ -142,7 +143,9 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 configureServiceInfoForTask(
                     task,
                     fixtureProject,
-                    task::systemProperty
+                    true,
+                    (name, host) ->
+                        task.getExtensions().getByType(SystemPropertyCommandLineArgumentProvider.class).systemProperty(name, host)
                 );
                 task.dependsOn(fixtureProject.getTasks().getByName("postProcessFixture"));
             })
@@ -162,31 +165,44 @@ public class TestFixturesPlugin implements Plugin<Project> {
         );
     }
 
-    private void configureServiceInfoForTask(Task task, Project fixtureProject, BiConsumer<String, Integer> consumer) {
+    private void configureServiceInfoForTask(
+        Task task, Project fixtureProject, boolean enableFilter, BiConsumer<String, Integer> consumer
+    ) {
         // Configure ports for the tests as system properties.
         // We only know these at execution time so we need to do it in doFirst
-        task.doFirst(theTask ->
-            fixtureProject.getExtensions().getByType(ComposeExtension.class).getServicesInfos()
-                .forEach((service, infos) -> {
-                    infos.getTcpPorts()
-                        .forEach((container, host) -> {
-                            String name = "test.fixtures." + service + ".tcp." + container;
-                            theTask.getLogger().info("port mapping property: {}={}", name, host);
-                            consumer.accept(
-                                name,
-                                host
-                            );
-                        });
-                    infos.getUdpPorts()
-                        .forEach((container, host) -> {
-                            String name = "test.fixtures." + service + ".udp." + container;
-                            theTask.getLogger().info("port mapping property: {}={}", name, host);
-                            consumer.accept(
-                                name,
-                                host
-                            );
-                        });
-                })
+        TestFixtureExtension extension = task.getProject().getExtensions().getByType(TestFixtureExtension.class);
+        task.doFirst(new Action<Task>() {
+                         @Override
+                         public void execute(Task theTask) {
+                             fixtureProject.getExtensions().getByType(ComposeExtension.class).getServicesInfos()
+                                 .entrySet().stream()
+                                 .filter(entry -> enableFilter == false ||
+                                     extension.isServiceRequired(entry.getKey(), fixtureProject.getPath())
+                                 )
+                                 .forEach(entry -> {
+                                     String service = entry.getKey();
+                                     ServiceInfo infos = entry.getValue();
+                                     infos.getTcpPorts()
+                                         .forEach((container, host) -> {
+                                             String name = "test.fixtures." + service + ".tcp." + container;
+                                             theTask.getLogger().info("port mapping property: {}={}", name, host);
+                                             consumer.accept(
+                                                 name,
+                                                 host
+                                             );
+                                         });
+                                     infos.getUdpPorts()
+                                         .forEach((container, host) -> {
+                                             String name = "test.fixtures." + service + ".udp." + container;
+                                             theTask.getLogger().info("port mapping property: {}={}", name, host);
+                                             consumer.accept(
+                                                 name,
+                                                 host
+                                             );
+                                         });
+                                 });
+                         }
+                     }
         );
     }
 

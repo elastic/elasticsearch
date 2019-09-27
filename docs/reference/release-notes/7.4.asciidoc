@@ -167,6 +167,7 @@ Features/Features::
 * Disable String interning on field names for JSON parsing {pull}41039[#41039] (issue: {issue}39890[#39890])
 
 Features/ILM::
+* Add node setting for disabling SLM {pull}46794[#46794] (issue: {issue}38461[#38461])
 * Include in-progress snapshot for a policy with get SLM policy API {pull}45245[#45245]
 *  Add option to filter ILM explain response {pull}44777[#44777] (issue: {issue}44189[#44189])
 * Expose index age in ILM explain output {pull}44457[#44457] (issue: {issue}38988[#38988])
@@ -197,6 +198,9 @@ Features/Watcher::
 
 Geo::
 * Support WKT point conversion to geo_point type {pull}44107[#44107] (issue: {issue}41821[#41821])
+
+Infra/Circuit Breakers::
+* Fix G1 GC default IHOP {pull}46169[#46169]
 
 Infra/Core::
 * Add OCI annotations and adjust existing annotations {pull}45167[#45167] (issues: {issue}45162[#45162], {issue}45166[#45166])
@@ -254,6 +258,7 @@ Recovery::
 * Make peer recovery send file chunks async {pull}44468[#44468] (issues: {issue}36195[#36195], {issue}44040[#44040])
 
 SQL::
+* SQL: Support queries with HAVING over SELECT {pull}46709[#46709] (issue: {issue}37051[#37051])
 * SQL: Break TextFormatter/Cursor dependency {pull}45613[#45613] (issue: {issue}45516[#45516])
 * SQL: remove deprecated use of "interval" from date_histogram usage {pull}45501[#45501] (issue: {issue}43922[#43922])
 * SQL: use hasValue() methods from Elasticsearch's InspectionHelper classes {pull}44745[#44745] (issue: {issue}35745[#35745])
@@ -307,6 +312,8 @@ Authentication::
 * Fix X509AuthenticationToken principal {pull}43932[#43932] (issues: {issue}34396[#34396], {issue}43796[#43796])
 
 Authorization::
+* Do not rewrite aliases on remove-index from aliases requests {pull}46989[#46989]
+* Give kibana user privileges to create APM agent config index {pull}46765[#46765] (issue: {issue}45610[#45610])
 *  Add `manage_own_api_key` cluster privilege {pull}45696[#45696] (issue: {issue}40031[#40031])
 * Sparse role queries can throw an NPE {pull}45053[#45053]
 
@@ -322,6 +329,7 @@ CRUD::
 * Do not allow version in Rest Update API {pull}43516[#43516] (issue: {issue}42497[#42497])
 
 Cluster Coordination::
+* Assert no exceptions during state application {pull}47090[#47090] (issue: {issue}47038[#47038])
 * Avoid counting votes from master-ineligible nodes {pull}43688[#43688]
 
 Data Frame::
@@ -369,8 +377,13 @@ Features/Indices APIs::
 * Check shard limit after applying index templates {pull}44619[#44619] (issues: {issue}34021[#34021], {issue}44567[#44567], {issue}44619[#44619])
 * Validate index settings after applying templates {pull}44612[#44612] (issues: {issue}34021[#34021], {issue}44567[#44567])
 
+Features/Ingest::
+* Allow dropping documents with auto-generated ID {pull}46773[#46773] (issue: {issue}46678[#46678])
+
 Features/Java High Level REST Client::
+* [HLRC] Send min_score as query string parameter to the count API {pull}46829[#46829] (issue: {issue}46474[#46474])
 * HLRC multisearchTemplate forgot params {pull}46492[#46492] (issue: {issue}46488[#46488])
+* terminateAfter added to the RequestConverter {pull}46474[#46474] (issue: {issue}46446[#46446])
 * [Closes #44045] Added 'slices' parameter when submitting reindex request via Java high level REST client {pull}45690[#45690] (issue: {issue}44045[#44045])
 * HLRC: Fix '+' Not Correctly Encoded in GET Req. {pull}33164[#33164] (issue: {issue}33077[#33077])
 
@@ -418,6 +431,7 @@ Infra/Settings::
 * bug fix about elasticsearch.common.settings.Settings.processSetting {pull}44047[#44047] (issue: {issue}43791[#43791])
 
 Machine Learning::
+* [ML] fix two datafeed flush lockup bugs {pull}46982[#46982]
 * [ML] Throw an error when a datafeed needs CCS but it is not enabled for the node {pull}46044[#46044] (issue: {issue}46025[#46025])
 * Handle "null" value of Estimate memory usage API response gracefully. {pull}45726[#45726] (issue: {issue}44699[#44699])
 * [ML] Remove timeout on waiting for DF analytics result processor to complete {pull}45724[#45724] (issue: {issue}45723[#45723])
@@ -450,6 +464,7 @@ Rollup::
 * Fix Rollup job creation to work with templates {pull}43943[#43943]
 
 SQL::
+* SQL: Properly handle indices with no/empty mapping {pull}46775[#46775] (issue: {issue}46757[#46757])
 * SQL: improve ResultSet behavior when no rows are available {pull}46753[#46753] (issue: {issue}46750[#46750])
 * SQL: use the correct data type for types conversion {pull}46574[#46574] (issue: {issue}46090[#46090])
 * SQL: Fix issue with common type resolution {pull}46565[#46565] (issue: {issue}46551[#46551])
@@ -481,6 +496,8 @@ Security::
 * Use system context for looking up connected nodes {pull}43991[#43991] (issue: {issue}43974[#43974])
 
 Snapshot/Restore::
+* Fix Bug in Snapshot Status Response Timestamps {pull}46919[#46919] (issue: {issue}46913[#46913])
+* GCS deleteBlobsIgnoringIfNotExists should catch StorageException {pull}46832[#46832] (issue: {issue}46772[#46772])
 * Fix TransportSnapshotsStatusAction ThreadPool Use {pull}45824[#45824]
 * Stop Executing SLM Policy Transport Action on Snapshot Pool {pull}45727[#45727] (issue: {issue}45594[#45594])
 * Check again on-going snapshots/restores of indices before closing {pull}43873[#43873]
@@ -489,6 +506,15 @@ Snapshot/Restore::
 
 Task Management::
 * Catch AllocatedTask registration failures {pull}45300[#45300]
+
+
+
+[[regression-7.4.0]]
+[float]
+=== Regressions
+
+Aggregations::
+* Implement rounding optimization for fixed offset timezones {pull}46670[#46670] (issue: {issue}45702[#45702])
 
 
 

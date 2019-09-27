@@ -1746,25 +1746,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * Returns the current generation of this translog. This corresponds to the latest uncommitted translog generation
      */
     public TranslogGeneration getGeneration() {
-        try (ReleasableLock lock = writeLock.acquire()) {
-            return new TranslogGeneration(translogUUID, currentFileGeneration());
-        }
-    }
-
-    /**
-     * Returns <code>true</code> iff the given generation is the current generation of this translog
-     */
-    public boolean isCurrent(TranslogGeneration generation) {
-        try (ReleasableLock lock = writeLock.acquire()) {
-            if (generation != null) {
-                if (generation.translogUUID.equals(translogUUID) == false) {
-                    throw new IllegalArgumentException("commit belongs to a different translog: " +
-                        generation.translogUUID + " vs. " + translogUUID);
-                }
-                return generation.translogFileGeneration == currentFileGeneration();
-            }
-        }
-        return false;
+        return new TranslogGeneration(translogUUID, currentFileGeneration());
     }
 
     long getFirstOperationPosition() { // for testing

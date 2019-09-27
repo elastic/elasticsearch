@@ -146,8 +146,8 @@ public class Shell {
                 }
                 Result result = new Result(
                     -1,
-                    Files.readString(stdOut, StandardCharsets.UTF_8),
-                    Files.readString(stdErr, StandardCharsets.UTF_8)
+                    readFileIfExists(stdOut),
+                    readFileIfExists(stdErr)
                 );
                 throw new IllegalStateException(
                     "Timed out running shell command: " + command + "\n" +
@@ -157,8 +157,8 @@ public class Shell {
 
             Result result = new Result(
                 process.exitValue(),
-                Files.readString(stdOut, StandardCharsets.UTF_8),
-                Files.readString(stdErr, StandardCharsets.UTF_8)
+                readFileIfExists(stdOut),
+                readFileIfExists(stdErr)
             );
             logger.info("Ran: {}\nr{}\n", Arrays.toString(command), result);
             return result;
@@ -168,6 +168,14 @@ public class Shell {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
+        }
+    }
+
+    private String readFileIfExists(Path stdOut) throws IOException {
+        if (Files.exists(stdOut)) {
+            return Files.readString(stdOut, StandardCharsets.UTF_8);
+        } else {
+            return "";
         }
     }
 

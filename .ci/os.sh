@@ -15,9 +15,9 @@ BUILD_JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
 
 rm -Rfv $HOME/.gradle/init.d
 mkdir -p $HOME/.gradle/init.d
-sudo rm -Rf /root/.gradle
-sudo cp -v .ci/init.gradle $HOME/.gradle/init.d
+cp -v .ci/init.gradle $HOME/.gradle/init.d
 # levarage the packar cache and init files when ran with root
+sudo rm -Rf /root/.gradle
 sudo ln -s /var/lib/jenkins/.gradle /root/.gradle
 
 unset JAVA_HOME

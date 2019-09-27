@@ -20,7 +20,12 @@
 package org.apache.lucene.search.uhighlight;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.custom.CustomAnalyzer;
+import org.apache.lucene.analysis.ngram.EdgeNGramFilterFactory;
+import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
+import org.apache.lucene.analysis.ngram.EdgeNGramTokenizerFactory;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.standard.StandardTokenizerFactory;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -30,8 +35,10 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queryparser.xml.builders.BooleanQueryBuilder;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -43,9 +50,12 @@ import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.test.ESTestCase;
 
 import java.text.BreakIterator;
+import java.util.Collections;
 import java.util.Locale;
 
 import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
@@ -222,6 +232,35 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             .build();
         assertHighlightOneDoc("text", inputs, new StandardAnalyzer(), query, Locale.ROOT,
             BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 20), 0, outputs);
+    }
+
+    public void testOverlappingTerms() throws Exception {
+        final String[] inputs = {
+            "bro",
+            "brown",
+            "brownie",
+            "browser"
+        };
+        final String[] outputs = {
+            "<b>bro</b>",
+            "<b>brown</b>",
+            "<b>browni</b>e",
+            "<b>browser</b>"
+        };
+        BooleanQuery query = new BooleanQuery.Builder()
+            .add(new FuzzyQuery(new Term("text", "brow")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term("text", "b")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term("text", "br")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term("text", "bro")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term("text", "brown")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term("text", "browni")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term("text", "browser")), BooleanClause.Occur.SHOULD)
+            .build();
+        Analyzer analyzer = CustomAnalyzer.builder()
+            .withTokenizer(EdgeNGramTokenizerFactory.class, "minGramSize", "1", "maxGramSize", "7")
+            .build();
+        assertHighlightOneDoc("text", inputs,
+            analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 0, outputs);
     }
 
 }

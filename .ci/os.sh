@@ -3,15 +3,26 @@
 # opensuse 15 has a missing dep for systemd 
 sudo zypper install -y insserv-compat
 
+# Required by bats
+sudo touch /etc/is_vagrant_vm
+sudo useradd vagrant
+
 set -e
+
+. .ci/java-versions.properties
+RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
+BUILD_JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
+
 sudo rm -Rfv /root/.gradle/init.d
 sudo mkdir -p /root/.gradle/init.d
-sudo cp -v $WORKSPACE/.ci/init.gradle /root/.gradle/init.d
+sudo cp -v .ci/init.gradle /root/.gradle/init.d
 
 unset JAVA_HOME
 
-git clone https://github.com/sstephenson/bats /tmp/bats
-sudo /tmp/bats/install.sh /usr
+if ! [ -e "/usr/bin/bats" ] ; then 
+  git clone https://github.com/sstephenson/bats /tmp/bats
+  sudo /tmp/bats/install.sh /usr
+fi
 
 sudo bash -c 'cat > /etc/sudoers.d/elasticsearch_vars'  << SUDOERS_VARS
     Defaults   env_keep += "ZIP"
@@ -27,18 +38,13 @@ sudo bash -c 'cat > /etc/sudoers.d/elasticsearch_vars'  << SUDOERS_VARS
 SUDOERS_VARS
 sudo chmod 0440 /etc/sudoers.d/elasticsearch_vars
 
-
-# Required by bats
-sudo touch /etc/is_vagrant_vm
-sudo useradd vagrant
-
 # Bats tests still use this location
 sudo mkdir -p /elasticsearch/qa/ && sudo chown jenkins /elasticsearch/qa/ && ln -s $PWD/qa/vagrant /elasticsearch/qa/
 
 # sudo sets it's own PATH thus we use env to override that and call sudo annother time so we keep the secure root PATH 
 # run with --continue to run both bats and java tests even if one fails
 sudo -E env \
-  PATH=$HOME/.java/$ES_BUILD_JAVA/bin:`sudo bash -c 'echo -n $PATH'` \
+  PATH=$BUILD_JAVA_HOME/bin:`sudo bash -c 'echo -n $PATH'` \
   RUNTIME_JAVA_HOME=`readlink -f -n $RUNTIME_JAVA_HOME` \
   --unset=JAVA_HOME \
   SYSTEM_JAVA_HOME=`readlink -f -n $RUNTIME_JAVA_HOME` \

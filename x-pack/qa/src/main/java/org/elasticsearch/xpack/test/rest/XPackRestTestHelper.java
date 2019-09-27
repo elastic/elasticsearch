@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.assertBusy;
+import static org.elasticsearch.test.rest.ESRestTestCase.allowTypesRemovalWarnings;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.fail;
@@ -56,6 +57,7 @@ public final class XPackRestTestHelper {
 
         assertBusy(() -> {
             final Request request = new Request("GET", "_template");
+            request.setOptions(allowTypesRemovalWarnings());
 
             String string = EntityUtils.toString(client.performRequest(request).getEntity());
             Map<String, Object> response = XContentHelper.convertToMap(JsonXContent.jsonXContent, string, false);

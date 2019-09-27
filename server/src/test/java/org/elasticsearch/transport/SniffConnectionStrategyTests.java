@@ -219,7 +219,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             DiscoveryNode incompatibleSeedNode = incompatibleSeedTransport.getLocalNode();
             knownNodes.add(incompatibleSeedNode);
 
-            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+            try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
                 localService.start();
                 localService.acceptIncomingRequests();
 
@@ -274,18 +274,24 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         }
     }
 
-    public void testClusterNameIsValidated() {
+    public void testClusterNameValidationPreventConnectingToDifferentClusters() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        List<DiscoveryNode> otherKnownNodes = new CopyOnWriteArrayList<>();
 
         Settings otherSettings = Settings.builder().put("cluster.name", "otherCluster").build();
 
-        try (MockTransportService otherSeed = startTransport("other_seed", knownNodes, Version.CURRENT, otherSettings);
+        try (MockTransportService seed = startTransport("other_seed", knownNodes, Version.CURRENT);
+             MockTransportService discoverable = startTransport("other_discoverable", knownNodes, Version.CURRENT);
+             MockTransportService otherSeed = startTransport("other_seed", knownNodes, Version.CURRENT, otherSettings);
              MockTransportService otherDiscoverable = startTransport("other_discoverable", knownNodes, Version.CURRENT, otherSettings)) {
+            DiscoveryNode seedNode = seed.getLocalNode();
+            DiscoveryNode discoverableNode = discoverable.getLocalNode();
             DiscoveryNode otherSeedNode = otherSeed.getLocalNode();
             DiscoveryNode otherDiscoverableNode = otherDiscoverable.getLocalNode();
-            knownNodes.add(otherSeedNode);
-            knownNodes.add(otherDiscoverableNode);
+            knownNodes.add(seedNode);
+            knownNodes.add(discoverableNode);
             Collections.shuffle(knownNodes, random());
+            Collections.shuffle(otherKnownNodes, random());
 
             try (MockTransportService localService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool)) {
                 localService.start();
@@ -294,16 +300,30 @@ public class SniffConnectionStrategyTests extends ESTestCase {
                 ConnectionManager connectionManager = new ConnectionManager(profile, localService.transport);
                 try (RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager(clusterAlias, connectionManager);
                      SniffConnectionStrategy strategy = new SniffConnectionStrategy(clusterAlias, localService, remoteConnectionManager,
-                         null, 3, n -> true, seedNodes(otherSeedNode))) {
+                         null, 3, n -> true, seedNodes(seedNode, otherSeedNode))) {
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                     strategy.connect(connectFuture);
-                    IllegalStateException ise = expectThrows(IllegalStateException.class, connectFuture::actionGet);
+                    connectFuture.actionGet();
+
+                    assertTrue(connectionManager.nodeConnected(seedNode));
+                    assertTrue(connectionManager.nodeConnected(discoverableNode));
+                    assertTrue(strategy.assertNoRunningConnections());
+
+                    seed.close();
+
+                    assertBusy(strategy::assertNoRunningConnections);
+
+                    PlainActionFuture<Void> newConnect = PlainActionFuture.newFuture();
+                    strategy.connect(newConnect);
+                    IllegalStateException ise = expectThrows(IllegalStateException.class, newConnect::actionGet);
                     assertThat(ise.getMessage(), allOf(
                         startsWith("handshake with [{other_seed}"),
-                        containsString(otherSeed.toString()),
+                        containsString(otherSeedNode.toString()),
                         endsWith(" failed: remote cluster name [otherCluster] " +
                             "does not match expected remote cluster name [" + clusterAlias + "]")));
 
+                    assertFalse(connectionManager.nodeConnected(seedNode));
+                    assertTrue(connectionManager.nodeConnected(discoverableNode));
                     assertFalse(connectionManager.nodeConnected(otherSeedNode));
                     assertFalse(connectionManager.nodeConnected(otherDiscoverableNode));
                     assertTrue(strategy.assertNoRunningConnections());

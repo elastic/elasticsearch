@@ -55,7 +55,7 @@ import java.util.stream.Collectors;
  * {@link RemoteClusterService#REMOTE_CONNECTIONS_PER_CLUSTER} until either all eligible nodes are exhausted or the maximum number of
  * connections per cluster has been reached.
  */
-final class RemoteClusterConnection implements TransportConnectionListener, Closeable {
+final class RemoteClusterConnection implements Closeable {
 
     private final TransportService transportService;
     private final RemoteConnectionManager remoteConnectionManager;
@@ -63,8 +63,8 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
     private final String clusterAlias;
     private final int maxNumRemoteConnections;
     private final ThreadPool threadPool;
-    private volatile List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes;
-    private volatile String proxyAddress;
+    private final List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes;
+    private final String proxyAddress;
     private volatile boolean skipUnavailable;
     private final TimeValue initialConnectionTimeout;
 
@@ -101,23 +101,11 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
         // we register the transport service here as a listener to make sure we notify handlers on disconnect etc.
         connectionManager.addListener(transportService);
         this.seedNodes = Collections.unmodifiableList(seedNodes);
+        this.proxyAddress = proxyAddress;
         this.skipUnavailable = RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE
             .getConcreteSettingForNamespace(clusterAlias).get(settings);
         this.threadPool = transportService.threadPool;
         initialConnectionTimeout = RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
-    }
-
-    /**
-     * Updates the list of seed nodes for this cluster connection
-     */
-    synchronized void updateSeedNodes(
-            final String proxyAddress,
-            final List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes,
-            final ActionListener<Void> connectListener) {
-        this.seedNodes = List.copyOf(seedNodes);
-        this.proxyAddress = proxyAddress;
-        // TODO: Update seedNodes
-        connectionStrategy.connect(connectListener);
     }
 
     /**

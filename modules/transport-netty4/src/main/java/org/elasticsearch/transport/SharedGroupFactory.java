@@ -48,6 +48,7 @@ public final class SharedGroupFactory {
     private final int httpWorkerCount;
 
     private RefCountedGroup refCountedGroup;
+    private SharedGroup dedicatedHttpGroup;
 
     public SharedGroupFactory(Settings settings) {
         this.settings = settings;
@@ -57,14 +58,6 @@ public final class SharedGroupFactory {
 
     public Settings getSettings() {
         return settings;
-    }
-
-    public int getHttpWorkerCount() {
-        if (httpWorkerCount == 0) {
-            return workerCount;
-        } else {
-            return httpWorkerCount;
-        }
     }
 
     public int getTransportWorkerCount() {
@@ -79,10 +72,12 @@ public final class SharedGroupFactory {
         if (httpWorkerCount == 0) {
             return getGenericGroup();
         } else {
-            NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(httpWorkerCount,
-                daemonThreadFactory(settings, HttpServerTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX));
-
-            return new SharedGroup(new RefCountedGroup(eventLoopGroup));
+            if (dedicatedHttpGroup == null) {
+                NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(httpWorkerCount,
+                    daemonThreadFactory(settings, HttpServerTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX));
+                dedicatedHttpGroup = new SharedGroup(new RefCountedGroup(eventLoopGroup));
+            }
+            return dedicatedHttpGroup;
         }
     }
 

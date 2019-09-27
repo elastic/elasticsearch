@@ -93,7 +93,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
             threadPool, xContentRegistry, dispatcher, getSharedGroupFactory(settings)));
     }
 
-    private synchronized SharedGroupFactory getSharedGroupFactory(Settings settings) {
+    private SharedGroupFactory getSharedGroupFactory(Settings settings) {
         SharedGroupFactory groupFactory = this.groupFactory.get();
         if (groupFactory != null) {
             assert groupFactory.getSettings().equals(settings) : "Different settings than originally provided";

@@ -29,7 +29,6 @@ class DatasetSplittingCustomProcessor implements CustomProcessor {
     DatasetSplittingCustomProcessor(List<String> fieldNames, String dependentVariable, double trainingPercent) {
         this.dependentVariableIndex = findDependentVariableIndex(fieldNames, dependentVariable);
         this.trainingPercent = trainingPercent;
-
     }
 
     private static int findDependentVariableIndex(List<String> fieldNames, String dependentVariable) {

@@ -27,6 +27,8 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  */
 public class BoostedTreeParams implements ToXContentFragment, Writeable {
 
+    static final String NAME = "boosted_tree_params";
+
     public static final ParseField LAMBDA = new ParseField("lambda");
     public static final ParseField GAMMA = new ParseField("gamma");
     public static final ParseField ETA = new ParseField("eta");

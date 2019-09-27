@@ -21,7 +21,7 @@ public class BoostedTreeParamsTests extends AbstractSerializingTestCase<BoostedT
     protected BoostedTreeParams doParseInstance(XContentParser parser) throws IOException {
         ConstructingObjectParser<BoostedTreeParams, Void> objParser =
             new ConstructingObjectParser<>(
-                "boosted_tree_params",
+                BoostedTreeParams.NAME,
                 true,
                 a -> new BoostedTreeParams((Double) a[0], (Double) a[1], (Double) a[2], (Integer) a[3], (Double) a[4]));
         BoostedTreeParams.declareFields(objParser);

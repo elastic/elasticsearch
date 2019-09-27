@@ -67,8 +67,8 @@ public class Regression implements DataFrameAnalysis {
         if (trainingPercent != null && (trainingPercent < 1.0 || trainingPercent > 100.0)) {
             throw ExceptionsHelper.badRequestException("[{}] must be a double in [1, 100]", TRAINING_PERCENT.getPreferredName());
         }
-        this.dependentVariable = Objects.requireNonNull(dependentVariable);
-        this.boostedTreeParams = Objects.requireNonNull(boostedTreeParams);
+        this.dependentVariable = ExceptionsHelper.requireNonNull(dependentVariable, DEPENDENT_VARIABLE);
+        this.boostedTreeParams = ExceptionsHelper.requireNonNull(boostedTreeParams, BoostedTreeParams.NAME);
         this.predictionFieldName = predictionFieldName;
         this.trainingPercent = trainingPercent == null ? 100.0 : trainingPercent;
     }

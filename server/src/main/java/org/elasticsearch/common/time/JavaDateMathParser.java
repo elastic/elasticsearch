@@ -34,7 +34,6 @@ import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAdjusters;
 import java.time.temporal.TemporalQueries;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 /**
@@ -48,11 +47,11 @@ public class JavaDateMathParser implements DateMathParser {
 
     private final JavaDateFormatter formatter;
     private final String format;
-    private JavaDateFormatter roundupParser2;
+    private JavaDateFormatter roundUpFormatter;
 
-    JavaDateMathParser(String format, JavaDateFormatter formatter, JavaDateFormatter roundupParser2) {
+    JavaDateMathParser(String format, JavaDateFormatter formatter, JavaDateFormatter roundUpFormatter) {
         this.format = format;
-        this.roundupParser2 = roundupParser2;
+        this.roundUpFormatter = roundUpFormatter;
         Objects.requireNonNull(formatter);
         this.formatter = formatter;
     }
@@ -216,12 +215,12 @@ public class JavaDateMathParser implements DateMathParser {
             throw new ElasticsearchParseException("cannot parse empty date");
         }
 
-        Function<String,TemporalAccessor> formatter = roundUpIfNoTime ? this.roundupParser2::parse : this.formatter::parse;
+        JavaDateFormatter formatter = roundUpIfNoTime ? this.roundUpFormatter : this.formatter;
         try {
             if (timeZone == null) {
-                return DateFormatters.from(formatter.apply(value)).toInstant();
+                return DateFormatters.from(formatter.parse(value)).toInstant();
             } else {
-                TemporalAccessor accessor = formatter.apply(value);
+                TemporalAccessor accessor = formatter.parse(value);
                 ZoneId zoneId = TemporalQueries.zone().queryFrom(accessor);
                 if (zoneId != null) {
                     timeZone = zoneId;

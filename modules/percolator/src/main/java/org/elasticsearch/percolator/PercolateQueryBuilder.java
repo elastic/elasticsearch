@@ -246,11 +246,13 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         out.writeString(field);
         out.writeOptionalString(name);
         if (out.getVersion().before(Version.V_8_0_0)) {
-            out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
+            // In 7x, typeless percolate queries are represented by null documentType values
+            out.writeOptionalString(null);
         }
         out.writeOptionalString(indexedDocumentIndex);
         if (out.getVersion().before(Version.V_8_0_0)) {
-            out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
+            // In 7x, typeless percolate queries are represented by null indexedDocumentType values
+            out.writeOptionalString(null);
         }
         out.writeOptionalString(indexedDocumentId);
         out.writeOptionalString(indexedDocumentRouting);

@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -68,8 +69,12 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
 
     @Override
     protected Collection<String> templatesToWaitFor() {
-        return Stream.concat(XPackRestTestConstants.DATA_FRAME_TEMPLATES.stream(),
-            super.templatesToWaitFor().stream()).collect(Collectors.toSet());
+        if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_4_0)) {
+            return Stream.concat(XPackRestTestConstants.DATA_FRAME_TEMPLATES.stream(),
+                    super.templatesToWaitFor().stream()).collect(Collectors.toSet());
+        } else {
+            return Collections.emptySet();
+        }
     }
 
     protected static void waitForPendingDataFrameTasks() throws Exception {

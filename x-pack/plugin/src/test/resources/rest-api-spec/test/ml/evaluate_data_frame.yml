@@ -619,7 +619,7 @@ setup:
           }
 
   - match: { classification.multiclass_confusion_matrix.confusion_matrix: {cat: {cat: 2, dog: 1, mouse: 0}, dog: {cat: 1, dog: 2, mouse: 0}, mouse: {cat: 1, dog: 0, mouse: 1} } }
-  - match: { classification.multiclass_confusion_matrix.other_classes_count: 0 }
+  - match: { classification.multiclass_confusion_matrix._other_: 0 }
 ---
 "Test classification multiclass_confusion_matrix with explicit size":
   - do:
@@ -637,7 +637,7 @@ setup:
           }
 
   - match: { classification.multiclass_confusion_matrix.confusion_matrix: {cat: {cat: 2, dog: 1}, dog: {cat: 1, dog: 2} } }
-  - match: { classification.multiclass_confusion_matrix.other_classes_count: 1 }
+  - match: { classification.multiclass_confusion_matrix._other_: 1 }
 ---
 "Test classification with null metrics":
   - do:
@@ -654,7 +654,7 @@ setup:
           }
 
   - match: { classification.multiclass_confusion_matrix.confusion_matrix: {cat: {cat: 2, dog: 1, mouse: 0}, dog: {cat: 1, dog: 2, mouse: 0}, mouse: {cat: 1, dog: 0, mouse: 1} } }
-  - match: { classification.multiclass_confusion_matrix.other_classes_count: 0 }
+  - match: { classification.multiclass_confusion_matrix._other_: 0 }
 ---
 "Test classification given missing actual_field":
   - do:

@@ -20,7 +20,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class EvaluateDataFrameIT extends MlNativeDataFrameAnalyticsIntegTestCase {
+public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     private static final String ANIMALS_DATA_INDEX = "test-evaluate-animals-index";
 

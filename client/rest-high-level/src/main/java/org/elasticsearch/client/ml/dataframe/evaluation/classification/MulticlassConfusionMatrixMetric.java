@@ -97,7 +97,7 @@ public class MulticlassConfusionMatrixMetric implements EvaluationMetric {
     public static class Result implements EvaluationMetric.Result {
 
         private static final ParseField CONFUSION_MATRIX = new ParseField("confusion_matrix");
-        private static final ParseField OTHER_CLASSES_COUNT = new ParseField("other_classes_count");
+        private static final ParseField OTHER_CLASSES_COUNT = new ParseField("_other_");
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Result, Void> PARSER =

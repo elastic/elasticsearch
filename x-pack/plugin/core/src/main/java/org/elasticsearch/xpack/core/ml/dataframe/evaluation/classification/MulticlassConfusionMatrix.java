@@ -103,13 +103,14 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
 
     @Override
     public final List<AggregationBuilder> aggs(String actualField, String predictedField) {
-        if (topActualClassNames == null) {
+        if (topActualClassNames == null) {  // This is step 1
             return List.of(
                 AggregationBuilders.terms(STEP_1_AGGREGATE_BY_ACTUAL_CLASS)
                     .field(actualField)
                     .order(List.of(BucketOrder.count(false), BucketOrder.key(true)))
                     .size(size));
-        } else if (result == null) {
+        }
+        if (result == null) {  // This is step 2
             KeyedFilter[] keyedFilters =
                 topActualClassNames.stream()
                     .map(className -> new KeyedFilter(className, QueryBuilders.termQuery(predictedField, className)))
@@ -124,18 +125,17 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
                     .subAggregation(AggregationBuilders.filters(STEP_2_AGGREGATE_BY_PREDICTED_CLASS, keyedFilters)
                         .otherBucket(true)
                         .otherBucketKey(OTHER_BUCKET_KEY)));
-        } else {
-            return List.of();
         }
+        return List.of();
     }
 
     @Override
     public void process(Aggregations aggs) {
-        if (aggs.get(STEP_1_AGGREGATE_BY_ACTUAL_CLASS) != null && topActualClassNames == null) {
+        if (topActualClassNames == null && aggs.get(STEP_1_AGGREGATE_BY_ACTUAL_CLASS) != null) {
             Terms termsAgg = aggs.get(STEP_1_AGGREGATE_BY_ACTUAL_CLASS);
             topActualClassNames = termsAgg.getBuckets().stream().map(Terms.Bucket::getKeyAsString).collect(Collectors.toList());
         }
-        if (aggs.get(STEP_2_AGGREGATE_BY_ACTUAL_CLASS) != null && result == null) {
+        if (result == null && aggs.get(STEP_2_AGGREGATE_BY_ACTUAL_CLASS) != null) {
             Cardinality cardinalityAgg = aggs.get(STEP_2_CARDINALITY_OF_ACTUAL_CLASS);
             Terms termsAgg = aggs.get(STEP_2_AGGREGATE_BY_ACTUAL_CLASS);
             Map<String, Map<String, Long>> counts = new TreeMap<>();
@@ -190,7 +190,7 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
     public static class Result implements EvaluationMetricResult {
 
         private static final ParseField CONFUSION_MATRIX = new ParseField("confusion_matrix");
-        private static final ParseField OTHER_CLASSES_COUNT = new ParseField("other_classes_count");
+        private static final ParseField OTHER_CLASSES_COUNT = new ParseField("_other_");
 
         private static final ConstructingObjectParser<Result, Void> PARSER =
             new ConstructingObjectParser<>(

@@ -162,7 +162,7 @@ public class Shell {
                 readFileIfExists(stdOut),
                 readFileIfExists(stdErr)
             );
-            logger.info("Ran: {}\nr{}\n", Arrays.toString(command), result);
+            logger.info("Ran: {} {}", Arrays.toString(command), result);
             return result;
 
         } catch (IOException e) {
@@ -223,10 +223,10 @@ public class Shell {
             return new StringBuilder()
                 .append("exitCode = [")
                 .append(exitCode)
-                .append("]")
+                .append("] ")
                 .append("stdout = [")
                 .append(stdout.trim())
-                .append("]")
+                .append("] ")
                 .append("stderr = [")
                 .append(stderr.trim())
                 .append("]")

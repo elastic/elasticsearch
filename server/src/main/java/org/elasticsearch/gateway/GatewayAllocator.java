@@ -66,8 +66,6 @@ public class GatewayAllocator {
         asyncFetchStarted = ConcurrentCollections.newConcurrentMap();
     private final ConcurrentMap<ShardId, AsyncShardFetch<NodeStoreFilesMetaData>>
         asyncFetchStore = ConcurrentCollections.newConcurrentMap();
-
-    // contains ephemeralIds
     private Set<String> lastSeenEphemeralIds = Collections.emptySet();
 
     @Inject

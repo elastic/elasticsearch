@@ -1,4 +1,4 @@
-!#/bin/sh
+#!/bin/bash
 
 # opensuse 15 has a missing dep for systemd 
 sudo zypper install -y insserv-compat
@@ -13,11 +13,10 @@ set -e
 RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
 BUILD_JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
 
-sudo rm -Rfv /root/.gradle/init.d
-sudo mkdir -p /root/.gradle/init.d
-sudo cp -v .ci/init.gradle /root/.gradle/init.d
-
-# levarage the packar cache
+sudo rm -Rfv $HOME/.gradle/init.d
+sudo mkdir -p $HOME/.gradle/init.d
+sudo cp -v .ci/init.gradle $HOME/.gradle/init.d
+# levarage the packar cache and init files when ran with root
 sudo ln -s /root/.gradle /var/lib/jenkins/.gradle
 
 unset JAVA_HOME

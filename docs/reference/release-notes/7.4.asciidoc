@@ -329,6 +329,7 @@ CRUD::
 * Do not allow version in Rest Update API {pull}43516[#43516] (issue: {issue}42497[#42497])
 
 Cluster Coordination::
+* Assert no exceptions during state application {pull}47090[#47090] (issue: {issue}47038[#47038])
 * Avoid counting votes from master-ineligible nodes {pull}43688[#43688]
 
 Data Frame::

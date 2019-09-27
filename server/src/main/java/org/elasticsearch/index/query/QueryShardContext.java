@@ -445,4 +445,12 @@ public class QueryShardContext extends QueryRewriteContext {
     public BigArrays bigArrays() {
         return bigArrays;
     }
+
+    public SimilarityService getSimilarityService() {
+        return similarityService;
+    }
+
+    public BitsetFilterCache getBitsetFilterCache() {
+        return bitsetFilterCache;
+    }
 }

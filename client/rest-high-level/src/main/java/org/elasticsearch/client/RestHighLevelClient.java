@@ -256,7 +256,7 @@ public class RestHighLevelClient implements Closeable {
     private final IndexLifecycleClient ilmClient = new IndexLifecycleClient(this);
     private final RollupClient rollupClient = new RollupClient(this);
     private final CcrClient ccrClient = new CcrClient(this);
-    private final DataFrameClient dataFrameClient = new DataFrameClient(this);
+    private final TransformClient transformClient = new TransformClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -477,8 +477,8 @@ public class RestHighLevelClient implements Closeable {
      *
      * @return the client wrapper for making Data Frame API calls
      */
-    public DataFrameClient dataFrame() {
-        return dataFrameClient;
+    public TransformClient transform() {
+        return transformClient;
     }
 
     /**

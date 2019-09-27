@@ -63,7 +63,7 @@ Vagrant.configure(2) do |config|
         # Install Jayatana so we can work around it being present.
         [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
       SHELL
-      deb_docker config
+      ubuntu_docker config
     end
   end
   'ubuntu-1804'.tap do |box|
@@ -73,7 +73,7 @@ Vagrant.configure(2) do |config|
        # Install Jayatana so we can work around it being present.
        [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
       SHELL
-      deb_docker config
+      ubuntu_docker config
     end
   end
   'debian-8'.tap do |box|
@@ -191,8 +191,37 @@ def deb_common(config, name, extra: '')
   )
 end
 
+def ubuntu_docker(config)
+  config.vm.provision 'install Docker using apt', type: 'shell', inline: <<-SHELL
+    # Install packages to allow apt to use a repository over HTTPS
+    apt-get install -y \
+      apt-transport-https \
+      ca-certificates \
+      curl \
+      gnupg2 \
+      software-properties-common
+
+    # Add Docker’s official GPG key
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+
+    # Set up the stable Docker repository
+    add-apt-repository \
+      "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
+      $(lsb_release -cs) \
+      stable"
+
+    # Install Docker. Unlike Fedora and CentOS, this also start the daemon.
+    apt-get update
+    apt-get install -y docker-ce docker-ce-cli containerd.io
+
+    # Add vagrant to the Docker group, so that it can run commands
+    usermod -aG docker vagrant
+  SHELL
+end
+
+
 def deb_docker(config)
-  config.vm.provision 'install Docker using apt', run: 'always', type: 'shell', inline: <<-SHELL
+  config.vm.provision 'install Docker using apt', type: 'shell', inline: <<-SHELL
     # Install packages to allow apt to use a repository over HTTPS
     apt-get install -y \
       apt-transport-https \

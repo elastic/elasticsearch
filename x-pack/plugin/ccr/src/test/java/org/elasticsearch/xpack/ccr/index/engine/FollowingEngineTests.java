@@ -484,7 +484,7 @@ public class FollowingEngineTests extends ESTestCase {
                 for (Thread thread : threads) {
                     thread.join();
                 }
-                assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(leader.getMaxSeqNoOfUpdatesOrDeletes()));
+                assertThat(follower.getMaxSeqNoOfUpdatesOrDeletes(), greaterThanOrEqualTo(leader.getMaxSeqNoOfUpdatesOrDeletes()));
                 assertThat(getDocIds(follower, true), equalTo(getDocIds(leader, true)));
                 EngineTestCase.assertConsistentHistoryBetweenTranslogAndLuceneIndex(follower, createMapperService("test"));
                 EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(follower);
@@ -535,7 +535,12 @@ public class FollowingEngineTests extends ESTestCase {
                     try (Translog.Snapshot snapshot =
                              shuffleSnapshot(leader.newChangesSnapshot("test", mapperService, fromSeqNo, toSeqNo, true))) {
                         follower.advanceMaxSeqNoOfUpdatesOrDeletes(leader.getMaxSeqNoOfUpdatesOrDeletes());
-                        translogHandler.run(follower, snapshot);
+                        Translog.Operation op;
+                        while ((op = snapshot.next()) != null) {
+                            EngineTestCase.applyOperation(follower,
+                                translogHandler.convertToEngineOp(op, randomFrom(Engine.Operation.Origin.values())));
+                        }
+                        follower.syncTranslog();
                     }
                 }
             }

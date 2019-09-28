@@ -108,13 +108,8 @@ PUT _watcher/watch/log_error_watch
   }
 }
 --------------------------------------------------
-<<<<<<< HEAD
-// CONSOLE
-<1> The {xpack-ref}/condition-compare.html[compare] condition lets you easily compare against
-=======
 
 <1> The <<condition-compare,compare>> condition lets you easily compare against
->>>>>>> 91992a805f3... [DOCS] Moves Watcher content into Elasticsearch book (#47147)
     values in the execution context.
 
 For this compare condition to evaluate to `true`, you need to add an event

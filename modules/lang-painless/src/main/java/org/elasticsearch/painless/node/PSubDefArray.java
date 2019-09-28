@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
@@ -65,9 +66,9 @@ final class PSubDefArray extends AStoreable {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        setup(writer, globals);
-        load(writer, globals);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        setup(classWriter, methodWriter, globals);
+        load(classWriter, methodWriter, globals);
     }
 
     @Override
@@ -86,32 +87,31 @@ final class PSubDefArray extends AStoreable {
     }
 
     @Override
-    void setup(MethodWriter writer, Globals globals) {
-        // Current stack:                                                                    def
-        writer.dup();                                                                     // def, def
-        index.write(writer, globals);                                                     // def, def, unnormalized_index
+    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.dup();
+        index.write(classWriter, methodWriter, globals);
         Type methodType = Type.getMethodType(
                 MethodWriter.getType(index.actual), Type.getType(Object.class), MethodWriter.getType(index.actual));
-        writer.invokeDefCall("normalizeIndex", methodType, DefBootstrap.INDEX_NORMALIZE); // def, normalized_index
+        methodWriter.invokeDefCall("normalizeIndex", methodType, DefBootstrap.INDEX_NORMALIZE);
     }
 
     @Override
-    void load(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
 
         Type methodType =
             Type.getMethodType(MethodWriter.getType(actual), Type.getType(Object.class), MethodWriter.getType(index.actual));
-        writer.invokeDefCall("arrayLoad", methodType, DefBootstrap.ARRAY_LOAD);
+        methodWriter.invokeDefCall("arrayLoad", methodType, DefBootstrap.ARRAY_LOAD);
     }
 
     @Override
-    void store(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
 
         Type methodType =
             Type.getMethodType(
                 Type.getType(void.class), Type.getType(Object.class), MethodWriter.getType(index.actual), MethodWriter.getType(actual));
-        writer.invokeDefCall("arrayStore", methodType, DefBootstrap.ARRAY_STORE);
+        methodWriter.invokeDefCall("arrayStore", methodType, DefBootstrap.ARRAY_STORE);
     }
 
     @Override

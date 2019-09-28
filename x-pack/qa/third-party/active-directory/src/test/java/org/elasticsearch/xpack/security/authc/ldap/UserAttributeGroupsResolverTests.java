@@ -22,7 +22,6 @@ import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullS
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class UserAttributeGroupsResolverTests extends GroupsResolverTestCase {
@@ -64,7 +63,7 @@ public class UserAttributeGroupsResolverTests extends GroupsResolverTestCase {
         List<String> groups =
                 resolveBlocking(resolver, ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(20), NoOpLogger.INSTANCE, null);
         assertThat(groups, hasSize(1));
-        assertThat(groups.get(0), equalTo("Avengers"));  //seeAlso only has Avengers
+        assertThat(groups.get(0), containsString("Avengers"));  //seeAlso only has Avengers
     }
 
     public void testResolveInvalidGroupAttribute() throws Exception {

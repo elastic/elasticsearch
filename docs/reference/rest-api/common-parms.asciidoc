@@ -1,4 +1,12 @@
 
+tag::active-only[]
+`active_only`::
+(Optional, boolean)
+If `true`,
+the response only includes ongoing shard recoveries.
+Defaults to `false`.
+end::active-only[]
+
 tag::index-alias[]
 Comma-separated list or wildcard expression of index alias names
 used to limit the request.
@@ -66,6 +74,14 @@ tag::default_operator[]
 (Optional, string) The default operator for query string query: AND or OR. 
 Defaults to `OR`.
 end::default_operator[]
+
+tag::detailed[]
+`detailed`::
+(Optional, boolean)
+If `true`,
+the response includes detailed information about shard recoveries.
+Defaults to `false`.
+end::detailed[]
 
 tag::df[]
 `df`::
@@ -226,6 +242,13 @@ tag::include-unloaded-segments[]
 (Optional, boolean) If `true`, the response includes information from segments
 that are **not** loaded into memory. Defaults to `false`.
 end::include-unloaded-segments[]
+
+tag::index-query-parm[]
+`index`::
+(Optional, string)
+Comma-separated list or wildcard expression of index names
+used to limit the request.
+end::index-query-parm[]
 
 tag::index[]
 `<index>`::

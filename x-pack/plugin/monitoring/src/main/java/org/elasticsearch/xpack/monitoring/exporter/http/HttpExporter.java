@@ -47,6 +47,7 @@ import javax.net.ssl.SSLContext;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -88,34 +89,62 @@ public class HttpExporter extends Exporter {
                     key,
                     Collections.emptyList(),
                     Function.identity(),
-                    hosts -> {
-                        if (hosts.isEmpty()) {
-                            throw new SettingsException("host list for [" + key + "] is empty");
+                    new Setting.Validator<>() {
+                        @Override
+                        public void validate(final List<String> value) {
+
                         }
 
-                        boolean httpHostFound = false;
-                        boolean httpsHostFound = false;
+                        @Override
+                        public void validate(final List<String> hosts, final Map<Setting<?>, Object> settings) {
+                            final String namespace =
+                                HttpExporter.HOST_SETTING.getNamespace(HttpExporter.HOST_SETTING.getConcreteSetting(key));
+                            final String type = (String)settings.get(Exporter.TYPE_SETTING.getConcreteSettingForNamespace(namespace));
 
-                        // every host must be configured
-                        for (final String host : hosts) {
-                            final HttpHost httpHost;
-
-                            try {
-                                httpHost = HttpHostBuilder.builder(host).build();
-                            } catch (final IllegalArgumentException e) {
-                                throw new SettingsException("[" + key + "] invalid host: [" + host + "]", e);
+                            if (hosts.isEmpty()) {
+                                if ("".equals(type)) {
+                                    // hosts can only be empty if the type is unset
+                                    return;
+                                } else {
+                                    throw new SettingsException("host list for [" + key + "] is empty but type is [" + type + "]");
+                                }
+                            } else if ("http".equals(type) == false) {
+                                // the hosts can only be non-empty if the type is "http"
+                                throw new SettingsException("host list for [" + key + "] is set but type is [" + type + "]");
                             }
 
-                            if ("http".equals(httpHost.getSchemeName())) {
-                                httpHostFound = true;
-                            } else {
-                                httpsHostFound = true;
-                            }
+                            boolean httpHostFound = false;
+                            boolean httpsHostFound = false;
 
-                            // fail if we find them configuring the scheme/protocol in different ways
-                            if (httpHostFound && httpsHostFound) {
-                                throw new SettingsException("[" + key + "] must use a consistent scheme: http or https");
+                            // every host must be configured
+                            for (final String host : hosts) {
+                                final HttpHost httpHost;
+
+                                try {
+                                    httpHost = HttpHostBuilder.builder(host).build();
+                                } catch (final IllegalArgumentException e) {
+                                    throw new SettingsException("[" + key + "] invalid host: [" + host + "]", e);
+                                }
+
+                                if ("http".equals(httpHost.getSchemeName())) {
+                                    httpHostFound = true;
+                                } else {
+                                    httpsHostFound = true;
+                                }
+
+                                // fail if we find them configuring the scheme/protocol in different ways
+                                if (httpHostFound && httpsHostFound) {
+                                    throw new SettingsException("[" + key + "] must use a consistent scheme: http or https");
+                                }
                             }
+                        }
+
+                        @Override
+                        public Iterator<Setting<?>> settings() {
+                            final String namespace =
+                                HttpExporter.HOST_SETTING.getNamespace(HttpExporter.HOST_SETTING.getConcreteSetting(key));
+                            final List<Setting<?>> settings = List.of(Exporter.TYPE_SETTING.getConcreteSettingForNamespace(namespace));
+                            return settings.iterator();
                         }
                     },
                     Property.Dynamic,

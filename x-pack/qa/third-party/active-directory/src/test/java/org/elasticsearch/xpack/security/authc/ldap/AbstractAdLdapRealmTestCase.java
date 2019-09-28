@@ -24,7 +24,6 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
 import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
-import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
@@ -49,6 +48,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope.ONE_LEVEL;
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope.SUB_TREE;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
@@ -65,7 +65,8 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase {
 
-    public static final String XPACK_SECURITY_AUTHC_REALMS_EXTERNAL = "xpack.security.authc.realms.external";
+    public static final String XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL = "xpack.security.authc.realms.active_directory.external";
+    public static final String XPACK_SECURITY_AUTHC_REALMS_LDAP_EXTERNAL = "xpack.security.authc.realms.ldap.external";
     public static final String PASSWORD = AbstractActiveDirectoryTestCase.PASSWORD;
     public static final String ASGARDIAN_INDEX = "gods";
     public static final String PHILANTHROPISTS_INDEX = "philanthropists";
@@ -125,13 +126,13 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         Settings.Builder builder = Settings.builder();
         // don't use filter since it returns a prefixed secure setting instead of mock!
         Settings settingsToAdd = super.nodeSettings(nodeOrdinal);
-        builder.put(settingsToAdd.filter(k -> k.startsWith("xpack.transport.security.ssl.") == false), false);
+        builder.put(settingsToAdd.filter(k -> k.startsWith("xpack.security.transport.ssl.") == false), false);
         MockSecureSettings mockSecureSettings = (MockSecureSettings) Settings.builder().put(settingsToAdd).getSecureSettings();
         if (mockSecureSettings != null) {
             MockSecureSettings filteredSecureSettings = new MockSecureSettings();
             builder.setSecureSettings(filteredSecureSettings);
             for (String secureSetting : mockSecureSettings.getSettingNames()) {
-                if (secureSetting.startsWith("xpack.transport.security.ssl.") == false) {
+                if (secureSetting.startsWith("xpack.security.transport.ssl.") == false) {
                     SecureString secureString = mockSecureSettings.getString(secureSetting);
                     if (secureString == null) {
                         final byte[] fileBytes;
@@ -164,7 +165,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         certificateAuthorities) {
         Settings.Builder builder = Settings.builder();
         builder.put(realm.buildSettings(certificateAuthorities));
-        configureFileRoleMappings(builder, roleMappingEntries);
+        configureFileRoleMappings(builder, realm.type, roleMappingEntries);
         return builder.build();
     }
 
@@ -212,11 +213,11 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
                 .collect(Collectors.toList());
     }
 
-    protected final void configureFileRoleMappings(Settings.Builder builder, List<RoleMappingEntry> mappings) {
+    protected final void configureFileRoleMappings(Settings.Builder builder, String realmType, List<RoleMappingEntry> mappings) {
         String content = getRoleMappingContent(RoleMappingEntry::getFileContent, mappings).stream().collect(Collectors.joining("\n"));
         Path nodeFiles = createTempDir();
         String file = writeFile(nodeFiles, "role_mapping.yml", content);
-        builder.put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".files.role_mapping", file);
+        builder.put("xpack.security.authc.realms." + realmType + ".external.files.role_mapping", file);
     }
 
     @Override
@@ -287,11 +288,11 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
 
     private void addSslSettingsForKeyPair(Settings.Builder builder, Path key, String keyPassphrase, Path cert,
                                           List<String> certificateAuthorities) {
-        builder.put("xpack.transport.security.ssl.key", key)
-            .put("xpack.transport.security.ssl.key_passphrase", keyPassphrase)
-            .put("xpack.transport.security.ssl.verification_mode", "certificate")
-            .put("xpack.transport.security.ssl.certificate", cert)
-            .putList("xpack.transport.security.ssl.certificate_authorities", certificateAuthorities);
+        builder.put("xpack.security.transport.ssl.key", key)
+            .put("xpack.security.transport.ssl.key_passphrase", keyPassphrase)
+            .put("xpack.security.transport.ssl.verification_mode", "certificate")
+            .put("xpack.security.transport.ssl.certificate", cert)
+            .putList("xpack.security.transport.ssl.certificate_authorities", certificateAuthorities);
     }
 
     /**
@@ -376,57 +377,55 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
 
         AD(false, AD_ROLE_MAPPING,
                 Settings.builder()
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".type", LdapRealmSettings.AD_TYPE)
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".domain_name", ActiveDirectorySessionFactoryTests.AD_DOMAIN)
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL
+                    .put(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".domain_name", ActiveDirectorySessionFactoryTests.AD_DOMAIN)
+                    .put(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL
                                 + ".group_search.base_dn", "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".group_search.scope", randomBoolean() ? SUB_TREE : ONE_LEVEL)
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".url", ActiveDirectorySessionFactoryTests.AD_LDAP_URL)
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".follow_referrals",
+                    .put(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".group_search.scope", randomBoolean() ? SUB_TREE : ONE_LEVEL)
+                    .put(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".url", ActiveDirectorySessionFactoryTests.AD_LDAP_URL)
+                    .put(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".follow_referrals",
                                 ActiveDirectorySessionFactoryTests.FOLLOW_REFERRALS)
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + "." +
-                                ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING.getKey(), AD_LDAP_PORT)
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + "." +
-                                ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING.getKey(), AD_LDAPS_PORT)
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + "." +
-                                ActiveDirectorySessionFactorySettings.AD_GC_LDAP_PORT_SETTING.getKey(), AD_GC_LDAP_PORT)
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + "." +
-                                ActiveDirectorySessionFactorySettings.AD_GC_LDAPS_PORT_SETTING.getKey(), AD_GC_LDAPS_PORT)
-                        .build()),
+                    .put(getFullSettingKey("external",ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING), AD_LDAP_PORT)
+                    .put(getFullSettingKey("external",ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING), AD_LDAPS_PORT)
+                    .put(getFullSettingKey("external",ActiveDirectorySessionFactorySettings.AD_GC_LDAP_PORT_SETTING), AD_GC_LDAP_PORT)
+                    .put(getFullSettingKey("external",ActiveDirectorySessionFactorySettings.AD_GC_LDAPS_PORT_SETTING), AD_GC_LDAPS_PORT)
+                    .build(),
+            "active_directory"),
 
         AD_LDAP_GROUPS_FROM_SEARCH(true, AD_ROLE_MAPPING,
                 Settings.builder()
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".type", LdapRealmSettings.LDAP_TYPE)
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".url", ActiveDirectorySessionFactoryTests.AD_LDAP_URL)
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL
+                    .put(XPACK_SECURITY_AUTHC_REALMS_LDAP_EXTERNAL + ".url", ActiveDirectorySessionFactoryTests.AD_LDAP_URL)
+                    .put(XPACK_SECURITY_AUTHC_REALMS_LDAP_EXTERNAL
                                 + ".group_search.base_dn", "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".group_search.scope", randomBoolean() ? SUB_TREE : ONE_LEVEL)
-                        .putList(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".user_dn_templates",
+                    .put(XPACK_SECURITY_AUTHC_REALMS_LDAP_EXTERNAL + ".group_search.scope", randomBoolean() ? SUB_TREE : ONE_LEVEL)
+                    .putList(XPACK_SECURITY_AUTHC_REALMS_LDAP_EXTERNAL + ".user_dn_templates",
                                 "cn={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".follow_referrals",
+                    .put(XPACK_SECURITY_AUTHC_REALMS_LDAP_EXTERNAL + ".follow_referrals",
                                 ActiveDirectorySessionFactoryTests.FOLLOW_REFERRALS)
-                        .build()),
+                    .build(),
+            "ldap"),
 
         AD_LDAP_GROUPS_FROM_ATTRIBUTE(true, AD_ROLE_MAPPING,
                 Settings.builder()
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".type", LdapRealmSettings.LDAP_TYPE)
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".url", ActiveDirectorySessionFactoryTests.AD_LDAP_URL)
-                        .putList(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".user_dn_templates",
+                    .put(XPACK_SECURITY_AUTHC_REALMS_LDAP_EXTERNAL + ".url", ActiveDirectorySessionFactoryTests.AD_LDAP_URL)
+                    .putList(XPACK_SECURITY_AUTHC_REALMS_LDAP_EXTERNAL + ".user_dn_templates",
                                 "cn={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com")
-                        .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".follow_referrals",
+                    .put(XPACK_SECURITY_AUTHC_REALMS_LDAP_EXTERNAL + ".follow_referrals",
                                 ActiveDirectorySessionFactoryTests.FOLLOW_REFERRALS)
-                        .build());
+                    .build(),
+            "ldap");
 
+        final String type;
         final boolean mapGroupsAsRoles;
         final boolean loginWithCommonName;
         private final RoleMappingEntry[] roleMappings;
         final Settings settings;
 
-        RealmConfig(boolean loginWithCommonName, RoleMappingEntry[] roleMappings, Settings settings) {
+        RealmConfig(boolean loginWithCommonName, RoleMappingEntry[] roleMappings, Settings settings, String type) {
             this.settings = settings;
             this.loginWithCommonName = loginWithCommonName;
             this.roleMappings = roleMappings;
             this.mapGroupsAsRoles = randomBoolean();
+            this.type = type;
         }
 
         public Settings buildSettings(List<String> certificateAuthorities) {
@@ -436,11 +435,11 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
 
         protected Settings buildSettings(List<String> certificateAuthorities, int order) {
             Settings.Builder builder = Settings.builder()
-                .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".order", order)
-                .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".hostname_verification", false)
-                .put(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".unmapped_groups_as_roles", mapGroupsAsRoles)
+                .put("xpack.security.authc.realms." + type + ".external.order", order)
+                .put("xpack.security.authc.realms." + type + ".external.hostname_verification", false)
+                .put("xpack.security.authc.realms." + type + ".external.unmapped_groups_as_roles", mapGroupsAsRoles)
                 .put(this.settings)
-                .putList(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + ".ssl.certificate_authorities", certificateAuthorities);
+                .putList("xpack.security.authc.realms." + type + ".external.ssl.certificate_authorities", certificateAuthorities);
             return builder.build();
         }
 

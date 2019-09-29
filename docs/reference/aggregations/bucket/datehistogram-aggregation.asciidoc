@@ -360,7 +360,7 @@ duration options.
 
 For example, when using an interval of `day`, each bucket runs from midnight
 to midnight.  Setting the `offset` parameter to `+6h` changes each bucket
-to run from 6am to 6am:
+to run from 0am to 6am:
 
 [source,js]
 -----------------------------

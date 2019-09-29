@@ -68,6 +68,8 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
 
         public Builder(String name) {
             super (name, new GeoShapeFieldType(), new GeoShapeFieldType());
+            this.crs =Defaults.CRS.value();
+            this.crsHandler = resolveCRSHandler(this.crs().value());
         }
 
         public Builder(String name, Map<String, Object> params) {

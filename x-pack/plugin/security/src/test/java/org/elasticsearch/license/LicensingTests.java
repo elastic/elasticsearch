@@ -129,7 +129,7 @@ public class LicensingTests extends SecurityIntegTestCase {
     }
 
     @Before
-    public void resetLicensing() throws InterruptedException {
+    public void resetLicensing() throws Exception {
         enableLicensing(OperationMode.MISSING);
     }
 
@@ -297,64 +297,50 @@ public class LicensingTests extends SecurityIntegTestCase {
         assertThat(ee.status(), is(RestStatus.FORBIDDEN));
     }
 
-    private void disableLicensing() throws InterruptedException {
+    private void disableLicensing() throws Exception {
         // This method first makes sure licensing is enabled everywhere so that we can execute
         // monitoring actions to ensure we have a stable cluster and only then do we disable.
-        // This is done in an await busy since there is a chance that the enabling of the license
+        // This is done in an assertBusy since there is a chance that the enabling of the license
         // is overwritten by some other cluster activity and the node throws an exception while we
         // wait for things to stabilize!
-        final boolean success = awaitBusy(() -> {
-            try {
-                for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                    if (licenseState.isAuthAllowed() == false) {
-                        enableLicensing(OperationMode.BASIC);
-                        break;
-                    }
+        assertBusy(() -> {
+            for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
+                if (licenseState.isAuthAllowed() == false) {
+                    enableLicensing(OperationMode.BASIC);
+                    break;
                 }
-
-                ensureGreen();
-                ensureClusterSizeConsistency();
-                ensureClusterStateConsistency();
-
-                // apply the disabling of the license once the cluster is stable
-                for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                    licenseState.update(OperationMode.BASIC, false, null);
-                }
-            } catch (Exception e) {
-                logger.error("Caught exception while disabling license", e);
-                return false;
             }
-            return true;
+
+            ensureGreen();
+            ensureClusterSizeConsistency();
+            ensureClusterStateConsistency();
+
+            // apply the disabling of the license once the cluster is stable
+            for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
+                licenseState.update(OperationMode.BASIC, false, null);
+            }
         }, 30L, TimeUnit.SECONDS);
-        assertTrue(success);
     }
 
-    private void enableLicensing(License.OperationMode operationMode) throws InterruptedException {
+    private void enableLicensing(License.OperationMode operationMode) throws Exception {
         // do this in an await busy since there is a chance that the enabling of the license is
         // overwritten by some other cluster activity and the node throws an exception while we
         // wait for things to stabilize!
-        final boolean success = awaitBusy(() -> {
-            try {
-                // first update the license so we can execute monitoring actions
-                for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                    licenseState.update(operationMode, true, null);
-                }
-
-                ensureGreen();
-                ensureClusterSizeConsistency();
-                ensureClusterStateConsistency();
-
-                // re-apply the update in case any node received an updated cluster state that triggered the license state
-                // to change
-                for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-                    licenseState.update(operationMode, true, null);
-                }
-            } catch (Exception e) {
-                logger.error("Caught exception while enabling license", e);
-                return false;
+        assertBusy(() -> {
+            // first update the license so we can execute monitoring actions
+            for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
+                licenseState.update(operationMode, true, null);
             }
-            return true;
+
+            ensureGreen();
+            ensureClusterSizeConsistency();
+            ensureClusterStateConsistency();
+
+            // re-apply the update in case any node received an updated cluster state that triggered the license state
+            // to change
+            for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
+                licenseState.update(operationMode, true, null);
+            }
         }, 30L, TimeUnit.SECONDS);
-        assertTrue(success);
     }
 }

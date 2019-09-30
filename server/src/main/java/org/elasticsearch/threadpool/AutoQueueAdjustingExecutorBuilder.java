@@ -31,6 +31,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 
@@ -83,10 +84,10 @@ public final class AutoQueueAdjustingExecutorBuilder extends ExecutorBuilder<Aut
                 }
 
                 @Override
-                public void validate(final Integer value, final Settings settings) {
-                    if (value > tempMaxQueueSizeSetting.get(settings)) {
+                public void validate(final Integer value, final Map<Setting<?>, Object> settings) {
+                    if (value > (int) settings.get(tempMaxQueueSizeSetting)) {
                         throw new IllegalArgumentException("Failed to parse value [" + value + "] for setting [" + minSizeKey
-                            + "] must be <= " + tempMaxQueueSizeSetting.get(settings));
+                            + "] must be <= " + settings.get(tempMaxQueueSizeSetting));
                     }
                 }
 
@@ -110,10 +111,10 @@ public final class AutoQueueAdjustingExecutorBuilder extends ExecutorBuilder<Aut
                     }
 
                     @Override
-                    public void validate(final Integer value, final Settings settings) {
-                        if (value < tempMinQueueSizeSetting.get(settings)) {
+                    public void validate(final Integer value, final Map<Setting<?>, Object> settings) {
+                        if (value < (int) settings.get(tempMinQueueSizeSetting)) {
                             throw new IllegalArgumentException("Failed to parse value [" + value + "] for setting [" + minSizeKey
-                                + "] must be >= " + tempMinQueueSizeSetting.get(settings));
+                                + "] must be >= " + settings.get(tempMinQueueSizeSetting));
                         }
                     }
 

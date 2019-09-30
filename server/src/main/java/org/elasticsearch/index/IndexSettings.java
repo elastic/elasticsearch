@@ -38,6 +38,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -316,8 +317,8 @@ public final class IndexSettings {
         }
 
         @Override
-        public void validate(final String value, final Settings settings) {
-            final String requiredPipeline = DEFAULT_PIPELINE.get(settings);
+        public void validate(final String value, final Map<Setting<?>, Object> settings) {
+            final String requiredPipeline = (String) settings.get(IndexSettings.REQUIRED_PIPELINE);
             if (value.equals(IngestService.NOOP_PIPELINE_NAME) == false
                 && requiredPipeline.equals(IngestService.NOOP_PIPELINE_NAME) == false) {
                 throw new IllegalArgumentException(
@@ -341,8 +342,8 @@ public final class IndexSettings {
         }
 
         @Override
-        public void validate(final String value, final Settings settings) {
-            final String defaultPipeline = DEFAULT_PIPELINE.get(settings);
+        public void validate(final String value, final Map<Setting<?>, Object> settings) {
+            final String defaultPipeline = (String) settings.get(IndexSettings.DEFAULT_PIPELINE);
             if (value.equals(IngestService.NOOP_PIPELINE_NAME) && defaultPipeline.equals(IngestService.NOOP_PIPELINE_NAME) == false) {
                 throw new IllegalArgumentException(
                     "index has a required pipeline [" + value + "] and a default pipeline [" + defaultPipeline + "]");

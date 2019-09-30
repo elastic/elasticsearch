@@ -33,7 +33,7 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.internal.ShardSearchTransportRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
 
@@ -83,7 +83,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             return null;
         };
 
-        return new AbstractSearchAsyncAction<SearchPhaseResult>("test", null, null, nodeIdToConnection,
+        return new AbstractSearchAsyncAction<SearchPhaseResult>("test", logger, null, nodeIdToConnection,
                 Collections.singletonMap("foo", new AliasFilter(new MatchAllQueryBuilder())), Collections.singletonMap("foo", 2.0f),
                 Collections.singletonMap("name", Sets.newHashSet("bar", "baz")), null, request, listener,
                 new GroupShardsIterator<>(
@@ -146,7 +146,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
         SearchShardIterator iterator = new SearchShardIterator(clusterAlias, new ShardId(new Index("name", "foo"), 1),
             Collections.emptyList(), new OriginalIndices(new String[] {"name", "name1"}, IndicesOptions.strictExpand()));
-        ShardSearchTransportRequest shardSearchTransportRequest = action.buildShardSearchRequest(iterator);
+        ShardSearchRequest shardSearchTransportRequest = action.buildShardSearchRequest(iterator);
         assertEquals(IndicesOptions.strictExpand(), shardSearchTransportRequest.indicesOptions());
         assertArrayEquals(new String[] {"name", "name1"}, shardSearchTransportRequest.indices());
         assertEquals(new MatchAllQueryBuilder(), shardSearchTransportRequest.getAliasFilter().getQueryBuilder());
@@ -237,6 +237,29 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
         assertEquals(nodeLookups, resolvedNodes);
         assertEquals(requestIds, releasedContexts);
+    }
+
+    public void testShardNotAvailableWithDisallowPartialFailures() {
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false);
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        ActionListener<SearchResponse> listener = ActionListener.wrap(response -> fail("onResponse should not be called"), exception::set);
+        int numShards = randomIntBetween(2, 10);
+        InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> phaseResults =
+            new InitialSearchPhase.ArraySearchPhaseResults<>(numShards);
+        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest, phaseResults, listener, false, new AtomicLong());
+        // skip one to avoid the "all shards failed" failure.
+        SearchShardIterator skipIterator = new SearchShardIterator(null, null, Collections.emptyList(), null);
+        skipIterator.resetAndSkip();
+        action.skipShard(skipIterator);
+        // expect at least 2 shards, so onPhaseDone should report failure.
+        action.onPhaseDone();
+        assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
+        SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException)exception.get();
+        assertEquals("Partial shards failure (" + (numShards - 1) + " shards unavailable)",
+            searchPhaseExecutionException.getMessage());
+        assertEquals("test", searchPhaseExecutionException.getPhaseName());
+        assertEquals(0, searchPhaseExecutionException.shardFailures().length);
+        assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
     }
 
     private static InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> phaseResults(Set<Long> requestIds,

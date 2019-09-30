@@ -143,11 +143,11 @@ public class MockClientBuilder {
         return this;
     }
 
-    public MockClientBuilder prepareGet(String index, String type, String id, GetResponse response) {
+    public MockClientBuilder prepareGet(String index, String id, GetResponse response) {
         GetRequestBuilder getRequestBuilder = mock(GetRequestBuilder.class);
         when(getRequestBuilder.get()).thenReturn(response);
         when(getRequestBuilder.setFetchSource(false)).thenReturn(getRequestBuilder);
-        when(client.prepareGet(index, type, id)).thenReturn(getRequestBuilder);
+        when(client.prepareGet(index, id)).thenReturn(getRequestBuilder);
         return this;
     }
 

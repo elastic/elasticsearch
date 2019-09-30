@@ -51,21 +51,20 @@ The response is an object with two fields:
 
 The following example retrieves the names of all builtin privileges:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_security/privilege/_builtin
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 A successful call returns an object with "cluster" and "index" fields.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "cluster" : [
     "all",
     "create_snapshot",
+    "delegate_pki",
     "manage",
     "manage_api_key",
     "manage_ccr",
@@ -75,6 +74,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "manage_ingest_pipelines",
     "manage_ml",
     "manage_oidc",
+    "manage_own_api_key",
     "manage_pipeline",
     "manage_rollup",
     "manage_saml",
@@ -113,4 +113,3 @@ A successful call returns an object with "cluster" and "index" fields.
   ]
 }
 --------------------------------------------------
-// TESTRESPONSE

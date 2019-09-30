@@ -22,7 +22,6 @@ package org.elasticsearch.index;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -32,6 +31,7 @@ import org.elasticsearch.Assertions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -58,6 +58,7 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.SearchIndexNameMatcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -67,6 +68,7 @@ import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
@@ -133,6 +135,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final ThreadPool threadPool;
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
+    private final ClusterService clusterService;
     private final Client client;
     private final CircuitBreakerService circuitBreakerService;
     private Supplier<Sort> indexSortSupplier;
@@ -150,6 +153,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             BigArrays bigArrays,
             ThreadPool threadPool,
             ScriptService scriptService,
+            ClusterService clusterService,
             Client client,
             QueryCache queryCache,
             IndexStorePlugin.DirectoryFactory directoryFactory,
@@ -200,6 +204,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
         this.scriptService = scriptService;
+        this.clusterService = clusterService;
         this.client = client;
         this.eventListener = eventListener;
         this.nodeEnv = nodeEnv;
@@ -521,24 +526,18 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return indexSettings;
     }
 
-    private IndexSearcher newCachedSearcher(int shardId, IndexReaderContext context) {
-        IndexSearcher searcher = new IndexSearcher(context);
-        searcher.setQueryCache(cache().query());
-        searcher.setQueryCachingPolicy(getShard(shardId).getQueryCachingPolicy());
-        return searcher;
-    }
-
     /**
      * Creates a new QueryShardContext.
      *
-     * Passing a {@code null} {@link IndexReader} will return a valid context, however it won't be able to make {@link IndexReader}-specific
-     * optimizations, such as rewriting containing range queries.
+     * Passing a {@code null} {@link IndexSearcher} will return a valid context, however it won't be able to make
+     * {@link IndexReader}-specific optimizations, such as rewriting containing range queries.
      */
-    public QueryShardContext newQueryShardContext(int shardId, IndexReader indexReader, LongSupplier nowInMillis, String clusterAlias) {
+    public QueryShardContext newQueryShardContext(int shardId, IndexSearcher searcher, LongSupplier nowInMillis, String clusterAlias) {
+        SearchIndexNameMatcher indexNameMatcher = new SearchIndexNameMatcher(index().getName(), clusterAlias, clusterService);
         return new QueryShardContext(
-            shardId, indexSettings, indexCache.bitsetFilterCache(), context -> newCachedSearcher(shardId, context),
-            indexFieldData::getForField, mapperService(), similarityService(), scriptService, xContentRegistry, namedWriteableRegistry,
-            client, indexReader, nowInMillis, clusterAlias);
+            shardId, indexSettings, bigArrays, indexCache.bitsetFilterCache(), indexFieldData::getForField, mapperService(),
+            similarityService(), scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis, clusterAlias,
+            indexNameMatcher);
     }
 
     /**
@@ -835,14 +834,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     case STARTED:
                         try {
                             shard.runUnderPrimaryPermit(
-                                    () -> {
-                                        if (shard.isRelocatedPrimary() == false) {
-                                            sync.accept(shard);
-                                        }
-                                    },
+                                    () -> sync.accept(shard),
                                     e -> {
                                         if (e instanceof AlreadyClosedException == false
-                                                && e instanceof IndexShardClosedException == false) {
+                                            && e instanceof IndexShardClosedException == false
+                                            && e instanceof ShardNotInPrimaryModeException == false) {
                                             logger.warn(
                                                     new ParameterizedMessage(
                                                             "{} failed to execute {} sync", shard.shardId(), source), e);

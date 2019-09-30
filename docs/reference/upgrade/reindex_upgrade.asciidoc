@@ -156,7 +156,7 @@ cluster and remove nodes from the old one.
   remote index into the new {version} index:
 +
 --
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _reindex
 {
@@ -178,7 +178,6 @@ POST _reindex
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:host]
 // TEST[s/^/PUT source\n/]
 // TEST[s/oldhost:9200",/\${host}"/]

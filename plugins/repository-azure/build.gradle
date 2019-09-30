@@ -23,7 +23,7 @@ esplugin {
 }
 
 dependencies {
-  compile 'com.microsoft.azure:azure-storage:8.0.0'
+  compile 'com.microsoft.azure:azure-storage:8.4.0'
   compile 'com.microsoft.azure:azure-keyvault-core:1.0.0'
   compile 'com.google.guava:guava:20.0'
   compile 'org.apache.commons:commons-lang3:3.4'
@@ -88,7 +88,7 @@ task thirdPartyTest(type: Test) {
   systemProperty 'test.azure.key', azureKey ? azureKey : ""
   systemProperty 'test.azure.sas_token', azureSasToken ? azureSasToken : ""
   systemProperty 'test.azure.container', azureContainer ? azureContainer : ""
-  systemProperty 'test.azure.base', azureBasePath ? azureBasePath : ""
+  systemProperty 'test.azure.base', (azureBasePath ? azureBasePath : "") + "_third_party_tests_" + project.testSeed
 }
 
 if (azureAccount || azureKey || azureContainer || azureBasePath || azureSasToken) {

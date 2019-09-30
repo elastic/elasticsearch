@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
 
 import javax.crypto.SecretKeyFactory;
-
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -41,7 +40,7 @@ public class XPackSettings {
     public static final Setting<Boolean> CCR_ENABLED_SETTING = Setting.boolSetting("xpack.ccr.enabled", true, Property.NodeScope);
 
     /** Setting for enabling or disabling data frame. Defaults to true. */
-    public static final Setting<Boolean> DATA_FRAME_ENABLED = Setting.boolSetting("xpack.data_frame.enabled", true,
+    public static final Setting<Boolean> TRANSFORM_ENABLED = Setting.boolSetting("xpack.transform.enabled", true,
             Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling security. Defaults to true. */
@@ -87,6 +86,12 @@ public class XPackSettings {
     public static final Setting<Boolean> INDEX_LIFECYCLE_ENABLED = Setting.boolSetting("xpack.ilm.enabled", true,
         Setting.Property.NodeScope);
 
+    /**
+     * Setting for enabling or disabling the snapshot lifecycle extension. Defaults to true.
+     */
+    public static final Setting<Boolean> SNAPSHOT_LIFECYCLE_ENABLED = Setting.boolSetting("xpack.slm.enabled", true,
+        Setting.Property.NodeScope);
+
     /** Setting for enabling or disabling TLS. Defaults to false. */
     public static final Setting<Boolean> TRANSPORT_SSL_ENABLED = Setting.boolSetting("xpack.security.transport.ssl.enabled", false,
             Property.NodeScope);
@@ -100,12 +105,12 @@ public class XPackSettings {
             true, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling the token service. Defaults to the value of https being enabled */
-    public static final Setting<Boolean> TOKEN_SERVICE_ENABLED_SETTING = Setting.boolSetting("xpack.security.authc.token.enabled",
-        XPackSettings.HTTP_SSL_ENABLED::getRaw, Setting.Property.NodeScope);
+    public static final Setting<Boolean> TOKEN_SERVICE_ENABLED_SETTING =
+        Setting.boolSetting("xpack.security.authc.token.enabled", XPackSettings.HTTP_SSL_ENABLED, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling the api key service. Defaults to the value of https being enabled */
-    public static final Setting<Boolean> API_KEY_SERVICE_ENABLED_SETTING = Setting.boolSetting("xpack.security.authc.api_key.enabled",
-        XPackSettings.HTTP_SSL_ENABLED::getRaw, Setting.Property.NodeScope);
+    public static final Setting<Boolean> API_KEY_SERVICE_ENABLED_SETTING =
+        Setting.boolSetting("xpack.security.authc.api_key.enabled", XPackSettings.HTTP_SSL_ENABLED, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling FIPS mode. Defaults to false */
     public static final Setting<Boolean> FIPS_MODE_ENABLED =
@@ -210,7 +215,8 @@ public class XPackSettings {
         settings.add(ROLLUP_ENABLED);
         settings.add(PASSWORD_HASHING_ALGORITHM);
         settings.add(INDEX_LIFECYCLE_ENABLED);
-        settings.add(DATA_FRAME_ENABLED);
+        settings.add(SNAPSHOT_LIFECYCLE_ENABLED);
+        settings.add(TRANSFORM_ENABLED);
         settings.add(FLATTENED_ENABLED);
         settings.add(VECTORS_ENABLED);
         return Collections.unmodifiableList(settings);

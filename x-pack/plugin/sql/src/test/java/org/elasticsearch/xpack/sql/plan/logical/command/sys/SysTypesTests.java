@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
+import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.TypesTests;
@@ -48,9 +49,10 @@ public class SysTypesTests extends ESTestCase {
                 "INTERVAL_YEAR", "INTERVAL_MONTH", "INTERVAL_DAY", "INTERVAL_HOUR", "INTERVAL_MINUTE", "INTERVAL_SECOND",
                 "INTERVAL_YEAR_TO_MONTH", "INTERVAL_DAY_TO_HOUR", "INTERVAL_DAY_TO_MINUTE", "INTERVAL_DAY_TO_SECOND",
                 "INTERVAL_HOUR_TO_MINUTE", "INTERVAL_HOUR_TO_SECOND", "INTERVAL_MINUTE_TO_SECOND",
-                "GEO_SHAPE", "GEO_POINT", "UNSUPPORTED", "OBJECT", "NESTED");
+                "GEO_SHAPE", "GEO_POINT", "SHAPE", "UNSUPPORTED", "OBJECT", "NESTED");
 
-        cmd.execute(null, wrap(r -> {
+        cmd.execute(session(), wrap(p -> {
+            SchemaRowSet r = (SchemaRowSet) p.rowSet();
             assertEquals(19, r.columnCount());
             assertEquals(DataType.values().length, r.size());
             assertFalse(r.schema().types().contains(DataType.NULL));
@@ -60,7 +62,7 @@ public class SysTypesTests extends ESTestCase {
             assertFalse(r.column(10, Boolean.class));
             // no auto-increment
             assertFalse(r.column(11, Boolean.class));
-            
+
             for (int i = 0; i < r.size(); i++) {
                 assertEquals(names.get(i), r.column(0));
                 r.advanceRow();
@@ -72,7 +74,8 @@ public class SysTypesTests extends ESTestCase {
     public void testSysTypesDefaultFiltering() {
         Command cmd = sql("SYS TYPES 0").v1();
 
-        cmd.execute(null, wrap(r -> {
+        cmd.execute(session(), wrap(p -> {
+            SchemaRowSet r = (SchemaRowSet) p.rowSet();
             assertEquals(DataType.values().length, r.size());
         }, ex -> fail(ex.getMessage())));
     }
@@ -81,7 +84,8 @@ public class SysTypesTests extends ESTestCase {
         // boolean = 16
         Command cmd = sql("SYS TYPES " + JDBCType.BOOLEAN.getVendorTypeNumber()).v1();
 
-        cmd.execute(null, wrap(r -> {
+        cmd.execute(session(), wrap(p -> {
+            SchemaRowSet r = (SchemaRowSet) p.rowSet();
             assertEquals(1, r.size());
             assertEquals("BOOLEAN", r.column(0));
         }, ex -> fail(ex.getMessage())));
@@ -90,7 +94,8 @@ public class SysTypesTests extends ESTestCase {
     public void testSysTypesNegativeFiltering() {
         Command cmd = sql("SYS TYPES " + JDBCType.TINYINT.getVendorTypeNumber()).v1();
 
-        cmd.execute(null, wrap(r -> {
+        cmd.execute(session(), wrap(p -> {
+            SchemaRowSet r = (SchemaRowSet) p.rowSet();
             assertEquals(1, r.size());
             assertEquals("BYTE", r.column(0));
         }, ex -> fail(ex.getMessage())));
@@ -99,7 +104,8 @@ public class SysTypesTests extends ESTestCase {
     public void testSysTypesMultipleMatches() {
         Command cmd = sql("SYS TYPES " + JDBCType.VARCHAR.getVendorTypeNumber()).v1();
 
-        cmd.execute(null, wrap(r -> {
+        cmd.execute(session(), wrap(p -> {
+            SchemaRowSet r = (SchemaRowSet) p.rowSet();
             assertEquals(3, r.size());
             assertEquals("KEYWORD", r.column(0));
             assertTrue(r.advanceRow());
@@ -107,5 +113,9 @@ public class SysTypesTests extends ESTestCase {
             assertTrue(r.advanceRow());
             assertEquals("IP", r.column(0));
         }, ex -> fail(ex.getMessage())));
+    }
+
+    private static SqlSession session() {
+        return new SqlSession(TestUtils.TEST_CFG, null, null, null, null, null, null, null, null);
     }
 }

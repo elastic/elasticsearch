@@ -37,20 +37,18 @@ see {stack-ov}/mapping-roles.html[Mapping users and groups to roles].
 
 The following example delete a role mapping:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_security/role_mapping/mapping1
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:role_mapping]
 
 If the mapping is successfully deleted, the request returns `{"found": true}`.
 Otherwise, `found` is set to false.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "found" : true
 }
 --------------------------------------------------
-// TESTRESPONSE

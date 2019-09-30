@@ -76,6 +76,31 @@ public class GeoTileUtilsTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> longEncode(-1, 0, MAX_ZOOM + 1));
     }
 
+    public void testLongEncodeFromString() {
+        assertEquals(0x0000000000000000L, longEncode(stringEncode(longEncode(0, 0, 0))));
+        assertEquals(0x3C00095540001CA5L, longEncode(stringEncode(longEncode(30, 70, 15))));
+        assertEquals(0x77FFFF4580000000L, longEncode(stringEncode(longEncode(179.999, 89.999, 29))));
+        assertEquals(0x740000BA7FFFFFFFL, longEncode(stringEncode(longEncode(-179.999, -89.999, 29))));
+        assertEquals(0x0800000040000001L, longEncode(stringEncode(longEncode(1, 1, 2))));
+        assertEquals(0x0C00000060000000L, longEncode(stringEncode(longEncode(-20, 100, 3))));
+        assertEquals(0x71127D27C8ACA67AL, longEncode(stringEncode(longEncode(13, -15, 28))));
+        assertEquals(0x4C0077776003A9ACL, longEncode(stringEncode(longEncode(-12, 15, 19))));
+        assertEquals(0x140000024000000EL, longEncode(stringEncode(longEncode(-328.231870,16.064082, 5))));
+        assertEquals(0x6436F96B60000000L, longEncode(stringEncode(longEncode(-590.769588,89.549167, 25))));
+        assertEquals(0x6411BD6BA0A98359L, longEncode(stringEncode(longEncode(999.787079,51.830093, 25))));
+        assertEquals(0x751BD6BBCA983596L, longEncode(stringEncode(longEncode(999.787079,51.830093, 29))));
+        assertEquals(0x77CF880A20000000L, longEncode(stringEncode(longEncode(-557.039740,-632.103969, 29))));
+        assertEquals(0x7624FA4FA0000000L, longEncode(stringEncode(longEncode(13,88, 29))));
+        assertEquals(0x7624FA4FBFFFFFFFL, longEncode(stringEncode(longEncode(13,-88, 29))));
+        assertEquals(0x0400000020000000L, longEncode(stringEncode(longEncode(13,89, 1))));
+        assertEquals(0x0400000020000001L, longEncode(stringEncode(longEncode(13,-89, 1))));
+        assertEquals(0x0400000020000000L, longEncode(stringEncode(longEncode(13,95, 1))));
+        assertEquals(0x0400000020000001L, longEncode(stringEncode(longEncode(13,-95, 1))));
+
+        expectThrows(IllegalArgumentException.class, () -> longEncode("12/asdf/1"));
+        expectThrows(IllegalArgumentException.class, () -> longEncode("foo"));
+    }
+
     private void assertGeoPointEquals(GeoPoint gp, final double longitude, final double latitude) {
         assertThat(gp.lon(), closeTo(longitude, GEOTILE_TOLERANCE));
         assertThat(gp.lat(), closeTo(latitude, GEOTILE_TOLERANCE));

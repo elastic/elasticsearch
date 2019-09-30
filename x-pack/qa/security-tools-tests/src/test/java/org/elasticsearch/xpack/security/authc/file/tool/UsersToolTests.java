@@ -299,7 +299,7 @@ public class UsersToolTests extends CommandTestCase {
 
     public void testParseUnknownRole() throws Exception {
         UsersTool.parseRoles(terminal, TestEnvironment.newEnvironment(settings), "test_r1,r2,r3");
-        String output = terminal.getOutput();
+        String output = terminal.getErrorOutput();
         assertTrue(output, output.contains("The following roles [r2,r3] are not in the ["));
     }
 

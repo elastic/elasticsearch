@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -27,6 +28,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.FunctionTable;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
 
@@ -76,7 +78,7 @@ public final class EMapInit extends AExpression {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(FunctionTable functions, Locals locals) {
         if (!read) {
             throw createError(new IllegalArgumentException("Must read from map initializer."));
         }
@@ -105,8 +107,8 @@ public final class EMapInit extends AExpression {
 
             expression.expected = def.class;
             expression.internal = true;
-            expression.analyze(locals);
-            keys.set(index, expression.cast(locals));
+            expression.analyze(functions, locals);
+            keys.set(index, expression.cast(functions, locals));
         }
 
         for (int index = 0; index < values.size(); ++index) {
@@ -114,29 +116,29 @@ public final class EMapInit extends AExpression {
 
             expression.expected = def.class;
             expression.internal = true;
-            expression.analyze(locals);
-            values.set(index, expression.cast(locals));
+            expression.analyze(functions, locals);
+            values.set(index, expression.cast(functions, locals));
         }
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
 
-        writer.newInstance(MethodWriter.getType(actual));
-        writer.dup();
-        writer.invokeConstructor(
+        methodWriter.newInstance(MethodWriter.getType(actual));
+        methodWriter.dup();
+        methodWriter.invokeConstructor(
                     Type.getType(constructor.javaConstructor.getDeclaringClass()), Method.getMethod(constructor.javaConstructor));
 
         for (int index = 0; index < keys.size(); ++index) {
             AExpression key = keys.get(index);
             AExpression value = values.get(index);
 
-            writer.dup();
-            key.write(writer, globals);
-            value.write(writer, globals);
-            writer.invokeMethodCall(method);
-            writer.pop();
+            methodWriter.dup();
+            key.write(classWriter, methodWriter, globals);
+            value.write(classWriter, methodWriter, globals);
+            methodWriter.invokeMethodCall(method);
+            methodWriter.pop();
         }
     }
 

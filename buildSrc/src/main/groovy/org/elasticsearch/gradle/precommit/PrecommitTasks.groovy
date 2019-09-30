@@ -237,16 +237,12 @@ class PrecommitTasks {
         // on them. We also want `precommit` to depend on `checkstyle`.
         project.pluginManager.apply('checkstyle')
         project.checkstyle {
-            config = project.resources.text.fromFile(checkstyleConf, 'UTF-8')
-            configProperties = [
-                    suppressions: checkstyleSuppressions
-            ]
+            configDir = checkstyleDir
             toolVersion = CHECKSTYLE_VERSION
         }
 
         project.tasks.withType(Checkstyle).configureEach { task ->
             task.dependsOn(copyCheckstyleConf)
-            task.inputs.file(checkstyleSuppressions)
             task.reports {
                 html.enabled false
             }

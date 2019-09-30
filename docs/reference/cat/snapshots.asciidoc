@@ -11,13 +11,13 @@ more repositories. A snapshot is a backup of an index or running {es} cluster.
 [[cat-snapshots-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/snapshots/{repository}`
+`GET /_cat/snapshots/<repository>`
 
 
 [[cat-snapshots-path-params]]
 ==== {api-path-parms-title}
 
-`{repository}`::
+`<repository>`::
 +
 --
 (Optional, string) Comma-separated list of snapshot repositories used to limit
@@ -109,11 +109,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 [[cat-snapshots-api-example]]
 ==== {api-examples-title}
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_cat/snapshots/repo1?v&s=id
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT \/_snapshot\/repo1\/snap1?wait_for_completion=true\n/]
 // TEST[s/^/PUT \/_snapshot\/repo1\/snap2?wait_for_completion=true\n/]
 // TEST[s/^/PUT \/_snapshot\/repo1\n{"type": "fs", "settings": {"location": "repo\/1"}}\n/]

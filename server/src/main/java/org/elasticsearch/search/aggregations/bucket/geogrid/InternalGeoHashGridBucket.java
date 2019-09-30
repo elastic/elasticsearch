@@ -38,12 +38,6 @@ public class InternalGeoHashGridBucket extends InternalGeoGridBucket<InternalGeo
     }
 
     @Override
-    InternalGeoHashGridBucket buildBucket(InternalGeoGridBucket bucket, long hashAsLong, long docCount,
-                                          InternalAggregations aggregations) {
-        return new InternalGeoHashGridBucket(hashAsLong, docCount, aggregations);
-    }
-
-    @Override
     public String getKeyAsString() {
         return Geohash.stringEncode(hashAsLong);
     }

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
@@ -44,15 +45,17 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
@@ -285,6 +288,36 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    public void testRangeField() throws Exception {
+        RangeType rangeType = RangeType.DOUBLE;
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                for (RangeFieldMapper.Range range : new RangeFieldMapper.Range[] {
+                    new RangeFieldMapper.Range(rangeType, 1.0D, 5.0D, true, true), // bucket 0 5
+                    new RangeFieldMapper.Range(rangeType, -3.1, 4.2, true, true), // bucket -5, 0
+                    new RangeFieldMapper.Range(rangeType, 4.2, 13.3, true, true), // bucket 0, 5, 10
+                    new RangeFieldMapper.Range(rangeType, 42.5, 49.3, true, true), // bucket 40, 45
+                }) {
+                    Document doc = new Document();
+                    BytesRef encodedRange = rangeType.encodeRanges(Collections.singleton(range));
+                    doc.add(new BinaryDocValuesField("field", encodedRange));
+                    indexWriter.addDocument(doc);
+                }
+                MappedFieldType fieldType = new RangeFieldMapper.Builder("field", rangeType).fieldType();
+                fieldType.setName("field");
+
+                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                    RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name", null)
+                        .field("field");
+                    expectThrows(AggregationExecutionException.class,
+                        () -> createAggregator(aggregationBuilder, indexSearcher, fieldType));
+                }
+            }
+        }
+    }
+
+
     public void testNestedTerms() throws IOException {
         Query query = new MatchAllDocsQuery();
 
@@ -487,16 +520,6 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
         documents.add(document);
 
         return documents;
-    }
-
-
-    private InternalAggregation buildInternalAggregation(RareTermsAggregationBuilder builder, MappedFieldType fieldType,
-                                                         IndexSearcher searcher) throws IOException {
-        AbstractRareTermsAggregator aggregator = createAggregator(builder, searcher, fieldType);
-        aggregator.preCollection();
-        searcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
-        return aggregator.buildAggregation(0L);
     }
 
     private void testSearchCase(Query query, List<Long> dataset,

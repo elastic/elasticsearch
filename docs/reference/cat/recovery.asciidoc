@@ -11,7 +11,9 @@ to the <<indices-recovery, indices recovery>> API.
 [[cat-recovery-api-request]]
 ==== {api-request-title}
 
-`GET /_cat/recovery/{index}`
+`GET /_cat/recovery/<index>`
+
+`GET /_cat/recovery`
 
 
 [[cat-recovery-api-desc]]
@@ -37,13 +39,19 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
 [[cat-recovery-query-params]]
 ==== {api-query-parms-title}
 
+include::{docdir}/rest-api/common-parms.asciidoc[tag=active-only]
+
 include::{docdir}/rest-api/common-parms.asciidoc[tag=bytes]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=detailed]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-query-parm]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
 
@@ -60,11 +68,10 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-v]
 [[cat-recovery-api-ex-dead]]
 ===== Example with no ongoing recoveries
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------------------
 GET _cat/recovery?v
 ----------------------------------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 The API returns the following response:
@@ -90,11 +97,10 @@ start.
 By increasing the replica count of an index and bringing another node online to
 host the replicas, you can retrieve information about an ongoing recovery.
 
-[source,js]
+[source,console]
 ----------------------------------------------------------------------------
 GET _cat/recovery?v&h=i,s,t,ty,st,shost,thost,f,fp,b,bp
 ----------------------------------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 The API returns the following response:
@@ -121,11 +127,10 @@ You can restore backups of an index using the <<modules-snapshots,snapshot and
 restore>> API. You can use the cat recovery API retrieve information about a
 snapshot recovery.
 
-[source,js]
+[source,console]
 --------------------------------------------------------------------------------
 GET _cat/recovery?v&h=i,s,t,ty,st,rep,snap,f,fp,b,bp
 --------------------------------------------------------------------------------
-// CONSOLE
 // TEST[skip:no need to execute snapshot/restore here]
 
 The API returns the following response with a recovery type of `snapshot`:

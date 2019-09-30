@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -34,7 +33,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -258,10 +256,8 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                     } else {
                         MappingMetaData mappings = null;
                         for (final ObjectObjectCursor<String, MappingMetaData> typeEntry : indexMappings) {
-                            if (typeEntry.key.equals(MapperService.DEFAULT_MAPPING) == false) {
-                                assert mappings == null;
-                                mappings = typeEntry.value;
-                            }
+                            assert mappings == null;
+                            mappings = typeEntry.value;
                         }
                         if (mappings == null) {
                             // no mappings yet

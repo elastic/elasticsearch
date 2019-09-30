@@ -514,7 +514,7 @@ public class SysColumnsTests extends ESTestCase {
             return Void.TYPE;
         }).when(resolver).resolveAsMergedMapping(any(), any(), anyBoolean(), any());
 
-        tuple.v1().execute(tuple.v2(), wrap(consumer::accept, ex -> fail(ex.getMessage())));
+        tuple.v1().execute(tuple.v2(), wrap(p -> consumer.accept((SchemaRowSet) p.rowSet()), ex -> fail(ex.getMessage())));
     }
 
     private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params, Map<String, EsField> mapping) {

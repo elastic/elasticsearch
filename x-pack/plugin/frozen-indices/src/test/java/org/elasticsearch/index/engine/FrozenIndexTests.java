@@ -7,6 +7,7 @@ package org.elasticsearch.index.engine;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -38,7 +39,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.internal.ShardSearchLocalRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 import org.elasticsearch.xpack.frozen.FrozenIndices;
@@ -123,7 +124,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             numRefreshes++;
             switch (randomIntBetween(0, 3)) {
                 case 0:
-                    client().prepareGet("index", "_doc", "" + randomIntBetween(0, 9)).execute(ActionListener.wrap(latch::countDown));
+                    client().prepareGet("index", "" + randomIntBetween(0, 9)).execute(ActionListener.wrap(latch::countDown));
                     break;
                 case 1:
                     client().prepareSearch("index").setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
@@ -136,7 +137,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
                    client().prepareTermVectors("index", "" + randomIntBetween(0, 9)).execute(ActionListener.wrap(latch::countDown));
                     break;
                 case 3:
-                    client().prepareExplain("index", "_doc", "" + randomIntBetween(0, 9)).setQuery(new MatchAllQueryBuilder())
+                    client().prepareExplain("index", "" + randomIntBetween(0, 9)).setQuery(new MatchAllQueryBuilder())
                         .execute(ActionListener.wrap(latch::countDown));
                     break;
                     default:
@@ -250,17 +251,17 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             assertFalse(indexService.getIndexSettings().isSearchThrottled());
             SearchService searchService = getInstanceFromNode(SearchService.class);
             SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
-            assertTrue(searchService.canMatch(new ShardSearchLocalRequest(searchRequest, shard.shardId(), 1,
+            assertTrue(searchService.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, shard.shardId(), 1,
                 new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)));
 
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
             searchRequest.source(sourceBuilder);
             sourceBuilder.query(QueryBuilders.rangeQuery("field").gte("2010-01-03||+2d").lte("2010-01-04||+2d/d"));
-            assertTrue(searchService.canMatch(new ShardSearchLocalRequest(searchRequest, shard.shardId(), 1,
+            assertTrue(searchService.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, shard.shardId(), 1,
                 new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)));
 
             sourceBuilder.query(QueryBuilders.rangeQuery("field").gt("2010-01-06T02:00").lt("2010-01-07T02:00"));
-            assertFalse(searchService.canMatch(new ShardSearchLocalRequest(searchRequest, shard.shardId(), 1,
+            assertFalse(searchService.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, shard.shardId(), 1,
                 new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)));
         }
 
@@ -274,17 +275,17 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             assertTrue(indexService.getIndexSettings().isSearchThrottled());
             SearchService searchService = getInstanceFromNode(SearchService.class);
             SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
-            assertTrue(searchService.canMatch(new ShardSearchLocalRequest(searchRequest, shard.shardId(), 1,
+            assertTrue(searchService.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, shard.shardId(), 1,
                 new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)));
 
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
             sourceBuilder.query(QueryBuilders.rangeQuery("field").gte("2010-01-03||+2d").lte("2010-01-04||+2d/d"));
             searchRequest.source(sourceBuilder);
-            assertTrue(searchService.canMatch(new ShardSearchLocalRequest(searchRequest, shard.shardId(), 1,
+            assertTrue(searchService.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, shard.shardId(), 1,
                 new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)));
 
             sourceBuilder.query(QueryBuilders.rangeQuery("field").gt("2010-01-06T02:00").lt("2010-01-07T02:00"));
-            assertFalse(searchService.canMatch(new ShardSearchLocalRequest(searchRequest, shard.shardId(), 1,
+            assertFalse(searchService.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, shard.shardId(), 1,
                 new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null, null)));
 
             IndicesStatsResponse response = client().admin().indices().prepareStats("index").clear().setRefresh(true).get();
@@ -403,7 +404,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
     public void testTranslogStats()  {
         final String indexName = "test";
-        createIndex(indexName, Settings.builder()
+        IndexService indexService = createIndex(indexName, Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .build());
 
@@ -412,7 +413,6 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         for (long i = 0; i < nbDocs; i++) {
             final IndexResponse indexResponse = client().prepareIndex(indexName, "_doc", Long.toString(i)).setSource("field", i).get();
             assertThat(indexResponse.status(), is(RestStatus.CREATED));
-
             if (rarely()) {
                 client().admin().indices().prepareFlush(indexName).get();
                 uncommittedOps = 0;
@@ -423,7 +423,8 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
         IndicesStatsResponse stats = client().admin().indices().prepareStats(indexName).clear().setTranslog(true).get();
         assertThat(stats.getIndex(indexName), notNullValue());
-        assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(), equalTo(nbDocs));
+        assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(), equalTo(
+            indexService.getIndexSettings().isSoftDeleteEnabled() ? uncommittedOps : nbDocs));
         assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().getUncommittedOperations(), equalTo(uncommittedOps));
 
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(indexName)).actionGet());
@@ -432,7 +433,8 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
         stats = client().admin().indices().prepareStats(indexName).setIndicesOptions(indicesOptions).clear().setTranslog(true).get();
         assertThat(stats.getIndex(indexName), notNullValue());
-        assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(), equalTo(nbDocs));
+        assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().estimatedNumberOfOperations(),
+            equalTo(indexService.getIndexSettings().isSoftDeleteEnabled() ? 0 : nbDocs));
         assertThat(stats.getIndex(indexName).getPrimaries().getTranslog().getUncommittedOperations(), equalTo(0));
     }
 }

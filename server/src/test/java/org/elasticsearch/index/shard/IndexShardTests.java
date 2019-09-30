@@ -79,10 +79,12 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.DeleteResult;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
@@ -1573,7 +1575,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         long refreshCount = shard.refreshStats().getTotal();
         indexDoc(shard, "_doc", "test");
-        try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "_doc", "test",
+        try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "test",
             new Term(IdFieldMapper.NAME, Uid.encodeId("test"))))) {
             assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount+1));
         }
@@ -1598,7 +1600,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final long externalRefreshCount = shard.refreshStats().getExternalTotal();
         final long extraInternalRefreshes = shard.routingEntry().primary() || shard.indexSettings().isSoftDeleteEnabled() == false ? 0 : 1;
         indexDoc(shard, "_doc", "test");
-        try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "_doc", "test",
+        try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "test",
             new Term(IdFieldMapper.NAME, Uid.encodeId("test"))))) {
             assertThat(shard.refreshStats().getExternalTotal(), equalTo(externalRefreshCount));
             assertThat(shard.refreshStats().getExternalTotal(), equalTo(shard.refreshStats().getTotal() - 1 - extraInternalRefreshes));
@@ -2129,11 +2131,13 @@ public class IndexShardTests extends IndexShardTestCase {
 
     /* This test just verifies that we fill up local checkpoint up to max seen seqID on primary recovery */
     public void testRecoverFromStoreWithNoOps() throws IOException {
-        final IndexShard shard = newStartedShard(true);
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean()).build();
+        final IndexShard shard = newStartedShard(true, settings);
         indexDoc(shard, "_doc", "0");
         indexDoc(shard, "_doc", "1");
         // start a replica shard and index the second doc
-        final IndexShard otherShard = newStartedShard(false);
+        final IndexShard otherShard = newStartedShard(false, settings);
         updateMappings(otherShard, shard.indexSettings().getIndexMetaData());
         SourceToParse sourceToParse = new SourceToParse(shard.shardId().getIndexName(), "_doc", "1",
             new BytesArray("{}"), XContentType.JSON);
@@ -2172,7 +2176,7 @@ public class IndexShardTests extends IndexShardTestCase {
             newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
             assertTrue(newShard.recoverFromStore());
             try (Translog.Snapshot snapshot = getTranslog(newShard).newSnapshot()) {
-                assertThat(snapshot.totalOperations(), equalTo(2));
+                assertThat(snapshot.totalOperations(), equalTo(newShard.indexSettings.isSoftDeleteEnabled() ? 0 : 2));
             }
         }
         closeShards(newShard, shard);
@@ -2375,7 +2379,7 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.refresh("test");
 
         try (Engine.GetResult getResult = shard
-                .get(new Engine.Get(false, false, "_doc", "1",
+                .get(new Engine.Get(false, false, "1",
                     new Term(IdFieldMapper.NAME, Uid.encodeId("1"))))) {
             assertTrue(getResult.exists());
             assertNotNull(getResult.searcher());
@@ -2408,7 +2412,7 @@ public class IndexShardTests extends IndexShardTestCase {
             assertEquals(search.totalHits.value, 1);
         }
         try (Engine.GetResult getResult = newShard
-                .get(new Engine.Get(false, false, "_doc", "1",
+                .get(new Engine.Get(false, false, "1",
                     new Term(IdFieldMapper.NAME, Uid.encodeId("1"))))) {
             assertTrue(getResult.exists());
             assertNotNull(getResult.searcher()); // make sure get uses the wrapped reader
@@ -3352,7 +3356,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary);
     }
 
-    public void testScheduledRefresh() throws IOException, InterruptedException {
+    public void testScheduledRefresh() throws Exception {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
@@ -3377,7 +3381,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertFalse(primary.scheduledRefresh());
         assertEquals(lastSearchAccess, primary.getLastSearcherAccess());
         // wait until the thread-pool has moved the timestamp otherwise we can't assert on this below
-        awaitBusy(() -> primary.getThreadPool().relativeTimeInMillis() > lastSearchAccess);
+        assertBusy(() -> assertThat(primary.getThreadPool().relativeTimeInMillis(), greaterThan(lastSearchAccess)));
         CountDownLatch latch = new CountDownLatch(10);
         for (int i = 0; i < 10; i++) {
             primary.awaitShardSearchActive(refreshed -> {
@@ -3794,7 +3798,13 @@ public class IndexShardTests extends IndexShardTestCase {
         engineResetLatch.await();
         assertThat(getShardDocUIDs(shard), equalTo(docBelowGlobalCheckpoint));
         assertThat(shard.seqNoStats().getMaxSeqNo(), equalTo(globalCheckpoint));
-        assertThat(shard.translogStats().estimatedNumberOfOperations(), equalTo(translogStats.estimatedNumberOfOperations()));
+        if (shard.indexSettings.isSoftDeleteEnabled()) {
+            // we might have trimmed some operations if the translog retention policy is ignored (when soft-deletes enabled).
+            assertThat(shard.translogStats().estimatedNumberOfOperations(),
+                lessThanOrEqualTo(translogStats.estimatedNumberOfOperations()));
+        } else {
+            assertThat(shard.translogStats().estimatedNumberOfOperations(), equalTo(translogStats.estimatedNumberOfOperations()));
+        }
         assertThat(shard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNoBeforeRollback));
         done.set(true);
         thread.join();
@@ -4045,24 +4055,16 @@ public class IndexShardTests extends IndexShardTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .build();
         IndexMetaData metaData = IndexMetaData.builder("index")
-                .putMapping("some_type", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+                .putMapping("_doc", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
                 .settings(settings)
                 .primaryTerm(0, 1).build();
         IndexShard shard = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
         recoverShardFromStore(shard);
-        Engine.IndexResult indexResult = indexDoc(shard, "some_type", "0", "{\"foo\" : \"bar\"}");
+        Engine.IndexResult indexResult = indexDoc(shard, "_doc", "0", "{\"foo\" : \"bar\"}");
         assertTrue(indexResult.isCreated());
 
-        org.elasticsearch.index.engine.Engine.GetResult getResult = shard.get(
-                new Engine.Get(true, true, "some_type", "0", new Term("_id", Uid.encodeId("0"))));
-        assertTrue(getResult.exists());
-        getResult.close();
-
-        getResult = shard.get(new Engine.Get(true, true, "some_other_type", "0", new Term("_id", Uid.encodeId("0"))));
-        assertFalse(getResult.exists());
-        getResult.close();
-
-        getResult = shard.get(new Engine.Get(true, true, "_doc", "0", new Term("_id", Uid.encodeId("0"))));
+        org.elasticsearch.index.engine.Engine.GetResult getResult
+            = shard.get(new Engine.Get(true, true, "0", new Term("_id", Uid.encodeId("0"))));
         assertTrue(getResult.exists());
         getResult.close();
 
@@ -4122,5 +4124,40 @@ public class IndexShardTests extends IndexShardTestCase {
         assertTrue(readonlyShard.recoverFromStore());
         assertThat(readonlyShard.docStats().getCount(), equalTo(numDocs));
         closeShards(readonlyShard);
+    }
+
+    public void testCloseShardWhileEngineIsWarming() throws Exception {
+        CountDownLatch warmerStarted = new CountDownLatch(1);
+        CountDownLatch warmerBlocking = new CountDownLatch(1);
+        IndexShard shard = newShard(true, Settings.EMPTY, config -> {
+            Engine.Warmer warmer = reader -> {
+                try {
+                    warmerStarted.countDown();
+                    warmerBlocking.await();
+                    config.getWarmer().warm(reader);
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+            };
+            EngineConfig configWithWarmer = new EngineConfig(config.getShardId(), config.getAllocationId(), config.getThreadPool(),
+                config.getIndexSettings(), warmer, config.getStore(), config.getMergePolicy(), config.getAnalyzer(),
+                config.getSimilarity(), new CodecService(null, logger), config.getEventListener(), config.getQueryCache(),
+                config.getQueryCachingPolicy(), config.getTranslogConfig(), config.getFlushMergesAfter(),
+                config.getExternalRefreshListener(), config.getInternalRefreshListener(), config.getIndexSort(),
+                config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
+                config.getPrimaryTermSupplier(), config.getTombstoneDocSupplier());
+            return new InternalEngine(configWithWarmer);
+        });
+        Thread recoveryThread = new Thread(() -> expectThrows(AlreadyClosedException.class, () -> recoverShardFromStore(shard)));
+        recoveryThread.start();
+        try {
+            warmerStarted.await();
+            shard.close("testing", false);
+            assertThat(shard.state, equalTo(IndexShardState.CLOSED));
+        } finally {
+            warmerBlocking.countDown();
+        }
+        recoveryThread.join();
+        shard.store().close();
     }
 }

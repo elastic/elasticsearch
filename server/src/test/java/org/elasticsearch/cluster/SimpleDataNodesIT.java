@@ -85,7 +85,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
         final ClusterHealthResponse healthResponse1 = client().admin().cluster().prepareHealth()
             .setWaitForEvents(Priority.LANGUID).execute().actionGet();
         assertThat(healthResponse1.isTimedOut(), equalTo(false));
-        assertThat(healthResponse1.getStatus(), equalTo(ClusterHealthStatus.YELLOW)); // TODO should be RED, see #41073
+        assertThat(healthResponse1.getStatus(), equalTo(ClusterHealthStatus.RED));
         assertThat(healthResponse1.getActiveShards(), equalTo(0));
 
         internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), true).build());
@@ -95,7 +95,6 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
             equalTo(false));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45237")
     public void testAutoExpandReplicasAdjustedWhenDataNodeJoins() {
         internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build());
         client().admin().indices().create(createIndexRequest("test")
@@ -105,7 +104,7 @@ public class SimpleDataNodesIT extends ESIntegTestCase {
         final ClusterHealthResponse healthResponse1 = client().admin().cluster().prepareHealth()
             .setWaitForEvents(Priority.LANGUID).execute().actionGet();
         assertThat(healthResponse1.isTimedOut(), equalTo(false));
-        assertThat(healthResponse1.getStatus(), equalTo(ClusterHealthStatus.YELLOW)); // TODO should be RED, see #41073
+        assertThat(healthResponse1.getStatus(), equalTo(ClusterHealthStatus.RED));
         assertThat(healthResponse1.getActiveShards(), equalTo(0));
 
         internalCluster().startNode();

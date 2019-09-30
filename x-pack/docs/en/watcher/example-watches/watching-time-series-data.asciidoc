@@ -1,5 +1,6 @@
+[role="xpack"]
 [[watching-time-series-data]]
-=== Watching Time Series Data
+=== Watching time series data
 
 If you are indexing time-series data such as logs, RSS feeds, or network traffic,
 you can use {watcher} to send notifications when certain events occur.
@@ -151,11 +152,11 @@ you can then reference it by name in the watch condition.
 NOTE: To use the email action, you must configure at least one email account in
 `elasticsearch.yml`. If you configure multiple email accounts, you need to
 specify which one you want to send the email with. For more information, see
-<<configuring-email, Working with Various Email Services>>.
+<<configuring-email>>.
 
 The complete watch looks like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _watcher/watch/rss_watch
 {
@@ -203,8 +204,8 @@ PUT _watcher/watch/rss_watch
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[s/"id" : "threshold_hits"/"source": "return ctx.payload.hits.total.value > params.threshold"/]
+
 <1> Replace `username@example.org` with your email address to receive
     notifications.
 
@@ -213,7 +214,7 @@ PUT _watcher/watch/rss_watch
 To execute a watch immediately (without waiting for the schedule to trigger),
 use the {ref}/watcher-api-execute-watch.html[`_execute` API]:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _watcher/watch/rss_watch/_execute
 {
@@ -224,6 +225,5 @@ POST _watcher/watch/rss_watch/_execute
   "record_execution" : true
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 =================================================

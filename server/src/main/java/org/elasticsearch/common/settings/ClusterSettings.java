@@ -71,6 +71,7 @@ import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.gateway.IncrementalClusterStateWriter;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -226,6 +227,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING,
             GatewayService.RECOVER_AFTER_NODES_SETTING,
             GatewayService.RECOVER_AFTER_TIME_SETTING,
+            IncrementalClusterStateWriter.SLOW_WRITE_LOGGING_THRESHOLD,
             NetworkModule.HTTP_DEFAULT_TYPE_SETTING,
             NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING,
             NetworkModule.HTTP_TYPE_SETTING,
@@ -362,7 +364,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             Environment.PATH_LOGS_SETTING,
             Environment.PATH_REPO_SETTING,
             Environment.PATH_SHARED_DATA_SETTING,
-            Environment.PIDFILE_SETTING,
+            Environment.NODE_PIDFILE_SETTING,
             NodeEnvironment.NODE_ID_SEED_SETTING,
             Node.INITIAL_STATE_TIMEOUT_SETTING,
             DiscoveryModule.DISCOVERY_TYPE_SETTING,
@@ -389,7 +391,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             ClusterName.CLUSTER_NAME_SETTING,
             Client.CLIENT_TYPE_SETTING_S,
             ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING,
-            EsExecutors.PROCESSORS_SETTING,
+            EsExecutors.NODE_PROCESSORS_SETTING,
             ThreadContext.DEFAULT_HEADERS_SETTING,
             Loggers.LOG_DEFAULT_LEVEL_SETTING,
             Loggers.LOG_LEVEL_SETTING,

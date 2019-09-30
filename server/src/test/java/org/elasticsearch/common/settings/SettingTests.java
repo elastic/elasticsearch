@@ -703,7 +703,6 @@ public class SettingTests extends ESTestCase {
         Setting.AffixSetting<List<String>> listAffixSetting = Setting.affixKeySetting("foo.", "bar",
             (key) -> Setting.listSetting(key, Collections.singletonList("testelement"), Function.identity(), Property.NodeScope));
         expectThrows(UnsupportedOperationException.class, () -> listAffixSetting.get(Settings.EMPTY));
-        expectThrows(UnsupportedOperationException.class, () -> listAffixSetting.getRaw(Settings.EMPTY));
         assertEquals(Collections.singletonList("testelement"), listAffixSetting.getDefault(Settings.EMPTY));
         assertEquals("[\"testelement\"]", listAffixSetting.getDefaultRaw(Settings.EMPTY));
     }
@@ -908,6 +907,13 @@ public class SettingTests extends ESTestCase {
         final Setting<?> fooSetting = Setting.simpleString("foo", Property.NodeScope);
         assertFalse(fooSetting.exists(Settings.EMPTY));
         assertTrue(fooSetting.exists(Settings.builder().put("foo", "bar").build()));
+    }
+
+    public void testExistsWithSecure() {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("foo", "foo");
+        Setting<String> fooSetting = Setting.simpleString("foo", Property.NodeScope);
+        assertFalse(fooSetting.exists(Settings.builder().setSecureSettings(secureSettings).build()));
     }
 
     public void testExistsWithFallback() {

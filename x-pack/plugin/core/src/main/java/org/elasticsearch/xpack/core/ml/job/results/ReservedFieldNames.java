@@ -199,8 +199,7 @@ public final class ReservedFieldNames {
             ExponentialAverageCalculationContext.PREVIOUS_EXPONENTIAL_AVERAGE_MS.getPreferredName(),
 
             GetResult._ID,
-            GetResult._INDEX,
-            GetResult._TYPE
+            GetResult._INDEX
    };
 
     /**
@@ -286,6 +285,7 @@ public final class ReservedFieldNames {
             ChunkingConfig.TIME_SPAN_FIELD.getPreferredName(),
 
             DataFrameAnalyticsConfig.ID.getPreferredName(),
+            DataFrameAnalyticsConfig.DESCRIPTION.getPreferredName(),
             DataFrameAnalyticsConfig.SOURCE.getPreferredName(),
             DataFrameAnalyticsConfig.DEST.getPreferredName(),
             DataFrameAnalyticsConfig.ANALYSIS.getPreferredName(),
@@ -308,12 +308,12 @@ public final class ReservedFieldNames {
             Regression.MAXIMUM_NUMBER_TREES.getPreferredName(),
             Regression.FEATURE_BAG_FRACTION.getPreferredName(),
             Regression.PREDICTION_FIELD_NAME.getPreferredName(),
+            Regression.TRAINING_PERCENT.getPreferredName(),
 
             ElasticsearchMappings.CONFIG_TYPE,
 
             GetResult._ID,
             GetResult._INDEX,
-            GetResult._TYPE
     };
 
     /**

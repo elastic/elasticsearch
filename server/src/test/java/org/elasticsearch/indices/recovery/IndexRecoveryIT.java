@@ -36,6 +36,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -54,6 +55,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimary
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -130,9 +132,10 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.oneOf;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndexRecoveryIT extends ESIntegTestCase {
@@ -787,9 +790,11 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 if (PeerRecoverySourceService.Actions.START_RECOVERY.equals(action) && count.incrementAndGet() == 1) {
                     // ensures that it's considered as valid recovery attempt by source
                     try {
-                        awaitBusy(() -> client(blueNodeName).admin().cluster().prepareState().setLocal(true).get()
-                            .getState().getRoutingTable().index("test").shard(0).getAllInitializingShards().isEmpty() == false);
-                    } catch (InterruptedException e) {
+                        assertBusy(() -> assertThat(
+                            "Expected there to be some initializing shards",
+                            client(blueNodeName).admin().cluster().prepareState().setLocal(true).get()
+                                .getState().getRoutingTable().index("test").shard(0).getAllInitializingShards(), not(empty())));
+                    } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
                     connection.sendRequest(requestId, action, request, options);
@@ -861,7 +866,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final String indexName = "test";
         client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)).get();
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
+            .put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(), 1.0)).get();
         ensureGreen(indexName);
 
         // Perform some replicated operations so the replica isn't simply empty, because ops-based recovery isn't better in that case
@@ -906,8 +912,9 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         recoveryStates.removeIf(r -> r.getTimer().getStartNanoTime() <= desyncNanoTime);
 
         assertThat(recoveryStates, hasSize(1));
-        assertThat(recoveryStates.get(0).getIndex().totalFileCount(), is(0));
-        assertThat(recoveryStates.get(0).getTranslog().recoveredOperations(), greaterThan(0));
+        final RecoveryState recoveryState = recoveryStates.get(0);
+        assertThat(Strings.toString(recoveryState), recoveryState.getIndex().totalFileCount(), is(0));
+        assertThat(recoveryState.getTranslog().recoveredOperations(), greaterThan(0));
     }
 
     public void testDoNotInfinitelyWaitForMapping() {
@@ -1469,7 +1476,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     try {
                         IndexResponse response = client().prepareIndex(indexName, "_doc")
                             .setSource(Map.of("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON).get();
-                        assertThat(response.getResult(), isOneOf(CREATED, UPDATED));
+                        assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));
                     } catch (ElasticsearchException ignored) {
                     }
                 }
@@ -1485,5 +1492,21 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             indexer.join();
         }
         ensureGreen(indexName);
+    }
+
+    public void testCancelRecoveryWithAutoExpandReplicas() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
+            .setWaitForActiveShards(ActiveShardCount.NONE));
+        internalCluster().startNode();
+        internalCluster().startNode();
+        client().admin().cluster().prepareReroute().setRetryFailed(true).get();
+        assertAcked(client().admin().indices().prepareDelete("test")); // cancel recoveries
+        assertBusy(() -> {
+            for (PeerRecoverySourceService recoveryService : internalCluster().getDataNodeInstances(PeerRecoverySourceService.class)) {
+                assertThat(recoveryService.numberOfOngoingRecoveries(), equalTo(0));
+            }
+        });
     }
 }

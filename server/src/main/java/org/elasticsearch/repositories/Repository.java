@@ -48,9 +48,7 @@ import java.util.function.Function;
  * <p>
  * To perform a snapshot:
  * <ul>
- * <li>Master calls {@link #initializeSnapshot(SnapshotId, List, org.elasticsearch.cluster.metadata.MetaData)}
- * with list of indices that will be included into the snapshot</li>
- * <li>Data nodes call {@link Repository#snapshotShard(Store, MapperService, SnapshotId, IndexId, IndexCommit, IndexShardSnapshotStatus)}
+ * <li>Data nodes call {@link Repository#snapshotShard}
  * for each shard</li>
  * <li>When all shard calls return master calls {@link #finalizeSnapshot} with possible list of failures</li>
  * </ul>
@@ -116,7 +114,11 @@ public interface Repository extends LifecycleComponent {
      * @param snapshotId snapshot id
      * @param indices    list of indices to be snapshotted
      * @param metaData   cluster metadata
+     *
+     * @deprecated this method is only used when taking snapshots in a mixed version cluster where a master node older than
+     *             {@link org.elasticsearch.snapshots.SnapshotsService#NO_REPO_INITIALIZE_VERSION} is present.
      */
+    @Deprecated
     void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData metaData);
 
     /**
@@ -132,11 +134,11 @@ public interface Repository extends LifecycleComponent {
      * @param shardFailures list of shard failures
      * @param repositoryStateId the unique id identifying the state of the repository when the snapshot began
      * @param includeGlobalState include cluster global state
-     * @return snapshot description
+     * @param listener listener to be called on completion of the snapshot
      */
-    SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards,
-                                  List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState,
-                                  Map<String, Object> userMetadata);
+    void finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards,
+                          List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState,
+                          MetaData clusterMetaData, Map<String, Object> userMetadata, ActionListener<SnapshotInfo> listener);
 
     /**
      * Deletes snapshot
@@ -204,9 +206,10 @@ public interface Repository extends LifecycleComponent {
      * @param indexId             id for the index being snapshotted
      * @param snapshotIndexCommit commit point
      * @param snapshotStatus      snapshot status
+     * @param listener            listener invoked on completion
      */
     void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                       IndexShardSnapshotStatus snapshotStatus);
+                       IndexShardSnapshotStatus snapshotStatus, ActionListener<String> listener);
 
     /**
      * Restores snapshot of the shard.

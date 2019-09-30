@@ -80,7 +80,11 @@ final class DfsQueryPhase extends SearchPhase {
 
                     @Override
                     protected void innerOnResponse(QuerySearchResult response) {
-                        counter.onResult(response);
+                        try {
+                            counter.onResult(response);
+                        } catch (Exception e) {
+                            context.onPhaseFailure(DfsQueryPhase.this, "", e);
+                        }
                     }
 
                     @Override

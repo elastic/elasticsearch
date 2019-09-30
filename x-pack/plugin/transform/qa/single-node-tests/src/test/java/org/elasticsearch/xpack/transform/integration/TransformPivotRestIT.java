@@ -134,7 +134,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String transformId = "simple_bucket_selector_pivot";
         String transformIndex = "bucket_selector_idx";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
-        final Request createTransformRequest = createRequestWithAuth("PUT", TRANSFORM_ENDPOINT + transformId,
+        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
         String config = "{"
             + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
@@ -179,7 +179,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String transformId = "simple_continuous_pivot";
         String transformIndex = "pivot_reviews_continuous";
         setupDataAccessRole(DATA_ACCESS_ROLE, indexName, transformIndex);
-        final Request createTransformRequest = createRequestWithAuth("PUT", TRANSFORM_ENDPOINT + transformId,
+        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
         String config = "{"
             + " \"source\": {\"index\":\"" + indexName + "\"},"
@@ -293,7 +293,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String transformIndex = "pivot_reviews_via_histogram";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
 
-        final Request createTransformRequest = createRequestWithAuth("PUT", TRANSFORM_ENDPOINT + transformId,
+        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
 
         String config = "{"
@@ -331,7 +331,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String transformIndex = "bigger_pivot_reviews";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
 
-        final Request createTransformRequest = createRequestWithAuth("PUT", TRANSFORM_ENDPOINT + transformId,
+        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
 
         String config = "{"
@@ -406,7 +406,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String transformIndex = "pivot_reviews_via_date_histogram";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
 
-        final Request createTransformRequest = createRequestWithAuth("PUT", TRANSFORM_ENDPOINT + transformId,
+        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
 
         String config = "{"
@@ -442,7 +442,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
     @SuppressWarnings("unchecked")
     public void testPreviewTransform() throws Exception {
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
-        final Request createPreviewRequest = createRequestWithAuth("POST", TRANSFORM_ENDPOINT + "_preview",
+        final Request createPreviewRequest = createRequestWithAuth("POST", getTransformEndpoint() + "_preview",
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
 
         String config = "{"
@@ -494,7 +494,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         client().performRequest(pipelineRequest);
 
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
-        final Request createPreviewRequest = createRequestWithAuth("POST", TRANSFORM_ENDPOINT + "_preview", null);
+        final Request createPreviewRequest = createRequestWithAuth("POST", getTransformEndpoint() + "_preview", null);
 
         String config = "{ \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"} ,"
             + "\"dest\": {\"pipeline\": \"" + pipelineId + "\"},"
@@ -531,7 +531,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String transformIndex = "pivot_reviews_via_date_histogram_with_max_time";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
 
-        final Request createTransformRequest = createRequestWithAuth("PUT", TRANSFORM_ENDPOINT + transformId,
+        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
 
         String config = "{"
@@ -578,7 +578,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String transformIndex = "scripted_metric_pivot_reviews";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
 
-        final Request createTransformRequest = createRequestWithAuth("PUT", TRANSFORM_ENDPOINT + transformId,
+        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
 
         String config = "{"
@@ -631,7 +631,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String transformIndex = "bucket_script_pivot_reviews";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
 
-        final Request createTransformRequest = createRequestWithAuth("PUT", TRANSFORM_ENDPOINT + transformId,
+        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
 
         String config = "{"
@@ -683,7 +683,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String transformIndex = "geo_bounds_pivot_reviews";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
 
-        final Request createTransformRequest = createRequestWithAuth("PUT", TRANSFORM_ENDPOINT + transformId,
+        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
 
         String config = "{"
@@ -736,7 +736,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String transformIndex = "geo_centroid_pivot_reviews";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
 
-        final Request createTransformRequest = createRequestWithAuth("PUT", TRANSFORM_ENDPOINT + transformId,
+        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
 
         String config = "{"
@@ -786,7 +786,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String transformIndex = "weighted_avg_pivot_reviews";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
 
-        final Request createTransformRequest = createRequestWithAuth("PUT", TRANSFORM_ENDPOINT + transformId,
+        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
 
         String config = "{"
@@ -824,7 +824,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String transformId = "test_with_many_buckets";
         String transformIndex = transformId + "-idx";
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
-        final Request createTransformRequest = createRequestWithAuth("PUT", TRANSFORM_ENDPOINT + transformId,
+        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
 
         String config = "{"
@@ -853,7 +853,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         startAndWaitForTransform(transformId, transformIndex, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
         assertTrue(indexExists(transformIndex));
 
-        Map<String, Object> stats = getAsMap(TRANSFORM_ENDPOINT + transformId + "/_stats");
+        Map<String, Object> stats = getAsMap(getTransformEndpoint() + transformId + "/_stats");
         assertEquals(101, ((List<?>)XContentMapValues.extractValue("transforms.stats.pages_processed", stats)).get(0));
     }
 

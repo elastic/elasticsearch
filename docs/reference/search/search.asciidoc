@@ -240,9 +240,9 @@ Took time includes:
 
 Took time does *not* include:
 
-* Time needed to send a request to {es}
+* Time needed to send the request to {es}
 * Time needed to serialize the JSON response
-* Time needed to send a response to a client
+* Time needed to send the response to a client
 --
 
 

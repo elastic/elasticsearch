@@ -572,7 +572,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testOverShardLimit() {
-        int nodesInCluster = randomIntBetween(1,100);
+        int nodesInCluster = randomIntBetween(1,90);
         ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster);
 
         Settings clusterSettings = Settings.builder()

@@ -21,6 +21,7 @@ PUT /_ingest/pipeline/pipeline-one
   "processors" : [ ]
 }
 ----
+// CONSOLE
 // TESTSETUP
 ////
 

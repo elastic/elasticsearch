@@ -20,7 +20,7 @@ include::disable-shard-alloc.asciidoc[]
 . *Stop indexing and perform a synced flush.*
 +
 --
-Performing a <<synced-flush-api, synced-flush>> speeds up shard
+Performing a <<indices-synced-flush-api, synced-flush>> speeds up shard
 recovery.
 
 include::synced-flush.asciidoc[]

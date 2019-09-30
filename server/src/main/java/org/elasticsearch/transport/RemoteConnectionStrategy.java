@@ -123,6 +123,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         final List<ActionListener<Void>> toNotify;
         synchronized (mutex) {
             if (closed.compareAndSet(false, true)) {
+                connectionManager.getConnectionManager().removeListener(this);
                 toNotify = listeners;
                 listeners = Collections.emptyList();
             } else {

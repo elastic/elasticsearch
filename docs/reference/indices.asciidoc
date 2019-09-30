@@ -29,7 +29,6 @@ index settings, aliases, mappings, and index templates.
 * <<indices-put-mapping>>
 * <<indices-get-mapping>>
 * <<indices-get-field-mapping>>
-* <<indices-types-exists>>
 
 [float]
 [[alias-management]]
@@ -101,8 +100,6 @@ include::indices/put-mapping.asciidoc[]
 include::indices/get-mapping.asciidoc[]
 
 include::indices/get-field-mapping.asciidoc[]
-
-include::indices/types-exists.asciidoc[]
 
 include::indices/add-alias.asciidoc[]
 

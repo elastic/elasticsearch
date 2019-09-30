@@ -190,6 +190,13 @@ public class FieldHitExtractor implements HitExtractor {
                 throw new SqlIllegalArgumentException("Cannot read geo_shape value [{}] (returned by [{}])", values, fieldName);
             }
         }
+        if (dataType == DataType.SHAPE) {
+            try {
+                return new GeoShape(values);
+            } catch (IOException ex) {
+                throw new SqlIllegalArgumentException("Cannot read shape value [{}] (returned by [{}])", values, fieldName);
+            }
+        }
         if (values instanceof Map) {
             throw new SqlIllegalArgumentException("Objects (returned by [{}]) are not supported", fieldName);
         }
@@ -198,7 +205,7 @@ public class FieldHitExtractor implements HitExtractor {
                 return DateUtils.asDateTime(Long.parseLong(values.toString()), zoneId);
             }
         }
-        
+
         // The Jackson json parser can generate for numerics - Integers, Longs, BigIntegers (if Long is not enough)
         // and BigDecimal (if Double is not enough)
         if (values instanceof Number || values instanceof String || values instanceof Boolean) {
@@ -266,7 +273,7 @@ public class FieldHitExtractor implements HitExtractor {
             for (int i = idx + 1; i < path.length; i++) {
                 sj.add(path[i]);
                 Object node = subMap.get(sj.toString());
-                
+
                 if (node instanceof List) {
                     List listOfValues = (List) node;
                     // we can only do this optimization until the last element of our pass since geo points are using arrays
@@ -281,7 +288,7 @@ public class FieldHitExtractor implements HitExtractor {
                         return unwrapMultiValue(node);
                     }
                 }
-                
+
                 if (node instanceof Map) {
                     if (i < path.length - 1) {
                         // Add the sub-map to the queue along with the current path index
@@ -318,7 +325,7 @@ public class FieldHitExtractor implements HitExtractor {
     public String fieldName() {
         return fieldName;
     }
-    
+
     public String fullFieldName() {
         return fullFieldName;
     }

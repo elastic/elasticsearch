@@ -19,8 +19,7 @@
 
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.job.config.Job;
@@ -35,7 +34,7 @@ import java.util.Objects;
 /**
  * Get the Scheduled Events for a Calendar
  */
-public class GetCalendarEventsRequest extends ActionRequest implements ToXContentObject {
+public class GetCalendarEventsRequest implements Validatable, ToXContentObject {
 
     public static final ParseField START = new ParseField("start");
     public static final ParseField END = new ParseField("end");
@@ -119,11 +118,6 @@ public class GetCalendarEventsRequest extends ActionRequest implements ToXConten
      */
     public void setJobId(String jobId) {
         this.jobId = jobId;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     @Override

@@ -1,7 +1,7 @@
 --
 :api: update-transform
-:request: UpdateDataFrameTransformRequest
-:response: UpdateDataFrameTransformResponse
+:request: UpdateTransformRequest
+:response: UpdateTransformResponse
 --
 [role="xpack"]
 [id="{upid}-{api}"]
@@ -30,7 +30,7 @@ such an error will not be visible until `_start` is called.
 [id="{upid}-{api}-config"]
 ==== {transform-cap} update configuration
 
-The `DataFrameTransformConfigUpdate` object contains all the details about updated
+The `TransformConfigUpdate` object contains all the details about updated
 {transform} configuration and contains the following arguments:
 
 ["source","java",subs="attributes,callouts,macros"]

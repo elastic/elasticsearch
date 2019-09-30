@@ -5,7 +5,7 @@ repositories {
     mavenCentral()
 }
 dependencies {
-    compile 'org.apache.logging.log4j:log4j-core:2.11.1'
+    compile 'org.apache.logging.log4j:log4j-core:2.12.1'
 }
 
 // Tests have to clean mid-test but we don't want the sample jars to go away

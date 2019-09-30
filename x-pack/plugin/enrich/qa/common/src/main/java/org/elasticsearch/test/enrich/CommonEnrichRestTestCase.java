@@ -36,7 +36,8 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         List<Map<?,?>> policies = (List<Map<?,?>>) responseMap.get("policies");
 
         for (Map<?, ?> entry: policies) {
-            client().performRequest(new Request("DELETE", "/_enrich/policy/" + XContentMapValues.extractValue("match.name", entry)));
+            client().performRequest(new Request("DELETE", "/_enrich/policy/" +
+                XContentMapValues.extractValue("config.match.name", entry)));
         }
     }
 

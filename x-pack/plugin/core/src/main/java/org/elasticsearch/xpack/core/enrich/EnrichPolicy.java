@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -272,7 +271,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         }
     }
 
-    public static class NamedPolicy implements Writeable, ToXContent {
+    public static class NamedPolicy implements Writeable, ToXContentFragment {
 
         static final ParseField NAME = new ParseField("name");
         @SuppressWarnings("unchecked")
@@ -324,13 +323,11 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
             builder.startObject(policy.type);
             {
                 builder.field(NAME.getPreferredName(), name);
                 policy.toInnerXContent(builder, params);
             }
-            builder.endObject();
             builder.endObject();
             return builder;
         }

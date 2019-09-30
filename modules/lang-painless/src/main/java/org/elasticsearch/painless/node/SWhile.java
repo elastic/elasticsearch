@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -110,38 +111,38 @@ public final class SWhile extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeStatementOffset(location);
 
         Label begin = new Label();
         Label end = new Label();
 
-        writer.mark(begin);
+        methodWriter.mark(begin);
 
         if (!continuous) {
-            condition.write(writer, globals);
-            writer.ifZCmp(Opcodes.IFEQ, end);
+            condition.write(classWriter, methodWriter, globals);
+            methodWriter.ifZCmp(Opcodes.IFEQ, end);
         }
 
         if (block != null) {
             if (loopCounter != null) {
-                writer.writeLoopCounter(loopCounter.getSlot(), Math.max(1, block.statementCount), location);
+                methodWriter.writeLoopCounter(loopCounter.getSlot(), Math.max(1, block.statementCount), location);
             }
 
             block.continu = begin;
             block.brake = end;
-            block.write(writer, globals);
+            block.write(classWriter, methodWriter, globals);
         } else {
             if (loopCounter != null) {
-                writer.writeLoopCounter(loopCounter.getSlot(), 1, location);
+                methodWriter.writeLoopCounter(loopCounter.getSlot(), 1, location);
             }
         }
 
         if (block == null || !block.allEscape) {
-            writer.goTo(begin);
+            methodWriter.goTo(begin);
         }
 
-        writer.mark(end);
+        methodWriter.mark(end);
     }
 
     @Override

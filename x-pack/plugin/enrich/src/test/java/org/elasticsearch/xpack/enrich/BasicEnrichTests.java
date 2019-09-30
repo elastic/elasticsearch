@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.reindex.ReindexPlugin;
+import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -42,7 +43,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(LocalStateEnrich.class, ReindexPlugin.class);
+        return List.of(LocalStateEnrich.class, ReindexPlugin.class, IngestCommonPlugin.class);
     }
 
     @Override
@@ -104,8 +105,9 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             client().execute(EnrichStatsAction.INSTANCE, new EnrichStatsAction.Request()).actionGet();
         assertThat(statsResponse.getCoordinatorStats().size(), equalTo(1));
         String localNodeId = getInstanceFromNode(ClusterService.class).localNode().getId();
-        assertThat(statsResponse.getCoordinatorStats().get(localNodeId).getRemoteRequestsTotal(), greaterThanOrEqualTo(1L));
-        assertThat(statsResponse.getCoordinatorStats().get(localNodeId).getExecutedSearchesTotal(), equalTo((long) numDocs));
+        assertThat(statsResponse.getCoordinatorStats().get(0).getNodeId(), equalTo(localNodeId));
+        assertThat(statsResponse.getCoordinatorStats().get(0).getRemoteRequestsTotal(), greaterThanOrEqualTo(1L));
+        assertThat(statsResponse.getCoordinatorStats().get(0).getExecutedSearchesTotal(), equalTo((long) numDocs));
     }
 
     public void testMultiplePolicies() {

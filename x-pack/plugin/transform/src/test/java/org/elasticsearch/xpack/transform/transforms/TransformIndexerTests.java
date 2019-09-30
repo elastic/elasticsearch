@@ -195,7 +195,7 @@ public class TransformIndexerTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
     }
 
-    public void testPageSizeAdapt() throws InterruptedException {
+    public void testPageSizeAdapt() throws Exception {
         Integer pageSize = randomBoolean() ? null : randomIntBetween(500, 10_000);
         TransformConfig config = new TransformConfig(randomAlphaOfLength(10),
             randomSourceConfig(),
@@ -232,8 +232,9 @@ public class TransformIndexerTests extends ESTestCase {
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
             assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
+
             latch.countDown();
-            awaitBusy(() -> indexer.getState() == IndexerState.STOPPED);
+            assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)));
             long pageSizeAfterFirstReduction = indexer.getPageSize();
             assertThat(initialPageSize, greaterThan(pageSizeAfterFirstReduction));
             assertThat(pageSizeAfterFirstReduction, greaterThan((long)TransformIndexer.MINIMUM_PAGE_SIZE));
@@ -245,8 +246,9 @@ public class TransformIndexerTests extends ESTestCase {
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
             assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
+
             secondRunLatch.countDown();
-            awaitBusy(() -> indexer.getState() == IndexerState.STOPPED);
+            assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)));
 
             // assert that page size has been reduced again
             assertThat(pageSizeAfterFirstReduction, greaterThan((long)indexer.getPageSize()));

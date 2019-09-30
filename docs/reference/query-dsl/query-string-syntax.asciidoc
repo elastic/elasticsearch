@@ -291,6 +291,8 @@ Content-Type: application/json
 ----
 // TEST[setup:twitter]
 
+The reserved characters are:  `+ - = && || > < ! ( ) { } [ ] ^ " ~ * ? : \ /`
+
 Failing to escape these special characters correctly could lead to a syntax error which prevents your query from running. 
 
 NOTE: `<` and `>` can't be escaped at all. The only way to prevent them from

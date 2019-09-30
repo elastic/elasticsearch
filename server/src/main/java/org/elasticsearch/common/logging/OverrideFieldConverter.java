@@ -29,26 +29,26 @@ import org.apache.logging.log4j.util.StringBuilders;
 import org.elasticsearch.common.Strings;
 
 /**
- * Pattern converter to populate ESMessageField in a pattern.
+ * Pattern converter to populate OverrideField in a pattern.
  * It will only populate these if the event have message of type <code>ESLogMessage</code>.
  */
-@Plugin(category = PatternConverter.CATEGORY, name = "ESMessageField")
-@ConverterKeys({"ESMessageField"})
-public final class ESMessageFieldConverter extends LogEventPatternConverter {
+@Plugin(category = PatternConverter.CATEGORY, name = "OverrideField")
+@ConverterKeys({"OverrideField"})
+public final class OverrideFieldConverter extends LogEventPatternConverter {
 
     private String key;
 
     /**
      * Called by log4j2 to initialize this converter.
      */
-    public static ESMessageFieldConverter newInstance(final Configuration config, final String[] options) {
+    public static OverrideFieldConverter newInstance(final Configuration config, final String[] options) {
         final String key = options[0];
 
-        return new ESMessageFieldConverter(key);
+        return new OverrideFieldConverter(key);
     }
 
-    public ESMessageFieldConverter(String key) {
-        super("ESMessageField", "ESMessageField");
+    public OverrideFieldConverter(String key) {
+        super("OverrideField", "OverrideField");
         this.key = key;
     }
 

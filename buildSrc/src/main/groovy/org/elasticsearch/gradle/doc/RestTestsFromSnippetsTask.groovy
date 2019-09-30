@@ -58,6 +58,8 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
     @OutputDirectory
     File testRoot = project.file('build/rest')
 
+    Map<String, Integer> names = new HashMap<>()
+
     public RestTestsFromSnippetsTask() {
         project.afterEvaluate {
             // Wait to set this so testRoot can be customized
@@ -236,7 +238,9 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             } else {
                 current.println('---')
                 if (test.name != null) {
-                    current.println("\"$test.name\":")
+                    def num = names.compute(test.name, { key, old -> old == null ? 1 : old + 1 })
+                    def name = num == 1 ? test.name : test.name + "_" + num
+                    current.println("\"$name\":")
                 } else {
                     current.println("\"line_$test.start\":")
                 }
@@ -407,6 +411,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             if (lastDocsPath == test.path) {
                 return
             }
+            names.clear()
             finishLastTest()
             lastDocsPath = test.path
 

@@ -333,11 +333,13 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             }
 
             if (createdBy != null) {
-                throw ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation", CREATED_BY.getPreferredName());
+                throw ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation",
+                    CREATED_BY.getPreferredName());
             }
 
             if (createdTime != null) {
-                throw ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation", CREATED_TIME.getPreferredName());
+                throw ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation",
+                    CREATED_TIME.getPreferredName());
             }
         }
 

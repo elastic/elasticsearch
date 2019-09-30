@@ -25,7 +25,7 @@ public class TransportDeleteTransformActionDeprecated extends TransportDeleteTra
                                                     ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
                                                     TransformConfigManager transformsConfigManager, TransformAuditor auditor,
                                                     Client client) {
-        super(DeleteTransformActionDeprecated.NAME, transportService, actionFilters, threadPool, clusterService, indexNameExpressionResolver,
-                transformsConfigManager, auditor, client);
+        super(DeleteTransformActionDeprecated.NAME, transportService, actionFilters, threadPool, clusterService,
+                indexNameExpressionResolver, transformsConfigManager, auditor, client);
     }
 }

@@ -173,7 +173,7 @@ to evaluate results.
 <4> The predicted value for house price calculated by the {reganalysis}.
 
 
-The following example calculates the training error.
+The following example calculates the training error:
 
 [source,console]
 --------------------------------------------------

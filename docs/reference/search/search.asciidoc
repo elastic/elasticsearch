@@ -228,17 +228,21 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=timeout]
 Milliseconds it took {es} to execute the request.
 
 This value is calculated by measuring the time elapsed
-between receipt of a request
-and its execution.
+between receipt of a request on the coordinating node
+and the time at which the coordinating node is ready to send the response.
+
+Took time includes:
+
+* Communication time between the coordinating node and data nodes
+* Time the request spends in the `search` <<modules-threadpool,thread pool>>,
+  queued for execution
+* Actual execution time
 
 Took time does *not* include:
 
-* Serializing a request into JSON on a client
-* Sending a request over a network
-* Deserializing a request from JSON on a server
-* Serializing a response into JSON on a server
-* Sending a response over a network
-* Deserializing a response from JSON on a client
+* Time needed to send a request to {es}
+* Time needed to serializing a JSON response
+* Time needed to send a response to a client
 --
 
 

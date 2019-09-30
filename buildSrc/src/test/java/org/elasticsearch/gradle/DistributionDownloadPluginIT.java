@@ -99,7 +99,6 @@ public class DistributionDownloadPluginIT extends GradleIntegrationTestCase {
         assert sysProps.length % 2 == 0;
         List<String> args = new ArrayList<>();
         args.add(taskname);
-        args.add("-Dlocal.repo.path=" + getLocalTestRepoPath());
         for (int i = 0; i < sysProps.length; i += 2) {
             args.add("-D" + sysProps[i] + "=" + sysProps[i + 1]);
         }

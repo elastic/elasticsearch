@@ -158,12 +158,17 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         boolean hasIndexRequestsWithPipelines = false;
         final MetaData metaData = clusterService.state().getMetaData();
+        final Version minNodeVersion = clusterService.state().getNodes().getMinNodeVersion();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
                 // Each index request needs to be evaluated, because this method also modifies the IndexRequest
                 boolean indexRequestHasPipeline = resolveRequiredOrDefaultPipeline(actionRequest, indexRequest, metaData);
                 hasIndexRequestsWithPipelines |= indexRequestHasPipeline;
+            }
+
+            if (actionRequest instanceof IndexRequest) {
+                ((IndexRequest) actionRequest).checkAutoIdWithOpTypeCreateSupportedByVersion(minNodeVersion);
             }
         }
 

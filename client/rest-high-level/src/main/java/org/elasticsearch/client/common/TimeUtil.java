@@ -16,12 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml.job.util;
+package org.elasticsearch.client.common;
 
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
 
@@ -40,6 +41,24 @@ public final class TimeUtil {
             return new Date(parser.longValue());
         } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
             return new Date(DateFormatters.from(DateTimeFormatter.ISO_INSTANT.parse(parser.text())).toInstant().toEpochMilli());
+        }
+        throw new IllegalArgumentException(
+            "unexpected token [" + parser.currentToken() + "] for [" + fieldName + "]");
+    }
+
+    /**
+     * Parse out an Instant object given the current parser and field name.
+     *
+     * @param parser current XContentParser
+     * @param fieldName the field's preferred name (utilized in exception)
+     * @return parsed Instant object
+     * @throws IOException from XContentParser
+     */
+    public static Instant parseTimeFieldToInstant(XContentParser parser, String fieldName) throws IOException {
+        if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+            return Instant.ofEpochMilli(parser.longValue());
+        } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+            return DateFormatters.from(DateTimeFormatter.ISO_INSTANT.parse(parser.text())).toInstant();
         }
         throw new IllegalArgumentException(
             "unexpected token [" + parser.currentToken() + "] for [" + fieldName + "]");

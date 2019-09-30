@@ -23,12 +23,12 @@ import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Locals.LocalMethod;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.symbol.FunctionTable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
@@ -48,7 +48,7 @@ public final class ECallLocal extends AExpression {
     private final String name;
     private final List<AExpression> arguments;
 
-    private LocalMethod localMethod = null;
+    private FunctionTable.LocalFunction localFunction = null;
     private PainlessMethod importedMethod = null;
     private PainlessClassBinding classBinding = null;
     private int classBindingOffset = 0;
@@ -76,10 +76,15 @@ public final class ECallLocal extends AExpression {
     }
 
     @Override
-    void analyze(Locals locals) {
-        localMethod = locals.getMethod(name, arguments.size());
+    void analyze(FunctionTable functions, Locals locals) {
+        localFunction = functions.getFunction(name, arguments.size());
 
-        if (localMethod == null) {
+        // user cannot call internal functions, reset to null if an internal function is found
+        if (localFunction != null && localFunction.isInternal()) {
+            localFunction = null;
+        }
+
+        if (localFunction == null) {
             importedMethod = locals.getPainlessLookup().lookupImportedPainlessMethod(name, arguments.size());
 
             if (importedMethod == null) {
@@ -123,9 +128,9 @@ public final class ECallLocal extends AExpression {
 
         List<Class<?>> typeParameters;
 
-        if (localMethod != null) {
-            typeParameters = new ArrayList<>(localMethod.typeParameters);
-            actual = localMethod.returnType;
+        if (localFunction != null) {
+            typeParameters = new ArrayList<>(localFunction.getTypeParameters());
+            actual = localFunction.getReturnType();
         } else if (importedMethod != null) {
             typeParameters = new ArrayList<>(importedMethod.typeParameters);
             actual = importedMethod.returnType;
@@ -147,8 +152,8 @@ public final class ECallLocal extends AExpression {
 
             expression.expected = typeParameters.get(argument + classBindingOffset);
             expression.internal = true;
-            expression.analyze(locals);
-            arguments.set(argument, expression.cast(locals));
+            expression.analyze(functions, locals);
+            arguments.set(argument, expression.cast(functions, locals));
         }
 
         statement = true;
@@ -158,12 +163,12 @@ public final class ECallLocal extends AExpression {
     void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         methodWriter.writeDebugInfo(location);
 
-        if (localMethod != null) {
+        if (localFunction != null) {
             for (AExpression argument : arguments) {
                 argument.write(classWriter, methodWriter, globals);
             }
 
-            methodWriter.invokeStatic(CLASS_TYPE, new Method(localMethod.name, localMethod.methodType.toMethodDescriptorString()));
+            methodWriter.invokeStatic(CLASS_TYPE, localFunction.getAsmMethod());
         } else if (importedMethod != null) {
             for (AExpression argument : arguments) {
                 argument.write(classWriter, methodWriter, globals);

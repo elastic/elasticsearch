@@ -146,7 +146,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                 client().performRequest(waitForGreen);
 
                 Version minNodeVersion = null;
-                Map<?, ?> response = entityAsMap(client().performRequest(new Request("GET", "_nodes/plugins")));
+                Map<?, ?> response = entityAsMap(client().performRequest(new Request("GET", "_nodes")));
                 Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
                 for (Map.Entry<?, ?> node : nodes.entrySet()) {
                     Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();

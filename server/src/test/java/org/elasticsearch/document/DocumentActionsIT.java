@@ -189,7 +189,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
                 .add(client().prepareIndex().setIndex("test").setType("type1").setId("1").setSource(source("1", "test")))
                 .add(client().prepareIndex().setIndex("test").setType("type1").setId("2").setSource(source("2", "test")).setCreate(true))
                 .add(client().prepareIndex().setIndex("test").setType("type1").setSource(source("3", "test")))
-                .add(client().prepareIndex().setIndex("test").setType("type1").setCreate(true).setSource(source("3", "test")))
+                .add(client().prepareIndex().setIndex("test").setType("type1").setCreate(true).setSource(source("4", "test")))
                 .add(client().prepareDelete().setIndex("test").setType("type1").setId("1"))
                 .add(client().prepareIndex().setIndex("test").setType("type1").setSource("{ xxx }", XContentType.JSON)) // failure
                 .execute().actionGet();
@@ -249,6 +249,10 @@ public class DocumentActionsIT extends ESIntegTestCase {
 
             getResult = client().get(getRequest("test").id(generatedId3)).actionGet();
             assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(Strings.toString(source("3", "test"))));
+            assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
+
+            getResult = client().get(getRequest("test").id(generatedId4)).actionGet();
+            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(Strings.toString(source("4", "test"))));
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
         }
     }

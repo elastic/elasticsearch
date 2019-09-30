@@ -81,6 +81,10 @@
           - create:
               _index: test
           - f: 4
+          - index:
+              _index: test
+              op_type: create
+          - f: 5
   - match: { errors: true }
   - match: { items.0.index.status: 400 }
   - match: { items.0.index.error.type: illegal_argument_exception }
@@ -88,12 +92,13 @@
   - match: { items.1.index.result: created }
   - match: { items.2.index.result: created }
   - match: { items.3.create.result: created }
+  - match: { items.4.create.result: created }
 
   - do:
       count:
         index: test
 
-  - match: { count: 3 }
+  - match: { count: 4 }
 
 
 ---

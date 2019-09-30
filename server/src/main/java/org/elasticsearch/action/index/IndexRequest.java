@@ -194,6 +194,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (contentType == null) {
             validationException = addValidationError("content type is missing", validationException);
         }
+        assert opType == OpType.INDEX || opType == OpType.CREATE : "unexpected op-type: " + opType;
         final long resolvedVersion = resolveVersionDefaults();
         if (opType == OpType.CREATE) {
             if (versionType != VersionType.INTERNAL) {
@@ -216,9 +217,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
 
         if (id == null) {
-            if (opType != OpType.INDEX && opType != OpType.CREATE) {
-                addValidationError("an id is required for a " + opType + " operation", validationException);
-            }
             if (versionType != VersionType.INTERNAL ||
                 (resolvedVersion != Versions.MATCH_DELETED && resolvedVersion != Versions.MATCH_ANY)) {
                 validationException = addValidationError("an id must be provided if version type or value are set", validationException);

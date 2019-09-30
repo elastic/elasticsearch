@@ -273,8 +273,6 @@ query itself (and not as operators), then you should escape them with
 a leading backslash. For instance, to search for `(1+1)=2`, you would
 need to write your query as `\(1\+1\)\=2`. When using JSON for the request body, two preceding backslashes (`\\`) are required; the backslash is a reserved escaping character in JSON strings.
 
-The reserved characters are:  `+ - = && || > < ! ( ) { } [ ] ^ " ~ * ? : \ /`
-
 [source,console]
 ----
 GET /twitter/_search

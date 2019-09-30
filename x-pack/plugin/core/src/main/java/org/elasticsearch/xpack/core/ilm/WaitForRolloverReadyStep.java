@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_ROLLOVER_SKIP_ROLLED;
+
 /**
  * Waits for at least one rollover condition to be satisfied, using the Rollover API's dry_run option.
  */
@@ -50,6 +52,12 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
                 "setting [%s] for index [%s] is empty or not defined", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS,
                 indexMetaData.getIndex().getName())));
+            return;
+        }
+
+        if (indexMetaData.getSettings().getAsBoolean(LIFECYCLE_ROLLOVER_SKIP_ROLLED, true) &&
+            indexMetaData.getRolloverInfos().get(rolloverAlias) != null) {
+            logger.trace("Index {} was already rolled, skipping", indexMetaData.getIndex().getName());
             return;
         }
 

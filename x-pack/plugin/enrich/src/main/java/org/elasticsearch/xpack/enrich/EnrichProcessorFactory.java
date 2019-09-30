@@ -61,8 +61,10 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
                 return new MatchProcessor(tag, client, policyName, field, targetField, overrideEnabled, ignoreMissing, matchField,
                     maxMatches);
             case EnrichPolicy.GEO_MATCH_TYPE:
+                String relationStr = ConfigurationUtils.readStringProperty(TYPE, tag, config, "shape_relation", "intersects");
+                ShapeRelation shapeRelation = ShapeRelation.getRelationByName(relationStr);
                 return new GeoMatchProcessor(tag, client, policyName, field, targetField, overrideEnabled, ignoreMissing, matchField,
-                    maxMatches, ShapeRelation.INTERSECTS);
+                    maxMatches, shapeRelation);
             default:
                 throw new IllegalArgumentException("unsupported policy type [" + policyType + "]");
         }

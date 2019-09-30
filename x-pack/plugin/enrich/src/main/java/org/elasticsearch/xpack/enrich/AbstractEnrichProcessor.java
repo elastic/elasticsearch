@@ -10,6 +10,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.routing.Preference;
+import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.search.SearchHit;
@@ -33,7 +35,6 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
     protected final String matchField;
     protected final int maxMatches;
 
-
     protected AbstractEnrichProcessor(String tag, Client client, String policyName, String field, String targetField,
                                       boolean ignoreMissing, boolean overrideEnabled, String matchField, int maxMatches) {
         this(tag, createSearchRunner(client), policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
@@ -54,7 +55,7 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
         this.maxMatches = maxMatches;
     }
 
-    public abstract SearchSourceBuilder getSearchSourceBuilder(Object fieldValue);
+    public abstract QueryBuilder getQueryBuilder(Object fieldValue);
 
     @Override
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
@@ -66,12 +67,18 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
                 return;
             }
 
-            SearchSourceBuilder searchSourceBuilder = getSearchSourceBuilder(value);
-
+            QueryBuilder queryBuilder = getQueryBuilder(value);
+            ConstantScoreQueryBuilder constantScore = new ConstantScoreQueryBuilder(queryBuilder);
+            SearchSourceBuilder searchBuilder = new SearchSourceBuilder();
+            searchBuilder.from(0);
+            searchBuilder.size(maxMatches);
+            searchBuilder.trackScores(false);
+            searchBuilder.fetchSource(true);
+            searchBuilder.query(constantScore);
             SearchRequest req = new SearchRequest();
             req.indices(EnrichPolicy.getBaseName(getPolicyName()));
             req.preference(Preference.LOCAL.type());
-            req.source(searchSourceBuilder);
+            req.source(searchBuilder);
 
             searchRunner.accept(req, (searchResponse, e) -> {
                 if (e != null) {

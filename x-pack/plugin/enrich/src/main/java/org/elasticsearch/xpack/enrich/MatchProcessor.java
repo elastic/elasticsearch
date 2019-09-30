@@ -8,9 +8,8 @@ package org.elasticsearch.xpack.enrich;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.util.function.BiConsumer;
 
@@ -42,15 +41,7 @@ public class MatchProcessor extends AbstractEnrichProcessor {
     }
 
     @Override
-    public SearchSourceBuilder getSearchSourceBuilder(Object fieldValue) {
-        TermQueryBuilder termQuery = new TermQueryBuilder(matchField, fieldValue);
-        ConstantScoreQueryBuilder constantScore = new ConstantScoreQueryBuilder(termQuery);
-        SearchSourceBuilder searchBuilder = new SearchSourceBuilder();
-        searchBuilder.from(0);
-        searchBuilder.size(maxMatches);
-        searchBuilder.trackScores(false);
-        searchBuilder.fetchSource(true);
-        searchBuilder.query(constantScore);
-        return searchBuilder;
+    public QueryBuilder getQueryBuilder(Object fieldValue) {
+        return new TermQueryBuilder(matchField, fieldValue);
     }
 }

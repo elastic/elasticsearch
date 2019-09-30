@@ -12,9 +12,8 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 
 import java.util.function.BiConsumer;
 
@@ -30,7 +29,8 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
                       boolean overrideEnabled,
                       boolean ignoreMissing,
                       String matchField,
-                      int maxMatches, ShapeRelation shapeRelation) {
+                      int maxMatches,
+                      ShapeRelation shapeRelation) {
         super(tag, client, policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
         this.shapeRelation = shapeRelation;
     }
@@ -50,18 +50,11 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
     }
 
     @Override
-    public SearchSourceBuilder getSearchSourceBuilder(Object fieldValue) {
+    public QueryBuilder getQueryBuilder(Object fieldValue) {
         GeoPoint point = GeoUtils.parseGeoPoint(fieldValue, true);
         GeoShapeQueryBuilder shapeQuery = new GeoShapeQueryBuilder(matchField, new Point(point.lon(), point.lat()));
         shapeQuery.relation(shapeRelation);
-        ConstantScoreQueryBuilder constantScore = new ConstantScoreQueryBuilder(shapeQuery);
-        SearchSourceBuilder searchBuilder = new SearchSourceBuilder();
-        searchBuilder.from(0);
-        searchBuilder.size(maxMatches);
-        searchBuilder.trackScores(false);
-        searchBuilder.fetchSource(true);
-        searchBuilder.query(constantScore);
-        return searchBuilder;
+        return shapeQuery;
     }
 
     public ShapeRelation getShapeRelation() {

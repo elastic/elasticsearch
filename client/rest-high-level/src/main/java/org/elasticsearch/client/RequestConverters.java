@@ -191,8 +191,6 @@ final class RequestConverters {
                             metadata.field("version_type", "external");
                         } else if (versionType == VersionType.EXTERNAL_GTE) {
                             metadata.field("version_type", "external_gte");
-                        } else if (versionType == VersionType.FORCE) {
-                            metadata.field("version_type", "force");
                         }
                     }
 

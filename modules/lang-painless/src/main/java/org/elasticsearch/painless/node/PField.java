@@ -29,6 +29,7 @@ import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.FunctionTable;
 
 import java.util.List;
 import java.util.Map;
@@ -65,10 +66,10 @@ public final class PField extends AStoreable {
     }
 
     @Override
-    void analyze(Locals locals) {
-        prefix.analyze(locals);
+    void analyze(FunctionTable functions, Locals locals) {
+        prefix.analyze(functions, locals);
         prefix.expected = prefix.actual;
-        prefix = prefix.cast(locals);
+        prefix = prefix.cast(functions, locals);
 
         if (prefix.actual.isArray()) {
             sub = new PSubArrayLength(location, PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual), value);
@@ -96,7 +97,7 @@ public final class PField extends AStoreable {
                     sub = new PSubShortcut(location, value, PainlessLookupUtility.typeToCanonicalTypeName(prefix.actual), getter, setter);
                 } else {
                     EConstant index = new EConstant(location, value);
-                    index.analyze(locals);
+                    index.analyze(functions, locals);
 
                     if (Map.class.isAssignableFrom(prefix.actual)) {
                         sub = new PSubMapShortcut(location, prefix.actual, index);
@@ -124,7 +125,7 @@ public final class PField extends AStoreable {
         sub.read = read;
         sub.expected = expected;
         sub.explicit = explicit;
-        sub.analyze(locals);
+        sub.analyze(functions, locals);
         actual = sub.actual;
     }
 

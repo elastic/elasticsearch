@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.symbol.FunctionTable;
 
 import java.util.Collections;
 import java.util.List;
@@ -60,7 +61,7 @@ public final class SBlock extends AStatement {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(FunctionTable functions, Locals locals) {
         if (statements == null || statements.isEmpty()) {
             throw createError(new IllegalArgumentException("A block must contain at least one statement."));
         }
@@ -78,7 +79,7 @@ public final class SBlock extends AStatement {
             statement.lastSource = lastSource && statement == last;
             statement.lastLoop = (beginLoop || lastLoop) && statement == last;
 
-            statement.analyze(locals);
+            statement.analyze(functions, locals);
 
             methodEscape = statement.methodEscape;
             loopEscape = statement.loopEscape;

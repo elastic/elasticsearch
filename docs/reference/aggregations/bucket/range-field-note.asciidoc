@@ -166,7 +166,7 @@ calculated over the ranges of all matching documents:
 }
 --------------------------------------------------
 
-Depending on the use case, a CONTAINS query could limit the documents to only
+Depending on the use case, a `CONTAINS` query could limit the documents to only
 those that fall entirely in the queried range.  In this example, the one
 document would not be included and the aggregation would be empty.  Filtering
 the buckets after the aggregation is also an option, for use cases where the

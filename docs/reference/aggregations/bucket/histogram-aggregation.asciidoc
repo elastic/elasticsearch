@@ -185,6 +185,8 @@ buckets outside of a query's range. For example, if your query looks for values 
 covering 50 to 150, and an interval of 50, that document will land in 3 buckets - 50, 100, and 150. In general, it's
 best to think of the query and aggregation steps as independent - the query selects a set of documents, and then the
 aggregation buckets those documents without regard to how they were selected.
+See <<search-aggregations-bucket-range-field-note,note on bucketing range
+fields>> for more information and an example.
 
 ==== Order
 

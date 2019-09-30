@@ -26,6 +26,7 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.symbol.FunctionTable;
 import org.objectweb.asm.Opcodes;
 
 import java.util.Objects;
@@ -57,7 +58,7 @@ public final class EVariable extends AStoreable {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(FunctionTable functions, Locals locals) {
         variable = locals.getVariable(location, name);
 
         if (write && variable.readonly) {

@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.symbol.FunctionTable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -93,24 +94,24 @@ public final class SFor extends AStatement {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(FunctionTable functions, Locals locals) {
         locals = Locals.newLocalScope(locals);
 
         if (initializer != null) {
             if (initializer instanceof SDeclBlock) {
-                initializer.analyze(locals);
+                initializer.analyze(functions, locals);
             } else if (initializer instanceof AExpression) {
                 AExpression initializer = (AExpression)this.initializer;
 
                 initializer.read = false;
-                initializer.analyze(locals);
+                initializer.analyze(functions, locals);
 
                 if (!initializer.statement) {
                     throw createError(new IllegalArgumentException("Not a statement."));
                 }
 
                 initializer.expected = initializer.actual;
-                this.initializer = initializer.cast(locals);
+                this.initializer = initializer.cast(functions, locals);
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
@@ -118,8 +119,8 @@ public final class SFor extends AStatement {
 
         if (condition != null) {
             condition.expected = boolean.class;
-            condition.analyze(locals);
-            condition = condition.cast(locals);
+            condition.analyze(functions, locals);
+            condition = condition.cast(functions, locals);
 
             if (condition.constant != null) {
                 continuous = (boolean)condition.constant;
@@ -138,21 +139,21 @@ public final class SFor extends AStatement {
 
         if (afterthought != null) {
             afterthought.read = false;
-            afterthought.analyze(locals);
+            afterthought.analyze(functions, locals);
 
             if (!afterthought.statement) {
                 throw createError(new IllegalArgumentException("Not a statement."));
             }
 
             afterthought.expected = afterthought.actual;
-            afterthought = afterthought.cast(locals);
+            afterthought = afterthought.cast(functions, locals);
         }
 
         if (block != null) {
             block.beginLoop = true;
             block.inLoop = true;
 
-            block.analyze(locals);
+            block.analyze(functions, locals);
 
             if (block.loopEscape && !block.anyContinue) {
                 throw createError(new IllegalArgumentException("Extraneous for loop."));

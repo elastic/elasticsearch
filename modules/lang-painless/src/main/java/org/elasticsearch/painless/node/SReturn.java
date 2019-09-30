@@ -26,6 +26,7 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.symbol.FunctionTable;
 
 import java.util.Set;
 
@@ -57,7 +58,7 @@ public final class SReturn extends AStatement {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(FunctionTable functions, Locals locals) {
         if (expression == null) {
             if (locals.getReturnType() != void.class) {
                 throw location.createError(new ClassCastException("Cannot cast from " +
@@ -67,8 +68,8 @@ public final class SReturn extends AStatement {
         } else {
             expression.expected = locals.getReturnType();
             expression.internal = true;
-            expression.analyze(locals);
-            expression = expression.cast(locals);
+            expression.analyze(functions, locals);
+            expression = expression.cast(functions, locals);
         }
 
         methodEscape = true;

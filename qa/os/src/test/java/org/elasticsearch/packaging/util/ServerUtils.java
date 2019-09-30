@@ -21,13 +21,13 @@ package org.elasticsearch.packaging.util;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.client.fluent.Request;
-import org.apache.http.conn.HttpHostConnectException;
 import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
+import java.net.SocketException;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
@@ -70,7 +70,7 @@ public class ServerUtils {
 
                 started = true;
 
-            } catch (HttpHostConnectException e) {
+            } catch (SocketException e) {
                 // we want to retry if the connection is refused
                 logger.debug("Got connection refused when waiting for cluster health", e);
             }

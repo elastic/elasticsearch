@@ -6,12 +6,15 @@
 
 package org.elasticsearch.xpack.transform.integration;
 
+import org.apache.http.HttpHost;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
@@ -354,5 +357,14 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
         TestRestHighLevelClient() {
             super(client(), restClient -> {}, X_CONTENT_ENTRIES);
         }
+    }
+
+    // to be removed once client uses new API's
+    @Override
+    protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
+        RestClientBuilder builder = RestClient.builder(hosts);
+        configureClient(builder, settings);
+        builder.setStrictDeprecationMode(false);
+        return builder.build();
     }
 }

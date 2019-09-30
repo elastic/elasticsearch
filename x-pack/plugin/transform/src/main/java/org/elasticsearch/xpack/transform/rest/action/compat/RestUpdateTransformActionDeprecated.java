@@ -6,21 +6,29 @@
 
 package org.elasticsearch.xpack.transform.rest.action.compat;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 
 import java.io.IOException;
 
 public class RestUpdateTransformActionDeprecated extends BaseRestHandler {
 
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+            LogManager.getLogger(RestUpdateTransformActionDeprecated.class));
+
     public RestUpdateTransformActionDeprecated(RestController controller) {
-        controller.registerHandler(RestRequest.Method.POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED + "_update", this);
+        controller.registerAsDeprecatedHandler(RestRequest.Method.POST,
+                TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED + "_update", this, TransformMessages.REST_DEPRECATED_ENDPOINT,
+                deprecationLogger);
     }
 
     @Override

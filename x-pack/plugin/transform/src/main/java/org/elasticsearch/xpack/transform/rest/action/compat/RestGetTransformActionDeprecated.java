@@ -15,6 +15,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.compat.GetTransformActionDeprecated;
 
@@ -23,15 +24,13 @@ import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MAT
 public class RestGetTransformActionDeprecated extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-            LogManager.getLogger(GetTransformAction.class));
+            LogManager.getLogger(RestGetTransformActionDeprecated.class));
 
     public RestGetTransformActionDeprecated(RestController controller) {
-        controller.registerHandler(RestRequest.Method.GET, TransformField.REST_BASE_PATH_TRANSFORMS_DEPRECATED, this);
-        controller.registerHandler(RestRequest.Method.GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED, this);
-        //controller.registerAsDeprecatedHandler(RestRequest.Method.GET, TransformField.REST_BASE_PATH_TRANSFORMS, this,
-        //        "deprecated use /transform", deprecationLogger);
-        //controller.registerAsDeprecatedHandler(RestRequest.Method.GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID, this,
-        //        "deprecated use /transform", deprecationLogger);
+        controller.registerAsDeprecatedHandler(RestRequest.Method.GET, TransformField.REST_BASE_PATH_TRANSFORMS_DEPRECATED, this,
+                TransformMessages.REST_DEPRECATED_ENDPOINT, deprecationLogger);
+        controller.registerAsDeprecatedHandler(RestRequest.Method.GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED, this,
+                TransformMessages.REST_DEPRECATED_ENDPOINT, deprecationLogger);
     }
 
     @Override

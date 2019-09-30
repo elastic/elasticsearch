@@ -52,5 +52,5 @@ sudo -E env \
   RUNTIME_JAVA_HOME=`readlink -f -n $RUNTIME_JAVA_HOME` \
   --unset=JAVA_HOME \
   SYSTEM_JAVA_HOME=`readlink -f -n $RUNTIME_JAVA_HOME` \
-  ./gradlew -g $HOME/.gradle --parallel $@ --continue destructivePackagingTest
+  ./gradlew -g $HOME/.gradle --scan --parallel $@ --continue destructivePackagingTest
 

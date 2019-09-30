@@ -97,7 +97,6 @@ final class RemoteClusterConnection implements Closeable {
         this.connectionStrategy = new SniffConnectionStrategy(clusterAlias, transportService, remoteConnectionManager,
             proxyAddress, maxNumRemoteConnections, nodePredicate,
             Collections.unmodifiableList(seedNodes));
-        connectionManager.addListener(this.connectionStrategy);
         // we register the transport service here as a listener to make sure we notify handlers on disconnect etc.
         connectionManager.addListener(transportService);
         this.seedNodes = Collections.unmodifiableList(seedNodes);

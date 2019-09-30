@@ -78,6 +78,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     private void collectRemoteNodes(Iterator<Supplier<DiscoveryNode>> seedNodes, ActionListener<Void> listener) {
         if (Thread.currentThread().isInterrupted()) {
             listener.onFailure(new InterruptedException("remote connect thread got interrupted"));
+            return;
         }
 
         if (seedNodes.hasNext()) {

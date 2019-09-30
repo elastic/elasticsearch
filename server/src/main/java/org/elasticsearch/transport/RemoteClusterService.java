@@ -184,7 +184,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                         getNodePredicate(settings), proxyAddress, connectionProfile);
                     remoteClusters.put(clusterAlias, remote);
                 } else if (connectionProfileChanged(remote.getConnectionManager().getConnectionProfile(), connectionProfile)
-                        || seedsChanged(remote.getSeedNodes(), seedList) || Objects.equals(proxyAddress, remote.getProxyAddress())) {
+                        || seedsChanged(remote.getSeedNodes(), seedList) || proxyChanged(proxyAddress, remote.getProxyAddress())) {
                     // New ConnectionProfile. Must tear down existing connection
                     try {
                         IOUtils.close(remote);
@@ -430,6 +430,14 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         Set<String> oldSeeds = oldSeedNodes.stream().map(Tuple::v1).collect(Collectors.toSet());
         Set<String> newSeeds = newSeedNodes.stream().map(Tuple::v1).collect(Collectors.toSet());
         return oldSeeds.equals(newSeeds) == false;
+    }
+
+    private boolean proxyChanged(String oldProxy, String newProxy) {
+        if (oldProxy == null || oldProxy.isEmpty()) {
+            return (newProxy == null || newProxy.isEmpty()) == false;
+        }
+
+        return Objects.equals(oldProxy, newProxy) == false;
     }
 
     /**

@@ -275,7 +275,10 @@ shard only has values that fall outside of that range.
 
 `failed`::
 (Integer)
-Number of shards that failed to execute the request.
+Number of shards that failed to execute the request. Note that shards
+that are not allocated will be considered neither successful nor failed.
+Having `failed+successful` less than `total` is thus an indication that
+some of the shards were not allocated.
 
 --
 

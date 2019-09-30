@@ -19,8 +19,7 @@ do that by submitting the following request:
 GET .watches/_mapping
 --------------------------------------------------
 // CONSOLE
-
-//When testing is enabled, test [setup:my_active_watch]
+// TEST[setup:my_active_watch]
 
 If the index mappings are missing, follow these steps to restore the correct
 mappings:
@@ -36,8 +35,7 @@ mappings:
 DELETE .watches
 --------------------------------------------------
 // CONSOLE
-
-//When testing is enabled, test[skip:index deletion]
+// TEST[skip:index deletion]
 --
 . Disable direct access to the `.watches` index:
 .. Stop the Elasticsearch node.

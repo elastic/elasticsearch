@@ -108,7 +108,7 @@ PUT _watcher/watch/log_error_watch
   }
 }
 --------------------------------------------------
-
+// CONSOLE
 <1> The <<condition-compare,compare>> condition lets you easily compare against
     values in the execution context.
 

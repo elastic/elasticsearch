@@ -48,7 +48,7 @@ public class DatePartProcessor extends BinaryDateTimeProcessor {
         if (!(source1 instanceof String)) {
             throw new SqlIllegalArgumentException("A string is required; received [{}]", source1);
         }
-        Part datePartField = Part.resolveTruncate((String) source1);
+        Part datePartField = Part.resolve((String) source1);
         if (datePartField == null) {
             List<String> similar = Part.findSimilar((String) source1);
             if (similar.isEmpty()) {

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
-import org.elasticsearch.common.time.IsoLocale;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
@@ -13,13 +12,10 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeP
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -29,7 +25,7 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.No
 
 public class DatePart extends BinaryDateTimeFunction {
 
-    public enum Part {
+    public enum Part implements DateTimeField {
         YEAR(DateTimeExtractor.YEAR::extract, "years", "yyyy", "yy"),
         QUARTER(QuarterProcessor::quarter, "quarters", "qq", "q"),
         MONTH(DateTimeExtractor.MONTH_OF_YEAR::extract, "months", "mm", "m"),
@@ -49,19 +45,8 @@ public class DatePart extends BinaryDateTimeFunction {
         private static final List<String> VALID_VALUES;
 
         static {
-            NAME_TO_PART = new HashMap<>();
-            VALID_VALUES = new ArrayList<>(Part.values().length);
-
-            for (Part datePart : Part.values()) {
-                String lowerCaseName = datePart.name().toLowerCase(IsoLocale.ROOT);
-
-                NAME_TO_PART.put(lowerCaseName, datePart);
-                for (String alias : datePart.aliases) {
-                    NAME_TO_PART.put(alias, datePart);
-                }
-
-                VALID_VALUES.add(datePart.name());
-            }
+            NAME_TO_PART = DateTimeField.initializeResolutionMap(values());
+            VALID_VALUES = DateTimeField.initializeValidValues(values());
         }
 
         private Set<String> aliases;
@@ -72,12 +57,17 @@ public class DatePart extends BinaryDateTimeFunction {
             this.aliases = Set.of(aliases);
         }
 
-        public static Part resolveTruncate(String truncateTo) {
-            return NAME_TO_PART.get(truncateTo.toLowerCase(IsoLocale.ROOT));
+        @Override
+        public Iterable<String> aliases() {
+            return aliases;
         }
 
         public static List<String> findSimilar(String match) {
-            return StringUtils.findSimilar(match, NAME_TO_PART.keySet());
+            return DateTimeField.findSimilar(NAME_TO_PART.keySet(), match);
+        }
+
+        public static Part resolve(String truncateTo) {
+            return DateTimeField.resolveMatch(NAME_TO_PART, truncateTo);
         }
 
         public Integer extract(ZonedDateTime dateTime) {
@@ -111,7 +101,7 @@ public class DatePart extends BinaryDateTimeFunction {
 
     @Override
     protected boolean resolveDateTimeField(String dateTimeField) {
-        return Part.resolveTruncate(dateTimeField) != null;
+        return Part.resolve(dateTimeField) != null;
     }
 
     @Override

@@ -322,6 +322,8 @@ Array of returned document objects.
 Returned parameters include:
 +
 * `_index`: Name of the index containing the returned document.
+* `_type`: Document type.
+  deprecated:[7.0.0, Types are deprecated and are in the process of being removed.  See <<removal-of-types>>.]
 * `_id`: Unique identifier for the returned document.
   This ID is only unique within the returned index.
 * `_score`: Floating point number
@@ -366,6 +368,7 @@ The API returns the following response:
     "hits" : [
       {
         "_index" : "twitter",
+        "_type" : "_doc",
         "_id" : "0",
         "_score" : 1.3862944,
         "_source" : {

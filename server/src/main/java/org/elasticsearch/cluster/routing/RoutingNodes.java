@@ -117,10 +117,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                         assignedShardsAdd(shard);
                         if (shard.relocating()) {
                             relocatingShards++;
-                            entries = nodesToShards.computeIfAbsent(shard.relocatingNodeId(),
-                                k -> new LinkedHashMap<>()); // LinkedHashMap to preserve order
-                            // add the counterpart shard with relocatingNodeId reflecting the source from which
+                            // LinkedHashMap to preserve order.
+                            // Add the counterpart shard with relocatingNodeId reflecting the source from which
                             // it's relocating from.
+                            entries = nodesToShards.computeIfAbsent(shard.relocatingNodeId(),
+                                k -> new LinkedHashMap<>());
                             ShardRouting targetShardRouting = shard.getTargetRelocatingShard();
                             addInitialRecovery(targetShardRouting, indexShard.primary);
                             previousValue = entries.put(targetShardRouting.shardId(), targetShardRouting);

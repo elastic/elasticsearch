@@ -31,9 +31,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
 /**
@@ -41,6 +43,7 @@ import java.util.stream.Stream;
  */
 public class Shell {
 
+    public static final int TAIL_WHEN_TOO_MUCH_OUTPUT = 1000;
     protected final Logger logger =  LogManager.getLogger(getClass());
 
     final Map<String, String> env = new HashMap<>();
@@ -172,11 +175,20 @@ public class Shell {
 
     private String readFileIfExists(Path path) throws IOException {
         if (Files.exists(path)) {
-            StringBuilder result = new StringBuilder();
+            LinkedList<String> result = new LinkedList<>();
+            AtomicBoolean linesDiscarded = new AtomicBoolean(false);
             try(Stream<String> lines = Files.lines(path, StandardCharsets.UTF_8)) {
                 lines.forEach(line -> {
-                    result.append(line);
-                    result.append("\n");
+                    result.add(line);
+                    if (result.size() >= TAIL_WHEN_TOO_MUCH_OUTPUT) {
+                        result.removeFirst();
+                        if (linesDiscarded.getAndSet(true) == false) {
+                            logger.warn(
+                                "Output from command was too large, only keeping the last {} lines",
+                                TAIL_WHEN_TOO_MUCH_OUTPUT
+                            );
+                        }
+                    }
                 });
             }
             return result.toString();

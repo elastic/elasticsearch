@@ -2,7 +2,7 @@
 === Histogram Aggregation
 
 A multi-bucket values source based aggregation that can be applied on numeric values or numeric range values extracted
-from the documents.  It dynamically builds fixed size (a.k.a. interval) buckets over the values. For example, if the
+from the documents. It dynamically builds fixed size (a.k.a. interval) buckets over the values. For example, if the
 documents have a field that holds a price (numeric), we can configure this aggregation to dynamically build buckets with
 interval `5` (in case of price it may represent $5). When the aggregation executes, the price field of every document
 will be evaluated and will be rounded down to its closest bucket - for example, if the price is `32` and the bucket size

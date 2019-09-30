@@ -194,8 +194,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (contentType == null) {
             validationException = addValidationError("content type is missing", validationException);
         }
+        assert opType == OpType.INDEX || opType == OpType.CREATE : "unexpected op-type: " + opType;
         final long resolvedVersion = resolveVersionDefaults();
-        if (opType() == OpType.CREATE) {
+        if (opType == OpType.CREATE) {
             if (versionType != VersionType.INTERNAL) {
                 validationException = addValidationError("create operations only support internal versioning. use index instead",
                     validationException);
@@ -215,8 +216,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             }
         }
 
-        if (opType() != OpType.INDEX && id == null) {
-            addValidationError("an id is required for a " + opType() + " operation", validationException);
+        if (id == null) {
+            if (versionType != VersionType.INTERNAL ||
+                (resolvedVersion != Versions.MATCH_DELETED && resolvedVersion != Versions.MATCH_ANY)) {
+                validationException = addValidationError("an id must be provided if version type or value are set", validationException);
+            }
         }
 
         validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
@@ -224,10 +228,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (id != null && id.getBytes(StandardCharsets.UTF_8).length > 512) {
             validationException = addValidationError("id is too long, must be no longer than 512 bytes but was: " +
                             id.getBytes(StandardCharsets.UTF_8).length, validationException);
-        }
-
-        if (id == null && (versionType == VersionType.INTERNAL && resolvedVersion == Versions.MATCH_ANY) == false) {
-            validationException = addValidationError("an id must be provided if version type or value are set", validationException);
         }
 
         if (pipeline != null && pipeline.isEmpty()) {
@@ -638,8 +638,16 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         routing(metaData.resolveWriteIndexRouting(routing, index));
     }
 
+    public void checkAutoIdWithOpTypeCreateSupportedByVersion(Version version) {
+        if (id == null && opType == OpType.CREATE && version.before(Version.V_8_0_0)) {
+            throw new IllegalArgumentException("optype create not supported for indexing requests without explicit id until all nodes " +
+                "are on version 8.0.0 or higher");
+        }
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        checkAutoIdWithOpTypeCreateSupportedByVersion(out.getVersion());
         super.writeTo(out);
         // A 7.x request allows null types but if deserialized in a 6.x node will cause nullpointer exceptions.
         // So we use the type accessor method here to make the type non-null (will default it to "_doc").

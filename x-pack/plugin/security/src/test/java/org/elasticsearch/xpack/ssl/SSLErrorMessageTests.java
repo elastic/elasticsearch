@@ -9,6 +9,7 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -26,7 +27,6 @@ import java.nio.file.CopyOption;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermission;
@@ -249,7 +249,7 @@ public class SSLErrorMessageTests extends ESTestCase {
     }
 
     private String blockedFile() throws IOException {
-        return Paths.get("/this", "path", "is", "outside", "the", "config", "directory", "file.error").toString();
+        return PathUtils.get("/this", "path", "is", "outside", "the", "config", "directory", "file.error").toString();
     }
 
     /**

@@ -16,26 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.client.ml.inference.trainedmodel;
 
-package org.elasticsearch.search;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.internal.SearchContext;
+import java.util.List;
 
-import java.io.IOException;
+public interface TrainedModel extends ToXContentObject {
 
-public class SearchContextException extends SearchException {
+    /**
+     * @return List of featureNames expected by the model. In the order that they are expected
+     */
+    List<String> getFeatureNames();
 
-    public SearchContextException(SearchContext context, String msg) {
-        super(context.shardTarget(), msg);
-    }
-
-    public SearchContextException(SearchContext context, String msg, Throwable t) {
-        super(context.shardTarget(), msg, t);
-    }
-
-    public SearchContextException(StreamInput in) throws IOException {
-        super(in);
-    }
-
+    /**
+     * @return The name of the model
+     */
+    String getName();
 }

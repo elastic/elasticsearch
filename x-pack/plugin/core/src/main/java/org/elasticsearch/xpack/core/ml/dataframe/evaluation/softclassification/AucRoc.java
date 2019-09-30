@@ -30,6 +30,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.IntStream;
 
 /**
@@ -70,6 +71,7 @@ public class AucRoc implements SoftClassificationMetric {
     }
 
     private final boolean includeCurve;
+    private EvaluationMetricResult result;
 
     public AucRoc(Boolean includeCurve) {
         this.includeCurve = includeCurve == null ? false : includeCurve;
@@ -98,7 +100,7 @@ public class AucRoc implements SoftClassificationMetric {
     }
 
     @Override
-    public String getMetricName() {
+    public String getName() {
         return NAME.getPreferredName();
     }
 
@@ -117,6 +119,9 @@ public class AucRoc implements SoftClassificationMetric {
 
     @Override
     public List<AggregationBuilder> aggs(String actualField, List<ClassInfo> classInfos) {
+        if (result != null) {
+            return List.of();
+        }
         double[] percentiles = IntStream.range(1, 100).mapToDouble(v -> (double) v).toArray();
         List<AggregationBuilder> aggs = new ArrayList<>();
         for (ClassInfo classInfo : classInfos) {
@@ -134,22 +139,31 @@ public class AucRoc implements SoftClassificationMetric {
         return aggs;
     }
 
-    private String evaluatedLabelAggName(ClassInfo classInfo) {
-        return getMetricName() + "_" + classInfo.getName();
-    }
-
-    private String restLabelsAggName(ClassInfo classInfo) {
-        return getMetricName() + "_non_" + classInfo.getName();
+    @Override
+    public void process(ClassInfo classInfo, Aggregations aggs) {
+        result = evaluate(classInfo, aggs);
     }
 
     @Override
-    public EvaluationMetricResult evaluate(ClassInfo classInfo, Aggregations aggs) {
+    public Optional<EvaluationMetricResult> getResult() {
+        return Optional.ofNullable(result);
+    }
+
+    private String evaluatedLabelAggName(ClassInfo classInfo) {
+        return getName() + "_" + classInfo.getName();
+    }
+
+    private String restLabelsAggName(ClassInfo classInfo) {
+        return getName() + "_non_" + classInfo.getName();
+    }
+
+    private EvaluationMetricResult evaluate(ClassInfo classInfo, Aggregations aggs) {
         Filter classAgg = aggs.get(evaluatedLabelAggName(classInfo));
         Filter restAgg = aggs.get(restLabelsAggName(classInfo));
         double[] tpPercentiles = percentilesArray(classAgg.getAggregations().get(PERCENTILES),
-            "[" + getMetricName() + "] requires at least one actual_field to have the value [" + classInfo.getName() + "]");
+            "[" + getName() + "] requires at least one actual_field to have the value [" + classInfo.getName() + "]");
         double[] fpPercentiles = percentilesArray(restAgg.getAggregations().get(PERCENTILES),
-            "[" + getMetricName() + "] requires at least one actual_field to have a different value than [" + classInfo.getName() + "]");
+            "[" + getName() + "] requires at least one actual_field to have a different value than [" + classInfo.getName() + "]");
         List<AucRocPoint> aucRocCurve = buildAucRocCurve(tpPercentiles, fpPercentiles);
         double aucRocScore = calculateAucScore(aucRocCurve);
         return new Result(aucRocScore, includeCurve ? aucRocCurve : Collections.emptyList());
@@ -326,7 +340,7 @@ public class AucRoc implements SoftClassificationMetric {
         }
 
         @Override
-        public String getName() {
+        public String getMetricName() {
             return NAME.getPreferredName();
         }
 

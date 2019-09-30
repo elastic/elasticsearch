@@ -107,7 +107,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
 
     @Override
     public double infer(Map<String, Object> fields) {
-        List<Double> features = featureNames.stream().map(f -> (Double) fields.get(f)).collect(Collectors.toList());
+        List<Double> features = featureNames.stream().map(f -> ((Number)fields.get(f)).doubleValue()).collect(Collectors.toList());
         return infer(features);
     }
 
@@ -128,7 +128,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
             throw new UnsupportedOperationException(
                 "Cannot determine classification probability with target_type [" + targetType.toString() + "]");
         }
-        List<Double> features = featureNames.stream().map(f -> (Double) fields.get(f)).collect(Collectors.toList());
+        List<Double> features = featureNames.stream().map(f -> ((Number)fields.get(f)).doubleValue()).collect(Collectors.toList());
         return classificationProbability(features);
     }
 

@@ -214,12 +214,12 @@ public class SettingTests extends ESTestCase {
         }
 
         @Override
-        public void validate(final String value, final Map<Setting<?>, Object> settings) {
+        public void validate(final String value, final Settings settings) {
             invokedWithDependencies = true;
             assertTrue(settings.keySet().contains(BAZ_QUX_SETTING));
-            assertThat(settings.get(BAZ_QUX_SETTING), equalTo("baz.qux value"));
+            assertThat(BAZ_QUX_SETTING.get(settings), equalTo("baz.qux value"));
             assertTrue(settings.keySet().contains(QUUX_QUUZ_SETTING));
-            assertThat(settings.get(QUUX_QUUZ_SETTING), equalTo("quux.quuz value"));
+            assertThat(QUUX_QUUZ_SETTING.get(settings), equalTo("quux.quuz value"));
         }
 
         @Override

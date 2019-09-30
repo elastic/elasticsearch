@@ -166,8 +166,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             }
 
             @Override
-            public void validate(final Integer numRoutingShards, final Map<Setting<?>, Object> settings) {
-                int numShards = (int) settings.get(INDEX_NUMBER_OF_SHARDS_SETTING);
+            public void validate(final Integer numRoutingShards, final Settings settings) {
+                int numShards = INDEX_NUMBER_OF_SHARDS_SETTING.get(settings);
                 if (numRoutingShards < numShards) {
                     throw new IllegalArgumentException("index.number_of_routing_shards [" + numRoutingShards
                         + "] must be >= index.number_of_shards [" + numShards + "]");

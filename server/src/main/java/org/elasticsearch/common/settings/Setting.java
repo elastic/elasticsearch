@@ -433,18 +433,19 @@ public class Setting<T> implements ToXContentObject {
             T parsed = parser.apply(value);
             if (validate) {
                 final Iterator<Setting<?>> it = validator.settings();
-                final Map<Setting<?>, Object> map;
+                final Settings dependentSettings;
                 if (it.hasNext()) {
-                    map = new HashMap<>();
+                    final Settings.Builder builder = Settings.builder();
                     while (it.hasNext()) {
                         final Setting<?> setting = it.next();
-                        map.put(setting, setting.get(settings, false)); // we have to disable validation or we will stack overflow
+                        builder.put(setting.getKey(), setting.getRaw(settings));
                     }
+                    dependentSettings = builder.build();
                 } else {
-                    map = Collections.emptyMap();
+                    dependentSettings = Settings.EMPTY;
                 }
                 validator.validate(parsed);
-                validator.validate(parsed, map);
+                validator.validate(parsed, dependentSettings);
             }
             return parsed;
         } catch (ElasticsearchParseException ex) {
@@ -841,8 +842,8 @@ public class Setting<T> implements ToXContentObject {
 
     /**
      * Represents a validator for a setting. The {@link #validate(Object)} method is invoked early in the update setting process with the
-     * value of this setting for a fail-fast validation. Later on, the {@link #validate(Object, Map)} method is invoked with the value of
-     * this setting and a map from the settings specified by {@link #settings()}} to their values. All these values come from the same
+     * value of this setting for a fail-fast validation. Later on, the {@link #validate(Object, Settings)} method is invoked with the value
+     * of this setting and a {@link Settings} instance containing the dependent settings. All these values come from the same
      * {@link Settings} instance.
      *
      * @param <T> the type of the {@link Setting}
@@ -862,14 +863,14 @@ public class Setting<T> implements ToXContentObject {
          * accepting any value as valid as long as it passes the validation in {@link #validate(Object)}.
          *
          * @param value    the value of this setting
-         * @param settings a map from the settings specified by {@link #settings()}} to their values
+         * @param settings the dependent settings
          */
-        default void validate(T value, Map<Setting<?>, Object> settings) {
+        default void validate(T value, Settings settings) {
         }
 
         /**
          * The settings on which the validity of this setting depends. The values of the specified settings are passed to
-         * {@link #validate(Object, Map)}. By default this returns an empty iterator, indicating that this setting does not depend on any
+         * {@link #validate(Object, Settings)}. By default this returns an empty iterator, indicating that this setting does not depend on any
          * other settings.
          *
          * @return the settings on which the validity of this setting depends.

@@ -32,7 +32,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -515,7 +514,7 @@ public class SettingsUpdaterTests extends ESTestCase {
                 }
 
                 @Override
-                public void validate(final String value, final Map<Setting<?>, Object> settings) {
+                public void validate(final String value, final Settings settings) {
 
                 }
 
@@ -532,7 +531,7 @@ public class SettingsUpdaterTests extends ESTestCase {
                 }
 
                 @Override
-                public void validate(final String value, final Map<Setting<?>, Object> settings) {
+                public void validate(final String value, final Settings settings) {
                     throw new IllegalArgumentException("Invalid with dependencies setting");
                 }
 
@@ -547,9 +546,9 @@ public class SettingsUpdaterTests extends ESTestCase {
         }
 
         @Override
-        public void validate(final Integer low, final Map<Setting<?>, Object> settings) {
-            if (settings.containsKey(SETTING_FOO_HIGH) && low > (int) settings.get(SETTING_FOO_HIGH)) {
-                throw new IllegalArgumentException("[low]=" + low + " is higher than [high]=" + settings.get(SETTING_FOO_HIGH));
+        public void validate(final Integer low, final Settings settings) {
+            if (SETTING_FOO_HIGH.exists(settings) && low > SETTING_FOO_HIGH.get(settings)) {
+                throw new IllegalArgumentException("[low]=" + low + " is higher than [high]=" + SETTING_FOO_HIGH.get(settings));
             }
         }
 
@@ -569,9 +568,9 @@ public class SettingsUpdaterTests extends ESTestCase {
         }
 
         @Override
-        public void validate(final Integer high, final Map<Setting<?>, Object> settings) {
-            if (settings.containsKey(SETTING_FOO_LOW) && high < (int) settings.get(SETTING_FOO_LOW)) {
-                throw new IllegalArgumentException("[high]=" + high + " is lower than [low]=" + settings.get(SETTING_FOO_LOW));
+        public void validate(final Integer high, final Settings settings) {
+            if ((SETTING_FOO_LOW.exists(settings)) && high < SETTING_FOO_LOW.get(settings)) {
+                throw new IllegalArgumentException("[high]=" + high + " is lower than [low]=" + SETTING_FOO_LOW.get(settings));
             }
         }
 

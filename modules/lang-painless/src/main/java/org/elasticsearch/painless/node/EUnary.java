@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
@@ -192,23 +193,23 @@ public final class EUnary extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
 
         if (operation == Operation.NOT) {
             Label fals = new Label();
             Label end = new Label();
 
-            child.write(writer, globals);
-            writer.ifZCmp(Opcodes.IFEQ, fals);
+            child.write(classWriter, methodWriter, globals);
+            methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
-            writer.push(false);
-            writer.goTo(end);
-            writer.mark(fals);
-            writer.push(true);
-            writer.mark(end);
+            methodWriter.push(false);
+            methodWriter.goTo(end);
+            methodWriter.mark(fals);
+            methodWriter.push(true);
+            methodWriter.mark(end);
         } else {
-            child.write(writer, globals);
+            child.write(classWriter, methodWriter, globals);
 
             // Def calls adopt the wanted return value. If there was a narrowing cast,
             // we need to flag that so that it's done at runtime.
@@ -224,29 +225,29 @@ public final class EUnary extends AExpression {
             if (operation == Operation.BWNOT) {
                 if (promote == def.class) {
                     org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actualType, childType);
-                    writer.invokeDefCall("not", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
+                    methodWriter.invokeDefCall("not", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
                 } else {
                     if (promote == int.class) {
-                        writer.push(-1);
+                        methodWriter.push(-1);
                     } else if (promote == long.class) {
-                        writer.push(-1L);
+                        methodWriter.push(-1L);
                     } else {
                         throw createError(new IllegalStateException("Illegal tree structure."));
                     }
 
-                    writer.math(MethodWriter.XOR, actualType);
+                    methodWriter.math(MethodWriter.XOR, actualType);
                 }
             } else if (operation == Operation.SUB) {
                 if (promote == def.class) {
                     org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actualType, childType);
-                    writer.invokeDefCall("neg", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
+                    methodWriter.invokeDefCall("neg", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
                 } else {
-                    writer.math(MethodWriter.NEG, actualType);
+                    methodWriter.math(MethodWriter.NEG, actualType);
                 }
             } else if (operation == Operation.ADD) {
                 if (promote == def.class) {
                     org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(actualType, childType);
-                    writer.invokeDefCall("plus", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
+                    methodWriter.invokeDefCall("plus", descriptor, DefBootstrap.UNARY_OPERATOR, defFlags);
                 }
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));

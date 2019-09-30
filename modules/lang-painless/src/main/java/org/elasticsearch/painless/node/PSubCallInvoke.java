@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -73,18 +74,18 @@ final class PSubCallInvoke extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
 
         if (box.isPrimitive()) {
-            writer.box(MethodWriter.getType(box));
+            methodWriter.box(MethodWriter.getType(box));
         }
 
         for (AExpression argument : arguments) {
-            argument.write(writer, globals);
+            argument.write(classWriter, methodWriter, globals);
         }
 
-        writer.invokeMethodCall(method);
+        methodWriter.invokeMethodCall(method);
     }
 
     @Override

@@ -1,7 +1,7 @@
 --
 :api: preview-transform
-:request: PreviewDataFrameTransformRequest
-:response: PreviewDataFrameTransformResponse
+:request: PreviewTransformRequest
+:response: PreviewTransformResponse
 --
 [role="xpack"]
 [id="{upid}-{api}"]

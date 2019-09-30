@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gateway;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -27,6 +28,7 @@ import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -37,14 +39,19 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.AsyncShardFetch.Lister;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 public class GatewayAllocator {
 
@@ -59,6 +66,7 @@ public class GatewayAllocator {
         asyncFetchStarted = ConcurrentCollections.newConcurrentMap();
     private final ConcurrentMap<ShardId, AsyncShardFetch<NodeStoreFilesMetaData>>
         asyncFetchStore = ConcurrentCollections.newConcurrentMap();
+    private Set<String> lastSeenEphemeralIds = Collections.emptySet();
 
     @Inject
     public GatewayAllocator(RerouteService rerouteService, NodeClient client) {
@@ -109,6 +117,7 @@ public class GatewayAllocator {
     public void allocateUnassigned(final RoutingAllocation allocation) {
         assert primaryShardAllocator != null;
         assert replicaShardAllocator != null;
+        ensureAsyncFetchStorePrimaryRecency(allocation);
         innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator);
     }
 
@@ -136,6 +145,43 @@ public class GatewayAllocator {
             assert replicaShardAllocator != null;
             return replicaShardAllocator.makeAllocationDecision(unassignedShard, routingAllocation, logger);
         }
+    }
+
+    /**
+     * Clear the fetched data for the primary to ensure we do not cancel recoveries based on excessively stale data.
+     */
+    private void ensureAsyncFetchStorePrimaryRecency(RoutingAllocation allocation) {
+        DiscoveryNodes nodes = allocation.nodes();
+        if (hasNewNodes(nodes)) {
+            final Set<String> newEphemeralIds = StreamSupport.stream(nodes.getDataNodes().spliterator(), false)
+                .map(node -> node.value.getEphemeralId()).collect(Collectors.toSet());
+            // Invalidate the cache if a data node has been added to the cluster. This ensures that we do not cancel a recovery if a node
+            // drops out, we fetch the shard data, then some indexing happens and then the node rejoins the cluster again. There are other
+            // ways we could decide to cancel a recovery based on stale data (e.g. changing allocation filters or a primary failure) but
+            // making the wrong decision here is not catastrophic so we only need to cover the common case.
+            logger.trace(() -> new ParameterizedMessage(
+                "new nodes {} found, clearing primary async-fetch-store cache", Sets.difference(newEphemeralIds, lastSeenEphemeralIds)));
+            asyncFetchStore.values().forEach(fetch -> clearCacheForPrimary(fetch, allocation));
+            // recalc to also (lazily) clear out old nodes.
+            this.lastSeenEphemeralIds = newEphemeralIds;
+        }
+    }
+
+    private static void clearCacheForPrimary(AsyncShardFetch<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> fetch,
+                                             RoutingAllocation allocation) {
+        ShardRouting primary = allocation.routingNodes().activePrimary(fetch.shardId);
+        if (primary != null) {
+            fetch.clearCacheForNode(primary.currentNodeId());
+        }
+    }
+
+    private boolean hasNewNodes(DiscoveryNodes nodes) {
+        for (ObjectObjectCursor<String, DiscoveryNode> node : nodes.getDataNodes()) {
+            if (lastSeenEphemeralIds.contains(node.value.getEphemeralId()) == false) {
+                return true;
+            }
+        }
+        return false;
     }
 
     class InternalAsyncFetch<T extends BaseNodeResponse> extends AsyncShardFetch<T> {

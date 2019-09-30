@@ -16,22 +16,22 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
-import org.elasticsearch.client.transform.DeleteDataFrameTransformRequest;
-import org.elasticsearch.client.transform.GetDataFrameTransformRequest;
-import org.elasticsearch.client.transform.GetDataFrameTransformResponse;
-import org.elasticsearch.client.transform.GetDataFrameTransformStatsRequest;
-import org.elasticsearch.client.transform.GetDataFrameTransformStatsResponse;
-import org.elasticsearch.client.transform.PutDataFrameTransformRequest;
-import org.elasticsearch.client.transform.StartDataFrameTransformRequest;
-import org.elasticsearch.client.transform.StartDataFrameTransformResponse;
-import org.elasticsearch.client.transform.StopDataFrameTransformRequest;
-import org.elasticsearch.client.transform.StopDataFrameTransformResponse;
-import org.elasticsearch.client.transform.UpdateDataFrameTransformRequest;
-import org.elasticsearch.client.transform.transforms.DataFrameTransformConfig;
-import org.elasticsearch.client.transform.transforms.DataFrameTransformConfigUpdate;
+import org.elasticsearch.client.transform.DeleteTransformRequest;
+import org.elasticsearch.client.transform.GetTransformRequest;
+import org.elasticsearch.client.transform.GetTransformResponse;
+import org.elasticsearch.client.transform.GetTransformStatsRequest;
+import org.elasticsearch.client.transform.GetTransformStatsResponse;
+import org.elasticsearch.client.transform.PutTransformRequest;
+import org.elasticsearch.client.transform.StartTransformRequest;
+import org.elasticsearch.client.transform.StartTransformResponse;
+import org.elasticsearch.client.transform.StopTransformRequest;
+import org.elasticsearch.client.transform.StopTransformResponse;
+import org.elasticsearch.client.transform.UpdateTransformRequest;
 import org.elasticsearch.client.transform.transforms.DestConfig;
 import org.elasticsearch.client.transform.transforms.QueryConfig;
 import org.elasticsearch.client.transform.transforms.SourceConfig;
+import org.elasticsearch.client.transform.transforms.TransformConfig;
+import org.elasticsearch.client.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.client.transform.transforms.pivot.AggregationConfig;
 import org.elasticsearch.client.transform.transforms.pivot.DateHistogramGroupSource;
 import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
@@ -70,7 +70,7 @@ import static org.hamcrest.core.Is.is;
 
 abstract class TransformIntegTestCase extends ESRestTestCase {
 
-    private Map<String, DataFrameTransformConfig> transformConfigs = new HashMap<>();
+    private Map<String, TransformConfig> transformConfigs = new HashMap<>();
 
     protected void cleanUp() throws IOException {
         cleanUpTransforms();
@@ -78,54 +78,54 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
     }
 
     protected void cleanUpTransforms() throws IOException {
-        for (DataFrameTransformConfig config : transformConfigs.values()) {
+        for (TransformConfig config : transformConfigs.values()) {
             stopTransform(config.getId());
             deleteTransform(config.getId());
         }
         transformConfigs.clear();
     }
 
-    protected StopDataFrameTransformResponse stopTransform(String id) throws IOException {
+    protected StopTransformResponse stopTransform(String id) throws IOException {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
-        return restClient.dataFrame().stopDataFrameTransform(new StopDataFrameTransformRequest(id, true, null), RequestOptions.DEFAULT);
+        return restClient.transform().stopTransform(new StopTransformRequest(id, true, null), RequestOptions.DEFAULT);
     }
 
-    protected StartDataFrameTransformResponse startTransform(String id, RequestOptions options) throws IOException {
+    protected StartTransformResponse startTransform(String id, RequestOptions options) throws IOException {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
-        return restClient.dataFrame().startDataFrameTransform(new StartDataFrameTransformRequest(id), options);
+        return restClient.transform().startTransform(new StartTransformRequest(id), options);
     }
 
     protected AcknowledgedResponse deleteTransform(String id) throws IOException {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
         AcknowledgedResponse response =
-            restClient.dataFrame().deleteDataFrameTransform(new DeleteDataFrameTransformRequest(id), RequestOptions.DEFAULT);
+            restClient.transform().deleteTransform(new DeleteTransformRequest(id), RequestOptions.DEFAULT);
         if (response.isAcknowledged()) {
             transformConfigs.remove(id);
         }
         return response;
     }
 
-    protected AcknowledgedResponse putTransform(DataFrameTransformConfig config, RequestOptions options) throws IOException {
+    protected AcknowledgedResponse putTransform(TransformConfig config, RequestOptions options) throws IOException {
         if (transformConfigs.keySet().contains(config.getId())) {
             throw new IllegalArgumentException("transform [" + config.getId() + "] is already registered");
         }
         RestHighLevelClient restClient = new TestRestHighLevelClient();
         AcknowledgedResponse response =
-            restClient.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(config), options);
+            restClient.transform().putTransform(new PutTransformRequest(config), options);
         if (response.isAcknowledged()) {
             transformConfigs.put(config.getId(), config);
         }
         return response;
     }
 
-    protected GetDataFrameTransformStatsResponse getTransformStats(String id) throws IOException {
+    protected GetTransformStatsResponse getTransformStats(String id) throws IOException {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
-        return restClient.dataFrame().getDataFrameTransformStats(new GetDataFrameTransformStatsRequest(id), RequestOptions.DEFAULT);
+        return restClient.transform().getTransformStats(new GetTransformStatsRequest(id), RequestOptions.DEFAULT);
     }
 
-    protected GetDataFrameTransformResponse getTransform(String id) throws IOException {
+    protected GetTransformResponse getTransform(String id) throws IOException {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
-        return restClient.dataFrame().getDataFrameTransform(new GetDataFrameTransformRequest(id), RequestOptions.DEFAULT);
+        return restClient.transform().getTransform(new GetTransformRequest(id), RequestOptions.DEFAULT);
     }
 
     protected void waitUntilCheckpoint(String id, long checkpoint) throws Exception {
@@ -195,21 +195,21 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
         return builder.build();
     }
 
-    protected DataFrameTransformConfig createTransformConfig(String id,
-                                                             Map<String, SingleGroupSource> groups,
-                                                             AggregatorFactories.Builder aggregations,
-                                                             String destinationIndex,
-                                                             String... sourceIndices) throws Exception {
+    protected TransformConfig createTransformConfig(String id,
+                                                    Map<String, SingleGroupSource> groups,
+                                                    AggregatorFactories.Builder aggregations,
+                                                    String destinationIndex,
+                                                    String... sourceIndices) throws Exception {
         return createTransformConfig(id, groups, aggregations, destinationIndex, QueryBuilders.matchAllQuery(), sourceIndices);
     }
 
-    protected DataFrameTransformConfig.Builder createTransformConfigBuilder(String id,
-                                                                            Map<String, SingleGroupSource> groups,
-                                                                            AggregatorFactories.Builder aggregations,
-                                                                            String destinationIndex,
-                                                                            QueryBuilder queryBuilder,
-                                                                            String... sourceIndices) throws Exception {
-        return DataFrameTransformConfig.builder()
+    protected TransformConfig.Builder createTransformConfigBuilder(String id,
+                                                                   Map<String, SingleGroupSource> groups,
+                                                                   AggregatorFactories.Builder aggregations,
+                                                                   String destinationIndex,
+                                                                   QueryBuilder queryBuilder,
+                                                                   String... sourceIndices) throws Exception {
+        return TransformConfig.builder()
             .setId(id)
             .setSource(SourceConfig.builder().setIndex(sourceIndices).setQueryConfig(createQueryConfig(queryBuilder)).build())
             .setDest(DestConfig.builder().setIndex(destinationIndex).build())
@@ -218,12 +218,12 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
             .setDescription("Test transform config id: " + id);
     }
 
-    protected DataFrameTransformConfig createTransformConfig(String id,
-                                                             Map<String, SingleGroupSource> groups,
-                                                             AggregatorFactories.Builder aggregations,
-                                                             String destinationIndex,
-                                                             QueryBuilder queryBuilder,
-                                                             String... sourceIndices) throws Exception {
+    protected TransformConfig createTransformConfig(String id,
+                                                    Map<String, SingleGroupSource> groups,
+                                                    AggregatorFactories.Builder aggregations,
+                                                    String destinationIndex,
+                                                    QueryBuilder queryBuilder,
+                                                    String... sourceIndices) throws Exception {
         return createTransformConfigBuilder(id, groups, aggregations, destinationIndex, queryBuilder, sourceIndices).build();
     }
 
@@ -233,9 +233,9 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
         assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
     }
 
-    protected void updateConfig(String id, DataFrameTransformConfigUpdate update) throws Exception {
+    protected void updateConfig(String id, TransformConfigUpdate update) throws Exception {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
-        restClient.dataFrame().updateDataFrameTransform(new UpdateDataFrameTransformRequest(update, id), RequestOptions.DEFAULT);
+        restClient.transform().updateTransform(new UpdateTransformRequest(update, id), RequestOptions.DEFAULT);
     }
 
     protected void createReviewsIndex(String indexName, int numDocs) throws Exception {

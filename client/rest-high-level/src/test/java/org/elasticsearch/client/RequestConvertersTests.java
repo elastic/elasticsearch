@@ -71,7 +71,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.rankeval.PrecisionAtK;
@@ -157,7 +157,6 @@ public class RequestConvertersTests extends ESTestCase {
     }
 
     public void testSourceExistsWithType() throws IOException {
-        String type = frequently() ? randomAlphaOfLengthBetween(3, 10) : MapperService.SINGLE_MAPPING_NAME;
         doTestSourceExists((index, id) -> new GetRequest(index, id));
     }
 
@@ -361,17 +360,6 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(method, request.getMethod());
     }
 
-    private static void getAndExistsWithTypeTest(Function<GetRequest, Request> requestConverter, String method) {
-        String index = randomAlphaOfLengthBetween(3, 10);
-        String id = randomAlphaOfLengthBetween(3, 10);
-        GetRequest getRequest = new GetRequest(index, id);
-
-        Request request = requestConverter.apply(getRequest);
-        assertEquals("/" + index + "/" + id, request.getEndpoint());
-        assertNull(request.getEntity());
-        assertEquals(method, request.getMethod());
-    }
-
     public void testReindex() throws IOException {
         ReindexRequest reindexRequest = new ReindexRequest();
         reindexRequest.setSourceIndices("source_idx");
@@ -537,6 +525,7 @@ public class RequestConvertersTests extends ESTestCase {
         }
         setRandomIndicesOptions(deleteByQueryRequest::setIndicesOptions, deleteByQueryRequest::indicesOptions, expectedParams);
         setRandomTimeout(deleteByQueryRequest::setTimeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
+        expectedParams.put("wait_for_completion", Boolean.TRUE.toString());
         Request request = RequestConverters.deleteByQuery(deleteByQueryRequest);
         StringJoiner joiner = new StringJoiner("/", "/", "");
         joiner.add(String.join(",", deleteByQueryRequest.indices()));
@@ -1136,13 +1125,12 @@ public class RequestConvertersTests extends ESTestCase {
         setRandomCountParams(countRequest, expectedParams);
         setRandomIndicesOptions(countRequest::indicesOptions, countRequest::indicesOptions, expectedParams);
 
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        if (frequently()) {
-            if (randomBoolean()) {
-                searchSourceBuilder.minScore(randomFloat());
-            }
+        if (randomBoolean()) {
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+            countRequest.source(searchSourceBuilder);
+        } else {
+            countRequest.query(new MatchAllQueryBuilder());
         }
-        countRequest.source(searchSourceBuilder);
         Request request = RequestConverters.count(countRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         String index = String.join(",", indices);
@@ -1157,7 +1145,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals(endpoint.toString(), request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
-        assertToXContentBody(searchSourceBuilder, request.getEntity());
+        assertToXContentBody(countRequest, request.getEntity());
     }
 
     public void testCountNullIndicesAndTypes() {
@@ -1412,21 +1400,6 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals("/" + index + "/_explain/" + id, request.getEndpoint());
 
         assertEquals(expectedParams, request.getParameters());
-        assertToXContentBody(explainRequest, request.getEntity());
-    }
-
-    public void testExplainWithType() throws IOException {
-        String index = randomAlphaOfLengthBetween(3, 10);
-        String type = randomAlphaOfLengthBetween(3, 10);
-        String id = randomAlphaOfLengthBetween(3, 10);
-
-        ExplainRequest explainRequest = new ExplainRequest(index, type, id);
-        explainRequest.query(QueryBuilders.termQuery(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10)));
-
-        Request request = RequestConverters.explain(explainRequest);
-        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertEquals("/" + index + "/" + type + "/" + id + "/_explain", request.getEndpoint());
-
         assertToXContentBody(explainRequest, request.getEntity());
     }
 

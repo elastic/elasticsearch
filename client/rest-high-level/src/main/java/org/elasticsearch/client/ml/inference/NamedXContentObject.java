@@ -16,21 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml.inference.trainedmodel;
+package org.elasticsearch.client.ml.inference;
 
-import org.elasticsearch.client.ml.inference.NamedXContentObject;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 
-import java.util.List;
-
-public interface TrainedModel extends NamedXContentObject {
-
+/**
+ * Simple interface for XContent Objects that are named.
+ *
+ * This affords more general handling when serializing and de-serializing this type of XContent when it is used in a NamedObjects
+ * parser.
+ */
+public interface NamedXContentObject extends ToXContentObject {
     /**
-     * @return List of featureNames expected by the model. In the order that they are expected
-     */
-    List<String> getFeatureNames();
-
-    /**
-     * @return The name of the model
+     * @return The name of the XContentObject that is to be serialized
      */
     String getName();
 }

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.inference;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -14,6 +15,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeTests;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -22,6 +25,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
+import static org.hamcrest.Matchers.equalTo;
 
 
 public class TrainedModelConfigTests extends AbstractSerializingTestCase<TrainedModelConfig> {
@@ -58,7 +65,7 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             Instant.ofEpochMilli(randomNonNegativeLong()),
             randomBoolean() ? null : randomNonNegativeLong(),
             randomAlphaOfLength(10),
-            randomFrom(TreeTests.createRandom()),
+            randomBoolean() ? null : randomFrom(TreeTests.createRandom()),
             randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));
     }
 
@@ -82,4 +89,46 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
         return new NamedWriteableRegistry(entries);
     }
 
+    public void testValidateWithNullDefinition() {
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> TrainedModelConfig.builder().validate());
+        assertThat(ex.getMessage(), equalTo("[definition] must not be null."));
+    }
+
+    public void testValidateWithInvalidID() {
+        String modelId = "InvalidID-";
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class,
+            () -> TrainedModelConfig.builder().setDefinition(randomFrom(TreeTests.createRandom())).setModelId(modelId).validate());
+        assertThat(ex.getMessage(), equalTo(Messages.getMessage(Messages.INVALID_ID, "model_id", modelId)));
+    }
+
+    public void testValidateWithLongID() {
+        String modelId = IntStream.range(0, 100).mapToObj(x -> "a").collect(Collectors.joining());
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class,
+            () -> TrainedModelConfig.builder().setDefinition(randomFrom(TreeTests.createRandom())).setModelId(modelId).validate());
+        assertThat(ex.getMessage(), equalTo(Messages.getMessage(Messages.ID_TOO_LONG, "model_id", modelId, MlStrings.ID_LENGTH_LIMIT)));
+    }
+
+    public void testValidateWithIllegallyUserProvidedFields() {
+        String modelId = "simplemodel";
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class,
+            () -> TrainedModelConfig.builder()
+                .setDefinition(randomFrom(TreeTests.createRandom()))
+                .setCreatedTime(Instant.now())
+                .setModelId(modelId).validate());
+        assertThat(ex.getMessage(), equalTo("illegal to set [created_time] at inference model creation"));
+
+        ex = expectThrows(ElasticsearchException.class,
+            () -> TrainedModelConfig.builder()
+                .setDefinition(randomFrom(TreeTests.createRandom()))
+                .setVersion(Version.CURRENT)
+                .setModelId(modelId).validate());
+        assertThat(ex.getMessage(), equalTo("illegal to set [version] at inference model creation"));
+
+        ex = expectThrows(ElasticsearchException.class,
+            () -> TrainedModelConfig.builder()
+                .setDefinition(randomFrom(TreeTests.createRandom()))
+                .setCreatedBy("ml_user")
+                .setModelId(modelId).validate());
+        assertThat(ex.getMessage(), equalTo("illegal to set [created_by] at inference model creation"));
+    }
 }

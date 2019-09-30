@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.inference;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -108,7 +109,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         this.version = ExceptionsHelper.requireNonNull(version, VERSION);
         this.createdTime = Instant.ofEpochMilli(ExceptionsHelper.requireNonNull(createdTime, CREATED_TIME).toEpochMilli());
         this.modelType = ExceptionsHelper.requireNonNull(modelType, MODEL_TYPE);
-        this.definition = ExceptionsHelper.requireNonNull(definition, DEFINITION);
+        this.definition = definition;
         this.description = description;
         this.metadata = metadata == null ? null : Collections.unmodifiableMap(metadata);
         this.modelVersion = modelVersion == null ? 0 : modelVersion;
@@ -122,7 +123,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         createdTime = in.readInstant();
         modelVersion = in.readVLong();
         modelType = in.readString();
-        definition = in.readNamedWriteable(TrainedModel.class);
+        definition = in.readOptionalNamedWriteable(TrainedModel.class);
         metadata = in.readMap();
     }
 
@@ -158,6 +159,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         return metadata;
     }
 
+    @Nullable
     public TrainedModel getDefinition() {
         return definition;
     }
@@ -175,7 +177,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         out.writeInstant(createdTime);
         out.writeVLong(modelVersion);
         out.writeString(modelType);
-        out.writeNamedWriteable(definition);
+        out.writeOptionalNamedWriteable(definition);
         out.writeMap(metadata);
     }
 
@@ -191,11 +193,13 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         builder.timeField(CREATED_TIME.getPreferredName(), CREATED_TIME.getPreferredName() + "_string", createdTime.toEpochMilli());
         builder.field(MODEL_VERSION.getPreferredName(), modelVersion);
         builder.field(MODEL_TYPE.getPreferredName(), modelType);
-        NamedXContentObjectHelper.writeNamedObjects(builder,
-            params,
-            false,
-            DEFINITION.getPreferredName(),
-            Collections.singletonList(definition));
+        if (definition != null) {
+            NamedXContentObjectHelper.writeNamedObjects(builder,
+                params,
+                false,
+                DEFINITION.getPreferredName(),
+                Collections.singletonList(definition));
+        }
         if (metadata != null) {
             builder.field(METADATA.getPreferredName(), metadata);
         }
@@ -309,27 +313,31 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
         // TODO move to REST level instead of here in the builder
         public void validate() {
+            // We require a definition to be available until we support other means of supplying the definition
+            ExceptionsHelper.requireNonNull(definition, DEFINITION);
+            ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
+
             if (MlStrings.isValidId(modelId) == false) {
-                ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INVALID_ID, MODEL_ID.getPreferredName(), modelId));
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INVALID_ID, MODEL_ID.getPreferredName(), modelId));
             }
 
             if (MlStrings.hasValidLengthForId(modelId) == false) {
-                ExceptionsHelper.badRequestException(Messages.getMessage(Messages.ID_TOO_LONG,
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.ID_TOO_LONG,
                     MODEL_ID.getPreferredName(),
                     modelId,
                     MlStrings.ID_LENGTH_LIMIT));
             }
 
             if (version != null) {
-                ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation", VERSION.getPreferredName());
+                throw ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation", VERSION.getPreferredName());
             }
 
             if (createdBy != null) {
-                ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation", CREATED_BY.getPreferredName());
+                throw ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation", CREATED_BY.getPreferredName());
             }
 
             if (createdTime != null) {
-                ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation", CREATED_TIME.getPreferredName());
+                throw ExceptionsHelper.badRequestException("illegal to set [{}] at inference model creation", CREATED_TIME.getPreferredName());
             }
         }
 

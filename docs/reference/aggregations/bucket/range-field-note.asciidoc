@@ -125,7 +125,7 @@ POST /range_index/_search?size=0
 --------------------------------------------------
 
 Even though the query only considers days in November, the aggregation
-generates 8 buckets (4 in October, 4 in November), because the aggregation is
+generates 8 buckets (4 in October, 4 in November) because the aggregation is
 calculated over the ranges of all matching documents:
 
 [source, console-result]

@@ -577,7 +577,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             snapshot.userMetadata(), ActionListener.runAfter(ActionListener.wrap(ignored -> {
                             }, inner -> {
                                 inner.addSuppressed(exception);
-                                logger.warn(() -> new ParameterizedMessage("[{}] failed to close snapshot in repository",
+                                logger.warn(() -> new ParameterizedMessage("[{}] failed to finalize snapshot in repository",
                                     snapshot.snapshot()), inner);
                             }), () -> userCreateSnapshotListener.onFailure(e)));
                 } else {

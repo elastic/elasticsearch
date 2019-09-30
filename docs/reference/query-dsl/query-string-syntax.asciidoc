@@ -276,8 +276,6 @@ need to write your query as `\(1\+1\)\=2`. When using JSON for the request body,
 [source,console]
 ----
 GET /twitter/_search
-Content-Type: application/json
-
 {
   "query" : {
     "query_string" : {

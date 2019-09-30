@@ -76,11 +76,12 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
 
     @Before
     public void waitForMlTemplates() throws Exception {
-        List<String> templatesToWaitFor = XPackRestTestConstants.ML_POST_V660_TEMPLATES;
-        XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor);
+        if (getOldClusterVersion().onOrAfter(Version.V_6_6_0)) {
+            List<String> templatesToWaitFor = XPackRestTestConstants.ML_POST_V660_TEMPLATES;
+            XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor);
+        }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47286")
     public void testMlConfigIndexMappingsAfterMigration() throws Exception {
         assumeTrue("This test only makes sense in version 6.6.0 and above", getOldClusterVersion().onOrAfter(Version.V_6_6_0));
         if (isRunningAgainstOldCluster()) {

@@ -38,6 +38,19 @@ public class JavaDateMathParserTests extends ESTestCase {
     private final DateFormatter formatter = DateFormatter.forPattern("8dateOptionalTime||epoch_millis");
     private final DateMathParser parser = formatter.toDateMathParser();
 
+    public void testOverridingLocaleOrZoneAndCompositeRoundUpParser() {
+        //the pattern has to be composite and the match should not be on the first one
+        DateFormatter formatter = DateFormatter.forPattern("date||epoch_millis").withLocale(randomLocale(random()));
+        DateMathParser parser = formatter.toDateMathParser();
+        long gotMillis = parser.parse("297276785531", () -> 0, true, (ZoneId) null);
+        assertDateEquals(gotMillis, "297276785531", "297276785531");
+
+        formatter = DateFormatter.forPattern("date||epoch_millis").withZone(ZoneOffset.UTC);
+        parser = formatter.toDateMathParser();
+        gotMillis = parser.parse("297276785531", () -> 0, true, (ZoneId) null);
+        assertDateEquals(gotMillis, "297276785531", "297276785531");
+    }
+
     public void testBasicDates() {
         assertDateMathEquals("2014-05-30", "2014-05-30T00:00:00.000");
         assertDateMathEquals("2014-05-30T20", "2014-05-30T20:00:00.000");

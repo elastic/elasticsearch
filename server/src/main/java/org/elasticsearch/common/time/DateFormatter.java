@@ -148,7 +148,7 @@ public interface DateFormatter {
             return formatters.get(0);
         }
 
-        return DateFormatters.merge(input, formatters);
+        return JavaDateFormatter.combined(input, formatters);
     }
 
     static List<String> splitCombinedPatterns(String input) {

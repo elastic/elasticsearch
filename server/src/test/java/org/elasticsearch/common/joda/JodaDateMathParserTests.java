@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
 
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 
@@ -57,6 +58,19 @@ public class JodaDateMathParserTests extends ESTestCase {
                 "Expected milliseconds : " + expectedMillis + "\n" +
                 "Actual milliseconds   : " + gotMillis + "\n");
         }
+    }
+
+    public void testOverridingLocaleOrZoneAndCompositeRoundUpParser() {
+        //the pattern has to be composite and the match should not be on the first one
+        DateFormatter formatter = Joda.forPattern("date||epoch_millis").withLocale(randomLocale(random()));
+        DateMathParser parser = formatter.toDateMathParser();
+        long gotMillis = parser.parse("297276785531", () -> 0, true, (ZoneId) null);
+        assertDateEquals(gotMillis, "297276785531", "297276785531");
+
+        formatter = Joda.forPattern("date||epoch_millis").withZone(ZoneOffset.UTC);
+        parser = formatter.toDateMathParser();
+        gotMillis = parser.parse("297276785531", () -> 0, true, (ZoneId) null);
+        assertDateEquals(gotMillis, "297276785531", "297276785531");
     }
 
     public void testBasicDates() {

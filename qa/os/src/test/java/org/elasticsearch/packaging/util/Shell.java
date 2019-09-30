@@ -195,7 +195,7 @@ public class Shell {
                     }
                 });
             }
-            return result.toString();
+            return String.join("\n", result);
         } else {
             return "";
         }

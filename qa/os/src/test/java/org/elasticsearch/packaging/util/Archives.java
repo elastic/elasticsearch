@@ -48,6 +48,7 @@ import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNot.not;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -244,6 +245,8 @@ public class Archives {
     public static void runElasticsearch(Installation installation, Shell sh) throws Exception {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
 
+        assertFalse("Pid file doesn't exist when starting Elasticsearch", Files.exists(pidFile));
+
         final Installation.Executables bin = installation.executables();
 
         Platforms.onLinux(() -> {
@@ -302,7 +305,7 @@ public class Archives {
 
         ServerUtils.waitForElasticsearch(installation);
 
-        assertTrue(Files.exists(pidFile));
+        assertTrue("Starting Elasticsearch produced a pid file at " + pidFile, Files.exists(pidFile));
         String pid = slurp(pidFile).trim();
         assertThat(pid, not(isEmptyOrNullString()));
 
@@ -319,6 +322,8 @@ public class Archives {
         final Shell sh = new Shell();
         Platforms.onLinux(() -> sh.run("kill -SIGTERM " + pid + "; tail --pid=" + pid + " -f /dev/null"));
         Platforms.onWindows(() -> sh.run("Get-Process -Id " + pid + " | Stop-Process -Force; Wait-Process -Id " + pid));
+
+        Files.delete(pidFile);
     }
 
 }

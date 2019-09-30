@@ -43,11 +43,10 @@ public class Shell {
 
     protected final Logger logger =  LogManager.getLogger(getClass());
 
-    final Map<String, String> env;
+    final Map<String, String> env = new HashMap<>();
     Path workingDirectory;
 
     public Shell() {
-        this.env = new HashMap<>();
         this.workingDirectory = null;
     }
 
@@ -122,10 +121,8 @@ public class Shell {
         if (workingDirectory != null) {
             setWorkingDirectory(builder, workingDirectory);
         }
-        if (env != null && env.isEmpty() == false) {
-            for (Map.Entry<String, String> entry : env.entrySet()) {
-                builder.environment().put(entry.getKey(), entry.getValue());
-            }
+        for (Map.Entry<String, String> entry : env.entrySet()) {
+            builder.environment().put(entry.getKey(), entry.getValue());
         }
         final Path stdOut;
         final Path stdErr;

@@ -153,44 +153,38 @@ public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
 
     public void testGetRelevantIndicesWithUnassignedShardsOnMasterEligibleNode() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
-        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(
-            clusterStateWithUnassignedIndex(indexMetaData, true));
+        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(clusterStateWithUnassignedIndex(indexMetaData, true));
         assertThat(indices.size(), equalTo(1));
     }
 
     public void testGetRelevantIndicesWithUnassignedShardsOnDataOnlyNode() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
-        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(
-            clusterStateWithUnassignedIndex(indexMetaData, false));
+        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(clusterStateWithUnassignedIndex(indexMetaData, false));
         assertThat(indices.size(), equalTo(0));
     }
 
     public void testGetRelevantIndicesWithAssignedShards() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
         boolean masterEligible = randomBoolean();
-        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(
-            clusterStateWithAssignedIndex(indexMetaData, masterEligible));
+        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(clusterStateWithAssignedIndex(indexMetaData, masterEligible));
         assertThat(indices.size(), equalTo(1));
     }
 
     public void testGetRelevantIndicesForClosedPrevWrittenIndexOnDataOnlyNode() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
-        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(
-            clusterStateWithClosedIndex(indexMetaData, false));
+        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(clusterStateWithClosedIndex(indexMetaData, false));
         assertThat(indices.size(), equalTo(0));
     }
 
     public void testGetRelevantIndicesForClosedPrevNotWrittenIndexOnDataOnlyNode() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
-        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(
-            clusterStateWithJustOpenedIndex(indexMetaData, false));
+        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(clusterStateWithJustOpenedIndex(indexMetaData, false));
         assertThat(indices.size(), equalTo(0));
     }
 
     public void testGetRelevantIndicesForWasClosedPrevWrittenIndexOnDataOnlyNode() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
-        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(
-            clusterStateWithJustOpenedIndex(indexMetaData, false));
+        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(clusterStateWithJustOpenedIndex(indexMetaData, false));
         assertThat(indices.size(), equalTo(0));
     }
 

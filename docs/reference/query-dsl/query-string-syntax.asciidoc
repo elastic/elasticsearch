@@ -29,6 +29,11 @@ You can specify fields to search in the query syntax:
 * where the `author` field contains the exact phrase `"john smith"`
 
     author:"John Smith"
+    
+* where the `first name` field contains `Alice` (note that spaces in field
+  names must be escaped, either with `\+` or `\%20`)
+
+    first\+name:Alice
 
 * where any of the fields `book.title`, `book.content` or `book.date` contains
   `quick` or `brown` (note how we need to escape the `*` with a backslash):

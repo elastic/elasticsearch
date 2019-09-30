@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.symbol.FunctionTable;
 
 import java.util.Collections;
 import java.util.List;
@@ -60,9 +61,9 @@ public final class SDeclBlock extends AStatement {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(FunctionTable functions, Locals locals) {
         for (SDeclaration declaration : declarations) {
-            declaration.analyze(locals);
+            declaration.analyze(functions, locals);
         }
 
         statementCount = declarations.size();

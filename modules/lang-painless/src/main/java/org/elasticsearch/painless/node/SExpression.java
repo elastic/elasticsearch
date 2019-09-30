@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.symbol.FunctionTable;
 
 import java.util.Objects;
 import java.util.Set;
@@ -53,12 +54,12 @@ public final class SExpression extends AStatement {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(FunctionTable functions, Locals locals) {
         Class<?> rtnType = locals.getReturnType();
         boolean isVoid = rtnType == void.class;
 
         expression.read = lastSource && !isVoid;
-        expression.analyze(locals);
+        expression.analyze(functions, locals);
 
         if (!lastSource && !expression.statement) {
             throw createError(new IllegalArgumentException("Not a statement."));
@@ -68,7 +69,7 @@ public final class SExpression extends AStatement {
 
         expression.expected = rtn ? rtnType : expression.actual;
         expression.internal = rtn;
-        expression = expression.cast(locals);
+        expression = expression.cast(functions, locals);
 
         methodEscape = rtn;
         loopEscape = rtn;

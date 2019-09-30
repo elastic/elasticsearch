@@ -4,7 +4,7 @@
 ==== Documents are counted for each bucket they land in
 
 Since a range represents multiple values, running a bucket aggregation over a
-range field can result in the same document landing in multiple buckets.  This
+range field can result in the same document landing in multiple buckets. This
 can lead to surprising behavior, such as the sum of bucket counts being higher
 than the number of matched documents.  For example, consider the following
 index: 

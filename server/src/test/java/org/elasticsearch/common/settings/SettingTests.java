@@ -703,7 +703,6 @@ public class SettingTests extends ESTestCase {
         Setting.AffixSetting<List<String>> listAffixSetting = Setting.affixKeySetting("foo.", "bar",
             (key) -> Setting.listSetting(key, Collections.singletonList("testelement"), Function.identity(), Property.NodeScope));
         expectThrows(UnsupportedOperationException.class, () -> listAffixSetting.get(Settings.EMPTY));
-        expectThrows(UnsupportedOperationException.class, () -> listAffixSetting.getRaw(Settings.EMPTY));
         assertEquals(Collections.singletonList("testelement"), listAffixSetting.getDefault(Settings.EMPTY));
         assertEquals("[\"testelement\"]", listAffixSetting.getDefaultRaw(Settings.EMPTY));
     }

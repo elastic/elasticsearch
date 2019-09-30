@@ -425,6 +425,10 @@ Machine Learning::
 * Wait for .ml-config primary before assigning persistent tasks {pull}44170[#44170] (issue: {issue}44156[#44156])
 * Fix ML memory tracker lockup when inner step fails {pull}44158[#44158] (issue: {issue}44156[#44156])
 * Fix datafeed checks when a concrete remote index is present {pull}43923[#43923] (issue: {issue}42113[#42113])
+* Rename outlier detection method values `knn` and `tnn` to `distance_kth_nn` and `distance_knn`
+respectively to match the API. {ml-pull}598[#598]
+* Fix occasional (non-deterministic) reinitialisation of modelling for the `lat_long`
+function. {ml-pull}641[#641]
 
 Mapping::
 * Make sure to validate the type before attempting to merge a new mapping. {pull}45157[#45157] (issues: {issue}29316[#29316], {issue}43012[#43012])

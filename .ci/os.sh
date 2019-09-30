@@ -30,9 +30,9 @@ cat /etc/os-release || true
 . /etc/os-release
 
 
-if [ "$ID" == "debian" || "$ID_LIKE" == "debian" ] ; then 
+if [[ "$ID" == "debian" || "$ID_LIKE" == "debian" ]] ; then 
     # FIXME: The base image should not have rpm installed
-    rm -Rf /usr/bin/rpm
+    sudo rm -Rf /usr/bin/rpm
 fi
 
 sudo bash -c 'cat > /etc/sudoers.d/elasticsearch_vars'  << SUDOERS_VARS

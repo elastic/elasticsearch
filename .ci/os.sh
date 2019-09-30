@@ -16,12 +16,8 @@ set -e
 RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
 BUILD_JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
 
-rm -Rfv $HOME/.gradle/init.d/init.gradle
-mkdir -p $HOME/.gradle/init.d
+rm -Rfv $HOME/.gradle/init.d/ && mkdir -p $HOME/.gradle/init.d
 cp -v .ci/init.gradle $HOME/.gradle/init.d
-# levarage the packar cache and init files when ran with root
-sudo rm -Rf /root/.gradle
-sudo ln -s /var/lib/jenkins/.gradle /root/.gradle
 
 unset JAVA_HOME
 
@@ -50,10 +46,11 @@ sudo mkdir -p /elasticsearch/qa/ && sudo chown jenkins /elasticsearch/qa/ && ln 
 
 # sudo sets it's own PATH thus we use env to override that and call sudo annother time so we keep the secure root PATH 
 # run with --continue to run both bats and java tests even if one fails
+# be explicit about Gradle home dir so we use the same even with sudo
 sudo -E env \
   PATH=$BUILD_JAVA_HOME/bin:`sudo bash -c 'echo -n $PATH'` \
   RUNTIME_JAVA_HOME=`readlink -f -n $RUNTIME_JAVA_HOME` \
   --unset=JAVA_HOME \
   SYSTEM_JAVA_HOME=`readlink -f -n $RUNTIME_JAVA_HOME` \
-  ./gradlew --parallel $@ --continue destructivePackagingTest
+  ./gradlew -g $HOME/.gradle --parallel $@ --continue destructivePackagingTest
 

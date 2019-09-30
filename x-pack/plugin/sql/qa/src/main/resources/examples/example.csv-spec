@@ -35,6 +35,14 @@ tar,4.5,5
 // REPRODUCE WITH: ./gradlew ':x-pack:plugin:sql:qa:single-node:integTestRunner' --tests "org.elasticsearch.xpack.sql.qa.single_node.JdbcCsvSpecIT" -Dtests.method="test {pivot.testAverageWithOneValueAndLimit}" -Dtests.seed=81AF0740AC9F7D95 -Dtests.security.manager=true -Dtests.locale=yo -Dtests.timezone=Etc/GMT-10 -Dcompiler.java=12 -Druntime.java=11
 
 // Muting test example:
+// The name of the file which contains the failing test can be found by 2 components:
+// - JdbcCsvSpecIT shows that it's a .csv-spec suffixed file
+// - The name of the file is the part before the . so in our case: {pivot.testAverageWithOneValueAndLimit} => pivot
+// Which in our example gives: pivot.csv-spec
+//
+// You can also find the whole name in the stacktrace of the exception along with the line where the failed test resides:
+//    at org.elasticsearch.xpack.sql.qa.single_node.JdbcCsvSpecIT.pivot.testAverageWithOneValueAndLimit(pivot.csv-spec:95)
+//
 //
 // BEFORE (file: pivot.csv-spec):
 //----------------------------------------------
@@ -51,7 +59,7 @@ tar,4.5,5
 //----------------------------------------------
 //
 //
-// AFTER (muted), Just add suffix -Ignore to the test name and a comment pointing to the Github issue:
+// AFTER (muted), Just add the suffix -Ignore to the test name and a comment pointing to the Github issue:
 //----------------------------------------------
 // // AwaitsFix https://github.com/elastic/elasticsearch/issues/47080
 // averageWithOneValueAndLimit-Ignore

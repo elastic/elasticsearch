@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
@@ -71,13 +72,13 @@ public final class EFunctionRef extends AExpression implements ILambda {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         if (ref != null) {
-            writer.writeDebugInfo(location);
-            writer.invokeLambdaCall(ref);
+            methodWriter.writeDebugInfo(location);
+            methodWriter.invokeLambdaCall(ref);
         } else {
             // TODO: don't do this: its just to cutover :)
-            writer.push((String)null);
+            methodWriter.push((String)null);
         }
     }
 

@@ -282,21 +282,17 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
     }
 
-    private void assertDiscoveryCompleted(List<String> nodes) throws InterruptedException {
+    private void assertDiscoveryCompleted(List<String> nodes) throws Exception {
         for (final String node : nodes) {
-            assertTrue(
-                    "node [" + node + "] is still joining master",
-                    awaitBusy(
-                            () -> {
-                                final Discovery discovery = internalCluster().getInstance(Discovery.class, node);
-                                if (discovery instanceof ZenDiscovery) {
-                                    return !((ZenDiscovery) discovery).joiningCluster();
-                                }
-                                return true;
-                            },
-                            30,
-                            TimeUnit.SECONDS
-                    )
+            assertBusy(
+                () -> {
+                    final Discovery discovery = internalCluster().getInstance(Discovery.class, node);
+                    if (discovery instanceof ZenDiscovery) {
+                        assertFalse("node [" + node + "] is still joining master", ((ZenDiscovery) discovery).joiningCluster());
+                    }
+                },
+                30,
+                TimeUnit.SECONDS
             );
         }
     }

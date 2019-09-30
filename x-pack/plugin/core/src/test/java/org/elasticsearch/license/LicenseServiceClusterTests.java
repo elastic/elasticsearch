@@ -174,16 +174,15 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
         assertLicenseActive(true);
     }
 
-    private void assertOperationMode(License.OperationMode operationMode) throws InterruptedException {
-        boolean success = awaitBusy(() -> {
+    private void assertOperationMode(License.OperationMode operationMode) throws Exception {
+        assertBusy(() -> {
             for (XPackLicenseState licenseState : internalCluster().getDataNodeInstances(XPackLicenseState.class)) {
                 if (licenseState.getOperationMode() == operationMode) {
-                    return true;
+                    return;
                 }
             }
-            return false;
+            fail("No data nodes found with operation mode [" + operationMode + "]");
         });
-        assertTrue(success);
     }
 
     private void writeCloudInternalMode(String mode) throws Exception {

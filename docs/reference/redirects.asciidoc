@@ -821,6 +821,10 @@ See <<ccs-works>>.
 === Administering {es}
 See <<high-availability>>.
 
+[role="exclude",id="slm-api"]
+=== Snapshot lifecycle management API
+See <<snapshot-lifecycle-management-api>>.
+
 [role="exclude",id="delete-data-frame-transform"]
 ===  Delete {transforms} API
 

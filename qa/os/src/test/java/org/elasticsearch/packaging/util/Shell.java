@@ -175,7 +175,14 @@ public class Shell {
 
     private String readFileIfExists(Path path) throws IOException {
         if (Files.exists(path)) {
-            return Files.readString(path, StandardCharsets.UTF_8);
+            StringBuilder result = new StringBuilder();
+            try(Stream<String> lines = Files.lines(path, StandardCharsets.UTF_8)) {
+                lines.forEach(line -> {
+                    result.append(line);
+                    result.append("\n");
+                });
+            }
+            return result.toString();
         } else {
             return "";
         }

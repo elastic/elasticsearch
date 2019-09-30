@@ -15,9 +15,6 @@ setup:
 
 ---
 "Snapshot/Restore with repository-azure":
-  - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/47201"
 
   # Get repository
   - do:

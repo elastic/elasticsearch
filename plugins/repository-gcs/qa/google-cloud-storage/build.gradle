@@ -78,7 +78,7 @@ task createServiceAccountFile() {
 
 Map<String, Object> expansions = [
         'bucket': gcsBucket,
-        'base_path': gcsBasePath
+        'base_path': gcsBasePath + "_integration_tests"
 ]
 
 processTestResources {

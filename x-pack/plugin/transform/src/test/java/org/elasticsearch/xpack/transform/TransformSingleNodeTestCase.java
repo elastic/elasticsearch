@@ -15,7 +15,7 @@ import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
-import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -32,7 +32,7 @@ public abstract class TransformSingleNodeTestCase extends ESSingleNodeTestCase {
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
             assertTrue("Timed out waiting for the transform templates to be installed", TemplateUtils
-                .checkTemplateExistsAndVersionIsGTECurrentVersion(TransformInternalIndex.LATEST_INDEX_VERSIONED_NAME, state));
+                .checkTemplateExistsAndVersionIsGTECurrentVersion(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME, state));
         });
     }
 

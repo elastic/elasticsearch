@@ -226,32 +226,4 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
     private static long asLong(String dateTime) {
         return DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(dateTime)).toInstant().toEpochMilli();
     }
-
-
-    private static AggregatorFactory getRandomSequentiallyOrderedParentAgg() throws IOException {
-        AggregatorFactory factory;
-        ValuesSourceConfig<ValuesSource> valuesSource = new ValuesSourceConfig<>(ValuesSourceType.NUMERIC);
-        ValuesSourceConfig<ValuesSource.Numeric> numericVS = new ValuesSourceConfig<>(ValuesSourceType.NUMERIC);
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                factory = new HistogramAggregatorFactory("name", valuesSource, 0.0d, 0.0d,
-                    mock(InternalOrder.class), false, 0L, 0.0d, 1.0d, mock(QueryShardContext.class), null,
-                    new AggregatorFactories.Builder(), Collections.emptyMap());
-                break;
-            case 1:
-                factory = new DateHistogramAggregatorFactory("name", valuesSource, 0L,
-                    mock(InternalOrder.class), false, 0L, mock(Rounding.class), mock(Rounding.class),
-                    mock(ExtendedBounds.class), mock(QueryShardContext.class), mock(AggregatorFactory.class),
-                    new AggregatorFactories.Builder(), Collections.emptyMap());
-                break;
-            case 2:
-            default:
-                AutoDateHistogramAggregationBuilder.RoundingInfo[] roundings = new AutoDateHistogramAggregationBuilder.RoundingInfo[1];
-                factory = new AutoDateHistogramAggregatorFactory("name", numericVS,
-                    1, roundings,
-                    mock(QueryShardContext.class), null, new AggregatorFactories.Builder(), Collections.emptyMap());
-        }
-
-        return factory;
-    }
 }

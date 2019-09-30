@@ -19,7 +19,6 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -695,20 +694,6 @@ public abstract class IndexShardTestCase extends ESTestCase {
             inSyncIds, newRoutingTable);
     }
 
-    private Store.MetadataSnapshot getMetadataSnapshotOrEmpty(IndexShard replica) throws IOException {
-        Store.MetadataSnapshot result;
-        try {
-            result = replica.snapshotStoreMetadata();
-        } catch (IndexNotFoundException e) {
-            // OK!
-            result = Store.MetadataSnapshot.EMPTY;
-        } catch (IOException e) {
-            logger.warn("failed read store, treating as empty", e);
-            result = Store.MetadataSnapshot.EMPTY;
-        }
-        return result;
-    }
-
     public static Set<String> getShardDocUIDs(final IndexShard shard) throws IOException {
         return getDocIdAndSeqNos(shard).stream().map(DocIdSeqNoAndSource::getId).collect(Collectors.toSet());
     }
@@ -827,25 +812,30 @@ public abstract class IndexShardTestCase extends ESTestCase {
             shard.recoveryState());
     }
 
-    /** Snapshot a shard using a given repository **/
-    protected void snapshotShard(final IndexShard shard,
-                                 final Snapshot snapshot,
-                                 final Repository repository) throws IOException {
-        final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing();
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+    /**
+     * Snapshot a shard using a given repository.
+     *
+     * @return new shard generation
+     */
+    protected String snapshotShard(final IndexShard shard,
+                                   final Snapshot snapshot,
+                                   final Repository repository) throws IOException {
+        final Index index = shard.shardId().getIndex();
+        final IndexId indexId = new IndexId(index.getName(), index.getUUID());
+        final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
+        final PlainActionFuture<String> future = PlainActionFuture.newFuture();
+        final String shardGen;
         try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(true)) {
-            Index index = shard.shardId().getIndex();
-            IndexId indexId = new IndexId(index.getName(), index.getUUID());
-
             repository.snapshotShard(shard.store(), shard.mapperService(), snapshot.getSnapshotId(), indexId,
                 indexCommitRef.getIndexCommit(), snapshotStatus, future);
-            future.actionGet();
+            shardGen = future.actionGet();
         }
 
         final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
         assertEquals(IndexShardSnapshotStatus.Stage.DONE, lastSnapshotStatus.getStage());
         assertEquals(shard.snapshotStoreMetadata().size(), lastSnapshotStatus.getTotalFileCount());
         assertNull(lastSnapshotStatus.getFailure());
+        return shardGen;
     }
 
     /**

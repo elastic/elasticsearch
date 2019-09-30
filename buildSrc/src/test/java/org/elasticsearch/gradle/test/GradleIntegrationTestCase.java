@@ -157,10 +157,6 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
         );
     }
 
-    protected String getLocalTestRepoPath() {
-        return getLocalTestPath("test.local-test-repo-path");
-    }
-
     protected String getLocalTestDownloadsPath() {
         return getLocalTestPath("test.local-test-downloads-path");
     }

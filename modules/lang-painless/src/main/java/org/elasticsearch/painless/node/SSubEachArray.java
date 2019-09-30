@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -76,41 +77,41 @@ final class SSubEachArray extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeStatementOffset(location);
 
-        expression.write(writer, globals);
-        writer.visitVarInsn(MethodWriter.getType(array.clazz).getOpcode(Opcodes.ISTORE), array.getSlot());
-        writer.push(-1);
-        writer.visitVarInsn(MethodWriter.getType(index.clazz).getOpcode(Opcodes.ISTORE), index.getSlot());
+        expression.write(classWriter, methodWriter, globals);
+        methodWriter.visitVarInsn(MethodWriter.getType(array.clazz).getOpcode(Opcodes.ISTORE), array.getSlot());
+        methodWriter.push(-1);
+        methodWriter.visitVarInsn(MethodWriter.getType(index.clazz).getOpcode(Opcodes.ISTORE), index.getSlot());
 
         Label begin = new Label();
         Label end = new Label();
 
-        writer.mark(begin);
+        methodWriter.mark(begin);
 
-        writer.visitIincInsn(index.getSlot(), 1);
-        writer.visitVarInsn(MethodWriter.getType(index.clazz).getOpcode(Opcodes.ILOAD), index.getSlot());
-        writer.visitVarInsn(MethodWriter.getType(array.clazz).getOpcode(Opcodes.ILOAD), array.getSlot());
-        writer.arrayLength();
-        writer.ifICmp(MethodWriter.GE, end);
+        methodWriter.visitIincInsn(index.getSlot(), 1);
+        methodWriter.visitVarInsn(MethodWriter.getType(index.clazz).getOpcode(Opcodes.ILOAD), index.getSlot());
+        methodWriter.visitVarInsn(MethodWriter.getType(array.clazz).getOpcode(Opcodes.ILOAD), array.getSlot());
+        methodWriter.arrayLength();
+        methodWriter.ifICmp(MethodWriter.GE, end);
 
-        writer.visitVarInsn(MethodWriter.getType(array.clazz).getOpcode(Opcodes.ILOAD), array.getSlot());
-        writer.visitVarInsn(MethodWriter.getType(index.clazz).getOpcode(Opcodes.ILOAD), index.getSlot());
-        writer.arrayLoad(MethodWriter.getType(indexed));
-        writer.writeCast(cast);
-        writer.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
+        methodWriter.visitVarInsn(MethodWriter.getType(array.clazz).getOpcode(Opcodes.ILOAD), array.getSlot());
+        methodWriter.visitVarInsn(MethodWriter.getType(index.clazz).getOpcode(Opcodes.ILOAD), index.getSlot());
+        methodWriter.arrayLoad(MethodWriter.getType(indexed));
+        methodWriter.writeCast(cast);
+        methodWriter.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
 
         if (loopCounter != null) {
-            writer.writeLoopCounter(loopCounter.getSlot(), statementCount, location);
+            methodWriter.writeLoopCounter(loopCounter.getSlot(), statementCount, location);
         }
 
         block.continu = begin;
         block.brake = end;
-        block.write(writer, globals);
+        block.write(classWriter, methodWriter, globals);
 
-        writer.goTo(begin);
-        writer.mark(end);
+        methodWriter.goTo(begin);
+        methodWriter.mark(end);
     }
 
     @Override

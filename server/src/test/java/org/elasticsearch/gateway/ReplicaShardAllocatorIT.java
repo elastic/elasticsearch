@@ -19,15 +19,13 @@
 
 package org.elasticsearch.gateway;
 
+import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.MockEngineFactoryPlugin;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -35,41 +33,31 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
-import org.hamcrest.Matchers;
 
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ReplicaShardAllocatorIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(MockEngineFactoryPlugin.class);
-        plugins.add(MockTransportService.TestPlugin.class);
-        plugins.add(InternalSettingsPlugin.class);
-        return plugins;
+        return Arrays.asList(MockTransportService.TestPlugin.class, InternalSettingsPlugin.class);
     }
 
-    /**
-     * Verify that if we found a new copy where it can perform an operation-based recovery,
-     * then we will cancel the current recovery and allocate replica to the new copy.
-     */
-    public void testPreferCopyCanPerformOperationBasedRecovery() throws Exception {
+    public void testRecentPrimaryInformation() throws Exception {
         String indexName = "test";
         String nodeWithPrimary = internalCluster().startNode();
         assertAcked(
             client().admin().indices().prepareCreate(indexName)
                 .setSettings(Settings.builder()
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
                     .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                     .put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(), 1.0f)
@@ -78,20 +66,16 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         String nodeWithReplica = internalCluster().startDataOnlyNode();
         Settings nodeWithReplicaSettings = internalCluster().dataPathSettings(nodeWithReplica);
         ensureGreen(indexName);
-        indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, between(100, 1000))
-            .mapToObj(n -> client().prepareIndex(indexName, "_doc", Integer.toString(n)).setSource("f", "v")).collect(Collectors.toList()));
-        ensureGlobalCheckpointSyncedAndPersisted(indexName);
-        if (randomBoolean()) {
-            client().admin().indices().prepareFlush(indexName).get();
-        }
+        indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, between(10, 100))
+            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v")).collect(Collectors.toList()));
+        assertBusy(() -> {
+            SyncedFlushResponse syncedFlushResponse = client().admin().indices().prepareSyncedFlush(indexName).get();
+            assertThat(syncedFlushResponse.successfulShards(), equalTo(2));
+        });
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithReplica));
         if (randomBoolean()) {
-            indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, between(10, 200))
-                .mapToObj(n -> client().prepareIndex(indexName, "_doc", Integer.toString(n)).setSource("f", "v"))
-                .collect(Collectors.toList()));
-        }
-        if (randomBoolean()) {
-            client().admin().indices().prepareForceMerge(indexName).setFlush(true).get();
+            indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, between(10, 100))
+                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("f", "v")).collect(Collectors.toList()));
         }
         CountDownLatch blockRecovery = new CountDownLatch(1);
         CountDownLatch recoveryStarted = new CountDownLatch(1);
@@ -108,30 +92,19 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             }
             connection.sendRequest(requestId, action, request, options);
         });
-        internalCluster().startDataOnlyNode();
+        String newNode = internalCluster().startDataOnlyNode();
         recoveryStarted.await();
-        nodeWithReplica = internalCluster().startDataOnlyNode(nodeWithReplicaSettings);
-        // AllocationService only calls GatewayAllocator if there're unassigned shards
-        assertAcked(client().admin().indices().prepareCreate("dummy-index").setWaitForActiveShards(0));
-        ensureGreen(indexName);
-        assertThat(internalCluster().nodesInclude(indexName), Matchers.hasItem(nodeWithReplica));
-
+        // destroy sync_id after the recovery on the new node has started
+        client().admin().indices().prepareFlush(indexName).setForce(true).get();
+        // AllocationService only calls GatewayAllocator if there are unassigned shards
+        assertAcked(client().admin().indices().prepareCreate("dummy-index").setWaitForActiveShards(0)
+            .setSettings(Settings.builder().put("index.routing.allocation.require.attr", "not-found")));
+        internalCluster().startDataOnlyNode(nodeWithReplicaSettings);
+        // need to wait for events to ensure the reroute has happened since we perform it async when a new node joins.
+        client().admin().cluster().prepareHealth(indexName).setWaitForYellowStatus().setWaitForEvents(Priority.LANGUID).get();
         blockRecovery.countDown();
+        ensureGreen(indexName);
+        assertThat(internalCluster().nodesInclude(indexName), hasItem(newNode));
         transportServiceOnPrimary.clearAllRules();
-    }
-
-    private void ensureGlobalCheckpointSyncedAndPersisted(String indexName) throws Exception {
-        assertBusy(() -> {
-            Index index = resolveIndex(indexName);
-            for (String node : internalCluster().nodesInclude(indexName)) {
-                IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-                final IndexService indexService = indicesService.indexService(index);
-                if (indexService != null) {
-                    for (IndexShard shard : indexService) {
-                        assertThat(shard.getLastSyncedGlobalCheckpoint(), equalTo(shard.getLocalCheckpoint()));
-                    }
-                }
-            }
-        });
     }
 }

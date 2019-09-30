@@ -112,11 +112,10 @@ The API returns the following response:
 [[get-enrich-policy-api-commas-ex]]
 ===== Get multiple policies
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_enrich/policy/my-policy,other-policy
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The API returns the following response:

@@ -12,14 +12,16 @@ initscript {
 
 boolean USE_ARTIFACTORY=false
 
-['VAULT_ADDR', 'VAULT_ROLE_ID', 'VAULT_SECRET_ID'].each {
-    if (System.env."$it" == null) {
-        throw new GradleException("$it must be set!")
-
-    }
+if (System.getenv('VAULT_ADDR') == null) {
+    throw new GradleException("You must set the VAULT_ADDR environment variable to use this init script.")
 }
 
-final String vaultToken =  new Vault(
+if (System.getenv('VAULT_ROLE_ID') == null && System.getenv('VAULT_SECRET_ID') == null && System.getenv('VAULT_TOKEN') == null) {
+    throw new GradleException("You must set either the VAULT_ROLE_ID and VAULT_SECRET_ID environment variables, " +
+            "or the VAULT_TOKEN environment variable to use this init script.")
+}
+
+final String vaultToken = System.getenv('VAULT_TOKEN') ?: new Vault(
         new VaultConfig()
             .address(System.env.VAULT_ADDR)
             .engineVersion(1)

@@ -1286,7 +1286,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 indexShardSnapshotsFormat.writeAtomic(updatedSnapshots, shardContainer, indexGeneration);
                 blobsToDelete = unusedBlobs(blobs, survivingSnapshotUUIDs, updatedSnapshots);
             }
-            return new ShardSnapshotMetaDeleteResult(indexId, snapshotShardId.id(), indexGeneration, blobsToDelete);
+            return new ShardSnapshotMetaDeleteResult(indexId, snapshotShardId.id(), blobsToDelete);
         } catch (IOException e) {
             throw new IndexShardSnapshotFailedException(snapshotShardId,
                 "Failed to finalize snapshot deletion [" + snapshotId + "] with shard index ["
@@ -1415,16 +1415,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // Shard id that the snapshot was removed from
         private final int shardId;
 
-        // Id of the new index-${uuid} blob that does not include the snapshot any more
-        private final String newGeneration;
-
         // Blob names in the shard directory that have become unreferenced in the new shard generation
         private final Collection<String> blobsToDelete;
 
-        ShardSnapshotMetaDeleteResult(IndexId indexId, int shardId, String newGeneration, Collection<String> blobsToDelete) {
+        ShardSnapshotMetaDeleteResult(IndexId indexId, int shardId, Collection<String> blobsToDelete) {
             this.indexId = indexId;
             this.shardId = shardId;
-            this.newGeneration = newGeneration;
             this.blobsToDelete = blobsToDelete;
         }
     }

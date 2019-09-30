@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import java.util.Collections;
 
 public class ClusterHealthAllocationTests extends ESAllocationTestCase {
+
     public void testClusterHealth() {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).build();
         if (randomBoolean()) {
@@ -61,10 +62,10 @@ public class ClusterHealthAllocationTests extends ESAllocationTestCase {
         clusterState = applyStartedShardsUntilNoChange(clusterState, allocation);
         assertEquals(ClusterHealthStatus.GREEN, getClusterHealthStatus(clusterState));
 
-        clusterState = removeNode(clusterState, "node_d1",allocation);
+        clusterState = removeNode(clusterState, "node_d1", allocation);
         assertEquals(ClusterHealthStatus.YELLOW, getClusterHealthStatus(clusterState));
 
-        clusterState = removeNode(clusterState, "node_d2",allocation);
+        clusterState = removeNode(clusterState, "node_d2", allocation);
         assertEquals(ClusterHealthStatus.RED, getClusterHealthStatus(clusterState));
 
         routingTable = RoutingTable.builder(routingTable).remove("test").build();
@@ -75,25 +76,18 @@ public class ClusterHealthAllocationTests extends ESAllocationTestCase {
     }
 
     private ClusterState addNode(ClusterState clusterState, String nodeName, boolean isMaster) {
-
         DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder(clusterState.getNodes());
-        if (isMaster) {
-            nodeBuilder.add(newNode(nodeName, Collections.singleton(DiscoveryNodeRole.MASTER_ROLE)));
-        } else {
-            nodeBuilder.add(newNode(nodeName, Collections.singleton(DiscoveryNodeRole.DATA_ROLE)));
-        }
+        nodeBuilder.add(newNode(nodeName, Collections.singleton(isMaster ? DiscoveryNodeRole.MASTER_ROLE : DiscoveryNodeRole.DATA_ROLE)));
         return ClusterState.builder(clusterState).nodes(nodeBuilder).build();
     }
 
     private ClusterState removeNode(ClusterState clusterState, String nodeName, AllocationService allocationService) {
-        clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder(clusterState.getNodes())
-                .remove(nodeName).build())
-            .build();
-        return allocationService.disassociateDeadNodes(clusterState, true, "reroute");
+        return allocationService.disassociateDeadNodes(ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder(clusterState.getNodes()).remove(nodeName)).build(), true, "reroute");
     }
 
     private ClusterHealthStatus getClusterHealthStatus(ClusterState clusterState) {
         return new ClusterStateHealth(clusterState).getStatus();
     }
+
 }

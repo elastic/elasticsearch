@@ -90,14 +90,14 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[0].getResponse().getShardId().getId(), equalTo(0));
         assertThat(bulkResponse.getItems()[0].getResponse().getVersion(), equalTo(1L));
         assertThat(bulkResponse.getItems()[0].getResponse().status(), equalTo(RestStatus.CREATED));
-        assertThat(client().prepareGet("index3", "type", "id").setRouting("1").get().getSource().get("foo"), equalTo("baz"));
+        assertThat(client().prepareGet("index3", "id").setRouting("1").get().getSource().get("foo"), equalTo("baz"));
 
         bulkResponse = client().prepareBulk().add(client().prepareUpdate("alias1", "type", "id").setDoc("foo", "updated")).get();
         assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
-        assertThat(client().prepareGet("index3", "type", "id").setRouting("1").get().getSource().get("foo"), equalTo("updated"));
+        assertThat(client().prepareGet("index3", "id").setRouting("1").get().getSource().get("foo"), equalTo("updated"));
         bulkResponse = client().prepareBulk().add(client().prepareDelete("alias1", "type", "id")).get();
         assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
-        assertFalse(client().prepareGet("index3", "type", "id").setRouting("1").get().isExists());
+        assertFalse(client().prepareGet("index3", "id").setRouting("1").get().isExists());
     }
 
     public void testBulkWithGlobalDefaults() throws Exception {

@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 
 import java.io.IOException;
@@ -150,10 +149,8 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
             if (includeTypeName == false) {
                 Map<String, FieldMappingMetaData> mappings = null;
                 for (Map.Entry<String, Map<String, FieldMappingMetaData>> typeEntry : indexEntry.getValue().entrySet()) {
-                    if (typeEntry.getKey().equals(MapperService.DEFAULT_MAPPING) == false) {
-                        assert mappings == null;
-                        mappings = typeEntry.getValue();
-                    }
+                    assert mappings == null;
+                    mappings = typeEntry.getValue();
                 }
                 if (mappings != null) {
                     addFieldMappingsToBuilder(builder, params, mappings);

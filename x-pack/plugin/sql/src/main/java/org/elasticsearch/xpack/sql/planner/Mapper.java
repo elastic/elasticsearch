@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.sql.plan.logical.Limit;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.plan.logical.With;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.sql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.sql.plan.physical.LocalExec;
 import org.elasticsearch.xpack.sql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.sql.plan.physical.PivotExec;
 import org.elasticsearch.xpack.sql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.sql.plan.physical.UnplannedExec;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
@@ -86,6 +88,11 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
                 Aggregate a = (Aggregate) p;
                 // analysis and optimizations have converted the grouping into actual attributes
                 return new AggregateExec(p.source(), map(a.child()), a.groupings(), a.aggregates());
+            }
+
+            if (p instanceof Pivot) {
+                Pivot pv = (Pivot) p;
+                return new PivotExec(pv.source(), map(pv.child()), pv);
             }
 
             if (p instanceof EsRelation) {

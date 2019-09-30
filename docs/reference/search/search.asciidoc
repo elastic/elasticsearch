@@ -264,7 +264,8 @@ Returned parameters include:
 
 `total`::
 (Integer)
-Total number of shards involved in the request.
+Total number of shards that require querying,
+including unallocated shards.
 
 `successful`::
 (Integer)

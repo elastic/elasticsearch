@@ -268,7 +268,10 @@ Number of shards that executed the request.
 
 `skipped`::
 (Integer)
-Number of shards that skipped the request.
+Number of shards that skipped the request because a lightweight check
+helped realize that no documents could possibly match on this shard. This
+typically happens when a search request includes a range filter and the
+shard only has values that fall outside of that range.
 
 `failed`::
 (Integer)

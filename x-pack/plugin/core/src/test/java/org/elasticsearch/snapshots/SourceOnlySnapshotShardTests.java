@@ -207,10 +207,13 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                 repository.snapshotShard(shard.store(), shard.mapperService(), snapshotId, indexId, snapshotRef.getIndexCommit(),
                     indexShardSnapshotStatus, future);
                 future.actionGet();
+                final PlainActionFuture<SnapshotInfo> finFuture = PlainActionFuture.newFuture();
                 repository.finalizeSnapshot(snapshotId, Collections.singletonList(indexId),
                     indexShardSnapshotStatus.asCopy().getStartTime(), null, 1, Collections.emptyList(),
                     repository.getRepositoryData().getGenId(), true,
-                    MetaData.builder().put(shard.indexSettings().getIndexMetaData(), false).build(), Collections.emptyMap());
+                    MetaData.builder().put(shard.indexSettings().getIndexMetaData(), false).build(), Collections.emptyMap(),
+                    finFuture);
+                finFuture.actionGet();
             });
             IndexShardSnapshotStatus.Copy copy = indexShardSnapshotStatus.asCopy();
             assertEquals(copy.getTotalFileCount(), copy.getIncrementalFileCount());

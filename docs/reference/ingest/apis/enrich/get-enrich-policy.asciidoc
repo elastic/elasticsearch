@@ -91,17 +91,19 @@ The API returns the following response:
 {
     "policies": [
         {
-            "match": {
-                "name" : "my-policy",
-                "indices" : ["users"],
-                "match_field" : "email",
-                "enrich_fields" : [
-                    "first_name",
-                    "last_name",
-                    "city",
-                    "zip",
-                    "state"
-                ]
+            "config": {
+                "match": {
+                    "name" : "my-policy",
+                    "indices" : ["users"],
+                    "match_field" : "email",
+                    "enrich_fields" : [
+                        "first_name",
+                        "last_name",
+                        "city",
+                        "zip",
+                        "state"
+                    ]
+                }
             }
         }
     ]
@@ -125,31 +127,35 @@ The API returns the following response:
 {
     "policies": [
         {
-            "match": {
-                "name" : "my-policy",
-                "indices" : ["users"],
-                "match_field" : "email",
-                "enrich_fields" : [
-                    "first_name",
-                    "last_name",
-                    "city",
-                    "zip",
-                    "state"
-                ]
+            "config": {
+                "match": {
+                    "name" : "my-policy",
+                    "indices" : ["users"],
+                    "match_field" : "email",
+                    "enrich_fields" : [
+                        "first_name",
+                        "last_name",
+                        "city",
+                        "zip",
+                        "state"
+                    ]
+                }
             }
         },
         {
-            "match": {
-                "name" : "other-policy",
-                "indices" : ["users"],
-                "match_field" : "email",
-                "enrich_fields" : [
-                    "first_name",
-                    "last_name",
-                    "city",
-                    "zip",
-                    "state"
-                ]
+            "config": {
+                "match": {
+                    "name" : "other-policy",
+                    "indices" : ["users"],
+                    "match_field" : "email",
+                    "enrich_fields" : [
+                        "first_name",
+                        "last_name",
+                        "city",
+                        "zip",
+                        "state"
+                    ]
+                }
             }
         }
     ]
@@ -174,31 +180,35 @@ The API returns the following response:
 {
     "policies": [
         {
-            "match": {
-                "name" : "my-policy",
-                "indices" : ["users"],
-                "match_field" : "email",
-                "enrich_fields" : [
-                    "first_name",
-                    "last_name",
-                    "city",
-                    "zip",
-                    "state"
-                ]
+            "config": {
+                "match": {
+                    "name" : "my-policy",
+                    "indices" : ["users"],
+                    "match_field" : "email",
+                    "enrich_fields" : [
+                        "first_name",
+                        "last_name",
+                        "city",
+                        "zip",
+                        "state"
+                    ]
+                }
             }
         },
         {
-            "match": {
-                "name" : "other-policy",
-                "indices" : ["users"],
-                "match_field" : "email",
-                "enrich_fields" : [
-                    "first_name",
-                    "last_name",
-                    "city",
-                    "zip",
-                    "state"
-                ]
+            "config": {
+                "match": {
+                    "name" : "other-policy",
+                    "indices" : ["users"],
+                    "match_field" : "email",
+                    "enrich_fields" : [
+                        "first_name",
+                        "last_name",
+                        "city",
+                        "zip",
+                        "state"
+                    ]
+                }
             }
         }
     ]

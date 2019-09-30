@@ -20,6 +20,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.LatLonShape;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
@@ -162,13 +163,15 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
     @Override
     public void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
-        if (includeDefaults || crs.explicit()) {
-            builder.startObject("crs")
-                .field("type", "name")
-                .startObject("properties")
-                .field("name", crs.value())
-                .endObject()
-                .endObject();
+        if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
+            if (includeDefaults || crs.explicit()) {
+                builder.startObject("crs")
+                    .field("type", "name")
+                    .startObject("properties")
+                    .field("name", crs.value())
+                    .endObject()
+                    .endObject();
+            }
         }
     }
 

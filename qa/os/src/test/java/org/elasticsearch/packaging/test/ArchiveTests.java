@@ -27,7 +27,6 @@ import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
-import org.junit.After;
 import org.junit.BeforeClass;
 
 import java.nio.file.Files;
@@ -408,11 +407,4 @@ public class ArchiveTests extends PackagingTestCase {
         }
     }
 
-    @After
-    public void tearDown() throws Exception {
-        // clean up logs between logs so we only show logs from the running tests if we dump them on failure
-        FileUtils.rm(installation.logs);
-        Files.createDirectories(installation.logs);
-        sh.chown(installation.logs);
-    }
 }

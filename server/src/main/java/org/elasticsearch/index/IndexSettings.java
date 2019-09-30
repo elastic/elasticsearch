@@ -343,7 +343,7 @@ public final class IndexSettings {
 
         @Override
         public void validate(final String value, final Map<Setting<?>, Object> settings) {
-            final String defaultPipeline = (String)settings.get(IndexSettings.DEFAULT_PIPELINE);
+            final String defaultPipeline = (String) settings.get(IndexSettings.DEFAULT_PIPELINE);
             if (value.equals(IngestService.NOOP_PIPELINE_NAME) && defaultPipeline.equals(IngestService.NOOP_PIPELINE_NAME) == false) {
                 throw new IllegalArgumentException(
                     "index has a required pipeline [" + value + "] and a default pipeline [" + defaultPipeline + "]");

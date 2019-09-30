@@ -19,8 +19,10 @@
 
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.test.ESTestCase;
@@ -31,8 +33,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.mockito.Mockito.mock;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
 public class ConsistentSettingsServiceTests extends ESTestCase {
 
@@ -69,12 +71,12 @@ public class ConsistentSettingsServiceTests extends ESTestCase {
         assertThat(consistentService.areAllConsistent(), is(true));
         // change value
         secureSettings.setString(stringSetting.getKey(), "_TYPO_somethingsecure");
-        consistentService.clusterChanged(null);
+        simulateMasterFailover(consistentService, clusterService);
         assertThat(consistentService.areAllConsistent(), is(false));
         assertThat(new ConsistentSettingsService(settings, clusterService, List.of(stringSetting)).areAllConsistent(), is(false));
         // publish change
         new ConsistentSettingsService(settings, clusterService, List.of(stringSetting)).newHashPublisher().onMaster();
-        consistentService.clusterChanged(null);
+        simulateMasterFailover(consistentService, clusterService);
         assertThat(consistentService.areAllConsistent(), is(true));
         assertThat(new ConsistentSettingsService(settings, clusterService, List.of(stringSetting)).areAllConsistent(), is(true));
     }
@@ -98,12 +100,12 @@ public class ConsistentSettingsServiceTests extends ESTestCase {
         assertThat(consistentService.areAllConsistent(), is(true));
         // change value
         secureSettings.setString("test.affix.second.bar", "_TYPO_second_secure");
-        consistentService.clusterChanged(null);
+        simulateMasterFailover(consistentService, clusterService);
         assertThat(consistentService.areAllConsistent(), is(false));
         assertThat(new ConsistentSettingsService(settings, clusterService, List.of(affixStringSetting)).areAllConsistent(), is(false));
         // publish change
         new ConsistentSettingsService(settings, clusterService, List.of(affixStringSetting)).newHashPublisher().onMaster();
-        consistentService.clusterChanged(null);
+        simulateMasterFailover(consistentService, clusterService);
         assertThat(consistentService.areAllConsistent(), is(true));
         assertThat(new ConsistentSettingsService(settings, clusterService, List.of(affixStringSetting)).areAllConsistent(), is(true));
         // add value
@@ -114,7 +116,7 @@ public class ConsistentSettingsServiceTests extends ESTestCase {
         assertThat(new ConsistentSettingsService(settings, clusterService, List.of(affixStringSetting)).areAllConsistent(), is(false));
         // publish
         new ConsistentSettingsService(settings, clusterService, List.of(affixStringSetting)).newHashPublisher().onMaster();
-        consistentService.clusterChanged(null);
+        simulateMasterFailover(consistentService, clusterService);
         assertThat(new ConsistentSettingsService(settings, clusterService, List.of(affixStringSetting)).areAllConsistent(), is(true));
         // remove value
         secureSettings = new MockSecureSettings();
@@ -161,4 +163,15 @@ public class ConsistentSettingsServiceTests extends ESTestCase {
         assertThat(new ConsistentSettingsService(settings, clusterService, List.of(stringSetting, affixStringSetting)).areAllConsistent(),
                 is(true));
     }
+
+    private static void simulateMasterFailover(ConsistentSettingsService consistentService, ClusterService clusterService) {
+        ClusterState newState = ClusterState.builder(clusterService.state())
+            .nodes(DiscoveryNodes.builder().masterNodeId("newMasterId").build())
+            .build();
+        ClusterState previousState = ClusterState.builder(clusterService.state())
+            .nodes(DiscoveryNodes.builder().masterNodeId("prevMasterId").build())
+            .build();
+        consistentService.clusterChanged(new ClusterChangedEvent("test", newState, previousState));
+    }
+
 }

@@ -76,8 +76,6 @@ public class GetApiKeyRequestTests extends ESTestCase {
         }
 
         String[][] inputs = new String[][]{
-            {randomNullOrEmptyString(), randomNullOrEmptyString(), randomNullOrEmptyString(),
-                randomNullOrEmptyString(), "false"},
             {randomNullOrEmptyString(), "user", "api-kid", "api-kname", "false"},
             {"realm", randomNullOrEmptyString(), "api-kid", "api-kname", "false"},
             {"realm", "user", "api-kid", randomNullOrEmptyString(), "false"},
@@ -86,7 +84,6 @@ public class GetApiKeyRequestTests extends ESTestCase {
             {randomNullOrEmptyString(), "user", randomNullOrEmptyString(), randomNullOrEmptyString(), "true"}
         };
         String[][] expectedErrorMessages = new String[][]{
-            {"One of [api key id, api key name, username, realm name] must be specified if [owner] flag is false"},
             {"username or realm name must not be specified when the api key id or api key name is specified",
                 "only one of [api key id, api key name] can be specified"},
             {"username or realm name must not be specified when the api key id or api key name is specified",

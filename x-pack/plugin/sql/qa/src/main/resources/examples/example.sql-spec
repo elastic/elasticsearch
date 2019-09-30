@@ -6,3 +6,27 @@ name
 SELECT COUNT(*) FROM "emp";
 
 // repeat the above
+
+
+// Test failure example:
+// org.elasticsearch.xpack.sql.qa.single_node.JdbcSqlSpecIT > test {agg.testGroupByOnText} FAILED
+//     org.h2.jdbc.JdbcSQLException: Colonne "gender2" non trouvée
+//     Column "gender2" not found; SQL statement:
+//     SELECT gender g FROM "test_emp" GROUP BY gender2 ORDER BY gender ASC [42122-197]
+// REPRODUCE WITH: ./gradlew ':x-pack:plugin:sql:qa:security:without-ssl:integTestRunner' --tests "org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT" -Dtests.method="test {agg.testGroupByOnText}" -Dtests.seed=BB1082EEC0023E5C -Dtests.security.manager=true -Dtests.locale=pt-TL -Dtests.timezone=MST7MDT -Dcompiler.java=12 -Druntime.java=12
+
+// Muting test example:
+//
+// BEFORE (file: agg.sql-spec):
+//----------------------------------------------
+// groupByOnText
+// SELECT gender g FROM "test_emp" GROUP BY gender ORDER BY gender ASC;
+//----------------------------------------------
+//
+//
+// AFTER (muted), Just add suffix -Ignore to the test name and a comment pointing to the Github issue:
+//----------------------------------------------
+// // AwaitsFix https://github.com/elastic/elasticsearch/issues/33519
+// groupByOnText-Ignore
+// SELECT gender g FROM "test_emp" GROUP BY gender ORDER BY gender ASC;
+// ---------------------------------------------

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -64,10 +65,10 @@ public final class SThrow extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
-        expression.write(writer, globals);
-        writer.throwException();
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeStatementOffset(location);
+        expression.write(classWriter, methodWriter, globals);
+        methodWriter.throwException();
     }
 
     @Override

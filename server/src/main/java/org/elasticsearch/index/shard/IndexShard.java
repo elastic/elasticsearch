@@ -985,7 +985,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
     }
 
-    public IndexingStats indexingStats(String... types) {
+    public IndexingStats indexingStats() {
         Engine engine = getEngineOrNull();
         final boolean throttled;
         final long throttleTimeInMillis;
@@ -996,7 +996,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throttled = engine.isThrottled();
             throttleTimeInMillis = engine.getIndexThrottleTimeInMillis();
         }
-        return internalIndexingStats.stats(throttled, throttleTimeInMillis, types);
+        return internalIndexingStats.stats(throttled, throttleTimeInMillis);
     }
 
     public SearchStats searchStats(String... groups) {
@@ -2387,11 +2387,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Should be called for each no-op update operation to increment relevant statistics.
-     *
-     * @param type the doc type of the update
      */
-    public void noopUpdate(String type) {
-        internalIndexingStats.noopUpdate(type);
+    public void noopUpdate() {
+        internalIndexingStats.noopUpdate();
     }
 
     public void maybeCheckIndex() {

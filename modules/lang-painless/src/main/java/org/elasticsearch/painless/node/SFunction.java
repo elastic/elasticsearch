@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -28,7 +29,6 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Opcodes;
 
 import java.lang.invoke.MethodType;
@@ -146,31 +146,31 @@ public final class SFunction extends AStatement {
     }
 
     /** Writes the function to given ClassVisitor. */
-    void write(ClassVisitor writer, CompilerSettings settings, Globals globals) {
+    void write(ClassWriter classWriter, Globals globals) {
         int access = Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC;
         if (synthetic) {
             access |= Opcodes.ACC_SYNTHETIC;
         }
-        final MethodWriter function = new MethodWriter(access, method, writer, globals.getStatements(), settings);
-        function.visitCode();
-        write(function, globals);
-        function.endMethod();
+        final MethodWriter methodWriter = classWriter.newMethodWriter(access, method);
+        methodWriter.visitCode();
+        write(classWriter, methodWriter, globals);
+        methodWriter.endMethod();
     }
 
     @Override
-    void write(MethodWriter function, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         if (settings.getMaxLoopCounter() > 0) {
             // if there is infinite loop protection, we do this once:
             // int #loop = settings.getMaxLoopCounter()
-            function.push(settings.getMaxLoopCounter());
-            function.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
+            methodWriter.push(settings.getMaxLoopCounter());
+            methodWriter.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
         }
 
-        block.write(function, globals);
+        block.write(classWriter, methodWriter, globals);
 
         if (!methodEscape) {
             if (returnType == void.class) {
-                function.returnValue();
+                methodWriter.returnValue();
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
@@ -29,6 +30,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.FunctionTable;
 import org.objectweb.asm.Opcodes;
 
 import java.util.ArrayList;
@@ -109,7 +111,7 @@ public final class ELambda extends AExpression implements ILambda {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(FunctionTable functions, Locals locals) {
         Class<?> returnType;
         List<String> actualParamTypeStrs;
         PainlessMethod interfaceMethod;
@@ -179,8 +181,9 @@ public final class ELambda extends AExpression implements ILambda {
                 new SBlock(location, statements), true);
         desugared.storeSettings(settings);
         desugared.generateSignature(locals.getPainlessLookup());
-        desugared.analyze(Locals.newLambdaScope(locals.getProgramScope(), desugared.name, returnType,
+        desugared.analyze(functions, Locals.newLambdaScope(locals.getProgramScope(), desugared.name, returnType,
                                                 desugared.parameters, captures.size(), settings.getMaxLoopCounter()));
+        functions.addFunction(desugared.name, desugared.returnType, desugared.typeParameters, true);
 
         // setup method reference to synthetic method
         if (expected == null) {
@@ -190,29 +193,29 @@ public final class ELambda extends AExpression implements ILambda {
         } else {
             defPointer = null;
             ref = FunctionRef.create(
-                    locals.getPainlessLookup(), locals.getMethods(), location, expected, "this", desugared.name, captures.size());
+                    locals.getPainlessLookup(), functions, location, expected, "this", desugared.name, captures.size());
             actual = expected;
         }
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
 
         if (ref != null) {
-            writer.writeDebugInfo(location);
+            methodWriter.writeDebugInfo(location);
             // load captures
             for (Variable capture : captures) {
-                writer.visitVarInsn(MethodWriter.getType(capture.clazz).getOpcode(Opcodes.ILOAD), capture.getSlot());
+                methodWriter.visitVarInsn(MethodWriter.getType(capture.clazz).getOpcode(Opcodes.ILOAD), capture.getSlot());
             }
 
-            writer.invokeLambdaCall(ref);
+            methodWriter.invokeLambdaCall(ref);
         } else {
             // placeholder
-            writer.push((String)null);
+            methodWriter.push((String)null);
             // load captures
             for (Variable capture : captures) {
-                writer.visitVarInsn(MethodWriter.getType(capture.clazz).getOpcode(Opcodes.ILOAD), capture.getSlot());
+                methodWriter.visitVarInsn(MethodWriter.getType(capture.clazz).getOpcode(Opcodes.ILOAD), capture.getSlot());
             }
         }
 

@@ -650,10 +650,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                  final Map<String, Object> userMetadata,
                                  final ActionListener<SnapshotInfo> listener) {
 
-        final StepListener<Void> afterMetaWrites = new StepListener<>();
+        // Once we're done writing all metadata, we update the index-N blob to finalize the snapshot
+        final ActionListener<SnapshotInfo> afterMetaWrites = ActionListener.wrap(snapshotInfo -> {
+            writeIndexGen(getRepositoryData().addSnapshot(snapshotId, snapshotInfo.state(), indices), repositoryStateId);
+            listener.onResponse(snapshotInfo);
+        }, ex -> listener.onFailure(new SnapshotException(metadata.name(), snapshotId, "failed to update snapshot in repository", ex)));
+
         // We upload one meta blob for each index, one for the cluster-state and one snap-${uuid}.dat blob
-        final GroupedActionListener<Void> allMetaListener =
-            new GroupedActionListener<>(ActionListener.map(afterMetaWrites, v -> null), 2 + indices.size());
+        final GroupedActionListener<SnapshotInfo> allMetaListener =
+            new GroupedActionListener<>(ActionListener.map(afterMetaWrites, snapshotInfos -> {
+                assert snapshotInfos.size() == 1 : "Should have only received a single SnapshotInfo but received " + snapshotInfos;
+                return snapshotInfos.iterator().next();
+            }), 2 + indices.size());
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
 
         // We ignore all FileAlreadyExistsException when writing metadata since otherwise a master failover while in this method will
@@ -676,24 +684,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }));
         }
 
-        // We add the whenComplete action to the metadata written listener on the SNAPSHOT pool to ensure we always execute the last
-        // step on the SNAPSHOT pool
-        executor.execute(ActionRunnable.wrap(listener, finalListener -> {
+        executor.execute(ActionRunnable.wrap(afterMetaWrites, afterMetaListener -> {
             final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshotId,
                 indices.stream().map(IndexId::getName).collect(Collectors.toList()),
                 startTime, failure, threadPool.absoluteTimeInMillis(), totalShards, shardFailures,
                 includeGlobalState, userMetadata);
-
-            executor.execute(ActionRunnable.wrap(allMetaListener, l -> {
-                snapshotFormat.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), false);
-                l.onResponse(null);
-            }));
-
-            afterMetaWrites.whenComplete(v -> {
-                writeIndexGen(getRepositoryData().addSnapshot(snapshotId, snapshotInfo.state(), indices), repositoryStateId);
-                finalListener.onResponse(snapshotInfo);
-            }, ex -> finalListener.onFailure(
-                new SnapshotException(metadata.name(), snapshotId, "failed to update snapshot in repository", ex)));
+            snapshotFormat.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), false);
+            afterMetaListener.onResponse(snapshotInfo);
         }));
     }
 

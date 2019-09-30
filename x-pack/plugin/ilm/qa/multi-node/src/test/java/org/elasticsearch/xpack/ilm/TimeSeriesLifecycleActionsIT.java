@@ -16,6 +16,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -736,6 +737,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(LifecycleSettings.LIFECYCLE_ROLLOVER_SKIP_ROLLED, false)
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
 
         // Index a document

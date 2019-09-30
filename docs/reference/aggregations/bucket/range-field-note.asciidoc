@@ -4,7 +4,7 @@
 ==== Documents are counted for each bucket they land in
 
 Since a range represents multiple values, running a bucket aggregation over a
-range field can result in the same document landing in multiple buckets.  This
+range field can result in the same document landing in multiple buckets. This
 can lead to surprising behavior, such as the sum of bucket counts being higher
 than the number of matched documents.  For example, consider the following
 index: 
@@ -60,9 +60,8 @@ POST /range_index/_search?size=0
 }
 --------------------------------------------------
 
-Since the interval is 5 (and the offset is 0 by default), we expect buckets 10,
-15, and 20. Our range document will fall in all three of these buckets,
-something like this:
+Since the interval is `5` (and the offset is `0` by default), we expect buckets `10`,
+`15`, and `20`. Our range document will fall in all three of these buckets.
 
 [source, console-result]
 --------------------------------------------------
@@ -90,15 +89,15 @@ something like this:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
-At present, there is no way for a document to exist partially in a bucket - we
+A document cannot exist partially in a bucket; For example, the above document
 cannot count "one-third" in each of the above three buckets. In this example,
 since the document's range landed in multiple buckets, the full value of that
 document would also be counted in any sub-aggregations for each bucket as well.
 
 ==== Query bounds are not aggregation filters
 
-A second unexpected behavior can arise when a query is used to filter on the
-field being aggregated.  In this case, a document could match the query, but
+Another unexpected behavior can arise when a query is used to filter on the
+field being aggregated. In this case, a document could match the query but
 still have one or both of the endpoints of the range outside the query.
 Consider the following aggregation on the above document:
 
@@ -126,8 +125,8 @@ POST /range_index/_search?size=0
 --------------------------------------------------
 
 Even though the query only considers days in November, the aggregation
-generates 8 buckets (4 in October, 4 in November), because the aggregation is
-calculated over the ranges of all matching documents:
+generates 8 buckets (4 in October, 4 in November) because the aggregation is
+calculated over the ranges of all matching documents.
 
 [source, console-result]
 --------------------------------------------------

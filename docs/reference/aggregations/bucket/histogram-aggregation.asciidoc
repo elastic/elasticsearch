@@ -2,7 +2,7 @@
 === Histogram Aggregation
 
 A multi-bucket values source based aggregation that can be applied on numeric values or numeric range values extracted
-from the documents.  It dynamically builds fixed size (a.k.a. interval) buckets over the values. For example, if the
+from the documents. It dynamically builds fixed size (a.k.a. interval) buckets over the values. For example, if the
 documents have a field that holds a price (numeric), we can configure this aggregation to dynamically build buckets with
 interval `5` (in case of price it may represent $5). When the aggregation executes, the price field of every document
 will be evaluated and will be rounded down to its closest bucket - for example, if the price is `32` and the bucket size
@@ -15,7 +15,7 @@ To make this more formal, here is the rounding function that is used:
 bucket_key = Math.floor((value - offset) / interval) * interval + offset
 --------------------------------------------------
 
-For range values, a document can fall into multiple buckets.  The first bucket is computed from the lower
+For range values, a document can fall into multiple buckets. The first bucket is computed from the lower
 bound of the range in the same way as a bucket for a single value is computed.  The final bucket is computed in the same
 way from the upper bound of the range, and the range is counted in all buckets in between and including those two.
 

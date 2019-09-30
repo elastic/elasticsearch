@@ -37,6 +37,7 @@ import org.elasticsearch.client.ilm.StopILMRequest;
 import org.elasticsearch.client.slm.DeleteSnapshotLifecyclePolicyRequest;
 import org.elasticsearch.client.slm.ExecuteSnapshotLifecyclePolicyRequest;
 import org.elasticsearch.client.slm.ExecuteSnapshotLifecyclePolicyResponse;
+import org.elasticsearch.client.slm.ExecuteSnapshotLifecycleRetentionRequest;
 import org.elasticsearch.client.slm.GetSnapshotLifecyclePolicyRequest;
 import org.elasticsearch.client.slm.GetSnapshotLifecyclePolicyResponse;
 import org.elasticsearch.client.slm.GetSnapshotLifecycleStatsRequest;
@@ -465,6 +466,44 @@ public class IndexLifecycleClient {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request, IndexLifecycleRequestConverters::executeSnapshotLifecyclePolicy,
             options, ExecuteSnapshotLifecyclePolicyResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Execute snapshot lifecycle retention
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-execute-snapshot-lifecycle-retention.html
+     * </pre>
+     * for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public AcknowledgedResponse executeSnapshotLifecycleRetention(ExecuteSnapshotLifecycleRetentionRequest request,
+                                                                  RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::executeSnapshotLifecycleRetention,
+            options, AcknowledgedResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously execute snapshot lifecycle retention
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-execute-snapshot-lifecycle-retention.html
+     * </pre>
+     * for more.
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable executeSnapshotLifecycleRetentionAsync(
+        ExecuteSnapshotLifecycleRetentionRequest request, RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request, IndexLifecycleRequestConverters::executeSnapshotLifecycleRetention,
+            options, AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
     /**

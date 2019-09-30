@@ -34,6 +34,7 @@ import org.elasticsearch.client.ilm.StartILMRequest;
 import org.elasticsearch.client.ilm.StopILMRequest;
 import org.elasticsearch.client.slm.DeleteSnapshotLifecyclePolicyRequest;
 import org.elasticsearch.client.slm.ExecuteSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.slm.ExecuteSnapshotLifecycleRetentionRequest;
 import org.elasticsearch.client.slm.GetSnapshotLifecyclePolicyRequest;
 import org.elasticsearch.client.slm.GetSnapshotLifecycleStatsRequest;
 import org.elasticsearch.client.slm.PutSnapshotLifecyclePolicyRequest;
@@ -213,6 +214,18 @@ final class IndexLifecycleRequestConverters {
         RequestConverters.Params params = new RequestConverters.Params();
         params.withMasterTimeout(executeSnapshotLifecyclePolicyRequest.masterNodeTimeout());
         params.withTimeout(executeSnapshotLifecyclePolicyRequest.timeout());
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request executeSnapshotLifecycleRetention(ExecuteSnapshotLifecycleRetentionRequest executeSnapshotLifecycleRetentionRequest) {
+        Request request = new Request(HttpPost.METHOD_NAME,
+            new RequestConverters.EndpointBuilder()
+                .addPathPartAsIs("_slm/_execute_retention")
+                .build());
+        RequestConverters.Params params = new RequestConverters.Params();
+        params.withMasterTimeout(executeSnapshotLifecycleRetentionRequest.masterNodeTimeout());
+        params.withTimeout(executeSnapshotLifecycleRetentionRequest.timeout());
         request.addParameters(params.asMap());
         return request;
     }

@@ -1,5 +1,5 @@
 [[ml-info-functions]]
-=== Information Content Functions
+==== Information Content Functions
 
 The information content functions detect anomalies in the amount of information
 that is contained in strings within a bucket. These functions can be used as

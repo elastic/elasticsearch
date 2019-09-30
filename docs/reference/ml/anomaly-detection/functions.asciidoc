@@ -1,6 +1,6 @@
 [role="xpack"]
 [[ml-functions]]
-== Function reference
+=== Function reference
 
 The {ml-features} include analysis functions that provide a wide variety of
 flexible ways to analyze data for anomalies.

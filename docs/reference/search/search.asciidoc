@@ -303,7 +303,7 @@ Returned parameters include:
 * `relation`: Indicates whether the number of documents returned.
 Returned values are:
 ** `eq`: Accurate
-** `gte`: Lower bound
+** `gte`: Lower bound, including returned documents
 
 `max_score`::
 (Float)

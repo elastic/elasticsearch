@@ -300,7 +300,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         }
 
         private Builder setDefinition(List<TrainedModel> definition) {
-            if ((definition.size() == 1) == false) {
+            if (definition.size() != 1) {
                 throw ExceptionsHelper.badRequestException("[{}] must have exactly one trained model defined.",
                     DEFINITION.getPreferredName());
             }

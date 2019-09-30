@@ -19,8 +19,8 @@
 package org.elasticsearch.client.ml.inference;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.client.common.TimeUtil;
 import org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel;
-import org.elasticsearch.client.ml.job.util.TimeUtil;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -49,7 +49,6 @@ public class TrainedModelConfig implements ToXContentObject {
     public static final ParseField MODEL_TYPE = new ParseField("model_type");
     public static final ParseField METADATA = new ParseField("metadata");
 
-    // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME,
             true,
             TrainedModelConfig.Builder::new);
@@ -67,7 +66,7 @@ public class TrainedModelConfig implements ToXContentObject {
         PARSER.declareObject(TrainedModelConfig.Builder::setMetadata, (p, c) -> p.map(), METADATA);
         PARSER.declareNamedObjects(TrainedModelConfig.Builder::setDefinition,
             (p, c, n) -> p.namedObject(TrainedModel.class, n, null),
-            (modelDocBuilder) -> { /* Noop does not matter as we will throw if more than one is defined */ },
+            (modelDocBuilder) -> { /* Noop does not matter client side */ },
             DEFINITION);
     }
 

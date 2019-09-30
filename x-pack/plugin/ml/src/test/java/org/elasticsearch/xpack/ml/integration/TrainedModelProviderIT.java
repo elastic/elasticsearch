@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class TrainedModelProviderIT extends MlSingleNodeTestCase {
 
-    TrainedModelProvider trainedModelProvider;
+    private TrainedModelProvider trainedModelProvider;
 
     @Before
     public void createComponents() throws Exception {

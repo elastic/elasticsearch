@@ -83,7 +83,6 @@ public final class Messages {
     public static final String INFERENCE_FAILED_TO_STORE_MODEL = "Failed to store trained machine learning model [{0}]";
     public static final String INFERENCE_FAILED_TO_SERIALIZE_MODEL =
         "Failed to serialize the trained model [{0}] with version [{1}] for storage";
-    public static final String INFERENCE_FAILED_TO_PARSE_MODEL = "Failed to parse the trained model [{0}] with version [{1}]";
     public static final String INFERENCE_NOT_FOUND = "Could not find trained model [{0}] with version [{1}]";
 
     public static final String JOB_AUDIT_DATAFEED_DATA_SEEN_AGAIN = "Datafeed has started retrieving data again";

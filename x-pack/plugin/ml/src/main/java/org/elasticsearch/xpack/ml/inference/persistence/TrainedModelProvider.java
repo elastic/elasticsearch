@@ -68,10 +68,11 @@ public class TrainedModelProvider {
                     r -> listener.onResponse(true),
                     e -> {
                         logger.error(
-                            new ParameterizedMessage("[{}] failed to store trained model for inference", trainedModelConfig.getModelId()),
+                            new ParameterizedMessage("[{}][{}] failed to store trained model for inference",
+                                trainedModelConfig.getModelId(),
+                                trainedModelConfig.getModelVersion()),
                             e);
                         if (e instanceof VersionConflictEngineException) {
-                            // the transform already exists
                             listener.onFailure(new ResourceAlreadyExistsException(
                                 Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS,
                                     trainedModelConfig.getModelId(), trainedModelConfig.getModelVersion())));
@@ -126,7 +127,7 @@ public class TrainedModelProvider {
                  .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
             modelListener.onResponse(TrainedModelConfig.fromXContent(parser, true).build());
         } catch (Exception e) {
-            logger.error(Messages.getMessage(Messages.INFERENCE_FAILED_TO_PARSE_MODEL, modelId, modelVersion), e);
+            logger.error(new ParameterizedMessage("[{}][{}] failed to parse model", modelId, modelVersion), e);
             modelListener.onFailure(e);
         }
     }

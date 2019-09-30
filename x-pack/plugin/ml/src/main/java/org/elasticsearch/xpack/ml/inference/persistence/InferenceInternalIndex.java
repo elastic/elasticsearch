@@ -18,7 +18,7 @@ import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
-import static org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants.LATEST_INDEX_VERSIONED_NAME;
+import static org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants.LATEST_INDEX_NAME;
 import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.DATE;
 import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.DYNAMIC;
 import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.ENABLED;
@@ -28,7 +28,6 @@ import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappi
 import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.TEXT;
 import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.TYPE;
 import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.addMetaInformation;
-
 
 
 /**
@@ -47,8 +46,8 @@ public final class InferenceInternalIndex {
     }
 
     public static IndexTemplateMetaData getIndexTemplateMetaData() throws IOException {
-        IndexTemplateMetaData inferenceTemplate = IndexTemplateMetaData.builder(LATEST_INDEX_VERSIONED_NAME)
-            .patterns(Collections.singletonList(LATEST_INDEX_VERSIONED_NAME))
+        IndexTemplateMetaData inferenceTemplate = IndexTemplateMetaData.builder(LATEST_INDEX_NAME)
+            .patterns(Collections.singletonList(LATEST_INDEX_NAME))
             .version(Version.CURRENT.id)
             .settings(Settings.builder()
                 // the configurations are expected to be small

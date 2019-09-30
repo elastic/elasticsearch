@@ -13,8 +13,7 @@ public final class InferenceIndexConstants {
     public static final String INDEX_VERSION = "000001";
     public static final String INDEX_NAME_PREFIX = ".ml-inference-";
     public static final String INDEX_PATTERN = INDEX_NAME_PREFIX + "*";
-    public static final String LATEST_INDEX_VERSIONED_NAME = INDEX_NAME_PREFIX + INDEX_VERSION;
-    public static final String LATEST_INDEX_NAME = LATEST_INDEX_VERSIONED_NAME;
+    public static final String LATEST_INDEX_NAME = INDEX_NAME_PREFIX + INDEX_VERSION;
 
     private InferenceIndexConstants() {}
 

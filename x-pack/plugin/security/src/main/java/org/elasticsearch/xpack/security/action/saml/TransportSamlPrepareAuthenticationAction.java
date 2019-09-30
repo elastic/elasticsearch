@@ -49,14 +49,14 @@ public final class TransportSamlPrepareAuthenticationAction
         } else if (realms.size() > 1) {
             listener.onFailure(SamlUtils.samlException("Found multiple matching realms [{}] for [{}]", realms, request));
         } else {
-            prepareAuthentication(realms.get(0), listener);
+            prepareAuthentication(realms.get(0), request.getRelayState(), listener);
         }
     }
 
-    private void prepareAuthentication(SamlRealm realm, ActionListener<SamlPrepareAuthenticationResponse> listener) {
+    private void prepareAuthentication(SamlRealm realm, String relayState, ActionListener<SamlPrepareAuthenticationResponse> listener) {
         final AuthnRequest authnRequest = realm.buildAuthenticationRequest();
         try {
-            String redirectUrl = new SamlRedirect(authnRequest, realm.getSigningConfiguration()).getRedirectUrl();
+            String redirectUrl = new SamlRedirect(authnRequest, realm.getSigningConfiguration()).getRedirectUrl(relayState);
             listener.onResponse(new SamlPrepareAuthenticationResponse(
                     realm.name(),
                     authnRequest.getID(),

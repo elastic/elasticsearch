@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.Exe
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -30,11 +29,11 @@ public class EnrichStatsResponseTests extends AbstractWireSerializingTestCase<En
             executingPolicies.add(new ExecutingPolicy(randomAlphaOfLength(4), taskInfo));
         }
         int numCoordinatingStats = randomIntBetween(0, 16);
-        Map<String, CoordinatorStats> coordinatorStats = new HashMap<>(numCoordinatingStats);
+        List<CoordinatorStats> coordinatorStats = new ArrayList<>(numCoordinatingStats);
         for (int i = 0; i < numCoordinatingStats; i++) {
-            CoordinatorStats stats = new CoordinatorStats(randomIntBetween(0, 8096), randomIntBetween(0, 8096),
-                randomNonNegativeLong(), randomNonNegativeLong());
-            coordinatorStats.put(randomAlphaOfLength(4), stats);
+            CoordinatorStats stats = new CoordinatorStats(randomAlphaOfLength(4), randomIntBetween(0, 8096),
+                randomIntBetween(0, 8096), randomNonNegativeLong(), randomNonNegativeLong());
+            coordinatorStats.add(stats);
         }
         return new EnrichStatsAction.Response(executingPolicies, coordinatorStats);
     }
@@ -44,7 +43,7 @@ public class EnrichStatsResponseTests extends AbstractWireSerializingTestCase<En
         return EnrichStatsAction.Response::new;
     }
 
-    private static TaskInfo randomTaskInfo() {
+    public static TaskInfo randomTaskInfo() {
         TaskId taskId = new TaskId(randomAlphaOfLength(5), randomLong());
         String type = randomAlphaOfLength(5);
         String action = randomAlphaOfLength(5);

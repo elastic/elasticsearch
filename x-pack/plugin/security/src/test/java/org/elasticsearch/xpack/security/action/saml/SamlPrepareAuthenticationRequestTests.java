@@ -18,6 +18,7 @@ public class SamlPrepareAuthenticationRequestTests extends SamlTestCase {
         final SamlPrepareAuthenticationRequest req = new SamlPrepareAuthenticationRequest();
         req.setRealmName("saml1");
         req.setAssertionConsumerServiceURL("https://sp.example.com/sso/saml2/post");
+        req.setRelayState("the_relay_state");
         serialiseAndValidate(req);
     }
 
@@ -25,6 +26,7 @@ public class SamlPrepareAuthenticationRequestTests extends SamlTestCase {
         final SamlPrepareAuthenticationRequest req = new SamlPrepareAuthenticationRequest();
         req.setRealmName(null);
         req.setAssertionConsumerServiceURL(null);
+        req.setRelayState(null);
         serialiseAndValidate(req);
     }
 
@@ -36,6 +38,7 @@ public class SamlPrepareAuthenticationRequestTests extends SamlTestCase {
 
         assertThat(req2.getRealmName(), Matchers.equalTo(req1.getRealmName()));
         assertThat(req2.getAssertionConsumerServiceURL(), Matchers.equalTo(req1.getAssertionConsumerServiceURL()));
+        assertThat(req2.getRelayState(), Matchers.equalTo(req1.getRelayState()));
         assertThat(req2.getParentTask(), Matchers.equalTo(req1.getParentTask()));
     }
 

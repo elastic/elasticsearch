@@ -982,64 +982,64 @@ public class SearchQueryIT extends ESIntegTestCase {
                 client().prepareIndex("test", "type", "4").setSource("term", "4") );
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(termsLookupQuery("term" , new TermsLookup("lookup", "type", "1", "terms"))).get();
+                .setQuery(termsLookupQuery("term" , new TermsLookup("lookup", "1", "terms"))).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");
 
         // same as above, just on the _id...
         searchResponse = client().prepareSearch("test")
-                .setQuery(termsLookupQuery("_id", new TermsLookup("lookup", "type", "1", "terms"))
+                .setQuery(termsLookupQuery("_id", new TermsLookup("lookup", "1", "terms"))
                 ).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");
 
         // another search with same parameters...
         searchResponse = client().prepareSearch("test")
-                .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "1", "terms"))).get();
+                .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "1", "terms"))).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "2", "terms"))).get();
+                .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "2", "terms"))).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("2"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "3", "terms"))).get();
+                .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "3", "terms"))).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "2", "4");
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "type", "4", "terms"))).get();
+                .setQuery(termsLookupQuery("term", new TermsLookup("lookup", "4", "terms"))).get();
         assertHitCount(searchResponse, 0L);
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "type", "1", "arr.term"))).get();
+                .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "1", "arr.term"))).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "type", "2", "arr.term"))).get();
+                .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "2", "arr.term"))).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("2"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "type", "3", "arr.term"))).get();
+                .setQuery(termsLookupQuery("term", new TermsLookup("lookup2", "3", "arr.term"))).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "2", "4");
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(termsLookupQuery("not_exists", new TermsLookup("lookup2", "type", "3", "arr.term"))).get();
+                .setQuery(termsLookupQuery("not_exists", new TermsLookup("lookup2", "3", "arr.term"))).get();
         assertHitCount(searchResponse, 0L);
 
-        // index "lookup" type "type" id "missing" document does not exist: ignore the lookup terms
+        // index "lookup" id "missing" document does not exist: ignore the lookup terms
         searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term" , new TermsLookup("lookup", "type", "missing", "terms"))).get();
+            .setQuery(termsLookupQuery("term" , new TermsLookup("lookup", "missing", "terms"))).get();
         assertHitCount(searchResponse, 0L);
 
-        // index "lookup3" type "type" has the source disabled: ignore the lookup terms
+        // index "lookup3" has the source disabled: ignore the lookup terms
         searchResponse = client().prepareSearch("test")
-            .setQuery(termsLookupQuery("term" , new TermsLookup("lookup3", "type", "1", "terms"))).get();
+            .setQuery(termsLookupQuery("term" , new TermsLookup("lookup3", "1", "terms"))).get();
         assertHitCount(searchResponse, 0L);
     }
 

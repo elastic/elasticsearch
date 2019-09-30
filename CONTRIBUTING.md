@@ -155,19 +155,68 @@ For Eclipse, go to `Preferences->Java->Installed JREs` and add `-ea` to
 
 ### Java Language Formatting Guidelines
 
+Java files in the Elasticsearch codebase are formatted with the Eclipse JDT
+formatter, using the [Spotless
+Gradle](https://github.com/diffplug/spotless/tree/master/plugin-gradle)
+plugin. This plugin is configured on a project-by-project basis, via
+`build.gradle` in the root of the repository. So long as at least one
+project is configured, the formatting check can be run explicitly with:
+
+    ./gradlew spotlessJavaCheck
+
+The code can be formatted with:
+
+    ./gradlew spotlessApply
+
+These tasks can also be run for specific subprojects, e.g.
+
+    ./gradlew server:spotlessJavaCheck
+
 Please follow these formatting guidelines:
 
 * Java indent is 4 spaces
 * Line width is 140 characters
-* Lines of code surrounded by `// tag` and `// end` comments are included in the
-documentation and should only be 76 characters wide not counting
-leading indentation
-* The rest is left to Java coding standards
-* Disable “auto-format on save” to prevent unnecessary format changes. This makes reviews much harder as it generates unnecessary formatting changes. If your IDE supports formatting only modified chunks that is fine to do.
-* Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause the build to fail. This can be done automatically by your IDE:
- * Eclipse: `Preferences->Java->Code Style->Organize Imports`. There are two boxes labeled "`Number of (static )? imports needed for .*`". Set their values to 99999 or some other absurdly high value.
- * IntelliJ: `Preferences/Settings->Editor->Code Style->Java->Imports`. There are two configuration options: `Class count to use import with '*'` and `Names count to use static import with '*'`. Set their values to 99999 or some other absurdly high value.
-* Don't worry too much about import order. Try not to change it but don't worry about fighting your IDE to stop it from doing so.
+* Lines of code surrounded by `// tag` and `// end` comments are included
+  in the documentation and should only be 76 characters wide not counting
+  leading indentation
+* Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause
+  the build to fail. This can be done automatically by your IDE:
+   * Eclipse: `Preferences->Java->Code Style->Organize Imports`. There are
+     two boxes labeled "`Number of (static )? imports needed for .*`". Set
+     their values to 99999 or some other absurdly high value.
+   * IntelliJ: `Preferences/Settings->Editor->Code Style->Java->Imports`.
+     There are two configuration options: `Class count to use import with
+     '*'` and `Names count to use static import with '*'`. Set their values
+     to 99999 or some other absurdly high value.
+
+#### Editor / IDE Support
+
+Eclipse IDEs can import the file [elasticsearch.eclipseformat.xml]
+directly.
+
+IntelliJ IDEs can
+[import](https://blog.jetbrains.com/idea/2014/01/intellij-idea-13-importing-code-formatter-settings-from-eclipse/)
+the same settings file, and / or use the [Eclipse Code
+Formatter](https://plugins.jetbrains.com/plugin/6546-eclipse-code-formatter)
+plugin.
+
+You can also tell Spotless to [format a specific
+file](https://github.com/diffplug/spotless/tree/master/plugin-gradle#can-i-apply-spotless-to-specific-files)
+from the command line.
+
+#### Formatting failures
+
+Sometimes Spotless will report a "misbehaving rule which can't make up its
+mind" and will recommend enabling the `paddedCell()` setting. If you
+enabled this settings and run the format check again,
+Spotless will write files to
+`$PROJECT/build/spotless-diagnose-java/` to aid diagnosis. It writes
+different copies of the formatted files, so that you can see how they
+differ and infer what is the problem.
+
+The `paddedCell() option is disabled for normal operation in order to
+detect any misbehaviour. You can enabled the option from the command line
+by running Gradle with `-Dspotless.paddedcell`.
 
 ### License Headers
 

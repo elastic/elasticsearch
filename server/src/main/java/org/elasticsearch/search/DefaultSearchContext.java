@@ -260,7 +260,7 @@ final class DefaultSearchContext extends SearchContext {
             try {
                 this.query = searcher.rewrite(query);
             } catch (IOException e) {
-                throw new QueryPhaseExecutionException(this, "Failed to rewrite main query", e);
+                throw new QueryPhaseExecutionException(shardTarget, "Failed to rewrite main query", e);
             }
         }
     }

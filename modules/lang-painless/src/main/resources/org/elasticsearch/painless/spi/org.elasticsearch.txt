@@ -231,6 +231,6 @@ class org.elasticsearch.index.query.IntervalFilterScript$Interval {
   int getGaps()
 }
 
-class org.elasticsearch.script.ScoreScript.ExplanationHolder {
+class org.elasticsearch.script.ScoreScript$ExplanationHolder {
   void set(String,boolean)
 }

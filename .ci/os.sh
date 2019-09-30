@@ -26,13 +26,16 @@ if ! [ -e "/usr/bin/bats" ] ; then
   sudo /tmp/bats/install.sh /usr
 fi
 
-cat /etc/os-release || true
-. /etc/os-release
 
-
-if [[ "$ID" == "debian" || "$ID_LIKE" == "debian" ]] ; then 
-    # FIXME: The base image should not have rpm installed
-    sudo rm -Rf /usr/bin/rpm
+if [ -f "/etc/os-release" ] ; then 
+    cat /etc/os-release
+    . /etc/os-release
+    if [[ "$ID" == "debian" || "$ID_LIKE" == "debian" ]] ; then 
+        # FIXME: The base image should not have rpm installed
+        sudo rm -Rf /usr/bin/rpm
+    fi
+else
+    cat /etc/issue || true
 fi
 
 sudo bash -c 'cat > /etc/sudoers.d/elasticsearch_vars'  << SUDOERS_VARS

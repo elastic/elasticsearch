@@ -3538,7 +3538,8 @@ public class InternalEngineTests extends EngineTestCase {
     public void testDoubleDeliveryReplicaAppendingOnly() throws IOException {
         final Supplier<ParsedDocument> doc = () -> testParsedDocument("1", null, testDocumentWithTextField(),
             new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
-        Engine.Index operation = appendOnlyReplica(doc.get(), randomBoolean(), 1, randomIntBetween(0, 5));
+        boolean replicaOperationIsRetry = randomBoolean();
+        Engine.Index operation = appendOnlyReplica(doc.get(), replicaOperationIsRetry, 1, randomIntBetween(0, 5));
 
         Engine.IndexResult result = engine.index(operation);
         assertLuceneOperations(engine, 1, 0, 0);
@@ -3553,12 +3554,37 @@ public class InternalEngineTests extends EngineTestCase {
         }
 
         final boolean create = randomBoolean();
+        operation = appendOnlyPrimary(doc.get(), false, 1, create);
         Engine.Index retry = appendOnlyPrimary(doc.get(), true, 1, create);
-        Engine.IndexResult retryResult = engine.index(retry);
-        if (create) {
-            assertNull(retryResult.getTranslogLocation());
+        if (randomBoolean()) {
+            // if the replica operation wasn't a retry, the operation arriving on the newly promoted primary must be a retry
+            if (replicaOperationIsRetry) {
+                Engine.IndexResult indexResult = engine.index(operation);
+                if (create) {
+                    assertNull(indexResult.getTranslogLocation());
+                } else {
+                    assertNotNull(indexResult.getTranslogLocation());
+                }
+            }
+            Engine.IndexResult retryResult = engine.index(retry);
+            if (create) {
+                assertNull(retryResult.getTranslogLocation());
+            } else {
+                assertNotNull(retryResult.getTranslogLocation());
+            }
         } else {
-            assertNotNull(retryResult.getTranslogLocation());
+            Engine.IndexResult retryResult = engine.index(retry);
+            if (create) {
+                assertNull(retryResult.getTranslogLocation());
+            } else {
+                assertNotNull(retryResult.getTranslogLocation());
+            }
+            Engine.IndexResult indexResult = engine.index(operation);
+            if (create) {
+                assertNull(indexResult.getTranslogLocation());
+            } else {
+                assertNotNull(indexResult.getTranslogLocation());
+            }
         }
 
         engine.refresh("test");

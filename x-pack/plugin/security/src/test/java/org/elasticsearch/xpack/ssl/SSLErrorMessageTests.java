@@ -225,9 +225,9 @@ public class SSLErrorMessageTests extends ESTestCase {
         assertThat(exception, instanceOf(ElasticsearchSecurityException.class));
 
         exception = exception.getCause();
-        assertThat(exception, throwableWithMessage(
-            "failed to initialize SSL " + sslManagerType + " - access to read " + fileType + " file [" + fileName +
-                "] is blocked; SSL resources should be placed in the [" + env.configFile().normalize() + "] directory"));
+        assertThat(exception.getMessage(),
+            containsString("failed to initialize SSL " + sslManagerType + " - access to read " + fileType + " file"));
+        assertThat(exception.getMessage(),containsString("file.error"));
         assertThat(exception, instanceOf(ElasticsearchException.class));
 
         exception = exception.getCause();

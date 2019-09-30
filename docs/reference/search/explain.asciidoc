@@ -103,7 +103,6 @@ The API returns the following response:
 --------------------------------------------------
 {
    "_index":"twitter",
-   "_type":"_doc",
    "_id":"0",
    "matched":true,
    "explanation":{

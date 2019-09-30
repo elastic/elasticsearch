@@ -68,13 +68,15 @@ public class QuorumGatewayIT extends ESIntegTestCase {
             @Override
             public void doAfterNodes(int numNodes, final Client activeClient) throws Exception {
                 if (numNodes == 1) {
-                    assertTrue(awaitBusy(() -> {
+                    assertBusy(() -> {
                         logger.info("--> running cluster_health (wait for the shards to startup)");
                         ClusterHealthResponse clusterHealth = activeClient.admin().cluster().health(clusterHealthRequest()
                             .waitForYellowStatus().waitForNodes("2").waitForActiveShards(test.numPrimaries * 2)).actionGet();
                         logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
-                        return (!clusterHealth.isTimedOut()) && clusterHealth.getStatus() == ClusterHealthStatus.YELLOW;
-                    }, 30, TimeUnit.SECONDS));
+                        assertFalse(clusterHealth.isTimedOut());
+                        assertEquals(ClusterHealthStatus.YELLOW, clusterHealth.getStatus());
+                    }, 30, TimeUnit.SECONDS);
+
                     logger.info("--> one node is closed -- index 1 document into the remaining nodes");
                     activeClient.prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().field("field", "value3")
                         .endObject()).get();

@@ -1,6 +1,6 @@
 [role="xpack"]
-[[ml-transform-checkpoints]]
-== How {transform} checkpoints work
+[[transform-checkpoints]]
+=== How {transform} checkpoints work
 ++++
 <titleabbrev>How checkpoints work</titleabbrev>
 ++++

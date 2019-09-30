@@ -109,7 +109,7 @@ public class SizeMappingIT extends ESIntegTestCase {
         final String source = "{\"f\":10}";
         indexRandom(true,
                 client().prepareIndex("test", "type", "1").setSource(source, XContentType.JSON));
-        GetResponse getResponse = client().prepareGet("test", "type", "1").setStoredFields("_size").get();
+        GetResponse getResponse = client().prepareGet("test", "1").setStoredFields("_size").get();
         assertNotNull(getResponse.getField("_size"));
         assertEquals(source.length(), (int) getResponse.getField("_size").getValue());
     }

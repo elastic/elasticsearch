@@ -310,17 +310,13 @@ configure(subprojects.findAll { it.name == 'integ-test-zip' }) {
   group = "org.elasticsearch.distribution.integ-test-zip"
 
   integTest {
-    includePackaged = true
-  }
-
-  integTestCluster {
     dependsOn assemble
-    distribution = project.name
-  }
-  integTestRunner {
-    if (Os.isFamily(Os.FAMILY_WINDOWS) && System.getProperty('tests.timeoutSuite') == null) {
-      // override the suite timeout to 30 mins for windows, because it has the most inefficient filesystem known to man
-      systemProperty 'tests.timeoutSuite', '1800000!'
+    includePackaged = true
+    runner {
+      if (Os.isFamily(Os.FAMILY_WINDOWS) && System.getProperty('tests.timeoutSuite') == null) {
+        // override the suite timeout to 30 mins for windows, because it has the most inefficient filesystem known to man
+        systemProperty 'tests.timeoutSuite', '1800000!'
+      }
     }
   }
 

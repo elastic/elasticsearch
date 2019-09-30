@@ -1,18 +1,16 @@
 [role="xpack"]
 [testenv="basic"]
-[[data-frame-apis]]
+[[transform-apis]]
 == {transform-cap} APIs
 
-See also {stack-ov}/ml-dataframes.html[{transforms-cap}].
-
-* <<put-data-frame-transform>> 
-* <<update-data-frame-transform>>
-* <<delete-data-frame-transform>>
-* <<get-data-frame-transform>>
-* <<get-data-frame-transform-stats>>
-* <<preview-data-frame-transform>>
-* <<start-data-frame-transform>>
-* <<stop-data-frame-transform>>
+* <<put-transform>> 
+* <<update-transform>>
+* <<delete-transform>>
+* <<get-transform>>
+* <<get-transform-stats>>
+* <<preview-transform>>
+* <<start-transform>>
+* <<stop-transform>>
 
 //CREATE
 include::put-transform.asciidoc[]

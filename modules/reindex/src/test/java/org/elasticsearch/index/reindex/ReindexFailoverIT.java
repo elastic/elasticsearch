@@ -150,7 +150,7 @@ public class ReindexFailoverIT extends ReindexTestCase {
             int docId = i;
             assertBusy(() -> {
                 try {
-                    GetResponse getResponse = client().prepareGet("dest", "_doc", Integer.toString(docId)).get();
+                    GetResponse getResponse = client().prepareGet("dest", Integer.toString(docId)).get();
                     assertTrue("Doc with id [" + docId + "] is missing", getResponse.isExists());
                 } catch (Exception e) {
                     throw new AssertionError(e);

@@ -46,8 +46,8 @@ public final class ExplainFetchSubPhase implements FetchSubPhase {
             // we use the top level doc id, since we work with the top level searcher
             hitContext.hit().explanation(explanation);
         } catch (IOException e) {
-            throw new FetchPhaseExecutionException(context, "Failed to explain doc [" + hitContext.hit().getType() + "#"
-                    + hitContext.hit().getId() + "]", e);
+            throw new FetchPhaseExecutionException(context.shardTarget(),
+                "Failed to explain doc [" + hitContext.hit().getId() + "]", e);
         } finally {
             context.clearReleasables(SearchContext.Lifetime.COLLECTION);
         }

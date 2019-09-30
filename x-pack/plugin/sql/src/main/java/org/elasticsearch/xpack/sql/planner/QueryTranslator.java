@@ -679,7 +679,7 @@ final class QueryTranslator {
                     // Since RangeQueryBuilder can handle date as String as well, we'll format it as String and provide the format as well.
                     value = formatter.format((ZonedDateTime) value);
                 } else {
-                    formatter = DateFormatter.forPattern(TIME_FORMAT); 
+                    formatter = DateFormatter.forPattern(TIME_FORMAT);
                     value = formatter.format((OffsetTime) value);
                 }
                 format = formatter.pattern();

@@ -53,7 +53,7 @@ public class SecurityCachePermissionTests extends SecurityIntegTestCase {
 
     public void testThatTermsFilterQueryDoesntLeakData() {
         SearchResponse response = client().prepareSearch("data").setQuery(QueryBuilders.constantScoreQuery(
-                QueryBuilders.termsLookupQuery("token", new TermsLookup("tokens", "tokens", "1", "tokens"))))
+                QueryBuilders.termsLookupQuery("token", new TermsLookup("tokens", "1", "tokens"))))
                 .execute().actionGet();
         assertThat(response.isTimedOut(), is(false));
         assertThat(response.getHits().getHits().length, is(1));
@@ -64,7 +64,7 @@ public class SecurityCachePermissionTests extends SecurityIntegTestCase {
                     SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)))
                     .prepareSearch("data")
                     .setQuery(QueryBuilders.constantScoreQuery(
-                    QueryBuilders.termsLookupQuery("token", new TermsLookup("tokens", "tokens", "1", "tokens"))))
+                    QueryBuilders.termsLookupQuery("token", new TermsLookup("tokens", "1", "tokens"))))
                     .execute().actionGet();
             fail("search phase exception should have been thrown! response was:\n" + response.toString());
         } catch (ElasticsearchSecurityException e) {

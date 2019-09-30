@@ -314,8 +314,8 @@ public class Archives {
         assertThat(pid, not(isEmptyOrNullString()));
 
         final Shell sh = new Shell();
-        Platforms.onLinux(() -> sh.run("kill -SIGTERM " + pid));
-        Platforms.onWindows(() -> sh.run("Get-Process -Id " + pid + " | Stop-Process -Force"));
+        Platforms.onLinux(() -> sh.run("kill -SIGTERM " + pid + "; tail --pid=" + pid + " -f /dev/null"));
+        Platforms.onWindows(() -> sh.run("Get-Process -Id " + pid + " | Stop-Process -Force; Wait-Process -Id " + pid));
     }
 
 }

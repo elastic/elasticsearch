@@ -1841,7 +1841,7 @@ public class DateFormatters {
             zoneId = ZoneOffset.UTC;
         }
 
-        LocalDate localDate = accessor.query(TemporalQueries.localDate());//accessor.query(LOCAL_DATE_QUERY);
+        LocalDate localDate = accessor.query(LOCAL_DATE_QUERY);
         LocalTime localTime = accessor.query(TemporalQueries.localTime());
         boolean isLocalDateSet = localDate != null;
         boolean isLocalTimeSet = localTime != null;
@@ -1859,10 +1859,8 @@ public class DateFormatters {
             if (accessor.isSupported(MONTH_OF_YEAR)) {
                 return getFirstOfMonth(accessor).atStartOfDay(zoneId);
             } else {
-                return Year.of(accessor.get(ChronoField.YEAR)).atDay(1).atStartOfDay(zoneId);
-
-//                int year = getYear(accessor);
-//                return Year.of(year).atDay(1).atStartOfDay(zoneId);
+                int year = getYear(accessor);
+                return Year.of(year).atDay(1).atStartOfDay(zoneId);
             }
         } else if (accessor.isSupported(MONTH_OF_YEAR)) {
             // missing year, falling back to the epoch and then filling
@@ -1943,8 +1941,6 @@ public class DateFormatters {
 
     @SuppressForbidden(reason = "LocalDate.of is fine here")
     private static LocalDate getFirstOfMonth(TemporalAccessor accessor) {
-//        return LocalDate.of(getYear(accessor), accessor.get(MONTH_OF_YEAR), 1);
-        return LocalDate.of(accessor.get(ChronoField.YEAR), accessor.get(MONTH_OF_YEAR), 1);
-
+        return LocalDate.of(getYear(accessor), accessor.get(MONTH_OF_YEAR), 1);
     }
 }

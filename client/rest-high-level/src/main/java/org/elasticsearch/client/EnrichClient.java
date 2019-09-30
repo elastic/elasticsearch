@@ -24,6 +24,8 @@ import org.elasticsearch.client.enrich.DeletePolicyRequest;
 import org.elasticsearch.client.enrich.GetPolicyRequest;
 import org.elasticsearch.client.enrich.GetPolicyResponse;
 import org.elasticsearch.client.enrich.PutPolicyRequest;
+import org.elasticsearch.client.enrich.StatsRequest;
+import org.elasticsearch.client.enrich.StatsResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -173,6 +175,51 @@ public final class EnrichClient {
             EnrichRequestConverters::getPolicy,
             options,
             GetPolicyResponse::fromXContent,
+            listener,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Executes the enrich stats api, which retrieves enrich related stats.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-policy-apis.html#stats-api">
+     * the docs</a> for more.
+     *
+     * @param request the {@link StatsRequest}
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public StatsResponse stats(StatsRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            EnrichRequestConverters::stats,
+            options,
+            StatsResponse::fromXContent,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously executes the enrich stats api, which retrieves enrich related stats.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-policy-apis.html#stats-api">
+     * the docs</a> for more.
+     *
+     * @param request the {@link StatsRequest}
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable statsAsync(StatsRequest request,
+                                  RequestOptions options,
+                                  ActionListener<StatsResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            EnrichRequestConverters::stats,
+            options,
+            StatsResponse::fromXContent,
             listener,
             Collections.emptySet()
         );

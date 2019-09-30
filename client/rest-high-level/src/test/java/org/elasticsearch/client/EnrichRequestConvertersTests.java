@@ -25,6 +25,7 @@ import org.elasticsearch.client.enrich.DeletePolicyRequest;
 import org.elasticsearch.client.enrich.GetPolicyRequest;
 import org.elasticsearch.client.enrich.PutPolicyRequest;
 import org.elasticsearch.client.enrich.PutPolicyRequestTests;
+import org.elasticsearch.client.enrich.StatsRequest;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -42,7 +43,7 @@ public class EnrichRequestConvertersTests extends ESTestCase {
         RequestConvertersTests.assertToXContentBody(request, result.getEntity());
     }
 
-    public void testDeletePolicy() throws Exception {
+    public void testDeletePolicy() {
         DeletePolicyRequest request = new DeletePolicyRequest(randomAlphaOfLength(4));
         Request result = EnrichRequestConverters.deletePolicy(request);
 
@@ -52,7 +53,7 @@ public class EnrichRequestConvertersTests extends ESTestCase {
         assertThat(result.getEntity(), nullValue());
     }
 
-    public void testGetPolicy() throws Exception {
+    public void testGetPolicy() {
         GetPolicyRequest request = new GetPolicyRequest(randomAlphaOfLength(4));
         Request result = EnrichRequestConverters.getPolicy(request);
 
@@ -74,6 +75,16 @@ public class EnrichRequestConvertersTests extends ESTestCase {
 
         assertThat(result.getMethod(), equalTo(HttpGet.METHOD_NAME));
         assertThat(result.getEndpoint(), equalTo("/_enrich/policy"));
+        assertThat(result.getParameters().size(), equalTo(0));
+        assertThat(result.getEntity(), nullValue());
+    }
+
+    public void testStats() {
+        StatsRequest request = new StatsRequest();
+        Request result = EnrichRequestConverters.stats(request);
+
+        assertThat(result.getMethod(), equalTo(HttpGet.METHOD_NAME));
+        assertThat(result.getEndpoint(), equalTo("/_enrich/_stats"));
         assertThat(result.getParameters().size(), equalTo(0));
         assertThat(result.getEntity(), nullValue());
     }

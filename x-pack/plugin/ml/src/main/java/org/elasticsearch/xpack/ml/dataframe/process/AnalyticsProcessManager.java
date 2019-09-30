@@ -143,7 +143,9 @@ public class AnalyticsProcessManager {
             refreshDest(config);
             LOGGER.info("[{}] Result processor has completed", config.getId());
         } catch (Exception e) {
-            String errorMsg = new ParameterizedMessage("[{}] Error while processing data", config.getId()).getFormattedMessage();
+            String errorMsg = new ParameterizedMessage("[{}] Error while processing data [{}]", config.getId(), e.getMessage())
+                .getFormattedMessage();
+            LOGGER.error(errorMsg, e);
             processContextByAllocation.get(task.getAllocationId()).setFailureReason(errorMsg);
         } finally {
             closeProcess(task);

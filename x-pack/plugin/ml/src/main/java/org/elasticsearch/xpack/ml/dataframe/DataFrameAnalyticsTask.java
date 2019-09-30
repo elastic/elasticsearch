@@ -285,11 +285,12 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
             }
         }
 
-
         if (lastIncompletePhase == null) {
             return StartingState.FINISHED;
         }
-        LOGGER.info("Last incomplete progress [{}, {}]", lastIncompletePhase.getPhase(), lastIncompletePhase.getProgressPercent());
+
+        LOGGER.debug("[{}] Last incomplete progress [{}, {}]", jobId, lastIncompletePhase.getPhase(),
+            lastIncompletePhase.getProgressPercent());
 
         switch (lastIncompletePhase.getPhase()) {
             case ProgressTracker.REINDEXING:

@@ -120,7 +120,7 @@ viewing the destination index.
 [[transform-deletion-limitations]]
 ==== Deleting a {transform} does not delete the destination index or {kib} index pattern
 
-When deleting a {transform} using `DELETE _data_frame/transforms/index` 
+When deleting a {transform} using `DELETE _transform/index` 
 neither the destination index nor the {kib} index pattern, should one have been 
 created, are deleted. These objects must be deleted separately.
 

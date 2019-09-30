@@ -8,7 +8,7 @@
 //
 
 groupByOnText
-SELECT gender g FROM "test_emp" GROUP BY gender2 ORDER BY gender ASC;
+SELECT gender g FROM "test_emp" GROUP BY gender ORDER BY gender ASC;
 groupByOnTextWithWhereClause
 SELECT gender g FROM "test_emp" WHERE emp_no < 10020 GROUP BY gender ORDER BY gender;
 groupByOnTextWithWhereAndLimit

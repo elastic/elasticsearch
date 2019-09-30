@@ -231,18 +231,14 @@ public class IncrementalClusterStateWriter {
     // exposed for tests
     static Set<Index> getRelevantIndices(ClusterState state) {
         Set<Index> relevantIndices;
-        if (isDataOnlyNode(state)) {
-            relevantIndices = getRelevantIndicesOnDataOnlyNode(state);
-        } else if (state.nodes().getLocalNode().isMasterNode()) {
+        if (state.nodes().getLocalNode().isMasterNode()) {
             relevantIndices = getRelevantIndicesForMasterEligibleNode(state);
+        } else if (state.nodes().getLocalNode().isDataNode()) {
+            relevantIndices = getRelevantIndicesOnDataOnlyNode(state);
         } else {
             relevantIndices = Collections.emptySet();
         }
         return relevantIndices;
-    }
-
-    private static boolean isDataOnlyNode(ClusterState state) {
-        return state.nodes().getLocalNode().isMasterNode() == false && state.nodes().getLocalNode().isDataNode();
     }
 
     /**

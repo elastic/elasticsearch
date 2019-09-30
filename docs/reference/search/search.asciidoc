@@ -269,7 +269,7 @@ including unallocated shards.
 
 `successful`::
 (Integer)
-Number of shards that executed the request.
+Number of shards that executed the request successfully.
 
 `skipped`::
 (Integer)

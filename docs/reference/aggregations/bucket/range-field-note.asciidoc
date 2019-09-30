@@ -97,7 +97,7 @@ document would also be counted in any sub-aggregations for each bucket as well.
 ==== Query bounds are not aggregation filters
 
 Another unexpected behavior can arise when a query is used to filter on the
-field being aggregated.  In this case, a document could match the query, but
+field being aggregated. In this case, a document could match the query but
 still have one or both of the endpoints of the range outside the query.
 Consider the following aggregation on the above document:
 

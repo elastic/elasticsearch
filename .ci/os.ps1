@@ -14,8 +14,7 @@ $ErrorActionPreference="Stop"
 $gradleInit = "C:\Users\$env:username\.gradle\init.d\"
 Remove-Item -Recurse -Force $gradleInit -ErrorAction Ignore
 New-Item -ItemType directory -Path $gradleInit
-
-# Copy-Item .ci/init.gradle -Destination $gradleInit
+Copy-Item .ci/init.gradle -Destination $gradleInit
 
 [Environment]::SetEnvironmentVariable("JAVA_HOME", $null, "Machine")
 $env:PATH="C:\Users\jenkins\.java\$env:ES_BUILD_JAVA\bin\;$env:PATH"

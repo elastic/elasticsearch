@@ -259,5 +259,5 @@ PUT _ml/data_frame/analytics/student_performance_mathematics_0.3
 --------------------------------------------------
 // TEST[skip:TBD]
 
-<1> The `training_percent` defines how many percent of the data set will be used 
+<1> The `training_percent` defines the percentage of the data set that will be used 
 for training the model.

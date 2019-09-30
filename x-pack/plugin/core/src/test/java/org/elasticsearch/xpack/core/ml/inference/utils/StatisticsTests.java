@@ -10,6 +10,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.hamcrest.Matchers.closeTo;
+
 public class StatisticsTests extends ESTestCase {
 
     public void testSoftMax() {
@@ -19,8 +21,13 @@ public class StatisticsTests extends ESTestCase {
         List<Double> expected = Arrays.asList(0.0, 0.017599040, 0.003926876, 0.0, 0.0, 0.0, 0.017599040, 0.960875042);
 
         for(int i = 0; i < expected.size(); i++) {
-            assertEquals(expected.get(i), softMax.get(i), 0.000001);
+            assertThat(softMax.get(i), closeTo(expected.get(i), 0.000001));
         }
+    }
+
+    public void testSoftMaxWithNoValidValues() {
+        List<Double> values = Arrays.asList(Double.NEGATIVE_INFINITY, null, Double.NaN, Double.POSITIVE_INFINITY);
+        expectThrows(IllegalArgumentException.class, () -> Statistics.softMax(values));
     }
 
 }

@@ -96,9 +96,13 @@ public class WeightedMode implements StrictlyParsedOutputAggregator, LenientlyPa
 
     @Override
     public double aggregate(List<Double> values) {
+        Objects.requireNonNull(values, "values must not be null");
         int bestValue = 0;
         double bestFreq = Double.NEGATIVE_INFINITY;
         for (int i = 0; i < values.size(); i++) {
+            if (values.get(i) == null) {
+                throw new IllegalArgumentException("values must not contain null values");
+            }
             if (values.get(i) > bestFreq) {
                 bestFreq = values.get(i);
                 bestValue = i;

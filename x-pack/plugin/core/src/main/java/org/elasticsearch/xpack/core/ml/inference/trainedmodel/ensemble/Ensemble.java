@@ -235,6 +235,10 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
                 outputAggregator.expectedValueSize(),
                 models.size());
         }
+        if ((this.targetType == TargetType.CLASSIFICATION) != (this.classificationLabels != null)) {
+            throw ExceptionsHelper.badRequestException(
+                "[target_type] should be [classification] if [classification_labels] is provided, and vice versa");
+        }
         this.models.forEach(TrainedModel::validate);
     }
 

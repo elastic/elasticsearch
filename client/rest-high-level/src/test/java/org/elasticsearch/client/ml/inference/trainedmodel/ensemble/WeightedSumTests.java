@@ -20,20 +20,17 @@ package org.elasticsearch.client.ml.inference.trainedmodel.ensemble;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 
 public class WeightedSumTests extends AbstractXContentTestCase<WeightedSum> {
 
     WeightedSum createTestInstance(int numberOfWeights) {
-        List<Double> weights = new ArrayList<>(numberOfWeights);
-        for (int i = 0; i < numberOfWeights; i++) {
-            weights.add(randomDouble());
-        }
-        return new WeightedSum(weights);
+        return new WeightedSum(Stream.generate(ESTestCase::randomDouble).limit(numberOfWeights).collect(Collectors.toList()));
     }
 
     @Override

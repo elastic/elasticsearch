@@ -20,21 +20,18 @@ package org.elasticsearch.client.ml.inference.trainedmodel.ensemble;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.WeightedMode;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 
 public class WeightedModeTests extends AbstractXContentTestCase<WeightedMode> {
 
     WeightedMode createTestInstance(int numberOfWeights) {
-        List<Double> weights = new ArrayList<>(numberOfWeights);
-        for (int i = 0; i < numberOfWeights; i++) {
-            weights.add(randomDouble());
-        }
-        return new WeightedMode(weights);
+        return new WeightedMode(Stream.generate(ESTestCase::randomDouble).limit(numberOfWeights).collect(Collectors.toList()));
     }
 
     @Override

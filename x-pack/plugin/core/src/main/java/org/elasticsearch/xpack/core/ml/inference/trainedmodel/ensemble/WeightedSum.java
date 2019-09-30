@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -68,7 +69,12 @@ public class WeightedSum implements StrictlyParsedOutputAggregator, LenientlyPar
 
     @Override
     public double aggregate(List<Double> values) {
-        return values.stream().reduce((memo, v) -> memo + v).get();
+        Objects.requireNonNull(values, "values must not be null");
+        Optional<Double> summation = values.stream().reduce((memo, v) -> memo + v);
+        if (summation.isPresent()) {
+            return summation.get();
+        }
+        throw new IllegalArgumentException("values must not contain null values");
     }
 
     @Override

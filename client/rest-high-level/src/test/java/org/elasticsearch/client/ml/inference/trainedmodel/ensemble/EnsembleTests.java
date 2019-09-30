@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,6 +35,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 
 public class EnsembleTests extends AbstractXContentTestCase<Ensemble> {
@@ -55,21 +58,16 @@ public class EnsembleTests extends AbstractXContentTestCase<Ensemble> {
 
     public static Ensemble createRandom() {
         int numberOfFeatures = randomIntBetween(1, 10);
-        List<String> featureNames = new ArrayList<>();
-        for (int i = 0; i < numberOfFeatures; i++) {
-            featureNames.add(randomAlphaOfLength(10));
-        }
+        List<String> featureNames = Stream.generate(() -> randomAlphaOfLength(10))
+            .limit(numberOfFeatures)
+            .collect(Collectors.toList());
         int numberOfModels = randomIntBetween(1, 10);
-        List<TrainedModel> models = new ArrayList<>(numberOfModels);
-        for (int i = 0; i < numberOfModels; i++) {
-            models.add(TreeTests.buildRandomTree(featureNames, 6));
-        }
+        List<TrainedModel> models = Stream.generate(() -> TreeTests.buildRandomTree(featureNames, 6))
+            .limit(numberOfFeatures)
+            .collect(Collectors.toList());
         OutputAggregator outputAggregator = null;
         if (randomBoolean()) {
-            List<Double> weights = new ArrayList<>(numberOfModels);
-            for (int i = 0; i < numberOfModels; i++) {
-                weights.add(randomDouble());
-            }
+            List<Double> weights = Stream.generate(ESTestCase::randomDouble).limit(numberOfModels).collect(Collectors.toList());
             outputAggregator = randomFrom(new WeightedMode(weights), new WeightedSum(weights));
         }
         List<String> categoryLabels = null;
@@ -79,7 +77,7 @@ public class EnsembleTests extends AbstractXContentTestCase<Ensemble> {
         return new Ensemble(featureNames,
             models,
             outputAggregator,
-            randomFrom(TargetType.CLASSIFICATION, TargetType.REGRESSION),
+            randomFrom(TargetType.values()),
             categoryLabels);
     }
 

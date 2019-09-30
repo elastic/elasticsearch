@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
@@ -30,6 +31,7 @@ import java.util.Map;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -59,21 +61,14 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
 
     public static Ensemble createRandom() {
         int numberOfFeatures = randomIntBetween(1, 10);
-        List<String> featureNames = new ArrayList<>();
-        for (int i = 0; i < numberOfFeatures; i++) {
-            featureNames.add(randomAlphaOfLength(10));
-        }
+        List<String> featureNames = Stream.generate(() -> randomAlphaOfLength(10)).limit(numberOfFeatures).collect(Collectors.toList());
         int numberOfModels = randomIntBetween(1, 10);
-        List<TrainedModel> models = new ArrayList<>(numberOfModels);
-        for (int i = 0; i < numberOfModels; i++) {
-            models.add(TreeTests.buildRandomTree(featureNames, 6));
-        }
+        List<TrainedModel> models = Stream.generate(() -> TreeTests.buildRandomTree(featureNames, 6))
+            .limit(numberOfModels)
+            .collect(Collectors.toList());
         OutputAggregator outputAggregator = null;
         if (randomBoolean()) {
-            List<Double> weights = new ArrayList<>(numberOfModels);
-            for (int i = 0; i < numberOfModels; i++) {
-                weights.add(randomDouble());
-            }
+            List<Double> weights = Stream.generate(ESTestCase::randomDouble).limit(numberOfModels).collect(Collectors.toList());
             outputAggregator = randomFrom(new WeightedMode(weights), new WeightedSum(weights));
         }
         List<String> categoryLabels = null;
@@ -84,7 +79,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         return new Ensemble(featureNames,
             models,
             outputAggregator,
-            randomFrom(TargetType.REGRESSION, TargetType.CLASSIFICATION),
+            randomFrom(TargetType.values()),
             categoryLabels);
     }
 
@@ -174,6 +169,40 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
                     .setThreshold(randomDouble()))
                     .setFeatureNames(featureNames)
                     .build()))
+                .build()
+                .validate();
+        });
+    }
+
+    public void testEnsembleWithTargetTypeAndLabelsMismatch() {
+        List<String> featureNames = Arrays.asList("foo", "bar");
+        expectThrows(ElasticsearchException.class, () -> {
+            Ensemble.builder()
+                .setFeatureNames(featureNames)
+                .setTrainedModels(Arrays.asList(
+                    Tree.builder()
+                        .setNodes(TreeNode.builder(0)
+                                .setLeftChild(1)
+                                .setSplitFeature(1)
+                                .setThreshold(randomDouble()))
+                        .setFeatureNames(featureNames)
+                        .build()))
+                .setClassificationLabels(Arrays.asList("label1", "label2"))
+                .build()
+                .validate();
+        });
+        expectThrows(ElasticsearchException.class, () -> {
+            Ensemble.builder()
+                .setFeatureNames(featureNames)
+                .setTrainedModels(Arrays.asList(
+                    Tree.builder()
+                        .setNodes(TreeNode.builder(0)
+                            .setLeftChild(1)
+                            .setSplitFeature(1)
+                            .setThreshold(randomDouble()))
+                        .setFeatureNames(featureNames)
+                        .build()))
+                .setTargetType(TargetType.CLASSIFICATION)
                 .build()
                 .validate();
         });

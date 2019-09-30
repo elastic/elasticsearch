@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -91,7 +92,7 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
             categoryLabels = Arrays.asList(generateRandomStringArray(randomIntBetween(1, 10), randomIntBetween(1, 10), false, false));
         }
 
-        return builder.setTargetType(randomFrom(TargetType.REGRESSION, TargetType.CLASSIFICATION))
+        return builder.setTargetType(randomFrom(TargetType.values()))
             .setClassificationLabels(categoryLabels)
             .build();
     }
@@ -213,6 +214,32 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
                 .build()
                 .validate());
         assertThat(ex.getMessage(), equalTo("[tree] contains cycle at node 0"));
+    }
+
+    public void testTreeWithTargetTypeAndLabelsMismatch() {
+        List<String> featureNames = Arrays.asList("foo", "bar");
+        expectThrows(ElasticsearchException.class, () -> {
+            Tree.builder()
+                .setRoot(TreeNode.builder(0)
+                        .setLeftChild(1)
+                        .setSplitFeature(1)
+                        .setThreshold(randomDouble()))
+                .setFeatureNames(Arrays.asList("foo", "bar"))
+                .setClassificationLabels(Arrays.asList("label1", "label2"))
+                .build()
+                .validate();
+        });
+        expectThrows(ElasticsearchException.class, () -> {
+            Tree.builder()
+                .setRoot(TreeNode.builder(0)
+                    .setLeftChild(1)
+                    .setSplitFeature(1)
+                    .setThreshold(randomDouble()))
+                .setFeatureNames(Arrays.asList("foo", "bar"))
+                .setTargetType(TargetType.CLASSIFICATION)
+                .build()
+                .validate();
+        });
     }
 
     private static Map<String, Object> zipObjMap(List<String> keys, List<Double> values) {

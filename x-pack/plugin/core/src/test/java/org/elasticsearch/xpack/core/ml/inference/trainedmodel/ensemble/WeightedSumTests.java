@@ -7,11 +7,13 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -19,10 +21,7 @@ public class WeightedSumTests extends WeightedAggregatorTests<WeightedSum> {
 
     @Override
     WeightedSum createTestInstance(int numberOfWeights) {
-        List<Double> weights = new ArrayList<>(numberOfWeights);
-        for (int i = 0; i < numberOfWeights; i++) {
-            weights.add(randomDouble());
-        }
+        List<Double> weights = Stream.generate(ESTestCase::randomDouble).limit(numberOfWeights).collect(Collectors.toList());
         return new WeightedSum(weights);
     }
 

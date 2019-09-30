@@ -227,8 +227,16 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
 
     @Override
     public void validate() {
+        checkTargetType();
         detectNullOrMissingNode();
         detectCycle();
+    }
+
+    private void checkTargetType() {
+        if ((this.targetType == TargetType.CLASSIFICATION) != (this.classificationLabels != null)) {
+            throw ExceptionsHelper.badRequestException(
+                "[target_type] should be [classification] if [classification_labels] is provided, and vice versa");
+        }
     }
 
     private void detectCycle() {
@@ -278,9 +286,6 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     }
 
     private static boolean nodeMissing(int nodeIdx, List<TreeNode> nodes) {
-        if (nodeIdx < 0) {
-            return false;
-        }
         return nodeIdx >= nodes.size();
     }
 

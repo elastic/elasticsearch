@@ -322,8 +322,9 @@ public class Archives {
         final Shell sh = new Shell();
         Platforms.onLinux(() -> sh.run("kill -SIGTERM " + pid + "; tail --pid=" + pid + " -f /dev/null"));
         Platforms.onWindows(() -> sh.run("Get-Process -Id " + pid + " | Stop-Process -Force; Wait-Process -Id " + pid));
-
-        Files.delete(pidFile);
+        if (Files.exists(pidFile)) {
+            Files.delete(pidFile);
+        }
     }
 
 }

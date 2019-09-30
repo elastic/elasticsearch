@@ -175,6 +175,10 @@ public class Shell {
 
     private String readFileIfExists(Path path) throws IOException {
         if (Files.exists(path)) {
+            long size = Files.size(path);
+            if (size > 100 * 1024) {
+                return "<<Too large to read: " + size  + " bytes>>";
+            }
             LinkedList<String> result = new LinkedList<>();
             AtomicBoolean linesDiscarded = new AtomicBoolean(false);
             try(Stream<String> lines = Files.lines(path, StandardCharsets.UTF_8)) {

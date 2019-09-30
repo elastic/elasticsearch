@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
@@ -108,7 +107,7 @@ public final class SDo extends AStatement {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter) {
         methodWriter.writeStatementOffset(location);
 
         Label start = new Label();
@@ -119,12 +118,12 @@ public final class SDo extends AStatement {
 
         block.continu = begin;
         block.brake = end;
-        block.write(classWriter, methodWriter, globals);
+        block.write(classWriter, methodWriter);
 
         methodWriter.mark(begin);
 
         if (!continuous) {
-            condition.write(classWriter, methodWriter, globals);
+            condition.write(classWriter, methodWriter);
             methodWriter.ifZCmp(Opcodes.IFEQ, end);
         }
 

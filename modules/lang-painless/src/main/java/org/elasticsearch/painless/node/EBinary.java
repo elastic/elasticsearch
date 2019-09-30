@@ -23,7 +23,6 @@ import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
@@ -627,7 +626,7 @@ public final class EBinary extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter) {
         methodWriter.writeDebugInfo(location);
 
         if (promote == String.class && operation == Operation.ADD) {
@@ -635,13 +634,13 @@ public final class EBinary extends AExpression {
                 methodWriter.writeNewStrings();
             }
 
-            left.write(classWriter, methodWriter, globals);
+            left.write(classWriter, methodWriter);
 
             if (!(left instanceof EBinary) || !((EBinary)left).cat) {
                 methodWriter.writeAppendStrings(left.actual);
             }
 
-            right.write(classWriter, methodWriter, globals);
+            right.write(classWriter, methodWriter);
 
             if (!(right instanceof EBinary) || !((EBinary)right).cat) {
                 methodWriter.writeAppendStrings(right.actual);
@@ -651,8 +650,8 @@ public final class EBinary extends AExpression {
                 methodWriter.writeToStrings();
             }
         } else if (operation == Operation.FIND || operation == Operation.MATCH) {
-            right.write(classWriter, methodWriter, globals);
-            left.write(classWriter, methodWriter, globals);
+            right.write(classWriter, methodWriter);
+            left.write(classWriter, methodWriter);
             methodWriter.invokeVirtual(org.objectweb.asm.Type.getType(Pattern.class), WriterConstants.PATTERN_MATCHER);
 
             if (operation == Operation.FIND) {
@@ -663,8 +662,8 @@ public final class EBinary extends AExpression {
                 throw new IllegalStateException("Illegal tree structure.");
             }
         } else {
-            left.write(classWriter, methodWriter, globals);
-            right.write(classWriter, methodWriter, globals);
+            left.write(classWriter, methodWriter);
+            right.write(classWriter, methodWriter);
 
             if (promote == def.class || (shiftDistance != null && shiftDistance == def.class)) {
                 // def calls adopt the wanted return value. if there was a narrowing cast,

@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Parameter;
 import org.elasticsearch.painless.Locals.Variable;
@@ -146,19 +145,19 @@ public final class SFunction extends AStatement {
     }
 
     /** Writes the function to given ClassVisitor. */
-    void write(ClassWriter classWriter, Globals globals) {
+    void write(ClassWriter classWriter) {
         int access = Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC;
         if (synthetic) {
             access |= Opcodes.ACC_SYNTHETIC;
         }
         final MethodWriter methodWriter = classWriter.newMethodWriter(access, method);
         methodWriter.visitCode();
-        write(classWriter, methodWriter, globals);
+        write(classWriter, methodWriter);
         methodWriter.endMethod();
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter) {
         if (settings.getMaxLoopCounter() > 0) {
             // if there is infinite loop protection, we do this once:
             // int #loop = settings.getMaxLoopCounter()
@@ -166,7 +165,7 @@ public final class SFunction extends AStatement {
             methodWriter.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
         }
 
-        block.write(classWriter, methodWriter, globals);
+        block.write(classWriter, methodWriter);
 
         if (!methodEscape) {
             if (returnType == void.class) {

@@ -24,7 +24,6 @@ import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
@@ -251,7 +250,7 @@ public final class EAssignment extends AExpression {
      * also read from.
      */
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter) {
         methodWriter.writeDebugInfo(location);
 
         // For the case where the assignment represents a String concatenation
@@ -267,7 +266,7 @@ public final class EAssignment extends AExpression {
 
         // Cast the lhs to a storeable to perform the necessary operations to store the rhs.
         AStoreable lhs = (AStoreable)this.lhs;
-        lhs.setup(classWriter, methodWriter, globals); // call the setup method on the lhs to prepare for a load/store operation
+        lhs.setup(classWriter, methodWriter); // call the setup method on the lhs to prepare for a load/store operation
 
         if (cat) {
             // Handle the case where we are doing a compound assignment
@@ -275,10 +274,10 @@ public final class EAssignment extends AExpression {
 
             methodWriter.writeDup(lhs.accessElementCount(), catElementStackSize); // dup the top element and insert it
                                                                             // before concat helper on stack
-            lhs.load(classWriter, methodWriter, globals);                                      // read the current lhs's value
+            lhs.load(classWriter, methodWriter);                                      // read the current lhs's value
             methodWriter.writeAppendStrings(lhs.actual);  // append the lhs's value using the StringBuilder
 
-            rhs.write(classWriter, methodWriter, globals); // write the bytecode for the rhs
+            rhs.write(classWriter, methodWriter); // write the bytecode for the rhs
 
             if (!(rhs instanceof EBinary) || !((EBinary)rhs).cat) {            // check to see if the rhs has already done a concatenation
                 methodWriter.writeAppendStrings(rhs.actual); // append the rhs's value since it's hasn't already
@@ -292,14 +291,14 @@ public final class EAssignment extends AExpression {
                                                                                                        // from dup the value onto the stack
             }
 
-            lhs.store(classWriter, methodWriter, globals); // store the lhs's value from the stack in its respective variable/field/array
+            lhs.store(classWriter, methodWriter); // store the lhs's value from the stack in its respective variable/field/array
         } else if (operation != null) {
             // Handle the case where we are doing a compound assignment that
             // does not represent a String concatenation.
 
             methodWriter.writeDup(lhs.accessElementCount(), 0); // if necessary, dup the previous lhs's value
                                                                 // to be both loaded from and stored to
-            lhs.load(classWriter, methodWriter, globals); // load the current lhs's value
+            lhs.load(classWriter, methodWriter); // load the current lhs's value
 
             if (lhs.read && post) {
                 methodWriter.writeDup(MethodWriter.getType(lhs.actual).getSize(), lhs.accessElementCount()); // dup the value if the
@@ -310,7 +309,7 @@ public final class EAssignment extends AExpression {
 
             methodWriter.writeCast(there); // if necessary cast the current lhs's value
                                            // to the promotion type between the lhs and rhs types
-            rhs.write(classWriter, methodWriter, globals); // write the bytecode for the rhs
+            rhs.write(classWriter, methodWriter); // write the bytecode for the rhs
 
             // XXX: fix these types, but first we need def compound assignment tests.
             // its tricky here as there are possibly explicit casts, too.
@@ -331,18 +330,18 @@ public final class EAssignment extends AExpression {
                                                                                                              // increment
             }
 
-            lhs.store(classWriter, methodWriter, globals); // store the lhs's value from the stack in its respective variable/field/array
+            lhs.store(classWriter, methodWriter); // store the lhs's value from the stack in its respective variable/field/array
         } else {
             // Handle the case for a simple write.
 
-            rhs.write(classWriter, methodWriter, globals); // write the bytecode for the rhs rhs
+            rhs.write(classWriter, methodWriter); // write the bytecode for the rhs rhs
 
             if (lhs.read) {
                 methodWriter.writeDup(MethodWriter.getType(lhs.actual).getSize(), lhs.accessElementCount()); // dup the value if the lhs
                                                                                                        // is also read from
             }
 
-            lhs.store(classWriter, methodWriter, globals); // store the lhs's value from the stack in its respective variable/field/array
+            lhs.store(classWriter, methodWriter); // store the lhs's value from the stack in its respective variable/field/array
         }
     }
 

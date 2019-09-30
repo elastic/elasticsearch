@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.FunctionRef;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
@@ -197,7 +196,9 @@ public final class ELambda extends AExpression implements ILambda {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter) {
+        desugared.write(classWriter);
+
         methodWriter.writeDebugInfo(location);
 
         if (ref != null) {
@@ -216,9 +217,6 @@ public final class ELambda extends AExpression implements ILambda {
                 methodWriter.visitVarInsn(MethodWriter.getType(capture.clazz).getOpcode(Opcodes.ILOAD), capture.getSlot());
             }
         }
-
-        // add synthetic method to the queue to be written
-        globals.addSyntheticMethod(desugared);
     }
 
     @Override

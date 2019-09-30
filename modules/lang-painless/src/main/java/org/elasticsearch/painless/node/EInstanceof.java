@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
@@ -88,18 +87,18 @@ public final class EInstanceof extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter) {
         // primitive types
         if (primitiveExpression) {
             // run the expression anyway (who knows what it does)
-            expression.write(classWriter, methodWriter, globals);
+            expression.write(classWriter, methodWriter);
             // discard its result
             methodWriter.writePop(MethodWriter.getType(expression.actual).getSize());
             // push our result: its a primitive so it cannot be null.
             methodWriter.push(resolvedType.isAssignableFrom(expressionType));
         } else {
             // ordinary instanceof
-            expression.write(classWriter, methodWriter, globals);
+            expression.write(classWriter, methodWriter);
             methodWriter.instanceOf(org.objectweb.asm.Type.getType(resolvedType));
         }
     }

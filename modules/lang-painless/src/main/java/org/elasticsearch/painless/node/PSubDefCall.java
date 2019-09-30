@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
@@ -97,7 +96,7 @@ final class PSubDefCall extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter) {
         methodWriter.writeDebugInfo(location);
 
         List<Type> parameterTypes = new ArrayList<>();
@@ -114,7 +113,7 @@ final class PSubDefCall extends AExpression {
                 Collections.addAll(parameterTypes, lambda.getCaptures());
             }
 
-            argument.write(classWriter, methodWriter, globals);
+            argument.write(classWriter, methodWriter);
         }
 
         // create method type from return value and arguments

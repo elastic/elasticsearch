@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
@@ -85,14 +84,14 @@ public final class EBool extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter) {
         if (operation == Operation.AND) {
             Label fals = new Label();
             Label end = new Label();
 
-            left.write(classWriter, methodWriter, globals);
+            left.write(classWriter, methodWriter);
             methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-            right.write(classWriter, methodWriter, globals);
+            right.write(classWriter, methodWriter);
             methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
             methodWriter.push(true);
@@ -105,9 +104,9 @@ public final class EBool extends AExpression {
             Label fals = new Label();
             Label end = new Label();
 
-            left.write(classWriter, methodWriter, globals);
+            left.write(classWriter, methodWriter);
             methodWriter.ifZCmp(Opcodes.IFNE, tru);
-            right.write(classWriter, methodWriter, globals);
+            right.write(classWriter, methodWriter);
             methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
             methodWriter.mark(tru);

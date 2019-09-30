@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
@@ -86,7 +85,7 @@ public final class ENewArray extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter) {
         methodWriter.writeDebugInfo(location);
 
         if (initialize) {
@@ -98,12 +97,12 @@ public final class ENewArray extends AExpression {
 
                 methodWriter.dup();
                 methodWriter.push(index);
-                argument.write(classWriter, methodWriter, globals);
+                argument.write(classWriter, methodWriter);
                 methodWriter.arrayStore(MethodWriter.getType(actual.getComponentType()));
             }
         } else {
             for (AExpression argument : arguments) {
-                argument.write(classWriter, methodWriter, globals);
+                argument.write(classWriter, methodWriter);
             }
 
             if (arguments.size() > 1) {

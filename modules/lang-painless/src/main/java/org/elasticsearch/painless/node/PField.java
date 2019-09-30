@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
@@ -129,9 +128,9 @@ public final class PField extends AStoreable {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        prefix.write(classWriter, methodWriter, globals);
-        sub.write(classWriter, methodWriter, globals);
+    void write(ClassWriter classWriter, MethodWriter methodWriter) {
+        prefix.write(classWriter, methodWriter);
+        sub.write(classWriter, methodWriter);
     }
 
     @Override
@@ -151,19 +150,19 @@ public final class PField extends AStoreable {
     }
 
     @Override
-    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        prefix.write(classWriter, methodWriter, globals);
-        sub.setup(classWriter, methodWriter, globals);
+    void setup(ClassWriter classWriter, MethodWriter methodWriter) {
+        prefix.write(classWriter, methodWriter);
+        sub.setup(classWriter, methodWriter);
     }
 
     @Override
-    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        sub.load(classWriter, methodWriter, globals);
+    void load(ClassWriter classWriter, MethodWriter methodWriter) {
+        sub.load(classWriter, methodWriter);
     }
 
     @Override
-    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        sub.store(classWriter, methodWriter, globals);
+    void store(ClassWriter classWriter, MethodWriter methodWriter) {
+        sub.store(classWriter, methodWriter);
     }
 
     @Override

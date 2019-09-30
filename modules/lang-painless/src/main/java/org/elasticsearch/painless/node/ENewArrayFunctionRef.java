@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.FunctionRef;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
@@ -86,7 +85,9 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter) {
+        function.write(classWriter);
+
         if (ref != null) {
             methodWriter.writeDebugInfo(location);
             methodWriter.invokeLambdaCall(ref);
@@ -94,8 +95,6 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
             // push a null instruction as a placeholder for future lambda instructions
             methodWriter.push((String)null);
         }
-
-        globals.addSyntheticMethod(function);
     }
 
     @Override

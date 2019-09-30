@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
@@ -84,7 +83,7 @@ public final class SDeclaration extends AStatement {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter) {
         methodWriter.writeStatementOffset(location);
 
         if (expression == null) {
@@ -103,7 +102,7 @@ public final class SDeclaration extends AStatement {
                 methodWriter.visitInsn(Opcodes.ACONST_NULL);
             }
         } else {
-            expression.write(classWriter, methodWriter, globals);
+            expression.write(classWriter, methodWriter);
         }
 
         methodWriter.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());

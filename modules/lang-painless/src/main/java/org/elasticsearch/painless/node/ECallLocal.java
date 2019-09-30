@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.LocalMethod;
 import org.elasticsearch.painless.Location;
@@ -30,6 +29,7 @@ import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.objectweb.asm.Label;
+import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
 
@@ -116,6 +116,8 @@ public final class ECallLocal extends AExpression {
                             throw createError(new IllegalArgumentException(
                                     "Unknown call [" + name + "] with [" + arguments.size() + "] arguments."));
                         }
+
+                        locals.addStatic("$instance_binding$" + location.getOffset(), instanceBinding.targetInstance);
                     }
                 }
             }
@@ -155,25 +157,26 @@ public final class ECallLocal extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter) {
         methodWriter.writeDebugInfo(location);
 
         if (localMethod != null) {
             for (AExpression argument : arguments) {
-                argument.write(classWriter, methodWriter, globals);
+                argument.write(classWriter, methodWriter);
             }
 
             methodWriter.invokeStatic(CLASS_TYPE, new Method(localMethod.name, localMethod.methodType.toMethodDescriptorString()));
         } else if (importedMethod != null) {
             for (AExpression argument : arguments) {
-                argument.write(classWriter, methodWriter, globals);
+                argument.write(classWriter, methodWriter);
             }
 
             methodWriter.invokeStatic(Type.getType(importedMethod.targetClass),
                     new Method(importedMethod.javaMethod.getName(), importedMethod.methodType.toMethodDescriptorString()));
         } else if (classBinding != null) {
-            String name = globals.addClassBinding(classBinding.javaConstructor.getDeclaringClass());
+            String name = "$class_binding$" + location.getOffset();
             Type type = Type.getType(classBinding.javaConstructor.getDeclaringClass());
+            classWriter.getClassVisitor().visitField(Opcodes.ACC_PRIVATE, name, type.getDescriptor(), null, null).visitEnd();
             int javaConstructorParameterCount = classBinding.javaConstructor.getParameterCount() - classBindingOffset;
 
             Label nonNull = new Label();
@@ -190,7 +193,7 @@ public final class ECallLocal extends AExpression {
             }
 
             for (int argument = 0; argument < javaConstructorParameterCount; ++argument) {
-                arguments.get(argument).write(classWriter, methodWriter, globals);
+                arguments.get(argument).write(classWriter, methodWriter);
             }
 
             methodWriter.invokeConstructor(type, Method.getMethod(classBinding.javaConstructor));
@@ -201,19 +204,21 @@ public final class ECallLocal extends AExpression {
             methodWriter.getField(CLASS_TYPE, name, type);
 
             for (int argument = 0; argument < classBinding.javaMethod.getParameterCount(); ++argument) {
-                arguments.get(argument + javaConstructorParameterCount).write(classWriter, methodWriter, globals);
+                arguments.get(argument + javaConstructorParameterCount).write(classWriter, methodWriter);
             }
 
             methodWriter.invokeVirtual(type, Method.getMethod(classBinding.javaMethod));
         } else if (instanceBinding != null) {
-            String name = globals.addInstanceBinding(instanceBinding.targetInstance);
+            String name = "$instance_binding$" + location.getOffset();
             Type type = Type.getType(instanceBinding.targetInstance.getClass());
+            classWriter.getClassVisitor().visitField(
+                    Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, name, type.getDescriptor(), null, null).visitEnd();
 
             methodWriter.loadThis();
             methodWriter.getStatic(CLASS_TYPE, name, type);
 
             for (int argument = 0; argument < instanceBinding.javaMethod.getParameterCount(); ++argument) {
-                arguments.get(argument).write(classWriter, methodWriter, globals);
+                arguments.get(argument).write(classWriter, methodWriter);
             }
 
             methodWriter.invokeVirtual(type, Method.getMethod(instanceBinding.javaMethod));

@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
@@ -68,7 +67,7 @@ public final class EVariable extends AStoreable {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter) {
         methodWriter.visitVarInsn(MethodWriter.getType(actual).getOpcode(Opcodes.ILOAD), variable.getSlot());
     }
 
@@ -88,17 +87,17 @@ public final class EVariable extends AStoreable {
     }
 
     @Override
-    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void setup(ClassWriter classWriter, MethodWriter methodWriter) {
         // Do nothing.
     }
 
     @Override
-    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void load(ClassWriter classWriter, MethodWriter methodWriter) {
         methodWriter.visitVarInsn(MethodWriter.getType(actual).getOpcode(Opcodes.ILOAD), variable.getSlot());
     }
 
     @Override
-    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void store(ClassWriter classWriter, MethodWriter methodWriter) {
         methodWriter.visitVarInsn(MethodWriter.getType(actual).getOpcode(Opcodes.ISTORE), variable.getSlot());
     }
 

@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
@@ -66,9 +65,9 @@ final class PSubDefArray extends AStoreable {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        setup(classWriter, methodWriter, globals);
-        load(classWriter, methodWriter, globals);
+    void write(ClassWriter classWriter, MethodWriter methodWriter) {
+        setup(classWriter, methodWriter);
+        load(classWriter, methodWriter);
     }
 
     @Override
@@ -87,16 +86,16 @@ final class PSubDefArray extends AStoreable {
     }
 
     @Override
-    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void setup(ClassWriter classWriter, MethodWriter methodWriter) {
         methodWriter.dup();
-        index.write(classWriter, methodWriter, globals);
+        index.write(classWriter, methodWriter);
         Type methodType = Type.getMethodType(
                 MethodWriter.getType(index.actual), Type.getType(Object.class), MethodWriter.getType(index.actual));
         methodWriter.invokeDefCall("normalizeIndex", methodType, DefBootstrap.INDEX_NORMALIZE);
     }
 
     @Override
-    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void load(ClassWriter classWriter, MethodWriter methodWriter) {
         methodWriter.writeDebugInfo(location);
 
         Type methodType =
@@ -105,7 +104,7 @@ final class PSubDefArray extends AStoreable {
     }
 
     @Override
-    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void store(ClassWriter classWriter, MethodWriter methodWriter) {
         methodWriter.writeDebugInfo(location);
 
         Type methodType =

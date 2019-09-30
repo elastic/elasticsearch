@@ -76,6 +76,16 @@ public final class Locals {
         }
     }
 
+    public final Map<String, Object> statics;
+
+    public void addStatic(String name, Object object) {
+        statics.put(name, object);
+    }
+
+    public Map<String, Object> getStatics() {
+        return Collections.unmodifiableMap(statics);
+    }
+
     /** Reserved word: loop counter */
     public static final String LOOP   = "#loop";
     /** Reserved word: unused */
@@ -99,7 +109,8 @@ public final class Locals {
      */
     public static Locals newLambdaScope(Locals programScope, String name, Class<?> returnType, List<Parameter> parameters,
                                         int captureCount, int maxLoopCounter) {
-        Locals locals = new Locals(programScope, programScope.painlessLookup, programScope.baseClass, returnType, KEYWORDS);
+        Locals locals =
+                new Locals(programScope, programScope.painlessLookup, programScope.baseClass, returnType, KEYWORDS, programScope.statics);
         locals.methods = programScope.methods;
         List<Class<?>> typeParameters = parameters.stream().map(parameter -> typeToJavaType(parameter.clazz)).collect(Collectors.toList());
         locals.methods.put(buildLocalMethodKey(name, parameters.size()), new LocalMethod(name, returnType, typeParameters,
@@ -122,7 +133,8 @@ public final class Locals {
 
     /** Creates a new function scope inside the current scope */
     public static Locals newFunctionScope(Locals programScope, Class<?> returnType, List<Parameter> parameters, int maxLoopCounter) {
-        Locals locals = new Locals(programScope, programScope.painlessLookup, programScope.baseClass, returnType, KEYWORDS);
+        Locals locals =
+                new Locals(programScope, programScope.painlessLookup, programScope.baseClass, returnType, KEYWORDS, programScope.statics);
         locals.methods = programScope.methods;
         for (Parameter parameter : parameters) {
             locals.addVariable(parameter.location, parameter.clazz, parameter.name, false);
@@ -137,7 +149,7 @@ public final class Locals {
     /** Creates a new main method scope */
     public static Locals newMainMethodScope(ScriptClassInfo scriptClassInfo, Locals programScope, int maxLoopCounter) {
         Locals locals = new Locals(programScope, programScope.painlessLookup,
-                scriptClassInfo.getBaseClass(), scriptClassInfo.getExecuteMethodReturnType(), KEYWORDS);
+                scriptClassInfo.getBaseClass(), scriptClassInfo.getExecuteMethodReturnType(), KEYWORDS, programScope.statics);
         locals.methods = programScope.methods;
         // This reference. Internal use only.
         locals.defineVariable(null, Object.class, THIS, true);
@@ -156,7 +168,7 @@ public final class Locals {
 
     /** Creates a new program scope: the list of methods. It is the parent for all methods */
     public static Locals newProgramScope(ScriptClassInfo scriptClassInfo, PainlessLookup painlessLookup, Collection<LocalMethod> methods) {
-        Locals locals = new Locals(null, painlessLookup, scriptClassInfo.getBaseClass(), null, null);
+        Locals locals = new Locals(null, painlessLookup, scriptClassInfo.getBaseClass(), null, null, new HashMap<>());
         locals.methods = new HashMap<>();
         for (LocalMethod method : methods) {
             locals.addMethod(method);
@@ -251,13 +263,14 @@ public final class Locals {
      * Create a new Locals
      */
     private Locals(Locals parent) {
-        this(parent, parent.painlessLookup, parent.baseClass, parent.returnType, parent.keywords);
+        this(parent, parent.painlessLookup, parent.baseClass, parent.returnType, parent.keywords, parent.statics);
     }
 
     /**
      * Create a new Locals with specified return type
      */
-    private Locals(Locals parent, PainlessLookup painlessLookup, Class<?> baseClass, Class<?> returnType, Set<String> keywords) {
+    private Locals(Locals parent, PainlessLookup painlessLookup,
+            Class<?> baseClass, Class<?> returnType, Set<String> keywords, Map<String, Object> statics) {
         this.parent = parent;
         this.painlessLookup = painlessLookup;
         this.baseClass = baseClass;
@@ -268,6 +281,7 @@ public final class Locals {
         } else {
             this.nextSlotNumber = parent.getNextSlot();
         }
+        this.statics = statics;
     }
 
     /** Returns the parent scope */

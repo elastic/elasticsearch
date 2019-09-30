@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
@@ -77,10 +76,10 @@ final class SSubEachArray extends AStatement {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter) {
         methodWriter.writeStatementOffset(location);
 
-        expression.write(classWriter, methodWriter, globals);
+        expression.write(classWriter, methodWriter);
         methodWriter.visitVarInsn(MethodWriter.getType(array.clazz).getOpcode(Opcodes.ISTORE), array.getSlot());
         methodWriter.push(-1);
         methodWriter.visitVarInsn(MethodWriter.getType(index.clazz).getOpcode(Opcodes.ISTORE), index.getSlot());
@@ -108,7 +107,7 @@ final class SSubEachArray extends AStatement {
 
         block.continu = begin;
         block.brake = end;
-        block.write(classWriter, methodWriter, globals);
+        block.write(classWriter, methodWriter);
 
         methodWriter.goTo(begin);
         methodWriter.mark(end);

@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
@@ -65,13 +64,13 @@ public class PSubNullSafeCallInvoke extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter) {
         methodWriter.writeDebugInfo(location);
 
         Label end = new Label();
         methodWriter.dup();
         methodWriter.ifNull(end);
-        guarded.write(classWriter, methodWriter, globals);
+        guarded.write(classWriter, methodWriter);
         methodWriter.mark(end);
     }
 

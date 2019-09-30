@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
@@ -91,8 +90,8 @@ final class PSubMapShortcut extends AStoreable {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        index.write(classWriter, methodWriter, globals);
+    void write(ClassWriter classWriter, MethodWriter methodWriter) {
+        index.write(classWriter, methodWriter);
 
         methodWriter.writeDebugInfo(location);
         methodWriter.invokeMethodCall(getter);
@@ -118,12 +117,12 @@ final class PSubMapShortcut extends AStoreable {
     }
 
     @Override
-    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        index.write(classWriter, methodWriter, globals);
+    void setup(ClassWriter classWriter, MethodWriter methodWriter) {
+        index.write(classWriter, methodWriter);
     }
 
     @Override
-    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void load(ClassWriter classWriter, MethodWriter methodWriter) {
         methodWriter.writeDebugInfo(location);
         methodWriter.invokeMethodCall(getter);
 
@@ -133,7 +132,7 @@ final class PSubMapShortcut extends AStoreable {
     }
 
     @Override
-    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void store(ClassWriter classWriter, MethodWriter methodWriter) {
         methodWriter.writeDebugInfo(location);
         methodWriter.invokeMethodCall(setter);
         methodWriter.writePop(MethodWriter.getType(setter.returnType).getSize());

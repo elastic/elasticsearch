@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
@@ -174,7 +173,7 @@ public final class SFor extends AStatement {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter) {
         methodWriter.writeStatementOffset(location);
 
         Label start = new Label();
@@ -182,18 +181,18 @@ public final class SFor extends AStatement {
         Label end = new Label();
 
         if (initializer instanceof SDeclBlock) {
-            initializer.write(classWriter, methodWriter, globals);
+            initializer.write(classWriter, methodWriter);
         } else if (initializer instanceof AExpression) {
             AExpression initializer = (AExpression)this.initializer;
 
-            initializer.write(classWriter, methodWriter, globals);
+            initializer.write(classWriter, methodWriter);
             methodWriter.writePop(MethodWriter.getType(initializer.expected).getSize());
         }
 
         methodWriter.mark(start);
 
         if (condition != null && !continuous) {
-            condition.write(classWriter, methodWriter, globals);
+            condition.write(classWriter, methodWriter);
             methodWriter.ifZCmp(Opcodes.IFEQ, end);
         }
 
@@ -214,7 +213,7 @@ public final class SFor extends AStatement {
 
             block.continu = begin;
             block.brake = end;
-            block.write(classWriter, methodWriter, globals);
+            block.write(classWriter, methodWriter);
         } else {
             if (loopCounter != null) {
                 methodWriter.writeLoopCounter(loopCounter.getSlot(), 1, location);
@@ -223,7 +222,7 @@ public final class SFor extends AStatement {
 
         if (afterthought != null) {
             methodWriter.mark(begin);
-            afterthought.write(classWriter, methodWriter, globals);
+            afterthought.write(classWriter, methodWriter);
             methodWriter.writePop(MethodWriter.getType(afterthought.expected).getSize());
         }
 

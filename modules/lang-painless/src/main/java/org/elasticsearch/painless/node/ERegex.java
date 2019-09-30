@@ -21,16 +21,17 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Constant;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.WriterConstants;
+import org.objectweb.asm.Opcodes;
 
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
+
+import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
 /**
  * Represents a regex constant. All regexes are constants.
@@ -39,7 +40,6 @@ public final class ERegex extends AExpression {
 
     private final String pattern;
     private final int flags;
-    private Constant constant;
 
     private CompilerSettings settings;
 
@@ -86,23 +86,24 @@ public final class ERegex extends AExpression {
                     new IllegalArgumentException("Error compiling regex: " + e.getDescription()));
         }
 
-        constant = new Constant(
-            location, MethodWriter.getType(Pattern.class), "regexAt$" + location.getOffset(), this::initializeConstant);
         actual = Pattern.class;
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter) {
+        String name = "regexAt$" + location.getOffset();
+
+        classWriter.getClassVisitor().visitField(Opcodes.ACC_FINAL | Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC,
+                name, MethodWriter.getType(Pattern.class).getDescriptor(), null, null).visitEnd();
+
+        MethodWriter clinitWriter = classWriter.getClinitWriter();
+        clinitWriter.push(pattern);
+        clinitWriter.push(flags);
+        clinitWriter.invokeStatic(org.objectweb.asm.Type.getType(Pattern.class), WriterConstants.PATTERN_COMPILE);
+        clinitWriter.putStatic(CLASS_TYPE, name, org.objectweb.asm.Type.getType(Pattern.class));
+
         methodWriter.writeDebugInfo(location);
-
-        methodWriter.getStatic(WriterConstants.CLASS_TYPE, constant.name, org.objectweb.asm.Type.getType(Pattern.class));
-        globals.addConstantInitializer(constant);
-    }
-
-    private void initializeConstant(MethodWriter writer) {
-        writer.push(pattern);
-        writer.push(flags);
-        writer.invokeStatic(org.objectweb.asm.Type.getType(Pattern.class), WriterConstants.PATTERN_COMPILE);
+        methodWriter.getStatic(CLASS_TYPE, name, org.objectweb.asm.Type.getType(Pattern.class));
     }
 
     private int flagForChar(char c) {

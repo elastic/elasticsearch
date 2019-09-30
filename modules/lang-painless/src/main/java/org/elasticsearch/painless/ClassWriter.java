@@ -74,7 +74,7 @@ public class ClassWriter implements Closeable  {
      */
     public MethodWriter getClinitWriter() {
         if (clinitWriter == null) {
-            clinitWriter = new MethodWriter(Opcodes.ACC_STATIC, WriterConstants.CLINIT, classVisitor, statements, compilerSettings);
+            clinitWriter = newMethodWriter(Opcodes.ACC_STATIC, WriterConstants.CLINIT);
             clinitWriter.visitCode();
         }
 

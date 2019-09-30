@@ -21,7 +21,6 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
@@ -102,7 +101,7 @@ public final class SCatch extends AStatement {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter) {
         methodWriter.writeStatementOffset(location);
 
         Label jump = new Label();
@@ -113,7 +112,7 @@ public final class SCatch extends AStatement {
         if (block != null) {
             block.continu = continu;
             block.brake = brake;
-            block.write(classWriter, methodWriter, globals);
+            block.write(classWriter, methodWriter);
         }
 
         methodWriter.visitTryCatchBlock(begin, end, jump, MethodWriter.getType(variable.clazz).getInternalName());

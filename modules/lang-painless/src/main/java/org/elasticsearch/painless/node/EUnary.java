@@ -23,7 +23,6 @@ import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
@@ -193,14 +192,14 @@ public final class EUnary extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter) {
         methodWriter.writeDebugInfo(location);
 
         if (operation == Operation.NOT) {
             Label fals = new Label();
             Label end = new Label();
 
-            child.write(classWriter, methodWriter, globals);
+            child.write(classWriter, methodWriter);
             methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
             methodWriter.push(false);
@@ -209,7 +208,7 @@ public final class EUnary extends AExpression {
             methodWriter.push(true);
             methodWriter.mark(end);
         } else {
-            child.write(classWriter, methodWriter, globals);
+            child.write(classWriter, methodWriter);
 
             // Def calls adopt the wanted return value. If there was a narrowing cast,
             // we need to flag that so that it's done at runtime.

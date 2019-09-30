@@ -22,7 +22,6 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
@@ -100,16 +99,16 @@ public class EElvis extends AExpression {
     }
 
     @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter) {
         methodWriter.writeDebugInfo(location);
 
         Label end = new Label();
 
-        lhs.write(classWriter, methodWriter, globals);
+        lhs.write(classWriter, methodWriter);
         methodWriter.dup();
         methodWriter.ifNonNull(end);
         methodWriter.pop();
-        rhs.write(classWriter, methodWriter, globals);
+        rhs.write(classWriter, methodWriter);
         methodWriter.mark(end);
     }
 

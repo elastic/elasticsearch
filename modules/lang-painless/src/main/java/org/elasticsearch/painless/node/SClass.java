@@ -21,15 +21,12 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Constant;
-import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.LocalMethod;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.ScriptClassInfo;
-import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;
@@ -40,7 +37,6 @@ import org.objectweb.asm.util.Printer;
 import java.lang.invoke.MethodType;
 import java.util.ArrayList;
 import java.util.BitSet;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -82,8 +78,8 @@ public final class SClass extends AStatement {
     private final String name;
     private final Printer debugStream;
     private final List<SFunction> functions;
-    private final Globals globals;
     private final List<AStatement> statements;
+    private final BitSet markers;
 
     private CompilerSettings settings;
 
@@ -100,7 +96,7 @@ public final class SClass extends AStatement {
         this.debugStream = debugStream;
         this.functions = Collections.unmodifiableList(functions);
         this.statements = Collections.unmodifiableList(statements);
-        this.globals = new Globals(new BitSet(sourceText.length()));
+        this.markers = new BitSet(sourceText.length());
 
         this.extractedVariables = new HashSet<>();
         this.getMethods = new ArrayList<>();
@@ -203,7 +199,7 @@ public final class SClass extends AStatement {
         String className = CLASS_TYPE.getInternalName();
         String[] classInterfaces = new String[] { interfaceBase };
 
-        ClassWriter classWriter = new ClassWriter(settings, globals.getStatements(), debugStream,
+        ClassWriter classWriter = new ClassWriter(settings, markers, debugStream,
                 scriptClassInfo.getBaseClass(), classFrames, classAccess, className, classInterfaces);
         ClassVisitor classVisitor = classWriter.getClassVisitor();
         classVisitor.visitSource(Location.computeSourceName(name), null);
@@ -270,61 +266,12 @@ public final class SClass extends AStatement {
         // Write the method defined in the interface:
         MethodWriter executeMethod = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, scriptClassInfo.getExecuteMethod());
         executeMethod.visitCode();
-        write(classWriter, executeMethod, globals);
+        write(classWriter, executeMethod);
         executeMethod.endMethod();
 
         // Write all functions:
         for (SFunction function : functions) {
-            function.write(classWriter, globals);
-        }
-
-        // Write all synthetic functions. Note that this process may add more :)
-        while (!globals.getSyntheticMethods().isEmpty()) {
-            List<SFunction> current = new ArrayList<>(globals.getSyntheticMethods().values());
-            globals.getSyntheticMethods().clear();
-            for (SFunction function : current) {
-                function.write(classWriter, globals);
-            }
-        }
-
-        // Write the constants
-        if (false == globals.getConstantInitializers().isEmpty()) {
-            Collection<Constant> inits = globals.getConstantInitializers().values();
-
-            // Fields
-            for (Constant constant : inits) {
-                classVisitor.visitField(
-                        Opcodes.ACC_FINAL | Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC,
-                        constant.name,
-                        constant.type.getDescriptor(),
-                        null,
-                        null).visitEnd();
-            }
-
-            // Initialize the constants in a static initializer
-            final MethodWriter clinit = new MethodWriter(Opcodes.ACC_STATIC,
-                    WriterConstants.CLINIT, classVisitor, globals.getStatements(), settings);
-            clinit.visitCode();
-            for (Constant constant : inits) {
-                constant.initializer.accept(clinit);
-                clinit.putStatic(CLASS_TYPE, constant.name, constant.type);
-            }
-            clinit.returnValue();
-            clinit.endMethod();
-        }
-
-        // Write class binding variables
-        for (Map.Entry<String, Class<?>> classBinding : globals.getClassBindings().entrySet()) {
-            String name = classBinding.getKey();
-            String descriptor = Type.getType(classBinding.getValue()).getDescriptor();
-            classVisitor.visitField(Opcodes.ACC_PRIVATE, name, descriptor, null, null).visitEnd();
-        }
-
-        // Write instance binding variables
-        for (Map.Entry<Object, String> instanceBinding : globals.getInstanceBindings().entrySet()) {
-            String name = instanceBinding.getValue();
-            String descriptor = Type.getType(instanceBinding.getKey().getClass()).getDescriptor();
-            classVisitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, name, descriptor, null, null).visitEnd();
+            function.write(classWriter);
         }
 
         // Write any needsVarName methods for used variables
@@ -341,21 +288,17 @@ public final class SClass extends AStatement {
 
         // End writing the class and store the generated bytes.
 
-        classVisitor.visitEnd();
+        classWriter.close();
         bytes = classWriter.getClassBytes();
 
         Map<String, Object> statics = new HashMap<>();
         statics.put("$LOCALS", mainMethod.getMethods());
-
-        for (Map.Entry<Object, String> instanceBinding : globals.getInstanceBindings().entrySet()) {
-            statics.put(instanceBinding.getValue(), instanceBinding.getKey());
-        }
-
+        statics.putAll(mainMethod.getStatics());
         return statics;
     }
 
     @Override
-    void write(org.elasticsearch.painless.ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter) {
         // We wrap the whole method in a few try/catches to handle and/or convert other exceptions to ScriptException
         Label startTry = new Label();
         Label endTry = new Label();
@@ -385,7 +328,7 @@ public final class SClass extends AStatement {
         }
 
         for (AStatement statement : statements) {
-            statement.write(classWriter, methodWriter, globals);
+            statement.write(classWriter, methodWriter);
         }
         if (!methodEscape) {
             switch (scriptClassInfo.getExecuteMethod().getReturnType().getSort()) {
@@ -453,7 +396,7 @@ public final class SClass extends AStatement {
     }
 
     public BitSet getStatements() {
-        return globals.getStatements();
+        return markers;
     }
 
     public byte[] getBytes() {

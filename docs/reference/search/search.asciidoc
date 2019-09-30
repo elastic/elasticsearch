@@ -311,6 +311,9 @@ Highest returned document `_score`.
 +
 The `_score` parameter is a floating point number
 used to determine the relevance of the returned document.
++
+This parameter value is `null` for requests
+that do not sort by `_score`.
 
 `hits`::
 (Array of objects)

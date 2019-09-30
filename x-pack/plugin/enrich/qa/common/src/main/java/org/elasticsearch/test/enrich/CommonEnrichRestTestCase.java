@@ -25,7 +25,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
@@ -37,7 +36,8 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
         List<Map<?,?>> policies = (List<Map<?,?>>) responseMap.get("policies");
 
         for (Map<?, ?> entry: policies) {
-            client().performRequest(new Request("DELETE", "/_enrich/policy/" + XContentMapValues.extractValue("match.name", entry)));
+            client().performRequest(new Request("DELETE", "/_enrich/policy/" +
+                XContentMapValues.extractValue("config.match.name", entry)));
         }
     }
 
@@ -90,7 +90,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
 
     public void testBasicFlow() throws Exception {
         setupGenericLifecycleTest(true);
-        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 30, TimeUnit.SECONDS);
+        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 1, TimeUnit.MINUTES);
     }
 
     public void testImmutablePolicy() throws IOException {
@@ -185,7 +185,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
             maxExecutedSearchesTotal = Math.max(maxExecutedSearchesTotal, foundExecutedSearchesTotal);
         }
 
-        assertThat(maxRemoteRequestsTotal, greaterThan(0));
-        assertThat(maxExecutedSearchesTotal, greaterThan(0));
+        assertThat(maxRemoteRequestsTotal, greaterThanOrEqualTo(1));
+        assertThat(maxExecutedSearchesTotal, greaterThanOrEqualTo(1));
     }
 }

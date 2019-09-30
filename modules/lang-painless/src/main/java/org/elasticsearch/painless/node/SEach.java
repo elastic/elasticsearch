@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -119,8 +120,8 @@ public class SEach extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        sub.write(writer, globals);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        sub.write(classWriter, methodWriter, globals);
     }
 
     @Override

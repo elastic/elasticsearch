@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -107,32 +108,32 @@ public final class SDo extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeStatementOffset(location);
 
         Label start = new Label();
         Label begin = new Label();
         Label end = new Label();
 
-        writer.mark(start);
+        methodWriter.mark(start);
 
         block.continu = begin;
         block.brake = end;
-        block.write(writer, globals);
+        block.write(classWriter, methodWriter, globals);
 
-        writer.mark(begin);
+        methodWriter.mark(begin);
 
         if (!continuous) {
-            condition.write(writer, globals);
-            writer.ifZCmp(Opcodes.IFEQ, end);
+            condition.write(classWriter, methodWriter, globals);
+            methodWriter.ifZCmp(Opcodes.IFEQ, end);
         }
 
         if (loopCounter != null) {
-            writer.writeLoopCounter(loopCounter.getSlot(), Math.max(1, block.statementCount), location);
+            methodWriter.writeLoopCounter(loopCounter.getSlot(), Math.max(1, block.statementCount), location);
         }
 
-        writer.goTo(start);
-        writer.mark(end);
+        methodWriter.goTo(start);
+        methodWriter.mark(end);
     }
 
     @Override

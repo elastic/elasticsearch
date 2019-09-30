@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -78,14 +79,14 @@ public final class SReturn extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeStatementOffset(location);
 
         if (expression != null) {
-            expression.write(writer, globals);
+            expression.write(classWriter, methodWriter, globals);
         }
 
-        writer.returnValue();
+        methodWriter.returnValue();
     }
 
     @Override

@@ -22,6 +22,7 @@ package org.elasticsearch.common.time;
 import org.elasticsearch.common.Strings;
 
 import java.text.ParsePosition;
+import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;

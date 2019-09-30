@@ -1618,7 +1618,8 @@ public class DateFormatters {
     //
     /////////////////////////////////////////
 
-    static DateFormatter forPattern(String input) {
+    static DateFormatter
+    forPattern(String input) {
         if (Strings.hasLength(input)) {
             input = input.trim();
         }

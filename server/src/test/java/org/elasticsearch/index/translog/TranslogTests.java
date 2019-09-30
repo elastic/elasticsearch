@@ -448,9 +448,9 @@ public class TranslogTests extends ESTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(1));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(162L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(157L));
             assertThat(stats.getUncommittedOperations(), equalTo(1));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(162L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(157L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(1L));
         }
 
@@ -458,9 +458,9 @@ public class TranslogTests extends ESTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(2));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(210L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(200L));
             assertThat(stats.getUncommittedOperations(), equalTo(2));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(210L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(200L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(1L));
         }
 
@@ -468,9 +468,9 @@ public class TranslogTests extends ESTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(3));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(258L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(243L));
             assertThat(stats.getUncommittedOperations(), equalTo(3));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(258L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(243L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(1L));
         }
 
@@ -478,13 +478,13 @@ public class TranslogTests extends ESTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(300L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(285L));
             assertThat(stats.getUncommittedOperations(), equalTo(4));
-            assertThat(stats.getUncommittedSizeInBytes(), equalTo(300L));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(285L));
             assertThat(stats.getEarliestLastModifiedAge(), greaterThan(1L));
         }
 
-        final long expectedSizeInBytes = 355L;
+        final long expectedSizeInBytes = 340L;
         translog.rollGeneration();
         {
             final TranslogStats stats = stats();
@@ -1602,7 +1602,7 @@ public class TranslogTests extends ESTestCase {
         final TranslogCorruptedException translogCorruptedException = expectThrows(TranslogCorruptedException.class, () ->
             new Translog(config, translogUUID, deletionPolicy, () -> SequenceNumbers.NO_OPS_PERFORMED, primaryTerm::get, seqNo -> { }));
         assertThat(translogCorruptedException.getMessage(), endsWith(
-            "] is corrupted, checkpoint file translog-3.ckp already exists but has corrupted content: expected Checkpoint{offset=3025, " +
+            "] is corrupted, checkpoint file translog-3.ckp already exists but has corrupted content: expected Checkpoint{offset=2750, " +
                 "numOps=55, generation=3, minSeqNo=45, maxSeqNo=99, globalCheckpoint=-1, minTranslogGeneration=1, trimmedAboveSeqNo=-2} " +
                 "but got Checkpoint{offset=0, numOps=0, generation=0, minSeqNo=-1, maxSeqNo=-1, globalCheckpoint=-1, " +
                 "minTranslogGeneration=0, trimmedAboveSeqNo=-2}"));

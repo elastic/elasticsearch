@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -108,7 +109,7 @@ public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
             .metaData(metaDataNewClusterState).version(oldClusterState.getVersion() + 1).build();
     }
 
-    private ClusterState clusterStateWithClosedIndex(IndexMetaData indexMetaData, boolean masterEligible) {
+    private ClusterState clusterStateWithNonReplicatedClosedIndex(IndexMetaData indexMetaData, boolean masterEligible) {
         ClusterState oldClusterState = clusterStateWithAssignedIndex(indexMetaData, masterEligible);
 
         MetaData metaDataNewClusterState = MetaData.builder()
@@ -117,23 +118,41 @@ public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
             .version(oldClusterState.metaData().version() + 1)
             .build();
         RoutingTable routingTable = RoutingTable.builder()
-            .addAsNew(metaDataNewClusterState.index("test"))
+            .addAsRecovery(metaDataNewClusterState.index("test"))
             .build();
 
         return ClusterState.builder(oldClusterState).routingTable(routingTable)
             .metaData(metaDataNewClusterState).version(oldClusterState.getVersion() + 1).build();
     }
 
-    private ClusterState clusterStateWithJustOpenedIndex(IndexMetaData indexMetaData, boolean masterEligible) {
-        ClusterState oldClusterState = clusterStateWithClosedIndex(indexMetaData, masterEligible);
+    private ClusterState clusterStateWithReplicatedClosedIndex(IndexMetaData indexMetaData, boolean masterEligible, boolean assigned) {
+        ClusterState oldClusterState = clusterStateWithAssignedIndex(indexMetaData, masterEligible);
 
         MetaData metaDataNewClusterState = MetaData.builder()
-            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).state(IndexMetaData.State.OPEN)
+            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)
+                .put(MetaDataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true))
+                .state(IndexMetaData.State.CLOSE)
                 .numberOfShards(5).numberOfReplicas(2))
             .version(oldClusterState.metaData().version() + 1)
             .build();
+        RoutingTable routingTable = RoutingTable.builder()
+            .addAsRecovery(metaDataNewClusterState.index("test"))
+            .build();
 
-        return ClusterState.builder(oldClusterState)
+        oldClusterState = ClusterState.builder(oldClusterState).routingTable(routingTable)
+            .metaData(metaDataNewClusterState).build();
+        if (assigned) {
+            AllocationService strategy = createAllocationService(Settings.builder()
+                .put("cluster.routing.allocation.node_concurrent_recoveries", 100)
+                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(), "always")
+                .put("cluster.routing.allocation.cluster_concurrent_rebalance", 100)
+                .put("cluster.routing.allocation.node_initial_primaries_recoveries", 100)
+                .build());
+
+            routingTable = strategy.reroute(oldClusterState, "reroute").routingTable();
+        }
+
+        return ClusterState.builder(oldClusterState).routingTable(routingTable)
             .metaData(metaDataNewClusterState).version(oldClusterState.getVersion() + 1).build();
     }
 
@@ -170,22 +189,25 @@ public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
         assertThat(indices.size(), equalTo(1));
     }
 
-    public void testGetRelevantIndicesForClosedPrevWrittenIndexOnDataOnlyNode() {
+    public void testGetRelevantIndicesForNonReplicatedClosedIndexOnDataOnlyNode() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
-        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(clusterStateWithClosedIndex(indexMetaData, false));
+        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(
+            clusterStateWithNonReplicatedClosedIndex(indexMetaData, false));
         assertThat(indices.size(), equalTo(0));
     }
 
-    public void testGetRelevantIndicesForClosedPrevNotWrittenIndexOnDataOnlyNode() {
+    public void testGetRelevantIndicesForReplicatedClosedButUnassignedIndexOnDataOnlyNode() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
-        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(clusterStateWithJustOpenedIndex(indexMetaData, false));
+        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(
+            clusterStateWithReplicatedClosedIndex(indexMetaData, false, false));
         assertThat(indices.size(), equalTo(0));
     }
 
-    public void testGetRelevantIndicesForWasClosedPrevWrittenIndexOnDataOnlyNode() {
+    public void testGetRelevantIndicesForReplicatedClosedAndAssignedIndexOnDataOnlyNode() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
-        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(clusterStateWithJustOpenedIndex(indexMetaData, false));
-        assertThat(indices.size(), equalTo(0));
+        Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(
+            clusterStateWithReplicatedClosedIndex(indexMetaData, false, true));
+        assertThat(indices.size(), equalTo(1));
     }
 
     public void testResolveStatesToBeWritten() throws WriteStateException {

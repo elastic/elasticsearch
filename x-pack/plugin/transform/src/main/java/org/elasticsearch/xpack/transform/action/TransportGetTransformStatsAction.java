@@ -59,13 +59,21 @@ public class TransportGetTransformStatsAction extends
     @Inject
     public TransportGetTransformStatsAction(TransportService transportService, ActionFilters actionFilters,
                                             ClusterService clusterService,
-                                            TransformConfigManager transformsConfigManager,
+                                            TransformConfigManager transformConfigManager,
                                             TransformCheckpointService transformsCheckpointService) {
-        super(GetTransformStatsAction.NAME, clusterService, transportService, actionFilters, Request::new, Response::new,
+        this(GetTransformStatsAction.NAME, transportService, actionFilters, clusterService, transformConfigManager,
+             transformsCheckpointService);
+    }
+
+    protected TransportGetTransformStatsAction(String name, TransportService transportService, ActionFilters actionFilters,
+                                               ClusterService clusterService, TransformConfigManager transformsConfigManager,
+                                               TransformCheckpointService transformsCheckpointService) {
+        super(name, clusterService, transportService, actionFilters, Request::new, Response::new,
             Response::new, ThreadPool.Names.SAME);
         this.transformConfigManager = transformsConfigManager;
         this.transformCheckpointService = transformsCheckpointService;
     }
+
 
     @Override
     protected Response newResponse(Request request, List<Response> tasks, List<TaskOperationFailure> taskOperationFailures,

@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.transform.rest.action;
+package org.elasticsearch.xpack.transform.rest.action.compat;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -13,26 +13,29 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.transform.TransformField;
-import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
+import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 
 import java.io.IOException;
 
-public class RestPreviewTransformAction extends BaseRestHandler {
+public class RestPutTransformActionDeprecated extends BaseRestHandler {
 
-    public RestPreviewTransformAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.POST, TransformField.REST_BASE_PATH_TRANSFORMS + "_preview", this);
+    public RestPutTransformActionDeprecated(RestController controller) {
+        controller.registerHandler(RestRequest.Method.PUT, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED, this);
     }
 
     @Override
     public String getName() {
-        return "transform_preview_transform_action";
+        return "data_frame_put_transform_action";
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+        String id = restRequest.param(TransformField.ID.getPreferredName());
         XContentParser parser = restRequest.contentParser();
 
-        PreviewTransformAction.Request request = PreviewTransformAction.Request.fromXContent(parser);
-        return channel -> client.execute(PreviewTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        boolean deferValidation = restRequest.paramAsBoolean(TransformField.DEFER_VALIDATION.getPreferredName(), false);
+        PutTransformAction.Request request = PutTransformAction.Request.fromXContent(parser, id, deferValidation);
+
+        return channel -> client.execute(PutTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

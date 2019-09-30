@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.transform.rest.action;
+package org.elasticsearch.xpack.transform.rest.action.compat;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.node.NodeClient;
@@ -15,10 +15,10 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 
-public class RestStartTransformAction extends BaseRestHandler {
+public class RestStartTransformActionDeprecated extends BaseRestHandler {
 
-    public RestStartTransformAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID + "_start", this);
+    public RestStartTransformActionDeprecated(RestController controller) {
+        controller.registerHandler(RestRequest.Method.POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED + "_start", this);
     }
 
     @Override
@@ -32,6 +32,6 @@ public class RestStartTransformAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "transform_start_transform_action";
+        return "data_frame_start_transform_action";
     }
 }

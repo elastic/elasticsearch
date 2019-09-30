@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.transform.rest.action;
+package org.elasticsearch.xpack.transform.rest.action.compat;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -17,15 +17,15 @@ import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 
 import java.io.IOException;
 
-public class RestPreviewTransformAction extends BaseRestHandler {
+public class RestPreviewTransformActionDeprecated extends BaseRestHandler {
 
-    public RestPreviewTransformAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.POST, TransformField.REST_BASE_PATH_TRANSFORMS + "_preview", this);
+    public RestPreviewTransformActionDeprecated(RestController controller) {
+        controller.registerHandler(RestRequest.Method.POST, TransformField.REST_BASE_PATH_TRANSFORMS_DEPRECATED + "_preview", this);
     }
 
     @Override
     public String getName() {
-        return "transform_preview_transform_action";
+        return "data_frame_preview_transform_action";
     }
 
     @Override

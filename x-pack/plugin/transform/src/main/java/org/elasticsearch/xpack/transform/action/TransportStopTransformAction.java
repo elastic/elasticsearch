@@ -54,7 +54,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     private static final Logger logger = LogManager.getLogger(TransportStopTransformAction.class);
 
     private final ThreadPool threadPool;
-    private final TransformConfigManager transformsConfigManager;
+    private final TransformConfigManager transformConfigManager;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
 
@@ -62,12 +62,21 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     public TransportStopTransformAction(TransportService transportService, ActionFilters actionFilters,
                                         ClusterService clusterService, ThreadPool threadPool,
                                         PersistentTasksService persistentTasksService,
-                                        TransformConfigManager transformsConfigManager,
+                                        TransformConfigManager transformConfigManager,
                                         Client client) {
-        super(StopTransformAction.NAME, clusterService, transportService, actionFilters, Request::new,
-                Response::new, Response::new, ThreadPool.Names.SAME);
+        this(StopTransformAction.NAME, transportService, actionFilters, clusterService, threadPool, persistentTasksService,
+             transformConfigManager, client);
+    }
+
+    protected TransportStopTransformAction(String name, TransportService transportService, ActionFilters actionFilters,
+                                           ClusterService clusterService, ThreadPool threadPool,
+                                           PersistentTasksService persistentTasksService,
+                                           TransformConfigManager transformConfigManager,
+                                           Client client) {
+        super(name, clusterService, transportService, actionFilters, Request::new,
+              Response::new, Response::new, ThreadPool.Names.SAME);
         this.threadPool = threadPool;
-        this.transformsConfigManager = transformsConfigManager;
+        this.transformConfigManager = transformConfigManager;
         this.persistentTasksService = persistentTasksService;
         this.client = client;
     }
@@ -118,7 +127,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                 finalListener = listener;
             }
 
-            transformsConfigManager.expandTransformIds(request.getId(),
+            transformConfigManager.expandTransformIds(request.getId(),
                 new PageParams(0, 10_000),
                 request.isAllowNoMatch(),
                 ActionListener.wrap(hitsAndIds -> {

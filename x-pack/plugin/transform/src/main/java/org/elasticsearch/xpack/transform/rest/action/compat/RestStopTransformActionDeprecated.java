@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.transform.rest.action;
+package org.elasticsearch.xpack.transform.rest.action.compat;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.unit.TimeValue;
@@ -14,10 +14,10 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 
-public class RestStopTransformAction extends BaseRestHandler {
+public class RestStopTransformActionDeprecated extends BaseRestHandler {
 
-    public RestStopTransformAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID + "_stop", this);
+    public RestStopTransformActionDeprecated(RestController controller) {
+        controller.registerHandler(RestRequest.Method.POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED + "_stop", this);
     }
 
     @Override
@@ -42,6 +42,6 @@ public class RestStopTransformAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "transform_stop_transform_action";
+        return "data_frame_stop_transform_action";
     }
 }

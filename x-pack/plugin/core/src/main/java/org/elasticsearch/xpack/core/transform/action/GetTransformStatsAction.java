@@ -36,7 +36,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.Response> {
 
     public static final GetTransformStatsAction INSTANCE = new GetTransformStatsAction();
-    public static final String NAME = "cluster:monitor/data_frame/stats/get";
+    public static final String NAME = "cluster:monitor/transform/stats/get";
     public GetTransformStatsAction() {
         super(NAME, GetTransformStatsAction.Response::new);
     }

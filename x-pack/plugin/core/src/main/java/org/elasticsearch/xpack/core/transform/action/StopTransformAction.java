@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -35,7 +35,7 @@ import java.util.concurrent.TimeUnit;
 public class StopTransformAction extends ActionType<StopTransformAction.Response> {
 
     public static final StopTransformAction INSTANCE = new StopTransformAction();
-    public static final String NAME = "cluster:admin/data_frame/stop";
+    public static final String NAME = "cluster:admin/transform/stop";
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 

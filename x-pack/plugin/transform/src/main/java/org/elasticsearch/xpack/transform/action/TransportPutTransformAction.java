@@ -62,7 +62,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
 
     private final XPackLicenseState licenseState;
     private final Client client;
-    private final TransformConfigManager transformsConfigManager;
+    private final TransformConfigManager transformConfigManager;
     private final SecurityContext securityContext;
     private final TransformAuditor auditor;
 
@@ -70,17 +70,27 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
     public TransportPutTransformAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                        ClusterService clusterService, XPackLicenseState licenseState,
-                                       TransformConfigManager transformsConfigManager, Client client,
+                                       TransformConfigManager transformConfigManager, Client client,
                                        TransformAuditor auditor) {
-        super(PutTransformAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                PutTransformAction.Request::new, indexNameExpressionResolver);
+        this(PutTransformAction.NAME, settings, transportService, threadPool, actionFilters, indexNameExpressionResolver,
+             clusterService, licenseState, transformConfigManager, client, auditor);
+    }
+
+    protected TransportPutTransformAction(String name, Settings settings, TransportService transportService, ThreadPool threadPool,
+                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                          ClusterService clusterService, XPackLicenseState licenseState,
+                                          TransformConfigManager transformConfigManager, Client client,
+                                          TransformAuditor auditor) {
+        super(name, transportService, clusterService, threadPool, actionFilters,
+              PutTransformAction.Request::new, indexNameExpressionResolver);
         this.licenseState = licenseState;
         this.client = client;
-        this.transformsConfigManager = transformsConfigManager;
+        this.transformConfigManager = transformConfigManager;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
             new SecurityContext(settings, threadPool.getThreadContext()) : null;
         this.auditor = auditor;
     }
+
 
     static HasPrivilegesRequest buildPrivilegeCheck(TransformConfig config,
                                                     IndexNameExpressionResolver indexNameExpressionResolver,
@@ -220,7 +230,7 @@ public class TransportPutTransformAction extends TransportMasterNodeAction<Reque
 
         // <2> Put our transform
         ActionListener<Boolean> pivotValidationListener = ActionListener.wrap(
-            validationResult -> transformsConfigManager.putTransformConfiguration(config, putTransformConfigurationListener),
+            validationResult -> transformConfigManager.putTransformConfiguration(config, putTransformConfigurationListener),
             validationException -> {
                 if (validationException instanceof ElasticsearchStatusException) {
                     listener.onFailure(new ElasticsearchStatusException(

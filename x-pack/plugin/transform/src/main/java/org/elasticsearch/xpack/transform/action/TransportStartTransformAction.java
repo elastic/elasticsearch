@@ -37,9 +37,9 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
-import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
+import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
@@ -62,7 +62,7 @@ public class TransportStartTransformAction extends
 
     private static final Logger logger = LogManager.getLogger(TransportStartTransformAction.class);
     private final XPackLicenseState licenseState;
-    private final TransformConfigManager transformsConfigManager;
+    private final TransformConfigManager transformConfigManager;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
     private final TransformAuditor auditor;
@@ -71,13 +71,23 @@ public class TransportStartTransformAction extends
     public TransportStartTransformAction(TransportService transportService, ActionFilters actionFilters,
                                          ClusterService clusterService, XPackLicenseState licenseState,
                                          ThreadPool threadPool, IndexNameExpressionResolver indexNameExpressionResolver,
-                                         TransformConfigManager transformsConfigManager,
+                                         TransformConfigManager transformConfigManager,
                                          PersistentTasksService persistentTasksService, Client client,
                                          TransformAuditor auditor) {
-        super(StartTransformAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                StartTransformAction.Request::new, indexNameExpressionResolver);
+        this(StartTransformAction.NAME, transportService, actionFilters, clusterService, licenseState, threadPool,
+             indexNameExpressionResolver, transformConfigManager, persistentTasksService, client, auditor);
+    }
+
+    protected TransportStartTransformAction(String name, TransportService transportService, ActionFilters actionFilters,
+                                            ClusterService clusterService, XPackLicenseState licenseState,
+                                            ThreadPool threadPool, IndexNameExpressionResolver indexNameExpressionResolver,
+                                            TransformConfigManager transformConfigManager,
+                                            PersistentTasksService persistentTasksService, Client client,
+                                            TransformAuditor auditor) {
+        super(name, transportService, clusterService, threadPool, actionFilters, StartTransformAction.Request::new,
+              indexNameExpressionResolver);
         this.licenseState = licenseState;
-        this.transformsConfigManager = transformsConfigManager;
+        this.transformConfigManager = transformConfigManager;
         this.persistentTasksService = persistentTasksService;
         this.client = client;
         this.auditor = auditor;
@@ -209,7 +219,7 @@ public class TransportStartTransformAction extends
         );
 
         // <1> Get the config to verify it exists and is valid
-        transformsConfigManager.getTransformConfiguration(request.getId(), getTransformListener);
+        transformConfigManager.getTransformConfiguration(request.getId(), getTransformListener);
     }
 
     private void createDestinationIndex(final TransformConfig config, final ActionListener<Void> listener) {

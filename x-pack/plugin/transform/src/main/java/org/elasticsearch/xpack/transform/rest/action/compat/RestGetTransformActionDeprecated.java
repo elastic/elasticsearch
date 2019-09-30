@@ -4,9 +4,11 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.transform.rest.action;
+package org.elasticsearch.xpack.transform.rest.action.compat;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -14,14 +16,22 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
+import org.elasticsearch.xpack.core.transform.action.compat.GetTransformActionDeprecated;
 
 import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MATCH;
 
-public class RestGetTransformAction extends BaseRestHandler {
+public class RestGetTransformActionDeprecated extends BaseRestHandler {
 
-    public RestGetTransformAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.GET, TransformField.REST_BASE_PATH_TRANSFORMS, this);
-        controller.registerHandler(RestRequest.Method.GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID, this);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+            LogManager.getLogger(GetTransformAction.class));
+
+    public RestGetTransformActionDeprecated(RestController controller) {
+        controller.registerHandler(RestRequest.Method.GET, TransformField.REST_BASE_PATH_TRANSFORMS_DEPRECATED, this);
+        controller.registerHandler(RestRequest.Method.GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED, this);
+        //controller.registerAsDeprecatedHandler(RestRequest.Method.GET, TransformField.REST_BASE_PATH_TRANSFORMS, this,
+        //        "deprecated use /transform", deprecationLogger);
+        //controller.registerAsDeprecatedHandler(RestRequest.Method.GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID, this,
+        //        "deprecated use /transform", deprecationLogger);
     }
 
     @Override
@@ -36,11 +46,11 @@ public class RestGetTransformAction extends BaseRestHandler {
                 new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                     restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
         }
-        return channel -> client.execute(GetTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(GetTransformActionDeprecated.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
     @Override
     public String getName() {
-        return "transform_get_transform_action";
+        return "data_frame_get_transforms_action";
     }
 }

@@ -44,7 +44,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
     protected static final String REVIEWS_INDEX_NAME = "reviews";
 
-    protected static final String TRANSFORM_ENDPOINT = TransformField.REST_BASE_PATH + "transforms/";
+    protected static final String TRANSFORM_ENDPOINT = TransformField.REST_BASE_PATH_TRANSFORMS_DEPRECATED;
 
     @Override
     protected Settings restClientSettings() {

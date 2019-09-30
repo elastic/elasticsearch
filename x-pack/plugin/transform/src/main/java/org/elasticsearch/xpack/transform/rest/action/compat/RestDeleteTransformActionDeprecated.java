@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.transform.rest.action;
+package org.elasticsearch.xpack.transform.rest.action.compat;
 
 
 import org.elasticsearch.client.node.NodeClient;
@@ -14,10 +14,10 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
 
-public class RestDeleteTransformAction extends BaseRestHandler {
+public class RestDeleteTransformActionDeprecated extends BaseRestHandler {
 
-    public RestDeleteTransformAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.DELETE,  TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID, this);
+    public RestDeleteTransformActionDeprecated(RestController controller) {
+        controller.registerHandler(RestRequest.Method.DELETE,  TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED, this);
     }
 
     @Override
@@ -36,6 +36,6 @@ public class RestDeleteTransformAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "transform_delete_transform_action";
+        return "data_frame_delete_transform_action";
     }
 }

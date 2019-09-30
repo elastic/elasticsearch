@@ -40,6 +40,6 @@ public class RestGetTransformStatsAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "data_frame_get_transforms_stats_action";
+        return "transform_get_transform_stats_action";
     }
 }

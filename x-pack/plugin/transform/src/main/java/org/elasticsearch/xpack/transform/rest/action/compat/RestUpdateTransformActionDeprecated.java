@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.transform.rest.action;
+package org.elasticsearch.xpack.transform.rest.action.compat;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -17,15 +17,15 @@ import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 
 import java.io.IOException;
 
-public class RestUpdateTransformAction extends BaseRestHandler {
+public class RestUpdateTransformActionDeprecated extends BaseRestHandler {
 
-    public RestUpdateTransformAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID + "_update", this);
+    public RestUpdateTransformActionDeprecated(RestController controller) {
+        controller.registerHandler(RestRequest.Method.POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED + "_update", this);
     }
 
     @Override
     public String getName() {
-        return "transform_update_transform_action";
+        return "data_frame_update_transform_action";
     }
 
     @Override

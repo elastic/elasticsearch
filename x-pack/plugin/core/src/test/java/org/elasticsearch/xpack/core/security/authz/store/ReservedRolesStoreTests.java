@@ -888,7 +888,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
 
         final String index = ".monitoring-beats-" + randomIntBetween(0, 5);;
-        logger.info("index name [{}]", index);
+        logger.info("beats monitoring index name [{}]", index);
         assertThat(beatsSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
         assertThat(beatsSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
         assertThat(beatsSystemRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
@@ -925,6 +925,14 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(APMSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
         assertThat(APMSystemRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
                 is(false));
+
+        final String index = ".monitoring-beats-" + randomIntBetween(10, 15);;
+        logger.info("APM beats monitoring index name [{}]", index);
+
+        assertThat(APMSystemRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(true));
+        assertThat(APMSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(true));
+        assertThat(APMSystemRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(false));
+        assertThat(APMSystemRole.indices().allowedIndicesMatcher(BulkAction.NAME).test(index), is(true));
 
         assertNoAccessAllowed(APMSystemRole, RestrictedIndicesNames.RESTRICTED_NAMES);
     }

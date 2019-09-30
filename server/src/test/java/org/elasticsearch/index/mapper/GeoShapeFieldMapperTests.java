@@ -49,7 +49,6 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("location")
             .field("type", "geo_shape")
-            .field("doc_values", true)
             .endObject().endObject()
             .endObject().endObject());
 

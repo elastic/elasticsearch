@@ -90,7 +90,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
 
     public void testBasicFlow() throws Exception {
         setupGenericLifecycleTest(true);
-        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 30, TimeUnit.SECONDS);
+        assertBusy(CommonEnrichRestTestCase::verifyEnrichMonitoring, 1, TimeUnit.MINUTES);
     }
 
     public void testImmutablePolicy() throws IOException {
@@ -185,7 +185,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
             maxExecutedSearchesTotal = Math.max(maxExecutedSearchesTotal, foundExecutedSearchesTotal);
         }
 
-        assertThat(maxRemoteRequestsTotal, greaterThan(0));
-        assertThat(maxExecutedSearchesTotal, greaterThan(0));
+        assertThat(maxRemoteRequestsTotal, greaterThanOrEqualTo(1));
+        assertThat(maxExecutedSearchesTotal, greaterThanOrEqualTo(1));
     }
 }

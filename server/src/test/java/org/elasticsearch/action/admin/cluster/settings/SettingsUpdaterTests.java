@@ -570,7 +570,7 @@ public class SettingsUpdaterTests extends ESTestCase {
 
         @Override
         public void validate(final Integer high, final Map<Setting<?>, Object> settings) {
-            if (settings.containsKey(SETTING_FOO_LOW) && high < (int)settings.get(SETTING_FOO_LOW)) {
+            if (settings.containsKey(SETTING_FOO_LOW) && high < (int) settings.get(SETTING_FOO_LOW)) {
                 throw new IllegalArgumentException("[high]=" + high + " is lower than [low]=" + settings.get(SETTING_FOO_LOW));
             }
         }

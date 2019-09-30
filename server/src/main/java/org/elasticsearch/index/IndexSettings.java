@@ -318,7 +318,7 @@ public final class IndexSettings {
 
         @Override
         public void validate(final String value, final Map<Setting<?>, Object> settings) {
-            final String requiredPipeline = (String)settings.get(IndexSettings.REQUIRED_PIPELINE);
+            final String requiredPipeline = (String) settings.get(IndexSettings.REQUIRED_PIPELINE);
             if (value.equals(IngestService.NOOP_PIPELINE_NAME) == false
                 && requiredPipeline.equals(IngestService.NOOP_PIPELINE_NAME) == false) {
                 throw new IllegalArgumentException(

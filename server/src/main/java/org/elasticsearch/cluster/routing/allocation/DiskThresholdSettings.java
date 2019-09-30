@@ -110,8 +110,8 @@ public class DiskThresholdSettings {
 
         @Override
         public void validate(final String value, final Map<Setting<?>, Object> settings) {
-            final String highWatermarkRaw = (String)settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING);
-            final String floodStageRaw = (String)settings.get(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING);
+            final String highWatermarkRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING);
+            final String floodStageRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING);
             doValidate(value, highWatermarkRaw, floodStageRaw);
         }
 
@@ -134,8 +134,8 @@ public class DiskThresholdSettings {
 
         @Override
         public void validate(final String value, final Map<Setting<?>, Object> settings) {
-            final String lowWatermarkRaw = (String)settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING);
-            final String floodStageRaw = (String)settings.get(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING);
+            final String lowWatermarkRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING);
+            final String floodStageRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING);
             doValidate(lowWatermarkRaw, value, floodStageRaw);
         }
 
@@ -158,8 +158,8 @@ public class DiskThresholdSettings {
 
         @Override
         public void validate(final String value, final Map<Setting<?>, Object> settings) {
-            final String lowWatermarkRaw = (String)settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING);
-            final String highWatermarkRaw = (String)settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING);
+            final String lowWatermarkRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING);
+            final String highWatermarkRaw = (String) settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING);
             doValidate(lowWatermarkRaw, highWatermarkRaw, value);
         }
 

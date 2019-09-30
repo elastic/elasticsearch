@@ -85,7 +85,7 @@ public final class AutoQueueAdjustingExecutorBuilder extends ExecutorBuilder<Aut
 
                 @Override
                 public void validate(final Integer value, final Map<Setting<?>, Object> settings) {
-                    if (value > (int)settings.get(tempMaxQueueSizeSetting)) {
+                    if (value > (int) settings.get(tempMaxQueueSizeSetting)) {
                         throw new IllegalArgumentException("Failed to parse value [" + value + "] for setting [" + minSizeKey
                             + "] must be <= " + settings.get(tempMaxQueueSizeSetting));
                     }
@@ -112,7 +112,7 @@ public final class AutoQueueAdjustingExecutorBuilder extends ExecutorBuilder<Aut
 
                     @Override
                     public void validate(final Integer value, final Map<Setting<?>, Object> settings) {
-                        if (value < (int)settings.get(tempMinQueueSizeSetting)) {
+                        if (value < (int) settings.get(tempMinQueueSizeSetting)) {
                             throw new IllegalArgumentException("Failed to parse value [" + value + "] for setting [" + minSizeKey
                                 + "] must be >= " + settings.get(tempMinQueueSizeSetting));
                         }

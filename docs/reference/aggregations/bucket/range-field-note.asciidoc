@@ -60,7 +60,7 @@ POST /range_index/_search?size=0
 }
 --------------------------------------------------
 
-Since the interval is 5 (and the offset is 0 by default), we expect buckets 10,
+Since the interval is `5` (and the offset is `0` by default), we expect buckets `10`,
 15, and 20. Our range document will fall in all three of these buckets,
 something like this:
 

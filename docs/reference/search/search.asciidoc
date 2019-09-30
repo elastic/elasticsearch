@@ -319,6 +319,7 @@ Returned parameters include:
 +
 * `_index`: Name of the index containing the returned document.
 * `_id`: Unique identifier for the returned document.
+  This ID is only unique within the returned index.
 * `_score`: Floating point number
   used to determine the relevance of the returned document.
 * `_source`: Object containing the original JSON body

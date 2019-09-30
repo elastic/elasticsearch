@@ -203,7 +203,7 @@ public class EnrichPolicyRunner implements Runnable {
             matchFieldMapping = (builder) -> builder.field("type", "keyword").field("doc_values", false);
             // No need to also configure index_options, because keyword type defaults to 'docs'.
         } else if (EnrichPolicy.GEO_MATCH_TYPE.equals(policy.getType())) {
-            matchFieldMapping = (builder) -> builder.field("type", "geo_shape").field("doc_values", false);
+            matchFieldMapping = (builder) -> builder.field("type", "geo_shape");
         } else {
             throw new ElasticsearchException("Unrecognized enrich policy type [{}]", policy.getType());
         }

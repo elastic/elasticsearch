@@ -1,1 +1,2 @@
 include 'reaper'
+include 'symbolic-link-preserving-tar'

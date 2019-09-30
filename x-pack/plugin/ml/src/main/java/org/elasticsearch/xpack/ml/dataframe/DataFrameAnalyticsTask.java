@@ -31,10 +31,12 @@ import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
+import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
 import java.util.Arrays;
 import java.util.List;
@@ -52,20 +54,23 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     private final Client client;
     private final ClusterService clusterService;
     private final DataFrameAnalyticsManager analyticsManager;
+    private final DataFrameAnalyticsAuditor auditor;
     private final StartDataFrameAnalyticsAction.TaskParams taskParams;
     @Nullable
     private volatile Long reindexingTaskId;
     private volatile boolean isReindexingFinished;
     private volatile boolean isStopping;
+    private volatile boolean isMarkAsCompletedCalled;
     private final ProgressTracker progressTracker = new ProgressTracker();
 
     public DataFrameAnalyticsTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers,
                                   Client client, ClusterService clusterService, DataFrameAnalyticsManager analyticsManager,
-                                  StartDataFrameAnalyticsAction.TaskParams taskParams) {
+                                  DataFrameAnalyticsAuditor auditor, StartDataFrameAnalyticsAction.TaskParams taskParams) {
         super(id, type, action, MlTasks.DATA_FRAME_ANALYTICS_TASK_ID_PREFIX + taskParams.getId(), parentTask, headers);
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.analyticsManager = Objects.requireNonNull(analyticsManager);
+        this.auditor = Objects.requireNonNull(auditor);
         this.taskParams = Objects.requireNonNull(taskParams);
     }
 
@@ -96,6 +101,18 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
 
     @Override
     public void markAsCompleted() {
+        // It is possible that the stop API has been called in the meantime and that
+        // may also cause this method to be called. We check whether we have already
+        // been marked completed to avoid doing it twice. We need to capture that
+        // locally instead of relying to isCompleted() because of the asynchronous
+        // persistence of progress.
+        synchronized (this) {
+            if (isMarkAsCompletedCalled) {
+                return;
+            }
+            isMarkAsCompletedCalled = true;
+        }
+
         persistProgress(() -> super.markAsCompleted());
     }
 
@@ -154,11 +171,17 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
 
     public void updateState(DataFrameAnalyticsState state, @Nullable String reason) {
         DataFrameAnalyticsTaskState newTaskState = new DataFrameAnalyticsTaskState(state, getAllocationId(), reason);
-        updatePersistentTaskState(newTaskState, ActionListener.wrap(
-            updatedTask -> LOGGER.info("[{}] Successfully update task state to [{}]", getParams().getId(), state),
-            e -> LOGGER.error(new ParameterizedMessage("[{}] Could not update task state to [{}] with reason [{}]",
-                getParams().getId(), state, reason), e)
-        ));
+        updatePersistentTaskState(
+            newTaskState,
+            ActionListener.wrap(
+                updatedTask -> {
+                    auditor.info(getParams().getId(), Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_UPDATED_STATE, state));
+                    LOGGER.info("[{}] Successfully update task state to [{}]", getParams().getId(), state);
+                },
+                e -> LOGGER.error(new ParameterizedMessage("[{}] Could not update task state to [{}] with reason [{}]",
+                    getParams().getId(), state, reason), e)
+            )
+        );
     }
 
     public void updateReindexTaskProgress(ActionListener<Void> listener) {
@@ -209,6 +232,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     }
 
     private void persistProgress(Runnable runnable) {
+        LOGGER.debug("[{}] Persisting progress", taskParams.getId());
         GetDataFrameAnalyticsStatsAction.Request getStatsRequest = new GetDataFrameAnalyticsStatsAction.Request(taskParams.getId());
         executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsStatsAction.INSTANCE, getStatsRequest, ActionListener.wrap(
             statsResponse -> {

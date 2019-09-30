@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.transform;
 
-import org.elasticsearch.client.transform.transforms.DataFrameTransformConfigTests;
+import org.elasticsearch.client.transform.transforms.TransformConfigTests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,17 +38,17 @@ public class UpdateDataFrameTransformResponseTests extends ESTestCase {
         xContentTester(this::createParser,
                 UpdateDataFrameTransformResponseTests::createTestInstance,
                 UpdateDataFrameTransformResponseTests::toXContent,
-                UpdateDataFrameTransformResponse::fromXContent)
+                UpdateTransformResponse::fromXContent)
                 .assertToXContentEquivalence(false)
                 .supportsUnknownFields(false)
                 .test();
     }
 
-    private static UpdateDataFrameTransformResponse createTestInstance() {
-        return new UpdateDataFrameTransformResponse(DataFrameTransformConfigTests.randomDataFrameTransformConfig());
+    private static UpdateTransformResponse createTestInstance() {
+        return new UpdateTransformResponse(TransformConfigTests.randomTransformConfig());
     }
 
-    private static void toXContent(UpdateDataFrameTransformResponse response, XContentBuilder builder) throws IOException {
+    private static void toXContent(UpdateTransformResponse response, XContentBuilder builder) throws IOException {
         response.getTransformConfiguration().toXContent(builder, null);
     }
 
@@ -56,7 +56,7 @@ public class UpdateDataFrameTransformResponseTests extends ESTestCase {
     protected NamedXContentRegistry xContentRegistry() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         List<NamedXContentRegistry.Entry> namedXContents = searchModule.getNamedXContents();
-        namedXContents.addAll(new DataFrameNamedXContentProvider().getNamedXContentParsers());
+        namedXContents.addAll(new TransformNamedXContentProvider().getNamedXContentParsers());
 
         return new NamedXContentRegistry(namedXContents);
     }

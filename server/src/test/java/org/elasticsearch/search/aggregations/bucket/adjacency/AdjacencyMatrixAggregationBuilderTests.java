@@ -26,6 +26,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.internal.SearchContext;
@@ -48,7 +49,6 @@ public class AdjacencyMatrixAggregationBuilderTests extends ESTestCase {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         IndexShard indexShard = mock(IndexShard.class);
         Settings settings = Settings.builder()
-            .put("index.max_adjacency_matrix_filters", 2)
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
@@ -58,9 +58,13 @@ public class AdjacencyMatrixAggregationBuilderTests extends ESTestCase {
         when(indexShard.indexSettings()).thenReturn(indexSettings);
         when(queryShardContext.getIndexSettings()).thenReturn(indexSettings);
         SearchContext context = new TestSearchContext(queryShardContext, indexShard);
+        
+        int maxFilters = SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.get(context.indexShard().indexSettings().getSettings());
+        int maxFiltersPlusOne = maxFilters + 1;
+        
 
-        Map<String, QueryBuilder> filters = new HashMap<>(3);
-        for (int i = 0; i < 3; i++) {
+        Map<String, QueryBuilder> filters = new HashMap<>(maxFilters);
+        for (int i = 0; i < maxFiltersPlusOne; i++) {
             QueryBuilder queryBuilder = mock(QueryBuilder.class);
             // return builder itself to skip rewrite
             when(queryBuilder.rewrite(queryShardContext)).thenReturn(queryBuilder);
@@ -69,9 +73,10 @@ public class AdjacencyMatrixAggregationBuilderTests extends ESTestCase {
         AdjacencyMatrixAggregationBuilder builder = new AdjacencyMatrixAggregationBuilder("dummy", filters);
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
             () -> builder.doBuild(context.getQueryShardContext(), null, new AggregatorFactories.Builder()));
-        assertThat(ex.getMessage(), equalTo("Number of filters is too large, must be less than or equal to: [2] but was [3]."
-            + "This limit can be set by changing the [" + IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey()
-            + "] index level setting."));
+        assertThat(ex.getMessage(), equalTo("Number of filters is too large, must be less than or equal to: ["+ maxFilters
+                +"] but was ["+ maxFiltersPlusOne +"]."
+            + "This limit can be set by changing the [" + SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey()
+            + "] setting."));
 
         // filter size not grater than max size should return an instance of AdjacencyMatrixAggregatorFactory
         Map<String, QueryBuilder> emptyFilters = Collections.emptyMap();

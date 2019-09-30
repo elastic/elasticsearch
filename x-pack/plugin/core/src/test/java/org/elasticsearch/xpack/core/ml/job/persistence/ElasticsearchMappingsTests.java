@@ -85,8 +85,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
     private static List<String> INTERNAL_FIELDS = Arrays.asList(
             GetResult._ID,
-            GetResult._INDEX,
-            GetResult._TYPE
+            GetResult._INDEX
     );
 
     public void testResultsMapppingReservedFields() throws Exception {

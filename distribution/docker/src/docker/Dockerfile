@@ -52,9 +52,9 @@ ENV JAVA_HOME /opt/jdk-${jdkVersion}
 
 COPY --from=builder /opt/jdk-${jdkVersion} /opt/jdk-${jdkVersion}
 
-RUN for iter in {1..10}; do yum update -y && \
-    yum install -y nc unzip wget which && \
-    yum clean all && exit_code=0 && break || exit_code=$? && echo "yum error: retry $iter in 10s" && sleep 10; done; \
+RUN for iter in {1..10}; do yum update  --setopt=tsflags=nodocs -y && \
+    yum install -y  --setopt=tsflags=nodocs nc unzip wget which && \
+    yum clean all && exit_code=0 && break || exit_code=\$? && echo "yum error: retry \$iter in 10s" && sleep 10; done; \
     (exit $exit_code)
 
 RUN groupadd -g 1000 elasticsearch && \

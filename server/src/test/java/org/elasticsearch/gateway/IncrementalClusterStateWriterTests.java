@@ -73,17 +73,6 @@ import static org.mockito.Mockito.when;
 
 public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
 
-    private ClusterState noIndexClusterState(boolean masterEligible) {
-        MetaData metaData = MetaData.builder().build();
-        RoutingTable routingTable = RoutingTable.builder().build();
-
-        return ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metaData(metaData)
-            .routingTable(routingTable)
-            .nodes(generateDiscoveryNodes(masterEligible))
-            .build();
-    }
-
     private ClusterState clusterStateWithUnassignedIndex(IndexMetaData indexMetaData, boolean masterEligible) {
         MetaData metaData = MetaData.builder()
             .put(indexMetaData, false)
@@ -154,14 +143,6 @@ public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
             .add(newNode("master_node", MASTER_DATA_ROLES)).localNodeId("node1").masterNodeId(masterEligible ? "node1" : "master_node");
     }
 
-    private Set<Index> randomPrevWrittenIndices(IndexMetaData indexMetaData) {
-        if (randomBoolean()) {
-            return Collections.singleton(indexMetaData.getIndex());
-        } else {
-            return Collections.emptySet();
-        }
-    }
-
     private IndexMetaData createIndexMetaData(String name) {
         return IndexMetaData.builder(name).
             settings(settings(Version.CURRENT)).
@@ -173,18 +154,14 @@ public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
     public void testGetRelevantIndicesWithUnassignedShardsOnMasterEligibleNode() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
         Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(
-            clusterStateWithUnassignedIndex(indexMetaData, true),
-            noIndexClusterState(true),
-            randomPrevWrittenIndices(indexMetaData));
+            clusterStateWithUnassignedIndex(indexMetaData, true));
         assertThat(indices.size(), equalTo(1));
     }
 
     public void testGetRelevantIndicesWithUnassignedShardsOnDataOnlyNode() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
         Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(
-            clusterStateWithUnassignedIndex(indexMetaData, false),
-            noIndexClusterState(false),
-            randomPrevWrittenIndices(indexMetaData));
+            clusterStateWithUnassignedIndex(indexMetaData, false));
         assertThat(indices.size(), equalTo(0));
     }
 
@@ -192,37 +169,29 @@ public class IncrementalClusterStateWriterTests extends ESAllocationTestCase {
         IndexMetaData indexMetaData = createIndexMetaData("test");
         boolean masterEligible = randomBoolean();
         Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(
-            clusterStateWithAssignedIndex(indexMetaData, masterEligible),
-            clusterStateWithUnassignedIndex(indexMetaData, masterEligible),
-            randomPrevWrittenIndices(indexMetaData));
+            clusterStateWithAssignedIndex(indexMetaData, masterEligible));
         assertThat(indices.size(), equalTo(1));
     }
 
     public void testGetRelevantIndicesForClosedPrevWrittenIndexOnDataOnlyNode() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
         Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(
-            clusterStateWithClosedIndex(indexMetaData, false),
-            clusterStateWithAssignedIndex(indexMetaData, false),
-            Collections.singleton(indexMetaData.getIndex()));
-        assertThat(indices.size(), equalTo(1));
+            clusterStateWithClosedIndex(indexMetaData, false));
+        assertThat(indices.size(), equalTo(0));
     }
 
     public void testGetRelevantIndicesForClosedPrevNotWrittenIndexOnDataOnlyNode() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
         Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(
-            clusterStateWithJustOpenedIndex(indexMetaData, false),
-            clusterStateWithClosedIndex(indexMetaData, false),
-            Collections.emptySet());
+            clusterStateWithJustOpenedIndex(indexMetaData, false));
         assertThat(indices.size(), equalTo(0));
     }
 
     public void testGetRelevantIndicesForWasClosedPrevWrittenIndexOnDataOnlyNode() {
         IndexMetaData indexMetaData = createIndexMetaData("test");
         Set<Index> indices = IncrementalClusterStateWriter.getRelevantIndices(
-            clusterStateWithJustOpenedIndex(indexMetaData, false),
-            clusterStateWithClosedIndex(indexMetaData, false),
-            Collections.singleton(indexMetaData.getIndex()));
-        assertThat(indices.size(), equalTo(1));
+            clusterStateWithJustOpenedIndex(indexMetaData, false));
+        assertThat(indices.size(), equalTo(0));
     }
 
     public void testResolveStatesToBeWritten() throws WriteStateException {

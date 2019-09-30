@@ -26,6 +26,7 @@ import java.nio.file.CopyOption;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermission;
@@ -107,27 +108,22 @@ public class SSLErrorMessageTests extends ESTestCase {
     }
 
     public void testMessageForKeyStoreOutsideConfigDir() throws Exception {
-        assumeFalse("@AwaitsFix(bugUrl = https://github.com/elastic/elasticsearch/issues/45598)", Constants.WINDOWS);
         checkBlockedKeyManagerResource("keystore", "keystore.path", null);
     }
 
     public void testMessageForPemCertificateOutsideConfigDir() throws Exception {
-        assumeFalse("@AwaitsFix(bugUrl = https://github.com/elastic/elasticsearch/issues/45598)", Constants.WINDOWS);
         checkBlockedKeyManagerResource("certificate", "certificate", withKey("cert1a.key"));
     }
 
     public void testMessageForPemKeyOutsideConfigDir() throws Exception {
-        assumeFalse("@AwaitsFix(bugUrl = https://github.com/elastic/elasticsearch/issues/45598)", Constants.WINDOWS);
         checkBlockedKeyManagerResource("key", "key", withCertificate("cert1a.crt"));
     }
 
     public void testMessageForTrustStoreOutsideConfigDir() throws Exception {
-        assumeFalse("@AwaitsFix(bugUrl = https://github.com/elastic/elasticsearch/issues/45598)", Constants.WINDOWS);
         checkBlockedTrustManagerResource("truststore", "truststore.path");
     }
 
     public void testMessageForCertificateAuthoritiesOutsideConfigDir() throws Exception {
-        assumeFalse("@AwaitsFix(bugUrl = https://github.com/elastic/elasticsearch/issues/45598)", Constants.WINDOWS);
         checkBlockedTrustManagerResource("certificate_authorities", "certificate_authorities");
     }
 
@@ -231,7 +227,7 @@ public class SSLErrorMessageTests extends ESTestCase {
         exception = exception.getCause();
         assertThat(exception, throwableWithMessage(
             "failed to initialize SSL " + sslManagerType + " - access to read " + fileType + " file [" + fileName +
-                "] is blocked; SSL resources should be placed in the [" + env.configFile() + "] directory"));
+                "] is blocked; SSL resources should be placed in the [" + env.configFile().normalize() + "] directory"));
         assertThat(exception, instanceOf(ElasticsearchException.class));
 
         exception = exception.getCause();
@@ -253,7 +249,7 @@ public class SSLErrorMessageTests extends ESTestCase {
     }
 
     private String blockedFile() throws IOException {
-        return "/this/path/is/outside/the/config/directory/file.error";
+        return Paths.get("/this", "path", "is", "outside", "the", "config", "directory", "file.error").toString();
     }
 
     /**

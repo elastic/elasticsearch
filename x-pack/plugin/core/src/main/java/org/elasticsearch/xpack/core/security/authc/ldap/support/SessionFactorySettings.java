@@ -25,11 +25,15 @@ public final class SessionFactorySettings {
     public static final Function<String, Setting.AffixSetting<TimeValue>> TIMEOUT_TCP_CONNECTION_SETTING = RealmSettings.affixSetting(
             "timeout.tcp_connect", key -> Setting.timeSetting(key, TIMEOUT_DEFAULT, Setting.Property.NodeScope));
 
-    public static final Function<String, Setting.AffixSetting<TimeValue>> TIMEOUT_TCP_READ_SETTING = RealmSettings.affixSetting(
-            "timeout.tcp_read", key -> Setting.timeSetting(key, TIMEOUT_DEFAULT, Setting.Property.NodeScope));
-
     public static final Function<String, Setting.AffixSetting<TimeValue>> TIMEOUT_LDAP_SETTING = RealmSettings.affixSetting(
             "timeout.ldap_search", key -> Setting.timeSetting(key, TIMEOUT_DEFAULT, Setting.Property.NodeScope));
+
+    public static final Function<String, Setting.AffixSetting<TimeValue>> TIMEOUT_TCP_READ_SETTING = RealmSettings.affixSetting(
+            "timeout.tcp_read", key -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Setting.Property.NodeScope,
+                    Setting.Property.Deprecated));
+
+    public static final Function<String, Setting.AffixSetting<TimeValue>> TIMEOUT_RESPONSE_SETTING = RealmSettings.affixSetting(
+            "timeout.response", key -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Setting.Property.NodeScope));
 
     public static final Function<String, Setting.AffixSetting<Boolean>> HOSTNAME_VERIFICATION_SETTING = RealmSettings.affixSetting(
             "hostname_verification", key -> Setting.boolSetting(key, true, Setting.Property.NodeScope, Setting.Property.Filtered));
@@ -49,6 +53,7 @@ public final class SessionFactorySettings {
         settings.add(URLS_SETTING.apply(realmType));
         settings.add(TIMEOUT_TCP_CONNECTION_SETTING.apply(realmType));
         settings.add(TIMEOUT_TCP_READ_SETTING.apply(realmType));
+        settings.add(TIMEOUT_RESPONSE_SETTING.apply(realmType));
         settings.add(TIMEOUT_LDAP_SETTING.apply(realmType));
         settings.add(HOSTNAME_VERIFICATION_SETTING.apply(realmType));
         settings.add(FOLLOW_REFERRALS_SETTING.apply(realmType));

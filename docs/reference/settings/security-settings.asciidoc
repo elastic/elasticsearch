@@ -445,9 +445,16 @@ An `s` at the end indicates seconds, or `ms` indicates milliseconds.
 Defaults to `5s` (5 seconds ).
 
 `timeout.tcp_read`::
-The TCP read timeout period after establishing an LDAP connection.
-An `s` at the end indicates seconds, or `ms` indicates milliseconds.
-Defaults to `5s` (5 seconds ).
+deprecated[7.5] The TCP read timeout period after establishing an LDAP
+connection.  This is equivalent and is deprecated in favor of
+`timeout.response` and they cannot be used simultaneously. An `s` at the end
+indicates seconds, or `ms` indicates milliseconds. Defaults to the value of
+`timeout.ldap_search`.
+
+`timeout.response`::
+The time interval to wait for the response from the LDAP server. An `s` at the
+end indicates seconds, or `ms` indicates milliseconds. Defaults to the value of
+`timeout.ldap_search`.
 
 `timeout.ldap_search`::
 The LDAP Server enforced timeout period for an LDAP search.
@@ -693,9 +700,16 @@ An `s` at the end indicates seconds, or `ms` indicates milliseconds.
 Defaults to `5s` (5 seconds ).
 
 `timeout.tcp_read`::
-The TCP read timeout period after establishing an LDAP connection.
-An `s` at the end indicates seconds, or `ms` indicates milliseconds.
-Defaults to `5s` (5 seconds ).
+deprecated[7.5] The TCP read timeout period after establishing an LDAP
+connection.  This is equivalent and is deprecated in favor of
+`timeout.response` and they cannot be used simultaneously. An `s` at the end
+indicates seconds, or `ms` indicates milliseconds. Defaults to the value of
+`timeout.ldap_search`.
+
+`timeout.response`::
+The time interval to wait for the response from the AD server. An `s` at the
+end indicates seconds, or `ms` indicates milliseconds. Defaults to the value of
+`timeout.ldap_search`.
 
 `timeout.ldap_search`::
 The LDAP Server enforced timeout period for an LDAP search.

@@ -1,7 +1,7 @@
 [[painless-watcher-condition-context]]
 === Watcher condition context
 
-Use a Painless script as a {xpack-ref}/condition-script.html[watch condition]
+Use a Painless script as a {ref}/condition-script.html[watch condition]
 that determines whether to execute a watch or a particular action within a watch.
 Condition scripts return a Boolean value to indicate the status of the condition.
 

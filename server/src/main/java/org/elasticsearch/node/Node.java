@@ -364,9 +364,7 @@ public class Node implements Closeable {
             clusterService.addLocalNodeMasterListener(
                     new ConsistentSettingsService(settings, clusterService, settingsModule.getConsistentSettings())
                             .newHashPublisher());
-            final IngestService ingestService = new IngestService(clusterService, threadPool, this.environment,
-                scriptModule.getScriptService(), analysisModule.getAnalysisRegistry(),
-                pluginsService.filterPlugins(IngestPlugin.class), client);
+
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
             final UsageService usageService = new UsageService();
 
@@ -405,7 +403,9 @@ public class Node implements Closeable {
                 ClusterModule.getNamedXWriteables().stream())
                 .flatMap(Function.identity()).collect(toList()));
             final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry);
-
+            final IngestService ingestService = new IngestService(clusterService, threadPool, this.environment,
+                scriptModule.getScriptService(), analysisModule.getAnalysisRegistry(),
+                pluginsService.filterPlugins(IngestPlugin.class), client);
             // collect engine factory providers from server and from plugins
             final Collection<EnginePlugin> enginePlugins = pluginsService.filterPlugins(EnginePlugin.class);
             final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders =

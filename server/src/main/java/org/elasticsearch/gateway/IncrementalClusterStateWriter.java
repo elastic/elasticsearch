@@ -230,15 +230,13 @@ public class IncrementalClusterStateWriter {
 
     // exposed for tests
     static Set<Index> getRelevantIndices(ClusterState state) {
-        Set<Index> relevantIndices;
         if (state.nodes().getLocalNode().isMasterNode()) {
-            relevantIndices = getRelevantIndicesForMasterEligibleNode(state);
+            return getRelevantIndicesForMasterEligibleNode(state);
         } else if (state.nodes().getLocalNode().isDataNode()) {
-            relevantIndices = getRelevantIndicesOnDataOnlyNode(state);
+            return getRelevantIndicesOnDataOnlyNode(state);
         } else {
-            relevantIndices = Collections.emptySet();
+            return Collections.emptySet();
         }
-        return relevantIndices;
     }
 
     /**

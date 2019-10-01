@@ -21,11 +21,11 @@ step-by-step example, see
 [[example-best-customers]]
 ==== Finding your best customers
 
-In this example, we use the eCommerce orders sample dataset to find the customers 
-who spent the most in our hypothetical webshop. Let's transform the data such 
-that the destination index contains the number of orders, the total price of 
-the orders, the amount of unique products and the average price per order, 
-and the total amount of ordered products for each customer.
+In this example, we use the eCommerce orders sample dataset to find the 
+customers who spent the most in our hypothetical webshop. Let's transform the 
+data such that the destination index contains the number of orders, the total 
+price of the orders, the amount of unique products and the average price per 
+order, and the total amount of ordered products for each customer.
 
 [source,console]
 ----------------------------------
@@ -97,7 +97,7 @@ This {dataframe} makes it easier to answer questions such as:
 * Which customers ordered the least number of different products?
 
 It's possible to answer these questions using aggregations alone, however 
-{dataframes} allow us to persist this data as a customer centric index. This 
+{transforms} allow us to persist this data as a customer centric index. This 
 enables us to analyze data at scale and gives more flexibility to explore and 
 navigate data from a customer centric perspective. In some cases, it can even 
 make creating visualizations much simpler.
@@ -275,9 +275,9 @@ POST _data_frame/transforms/_preview
 ----------------------------------
 // TEST[skip:setup kibana sample data]
 
-<1> This range query limits the {transform} to documents that are within the last 
-30 days at the point in time the {transform} checkpoint is processed. 
-For batch {dataframes} this occurs once.
+<1> This range query limits the {transform} to documents that are within the 
+last 30 days at the point in time the {transform} checkpoint is processed. For 
+batch {transforms} this occurs once.
 <2> This is the destination index for the {dataframe}. It is ignored by 
 `_preview`.
 <3> The data is grouped by the `clientip` field. 

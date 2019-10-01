@@ -604,8 +604,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         // Listener that flattens out the delete results for each index
         final ActionListener<Collection<ShardSnapshotMetaDeleteResult>> deleteIndexMetaDataListener = new GroupedActionListener<>(
-            ActionListener.map(deleteFromMetaListener, idxs -> idxs.stream().flatMap(Collection::stream).collect(Collectors.toList())),
-            indices.size());
+            ActionListener.map(deleteFromMetaListener,
+                results -> results.stream().flatMap(Collection::stream).collect(Collectors.toList())), indices.size());
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         for (IndexId indexId : indices) {
             executor.execute(ActionRunnable.wrap(deleteIndexMetaDataListener,
@@ -615,8 +615,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         indexMetaData = getSnapshotIndexMetaData(snapshotId, indexId);
                     } catch (Exception ex) {
                         logger.warn(() ->
-                            new ParameterizedMessage("[{}] [{}] failed to read metadata for index", snapshotId,
-                                indexId.getName()), ex);
+                            new ParameterizedMessage("[{}] [{}] failed to read metadata for index", snapshotId, indexId.getName()), ex);
                     }
                     deleteIndexMetaDataBlobIgnoringErrors(snapshotId, indexId);
                     if (indexMetaData != null) {
@@ -627,18 +626,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             new GroupedActionListener<>(deleteIdxMetaListener, shardCount);
                         final Index index = indexMetaData.getIndex();
                         for (int shardId = 0; shardId < indexMetaData.getNumberOfShards(); shardId++) {
-                            final int finalShardId = shardId;
+                            final ShardId shard = new ShardId(index, shardId);
                             executor.execute(new AbstractRunnable() {
                                 @Override
                                 protected void doRun() throws Exception {
                                     allShardsListener.onResponse(
-                                        deleteShardSnapshot(repositoryData, indexId, new ShardId(index, finalShardId), snapshotId));
+                                        deleteShardSnapshot(repositoryData, indexId, shard, snapshotId));
                                 }
 
                                 @Override
                                 public void onFailure(Exception ex) {
                                     logger.warn(() -> new ParameterizedMessage("[{}] failed to delete shard data for shard [{}][{}]",
-                                        snapshotId, indexId.getName(), finalShardId), ex);
+                                        snapshotId, indexId.getName(), shard.id()), ex);
                                     // Just passing null here to count down the listener instead of failing it, the stale data left behind
                                     // here will be retried in the next delete or repository cleanup
                                     allShardsListener.onResponse(null);
@@ -666,7 +665,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }).collect(Collectors.toList())
             );
             listener.onResponse(null);
-        }, listener::onFailure);
+        }, e -> {
+            logger.warn(() -> new ParameterizedMessage("[{}] Failed to delete some blobs during snapshot delete", snapshotId), e);
+            listener.onResponse(null);
+        });
     }
 
     private void deleteIndexMetaDataBlobIgnoringErrors(SnapshotId snapshotId, IndexId indexId) {

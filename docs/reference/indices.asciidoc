@@ -78,8 +78,6 @@ include::indices/analyze.asciidoc[]
 
 include::indices/clearcache.asciidoc[]
 
-include::indices/clone-index.asciidoc[]
-
 include::indices/close.asciidoc[]
 
 include::indices/create-index.asciidoc[]

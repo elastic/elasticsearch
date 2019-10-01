@@ -70,7 +70,6 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -303,7 +302,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason) {
-        return internalMerge(Collections.singletonMap(type, mappingSource), reason).get(type);
+        // TODO change internalMerge() to return a single DocumentMapper rather than a Map
+        return internalMerge(Collections.singletonMap(type, mappingSource), reason).values().iterator().next();
     }
 
     private synchronized Map<String, DocumentMapper> internalMerge(IndexMetaData indexMetaData,
@@ -372,14 +372,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         FieldTypeLookup fieldTypes = this.fieldTypes;
 
         Map<String, DocumentMapper> results = new LinkedHashMap<>(2);
-
-        {
-            if (mapper != null && this.mapper != null && Objects.equals(this.mapper.type(), mapper.type()) == false) {
-                throw new IllegalArgumentException(
-                        "Rejecting mapping update to [" + index().getName() + "] as the final mapping would have more than 1 type: "
-                            + Arrays.asList(this.mapper.type(), mapper.type()));
-            }
-        }
 
         DocumentMapper newMapper = null;
         if (mapper != null) {

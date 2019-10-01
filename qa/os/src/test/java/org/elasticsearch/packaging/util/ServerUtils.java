@@ -24,11 +24,11 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpResponse;
 import org.apache.http.NoHttpResponseException;
 import org.apache.http.client.fluent.Request;
-import org.apache.http.conn.HttpHostConnectException;
 import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
 
 import java.io.IOException;
+import java.net.SocketException;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
@@ -71,7 +71,7 @@ public class ServerUtils {
 
                 started = true;
 
-            } catch (HttpHostConnectException | NoHttpResponseException e) {
+            } catch (SocketException | NoHttpResponseException e) {
                 // we want to retry if the connection is refused
                 LOG.debug("Got connection refused when waiting for cluster health", e);
             }

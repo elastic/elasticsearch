@@ -45,6 +45,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBloc
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
 public class GetIndexIT extends ESIntegTestCase {
@@ -230,24 +231,21 @@ public class GetIndexIT extends ESIntegTestCase {
     }
 
     private void assertMappings(GetIndexResponse response, String indexName) {
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = response.mappings();
+        ImmutableOpenMap<String, MappingMetaData> mappings = response.mappings();
         assertThat(mappings, notNullValue());
         assertThat(mappings.size(), equalTo(1));
-        ImmutableOpenMap<String, MappingMetaData> indexMappings = mappings.get(indexName);
+        MappingMetaData indexMappings = mappings.get(indexName);
         assertThat(indexMappings, notNullValue());
-        assertThat(indexMappings.size(), equalTo(1));
-        MappingMetaData mapping = indexMappings.get("type1");
-        assertThat(mapping, notNullValue());
-        assertThat(mapping.type(), equalTo("type1"));
+        assertThat(indexMappings, notNullValue());
+        assertThat(indexMappings.type(), equalTo("type1"));
     }
 
     private void assertEmptyOrOnlyDefaultMappings(GetIndexResponse response, String indexName) {
-        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = response.mappings();
+        ImmutableOpenMap<String, MappingMetaData> mappings = response.mappings();
         assertThat(mappings, notNullValue());
         assertThat(mappings.size(), equalTo(1));
-        ImmutableOpenMap<String, MappingMetaData> indexMappings = mappings.get(indexName);
-        assertThat(indexMappings, notNullValue());
-        assertThat(indexMappings.size(), equalTo(0));
+        MappingMetaData indexMappings = mappings.get(indexName);
+        assertThat(indexMappings, nullValue());
     }
 
     private void assertAliases(GetIndexResponse response, String indexName) {

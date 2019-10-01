@@ -435,7 +435,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             clusterStateRequest.metaData(true);
             clusterStateRequest.indices(followerIndex);
             MappingMetaData mappingMetaData = followerClient().admin().indices().prepareGetMappings("index2").get().getMappings()
-                .get("index2").get("doc");
+                .get("index2");
             assertThat(XContentMapValues.extractValue("properties.k.type", mappingMetaData.sourceAsMap()), equalTo("long"));
         } finally {
             for (MockTransportService transportService : transportServices) {

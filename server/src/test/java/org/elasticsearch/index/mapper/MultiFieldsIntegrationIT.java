@@ -51,7 +51,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         );
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
-        MappingMetaData mappingMetaData = getMappingsResponse.mappings().get("my-index").get("my-type");
+        MappingMetaData mappingMetaData = getMappingsResponse.mappings().get("my-index");
         assertThat(mappingMetaData, not(nullValue()));
         Map<String, Object> mappingSource = mappingMetaData.sourceAsMap();
         Map<String, Object> titleFields = ((Map<String, Object>) XContentMapValues.extractValue("properties.title.fields", mappingSource));
@@ -79,7 +79,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         );
 
         getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
-        mappingMetaData = getMappingsResponse.mappings().get("my-index").get("my-type");
+        mappingMetaData = getMappingsResponse.mappings().get("my-index");
         assertThat(mappingMetaData, not(nullValue()));
         mappingSource = mappingMetaData.sourceAsMap();
         assertThat(((Map<String, Object>) XContentMapValues.extractValue("properties.title", mappingSource)).size(), equalTo(2));
@@ -109,7 +109,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         );
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
-        MappingMetaData mappingMetaData = getMappingsResponse.mappings().get("my-index").get("my-type");
+        MappingMetaData mappingMetaData = getMappingsResponse.mappings().get("my-index");
         assertThat(mappingMetaData, not(nullValue()));
         Map<String, Object> mappingSource = mappingMetaData.sourceAsMap();
         Map<String, Object> aField = ((Map<String, Object>) XContentMapValues.extractValue("properties.a", mappingSource));
@@ -140,7 +140,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         );
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
-        MappingMetaData mappingMetaData = getMappingsResponse.mappings().get("my-index").get("my-type");
+        MappingMetaData mappingMetaData = getMappingsResponse.mappings().get("my-index");
         assertThat(mappingMetaData, not(nullValue()));
         Map<String, Object> mappingSource = mappingMetaData.sourceAsMap();
         Map<String, Object> aField = ((Map<String, Object>) XContentMapValues.extractValue("properties.a", mappingSource));
@@ -165,7 +165,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         );
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
-        MappingMetaData mappingMetaData = getMappingsResponse.mappings().get("my-index").get("my-type");
+        MappingMetaData mappingMetaData = getMappingsResponse.mappings().get("my-index");
         assertThat(mappingMetaData, not(nullValue()));
         Map<String, Object> mappingSource = mappingMetaData.sourceAsMap();
         Map<String, Object> aField = ((Map<String, Object>) XContentMapValues.extractValue("properties.a", mappingSource));

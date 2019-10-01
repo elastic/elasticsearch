@@ -28,7 +28,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -129,7 +128,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").execute().actionGet();
-        assertThat(getMappingsResponse.mappings().get("test").get("_doc").source().toString(),
+        assertThat(getMappingsResponse.mappings().get("test").source().toString(),
                 equalTo("{\"_doc\":{\"properties\":{\"body\":{\"type\":\"text\"},\"date\":{\"type\":\"integer\"}}}}"));
     }
 
@@ -149,7 +148,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").execute().actionGet();
-        assertThat(getMappingsResponse.mappings().get("test").get("_doc").source().toString(),
+        assertThat(getMappingsResponse.mappings().get("test").source().toString(),
                 equalTo("{\"_doc\":{\"properties\":{\"date\":{\"type\":\"integer\"}}}}"));
     }
 
@@ -243,9 +242,8 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
                         assertThat(response.isAcknowledged(), equalTo(true));
                         GetMappingsResponse getMappingResponse = client2.admin().indices().prepareGetMappings(indexName).get();
-                        ImmutableOpenMap<String, MappingMetaData> mappings = getMappingResponse.getMappings().get(indexName);
-                        assertThat(mappings.containsKey(typeName), equalTo(true));
-                        assertThat(((Map<String, Object>) mappings.get(typeName).getSourceAsMap().get("properties")).keySet(),
+                        MappingMetaData mappings = getMappingResponse.getMappings().get(indexName);
+                        assertThat(((Map<String, Object>) mappings.getSourceAsMap().get("properties")).keySet(),
                             Matchers.hasItem(fieldName));
                     }
                 } catch (Exception e) {
@@ -315,10 +313,8 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
      * Waits for the given mapping type to exists on the master node.
      */
     private void assertMappingOnMaster(final String index, final String type, final String... fieldNames) {
-        GetMappingsResponse response = client().admin().indices().prepareGetMappings(index).setTypes(type).get();
-        ImmutableOpenMap<String, MappingMetaData> mappings = response.getMappings().get(index);
-        assertThat(mappings, notNullValue());
-        MappingMetaData mappingMetaData = mappings.get(type);
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings(index).get();
+        MappingMetaData mappingMetaData = response.getMappings().get(index);
         assertThat(mappingMetaData, notNullValue());
 
         Map<String, Object> mappingSource = mappingMetaData.getSourceAsMap();

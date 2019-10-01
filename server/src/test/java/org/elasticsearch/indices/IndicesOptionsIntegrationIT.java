@@ -538,27 +538,27 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         }
 
         verify(client().admin().indices().preparePutMapping("foo").setType("type").setSource("field", "type=text"), false);
-        assertThat(client().admin().indices().prepareGetMappings("foo").get().mappings().get("foo").get("type"), notNullValue());
+        assertThat(client().admin().indices().prepareGetMappings("foo").get().mappings().get("foo"), notNullValue());
         verify(client().admin().indices().preparePutMapping("b*").setType("type").setSource("field", "type=text"), false);
-        assertThat(client().admin().indices().prepareGetMappings("bar").get().mappings().get("bar").get("type"), notNullValue());
-        assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz").get("type"), notNullValue());
+        assertThat(client().admin().indices().prepareGetMappings("bar").get().mappings().get("bar"), notNullValue());
+        assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz"), notNullValue());
         verify(client().admin().indices().preparePutMapping("_all").setType("type").setSource("field", "type=text"), false);
-        assertThat(client().admin().indices().prepareGetMappings("foo").get().mappings().get("foo").get("type"), notNullValue());
-        assertThat(client().admin().indices().prepareGetMappings("foobar").get().mappings().get("foobar").get("type"), notNullValue());
-        assertThat(client().admin().indices().prepareGetMappings("bar").get().mappings().get("bar").get("type"), notNullValue());
-        assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz").get("type"), notNullValue());
+        assertThat(client().admin().indices().prepareGetMappings("foo").get().mappings().get("foo"), notNullValue());
+        assertThat(client().admin().indices().prepareGetMappings("foobar").get().mappings().get("foobar"), notNullValue());
+        assertThat(client().admin().indices().prepareGetMappings("bar").get().mappings().get("bar"), notNullValue());
+        assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz"), notNullValue());
         verify(client().admin().indices().preparePutMapping().setType("type").setSource("field", "type=text"), false);
-        assertThat(client().admin().indices().prepareGetMappings("foo").get().mappings().get("foo").get("type"), notNullValue());
-        assertThat(client().admin().indices().prepareGetMappings("foobar").get().mappings().get("foobar").get("type"), notNullValue());
-        assertThat(client().admin().indices().prepareGetMappings("bar").get().mappings().get("bar").get("type"), notNullValue());
-        assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz").get("type"), notNullValue());
+        assertThat(client().admin().indices().prepareGetMappings("foo").get().mappings().get("foo"), notNullValue());
+        assertThat(client().admin().indices().prepareGetMappings("foobar").get().mappings().get("foobar"), notNullValue());
+        assertThat(client().admin().indices().prepareGetMappings("bar").get().mappings().get("bar"), notNullValue());
+        assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz"), notNullValue());
 
 
         verify(client().admin().indices().preparePutMapping("c*").setType("type").setSource("field", "type=text"), true);
 
         assertAcked(client().admin().indices().prepareClose("barbaz").get());
         verify(client().admin().indices().preparePutMapping("barbaz").setType("type").setSource("field", "type=text"), false);
-        assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz").get("type"), notNullValue());
+        assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz"), notNullValue());
     }
 
     public static final class TestPlugin extends Plugin {

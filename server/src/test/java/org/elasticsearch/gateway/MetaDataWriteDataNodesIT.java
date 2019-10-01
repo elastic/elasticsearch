@@ -110,8 +110,8 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
                 .endObject()
                 .endObject()).get();
 
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(index).addTypes("_doc").get();
-        assertNotNull(((Map<String,?>) (getMappingsResponse.getMappings().get(index).get("_doc").getSourceAsMap().get("properties")))
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(index).get();
+        assertNotNull(((Map<String,?>) (getMappingsResponse.getMappings().get(index).getSourceAsMap().get("properties")))
             .get("integer_field"));
 
         // make sure it was also written on red node although index is closed
@@ -137,8 +137,8 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
                 .endObject()
                 .endObject()).get();
 
-        getMappingsResponse = client().admin().indices().prepareGetMappings(index).addTypes("_doc").get();
-        assertNotNull(((Map<String,?>) (getMappingsResponse.getMappings().get(index).get("_doc").getSourceAsMap().get("properties")))
+        getMappingsResponse = client().admin().indices().prepareGetMappings(index).get();
+        assertNotNull(((Map<String,?>) (getMappingsResponse.getMappings().get(index).getSourceAsMap().get("properties")))
             .get("float_field"));
 
         // make sure it was also written on red node although index is closed

@@ -56,16 +56,14 @@ public class GetIndexResponseTests extends AbstractSerializingTestCase<GetIndexR
     @Override
     protected GetIndexResponse createTestInstance() {
         String[] indices = generateRandomStringArray(5, 5, false, false);
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.builder();
+        ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, List<AliasMetaData>> aliases = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> settings = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> defaultSettings = ImmutableOpenMap.builder();
         IndexScopedSettings indexScopedSettings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS;
         boolean includeDefaults = randomBoolean();
         for (String index: indices) {
-            // rarely have no types
-            int typeCount = rarely() ? 0 : 1;
-            mappings.put(index, GetMappingsResponseTests.createMappingsForIndex(typeCount, true));
+            mappings.put(index, GetMappingsResponseTests.createMappingsForIndex());
 
             List<AliasMetaData> aliasMetaDataList = new ArrayList<>();
             int aliasesNum = randomIntBetween(0, 3);

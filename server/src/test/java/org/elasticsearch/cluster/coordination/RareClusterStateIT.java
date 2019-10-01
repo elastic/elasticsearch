@@ -239,7 +239,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // ...and wait for mappings to be available on master
         assertBusy(() -> {
             ImmutableOpenMap<String, MappingMetaData> indexMappings = client().admin().indices()
-                .prepareGetMappings("index").get().getMappings().get("index");
+                .prepareGetMappings("index").get().getMappings();
             assertNotNull(indexMappings);
             MappingMetaData typeMappings = indexMappings.get("type");
             assertNotNull(typeMappings);

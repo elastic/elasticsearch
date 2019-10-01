@@ -62,7 +62,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
         assertBusy(() -> {
             GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings().get();
             assertTrue(mappingsResponse.getMappings().containsKey("logstash-2014.03.30"));
-            assertTrue(mappingsResponse.getMappings().get("logstash-2014.03.30").containsKey("logs"));
+            assertNotNull(mappingsResponse.getMappings().get("logstash-2014.03.30"));
         });
     }
 

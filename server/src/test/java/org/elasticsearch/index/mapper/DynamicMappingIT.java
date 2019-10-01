@@ -73,7 +73,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
     }
 
     private static void assertMappingsHaveField(GetMappingsResponse mappings, String index, String type, String field) throws IOException {
-        ImmutableOpenMap<String, MappingMetaData> indexMappings = mappings.getMappings().get("index");
+        ImmutableOpenMap<String, MappingMetaData> indexMappings = mappings.getMappings();
         assertNotNull(indexMappings);
         MappingMetaData typeMappings = indexMappings.get(type);
         assertNotNull(typeMappings);
@@ -111,7 +111,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
             throw error.get();
         }
         Thread.sleep(2000);
-        GetMappingsResponse mappings = client().admin().indices().prepareGetMappings("index").setTypes("type").get();
+        GetMappingsResponse mappings = client().admin().indices().prepareGetMappings("index").get();
         for (int i = 0; i < indexThreads.length; ++i) {
             assertMappingsHaveField(mappings, "index", "type", "field" + i);
         }

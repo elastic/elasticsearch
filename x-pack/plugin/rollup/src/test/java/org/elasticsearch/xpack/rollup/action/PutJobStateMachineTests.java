@@ -199,11 +199,7 @@ public class PutJobStateMachineTests extends ESTestCase {
             MappingMetaData meta = new MappingMetaData(RollupField.TYPE_NAME, Collections.emptyMap());
             ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(1);
             builder.put(RollupField.TYPE_NAME, meta);
-
-            ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> builder2 = ImmutableOpenMap.builder(1);
-            builder2.put(job.getConfig().getRollupIndex(), builder.build());
-
-            when(response.getMappings()).thenReturn(builder2.build());
+            when(response.getMappings()).thenReturn(builder.build());
             requestCaptor.getValue().onResponse(response);
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
@@ -237,11 +233,7 @@ public class PutJobStateMachineTests extends ESTestCase {
                 Collections.singletonMap("_meta", m));
             ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(1);
             builder.put(RollupField.TYPE_NAME, meta);
-
-            ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> builder2 = ImmutableOpenMap.builder(1);
-            builder2.put(job.getConfig().getRollupIndex(), builder.build());
-
-            when(response.getMappings()).thenReturn(builder2.build());
+            when(response.getMappings()).thenReturn(builder.build());
             requestCaptor.getValue().onResponse(response);
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
@@ -274,11 +266,7 @@ public class PutJobStateMachineTests extends ESTestCase {
                 Collections.singletonMap("_meta", m));
             ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(1);
             builder.put(RollupField.TYPE_NAME, meta);
-
-            ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> builder2 = ImmutableOpenMap.builder(1);
-            builder2.put(job.getConfig().getRollupIndex(), builder.build());
-
-            when(response.getMappings()).thenReturn(builder2.build());
+            when(response.getMappings()).thenReturn(builder.build());
             requestCaptor.getValue().onResponse(response);
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
@@ -311,11 +299,7 @@ public class PutJobStateMachineTests extends ESTestCase {
                 Collections.singletonMap("_meta", m));
             ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(1);
             builder.put(RollupField.TYPE_NAME, meta);
-
-            ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> builder2 = ImmutableOpenMap.builder(1);
-            builder2.put(job.getConfig().getRollupIndex(), builder.build());
-
-            when(response.getMappings()).thenReturn(builder2.build());
+            when(response.getMappings()).thenReturn(builder.build());
             requestCaptor.getValue().onResponse(response);
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
@@ -352,11 +336,7 @@ public class PutJobStateMachineTests extends ESTestCase {
                 Collections.singletonMap("_meta", m));
             ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(1);
             builder.put(RollupField.TYPE_NAME, meta);
-
-            ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> builder2 = ImmutableOpenMap.builder(1);
-            builder2.put(unrelatedJob.getRollupIndex(), builder.build());
-
-            when(response.getMappings()).thenReturn(builder2.build());
+            when(response.getMappings()).thenReturn(builder.build());
             requestCaptor.getValue().onResponse(response);
             return null;
         }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());

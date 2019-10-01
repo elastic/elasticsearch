@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -32,11 +31,8 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -63,21 +59,9 @@ public class GetMappingsResponseTests extends AbstractSerializingTestCase<GetMap
     }
 
     private static GetMappingsResponse mutate(GetMappingsResponse original) throws IOException {
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> builder = ImmutableOpenMap.builder(original.mappings());
+        ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(original.mappings());
         String indexKey = original.mappings().keys().iterator().next().value;
-
-        ImmutableOpenMap.Builder<String, MappingMetaData> typeBuilder = ImmutableOpenMap.builder(original.mappings().get(indexKey));
-        final String typeKey;
-        Iterator<ObjectCursor<String>> iter = original.mappings().get(indexKey).keys().iterator();
-        if (iter.hasNext()) {
-            typeKey = iter.next().value;
-        } else {
-            typeKey = "new-type";
-        }
-
-        typeBuilder.put(typeKey, new MappingMetaData("type-" + randomAlphaOfLength(6), randomFieldMapping()));
-
-        builder.put(indexKey, typeBuilder.build());
+        builder.put(indexKey, new MappingMetaData("type-" + randomAlphaOfLength(6), randomFieldMapping()));
         return new GetMappingsResponse(builder.build());
     }
 
@@ -86,32 +70,22 @@ public class GetMappingsResponseTests extends AbstractSerializingTestCase<GetMap
         return mutate(instance);
     }
 
-    public static ImmutableOpenMap<String, MappingMetaData> createMappingsForIndex(int typeCount, boolean randomTypeName) {
-        List<MappingMetaData> typeMappings = new ArrayList<>(typeCount);
-
-        for (int i = 0; i < typeCount; i++) {
+    public static MappingMetaData createMappingsForIndex() {
+        try {
             if (rarely() == false) { // rarely have no fields
                 Map<String, Object> mappings = new HashMap<>();
-                mappings.put("field-" + i, randomFieldMapping());
+                mappings.put("field-1", randomFieldMapping());
                 if (randomBoolean()) {
-                    mappings.put("field2-" + i, randomFieldMapping());
+                    mappings.put("field2-2", randomFieldMapping());
                 }
-
-                try {
-                    String typeName = MapperService.SINGLE_MAPPING_NAME;
-                    if (randomTypeName) {
-                        typeName = "type-" + randomAlphaOfLength(5);
-                    }
-                    MappingMetaData mmd = new MappingMetaData(typeName, mappings);
-                    typeMappings.add(mmd);
-                } catch (IOException e) {
-                    fail("shouldn't have failed " + e);
-                }
+                String typeName = MapperService.SINGLE_MAPPING_NAME;
+                return new MappingMetaData(typeName, mappings);
             }
+            return new MappingMetaData(MapperService.SINGLE_MAPPING_NAME, Collections.emptyMap());
+        } catch (IOException e) {
+            fail("shouldn't have failed " + e);
         }
-        ImmutableOpenMap.Builder<String, MappingMetaData> typeBuilder = ImmutableOpenMap.builder();
-        typeMappings.forEach(mmd -> typeBuilder.put(mmd.type(), mmd));
-        return typeBuilder.build();
+        return null;    // we never reach here
     }
 
     /**
@@ -125,9 +99,8 @@ public class GetMappingsResponseTests extends AbstractSerializingTestCase<GetMap
 
     @Override
     protected GetMappingsResponse createTestInstance() {
-        ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> indexBuilder = ImmutableOpenMap.builder();
-        int typeCount = rarely() ? 0 : 1;
-        indexBuilder.put("index-" + randomAlphaOfLength(5), createMappingsForIndex(typeCount, randomBoolean()));
+        ImmutableOpenMap.Builder<String, MappingMetaData> indexBuilder = ImmutableOpenMap.builder();
+        indexBuilder.put("index-" + randomAlphaOfLength(5), createMappingsForIndex());
         GetMappingsResponse resp = new GetMappingsResponse(indexBuilder.build());
         logger.debug("--> created: {}", resp);
         return resp;

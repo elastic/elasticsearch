@@ -192,9 +192,8 @@ final class IndicesRequestConverters {
     @Deprecated
     static Request getMappings(org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest getMappingsRequest) {
         String[] indices = getMappingsRequest.indices() == null ? Strings.EMPTY_ARRAY : getMappingsRequest.indices();
-        String[] types = getMappingsRequest.types() == null ? Strings.EMPTY_ARRAY : getMappingsRequest.types();
 
-        Request request = new Request(HttpGet.METHOD_NAME, RequestConverters.endpoint(indices, "_mapping", types));
+        Request request = new Request(HttpGet.METHOD_NAME, RequestConverters.endpoint(indices, "_mapping"));
 
         RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withMasterTimeout(getMappingsRequest.masterNodeTimeout());

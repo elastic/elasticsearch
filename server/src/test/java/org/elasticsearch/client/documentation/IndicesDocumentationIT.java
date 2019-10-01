@@ -60,7 +60,7 @@ public class IndicesDocumentationIT extends ESIntegTestCase {
         // end::index-with-mapping
         GetMappingsResponse getMappingsResponse = client.admin().indices().prepareGetMappings("twitter").get();
         assertEquals(1, getMappingsResponse.getMappings().size());
-        ImmutableOpenMap<String, MappingMetaData> indexMapping = getMappingsResponse.getMappings().get("twitter");
+        ImmutableOpenMap<String, MappingMetaData> indexMapping = getMappingsResponse.getMappings();
         assertThat(indexMapping.get("_doc"), instanceOf(MappingMetaData.class));
 
         // we need to delete in order to create a fresh new index with another type
@@ -95,7 +95,7 @@ public class IndicesDocumentationIT extends ESIntegTestCase {
         // end::putMapping-request-source
         getMappingsResponse = client.admin().indices().prepareGetMappings("twitter").get();
         assertEquals(1, getMappingsResponse.getMappings().size());
-        indexMapping = getMappingsResponse.getMappings().get("twitter");
+        indexMapping = getMappingsResponse.getMappings();
         assertEquals(singletonMap("properties", singletonMap("name", singletonMap("type", "text"))),
                 indexMapping.get("_doc").getSourceAsMap());
     }

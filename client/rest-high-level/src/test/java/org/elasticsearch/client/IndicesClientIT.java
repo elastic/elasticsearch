@@ -472,7 +472,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertEquals("1", getIndexResponse.getSetting(indexName, SETTING_NUMBER_OF_SHARDS));
         assertEquals("0", getIndexResponse.getSetting(indexName, SETTING_NUMBER_OF_REPLICAS));
         assertNotNull(getIndexResponse.getMappings().get(indexName));
-        MappingMetaData mappingMetaData = getIndexResponse.getMappings().get(indexName).get("_doc");
+        MappingMetaData mappingMetaData = getIndexResponse.getMappings().get(indexName);
         assertNotNull(mappingMetaData);
         assertEquals("_doc", mappingMetaData.type());
         assertEquals("{\"properties\":{\"field-1\":{\"type\":\"integer\"}}}", mappingMetaData.source().string());

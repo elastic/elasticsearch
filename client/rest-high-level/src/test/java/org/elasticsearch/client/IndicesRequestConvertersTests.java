@@ -288,50 +288,6 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         Assert.assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
     }
 
-    public void testGetMappingWithTypes() {
-        org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest getMappingRequest =
-            new org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest();
-
-        String[] indices = Strings.EMPTY_ARRAY;
-        if (randomBoolean()) {
-            indices = RequestConvertersTests.randomIndicesNames(0, 5);
-            getMappingRequest.indices(indices);
-        } else if (randomBoolean()) {
-            getMappingRequest.indices((String[]) null);
-        }
-
-        String type = null;
-        if (randomBoolean()) {
-            type = randomAlphaOfLengthBetween(3, 10);
-            getMappingRequest.types(type);
-        } else if (randomBoolean()) {
-            getMappingRequest.types((String[]) null);
-        }
-
-        Map<String, String> expectedParams = new HashMap<>();
-
-        RequestConvertersTests.setRandomIndicesOptions(getMappingRequest::indicesOptions,
-            getMappingRequest::indicesOptions, expectedParams);
-        RequestConvertersTests.setRandomMasterTimeout(getMappingRequest, expectedParams);
-        RequestConvertersTests.setRandomLocal(getMappingRequest::local, expectedParams);
-        expectedParams.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
-
-        Request request = IndicesRequestConverters.getMappings(getMappingRequest);
-        StringJoiner endpoint = new StringJoiner("/", "/", "");
-        String index = String.join(",", indices);
-        if (Strings.hasLength(index)) {
-            endpoint.add(index);
-        }
-        endpoint.add("_mapping");
-        if (type != null) {
-            endpoint.add(type);
-        }
-        Assert.assertThat(endpoint.toString(), equalTo(request.getEndpoint()));
-
-        Assert.assertThat(expectedParams, equalTo(request.getParameters()));
-        Assert.assertThat(HttpGet.METHOD_NAME, equalTo(request.getMethod()));
-    }
-
     public void testGetFieldMapping() {
         GetFieldMappingsRequest getFieldMappingsRequest = new GetFieldMappingsRequest();
 

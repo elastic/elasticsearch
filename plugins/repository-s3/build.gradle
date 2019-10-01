@@ -134,7 +134,7 @@ task thirdPartyTest(type: Test) {
   systemProperty 'test.s3.account', s3PermanentAccessKey
   systemProperty 'test.s3.key', s3PermanentSecretKey
   systemProperty 'test.s3.bucket', s3PermanentBucket
-  systemProperty 'test.s3.base', s3PermanentBasePath
+  systemProperty 'test.s3.base', s3PermanentBasePath + "_third_party_tests_" + project.testSeed
 }
 
 if (useFixture) {
@@ -248,9 +248,9 @@ task s3Fixture(type: AntFixture) {
 processTestResources {
   Map<String, Object> expansions = [
           'permanent_bucket': s3PermanentBucket,
-          'permanent_base_path': s3PermanentBasePath,
+          'permanent_base_path': s3PermanentBasePath + "_integration_tests",
           'temporary_bucket': s3TemporaryBucket,
-          'temporary_base_path': s3TemporaryBasePath,
+          'temporary_base_path': s3TemporaryBasePath + "_integration_tests",
           'ec2_bucket': s3EC2Bucket,
           'ec2_base_path': s3EC2BasePath,
           'ecs_bucket': s3ECSBucket,

@@ -1,5 +1,5 @@
 {
-  "data_frame_transform.delete_transform":{
+  "data_frame_transform_deprecated.delete_transform":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/delete-transform.html"
     },

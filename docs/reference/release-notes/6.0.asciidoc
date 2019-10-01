@@ -1279,8 +1279,7 @@ Security::
 
 Watcher::
 * Added verification that the required templates exist before {watcher} starts.
-For more information, see
-{stack-ov}/how-watcher-works.html#scripts-templates[Scripts and Templates].
+For more information, see <<scripts-templates>>.
 * Added the `xpack.watcher.history.cleaner_service.enabled` setting. You can use
 this setting to enable or disable the cleaner service, which removes previous
 versions of {watcher} indices (for example, .watcher-history*) when it

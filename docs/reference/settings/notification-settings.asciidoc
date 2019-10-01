@@ -8,10 +8,11 @@
 ++++
 
 You configure `xpack.notification` settings in `elasticsearch.yml` to
-send set up {watcher} and send notifications via <<email-notification-settings, email>>,
-<<hipchat-notification-settings, HipChat>>,
+send set up {watcher} and send notifications via
+<<email-notification-settings,email>>,
+<<hipchat-notification-settings,HipChat>>,
 <<slack-notification-settings,Slack>>, and
-<<pagerduty-notification-settings, PagerDuty>>. Dynamic settings can also be updated
+<<pagerduty-notification-settings,PagerDuty>>. Dynamic settings can also be updated
 across a cluster with the <<cluster-update-settings,cluster update settings API>>.
 
 [float]
@@ -211,10 +212,10 @@ Defaults to `true`.
 
 [float]
 [[hipchat-notification-settings]]
-==== HipChat Notification Settings
+==== HipChat notification settings
 You can configure the following HipChat notification settings in
 `elasticsearch.yml`. For more information about sending notifications
-via HipChat, see {xpack-ref}/actions-hipchat.html#configuring-hipchat-actions[Configuring HipChat].
+via HipChat, see <<configuring-hipchat-actions>>.
 
 deprecated[6.7.0,Hipchat notification has been deprecated as Hipchat has ceased operation]
 

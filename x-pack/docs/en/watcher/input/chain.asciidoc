@@ -50,6 +50,7 @@ path set by a `simple` input:
 To reference data loaded by a particular input, you use the input's name,
 `ctx.payload.<input-name>.<value>`.
 
+[[_transforming_chained_input_data]]
 ==== Transforming chained input data
 
 In certain use-cases the output of the first input should be used as input

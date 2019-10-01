@@ -49,8 +49,8 @@ public class DatePart extends BinaryDateTimeFunction {
             VALID_VALUES = DateTimeField.initializeValidValues(values());
         }
 
-        private Set<String> aliases;
         private Function<ZonedDateTime, Integer> extractFunction;
+        private Set<String> aliases;
 
         Part(Function<ZonedDateTime, Integer> extractFunction, String... aliases) {
             this.extractFunction = extractFunction;
@@ -107,6 +107,16 @@ public class DatePart extends BinaryDateTimeFunction {
     @Override
     protected List<String> findSimilarDateTimeFields(String dateTimeField) {
         return Part.findSimilar(dateTimeField);
+    }
+
+    @Override
+    protected String scriptMethodName() {
+        return "datePart";
+    }
+
+    @Override
+    public Object fold() {
+        return DatePartProcessor.process(left().fold(), right().fold(), zoneId());
     }
 
     @Override

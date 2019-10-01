@@ -19,6 +19,7 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Bi
 
 public abstract class BinaryDateTimeProcessor extends BinaryProcessor {
 
+    // TODO: Remove and in favour of inheritance (subclasses which implement abstract methods)
     public enum BinaryDateOperation {
         TRUNC,
         PART;

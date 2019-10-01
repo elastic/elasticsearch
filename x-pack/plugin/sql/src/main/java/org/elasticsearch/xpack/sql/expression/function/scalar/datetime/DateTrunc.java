@@ -106,8 +106,8 @@ public class DateTrunc extends BinaryDateTimeFunction {
             VALID_VALUES = DateTimeField.initializeValidValues(values());
         }
 
-        private Set<String> aliases;
         private Function<ZonedDateTime, ZonedDateTime> truncateFunction;
+        private Set<String> aliases;
 
         Part(Function<ZonedDateTime, ZonedDateTime> truncateFunction, String... aliases) {
             this.truncateFunction = truncateFunction;
@@ -164,6 +164,16 @@ public class DateTrunc extends BinaryDateTimeFunction {
     @Override
     protected List<String> findSimilarDateTimeFields(String dateTimeField) {
         return Part.findSimilar(dateTimeField);
+    }
+
+    @Override
+    protected String scriptMethodName() {
+        return "dateTrunc";
+    }
+
+    @Override
+    public Object fold() {
+        return DateTruncProcessor.process(left().fold(), right().fold(), zoneId());
     }
 
     @Override

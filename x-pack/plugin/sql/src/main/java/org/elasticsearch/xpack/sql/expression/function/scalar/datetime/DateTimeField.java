@@ -18,8 +18,7 @@ import java.util.stream.Collectors;
 public interface DateTimeField {
 
     static <D extends DateTimeField> Map<String, D> initializeResolutionMap(D[] values) {
-        Map<String, D> nameToPart;
-        nameToPart = new HashMap<>();
+        Map<String, D> nameToPart = new HashMap<>();
 
         for (D datePart : values) {
             String lowerCaseName = datePart.name().toLowerCase(IsoLocale.ROOT);
@@ -28,7 +27,6 @@ public interface DateTimeField {
             for (String alias : datePart.aliases()) {
                 nameToPart.put(alias, datePart);
             }
-
         }
         return Collections.unmodifiableMap(nameToPart);
     }

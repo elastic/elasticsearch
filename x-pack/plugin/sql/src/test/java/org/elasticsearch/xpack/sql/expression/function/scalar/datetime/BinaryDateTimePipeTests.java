@@ -31,11 +31,11 @@ public class BinaryDateTimePipeTests extends AbstractNodeTestCase<BinaryDateTime
     protected BinaryDateTimePipe randomInstance() {
         return randomDateTruncPipe();
     }
-    
+
     private Expression randomDateTruncPipeExpression() {
         return randomDateTruncPipe().expression();
     }
-    
+
     public static BinaryDateTimePipe randomDateTruncPipe() {
         return (BinaryDateTimePipe) new DateTrunc(
                 randomSource(),
@@ -50,7 +50,7 @@ public class BinaryDateTimePipeTests extends AbstractNodeTestCase<BinaryDateTime
         // test transforming only the properties (source, expression),
         // skipping the children (the two parameters of the binary function) which are tested separately
         BinaryDateTimePipe b1 = randomInstance();
-        
+
         Expression newExpression = randomValueOtherThan(b1.expression(), this::randomDateTruncPipeExpression);
         BinaryDateTimePipe newB = new BinaryDateTimePipe(
                 b1.source(),
@@ -69,7 +69,7 @@ public class BinaryDateTimePipeTests extends AbstractNodeTestCase<BinaryDateTime
                 b2.left(),
                 b2.right(),
                 b2.zoneId(),
-                b1.operation());
+                b2.operation());
         assertEquals(newB,
                 b2.transformPropertiesOnly(v -> Objects.equals(v, b2.source()) ? newLoc : v, Source.class));
     }
@@ -83,18 +83,18 @@ public class BinaryDateTimePipeTests extends AbstractNodeTestCase<BinaryDateTime
         BinaryDateTimePipe newB = new BinaryDateTimePipe(
             b.source(), b.expression(), b.left(), b.right(), newZoneId, randomFrom(BinaryDateTimeProcessor.BinaryDateOperation.values()));
         BinaryPipe transformed = newB.replaceChildren(newLeft, b.right());
-        
+
         assertEquals(transformed.left(), newLeft);
         assertEquals(transformed.source(), b.source());
         assertEquals(transformed.expression(), b.expression());
         assertEquals(transformed.right(), b.right());
-        
+
         transformed = newB.replaceChildren(b.left(), newRight);
         assertEquals(transformed.left(), b.left());
         assertEquals(transformed.source(), b.source());
         assertEquals(transformed.expression(), b.expression());
         assertEquals(transformed.right(), newRight);
-        
+
         transformed = newB.replaceChildren(newLeft, newRight);
         assertEquals(transformed.left(), newLeft);
         assertEquals(transformed.source(), b.source());
@@ -123,7 +123,7 @@ public class BinaryDateTimePipeTests extends AbstractNodeTestCase<BinaryDateTime
                 pipe(((Expression) randomValueOtherThan(f.right(), FunctionTestUtils::randomDatetimeLiteral))),
                 randomValueOtherThan(f.zoneId(), ESTestCase::randomZone),
                 randomFrom(BinaryDateTimeProcessor.BinaryDateOperation.values())));
-        
+
         return randomFrom(randoms).apply(instance);
     }
 

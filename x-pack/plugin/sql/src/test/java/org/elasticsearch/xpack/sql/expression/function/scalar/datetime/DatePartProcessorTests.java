@@ -61,7 +61,7 @@ public class DatePartProcessorTests extends AbstractSqlWireSerializingTestCase<D
 
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new DatePart(Source.EMPTY, l("days"), l("foo"), randomZone()).makePipe().asProcessor().process(null));
-        assertEquals("A datetime/date is required; received [foo]", siae.getMessage());
+        assertEquals("A date/datetime is required; received [foo]", siae.getMessage());
 
         siae = expectThrows(SqlIllegalArgumentException.class,
             () -> new DatePart(Source.EMPTY, l("invalid"), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null));

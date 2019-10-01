@@ -45,7 +45,7 @@ public class DatePartProcessor extends BinaryDateTimeProcessor {
         if (source1 == null || source2 == null) {
             return null;
         }
-        if (!(source1 instanceof String)) {
+        if (source1 instanceof String == false) {
             throw new SqlIllegalArgumentException("A string is required; received [{}]", source1);
         }
         Part datePartField = Part.resolve((String) source1);
@@ -55,13 +55,13 @@ public class DatePartProcessor extends BinaryDateTimeProcessor {
                 throw new SqlIllegalArgumentException("A value of {} or their aliases is required; received [{}]",
                     Part.values(), source1);
             } else {
-                throw new SqlIllegalArgumentException("Received value [{}] is not valid date part for extraction; " + "" +
+                throw new SqlIllegalArgumentException("Received value [{}] is not valid date part for extraction; " +
                     "did you mean {}?", source1, similar);
             }
         }
 
         if (source2 instanceof ZonedDateTime == false) {
-            throw new SqlIllegalArgumentException("A datetime/date is required; received [{}]", source2);
+            throw new SqlIllegalArgumentException("A date/datetime is required; received [{}]", source2);
         }
 
         return datePartField.extract(((ZonedDateTime) source2).withZoneSameInstant(zoneId));

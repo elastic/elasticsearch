@@ -21,7 +21,6 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.BinaryDateTimeProcessor.BinaryDateOperation;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.BinaryDateTimeProcessor.BinaryDateOperation.TRUNC;
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 public abstract class BinaryDateTimeFunction extends BinaryScalarFunction {
@@ -29,9 +28,9 @@ public abstract class BinaryDateTimeFunction extends BinaryScalarFunction {
     private final ZoneId zoneId;
     private final BinaryDateOperation operation;
 
-    public BinaryDateTimeFunction(Source source, Expression truncateTo, Expression timestamp, ZoneId zoneId,
+    public BinaryDateTimeFunction(Source source, Expression datePart, Expression timestamp, ZoneId zoneId,
                                   BinaryDateOperation operation) {
-        super(source, truncateTo, timestamp);
+        super(source, datePart, timestamp);
         this.zoneId = zoneId;
         this.operation = operation;
     }
@@ -44,9 +43,9 @@ public abstract class BinaryDateTimeFunction extends BinaryScalarFunction {
         }
 
         if (left().foldable()) {
-            String truncateToValue = (String) left().fold();
-            if (truncateToValue != null && resolveDateTimeField(truncateToValue) == false) {
-                List<String> similar = findSimilarDateTimeFields(truncateToValue);
+            String datePartValue = (String) left().fold();
+            if (datePartValue != null && resolveDateTimeField(datePartValue) == false) {
+                List<String> similar = findSimilarDateTimeFields(datePartValue);
                 if (similar.isEmpty()) {
                     return new TypeResolution(format(null, "first argument of [{}] must be one of {} or their aliases, found value [{}]",
                         sourceText(),
@@ -88,18 +87,9 @@ public abstract class BinaryDateTimeFunction extends BinaryScalarFunction {
     }
 
     @Override
-    public Object fold() {
-        if (operation == TRUNC) {
-            return DateTruncProcessor.process(left().fold(), right().fold(), zoneId);
-        } else {
-            return DatePartProcessor.process(left().fold(), right().fold(), zoneId);
-        }
-    }
-
-    @Override
     protected ScriptTemplate asScriptFrom(ScriptTemplate leftScript, ScriptTemplate rightScript) {
         return new ScriptTemplate(
-            formatTemplate("{sql}." + (operation == TRUNC ? "dateTrunc" : "datePart") +
+            formatTemplate("{sql}." + scriptMethodName() +
                 "(" + leftScript.template() + "," + rightScript.template()+ ",{})"),
             paramsBuilder()
                 .script(leftScript.params())

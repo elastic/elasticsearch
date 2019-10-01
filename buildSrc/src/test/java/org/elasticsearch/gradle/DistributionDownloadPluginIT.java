@@ -50,7 +50,7 @@ public class DistributionDownloadPluginIT extends GradleIntegrationTestCase {
 
     public void testBwc() throws Exception {
         assertExtractedDistro("1.1.0", "archive", "linux", null, null,
-            "tests.local_distro.config", "linux-tar",
+            "tests.local_distro.config", "zip",
             "tests.local_distro.project", ":distribution:bwc:minor",
             "tests.current_version", "2.0.0");
     }

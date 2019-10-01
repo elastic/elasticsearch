@@ -27,6 +27,7 @@ import org.hamcrest.Matcher;
 import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
@@ -187,7 +188,7 @@ public class FileUtils {
             return;
         }
         logger.info("Showing contents of directory: {} ({})", logsDir, logsDir.toAbsolutePath());
-        try(Stream<Path> fileStream = Files.list(logsDir)) {
+        try (Stream<Path> fileStream = Files.list(logsDir)) {
             fileStream
                 // gc logs are verbose and not useful in this context
                 .filter(file -> file.getFileName().toString().startsWith("gc.log") == false)
@@ -283,5 +284,15 @@ public class FileUtils {
 
     public static void assertPathsDontExist(Path... paths) {
         Arrays.stream(paths).forEach(path -> assertFalse(path + " should not exist", Files.exists(path)));
+    }
+
+    public static void deleteIfExists(Path path) {
+        if (Files.exists(path)) {
+            try {
+                Files.delete(path);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
     }
 }

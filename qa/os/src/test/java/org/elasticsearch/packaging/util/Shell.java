@@ -31,11 +31,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -170,6 +169,9 @@ public class Shell {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
+        } finally {
+           FileUtils.deleteIfExists(stdOut);
+           FileUtils.deleteIfExists(stdErr);
         }
     }
 
@@ -179,23 +181,9 @@ public class Shell {
             if (size > 100 * 1024) {
                 return "<<Too large to read: " + size  + " bytes>>";
             }
-            LinkedList<String> result = new LinkedList<>();
-            AtomicBoolean linesDiscarded = new AtomicBoolean(false);
-            try(Stream<String> lines = Files.lines(path, StandardCharsets.UTF_8)) {
-                lines.forEach(line -> {
-                    result.add(line);
-                    if (result.size() >= TAIL_WHEN_TOO_MUCH_OUTPUT) {
-                        result.removeFirst();
-                        if (linesDiscarded.getAndSet(true) == false) {
-                            logger.warn(
-                                "Output from command was too large, only keeping the last {} lines",
-                                TAIL_WHEN_TOO_MUCH_OUTPUT
-                            );
-                        }
-                    }
-                });
+            try (Stream<String> lines = Files.lines(path, StandardCharsets.UTF_8)) {
+                return lines.collect(Collectors.joining("\n"));
             }
-            return String.join("\n", result);
         } else {
             return "";
         }

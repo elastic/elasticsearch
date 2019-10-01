@@ -28,6 +28,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.FunctionTable;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
 
@@ -67,7 +68,7 @@ public final class EListInit extends AExpression {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(FunctionTable functions, Locals locals) {
         if (!read) {
             throw createError(new IllegalArgumentException("Must read from list initializer."));
         }
@@ -92,8 +93,8 @@ public final class EListInit extends AExpression {
 
             expression.expected = def.class;
             expression.internal = true;
-            expression.analyze(locals);
-            values.set(index, expression.cast(locals));
+            expression.analyze(functions, locals);
+            values.set(index, expression.cast(functions, locals));
         }
     }
 

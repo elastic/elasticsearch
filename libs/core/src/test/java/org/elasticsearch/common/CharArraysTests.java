@@ -69,8 +69,10 @@ public class CharArraysTests extends ESTestCase {
         assertTrue(CharArrays.constantTimeEquals(value, value));
         assertTrue(CharArrays.constantTimeEquals(value.toCharArray(), value.toCharArray()));
 
-        final String other = randomAlphaOfLengthBetween(1, 32);
-        assertFalse(CharArrays.constantTimeEquals(value, other));
+        // we want a different string, so ensure the first character is different, but the same overall length
+        final String other = new String(
+            randomAlphaOfLengthNotBeginningWith(value.substring(0, 1), value.length(), value.length()));
+        assertFalse("value: " + value + ", other: " + other, CharArrays.constantTimeEquals(value, other));
         assertFalse(CharArrays.constantTimeEquals(value.toCharArray(), other.toCharArray()));
     }
 

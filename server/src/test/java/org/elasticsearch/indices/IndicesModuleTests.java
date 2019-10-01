@@ -37,6 +37,7 @@ import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -75,7 +76,7 @@ public class IndicesModuleTests extends ESTestCase {
         }
     }
 
-    private final List<MapperPlugin> fakePlugins = Arrays.asList(new MapperPlugin() {
+    private final List<Plugin> fakePlugins = Arrays.asList(new TestPlugin() {
         @Override
         public Map<String, Mapper.TypeParser> getMappers() {
             return Collections.singletonMap("fake-mapper", new FakeMapperParser());
@@ -139,7 +140,7 @@ public class IndicesModuleTests extends ESTestCase {
     }
 
     public void testDuplicateBuiltinMapper() {
-        List<MapperPlugin> plugins = Arrays.asList(new MapperPlugin() {
+        List<Plugin> plugins = Arrays.asList(new TestPlugin() {
             @Override
             public Map<String, Mapper.TypeParser> getMappers() {
                 return Collections.singletonMap(TextFieldMapper.CONTENT_TYPE, new FakeMapperParser());
@@ -151,20 +152,20 @@ public class IndicesModuleTests extends ESTestCase {
     }
 
     public void testDuplicateOtherPluginMapper() {
-        MapperPlugin plugin = new MapperPlugin() {
+        Plugin plugin = new TestPlugin() {
             @Override
             public Map<String, Mapper.TypeParser> getMappers() {
                 return Collections.singletonMap("foo", new FakeMapperParser());
             }
         };
-        List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);
+        List<Plugin> plugins = Arrays.asList(plugin, plugin);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> new IndicesModule(plugins));
         assertThat(e.getMessage(), containsString("already registered"));
     }
 
     public void testDuplicateBuiltinMetadataMapper() {
-        List<MapperPlugin> plugins = Arrays.asList(new MapperPlugin() {
+        List<Plugin> plugins = Arrays.asList(new TestPlugin() {
             @Override
             public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
                 return Collections.singletonMap(IdFieldMapper.NAME, new FakeMetadataMapperParser());
@@ -176,20 +177,20 @@ public class IndicesModuleTests extends ESTestCase {
     }
 
     public void testDuplicateOtherPluginMetadataMapper() {
-        MapperPlugin plugin = new MapperPlugin() {
+        Plugin plugin = new TestPlugin() {
             @Override
             public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
                 return Collections.singletonMap("foo", new FakeMetadataMapperParser());
             }
         };
-        List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);
+        List<Plugin> plugins = Arrays.asList(plugin, plugin);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> new IndicesModule(plugins));
         assertThat(e.getMessage(), containsString("already registered"));
     }
 
     public void testDuplicateFieldNamesMapper() {
-        List<MapperPlugin> plugins = Arrays.asList(new MapperPlugin() {
+        List<Plugin> plugins = Arrays.asList(new TestPlugin() {
             @Override
             public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
                 return Collections.singletonMap(FieldNamesFieldMapper.NAME, new FakeMetadataMapperParser());
@@ -215,26 +216,26 @@ public class IndicesModuleTests extends ESTestCase {
     }
 
     public void testGetFieldFilter() {
-        List<MapperPlugin> mapperPlugins = Arrays.asList(
-            new MapperPlugin() {
+        List<Plugin> mapperPlugins = Arrays.asList(
+            new TestPlugin() {
                 @Override
                 public Function<String, Predicate<String>> getFieldFilter() {
                     return MapperPlugin.NOOP_FIELD_FILTER;
                 }
             },
-            new MapperPlugin() {
+            new TestPlugin() {
                 @Override
                 public Function<String, Predicate<String>> getFieldFilter() {
                     return index -> index.equals("hidden_index") ? field -> false : MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
             },
-            new MapperPlugin() {
+            new TestPlugin() {
                 @Override
                 public Function<String, Predicate<String>> getFieldFilter() {
                     return index -> field -> field.equals("hidden_field") == false;
                 }
             },
-            new MapperPlugin() {
+            new TestPlugin() {
                 @Override
                 public Function<String, Predicate<String>> getFieldFilter() {
                     return index -> index.equals("filtered") ? field ->  field.equals("visible") : MapperPlugin.NOOP_FIELD_PREDICATE;
@@ -260,9 +261,9 @@ public class IndicesModuleTests extends ESTestCase {
 
     public void testDefaultFieldFilterIsNoOp() {
         int numPlugins = randomIntBetween(0, 10);
-        List<MapperPlugin> mapperPlugins = new ArrayList<>(numPlugins);
+        List<Plugin> mapperPlugins = new ArrayList<>(numPlugins);
         for (int i = 0; i < numPlugins; i++) {
-            mapperPlugins.add(new MapperPlugin() {});
+            mapperPlugins.add(new TestPlugin() {});
         }
         IndicesModule indicesModule = new IndicesModule(mapperPlugins);
         Function<String, Predicate<String>> fieldFilter = indicesModule.getMapperRegistry().getFieldFilter();
@@ -270,20 +271,20 @@ public class IndicesModuleTests extends ESTestCase {
     }
 
     public void testNoOpFieldPredicate() {
-        List<MapperPlugin> mapperPlugins = Arrays.asList(
-                new MapperPlugin() {
+        List<Plugin> mapperPlugins = Arrays.asList(
+                new TestPlugin() {
                     @Override
                     public Function<String, Predicate<String>> getFieldFilter() {
                         return MapperPlugin.NOOP_FIELD_FILTER;
                     }
                 },
-                new MapperPlugin() {
+                new TestPlugin() {
                     @Override
                     public Function<String, Predicate<String>> getFieldFilter() {
                         return index -> index.equals("hidden_index") ? field -> false : MapperPlugin.NOOP_FIELD_PREDICATE;
                     }
                 },
-                new MapperPlugin() {
+                new TestPlugin() {
                     @Override
                     public Function<String, Predicate<String>> getFieldFilter() {
                         return index -> index.equals("filtered") ? field ->  field.equals("visible") : MapperPlugin.NOOP_FIELD_PREDICATE;
@@ -296,5 +297,8 @@ public class IndicesModuleTests extends ESTestCase {
         assertSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(randomAlphaOfLengthBetween(3, 7)));
         assertNotSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("hidden_index"));
         assertNotSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("filtered"));
+    }
+
+    public abstract class TestPlugin extends Plugin implements MapperPlugin {
     }
 }

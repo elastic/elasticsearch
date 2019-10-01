@@ -225,9 +225,13 @@ public class GeoShapeFieldMapper extends AbstractGeometryFieldMapper<Geometry, G
         public Object resolveCRS(String crsSpec) {
             throw new ElasticsearchException("resolveCRS not supported for default CRSHandler");
         }
-    };
+    }
 
     static {
         CRS_HANDLER_FACTORIES.add(DEFAULT_CRS_HANDLER_FACTORY);
+    }
+
+    public interface Extension {
+        List<CRSHandlerFactory> getCRSHandlerFactories();
     }
 }

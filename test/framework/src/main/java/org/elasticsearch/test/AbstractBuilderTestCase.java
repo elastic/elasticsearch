@@ -62,7 +62,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.node.InternalSettingsPreparer;
-import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -338,7 +337,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             SettingsModule settingsModule =
                     new SettingsModule(nodeSettings, additionalSettings, pluginsService.getPluginSettingsFilter(), Collections.emptySet());
             searchModule = new SearchModule(nodeSettings, pluginsService.filterPlugins(SearchPlugin.class));
-            IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
+            IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(Plugin.class));
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
             entries.addAll(IndicesModule.getNamedWriteables());
             entries.addAll(searchModule.getNamedWriteables());

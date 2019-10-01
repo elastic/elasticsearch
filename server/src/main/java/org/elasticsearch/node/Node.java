@@ -126,7 +126,6 @@ import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.GeoPlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
@@ -377,7 +376,7 @@ public class Node implements Closeable {
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool, clusterInfoService);
             ClusterModule clusterModule = new ClusterModule(settings, clusterService, clusterPlugins, clusterInfoService);
             modules.add(clusterModule);
-            IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
+            IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(Plugin.class));
             modules.add(indicesModule);
 
             // register CRS handlers w/ GeoShapeFieldMapper

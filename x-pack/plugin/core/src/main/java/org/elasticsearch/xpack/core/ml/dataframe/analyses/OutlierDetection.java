@@ -174,6 +174,11 @@ public class OutlierDetection implements DataFrameAnalysis {
         return false;
     }
 
+    @Override
+    public String getStateDocId(String jobId) {
+        throw new UnsupportedOperationException("Outlier detection does not support state");
+    }
+
     public enum Method {
         LOF, LDOF, DISTANCE_KTH_NN, DISTANCE_KNN;
 

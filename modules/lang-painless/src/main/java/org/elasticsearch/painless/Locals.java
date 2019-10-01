@@ -23,9 +23,6 @@ import org.elasticsearch.painless.ScriptClassInfo.MethodArgument;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
-import java.lang.invoke.MethodType;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,7 +32,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToJavaType;
 
 /**
- * Tracks user defined methods and variables across compilation phases.
+ * Tracks user defined variables across compilation phases.
  */
 public final class Locals {
     private int syntheticCounter = 0;
@@ -52,30 +49,6 @@ public final class Locals {
         return "lambda$" + locals.syntheticCounter++;
     }
 
-    /**
-     * Constructs a local method key used to lookup local methods from a painless class.
-     */
-    public static String buildLocalMethodKey(String methodName, int methodArity) {
-        return methodName + "/" + methodArity;
-    }
-
-    /**
-     * Stores information about methods directly callable on the generated script class.
-     */
-    public static class LocalMethod {
-        public final String name;
-        public final Class<?> returnType;
-        public final List<Class<?>> typeParameters;
-        public final MethodType methodType;
-
-        public LocalMethod(String name, Class<?> returnType, List<Class<?>> typeParameters, MethodType methodType) {
-            this.name = name;
-            this.returnType = returnType;
-            this.typeParameters = typeParameters;
-            this.methodType = methodType;
-        }
-    }
-
     /** Reserved word: loop counter */
     public static final String LOOP   = "#loop";
     /** Reserved word: unused */
@@ -87,7 +60,6 @@ public final class Locals {
     /** Creates a new local variable scope (e.g. loop) inside the current scope */
     public static Locals newLocalScope(Locals currentScope) {
         Locals locals = new Locals(currentScope);
-        locals.methods = currentScope.methods;
 
         return locals;
     }
@@ -100,10 +72,7 @@ public final class Locals {
     public static Locals newLambdaScope(Locals programScope, String name, Class<?> returnType, List<Parameter> parameters,
                                         int captureCount, int maxLoopCounter) {
         Locals locals = new Locals(programScope, programScope.painlessLookup, programScope.baseClass, returnType, KEYWORDS);
-        locals.methods = programScope.methods;
         List<Class<?>> typeParameters = parameters.stream().map(parameter -> typeToJavaType(parameter.clazz)).collect(Collectors.toList());
-        locals.methods.put(buildLocalMethodKey(name, parameters.size()), new LocalMethod(name, returnType, typeParameters,
-                MethodType.methodType(typeToJavaType(returnType), typeParameters)));
         for (int i = 0; i < parameters.size(); i++) {
             Parameter parameter = parameters.get(i);
             // TODO: allow non-captures to be r/w:
@@ -123,7 +92,6 @@ public final class Locals {
     /** Creates a new function scope inside the current scope */
     public static Locals newFunctionScope(Locals programScope, Class<?> returnType, List<Parameter> parameters, int maxLoopCounter) {
         Locals locals = new Locals(programScope, programScope.painlessLookup, programScope.baseClass, returnType, KEYWORDS);
-        locals.methods = programScope.methods;
         for (Parameter parameter : parameters) {
             locals.addVariable(parameter.location, parameter.clazz, parameter.name, false);
         }
@@ -138,7 +106,6 @@ public final class Locals {
     public static Locals newMainMethodScope(ScriptClassInfo scriptClassInfo, Locals programScope, int maxLoopCounter) {
         Locals locals = new Locals(programScope, programScope.painlessLookup,
                 scriptClassInfo.getBaseClass(), scriptClassInfo.getExecuteMethodReturnType(), KEYWORDS);
-        locals.methods = programScope.methods;
         // This reference. Internal use only.
         locals.defineVariable(null, Object.class, THIS, true);
 
@@ -154,14 +121,9 @@ public final class Locals {
         return locals;
     }
 
-    /** Creates a new program scope: the list of methods. It is the parent for all methods */
-    public static Locals newProgramScope(ScriptClassInfo scriptClassInfo, PainlessLookup painlessLookup, Collection<LocalMethod> methods) {
-        Locals locals = new Locals(null, painlessLookup, scriptClassInfo.getBaseClass(), null, null);
-        locals.methods = new HashMap<>();
-        for (LocalMethod method : methods) {
-            locals.addMethod(method);
-        }
-        return locals;
+    /** Creates a new program scope as the root of all scopes */
+    public static Locals newProgramScope(ScriptClassInfo scriptClassInfo, PainlessLookup painlessLookup) {
+        return new Locals(null, painlessLookup, scriptClassInfo.getBaseClass(), null, null);
     }
 
     /** Checks if a variable exists or not, in this scope or any parents. */
@@ -186,11 +148,6 @@ public final class Locals {
             return parent.getVariable(location, name);
         }
         throw location.createError(new IllegalArgumentException("Variable [" + name + "] is not defined."));
-    }
-
-    /** Looks up a method. Returns null if the method does not exist. */
-    public LocalMethod getMethod(String methodName, int methodArity) {
-        return methods.get(buildLocalMethodKey(methodName, methodArity));
     }
 
     /** Creates a new variable. Throws IAE if the variable has already been defined (even in a parent) or reserved. */
@@ -244,8 +201,6 @@ public final class Locals {
     private int nextSlotNumber;
     // variable name -> variable
     private Map<String,Variable> variables;
-    // method name+arity -> methods
-    private Map<String,LocalMethod> methods;
 
     /**
      * Create a new Locals
@@ -283,10 +238,6 @@ public final class Locals {
         return variables.get(name);
     }
 
-    public Map<String, LocalMethod> getMethods() {
-        return Collections.unmodifiableMap(methods);
-    }
-
     /** Defines a variable at this scope internally. */
     private Variable defineVariable(Location location, Class<?> type, String name, boolean readonly) {
         if (variables == null) {
@@ -296,10 +247,6 @@ public final class Locals {
         variables.put(name, variable); // TODO: check result
         nextSlotNumber += MethodWriter.getType(type).getSize();
         return variable;
-    }
-
-    private void addMethod(LocalMethod method) {
-        methods.put(buildLocalMethodKey(method.name, method.typeParameters.size()), method);
     }
 
     private int getNextSlot() {

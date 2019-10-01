@@ -840,7 +840,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
         }
     }
 
-    public void testReconnectWhenSeedsNodesAreUpdated() throws Exception {
+    public void testReconnectWhenSeedsNodesOrProxyAreUpdated() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (MockTransportService cluster_node_0 = startTransport("cluster_node_0", knownNodes, Version.CURRENT);
              MockTransportService cluster_node_1 = startTransport("cluster_node_1", knownNodes, Version.CURRENT)) {
@@ -910,6 +910,28 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertTrue(secondRemoteClusterConnection.isNodeConnected(node1));
                     assertEquals(2, secondRemoteClusterConnection.getNumNodesConnected());
                     assertFalse(secondRemoteClusterConnection.isClosed());
+
+                    final CountDownLatch thirdLatch = new CountDownLatch(1);
+                    service.updateRemoteCluster(
+                        "cluster_test",
+                        newSeeds, node1.getAddress().toString(),
+                        genericProfile("cluster_test"), connectionListener(thirdLatch));
+                    thirdLatch.await();
+
+                    assertBusy(() -> {
+                        assertFalse(secondRemoteClusterConnection.isNodeConnected(node0));
+                        assertFalse(secondRemoteClusterConnection.isNodeConnected(node1));
+                        assertEquals(0, secondRemoteClusterConnection.getNumNodesConnected());
+                        assertTrue(secondRemoteClusterConnection.isClosed());
+                    });
+
+                    final RemoteClusterConnection thirdRemoteClusterConnection = service.getRemoteClusterConnection("cluster_test");
+                    assertTrue(thirdRemoteClusterConnection.isNodeConnected(node1));
+                    // Will only successfully connect to node1 because the proxy address is to node1 and
+                    // validation will fail when attempt to connect to node0
+                    assertFalse(thirdRemoteClusterConnection.isNodeConnected(node0));
+                    assertEquals(1, thirdRemoteClusterConnection.getNumNodesConnected());
+                    assertFalse(thirdRemoteClusterConnection.isClosed());
                 }
             }
         }

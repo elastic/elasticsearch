@@ -1,3 +1,5 @@
+// To mute tests follow example in file: example.sql-spec
+
 stringAscii
 SELECT ASCII(first_name) s FROM "test_emp" WHERE emp_no < 10010 ORDER BY emp_no;
 

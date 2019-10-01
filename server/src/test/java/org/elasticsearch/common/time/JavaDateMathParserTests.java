@@ -44,7 +44,7 @@ public class JavaDateMathParserTests extends ESTestCase {
         long gotMillis = parser.parse("297276785531", () -> 0, true, (ZoneId) null).toEpochMilli();
         assertDateEquals(gotMillis, "297276785531", "297276785531");
 
-        formatter = DateFormatter.forPattern("date||epoch_millis").withZone(randomZone());
+        formatter = DateFormatter.forPattern("date||epoch_millis").withZone(ZoneOffset.UTC);
         parser = formatter.toDateMathParser();
         gotMillis = parser.parse("297276785531", () -> 0, true, (ZoneId) null).toEpochMilli();
         assertDateEquals(gotMillis, "297276785531", "297276785531");
@@ -301,6 +301,11 @@ public class JavaDateMathParserTests extends ESTestCase {
     }
 
     private void assertDateMathEquals(String toTest, String expected, final long now, boolean roundUp, ZoneId timeZone) {
+        assertDateMathEquals(parser, toTest, expected, now, roundUp, timeZone);
+    }
+
+    private void assertDateMathEquals(DateMathParser parser, String toTest, String expected, final long now,
+                                      boolean roundUp, ZoneId timeZone) {
         long gotMillis = parser.parse(toTest, () -> now, roundUp, timeZone).toEpochMilli();
         assertDateEquals(gotMillis, toTest, expected);
     }

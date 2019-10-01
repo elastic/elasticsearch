@@ -31,7 +31,6 @@ import static java.util.Collections.singletonList;
 
 public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin, SearchPlugin, IngestPlugin {
 
-
     public SpatialPlugin(Settings settings) {
     }
 

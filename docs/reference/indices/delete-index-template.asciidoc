@@ -1,7 +1,7 @@
 [[indices-delete-template]]
 === Delete index template API
 ++++
-<titleabbrev>Delete template index</titleabbrev>
+<titleabbrev>Delete index template</titleabbrev>
 ++++
 
 Deletes an existing index.

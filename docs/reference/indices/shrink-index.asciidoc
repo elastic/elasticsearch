@@ -1,5 +1,8 @@
 [[indices-shrink-index]]
-=== Shrink Index
+=== Shrink index API
+++++
+<titleabbrev>Shrink index</titleabbrev>
+++++
 
 The shrink index API allows you to shrink an existing index into a new index
 with fewer primary shards. The requested number of primary shards in the target index

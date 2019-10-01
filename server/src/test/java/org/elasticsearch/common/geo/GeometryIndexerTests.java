@@ -22,6 +22,7 @@ package org.elasticsearch.common.geo;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -32,7 +33,6 @@ import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
-import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
 
@@ -41,12 +41,11 @@ import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.instanceOf;
+
 public class GeometryIndexerTests extends ESTestCase {
 
     GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
-    private static final WellKnownText WKT = new WellKnownText(true, geometry -> {
-    });
-
 
     public void testCircle() {
         UnsupportedOperationException ex =
@@ -105,10 +104,96 @@ public class GeometryIndexerTests extends ESTestCase {
             new Line(new double[]{160, 180}, new double[]{0, 5}),
             new Line(new double[]{-180, -160, -180}, new double[]{5, 10, 15}),
             new Line(new double[]{180, 160}, new double[]{15, 20})
-            )
-        );
+        ));
 
         assertEquals(indexed, indexer.prepareForIndexing(line));
+
+        line = new Line(new double[]{0, 720}, new double[]{0, 20});
+        indexed = new MultiLine(Arrays.asList(
+            new Line(new double[]{0, 180}, new double[]{0, 5}),
+            new Line(new double[]{-180, 180}, new double[]{5, 15}),
+            new Line(new double[]{-180, 0}, new double[]{15, 20})
+        ));
+
+        assertEquals(indexed, indexer.prepareForIndexing(line));
+
+        line = new Line(new double[]{160, 180, 180, 200, 160, 140}, new double[]{0, 10, 20, 30, 30, 40});
+        indexed = new MultiLine(Arrays.asList(
+            new Line(new double[]{160, 180}, new double[]{0, 10}),
+            new Line(new double[]{-180, -180, -160, -180}, new double[]{10, 20, 30, 30}),
+            new Line(new double[]{180, 160, 140}, new double[]{30, 30, 40})
+        ));
+
+        assertEquals(indexed, indexer.prepareForIndexing(line));
+
+        line = new Line(new double[]{-70, 180, 900}, new double[]{0, 0, 4});
+
+        indexed = new MultiLine(Arrays.asList(
+            new Line(new double[]{-70, 180}, new double[]{0, 0}),
+            new Line(new double[]{-180, 180}, new double[]{0, 2}),
+            new Line(new double[]{-180, 180}, new double[]{2, 4})
+        ));
+
+        assertEquals(indexed, indexer.prepareForIndexing(line));
+
+        line = new Line(new double[]{160, 200, 160, 200, 160, 200}, new double[]{0, 10, 20, 30, 40, 50});
+
+        indexed = new MultiLine(Arrays.asList(
+            new Line(new double[]{160, 180}, new double[]{0, 5}),
+            new Line(new double[]{-180, -160, -180}, new double[]{5, 10, 15}),
+            new Line(new double[]{180, 160, 180}, new double[]{15, 20, 25}),
+            new Line(new double[]{-180, -160, -180}, new double[]{25, 30, 35}),
+            new Line(new double[]{180, 160, 180}, new double[]{35, 40, 45}),
+            new Line(new double[]{-180, -160}, new double[]{45, 50})
+        ));
+
+        assertEquals(indexed, indexer.prepareForIndexing(line));
+    }
+
+    /**
+     * Returns a sum of Euclidean distances between points in the linestring.
+     */
+    public double length(Line line) {
+        double distance = 0;
+        for (int i = 1; i < line.length(); i++) {
+            distance += Math.sqrt((line.getLat(i) - line.getLat(i - 1)) * (line.getLat(i) - line.getLat(i - 1)) +
+                (line.getLon(i) - line.getLon(i - 1)) * (line.getLon(i) - line.getLon(i - 1)));
+        }
+        return distance;
+    }
+
+    /**
+     * A simple tests that generates a random lines crossing anti-merdian and checks that the decomposed segments of this line
+     * have the same total length (measured using Euclidean distances between neighboring points) as the original line.
+     */
+    public void testRandomLine() {
+        int size = randomIntBetween(2, 20);
+        int shift = randomIntBetween(-2, 2);
+        double[] originalLats = new double[size];
+        double[] originalLons = new double[size];
+
+        for (int i = 0; i < size; i++) {
+            originalLats[i] = GeometryTestUtils.randomLat();
+            originalLons[i] = GeometryTestUtils.randomLon() + shift * 360;
+            if (randomInt(3) == 0) {
+                shift += randomFrom(-2, -1, 1, 2);
+            }
+        }
+        Line original = new Line(originalLons, originalLats);
+
+        Geometry decomposed = indexer.prepareForIndexing(original);
+        double decomposedLength = 0;
+        if (decomposed instanceof Line) {
+            decomposedLength = length((Line) decomposed);
+        } else {
+            assertThat(decomposed, instanceOf(MultiLine.class));
+            MultiLine lines = (MultiLine) decomposed;
+            for (int i = 0; i < lines.size(); i++) {
+                decomposedLength += length(lines.get(i));
+            }
+        }
+
+        assertEquals("Different Lengths between " + original + " and " + decomposed, length(original), decomposedLength, 0.001);
     }
 
     public void testMultiLine() {
@@ -254,5 +339,4 @@ public class GeometryIndexerTests extends ESTestCase {
             return geometryParser.parse(parser);
         }
     }
-
 }

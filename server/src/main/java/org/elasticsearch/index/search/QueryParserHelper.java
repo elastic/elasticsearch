@@ -30,6 +30,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Helpers to extract and expand field names and boosts
@@ -130,8 +131,10 @@ public final class QueryParserHelper {
      */
     public static Map<String, Float> resolveMappingField(QueryShardContext context, String fieldOrPattern, float weight,
                                                          boolean acceptAllTypes, boolean acceptMetadataField, String fieldSuffix) {
-        final Map<String, Float> fields = new HashMap<>();
-        for (String fieldName : context.simpleMatchToIndexNames(fieldOrPattern)) {
+        Set<String> allFields = context.simpleMatchToIndexNames(fieldOrPattern);
+        Map<String, Float> fields = new HashMap<>();
+
+        for (String fieldName : allFields) {
             if (fieldSuffix != null && context.fieldMapper(fieldName + fieldSuffix) != null) {
                 fieldName = fieldName + fieldSuffix;
             }
@@ -159,8 +162,14 @@ public final class QueryParserHelper {
                 }
             }
 
-            float w = fields.getOrDefault(fieldType.name(), 1.0F);
-            fields.put(fieldType.name(), w * weight);
+            // Deduplicate aliases and their concrete fields.
+            String resolvedFieldName = fieldType.name();
+            if (allFields.contains(resolvedFieldName)) {
+                fieldName = resolvedFieldName;
+            }
+
+            float w = fields.getOrDefault(fieldName, 1.0F);
+            fields.put(fieldName, w * weight);
         }
 
         checkForTooManyFields(fields, context);

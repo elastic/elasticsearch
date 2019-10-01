@@ -59,6 +59,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.lucene.search.Queries.newLenientFieldQuery;
@@ -235,6 +236,14 @@ public class MatchQuery {
         if (fieldType == null) {
             return newUnmappedFieldQuery(fieldName);
         }
+        Set<String> fields = context.simpleMatchToIndexNames(fieldName);
+        if (fields.contains(fieldName)) {
+            assert fields.size() == 1;
+            // this field is a concrete field or an alias so we use the
+            // field type name directly
+            fieldName = fieldType.name();
+        }
+
         Analyzer analyzer = getAnalyzer(fieldType, type == Type.PHRASE || type == Type.PHRASE_PREFIX);
         assert analyzer != null;
 
@@ -247,7 +256,7 @@ public class MatchQuery {
          * a prefix query instead
          */
         if (analyzer == Lucene.KEYWORD_ANALYZER && type != Type.PHRASE_PREFIX) {
-            final Term term = new Term(fieldType.name(), value.toString());
+            final Term term = new Term(fieldName, value.toString());
             if (type == Type.BOOLEAN_PREFIX
                     && (fieldType instanceof TextFieldMapper.TextFieldType || fieldType instanceof KeywordFieldMapper.KeywordFieldType)) {
                 return builder.newPrefixQuery(term);
@@ -256,7 +265,7 @@ public class MatchQuery {
             }
         }
 
-        return parseInternal(type, fieldType.name(), builder, value);
+        return parseInternal(type, fieldName, builder, value);
     }
 
     protected final Query parseInternal(Type type, String fieldName, MatchQueryBuilder builder, Object value) throws IOException {

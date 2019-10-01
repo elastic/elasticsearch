@@ -30,9 +30,9 @@ Available evaluation types:
 ==== Binary soft classification configuration objects
 
 Binary soft classification evaluates the results of an analysis which outputs 
-the probability that each {dataframe} row belongs to a certain class. For 
+the probability that each document belongs to a certain class. For 
 example, in the context of outlier detection, the analysis outputs the 
-probability whether each row is an outlier.
+probability whether each document is an outlier.
 
 [discrete]
 [[binary-sc-resources-properties]]

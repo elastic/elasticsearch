@@ -129,7 +129,10 @@ public class GatewayAllocator {
         unassigned.sort(PriorityComparator.getAllocationComparator(allocation)); // sort for priority ordering
 
         primaryShardAllocator.allocateUnassigned(allocation);
-        replicaShardAllocator.processExistingRecoveries(allocation);
+        if (allocation.routingNodes().hasInactiveShards()) {
+            // cancel existing recoveries if we have a better match
+            replicaShardAllocator.processExistingRecoveries(allocation);
+        }
         replicaShardAllocator.allocateUnassigned(allocation);
     }
 

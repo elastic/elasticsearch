@@ -336,8 +336,8 @@ If the machine running Elasticsearch is restarted, the filesystem cache will be
 empty, so it will take some time before the operating system loads hot regions
 of the index into memory so that search operations are fast. You can explicitly
 tell the operating system which files should be loaded into memory eagerly
-depending on the file extension using the <<file-system,`index.store.preload`>>
-setting.
+depending on the file extension using the
+<<preload-data-to-file-system-cache,`index.store.preload`>> setting.
 
 WARNING: Loading data into the filesystem cache eagerly on too many indices or
 too many files will make search _slower_ if the filesystem cache is not large

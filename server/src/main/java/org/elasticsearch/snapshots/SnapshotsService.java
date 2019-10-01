@@ -573,26 +573,26 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         private void cleanupAfterError(Exception exception) {
             threadPool.generic().execute(() -> {
                 if (snapshotCreated) {
-                    try {
-                        repositoriesService.repository(snapshot.snapshot().getRepository())
-                            .finalizeSnapshot(snapshot.snapshot().getSnapshotId(),
-                                buildGenerations(snapshot),
-                                snapshot.startTime(),
-                                ExceptionsHelper.stackTrace(exception),
-                                0,
-                                Collections.emptyList(),
-                                snapshot.getRepositoryStateId(),
-                                snapshot.includeGlobalState(),
-                                metaDataForSnapshot(snapshot, clusterService.state().metaData()),
-                                snapshot.userMetadata(),
-                                clusterService.state().nodes().getMinNodeVersion());
-                    } catch (Exception inner) {
-                        inner.addSuppressed(exception);
-                        logger.warn(() -> new ParameterizedMessage("[{}] failed to close snapshot in repository",
-                            snapshot.snapshot()), inner);
-                    }
+                    repositoriesService.repository(snapshot.snapshot().getRepository())
+                        .finalizeSnapshot(snapshot.snapshot().getSnapshotId(),
+                            buildGenerations(snapshot),
+                            snapshot.startTime(),
+                            ExceptionsHelper.stackTrace(exception),
+                            0,
+                            Collections.emptyList(),
+                            snapshot.getRepositoryStateId(),
+                            snapshot.includeGlobalState(),
+                            metaDataForSnapshot(snapshot, clusterService.state().metaData()),
+                            snapshot.userMetadata(), clusterService.state().nodes().getMinNodeVersion(),
+                            ActionListener.runAfter(ActionListener.wrap(ignored -> {
+                            }, inner -> {
+                                inner.addSuppressed(exception);
+                                logger.warn(() -> new ParameterizedMessage("[{}] failed to finalize snapshot in repository",
+                                    snapshot.snapshot()), inner);
+                            }), () -> userCreateSnapshotListener.onFailure(e)));
+                } else {
+                    userCreateSnapshotListener.onFailure(e);
                 }
-                userCreateSnapshotListener.onFailure(e);
             });
         }
     }
@@ -1024,7 +1024,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         shardFailures.add(new SnapshotShardFailure(status.nodeId(), shardId, status.reason()));
                     }
                 }
-                SnapshotInfo snapshotInfo = repository.finalizeSnapshot(
+                repository.finalizeSnapshot(
                     snapshot.getSnapshotId(),
                     buildGenerations(entry),
                     entry.startTime(),
@@ -1035,9 +1035,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     entry.includeGlobalState(),
                     metaDataForSnapshot(entry, metaData),
                     entry.userMetadata(),
-                    clusterService.state().nodes().getMinNodeVersion());
-                removeSnapshotFromClusterState(snapshot, snapshotInfo, null);
-                logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
+                    clusterService.state().nodes().getMinNodeVersion(),
+                    ActionListener.wrap(snapshotInfo -> {
+                        removeSnapshotFromClusterState(snapshot, snapshotInfo, null);
+                        logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
+                    }, this::onFailure));
             }
 
             @Override

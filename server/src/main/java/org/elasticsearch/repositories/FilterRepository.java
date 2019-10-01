@@ -79,12 +79,12 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
+    public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
                                          int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                                          boolean includeGlobalState, MetaData metaData, Map<String, Object> userMetadata,
-                                         Version version) {
-        return in.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
-            includeGlobalState, metaData, userMetadata,  version);
+                                         Version version, ActionListener<SnapshotInfo> listener) {
+        in.finalizeSnapshot(snapshotId, shardGenerations, startTime, failure, totalShards, shardFailures, repositoryStateId,
+            includeGlobalState, metaData, userMetadata, version, listener);
     }
 
     @Override

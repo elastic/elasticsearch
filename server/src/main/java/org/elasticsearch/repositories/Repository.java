@@ -137,12 +137,12 @@ public interface Repository extends LifecycleComponent {
      * @param clusterMetaData    cluster metadata
      * @param userMetadata       user metadata
      * @param version            minimum ES version the repository should be readable by
-     * @return snapshot description
+     * @param listener listener to be called on completion of the snapshot
      */
-    SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
+    void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
                                   int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                                   boolean includeGlobalState, MetaData clusterMetaData, Map<String, Object> userMetadata,
-                                  Version version);
+                                  Version version, ActionListener<SnapshotInfo> listener);
 
     /**
      * Deletes snapshot

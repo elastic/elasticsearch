@@ -101,7 +101,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -763,7 +762,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public SnapshotInfo finalizeSnapshot(final SnapshotId snapshotId,
+    public void finalizeSnapshot(final SnapshotId snapshotId,
                                          final ShardGenerations shardGenerations,
                                          final long startTime,
                                          final String failure,
@@ -773,69 +772,79 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                          final boolean includeGlobalState,
                                          final MetaData clusterMetaData,
                                          final Map<String, Object> userMetadata,
-                                         final Version version) {
-        final List<IndexId> indices = shardGenerations.indices();
-        SnapshotInfo blobStoreSnapshot = new SnapshotInfo(snapshotId,
-            indices.stream().map(IndexId::getName).collect(Collectors.toList()),
-            startTime, failure, threadPool.absoluteTimeInMillis(), totalShards, shardFailures,
-            includeGlobalState, userMetadata);
+                                         final Version version,
+                                         final ActionListener<SnapshotInfo> listener) {
 
-        try {
-            // We ignore all FileAlreadyExistsException here since otherwise a master failover while in this method will
-            // mean that no snap-${uuid}.dat blob is ever written for this snapshot. This is safe because any updated version of the
-            // index or global metadata will be compatible with the segments written in this snapshot as well.
-            // Failing on an already existing index-${repoGeneration} below ensures that the index.latest blob is not updated in a way that
-            // decrements the generation it points at
-
-            // Write Global MetaData
-            globalMetaDataFormat.write(clusterMetaData, blobContainer(), snapshotId.getUUID(), false);
-
-            // write the index metadata for each index in the snapshot
-            for (IndexId index : indices) {
-                indexMetaDataFormat.write(clusterMetaData.index(index.getName()), indexContainer(index), snapshotId.getUUID(), false);
-            }
-        } catch (IOException ex) {
-            throw new SnapshotException(metadata.name(), snapshotId, "failed to write metadata for snapshot", ex);
-        }
-
-        try {
-            final RepositoryData existingRepositoryData = getRepositoryData();
-            final RepositoryData updatedRepositoryData =
-                existingRepositoryData.addSnapshot(snapshotId, blobStoreSnapshot.state(), shardGenerations);
-            snapshotFormat.write(blobStoreSnapshot, blobContainer(), snapshotId.getUUID(), false);
-
+        // Once we're done writing all metadata, we update the index-N blob to finalize the snapshot
+        final ActionListener<SnapshotInfo> afterMetaWrites = ActionListener.wrap(snapshotInfo -> {
             // Once we are done writing the updated index-N blob we remove the now unreferenced index-${uuid} blobs in each shard directory
             // if all nodes are at least at version SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION
             // If there are older version nodes in the cluster, we don't need to run this cleanup as it will have already happened when
             // writing the index-${N} to each shard directory.
+            final RepositoryData existingRepositoryData = getRepositoryData();
+            final RepositoryData updatedRepositoryData =
+                existingRepositoryData.addSnapshot(snapshotId, snapshotInfo.state(), shardGenerations);
             writeIndexGen(updatedRepositoryData, repositoryStateId, version);
             if (version.onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
                 cleanupOldShardGens(existingRepositoryData, updatedRepositoryData);
             }
-        } catch (FileAlreadyExistsException ex) {
-            // if another master was elected and took over finalizing the snapshot, it is possible
-            // that both nodes try to finalize the snapshot and write to the same blobs, so we just
-            // log a warning here and carry on
-            throw new RepositoryException(metadata.name(), "Blob already exists while " +
-                "finalizing snapshot, assume the snapshot has already been saved", ex);
-        } catch (IOException ex) {
-            throw new RepositoryException(metadata.name(), "failed to update snapshot in repository", ex);
+            listener.onResponse(snapshotInfo);
+        }, ex -> listener.onFailure(new SnapshotException(metadata.name(), snapshotId, "failed to update snapshot in repository", ex)));
+
+        // We upload one meta blob for each index, one for the cluster-state and one snap-${uuid}.dat blob
+        final GroupedActionListener<SnapshotInfo> allMetaListener =
+            new GroupedActionListener<>(ActionListener.map(afterMetaWrites, snapshotInfos -> {
+                assert snapshotInfos.size() == 1 : "Should have only received a single SnapshotInfo but received " + snapshotInfos;
+                return snapshotInfos.iterator().next();
+            }), 2 + shardGenerations.indices().size());
+        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+
+        // We ignore all FileAlreadyExistsException when writing metadata since otherwise a master failover while in this method will
+        // mean that no snap-${uuid}.dat blob is ever written for this snapshot. This is safe because any updated version of the
+        // index or global metadata will be compatible with the segments written in this snapshot as well.
+        // Failing on an already existing index-${repoGeneration} below ensures that the index.latest blob is not updated in a way
+        // that decrements the generation it points at
+
+        // Write Global MetaData
+        executor.execute(ActionRunnable.wrap(allMetaListener, l -> {
+            globalMetaDataFormat.write(clusterMetaData, blobContainer(), snapshotId.getUUID(), false);
+            l.onResponse(null);
+        }));
+
+        // write the index metadata for each index in the snapshot
+        for (IndexId index : shardGenerations.indices()) {
+            executor.execute(ActionRunnable.wrap(allMetaListener, l -> {
+                indexMetaDataFormat.write(clusterMetaData.index(index.getName()), indexContainer(index), snapshotId.getUUID(), false);
+                l.onResponse(null);
+            }));
         }
-        return blobStoreSnapshot;
+
+        executor.execute(ActionRunnable.wrap(afterMetaWrites, afterMetaListener -> {
+            final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshotId,
+                shardGenerations.indices().stream().map(IndexId::getName).collect(Collectors.toList()),
+                startTime, failure, threadPool.absoluteTimeInMillis(), totalShards, shardFailures,
+                includeGlobalState, userMetadata);
+            snapshotFormat.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), false);
+            afterMetaListener.onResponse(snapshotInfo);
+        }));
     }
 
-    private void cleanupOldShardGens(RepositoryData existingRepositoryData, RepositoryData updatedRepositoryData) throws IOException {
+    private void cleanupOldShardGens(RepositoryData existingRepositoryData, RepositoryData updatedRepositoryData) {
         final List<String> toDelete = new ArrayList<>();
         final int prefixPathLen = basePath().buildAsString().length();
-        for (Map.Entry<IndexId, Map<Integer, String>> entry
-            : updatedRepositoryData.shardGenerations().obsoleteShardGenerations(existingRepositoryData.shardGenerations()).entrySet()) {
-            final IndexId indexId = entry.getKey();
-            for (Map.Entry<Integer, String> shardEntry : entry.getValue().entrySet()) {
-                toDelete.add(shardContainer(indexId, shardEntry.getKey()).path().buildAsString().substring(prefixPathLen)
-                    + INDEX_FILE_PREFIX + shardEntry.getValue());
+        try {
+            for (Map.Entry<IndexId, Map<Integer, String>> entry :
+                updatedRepositoryData.shardGenerations().obsoleteShardGenerations(existingRepositoryData.shardGenerations()).entrySet()) {
+                final IndexId indexId = entry.getKey();
+                for (Map.Entry<Integer, String> shardEntry : entry.getValue().entrySet()) {
+                    toDelete.add(shardContainer(indexId, shardEntry.getKey()).path().buildAsString().substring(prefixPathLen)
+                        + INDEX_FILE_PREFIX + shardEntry.getValue());
+                }
             }
+            blobContainer().deleteBlobsIgnoringIfNotExists(toDelete);
+        } catch (Exception e) {
+            logger.warn("Failed to clean up old shard generation blobs", e);
         }
-        blobContainer().deleteBlobsIgnoringIfNotExists(toDelete);
     }
 
     @Override

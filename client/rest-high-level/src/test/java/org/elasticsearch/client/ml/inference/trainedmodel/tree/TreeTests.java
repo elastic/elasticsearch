@@ -88,7 +88,7 @@ public class TreeTests extends AbstractXContentTestCase<Tree> {
             categoryLabels = Arrays.asList(generateRandomStringArray(randomIntBetween(1, 10), randomIntBetween(1, 10), false, false));
         }
         return builder.setClassificationLabels(categoryLabels)
-            .setTargetType(randomFrom(TargetType.REGRESSION, TargetType.CLASSIFICATION))
+            .setTargetType(randomFrom(TargetType.values()))
             .build();
     }
 

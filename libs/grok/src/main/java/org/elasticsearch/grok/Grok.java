@@ -175,7 +175,9 @@ public final class Grok {
         int result;
         try {
             threadWatchdog.register();
-            result = matcher.search(0, grokPatternBytes.length, Option.NONE);
+            result = matcher.searchInterruptible(0, grokPatternBytes.length, Option.NONE);
+        } catch (InterruptedException e) {
+            result = Matcher.INTERRUPTED;
         } finally {
             threadWatchdog.unregister();
         }
@@ -224,7 +226,9 @@ public final class Grok {
         int result;
         try {
             threadWatchdog.register();
-            result = matcher.search(0, text.length(), Option.DEFAULT);
+            result = matcher.searchInterruptible(0, text.length(), Option.DEFAULT);
+        } catch (InterruptedException e) {
+            result = Matcher.INTERRUPTED;
         } finally {
             threadWatchdog.unregister();
         }
@@ -244,7 +248,9 @@ public final class Grok {
         int result;
         try {
             threadWatchdog.register();
-            result = matcher.search(0, textAsBytes.length, Option.DEFAULT);
+            result = matcher.searchInterruptible(0, textAsBytes.length, Option.DEFAULT);
+        } catch (InterruptedException e) {
+            result = Matcher.INTERRUPTED;
         } finally {
             threadWatchdog.unregister();
         }

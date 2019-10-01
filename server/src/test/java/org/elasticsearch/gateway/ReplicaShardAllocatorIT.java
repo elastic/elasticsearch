@@ -210,7 +210,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
                     .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), randomIntBetween(10, 100) + "kb")
                     .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
-                    .put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(), randomIntBetween(5, 10) * 0.1)
+                    .put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(), 0.5)
                     .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "100ms")
                     .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")));
         ensureGreen(indexName);
@@ -229,8 +229,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         assertAcked(client().admin().cluster().prepareUpdateSettings()
             .setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable", "primaries").build()));
         internalCluster().fullRestart();
-        // need to wait for events to ensure the reroute has happened since we perform it async when a new node joins.
-        client().admin().cluster().prepareHealth(indexName).setWaitForYellowStatus().setWaitForEvents(Priority.LANGUID).get();
+        ensureYellow(indexName);
         assertAcked(client().admin().cluster().prepareUpdateSettings()
             .setTransientSettings(Settings.builder().putNull("cluster.routing.allocation.enable").build()));
         ensureGreen(indexName);

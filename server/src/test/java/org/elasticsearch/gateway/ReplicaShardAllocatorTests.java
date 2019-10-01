@@ -193,7 +193,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).get(0).shardId(), equalTo(shardId));
     }
 
-    public void testNotCancellingRecoveryIfRetentionLeaseExistingRecovery() {
+    public void testNotCancellingRecoveryIfCurrentRecoveryHasRetentionLease() {
         RoutingAllocation allocation = onePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders());
         List<RetentionLease> peerRecoveryRetentionLeasesOnPrimary = new ArrayList<>();
         long retainingSeqNo = randomLongBetween(1, Long.MAX_VALUE);

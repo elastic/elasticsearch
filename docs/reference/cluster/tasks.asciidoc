@@ -4,8 +4,6 @@
 <titleabbrev>Task management</titleabbrev>
 ++++
 
-beta[The task management API is new and should still be considered a beta feature. The API may change in ways that are not backwards compatible.]
-
 Returns information about the tasks currently executing in the cluster.
 
 [[tasks-api-request]]

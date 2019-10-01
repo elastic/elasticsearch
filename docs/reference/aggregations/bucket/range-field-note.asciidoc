@@ -1,5 +1,5 @@
 [[search-aggregations-bucket-range-field-note]]
-=== Subtleties of Bucketing Range Fields
+=== Subtleties of bucketing range fields
 
 ==== Documents are counted for each bucket they land in
 
@@ -90,7 +90,7 @@ Since the interval is `5` (and the offset is `0` by default), we expect buckets 
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 A document cannot exist partially in a bucket; For example, the above document
-cannot count "one-third" in each of the above three buckets. In this example,
+cannot count as one-third in each of the above three buckets. In this example,
 since the document's range landed in multiple buckets, the full value of that
 document would also be counted in any sub-aggregations for each bucket as well.
 

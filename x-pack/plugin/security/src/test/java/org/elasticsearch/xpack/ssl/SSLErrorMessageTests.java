@@ -9,6 +9,7 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -107,27 +108,22 @@ public class SSLErrorMessageTests extends ESTestCase {
     }
 
     public void testMessageForKeyStoreOutsideConfigDir() throws Exception {
-        assumeFalse("@AwaitsFix(bugUrl = https://github.com/elastic/elasticsearch/issues/45598)", Constants.WINDOWS);
         checkBlockedKeyManagerResource("keystore", "keystore.path", null);
     }
 
     public void testMessageForPemCertificateOutsideConfigDir() throws Exception {
-        assumeFalse("@AwaitsFix(bugUrl = https://github.com/elastic/elasticsearch/issues/45598)", Constants.WINDOWS);
         checkBlockedKeyManagerResource("certificate", "certificate", withKey("cert1a.key"));
     }
 
     public void testMessageForPemKeyOutsideConfigDir() throws Exception {
-        assumeFalse("@AwaitsFix(bugUrl = https://github.com/elastic/elasticsearch/issues/45598)", Constants.WINDOWS);
         checkBlockedKeyManagerResource("key", "key", withCertificate("cert1a.crt"));
     }
 
     public void testMessageForTrustStoreOutsideConfigDir() throws Exception {
-        assumeFalse("@AwaitsFix(bugUrl = https://github.com/elastic/elasticsearch/issues/45598)", Constants.WINDOWS);
         checkBlockedTrustManagerResource("truststore", "truststore.path");
     }
 
     public void testMessageForCertificateAuthoritiesOutsideConfigDir() throws Exception {
-        assumeFalse("@AwaitsFix(bugUrl = https://github.com/elastic/elasticsearch/issues/45598)", Constants.WINDOWS);
         checkBlockedTrustManagerResource("certificate_authorities", "certificate_authorities");
     }
 
@@ -229,9 +225,9 @@ public class SSLErrorMessageTests extends ESTestCase {
         assertThat(exception, instanceOf(ElasticsearchSecurityException.class));
 
         exception = exception.getCause();
-        assertThat(exception, throwableWithMessage(
-            "failed to initialize SSL " + sslManagerType + " - access to read " + fileType + " file [" + fileName +
-                "] is blocked; SSL resources should be placed in the [" + env.configFile() + "] directory"));
+        assertThat(exception.getMessage(),
+            containsString("failed to initialize SSL " + sslManagerType + " - access to read " + fileType + " file"));
+        assertThat(exception.getMessage(),containsString("file.error"));
         assertThat(exception, instanceOf(ElasticsearchException.class));
 
         exception = exception.getCause();
@@ -253,7 +249,7 @@ public class SSLErrorMessageTests extends ESTestCase {
     }
 
     private String blockedFile() throws IOException {
-        return "/this/path/is/outside/the/config/directory/file.error";
+        return PathUtils.get("/this", "path", "is", "outside", "the", "config", "directory", "file.error").toString();
     }
 
     /**

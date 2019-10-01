@@ -26,7 +26,6 @@ import org.joni.Option;
 import org.joni.Regex;
 import org.joni.Region;
 import org.joni.Syntax;
-import org.joni.exception.ValueException;
 
 import java.io.BufferedReader;
 import java.io.IOException;

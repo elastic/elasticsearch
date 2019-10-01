@@ -279,7 +279,7 @@ automatically transformed into a pure conjunction (`and`) query to
 ensure fast execution.
 
 The `cutoff_frequency` can either be relative to the total number of
-documents if in the range `[0..1)` or absolute if greater or equal to
+documents if in the range from 0 (inclusive) to 1 (exclusive) or absolute if greater or equal to
 `1.0`.
 
 Here is an example showing a query composed of stopwords exclusively:

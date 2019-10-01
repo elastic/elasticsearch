@@ -8,12 +8,16 @@ package org.elasticsearch.xpack.slm;
 
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -199,6 +203,26 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
                 } catch (SnapshotMissingException e) {
                     // Great, we wanted it to be deleted!
                 }
+            });
+
+            // Cancel the ongoing snapshot to cancel it
+            assertBusy(() -> {
+                try {
+                    logger.info("--> cancelling snapshot {}", secondSnapName);
+                    client().admin().cluster().prepareDeleteSnapshot(REPO, secondSnapName).get();
+                } catch (SnapshotException e) {
+                    logger.info("--> attempted to stop second snapshot", e);
+                    // just wait and retry
+                }
+            });
+
+            // Assert that the history document has been written for taking the snapshot and deleting it
+            assertBusy(() -> {
+                SearchResponse resp = client().prepareSearch(".slm-history*")
+                    .setQuery(QueryBuilders.matchQuery("snapshot_name", completedSnapshotName)).get();
+                logger.info("--> checking history written for {}, got: {}",
+                    completedSnapshotName, Strings.arrayToCommaDelimitedString(resp.getHits().getHits()));
+                assertThat(resp.getHits().getTotalHits().value, equalTo(2L));
             });
         } finally {
             unblockRepo(REPO);

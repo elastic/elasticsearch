@@ -88,8 +88,6 @@ public interface TestClusterConfiguration {
 
     void restart();
 
-    void goToNextVersion();
-
     void extraConfigFile(String destination, File from);
 
     void extraConfigFile(String destination, File from, PropertyNormalization normalization);

@@ -248,8 +248,13 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
     @Override
     public void start() {
+        commonNodeConfig();
+        nodes.forEach(ElasticsearchNode::start);
+    }
+
+    private void commonNodeConfig() {
         final String nodeNames;
-        if (nodes.stream().map(ElasticsearchNode::getName).anyMatch( name -> name == null)) {
+        if (nodes.stream().map(ElasticsearchNode::getName).anyMatch(name -> name == null)) {
             nodeNames = null;
         } else {
             nodeNames = nodes.stream().map(ElasticsearchNode::getName).map(this::safeName).collect(Collectors.joining(","));
@@ -258,6 +263,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         for (ElasticsearchNode node : nodes) {
             // Can only configure master nodes if we have node names defined
             if (nodeNames != null) {
+                node.defaultConfig.clear();
                 if (node.getVersion().onOrAfter("7.0.0")) {
                     node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
                     node.defaultConfig.put("discovery.seed_providers", "file");
@@ -280,7 +286,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                     }
                 }
             }
-            node.start();
             if (firstNode == null) {
                 firstNode = node;
             }
@@ -292,17 +297,22 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         nodes.forEach(ElasticsearchNode::restart);
     }
 
-    @Override
     public void goToNextVersion() {
+        stop(false);
         nodes.all(ElasticsearchNode::goToNextVersion);
+        start();
     }
 
     public void nextNodeToNextVersion() {
         if (nodeIndex + 1 > nodes.size()) {
             throw new TestClustersException("Ran out of nodes to take to the next version");
         }
-        nodes.getByName(clusterName + "-" + nodeIndex).goToNextVersion();
+        ElasticsearchNode node = nodes.getByName(clusterName + "-" + nodeIndex);
+        node.stop(false);
+        node.goToNextVersion();
+        commonNodeConfig();
         nodeIndex += 1;
+        node.start();
     }
 
     @Override

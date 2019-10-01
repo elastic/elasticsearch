@@ -15,9 +15,10 @@ compatible with {es} version {version}.
 . Test the upgrade in an isolated environment before upgrading your production
 cluster.
 
-. <<modules-snapshots,Back up your data by taking a snapshot!>> Once you have
-started to upgrade your cluster to version {version} you must complete the
-upgrade. As soon as the cluster contains nodes of version {version} it may make
-changes to its internal state that cannot be reverted. If you cannot complete
-the upgrade then you must deploy an empty cluster and restore its contents from
-a snapshot.
+. <<modules-snapshots,Back up your data by taking a snapshot!>>
+
+IMPORTANT: Once you have started to upgrade your cluster to version {version}
+you must complete the upgrade. As soon as the cluster contains nodes of version
+{version} it may make changes to its internal state that cannot be reverted. If
+you cannot complete the upgrade then you must deploy an empty cluster and
+restore its contents from a snapshot.

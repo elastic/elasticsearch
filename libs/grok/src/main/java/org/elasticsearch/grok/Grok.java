@@ -150,17 +150,14 @@ public final class Grok {
     }
 
     public String groupMatch(String name, Region region, String pattern) {
-        try {
-            int number = GROK_PATTERN_REGEX.nameToBackrefNumber(name.getBytes(StandardCharsets.UTF_8), 0,
-                    name.getBytes(StandardCharsets.UTF_8).length, region);
-            int begin = region.beg[number];
-            int end = region.end[number];
-            return new String(pattern.getBytes(StandardCharsets.UTF_8), begin, end - begin, StandardCharsets.UTF_8);
-        } catch (StringIndexOutOfBoundsException e) {
-            return null;
-        } catch (ValueException e) {
+        int number = GROK_PATTERN_REGEX.nameToBackrefNumber(name.getBytes(StandardCharsets.UTF_8), 0,
+            name.getBytes(StandardCharsets.UTF_8).length, region);
+        int begin = region.beg[number];
+        int end = region.end[number];
+        if (begin < 0) { // no match found
             return null;
         }
+        return new String(pattern.getBytes(StandardCharsets.UTF_8), begin, end - begin, StandardCharsets.UTF_8);
     }
 
     /**

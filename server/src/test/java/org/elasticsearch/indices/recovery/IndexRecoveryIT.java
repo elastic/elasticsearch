@@ -370,22 +370,24 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             new InternalTestCluster.RestartCallback() {
                 @Override
                 public Settings onNodeStopped(String nodeName) throws Exception {
+                    assertBusy(() -> {
+                        // nodeB stopped, peer recovery from nodeA to nodeC, it will be cancelled after nodeB get started.
+                        RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
 
-                    // nodeB stopped, peer recovery from nodeA to nodeC, it will be cancelled after nodeB get started.
-                    RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
+                        List<RecoveryState> recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
+                        List<RecoveryState> nodeARecoveryStates = findRecoveriesForTargetNode(nodeA, recoveryStates);
+                        assertThat(nodeARecoveryStates.size(), equalTo(1));
+                        List<RecoveryState> nodeCRecoveryStates = findRecoveriesForTargetNode(nodeC, recoveryStates);
+                        assertThat(nodeCRecoveryStates.size(), equalTo(1));
 
-                    List<RecoveryState> recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
-                    List<RecoveryState> nodeARecoveryStates = findRecoveriesForTargetNode(nodeA, recoveryStates);
-                    assertThat(nodeARecoveryStates.size(), equalTo(1));
-                    List<RecoveryState> nodeCRecoveryStates = findRecoveriesForTargetNode(nodeC, recoveryStates);
-                    assertThat(nodeCRecoveryStates.size(), equalTo(1));
+                        assertRecoveryState(nodeARecoveryStates.get(0), 0, RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                            true, Stage.DONE, null, nodeA);
+                        validateIndexRecoveryState(nodeARecoveryStates.get(0).getIndex());
 
-                    assertRecoveryState(nodeARecoveryStates.get(0), 0, RecoverySource.EmptyStoreRecoverySource.INSTANCE, true,
-                        Stage.DONE, null, nodeA);
-                    validateIndexRecoveryState(nodeARecoveryStates.get(0).getIndex());
-
-                    assertOnGoingRecoveryState(nodeCRecoveryStates.get(0), 0, PeerRecoverySource.INSTANCE, false, nodeA, nodeC);
-                    validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
+                        assertOnGoingRecoveryState(nodeCRecoveryStates.get(0), 0, PeerRecoverySource.INSTANCE,
+                            false, nodeA, nodeC);
+                        validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
+                    });
 
                     return super.onNodeStopped(nodeName);
                 }

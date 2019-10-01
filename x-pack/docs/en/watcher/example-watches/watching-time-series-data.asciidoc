@@ -1,6 +1,6 @@
 [role="xpack"]
 [[watching-time-series-data]]
-=== Watching Time Series Data
+=== Watching time series data
 
 If you are indexing time-series data such as logs, RSS feeds, or network traffic,
 you can use {watcher} to send notifications when certain events occur.
@@ -152,7 +152,7 @@ you can then reference it by name in the watch condition.
 NOTE: To use the email action, you must configure at least one email account in
 `elasticsearch.yml`. If you configure multiple email accounts, you need to
 specify which one you want to send the email with. For more information, see
-<<configuring-email, Working with Various Email Services>>.
+<<configuring-email>>.
 
 The complete watch looks like this:
 

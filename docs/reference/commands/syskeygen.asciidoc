@@ -21,7 +21,8 @@ bin/elasticsearch-syskeygen
 
 The command generates a `system_key` file, which you can use to symmetrically
 encrypt sensitive data. For example, you can use this key to prevent {watcher}
-from returning and storing information that contains clear text credentials. See  {xpack-ref}/encrypting-data.html[Encrypting sensitive data in {watcher}]. 
+from returning and storing information that contains clear text credentials. See
+<<encrypting-data>>. 
 
 IMPORTANT: The system key is a symmetric key, so the same key must be used on
 every node in the cluster.

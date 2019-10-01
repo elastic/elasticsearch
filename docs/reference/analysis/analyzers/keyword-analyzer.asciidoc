@@ -73,7 +73,8 @@ PUT /keyword_example
       "analyzer": {
         "rebuilt_keyword": {
           "tokenizer": "keyword",
-          "filter": [         <1>
+          "filter": [
+            "lowercase"       <1>
           ]
         }
       }
@@ -83,4 +84,5 @@ PUT /keyword_example
 ----------------------------------------------------
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: keyword_example, first: keyword, second: rebuilt_keyword}\nendyaml\n/]
 
-<1> You'd add any token filters here.
+<1> You'd add any token filters after `lowercase`.
+

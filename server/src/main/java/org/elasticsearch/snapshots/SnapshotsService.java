@@ -564,25 +564,25 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         private void cleanupAfterError(Exception exception) {
             threadPool.generic().execute(() -> {
                 if (snapshotCreated) {
-                    try {
-                        repositoriesService.repository(snapshot.snapshot().getRepository())
-                            .finalizeSnapshot(snapshot.snapshot().getSnapshotId(),
-                                snapshot.indices(),
-                                snapshot.startTime(),
-                                ExceptionsHelper.stackTrace(exception),
-                                0,
-                                Collections.emptyList(),
-                                snapshot.getRepositoryStateId(),
-                                snapshot.includeGlobalState(),
-                                metaDataForSnapshot(snapshot, clusterService.state().metaData()),
-                                snapshot.userMetadata());
-                    } catch (Exception inner) {
-                        inner.addSuppressed(exception);
-                        logger.warn(() -> new ParameterizedMessage("[{}] failed to close snapshot in repository",
-                            snapshot.snapshot()), inner);
-                    }
+                    repositoriesService.repository(snapshot.snapshot().getRepository())
+                        .finalizeSnapshot(snapshot.snapshot().getSnapshotId(),
+                            snapshot.indices(),
+                            snapshot.startTime(),
+                            ExceptionsHelper.stackTrace(exception),
+                            0,
+                            Collections.emptyList(),
+                            snapshot.getRepositoryStateId(),
+                            snapshot.includeGlobalState(),
+                            metaDataForSnapshot(snapshot, clusterService.state().metaData()),
+                            snapshot.userMetadata(), ActionListener.runAfter(ActionListener.wrap(ignored -> {
+                            }, inner -> {
+                                inner.addSuppressed(exception);
+                                logger.warn(() -> new ParameterizedMessage("[{}] failed to finalize snapshot in repository",
+                                    snapshot.snapshot()), inner);
+                            }), () -> userCreateSnapshotListener.onFailure(e)));
+                } else {
+                    userCreateSnapshotListener.onFailure(e);
                 }
-                userCreateSnapshotListener.onFailure(e);
             });
         }
     }
@@ -1013,7 +1013,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         shardFailures.add(new SnapshotShardFailure(status.nodeId(), shardId, status.reason()));
                     }
                 }
-                SnapshotInfo snapshotInfo = repository.finalizeSnapshot(
+                repository.finalizeSnapshot(
                     snapshot.getSnapshotId(),
                     entry.indices(),
                     entry.startTime(),
@@ -1023,9 +1023,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     entry.getRepositoryStateId(),
                     entry.includeGlobalState(),
                     metaDataForSnapshot(entry, metaData),
-                    entry.userMetadata());
-                removeSnapshotFromClusterState(snapshot, snapshotInfo, null);
-                logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
+                    entry.userMetadata(), ActionListener.wrap(snapshotInfo -> {
+                        removeSnapshotFromClusterState(snapshot, snapshotInfo, null);
+                        logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
+                    }, this::onFailure));
             }
 
             @Override

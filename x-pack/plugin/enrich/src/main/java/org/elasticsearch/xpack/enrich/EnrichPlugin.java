@@ -63,6 +63,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.core.XPackSettings.ENRICH_ENABLED_SETTING;
 
 public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
@@ -104,6 +105,10 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+        if (enabled == false) {
+            return emptyMap();
+        }
+
         EnrichProcessorFactory factory = new EnrichProcessorFactory(parameters.client);
         parameters.ingestService.addIngestClusterStateListener(factory);
         return Collections.singletonMap(EnrichProcessorFactory.TYPE, factory);
@@ -153,6 +158,7 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
         if (enabled == false || transportClientMode) {
             return emptyList();
         }
+
         EnrichPolicyLocks enrichPolicyLocks = new EnrichPolicyLocks();
         EnrichPolicyExecutor enrichPolicyExecutor = new EnrichPolicyExecutor(settings, clusterService, client, threadPool,
             new IndexNameExpressionResolver(), enrichPolicyLocks, System::currentTimeMillis);

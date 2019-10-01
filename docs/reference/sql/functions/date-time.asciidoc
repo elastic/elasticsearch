@@ -248,6 +248,97 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[filterNow]
 Currently, using a _precision_ greater than 3 doesn't make any difference to the output of the
 function as the maximum number of second fractional digits returned is 3 (milliseconds).
 
+
+[[sql-functions-datetime-part]]
+==== `DATE_PART/DATEPART`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+DATE_PART(
+    string_exp, <1>
+    datetime_exp) <2>
+--------------------------------------------------
+
+*Input*:
+
+<1> string expression denoting the unit to extract from the date/datetime
+<2> date/datetime expression
+
+*Output*: integer
+
+.Description:
+
+Extract the specified unit from a date/datetime. If any of the two arguments is `null` a `null` is returned.
+It's similar to <<sql-functions-datetime-extract>> but with different names and aliases for the units and
+provides more options (e.g.: `TZOFFSET`).
+
+[cols="^,^"]
+|===
+2+h|Datetime units to extract
+
+s|unit
+s|abbreviations
+
+| year        | years, yy, yyyy
+| quarter     | quarters, qq, q
+| month       | months, mm, m
+| dayofyear   | dy, y
+| day         | days, dd, d
+| week        | weeks, wk, ww
+| weekday     | weekdays, dw
+| hour        | hours, hh
+| minute      | minutes, mi, n
+| second      | seconds, ss, s
+| millisecond | milliseconds, ms
+| microsecond | microseconds, mcs
+| nanosecond  | nanoseconds, ns
+| tzoffset    | tz
+|===
+
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[datePartDateTimeYears]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[datePartDateTimeMinutes]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[datePartDateQuarter]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[datePartDateMonth]
+--------------------------------------------------
+
+[NOTE]
+For `week` and `weekday` the unit is extracted using the non-ISO calculation, which means
+that a given week is considered to start from Sunday, not Monday.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[datePartDateTimeWeek]
+--------------------------------------------------
+
+[NOTE]
+The `tzoffset` returns the total number of minutes (signed) that represent the time zone's offset.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[datePartDateTimeTzOffsetPlus]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[datePartDateTimeTzOffsetMinus]
+--------------------------------------------------
+
 [[sql-functions-datetime-trunc]]
 ==== `DATE_TRUNC/DATETRUNC`
 

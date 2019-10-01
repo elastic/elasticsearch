@@ -54,7 +54,7 @@ task azureStorageFixture(type: AntFixture) {
 
 Map<String, Object> expansions = [
         'container': azureContainer,
-        'base_path': azureBasePath
+        'base_path': azureBasePath + "_integration_tests"
 ]
 
 processTestResources {

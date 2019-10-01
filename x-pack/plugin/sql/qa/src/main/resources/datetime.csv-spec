@@ -260,12 +260,110 @@ SELECT count(*) as count, DATE_TRUNC('decade', hire_date) dt FROM test_emp GROUP
 
 dateTruncHaving
 schema::gender:s|dt:ts
-SELECT gender, max(hire_date) dt FROM test_emp GROUP BY gender HAVING DATE_TRUNC('year', max(hire_date)) >= '1997-01-01T00:00:00.000Z'::timestamp ORDER BY 1;
+SELECT gender, max(hire_date) AS dt FROM test_emp GROUP BY gender HAVING DATE_TRUNC('year', max(hire_date)) >= '1997-01-01T00:00:00.000Z'::timestamp ORDER BY 1;
 
  gender |         dt
 --------+-------------------------
 null    | 1999-04-30 00:00:00.000Z
 F       | 1997-05-19 00:00:00.000Z
+;
+
+selectDatePartWithDate
+SELECT DATE_PART('year', '2019-09-04'::date) as dp_years, DATE_PART('quarter', '2019-09-04'::date) as dp_quarter, DATE_PART('month', '2019-09-04'::date) as dp_month,
+DATE_PART('dayofyear', '2019-09-04'::date) as dp_doy, DATE_PART('day', '2019-09-04'::date) as dp_day, DATE_PART('week', '2019-09-04'::date) as dp_week,
+DATE_PART('weekday', '2019-09-04'::date) as dp_weekday, DATE_PART('hour', '2019-09-04'::date) as dp_hour, DATE_PART('minute', '2019-09-04'::date) as dp_minute,
+DATE_PART('second', '2019-09-04'::date) as dp_second, DATE_PART('millisecond', '2019-09-04'::date) as dp_millis, DATE_PART('mcs', '2019-09-04'::date) as dp_micros,
+DATE_PART('ns', '2019-09-04'::date) as dp_nanos, DATE_PART('tz', '2019-09-04'::date) as dp_tzoffset;
+
+dp_years | dp_quarter | dp_month | dp_doy | dp_day | dp_week | dp_weekday | dp_hour | dp_minute | dp_second | dp_millis | dp_micros | dp_nanos  | dp_tzoffset
+---------+------------+----------+--------+--------+---------+------------+---------+-----------+-----------+-----------+-----------+-----------+------------
+2019     | 3          | 9        |247     | 4      | 36      | 4          | 0       | 0         | 0         | 0         | 0         | 0         | 0
+;
+
+selectDatePartWithDateTime
+SELECT DATE_PART('year', '2019-09-04T11:22:33.123Z'::datetime) as dp_years, DATE_PART('quarter', '2019-09-04T11:22:33.123Z'::datetime) as dp_quarter, DATE_PART('month', '2019-09-04T11:22:33.123Z'::datetime) as dp_month,
+DATE_PART('dayofyear', '2019-09-04T11:22:33.123Z'::datetime) as dp_doy, DATE_PART('day', '2019-09-04T11:22:33.123Z'::datetime) as dp_day, DATE_PART('week', '2019-09-04T11:22:33.123Z'::datetime) as dp_week,
+DATE_PART('weekday', '2019-09-04T11:22:33.123Z'::datetime) as dp_weekday, DATE_PART('hour', '2019-09-04T11:22:33.123Z'::datetime) as dp_hour, DATE_PART('minute', '2019-09-04T11:22:33.123Z'::datetime) as dp_minute,
+DATE_PART('second', '2019-09-04T11:22:33.123Z'::datetime) as dp_second, DATE_PART('millisecond', '2019-09-04T11:22:33.123Z'::datetime) as dp_millis, DATE_PART('mcs', '2019-09-04T11:22:33.123Z'::datetime) as dp_micros,
+DATE_PART('ns', '2019-09-04T11:22:33.123Z'::datetime) as dp_nanos, DATE_PART('tz', '2019-09-04T11:22:33.123Z'::datetime) as dp_tzoffset;
+
+dp_years | dp_quarter | dp_month | dp_doy | dp_day | dp_week | dp_weekday | dp_hour | dp_minute | dp_second | dp_millis | dp_micros | dp_nanos  | dp_tzoffset
+---------+------------+----------+--------+--------+---------+------------+---------+-----------+-----------+-----------+-----------+-----------+------------
+2019     | 3          | 9        |247     | 4      | 36      | 4          | 11      | 22        | 33        | 123       | 123000    | 123000000 | 0
+;
+
+selectDatePartWithNullTruncateField
+SELECT DATE_PART(null, birth_date) AS dp FROM test_emp LIMIT 5;
+
+ dp:i
+------
+null
+null
+null
+null
+null
+;
+
+selectDatePartWithComplexExpressions
+SELECT gender, birth_date, DATE_PART(CASE WHEN gender = 'M' THEN CONCAT(gender, 'onths') WHEN gender = 'F' THEN 'year' ELSE 'quarter' END,
+birth_date + INTERVAL 10 month) AS dp FROM test_emp WHERE dp > 10 ORDER BY emp_no LIMIT 5;
+
+ gender |       birth_date         |  dp
+--------+--------------------------+------
+F       | 1964-06-02 00:00:00.000Z | 1965
+M       | 1955-01-21 00:00:00.000Z |   11
+F       | 1953-04-20 00:00:00.000Z | 1954
+F       | 1957-05-23 00:00:00.000Z | 1958
+M       | 1958-02-19 00:00:00.000Z |   12
+;
+
+datePartOrderBy
+schema::emp_no:i|hire_date:ts|dp:i
+SELECT emp_no, hire_date, DATE_PART('month', hire_date) as dp FROM test_emp ORDER BY dp DESC NULLS LAST, emp_no LIMIT 5;
+
+ emp_no |       hire_date          | dp
+--------+--------------------------+----
+10004   | 1986-12-01 00:00:00.000Z | 12
+10012   | 1992-12-18 00:00:00.000Z | 12
+10023   | 1989-12-17 00:00:00.000Z | 12
+10037   | 1990-12-05 00:00:00.000Z | 12
+10050   | 1990-12-25 00:00:00.000z | 12
+;
+
+datePartFilter
+schema::emp_no:i|hire_date:ts|dp:i
+SELECT emp_no, hire_date, DATE_PART('day', hire_date) as dp FROM test_emp WHERE DATE_PART('day', hire_date) > 27 order by emp_no;
+
+ emp_no |       hire_date          | dp
+--------+--------------------------+----
+10003   | 1986-08-28 00:00:00.000Z | 28
+10019   | 1999-04-30 00:00:00.000Z | 30
+10047   | 1989-03-31 00:00:00.000Z | 31
+10062   | 1991-08-30 00:00:00.000Z | 30
+10081   | 1986-10-30 00:00:00.000Z | 30
+10083   | 1987-03-31 00:00:00.000Z | 31
+;
+
+datePartGroupBy
+schema::count:l|dp:i
+SELECT count(*) as count, DATE_PART('quarter', hire_date) dp FROM test_emp GROUP BY dp ORDER BY 2;
+
+ count | dp
+-------+----
+30     |  1
+19     |  2
+27     |  3
+24     |  4
+;
+
+datePartHaving
+schema::gender:s|dt:ts
+SELECT gender, max(hire_date) AS dt FROM test_emp GROUP BY gender HAVING DATE_PART('year', max(hire_date)) < 1999 ORDER BY 1;
+
+ gender |           dt
+--------+------------------------
+F       | 1997-05-19 00:00:00.000Z
+M       | 1996-11-05 00:00:00.000Z
 ;
 
 //

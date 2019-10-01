@@ -433,6 +433,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             return;
         }
         checkpointListener.onCheckpoint(asyncResponse.getCheckpoint(), task.getUncommittedStatus());
+
         this.lastBatchSize = batchSize;
         asyncResponse.done(worker.throttleWaitTime(thisBatchStartTime, timeValueNanos(System.nanoTime()), batchSize));
     }

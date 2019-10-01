@@ -114,15 +114,68 @@ public class ReindexTask extends AllocatedPersistentTask {
         return childTask;
     }
 
+    @Override
+    protected void onCancelled() {
+        super.onCancelled();
+        childTask.cancel(getReasonCancelled());
+    }
+
     private void execute(ReindexJob reindexJob) {
-        String taskId = getPersistentTaskId();
         long allocationId = getAllocationId();
         Consumer<BulkByScrollTask.Status> committedCallback = childTask::setCommittedStatus;
-        ReindexTaskStateUpdater taskUpdater = new ReindexTaskStateUpdater(reindexIndexClient, client.threadPool(), taskId, allocationId,
-            committedCallback);
+        ReindexTaskStateUpdater taskUpdater = new ReindexTaskStateUpdater(reindexIndexClient, client.threadPool(), getPersistentTaskId(),
+            allocationId, committedCallback);
+        boolean shouldStoreResult = reindexJob.shouldStoreResult();
+        TaskManager taskManager = getTaskManager();
+
         taskUpdater.assign(new ActionListener<>() {
             @Override
             public void onResponse(ReindexTaskStateDoc stateDoc) {
+                taskUpdater.addFinishedListener(new ReindexTaskStateUpdater.FinishedListener() {
+                    @Override
+                    public void onCancelled() {
+                        childTask.cancel("ASSIGNMENT_CONFLICT");
+                    }
+
+                    @Override
+                    public void onResponse(ReindexTaskStateDoc stateDoc) {
+                        updatePersistentTaskState(new ReindexJobState(taskId, ReindexJobState.Status.DONE), new ActionListener<>() {
+                            @Override
+                            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
+                                if (shouldStoreResult) {
+                                    BulkByScrollResponse response = stateDoc.getReindexResponse();
+                                    taskManager.storeResult(ReindexTask.this, response, new ActionListener<>() {
+                                        @Override
+                                        public void onResponse(BulkByScrollResponse response) {
+                                            markAsCompleted();
+                                        }
+
+                                        @Override
+                                        public void onFailure(Exception ex) {
+                                            logger.info("Failed to store task result", ex);
+                                            markAsFailed(ex);
+                                        }
+                                    });
+                                } else {
+                                    markAsCompleted();
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Exception ex) {
+                                logger.info("Failed to update task in cluster state to success", ex);
+                                markEphemeralTaskFailed(shouldStoreResult, ex);
+                            }
+                        });
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.info("Reindex task failed", e);
+                        updateClusterStateToFailed(reindexJob.shouldStoreResult(), ReindexJobState.Status.DONE, e);
+                    }
+                });
+
                 ReindexRequest reindexRequest = stateDoc.getReindexRequest();
                 reindexer.initTask(childTask, reindexRequest, new ActionListener<>() {
                     @Override
@@ -132,7 +185,7 @@ public class ReindexTask extends AllocatedPersistentTask {
 
                     @Override
                     public void onFailure(Exception e) {
-                        handleError(reindexJob.shouldStoreResult(), taskUpdater, e);
+                        taskUpdater.finish(null, wrapException(e));
                     }
                 });
             }
@@ -168,87 +221,23 @@ public class ReindexTask extends AllocatedPersistentTask {
             childTask.setCommittedStatus(childTask.getStatus());
         }
 
-        boolean shouldStoreResult = reindexJob.shouldStoreResult();
         Supplier<ThreadContext.StoredContext> context = threadContext.newRestorableContext(false);
         // TODO: Eventually we only want to retain security context
         try (ThreadContext.StoredContext ignore = stashWithHeaders(threadContext, reindexJob.getHeaders())) {
             reindexer.execute(childTask, reindexRequest, new ContextPreservingActionListener<>(context, new ActionListener<>() {
                 @Override
                 public void onResponse(BulkByScrollResponse response) {
-                    handleDone(shouldStoreResult, taskUpdater, response);
+                    taskUpdater.finish(response, null);
                 }
 
                 @Override
-                public void onFailure(Exception ex) {
-                    handleError(shouldStoreResult, taskUpdater, ex);
+                public void onFailure(Exception e) {
+                    taskUpdater.finish(null, wrapException(e));
                 }
             }), checkpoint, taskUpdater);
         }
         // send this after we started reindex to ensure sub-tasks are created.
         sendStartedNotification(reindexJob.shouldStoreResult());
-    }
-
-    private void handleDone(boolean shouldStoreResult, ReindexTaskStateUpdater taskUpdater, BulkByScrollResponse response) {
-        TaskManager taskManager = getTaskManager();
-        assert taskManager != null : "TaskManager should have been set before reindex started";
-
-        taskUpdater.finish(response, null, new ActionListener<>() {
-            @Override
-            public void onResponse(ReindexTaskStateDoc stateDoc) {
-                updatePersistentTaskState(new ReindexJobState(taskId, ReindexJobState.Status.DONE), new ActionListener<>() {
-                    @Override
-                    public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
-                        if (shouldStoreResult) {
-                            taskManager.storeResult(ReindexTask.this, response, new ActionListener<>() {
-                                @Override
-                                public void onResponse(BulkByScrollResponse response) {
-                                    markAsCompleted();
-                                }
-
-                                @Override
-                                public void onFailure(Exception ex) {
-                                    logger.info("Failed to store task result", ex);
-                                    markAsFailed(ex);
-                                }
-                            });
-                        } else {
-                            markAsCompleted();
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception ex) {
-                        logger.info("Failed to update task in cluster state to success", ex);
-                        markEphemeralTaskFailed(shouldStoreResult, ex);
-                    }
-                });
-            }
-
-            @Override
-            public void onFailure(Exception ex) {
-                logger.info("Failed to write result to reindex index", ex);
-                updateClusterStateToFailed(shouldStoreResult, ReindexJobState.Status.SET_DONE_FAILED, ex);
-            }
-        });
-    }
-
-    private void handleError(boolean shouldStoreResult, ReindexTaskStateUpdater taskUpdater, Exception ex) {
-        TaskManager taskManager = getTaskManager();
-        assert taskManager != null : "TaskManager should have been set before reindex started";
-
-        taskUpdater.finish(null, wrapException(ex), new ActionListener<>() {
-            @Override
-            public void onResponse(ReindexTaskStateDoc stateDoc) {
-                updateClusterStateToFailed(shouldStoreResult, ReindexJobState.Status.DONE, ex);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.info("Failed to write exception reindex index", e);
-                ex.addSuppressed(e);
-                updateClusterStateToFailed(shouldStoreResult, ReindexJobState.Status.SET_DONE_FAILED, ex);
-            }
-        });
     }
 
     private void updateClusterStateToFailed(boolean shouldStoreResult, ReindexJobState.Status status, Exception ex) {

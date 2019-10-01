@@ -46,6 +46,7 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
 
     private int assignmentAttempts = 0;
     private ReindexTaskState lastState;
+    private FinishedListener finishedListener;
     private AtomicBoolean isDone = new AtomicBoolean();
 
     public ReindexTaskStateUpdater(ReindexIndexClient reindexIndexClient, ThreadPool threadPool, String persistentTaskId, long allocationId,
@@ -121,15 +122,23 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
         });
     }
 
+    public void addFinishedListener(FinishedListener finishedListener) {
+        this.finishedListener = finishedListener;
+    }
+
     @Override
     public void onCheckpoint(ScrollableHitSource.Checkpoint checkpoint, BulkByScrollTask.Status status) {
         assert checkpointThrottler != null;
-        checkpointThrottler.accept(Tuple.tuple(checkpoint, status));
+        assert finishedListener != null;
+
+        // TODO: Test
+        if (isDone.get() == false) {
+            checkpointThrottler.accept(Tuple.tuple(checkpoint, status));
+        }
     }
 
     private void updateCheckpoint(ScrollableHitSource.Checkpoint checkpoint, BulkByScrollTask.Status status, Runnable whenDone) {
         ReindexTaskStateDoc nextState = lastState.getStateDoc().withCheckpoint(checkpoint, status);
-        // TODO: This can fail due to conditional update. Need to hook into ability to cancel reindex process
         long term = lastState.getPrimaryTerm();
         long seqNo = lastState.getSeqNo();
         reindexIndexClient.updateReindexTaskDoc(persistentTaskId, nextState, term, seqNo, new ActionListener<>() {
@@ -142,23 +151,25 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
 
             @Override
             public void onFailure(Exception e) {
+                if (e instanceof VersionConflictEngineException) {
+                    if (isDone.compareAndSet(false, true)) {
+                        finishedListener.onCancelled();
+                    }
+                }
                 whenDone.run();
             }
         });
     }
 
-    public void finish(@Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception,
-                       ActionListener<ReindexTaskStateDoc> listener) {
+    public void finish(@Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception) {
         assert checkpointThrottler != null;
-        if (isDone.compareAndSet(false, true) == false) {
-            listener.onFailure(new ElasticsearchException("Reindex task already finished locally"));
-        } else {
-            checkpointThrottler.close(() -> writeFinishedState(reindexResponse, exception, listener));
+        assert finishedListener != null;
+        if (isDone.compareAndSet(false, true)) {
+            checkpointThrottler.close(() -> writeFinishedState(reindexResponse, exception));
         }
     }
 
-    private void writeFinishedState(@Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception,
-                                    ActionListener<ReindexTaskStateDoc> listener) {
+    private void writeFinishedState(@Nullable BulkByScrollResponse reindexResponse, @Nullable ElasticsearchException exception) {
         ReindexTaskStateDoc state = lastState.getStateDoc().withFinishedState(reindexResponse, exception);
         long term = lastState.getPrimaryTerm();
         long seqNo = lastState.getSeqNo();
@@ -166,15 +177,21 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
             @Override
             public void onResponse(ReindexTaskState taskState) {
                 lastState = null;
-                listener.onResponse(taskState.getStateDoc());
+                finishedListener.onResponse(taskState.getStateDoc());
 
             }
 
             @Override
             public void onFailure(Exception e) {
                 lastState = null;
-                listener.onFailure(e);
+                // TODO: Maybe retry finished write?
+                finishedListener.onFailure(e);
             }
         });
+    }
+
+    public interface FinishedListener extends ActionListener<ReindexTaskStateDoc> {
+
+        void onCancelled();
     }
 }

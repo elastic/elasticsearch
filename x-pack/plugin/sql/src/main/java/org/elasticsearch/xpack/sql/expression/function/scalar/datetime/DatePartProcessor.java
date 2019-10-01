@@ -14,17 +14,17 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
 
-import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTrunc.Part;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePart.Part;
 
-public class DateTruncProcessor extends BinaryDateTimeProcessor {
+public class DatePartProcessor extends BinaryDateTimeProcessor {
 
-    public static final String NAME = "dtrunc";
+    public static final String NAME = "dtpart";
 
-    public DateTruncProcessor(Processor source1, Processor source2, ZoneId zoneId) {
+    public DatePartProcessor(Processor source1, Processor source2, ZoneId zoneId) {
         super(source1, source2, zoneId);
     }
 
-    public DateTruncProcessor(StreamInput in) throws IOException {
+    public DatePartProcessor(StreamInput in) throws IOException {
         super(in);
     }
 
@@ -48,14 +48,14 @@ public class DateTruncProcessor extends BinaryDateTimeProcessor {
         if (source1 instanceof String == false) {
             throw new SqlIllegalArgumentException("A string is required; received [{}]", source1);
         }
-        Part truncateDateField = Part.resolve((String) source1);
-        if (truncateDateField == null) {
+        Part datePartField = Part.resolve((String) source1);
+        if (datePartField == null) {
             List<String> similar = Part.findSimilar((String) source1);
             if (similar.isEmpty()) {
                 throw new SqlIllegalArgumentException("A value of {} or their aliases is required; received [{}]",
                     Part.values(), source1);
             } else {
-                throw new SqlIllegalArgumentException("Received value [{}] is not valid date part for truncation; " +
+                throw new SqlIllegalArgumentException("Received value [{}] is not valid date part for extraction; " +
                     "did you mean {}?", source1, similar);
             }
         }
@@ -64,6 +64,6 @@ public class DateTruncProcessor extends BinaryDateTimeProcessor {
             throw new SqlIllegalArgumentException("A date/datetime is required; received [{}]", source2);
         }
 
-        return truncateDateField.truncate(((ZonedDateTime) source2).withZoneSameInstant(zoneId));
+        return datePartField.extract(((ZonedDateTime) source2).withZoneSameInstant(zoneId));
     }
 }

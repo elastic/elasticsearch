@@ -1,5 +1,8 @@
 [[indices-split-index]]
-=== Split Index
+=== Split index API
+++++
+<titleabbrev>Split index</titleabbrev>
+++++
 
 The split index API allows you to split an existing index into a new index,
 where each original primary shard is split into two or more primary shards in

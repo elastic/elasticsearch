@@ -1,7 +1,16 @@
 [float]
 === Preparing to upgrade
 
-Before you start to upgrade your cluster to version {version}.
+It is important to prepare carefully before starting an upgrade. Once you have
+started to upgrade your cluster to version {version} you must complete the
+upgrade. As soon as the cluster contains nodes of version {version} it may make
+changes to its internal state that cannot be reverted. If you cannot complete
+the upgrade then you should discard the partially-upgraded cluster, deploy an
+empty cluster of the version before the upgrade, and restore its contents from
+a snapshot.
+
+Before you start to upgrade your cluster to version {version} you should do the
+following.
 
 . Check the <<deprecation-logging, deprecation log>> to see if you are using any
 deprecated features and update your code accordingly.
@@ -17,8 +26,3 @@ cluster.
 
 . <<modules-snapshots,Back up your data by taking a snapshot!>>
 
-IMPORTANT: Once you have started to upgrade your cluster to version {version}
-you must complete the upgrade. As soon as the cluster contains nodes of version
-{version} it may make changes to its internal state that cannot be reverted. If
-you cannot complete the upgrade then you must deploy an empty cluster and
-restore its contents from a snapshot.

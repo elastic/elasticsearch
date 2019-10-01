@@ -54,7 +54,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
-            scripts.put("doc['field2'].value * param1", vars -> {
+            scripts.put("doc['field2'].value * param1", vars -> {   
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Doubles field2Values = (ScriptDocValues.Doubles) doc.get("field2");
                 Double param1 = (Double) vars.get("param1");

@@ -1,5 +1,8 @@
 [[indices-clearcache]]
-=== Clear Cache
+=== Clear cache API
+++++
+<titleabbrev>Clear cache</titleabbrev>
+++++
 
 The clear cache API allows to clear either all caches or specific cached
 associated with one or more indices.

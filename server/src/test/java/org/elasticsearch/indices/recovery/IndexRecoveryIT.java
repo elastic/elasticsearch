@@ -349,63 +349,52 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("3").get().isTimedOut());
 
         // do sync flush to gen sync id
-        assertBusy(() -> assertThat(client().admin().indices().prepareSyncedFlush(INDEX_NAME).get().failedShards(), equalTo(0)));
+        assertThat(client().admin().indices().prepareSyncedFlush(INDEX_NAME).get().failedShards(), equalTo(0));
 
-        logger.info("--> slowing down recoveries");
-        slowDownRecovery(shardSize);
-
-        logger.info("--> stop node B");
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeB));
-
-        logger.info("--> request recoveries");
-        // nodeB down, peer recovery from nodeA to nodeC
-        RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
-
-        List<RecoveryState> recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
-        List<RecoveryState> nodeARecoveryStates = findRecoveriesForTargetNode(nodeA, recoveryStates);
-        assertThat(nodeARecoveryStates.size(), equalTo(1));
-        List<RecoveryState> nodeCRecoveryStates = findRecoveriesForTargetNode(nodeC, recoveryStates);
-        assertThat(nodeCRecoveryStates.size(), equalTo(1));
-
-        assertRecoveryState(nodeARecoveryStates.get(0), 0, RecoverySource.EmptyStoreRecoverySource.INSTANCE, true,
-            Stage.DONE, null, nodeA);
-        validateIndexRecoveryState(nodeARecoveryStates.get(0).getIndex());
-
-        assertOnGoingRecoveryState(nodeCRecoveryStates.get(0), 0, PeerRecoverySource.INSTANCE, false, nodeA, nodeC);
-        validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
-
-        logger.info("--> start node B again");
-        // this will use the same data location as the stopped node
-        final String nodeB1 = internalCluster().startNode(nodeBDataPathSettings); 
-        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("3").get().isTimedOut());
-
-        logger.info("--> request recoveries");
-        // peer recovery from nodeA to nodeC should be canceled, replica should be allocated to nodeB that has the data copy
-        assertBusy(() -> {
-            RecoveryResponse response1 = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
-            List<RecoveryState> recoveryStates1 = response1.shardRecoveryStates().get(INDEX_NAME);
-
-            List<RecoveryState> nodeARecoveryStates1 = findRecoveriesForTargetNode(nodeA, recoveryStates1);
-            assertThat(nodeARecoveryStates1.size(), equalTo(1));
-            List<RecoveryState> nodeBRecoveryStates1 = findRecoveriesForTargetNode(nodeB1, recoveryStates1);
-            assertThat(nodeBRecoveryStates1.size(), equalTo(1));
-            List<RecoveryState> nodeCRecoveryStates1 = findRecoveriesForTargetNode(nodeC, recoveryStates1);
-            assertThat(nodeCRecoveryStates1.size(), equalTo(0));
-
-            assertRecoveryState(nodeARecoveryStates1.get(0), 0, RecoverySource.EmptyStoreRecoverySource.INSTANCE, true,
-                Stage.DONE, null, nodeA);
-            validateIndexRecoveryState(nodeARecoveryStates1.get(0).getIndex());
-
-            assertRecoveryState(nodeBRecoveryStates1.get(0), 0, PeerRecoverySource.INSTANCE, false,
-                Stage.DONE, nodeA, nodeB1);
-            validateIndexRecoveryState(nodeBRecoveryStates1.get(0).getIndex());
+        // hold peer recovery on phase 2 after nodeB down
+        CountDownLatch allowToCompletePhase1Latch = new CountDownLatch(1);
+        MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, nodeA);
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (PeerRecoveryTargetService.Actions.CLEAN_FILES.equals(action)) {
+                try {
+                    allowToCompletePhase1Latch.await();
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
         });
 
-        logger.info("--> speeding up recoveries");
-        restoreRecoverySpeed();
+        logger.info("--> restart node B");
+        internalCluster().restartNode(nodeB,
+            new InternalTestCluster.RestartCallback() {
+                @Override
+                public Settings onNodeStopped(String nodeName) throws Exception {
 
-        // wait for it to be finished
+                    // nodeB stopped, peer recovery from nodeA to nodeC, it will be cancelled after nodeB get started.
+                    RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
+
+                    List<RecoveryState> recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
+                    List<RecoveryState> nodeARecoveryStates = findRecoveriesForTargetNode(nodeA, recoveryStates);
+                    assertThat(nodeARecoveryStates.size(), equalTo(1));
+                    List<RecoveryState> nodeCRecoveryStates = findRecoveriesForTargetNode(nodeC, recoveryStates);
+                    assertThat(nodeCRecoveryStates.size(), equalTo(1));
+
+                    assertRecoveryState(nodeARecoveryStates.get(0), 0, RecoverySource.EmptyStoreRecoverySource.INSTANCE, true,
+                        Stage.DONE, null, nodeA);
+                    validateIndexRecoveryState(nodeARecoveryStates.get(0).getIndex());
+
+                    assertOnGoingRecoveryState(nodeCRecoveryStates.get(0), 0, PeerRecoverySource.INSTANCE, false, nodeA, nodeC);
+                    validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
+
+                    return super.onNodeStopped(nodeName);
+                }
+            });
+
+        // wait for peer recovering from nodeA to nodeB to be finished
         ensureGreen();
+        allowToCompletePhase1Latch.countDown();
+        transportService.clearAllRules();
     }
 
     public void testRerouteRecovery() throws Exception {

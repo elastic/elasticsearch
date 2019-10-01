@@ -123,7 +123,6 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
-import org.elasticsearch.plugins.GeoPlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MetaDataUpgrader;
@@ -378,11 +377,6 @@ public class Node implements Closeable {
             modules.add(clusterModule);
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(Plugin.class));
             modules.add(indicesModule);
-
-            // register CRS handlers w/ GeoShapeFieldMapper
-            for (GeoPlugin plugin : pluginsService.filterPlugins(GeoPlugin.class)) {
-                GeoShapeFieldMapper.registerCRSHandlers((plugin).getCRSHandlerFactories());
-            }
 
             SearchModule searchModule = new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class));
             CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),

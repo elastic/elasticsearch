@@ -179,8 +179,8 @@ The API returns the following result:
 [[ml-put-dfanalytics-example-r]]
 ===== {regression-cap} example
 
-The following example creates the `house_price_regression_analysis` {
-dfanalytics-job}, the analysis type is `regression`:
+The following example creates the `house_price_regression_analysis` 
+{dfanalytics-job}, the analysis type is `regression`:
 
 [source,console]
 --------------------------------------------------

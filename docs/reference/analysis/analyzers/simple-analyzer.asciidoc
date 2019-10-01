@@ -140,7 +140,8 @@ PUT /simple_example
       "analyzer": {
         "rebuilt_simple": {
           "tokenizer": "lowercase",
-          "filter": [         <1>
+          "filter": [
+            "lowercase"       <1>
           ]
         }
       }
@@ -150,4 +151,4 @@ PUT /simple_example
 ----------------------------------------------------
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: simple_example, first: simple, second: rebuilt_simple}\nendyaml\n/]
 
-<1> Add token filters here.
+<1> You'd add any token filters after `lowercase`.

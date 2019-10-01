@@ -188,6 +188,9 @@ Please follow these formatting guidelines:
      There are two configuration options: `Class count to use import with
      '*'` and `Names count to use static import with '*'`. Set their values
      to 99999 or some other absurdly high value.
+* If absolutely necessary, you can disable formatting for regions of code
+  with `// @formatter:off` and `// @formatter:on`. Please only do this
+  where the benefit clearly outweighs the decrease in consistency.
 
 #### Editor / IDE Support
 

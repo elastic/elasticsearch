@@ -247,16 +247,16 @@ public class MatchQuery {
          * a prefix query instead
          */
         if (analyzer == Lucene.KEYWORD_ANALYZER && type != Type.PHRASE_PREFIX) {
-            final Term term = new Term(fieldName, value.toString());
-            if ((fieldType instanceof TextFieldMapper.TextFieldType || fieldType instanceof KeywordFieldMapper.KeywordFieldType)
-                && type == Type.BOOLEAN_PREFIX) {
-                return builder.newPrefixQuery(fieldName, term);
+            final Term term = new Term(fieldType.name(), value.toString());
+            if (type == Type.BOOLEAN_PREFIX
+                    && (fieldType instanceof TextFieldMapper.TextFieldType || fieldType instanceof KeywordFieldMapper.KeywordFieldType)) {
+                return builder.newPrefixQuery(term);
             } else {
                 return builder.newTermQuery(term);
             }
         }
 
-        return parseInternal(type, fieldName, builder, value);
+        return parseInternal(type, fieldType.name(), builder, value);
     }
 
     protected final Query parseInternal(Type type, String fieldName, MatchQueryBuilder builder, Object value) throws IOException {
@@ -540,12 +540,12 @@ public class MatchQuery {
         /**
          * Builds a new prefix query instance.
          */
-        protected Query newPrefixQuery(String field, Term term) {
+        protected Query newPrefixQuery(Term term) {
             try {
                 return fieldType.prefixQuery(term.text(), null, context);
             } catch (RuntimeException e) {
                 if (lenient) {
-                    return newLenientFieldQuery(field, e);
+                    return newLenientFieldQuery(term.field(), e);
                 }
                 throw e;
             }
@@ -562,7 +562,7 @@ public class MatchQuery {
             final Term term = new Term(field, termAtt.getBytesRef());
             int lastOffset = offsetAtt.endOffset();
             stream.end();
-            return isPrefix && lastOffset == offsetAtt.endOffset() ? newPrefixQuery(field, term) : newTermQuery(term);
+            return isPrefix && lastOffset == offsetAtt.endOffset() ? newPrefixQuery(term) : newTermQuery(term);
         }
 
         private void add(BooleanQuery.Builder q, String field, List<Term> current, BooleanClause.Occur operator, boolean isPrefix) {
@@ -571,7 +571,7 @@ public class MatchQuery {
             }
             if (current.size() == 1) {
                 if (isPrefix) {
-                    q.add(newPrefixQuery(field, current.get(0)), operator);
+                    q.add(newPrefixQuery(current.get(0)), operator);
                 } else {
                     q.add(newTermQuery(current.get(0)), operator);
                 }
@@ -688,7 +688,7 @@ public class MatchQuery {
                     Term[] terms = graph.getTerms(field, start);
                     assert terms.length > 0;
                     if (terms.length == 1) {
-                        queryPos = usePrefix ? newPrefixQuery(field, terms[0]) : newTermQuery(terms[0]);
+                        queryPos = usePrefix ? newPrefixQuery(terms[0]) : newTermQuery(terms[0]);
                     } else {
                         // We don't apply prefix on synonyms
                         queryPos = newSynonymQuery(terms);

@@ -7,17 +7,12 @@ package org.elasticsearch.xpack.enrich.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
@@ -33,30 +28,24 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.enrich.EnrichStore;
 
-import java.io.IOException;
-
-public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<PutEnrichPolicyAction.Request, AcknowledgedResponse> {
+public class TransportPutEnrichPolicyAction extends HandledTransportAction<PutEnrichPolicyAction.Request, AcknowledgedResponse> {
 
     private final XPackLicenseState licenseState;
     private final SecurityContext securityContext;
     private final Client client;
+    private final ClusterService clusterService;
 
     @Inject
     public TransportPutEnrichPolicyAction(Settings settings, TransportService transportService,
                                           ClusterService clusterService, ThreadPool threadPool, Client client,
-                                          XPackLicenseState licenseState, ActionFilters actionFilters,
-                                          IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(PutEnrichPolicyAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            PutEnrichPolicyAction.Request::new, indexNameExpressionResolver);
+                                          XPackLicenseState licenseState, ActionFilters actionFilters) {
+        super(PutEnrichPolicyAction.NAME, transportService, actionFilters, PutEnrichPolicyAction.Request::new);
+
         this.licenseState = licenseState;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
             new SecurityContext(settings, threadPool.getThreadContext()) : null;
         this.client = client;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
+        this.clusterService = clusterService;
     }
 
     protected AcknowledgedResponse newResponse() {
@@ -64,14 +53,7 @@ public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<Pu
     }
 
     @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
-    }
-
-    @Override
-    protected void masterOperation(Task task, PutEnrichPolicyAction.Request request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) {
-
+    protected void doExecute(Task task, PutEnrichPolicyAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         if (licenseState.isAuthAllowed()) {
             RoleDescriptor.IndicesPrivileges privileges = RoleDescriptor.IndicesPrivileges.builder()
                 .indices(request.getPolicy().getIndices())
@@ -103,17 +85,12 @@ public class TransportPutEnrichPolicyAction extends TransportMasterNodeAction<Pu
     }
 
     private void putPolicy(PutEnrichPolicyAction.Request request, ActionListener<AcknowledgedResponse> listener ) {
-        EnrichStore.putPolicy(request.getName(), request.getPolicy(), clusterService, e -> {
+        EnrichStore.putPolicy(request.getName(), request.getPolicy(), clusterService, client, e -> {
             if (e == null) {
                 listener.onResponse(new AcknowledgedResponse(true));
             } else {
                 listener.onFailure(e);
             }
         });
-    }
-
-    @Override
-    protected ClusterBlockException checkBlock(PutEnrichPolicyAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

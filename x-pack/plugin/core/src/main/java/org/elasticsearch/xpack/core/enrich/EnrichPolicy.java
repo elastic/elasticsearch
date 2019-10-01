@@ -15,7 +15,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -30,7 +31,7 @@ import java.util.Objects;
 /**
  * Represents an enrich policy including its configuration.
  */
-public final class EnrichPolicy implements Writeable, ToXContentFragment {
+public final class EnrichPolicy implements Writeable, ToXContentObject {
 
     public static final String ENRICH_INDEX_NAME_BASE = ".enrich-";
 
@@ -175,12 +176,15 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(type);
+        builder.startObject();
         {
-            toInnerXContent(builder, params);
+            builder.startObject(type);
+            {
+                toInnerXContent(builder, params);
+            }
+            builder.endObject();
         }
-        builder.endObject();
-        return builder;
+        return builder.endObject();
     }
 
     private void toInnerXContent(XContentBuilder builder, Params params) throws IOException {
@@ -271,7 +275,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         }
     }
 
-    public static class NamedPolicy implements Writeable, ToXContentFragment {
+    public static class NamedPolicy implements Writeable, ToXContentObject {
 
         static final ParseField NAME = new ParseField("name");
         @SuppressWarnings("unchecked")
@@ -323,13 +327,20 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            {
+                innerToXContent(builder, params);
+            }
+            return builder.endObject();
+        }
+
+        public void innerToXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(policy.type);
             {
                 builder.field(NAME.getPreferredName(), name);
                 policy.toInnerXContent(builder, params);
             }
             builder.endObject();
-            return builder;
         }
 
         public static NamedPolicy fromXContent(XContentParser parser) throws IOException {

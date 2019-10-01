@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.AbstractEnrichTestCase;
 import org.elasticsearch.xpack.enrich.EnrichPolicyLocks;
-import org.elasticsearch.xpack.enrich.EnrichStore;
 import org.junit.After;
 
 import java.util.concurrent.CountDownLatch;
@@ -109,7 +108,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
         EnrichPolicyLocks enrichPolicyLocks = getInstanceFromNode(EnrichPolicyLocks.class);
         assertFalse(enrichPolicyLocks.captureExecutionState().isAnyPolicyInFlight());
 
-        assertNull(EnrichStore.getPolicy(name, clusterService.state()));
+        assertNull(getPolicySync(name, clusterService.state()));
     }
 
     public void testDeleteIsNotLocked() throws Exception {
@@ -154,7 +153,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
         EnrichPolicyLocks enrichPolicyLocks = getInstanceFromNode(EnrichPolicyLocks.class);
         assertFalse(enrichPolicyLocks.captureExecutionState().isAnyPolicyInFlight());
 
-        assertNull(EnrichStore.getPolicy(name, clusterService.state()));
+        assertNull(getPolicySync(name, clusterService.state()));
     }
 
     public void testDeleteLocked() throws InterruptedException {
@@ -222,7 +221,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
 
             assertFalse(enrichPolicyLocks.captureExecutionState().isAnyPolicyInFlight());
 
-            assertNull(EnrichStore.getPolicy(name, clusterService.state()));
+            assertNull(getPolicySync(name, clusterService.state()));
         }
     }
 }

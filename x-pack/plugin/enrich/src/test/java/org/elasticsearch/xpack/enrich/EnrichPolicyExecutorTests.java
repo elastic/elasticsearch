@@ -85,7 +85,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         private CountDownLatch currentLatch;
         CountDownLatch testRunPolicy(String policyName, EnrichPolicy policy, ActionListener<PolicyExecutionResult> listener) {
             currentLatch = new CountDownLatch(1);
-            runPolicy(policyName, policy, listener);
+            runPolicy(new EnrichPolicy.NamedPolicy(policyName, policy), listener);
             return currentLatch;
         }
 

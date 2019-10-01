@@ -51,6 +51,7 @@ public final class ClientHelper {
     public static final String PERSISTENT_TASK_ORIGIN = "persistent_tasks";
     public static final String ROLLUP_ORIGIN = "rollup";
     public static final String TRANSFORM_ORIGIN = "transform";
+    public static final String ENRICH_ORIGIN = "enrich";
 
     private ClientHelper() {}
 

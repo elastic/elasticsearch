@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -22,11 +24,45 @@ public abstract class AbstractEnrichTestCase extends ESSingleNodeTestCase {
         return List.of(LocalStateEnrich.class);
     }
 
+    protected EnrichPolicy getPolicySync(String name, ClusterState state) throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<EnrichPolicy> policy  = new AtomicReference<>();
+        EnrichStore.getPolicy(name, state, client(), ActionListener.wrap(
+            (p) -> {
+                if (p != null) {
+                    policy.set(p.getPolicy());
+                }
+                latch.countDown();
+            },
+            (exc) -> {
+                fail();
+            }
+        ));
+        latch.await();
+        return policy.get();
+    }
+
+    protected Collection<EnrichPolicy.NamedPolicy> getPoliciesSync(ClusterState state) throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Collection<EnrichPolicy.NamedPolicy>> policy  = new AtomicReference<>();
+        EnrichStore.getPolicies(state, client(), ActionListener.wrap(
+            (p) -> {
+                policy.set(p);
+                latch.countDown();
+            },
+            (exc) -> {
+                fail();
+            }
+        ));
+        latch.await();
+        return policy.get();
+    }
+
     protected AtomicReference<Exception> saveEnrichPolicy(String name, EnrichPolicy policy,
                                                           ClusterService clusterService) throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
-        EnrichStore.putPolicy(name, policy, clusterService, e -> {
+        EnrichStore.putPolicy(name, policy, clusterService, client(), e -> {
             error.set(e);
             latch.countDown();
         });
@@ -37,7 +73,7 @@ public abstract class AbstractEnrichTestCase extends ESSingleNodeTestCase {
     protected void deleteEnrichPolicy(String name, ClusterService clusterService) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
-        EnrichStore.deletePolicy(name, clusterService, e -> {
+        EnrichStore.deletePolicy(name, clusterService, client(), e -> {
             error.set(e);
             latch.countDown();
         });

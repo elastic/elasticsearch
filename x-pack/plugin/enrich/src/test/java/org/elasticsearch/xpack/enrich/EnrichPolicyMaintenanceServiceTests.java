@@ -118,12 +118,12 @@ public class EnrichPolicyMaintenanceServiceTests extends ESSingleNodeTestCase {
 
     private void addPolicy(String policyName, EnrichPolicy policy) throws InterruptedException {
         doSyncronously((clusterService, exceptionConsumer) ->
-            EnrichStore.putPolicy(policyName, policy, clusterService, exceptionConsumer));
+            EnrichStore.putPolicy(policyName, policy, clusterService, client(), exceptionConsumer));
     }
 
     private void removePolicy(String policyName) throws InterruptedException {
         doSyncronously((clusterService, exceptionConsumer) ->
-            EnrichStore.deletePolicy(policyName, clusterService, exceptionConsumer));
+            EnrichStore.deletePolicy(policyName, clusterService, client(), exceptionConsumer));
     }
 
     private void doSyncronously(BiConsumer<ClusterService, Consumer<Exception>> function) throws InterruptedException {

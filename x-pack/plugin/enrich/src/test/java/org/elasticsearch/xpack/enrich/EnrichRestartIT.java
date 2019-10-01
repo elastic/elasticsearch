@@ -23,7 +23,7 @@ import static org.elasticsearch.xpack.enrich.EnrichMultiNodeIT.SOURCE_INDEX_NAME
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0)
 public class EnrichRestartIT extends ESIntegTestCase {
 
     @Override
@@ -46,6 +46,7 @@ public class EnrichRestartIT extends ESIntegTestCase {
         verifyPolicies(numPolicies, enrichPolicy);
         // After full restart the policies should still exist:
         internalCluster().fullRestart();
+        ensureGreen(EnrichStore.ENRICH_INDEX);
         verifyPolicies(numPolicies, enrichPolicy);
     }
 

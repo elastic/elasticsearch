@@ -29,9 +29,9 @@ import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -41,9 +41,9 @@ public class GetPolicyResponseTests extends AbstractResponseTestCase<GetEnrichPo
     @Override
     protected GetEnrichPolicyAction.Response createServerTestInstance(XContentType xContentType) {
         int numPolicies = randomIntBetween(0, 8);
-        Map<String, EnrichPolicy> policies = new HashMap<>(numPolicies);
+        List<EnrichPolicy.NamedPolicy> policies = new ArrayList<>();
         for (int i = 0; i < numPolicies; i++) {
-            policies.put(randomAlphaOfLength(4), createRandomEnrichPolicy(xContentType));
+            policies.add(new EnrichPolicy.NamedPolicy(randomAlphaOfLength(4), createRandomEnrichPolicy(xContentType)));
         }
         return new GetEnrichPolicyAction.Response(policies);
     }

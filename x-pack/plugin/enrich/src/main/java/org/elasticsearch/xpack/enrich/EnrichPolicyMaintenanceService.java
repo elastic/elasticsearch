@@ -30,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
@@ -131,42 +132,49 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
     }
 
     void cleanUpEnrichIndices() {
-        final Map<String, EnrichPolicy> policies = EnrichStore.getPolicies(clusterService.state());
-        GetIndexRequest indices = new GetIndexRequest()
-            .indices(EnrichPolicy.ENRICH_INDEX_NAME_BASE + "*")
-            .indicesOptions(IndicesOptions.lenientExpand());
-        // Check that no enrich policies are being executed
-        final EnrichPolicyLocks.EnrichPolicyExecutionState executionState = enrichPolicyLocks.captureExecutionState();
-        if (executionState.isAnyPolicyInFlight() == false) {
-            client.admin().indices().getIndex(indices, new ActionListener<>() {
-                @Override
-                public void onResponse(GetIndexResponse getIndexResponse) {
-                    // Ensure that no enrich policy executions started while we were retrieving the snapshot of index data
-                    // If executions were kicked off, we can't be sure that the indices we are about to process are a
-                    // stable state of the system (they could be new indices created by a policy that hasn't been published yet).
-                    if (enrichPolicyLocks.isSameState(executionState)) {
-                        String[] removeIndices = Arrays.stream(getIndexResponse.getIndices())
-                            .filter(indexName -> shouldRemoveIndex(getIndexResponse, policies, indexName))
-                            .toArray(String[]::new);
-                        deleteIndices(removeIndices);
-                    } else {
-                        logger.debug("Skipping enrich index cleanup since enrich policy was executed while gathering indices");
-                        concludeMaintenance();
-                    }
-                }
+        EnrichStore.getPolicies(clusterService.state(), client, ActionListener.wrap(
+            policies -> {
+                GetIndexRequest indices = new GetIndexRequest()
+                    .indices(EnrichPolicy.ENRICH_INDEX_NAME_BASE + "*")
+                    .indicesOptions(IndicesOptions.lenientExpand());
+                // Check that no enrich policies are being executed
+                final EnrichPolicyLocks.EnrichPolicyExecutionState executionState = enrichPolicyLocks.captureExecutionState();
+                if (executionState.isAnyPolicyInFlight() == false) {
+                    client.admin().indices().getIndex(indices, new ActionListener<>() {
+                        @Override
+                        public void onResponse(GetIndexResponse getIndexResponse) {
+                            // Ensure that no enrich policy executions started while we were retrieving the snapshot of index data
+                            // If executions were kicked off, we can't be sure that the indices we are about to process are a
+                            // stable state of the system (they could be new indices created by a policy that hasn't been published yet).
+                            if (enrichPolicyLocks.isSameState(executionState)) {
+                                String[] removeIndices = Arrays.stream(getIndexResponse.getIndices())
+                                    .filter(indexName -> shouldRemoveIndex(getIndexResponse, policies, indexName))
+                                    .toArray(String[]::new);
+                                deleteIndices(removeIndices);
+                            } else {
+                                logger.debug("Skipping enrich index cleanup since enrich policy was executed while gathering indices");
+                                concludeMaintenance();
+                            }
+                        }
 
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error("Failed to get indices during enrich index maintenance task", e);
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.error("Failed to get indices during enrich index maintenance task", e);
+                            concludeMaintenance();
+                        }
+                    });
+                } else {
                     concludeMaintenance();
                 }
-            });
-        } else {
-            concludeMaintenance();
-        }
+            },
+            e -> {
+                logger.error("Failed to get policies during enrich index maintenance task", e);
+                concludeMaintenance();
+            }
+        ));
     }
 
-    private boolean shouldRemoveIndex(GetIndexResponse getIndexResponse, Map<String, EnrichPolicy> policies, String indexName) {
+    private boolean shouldRemoveIndex(GetIndexResponse getIndexResponse, Collection<EnrichPolicy.NamedPolicy> policies, String indexName) {
         // Find the policy on the index
         logger.debug("Checking if should remove enrich index [{}]", indexName);
         ImmutableOpenMap<String, MappingMetaData> indexMapping = getIndexResponse.getMappings().get(indexName);
@@ -174,7 +182,7 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
         Map<String, Object> mapping = mappingMetaData.getSourceAsMap();
         String policyName = ObjectPath.eval(MAPPING_POLICY_FIELD_PATH, mapping);
         // Check if index has a corresponding policy
-        if (policyName == null || policies.containsKey(policyName) == false) {
+        if (policyName == null || policies.stream().anyMatch(p -> policyName.equals(p.getName())) == false) {
             // No corresponding policy. Index should be marked for removal.
             logger.debug("Enrich index [{}] does not correspond to any existing policy. Found policy name [{}]", indexName, policyName);
             return true;

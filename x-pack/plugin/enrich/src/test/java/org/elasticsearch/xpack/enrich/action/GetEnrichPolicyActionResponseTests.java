@@ -13,8 +13,8 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.assertEqualPolicies;
 import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.randomEnrichPolicy;
@@ -24,7 +24,7 @@ public class GetEnrichPolicyActionResponseTests extends AbstractSerializingTestC
 
     @Override
     protected GetEnrichPolicyAction.Response doParseInstance(XContentParser parser) throws IOException {
-        Map<String, EnrichPolicy> policies = new HashMap<>();
+        List<EnrichPolicy.NamedPolicy> policies = new ArrayList<>();
         assert parser.nextToken() == XContentParser.Token.START_OBJECT;
         assert parser.nextToken() == XContentParser.Token.FIELD_NAME;
         assert parser.currentName().equals("policies");
@@ -37,7 +37,7 @@ public class GetEnrichPolicyActionResponseTests extends AbstractSerializingTestC
             assert parser.currentName().equals("config");
             assert parser.nextToken() == XContentParser.Token.START_OBJECT;
             EnrichPolicy.NamedPolicy policy = EnrichPolicy.NamedPolicy.fromXContent(parser);
-            policies.put(policy.getName(), policy.getPolicy());
+            policies.add(new EnrichPolicy.NamedPolicy(policy.getName(), policy.getPolicy()));
             assert parser.nextToken() == XContentParser.Token.END_OBJECT;
         }
 
@@ -46,12 +46,12 @@ public class GetEnrichPolicyActionResponseTests extends AbstractSerializingTestC
 
     @Override
     protected GetEnrichPolicyAction.Response createTestInstance() {
-        Map<String, EnrichPolicy> items = new HashMap<>();
+        List<EnrichPolicy.NamedPolicy> policies = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(0, 3); i++) {
             EnrichPolicy policy = randomEnrichPolicy(XContentType.JSON);
-            items.put(randomAlphaOfLength(3), policy);
+            policies.add(new EnrichPolicy.NamedPolicy(randomAlphaOfLength(3), policy));
         }
-        return new GetEnrichPolicyAction.Response(items);
+        return new GetEnrichPolicyAction.Response(policies);
     }
 
     @Override

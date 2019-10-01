@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.core.enrich.action;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -18,11 +18,10 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 public class GetEnrichPolicyAction extends ActionType<GetEnrichPolicyAction.Response> {
 
@@ -33,7 +32,7 @@ public class GetEnrichPolicyAction extends ActionType<GetEnrichPolicyAction.Resp
         super(NAME, Response::new);
     }
 
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static class Request extends ActionRequest {
 
         private final List<String> names;
 
@@ -83,11 +82,9 @@ public class GetEnrichPolicyAction extends ActionType<GetEnrichPolicyAction.Resp
 
         private final List<EnrichPolicy.NamedPolicy> policies;
 
-        public Response(Map<String, EnrichPolicy> policies) {
+        public Response(Collection<EnrichPolicy.NamedPolicy> policies) {
             Objects.requireNonNull(policies, "policies cannot be null");
-            // use a treemap to guarantee ordering in the set, then transform it to the list of named policies
-            this.policies = new TreeMap<>(policies).entrySet().stream()
-                .map(entry -> new EnrichPolicy.NamedPolicy(entry.getKey(), entry.getValue())).collect(Collectors.toList());
+            this.policies = new LinkedList<>(policies);
         }
 
         public Response(StreamInput in) throws IOException {
@@ -110,7 +107,7 @@ public class GetEnrichPolicyAction extends ActionType<GetEnrichPolicyAction.Resp
                         {
                             builder.startObject("config");
                             {
-                                policy.toXContent(builder, params);
+                                policy.innerToXContent(builder, params);
                             }
                             builder.endObject();
                         }

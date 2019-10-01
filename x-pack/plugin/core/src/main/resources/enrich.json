@@ -1,0 +1,13 @@
+{
+  "index_patterns": [ ".enrich" ],
+  "settings": {
+    "index.number_of_shards": 1,
+    "index.number_of_replicas": 1
+  },
+  "mappings": {
+    "_doc": {
+      "dynamic" : "false",
+      "properties": { }
+    }
+  }
+}

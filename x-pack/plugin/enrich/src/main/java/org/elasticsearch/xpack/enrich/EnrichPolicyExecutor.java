@@ -95,22 +95,26 @@ public class EnrichPolicyExecutor {
 
     public void runPolicy(String policyId, ActionListener<PolicyExecutionResult> listener) {
         // Look up policy in policy store and execute it
-        EnrichPolicy policy = EnrichStore.getPolicy(policyId, clusterService.state());
-        if (policy == null) {
-            throw new IllegalArgumentException("Policy execution failed. Could not locate policy with id [" + policyId + "]");
-        } else {
-            runPolicy(policyId, policy, listener);
-        }
+        EnrichStore.getPolicy(policyId, clusterService.state(), client, ActionListener.wrap(
+            policy -> {
+                if (policy == null) {
+                    listener.onFailure(new IllegalArgumentException(
+                        "Policy execution failed. Could not locate policy with id [" + policyId + "]"));
+                }
+                runPolicy(policy, listener);
+            },
+            listener::onFailure));
     }
 
-    public void runPolicy(String policyName, EnrichPolicy policy, ActionListener<PolicyExecutionResult> listener) {
-        tryLockingPolicy(policyName);
+    public void runPolicy(EnrichPolicy.NamedPolicy policy, ActionListener<PolicyExecutionResult> listener) {
+        tryLockingPolicy(policy.getName());
         try {
-            Runnable runnable = createPolicyRunner(policyName, policy, new PolicyUnlockingListener(policyName, listener));
+            Runnable runnable = createPolicyRunner(policy.getName(), policy.getPolicy(),
+                new PolicyUnlockingListener(policy.getName(), listener));
             threadPool.executor(ThreadPool.Names.GENERIC).execute(runnable);
         } catch (Exception e) {
             // Be sure to unlock if submission failed.
-            releasePolicy(policyName);
+            releasePolicy(policy.getName());
             throw e;
         }
     }

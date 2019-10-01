@@ -7,75 +7,51 @@ package org.elasticsearch.xpack.enrich.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichStore;
 
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
+import java.util.stream.Collectors;
 
-public class TransportGetEnrichPolicyAction extends TransportMasterNodeReadAction<GetEnrichPolicyAction.Request,
+public class TransportGetEnrichPolicyAction extends HandledTransportAction<GetEnrichPolicyAction.Request,
     GetEnrichPolicyAction.Response> {
+
+    private final Client client;
+    private final ClusterService clusterService;
 
     @Inject
     public TransportGetEnrichPolicyAction(TransportService transportService,
-                                               ClusterService clusterService,
-                                               ThreadPool threadPool,
-                                               ActionFilters actionFilters,
-                                               IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetEnrichPolicyAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetEnrichPolicyAction.Request::new, indexNameExpressionResolver);
+                                          ClusterService clusterService,
+                                          ActionFilters actionFilters,
+                                          Client client) {
+        super(GetEnrichPolicyAction.NAME, transportService, actionFilters, GetEnrichPolicyAction.Request::new);
+        this.client = client;
+        this.clusterService = clusterService;
     }
 
     @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    protected GetEnrichPolicyAction.Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    protected GetEnrichPolicyAction.Response read(StreamInput in) throws IOException {
-        return new GetEnrichPolicyAction.Response(in);
-    }
-
-    @Override
-    protected void masterOperation(Task task, GetEnrichPolicyAction.Request request,
-                                   ClusterState state,
-                                   ActionListener<GetEnrichPolicyAction.Response> listener) throws Exception {
-        Map<String, EnrichPolicy> policies;
-        if (request.getNames() == null || request.getNames().isEmpty()) {
-            policies = EnrichStore.getPolicies(state);
-        } else {
-            policies = new HashMap<>();
-            for (String name: request.getNames()) {
-                if (name.isEmpty() == false) {
-                    EnrichPolicy policy = EnrichStore.getPolicy(name, state);
-                    if (policy != null) {
-                        policies.put(name, policy);
-                    }
+    protected void doExecute(Task task, GetEnrichPolicyAction.Request request, ActionListener<GetEnrichPolicyAction.Response> listener) {
+        EnrichStore.getPolicies(clusterService.state(), client, ActionListener.wrap(
+            resp -> {
+                if (request.getNames() == null || request.getNames().isEmpty()) {
+                    listener.onResponse(new GetEnrichPolicyAction.Response(resp));
+                } else {
+                    List<EnrichPolicy.NamedPolicy> policies = resp.stream().filter(
+                        policy -> {
+                            return request.getNames().contains(policy.getName());
+                        }
+                    ).collect(Collectors.toList());
+                    listener.onResponse(new GetEnrichPolicyAction.Response(policies));
                 }
-            }
-        }
-        listener.onResponse(new GetEnrichPolicyAction.Response(policies));
-    }
-
-    @Override
-    protected ClusterBlockException checkBlock(GetEnrichPolicyAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+            },
+            listener::onFailure
+        ));
     }
 }

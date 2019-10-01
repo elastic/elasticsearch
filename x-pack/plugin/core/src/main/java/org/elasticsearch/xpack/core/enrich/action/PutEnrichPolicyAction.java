@@ -6,10 +6,10 @@
 package org.elasticsearch.xpack.core.enrich.action;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -31,7 +31,7 @@ public class PutEnrichPolicyAction extends ActionType<AcknowledgedResponse> {
         return new Request(name, EnrichPolicy.fromXContent(parser));
     }
 
-    public static class Request extends MasterNodeRequest<PutEnrichPolicyAction.Request> {
+    public static class Request extends ActionRequest {
 
         private final EnrichPolicy policy;
         private final String name;

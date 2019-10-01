@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.core.enrich.action;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -24,7 +24,7 @@ public class DeleteEnrichPolicyAction extends ActionType<AcknowledgedResponse> {
         super(NAME, AcknowledgedResponse::new);
     }
 
-    public static class Request extends MasterNodeRequest<DeleteEnrichPolicyAction.Request> {
+    public static class Request extends ActionRequest {
 
         private final String name;
 

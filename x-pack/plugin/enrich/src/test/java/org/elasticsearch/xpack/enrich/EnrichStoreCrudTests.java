@@ -11,7 +11,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
-import java.util.Map;
+import java.util.Collection;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.enrich.EnrichPolicyTests.randomEnrichPolicy;
@@ -27,15 +27,15 @@ public class EnrichStoreCrudTests extends AbstractEnrichTestCase {
         AtomicReference<Exception> error = saveEnrichPolicy(name, policy, clusterService);
         assertThat(error.get(), nullValue());
 
-        EnrichPolicy result = EnrichStore.getPolicy(name, clusterService.state());
+        EnrichPolicy result = getPolicySync(name, clusterService.state());
         assertThat(result, equalTo(policy));
 
-        Map<String, EnrichPolicy> listPolicies = EnrichStore.getPolicies(clusterService.state());
+        Collection<EnrichPolicy.NamedPolicy> listPolicies = getPoliciesSync(clusterService.state());
         assertThat(listPolicies.size(), equalTo(1));
-        assertThat(listPolicies.get(name), equalTo(policy));
+        assertThat(listPolicies.iterator().next().getPolicy(), equalTo(policy));
 
         deleteEnrichPolicy(name, clusterService);
-        result = EnrichStore.getPolicy(name, clusterService.state());
+        result = getPolicySync(name, clusterService.state());
         assertThat(result, nullValue());
     }
 
@@ -51,7 +51,7 @@ public class EnrichStoreCrudTests extends AbstractEnrichTestCase {
         assertTrue(error.get().getMessage().contains("policy [my-policy] already exists"));;
 
         deleteEnrichPolicy(name, clusterService);
-        EnrichPolicy result = EnrichStore.getPolicy(name, clusterService.state());
+        EnrichPolicy result = getPolicySync(name, clusterService.state());
         assertThat(result, nullValue());
     }
 
@@ -109,23 +109,22 @@ public class EnrichStoreCrudTests extends AbstractEnrichTestCase {
         }
     }
 
-    public void testGetValidation() {
+    public void testGetValidation() throws InterruptedException {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         String nullOrEmptyName = randomBoolean() ? "" : null;
 
         IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
-            () -> EnrichStore.getPolicy(nullOrEmptyName, clusterService.state()));
+            () -> getPolicySync(nullOrEmptyName, clusterService.state()));
 
         assertThat(error.getMessage(), equalTo("name is missing or empty"));
 
-        EnrichPolicy policy = EnrichStore.getPolicy("null-policy", clusterService.state());
+        EnrichPolicy policy = getPolicySync("null-policy", clusterService.state());
         assertNull(policy);
     }
 
-    public void testListValidation()  {
+    public void testListValidation() throws InterruptedException {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        Map<String, EnrichPolicy> policies = EnrichStore.getPolicies(clusterService.state());
+        Collection<EnrichPolicy.NamedPolicy> policies = getPoliciesSync(clusterService.state());
         assertTrue(policies.isEmpty());
     }
-
 }

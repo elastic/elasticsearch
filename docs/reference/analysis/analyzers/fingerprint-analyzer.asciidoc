@@ -162,9 +162,7 @@ PUT /fingerprint_example
         "rebuilt_fingerprint": {
           "tokenizer": "standard",
           "filter": [
-            "lowercase",
-            "asciifolding",
-            "fingerprint"
+            "lowercase"       <1>
           ]
         }
       }
@@ -173,3 +171,4 @@ PUT /fingerprint_example
 }
 ----------------------------------------------------
 // TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: fingerprint_example, first: fingerprint, second: rebuilt_fingerprint}\nendyaml\n/]
+<1> You'd add any token filters after `lowercase`.

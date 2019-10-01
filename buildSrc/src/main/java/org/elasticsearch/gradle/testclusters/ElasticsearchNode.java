@@ -495,16 +495,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         start();
     }
 
-    @Override
-    public void goToNextVersion() {
+    void goToNextVersion() {
         if (currentDistro + 1 >= distributions.size()) {
             throw new TestClustersException("Ran out of versions to go to for " + this);
         }
-        LOGGER.info("Switch version from {} to {} for {}",
-            getVersion(), distributions.get(currentDistro + 1).getVersion(), this
-        );
+        logToProcessStdout("Switch version from " + getVersion() + " to " + distributions.get(currentDistro + 1).getVersion());
         currentDistro += 1;
-        restart();
+        setting("node.attr.upgraded", "true");
     }
 
     private boolean isSettingTrue(String name) {

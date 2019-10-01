@@ -202,15 +202,22 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         }
 
         String extension = distribution.getType().toString();
-        String classifier = "x86_64";
+        String classifier = ":x86_64";
         if (distribution.getType() == Type.ARCHIVE) {
             extension = distribution.getPlatform() == Platform.WINDOWS ? "zip" : "tar.gz";
-            classifier = distribution.getPlatform() + "-" + classifier;
+            if (distribution.getVersion().onOrAfter("7.0.0")) {
+                classifier = ":" + distribution.getPlatform() + "-x86_64";
+            } else {
+                classifier = "";
+            }
         } else if (distribution.getType() == Type.DEB) {
-            classifier = "amd64";
+            classifier = ":amd64";
         }
-        return FAKE_IVY_GROUP + ":elasticsearch" + (distribution.getFlavor() == Flavor.OSS ? "-oss:" : ":")
-            + distribution.getVersion() + ":" + classifier + "@" + extension;
+        String flavor = "";
+        if (distribution.getFlavor() == Flavor.OSS && distribution.getVersion().onOrAfter("6.3.0")) {
+            flavor = "-oss";
+        }
+        return FAKE_IVY_GROUP + ":elasticsearch" + flavor + ":" + distribution.getVersion() + classifier + "@" + extension;
     }
 
     private static Dependency projectDependency(Project project, String projectPath, String projectConfig) {

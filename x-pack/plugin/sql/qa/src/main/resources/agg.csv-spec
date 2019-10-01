@@ -1,3 +1,5 @@
+// To mute tests follow example in file: example.csv-spec
+
 //
 // Aggs not supported by H2 / traditional SQL stores
 //
@@ -144,6 +146,33 @@ null           |null           |null           |null          |null           |n
 2              |2              |38             |2             |2.0            |100.0          |NaN            |NaN            
 3              |3              |51             |3             |3.0            |100.0          |NaN            |NaN            
 4              |4              |72             |4             |4.0            |0.0            |NaN            |NaN   
+;
+
+aggSumWithColumnRepeated
+SELECT gender AS g, gender, SUM(salary) AS s3, SUM(salary), SUM(salary) AS s5 FROM test_emp GROUP BY gender;
+
+g:s  | gender:s  | s3:i  | SUM(salary):i | s5:i
+null |null       |487605 |487605         |487605
+F    |F          |1666196|1666196        |1666196
+M    |M          |2671054|2671054        |2671054
+;
+
+aggSumWithAliasWithColumnRepeated
+SELECT gender AS g, gender, SUM(salary) AS s3, SUM(salary), SUM(salary) AS s5 FROM test_emp GROUP BY g;
+
+g:s  | gender:s  | s3:i  | SUM(salary):i | s5:i
+null |null       |487605 |487605         |487605
+F    |F          |1666196|1666196        |1666196
+M    |M          |2671054|2671054        |2671054
+;
+
+aggSumWithNumericRefWithColumnRepeated
+SELECT gender AS g, gender, SUM(salary) AS s3, SUM(salary), SUM(salary) AS s5 FROM test_emp GROUP BY 2;
+
+g:s  | gender:s  | s3:i  | SUM(salary):i | s5:i
+null |null       |487605 |487605         |487605
+F    |F          |1666196|1666196        |1666196
+M    |M          |2671054|2671054        |2671054
 ;
 
 aggByComplexCastedValue

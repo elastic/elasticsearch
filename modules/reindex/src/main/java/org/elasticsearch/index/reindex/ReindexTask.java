@@ -164,6 +164,7 @@ public class ReindexTask extends AllocatedPersistentTask {
                             @Override
                             public void onFailure(Exception ex) {
                                 logger.info("Failed to update task in cluster state to success", ex);
+                                // TODO: Lost a failure to write to index
                                 markEphemeralTaskFailed(shouldStoreResult, ex);
                             }
                         });

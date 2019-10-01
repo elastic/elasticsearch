@@ -1222,7 +1222,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> wait for the index to appear");
         //  that would mean that recovery process started and failing
-        assertThat(waitForIndex("test-idx", TimeValue.timeValueSeconds(10)), equalTo(true));
+        waitForIndex("test-idx", TimeValue.timeValueSeconds(10));
 
         logger.info("--> delete index");
         cluster().wipeIndices("test-idx");
@@ -2204,6 +2204,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertEquals("test-snap", response.getSnapshots().get(0).getSnapshot().getSnapshotId().getName());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/46276")
     public void testSnapshotRelocatingPrimary() throws Exception {
         Client client = client();
         logger.info("-->  creating repository");
@@ -2728,8 +2729,11 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         restoreFut.get();
     }
 
-    private boolean waitForIndex(final String index, TimeValue timeout) throws InterruptedException {
-        return awaitBusy(() -> indexExists(index), timeout.millis(), TimeUnit.MILLISECONDS);
+    private void waitForIndex(final String index, TimeValue timeout) throws Exception {
+        assertBusy(
+            () -> assertTrue("Expected index [" + index + "] to exist", indexExists(index)),
+            timeout.millis(),
+            TimeUnit.MILLISECONDS);
     }
 
     public void testSnapshotName() throws Exception {

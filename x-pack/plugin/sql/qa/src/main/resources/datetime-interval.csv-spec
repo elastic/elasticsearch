@@ -1,3 +1,5 @@
+// To mute tests follow example in file: example.csv-spec
+
 //
 // Unfortunately H2 doesn't support INTERVAL type,
 // hence why all INTERVAL tests need to be done manually

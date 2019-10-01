@@ -863,7 +863,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final String indexName = "test";
         client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)).get();
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
+            .put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(), 1.0)).get();
         ensureGreen(indexName);
 
         // Perform some replicated operations so the replica isn't simply empty, because ops-based recovery isn't better in that case

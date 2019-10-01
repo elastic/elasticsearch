@@ -498,6 +498,12 @@ final class RequestConverters {
         params.withRouting(countRequest.routing());
         params.withPreference(countRequest.preference());
         params.withIndicesOptions(countRequest.indicesOptions());
+        if (countRequest.terminateAfter() != 0){
+            params.withTerminateAfter(countRequest.terminateAfter());
+        }
+        if (countRequest.minScore() != null){
+            params.putParam("min_score", String.valueOf(countRequest.minScore()));
+        }
         request.addParameters(params.asMap());
         request.setEntity(createEntity(countRequest.source(), REQUEST_BODY_CONTENT_TYPE));
         return request;
@@ -906,6 +912,10 @@ final class RequestConverters {
                 return putParam("stored_fields", String.join(",", storedFields));
             }
             return this;
+        }
+
+        Params withTerminateAfter(int terminateAfter){
+            return putParam("terminate_after", String.valueOf(terminateAfter));
         }
 
         Params withTimeout(TimeValue timeout) {

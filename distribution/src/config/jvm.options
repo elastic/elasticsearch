@@ -43,7 +43,8 @@
 # 10-:-XX:-UseConcMarkSweepGC
 # 10-:-XX:-UseCMSInitiatingOccupancyOnly
 # 10-:-XX:+UseG1GC
-# 10-:-XX:InitiatingHeapOccupancyPercent=75
+# 10-:-XX:G1ReservePercent=25
+# 10-:-XX:InitiatingHeapOccupancyPercent=30
 
 ## DNS cache policy
 # cache ttl in seconds for positive DNS lookups noting that this overrides the

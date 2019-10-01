@@ -41,6 +41,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
     static final Duration MAX_DURATION = Duration.ofHours(8);
 
     private final ThreadPool threadPool;
+    private final String executor;
     private final Client client;
     private final ClusterService clusterService;
     private final Clock clock;
@@ -48,13 +49,15 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
     @Inject
     public TransportDeleteExpiredDataAction(ThreadPool threadPool, TransportService transportService,
                                             ActionFilters actionFilters, Client client, ClusterService clusterService) {
-        this(threadPool, transportService, actionFilters, client, clusterService, Clock.systemUTC());
+        this(threadPool, MachineLearning.UTILITY_THREAD_POOL_NAME, transportService, actionFilters, client, clusterService,
+            Clock.systemUTC());
     }
 
-    TransportDeleteExpiredDataAction(ThreadPool threadPool, TransportService transportService,
+    TransportDeleteExpiredDataAction(ThreadPool threadPool, String executor, TransportService transportService,
                                      ActionFilters actionFilters, Client client, ClusterService clusterService, Clock clock) {
-        super(DeleteExpiredDataAction.NAME, transportService, actionFilters, DeleteExpiredDataAction.Request::new);
+        super(DeleteExpiredDataAction.NAME, transportService, actionFilters, DeleteExpiredDataAction.Request::new, executor);
         this.threadPool = threadPool;
+        this.executor = executor;
         this.client = ClientHelper.clientWithOrigin(client, ClientHelper.ML_ORIGIN);
         this.clusterService = clusterService;
         this.clock = clock;
@@ -82,10 +85,10 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
         deleteExpiredData(dataRemoversIterator, listener, isTimedOutSupplier, true);
     }
 
-    private void deleteExpiredData(Iterator<MlDataRemover> mlDataRemoversIterator,
-                                   ActionListener<DeleteExpiredDataAction.Response> listener,
-                                   Supplier<Boolean> isTimedOutSupplier,
-                                   boolean haveAllPreviousDeletionsCompleted) {
+    void deleteExpiredData(Iterator<MlDataRemover> mlDataRemoversIterator,
+                           ActionListener<DeleteExpiredDataAction.Response> listener,
+                           Supplier<Boolean> isTimedOutSupplier,
+                           boolean haveAllPreviousDeletionsCompleted) {
         if (haveAllPreviousDeletionsCompleted && mlDataRemoversIterator.hasNext()) {
             MlDataRemover remover = mlDataRemoversIterator.next();
             ActionListener<Boolean> nextListener = ActionListener.wrap(
@@ -96,13 +99,13 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
             // the chained calls must all run the ML utility thread pool NOT the thread
             // the previous action returned in which in the case of a transport_client_boss
             // thread is a disaster.
-            remover.remove(new ThreadedActionListener<>(logger, threadPool, MachineLearning.UTILITY_THREAD_POOL_NAME, nextListener,
-                    false), isTimedOutSupplier);
+            remover.remove(new ThreadedActionListener<>(logger, threadPool, executor, nextListener, false),
+                isTimedOutSupplier);
         } else {
             if (haveAllPreviousDeletionsCompleted) {
-                logger.info("Completed deletion of expired data");
+                logger.info("Completed deletion of expired ML data");
             } else {
-                logger.info("Halted deletion of expired data until next invocation");
+                logger.info("Halted deletion of expired ML data until next invocation");
             }
             listener.onResponse(new DeleteExpiredDataAction.Response(haveAllPreviousDeletionsCompleted));
         }

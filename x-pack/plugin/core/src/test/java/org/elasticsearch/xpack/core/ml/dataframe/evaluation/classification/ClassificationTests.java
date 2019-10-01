@@ -190,7 +190,7 @@ public class ClassificationTests extends AbstractSerializingTestCase<Classificat
 
         @Override
         public List<AggregationBuilder> aggs(String actualField, String predictedField) {
-            return List.of();
+            return Collections.emptyList();
         }
 
         @Override

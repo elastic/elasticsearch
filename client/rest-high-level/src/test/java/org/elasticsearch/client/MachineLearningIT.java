@@ -1788,13 +1788,21 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             MulticlassConfusionMatrixMetric.Result mcmResult =
                 evaluateDataFrameResponse.getMetricByName(MulticlassConfusionMatrixMetric.NAME);
             assertThat(mcmResult.getMetricName(), equalTo(MulticlassConfusionMatrixMetric.NAME));
-            assertThat(
-                mcmResult.getConfusionMatrix(),
-                equalTo(
-                    Map.of(
-                        "cat", Map.of("cat", 3L, "dog", 1L, "horse", 0L, "_other_", 1L),
-                        "dog", Map.of("cat", 1L, "dog", 3L, "horse", 0L),
-                        "horse", Map.of("cat", 1L, "dog", 0L, "horse", 0L))));
+            Map<String, Map<String, Long>> expectedConfusionMatrix = new HashMap<>();
+            expectedConfusionMatrix.put("cat", new HashMap<>());
+            expectedConfusionMatrix.get("cat").put("cat", 3L);
+            expectedConfusionMatrix.get("cat").put("dog", 1L);
+            expectedConfusionMatrix.get("cat").put("horse", 0L);
+            expectedConfusionMatrix.get("cat").put("_other_", 1L);
+            expectedConfusionMatrix.put("dog", new HashMap<>());
+            expectedConfusionMatrix.get("dog").put("cat", 1L);
+            expectedConfusionMatrix.get("dog").put("dog", 3L);
+            expectedConfusionMatrix.get("dog").put("horse", 0L);
+            expectedConfusionMatrix.put("horse", new HashMap<>());
+            expectedConfusionMatrix.get("horse").put("cat", 1L);
+            expectedConfusionMatrix.get("horse").put("dog", 0L);
+            expectedConfusionMatrix.get("horse").put("horse", 0L);
+            assertThat(mcmResult.getConfusionMatrix(), equalTo(expectedConfusionMatrix));
             assertThat(mcmResult.getOtherClassesCount(), equalTo(0L));
         }
         {  // Explicit size provided for MulticlassConfusionMatrixMetric metric
@@ -1812,12 +1820,15 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             MulticlassConfusionMatrixMetric.Result mcmResult =
                 evaluateDataFrameResponse.getMetricByName(MulticlassConfusionMatrixMetric.NAME);
             assertThat(mcmResult.getMetricName(), equalTo(MulticlassConfusionMatrixMetric.NAME));
-            assertThat(
-                mcmResult.getConfusionMatrix(),
-                equalTo(
-                    Map.of(
-                        "cat", Map.of("cat", 3L, "dog", 1L, "_other_", 1L),
-                        "dog", Map.of("cat", 1L, "dog", 3L))));
+            Map<String, Map<String, Long>> expectedConfusionMatrix = new HashMap<>();
+            expectedConfusionMatrix.put("cat", new HashMap<>());
+            expectedConfusionMatrix.get("cat").put("cat", 3L);
+            expectedConfusionMatrix.get("cat").put("dog", 1L);
+            expectedConfusionMatrix.get("cat").put("_other_", 1L);
+            expectedConfusionMatrix.put("dog", new HashMap<>());
+            expectedConfusionMatrix.get("dog").put("cat", 1L);
+            expectedConfusionMatrix.get("dog").put("dog", 3L);
+            assertThat(mcmResult.getConfusionMatrix(), equalTo(expectedConfusionMatrix));
             assertThat(mcmResult.getOtherClassesCount(), equalTo(1L));
         }
     }

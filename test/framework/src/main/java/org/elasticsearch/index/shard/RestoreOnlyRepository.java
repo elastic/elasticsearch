@@ -97,10 +97,6 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     }
 
     @Override
-    public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData metaData) {
-    }
-
-    @Override
     public void finalizeSnapshot(SnapshotId snapshotId, ShardGenerations shardGenerations, long startTime, String failure,
                                  int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
                                  boolean includeGlobalState, MetaData metaData, Map<String, Object> userMetadata, Version version,

@@ -25,22 +25,21 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
-public class SearchParseException extends SearchContextException {
+public class SearchParseException extends SearchException {
 
     public static final int UNKNOWN_POSITION = -1;
     private final int lineNumber;
     private final int columnNumber;
 
-    public SearchParseException(SearchContext context, String msg, @Nullable XContentLocation location) {
-        this(context, msg, location, null);
+    public SearchParseException(SearchShardTarget shardTarget, String msg, @Nullable XContentLocation location) {
+        this(shardTarget, msg, location, null);
     }
 
-    public SearchParseException(SearchContext context, String msg, @Nullable XContentLocation location, Throwable cause) {
-        super(context, msg, cause);
+    public SearchParseException(SearchShardTarget shardTarget, String msg, @Nullable XContentLocation location, Throwable cause) {
+        super(shardTarget, msg, cause);
         int lineNumber = UNKNOWN_POSITION;
         int columnNumber = UNKNOWN_POSITION;
         if (location != null) {

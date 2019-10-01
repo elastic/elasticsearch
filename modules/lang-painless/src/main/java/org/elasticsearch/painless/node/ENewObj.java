@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -26,6 +27,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.symbol.FunctionTable;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
 
@@ -67,7 +69,7 @@ public final class ENewObj extends AExpression {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(FunctionTable functions, Locals locals) {
         actual = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
 
         if (actual == null) {
@@ -95,28 +97,28 @@ public final class ENewObj extends AExpression {
 
             expression.expected = types[argument];
             expression.internal = true;
-            expression.analyze(locals);
-            arguments.set(argument, expression.cast(locals));
+            expression.analyze(functions, locals);
+            arguments.set(argument, expression.cast(functions, locals));
         }
 
         statement = true;
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
 
-        writer.newInstance(MethodWriter.getType(actual));
+        methodWriter.newInstance(MethodWriter.getType(actual));
 
         if (read) {
-            writer.dup();
+            methodWriter.dup();
         }
 
         for (AExpression argument : arguments) {
-            argument.write(writer, globals);
+            argument.write(classWriter, methodWriter, globals);
         }
 
-        writer.invokeConstructor(
+        methodWriter.invokeConstructor(
                     Type.getType(constructor.javaConstructor.getDeclaringClass()), Method.getMethod(constructor.javaConstructor));
     }
 

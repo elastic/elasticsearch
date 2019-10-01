@@ -46,16 +46,17 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.transform.TransformNamedXContentProvider;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
-import org.elasticsearch.xpack.core.transform.action.GetTransformsAction;
-import org.elasticsearch.xpack.core.transform.action.GetTransformsStatsAction;
+import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
+import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.action.TransportDeleteTransformAction;
-import org.elasticsearch.xpack.transform.action.TransportGetTransformsAction;
-import org.elasticsearch.xpack.transform.action.TransportGetTransformsStatsAction;
+import org.elasticsearch.xpack.transform.action.TransportGetTransformAction;
+import org.elasticsearch.xpack.transform.action.TransportGetTransformStatsAction;
 import org.elasticsearch.xpack.transform.action.TransportPreviewTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportPutTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportStartTransformAction;
@@ -63,8 +64,8 @@ import org.elasticsearch.xpack.transform.action.TransportStopTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportUpdateTransformAction;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
-import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 import org.elasticsearch.xpack.transform.rest.action.RestDeleteTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestGetTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestGetTransformStatsAction;
@@ -143,8 +144,8 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
                 new ActionHandler<>(StartTransformAction.INSTANCE, TransportStartTransformAction.class),
                 new ActionHandler<>(StopTransformAction.INSTANCE, TransportStopTransformAction.class),
                 new ActionHandler<>(DeleteTransformAction.INSTANCE, TransportDeleteTransformAction.class),
-                new ActionHandler<>(GetTransformsAction.INSTANCE, TransportGetTransformsAction.class),
-                new ActionHandler<>(GetTransformsStatsAction.INSTANCE, TransportGetTransformsStatsAction.class),
+                new ActionHandler<>(GetTransformAction.INSTANCE, TransportGetTransformAction.class),
+                new ActionHandler<>(GetTransformStatsAction.INSTANCE, TransportGetTransformStatsAction.class),
                 new ActionHandler<>(PreviewTransformAction.INSTANCE, TransportPreviewTransformAction.class),
                 new ActionHandler<>(UpdateTransformAction.INSTANCE, TransportUpdateTransformAction.class),
                 usageAction,
@@ -183,12 +184,13 @@ public class Transform extends Plugin implements ActionPlugin, PersistentTaskPlu
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
         return templates -> {
             try {
-                templates.put(TransformInternalIndex.LATEST_INDEX_VERSIONED_NAME, TransformInternalIndex.getIndexTemplateMetaData());
+                templates.put(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME,
+                        TransformInternalIndex.getIndexTemplateMetaData());
             } catch (IOException e) {
                 logger.error("Error creating data frame index template", e);
             }
             try {
-                templates.put(TransformInternalIndex.AUDIT_INDEX, TransformInternalIndex.getAuditIndexTemplateMetaData());
+                templates.put(TransformInternalIndexConstants.AUDIT_INDEX, TransformInternalIndex.getAuditIndexTemplateMetaData());
             } catch (IOException e) {
                 logger.warn("Error creating data frame audit index", e);
             }

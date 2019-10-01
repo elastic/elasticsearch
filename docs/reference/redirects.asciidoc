@@ -779,7 +779,7 @@ See <<explain-analyze-api>>.
 
 [role="exclude",id="indices-synced-flush"]
 === Synced flush API
-See <<synced-flush-api>>.
+See <<indices-synced-flush-api>>.
 
 [role="exclude",id="_repositories"]
 === Snapshot repositories
@@ -909,3 +909,14 @@ See <<transform-source>>.
 ==== Pivot objects
 
 See <<transform-pivot>>.
+
+[role="exclude",id="configuring-monitoring"]
+=== Configuring monitoring
+
+See <<monitoring-overview>>.
+
+[role="exclude",id="es-monitoring"]
+=== Monitoring {es}
+
+See <<monitor-elasticsearch-cluster>>.
+

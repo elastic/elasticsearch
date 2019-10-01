@@ -20,13 +20,12 @@
 
 package org.elasticsearch.gradle.test
 
-
 import groovy.transform.CompileStatic
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
-import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
 import org.elasticsearch.gradle.precommit.PrecommitTasks
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.JavaVersion
 import org.gradle.api.Plugin
@@ -42,7 +41,6 @@ import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.api.tasks.testing.Test
 import org.gradle.plugins.ide.eclipse.model.EclipseModel
 import org.gradle.plugins.ide.idea.model.IdeaModel
-
 /**
  * Configures the build to compile tests against Elasticsearch's test framework
  * and run REST tests. Use BuildPlugin if you want to build main code as well
@@ -60,6 +58,7 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         }
         project.rootProject.pluginManager.apply(GlobalBuildInfoPlugin)
         project.pluginManager.apply(JavaBasePlugin)
+        project.pluginManager.apply(TestClustersPlugin)
 
         project.getTasks().create("buildResources", ExportElasticsearchBuildResourcesTask)
         BuildPlugin.configureRepositories(project)

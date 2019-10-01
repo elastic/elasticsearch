@@ -5,16 +5,15 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.softclassification;
 
-import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 
 import java.util.List;
 
-public interface SoftClassificationMetric extends ToXContentObject, NamedWriteable {
+public interface SoftClassificationMetric extends EvaluationMetric {
 
     /**
      * The information of a specific class
@@ -38,11 +37,6 @@ public interface SoftClassificationMetric extends ToXContentObject, NamedWriteab
     }
 
     /**
-     * Returns the name of the metric (which may differ to the writeable name)
-     */
-    String getMetricName();
-
-    /**
      * Builds the aggregation that collect required data to compute the metric
      * @param actualField the field that stores the actual class
      * @param classInfos the information of each class to compute the metric for
@@ -51,10 +45,9 @@ public interface SoftClassificationMetric extends ToXContentObject, NamedWriteab
     List<AggregationBuilder> aggs(String actualField, List<ClassInfo> classInfos);
 
     /**
-     * Calculates the metric result for a given class
+     * Processes given aggregations as a step towards computing result
      * @param classInfo the class to calculate the metric for
-     * @param aggs the aggregations
-     * @return the metric result
+     * @param aggs aggregations from {@link SearchResponse}
      */
-    EvaluationMetricResult evaluate(ClassInfo classInfo, Aggregations aggs);
+    void process(ClassInfo classInfo, Aggregations aggs);
 }

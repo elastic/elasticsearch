@@ -229,10 +229,6 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             modelVersion);
     }
 
-
-    public static class Definition {
-
-    }
     public static class Builder {
 
         private String modelId;

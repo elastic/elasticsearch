@@ -467,14 +467,15 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                 builder.endObject();
 
                 builder.startObject("mappings");
-                for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.getMappings()) {
+                MappingMetaData mmd = indexMetaData.mapping();
+                if (mmd != null) {
                     Map<String, Object> mapping = XContentHelper
-                            .convertToMap(new BytesArray(cursor.value.source().uncompressed()), false).v2();
-                    if (mapping.size() == 1 && mapping.containsKey(cursor.key)) {
+                            .convertToMap(new BytesArray(mmd.source().uncompressed()), false).v2();
+                    if (mapping.size() == 1 && mapping.containsKey(mmd.type())) {
                         // the type name is the root value, reduce it
-                        mapping = (Map<String, Object>) mapping.get(cursor.key);
+                        mapping = (Map<String, Object>) mapping.get(mmd.type());
                     }
-                    builder.field(cursor.key);
+                    builder.field(mmd.type());
                     builder.map(mapping);
                 }
                 builder.endObject();

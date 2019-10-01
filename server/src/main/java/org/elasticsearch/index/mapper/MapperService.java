@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
@@ -309,8 +308,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private synchronized Map<String, DocumentMapper> internalMerge(IndexMetaData indexMetaData,
                                                                    MergeReason reason, boolean onlyUpdateIfNeeded) {
         Map<String, CompressedXContent> map = new LinkedHashMap<>();
-        for (ObjectCursor<MappingMetaData> cursor : indexMetaData.getMappings().values()) {
-            MappingMetaData mappingMetaData = cursor.value;
+        MappingMetaData mappingMetaData = indexMetaData.mapping();
+        if (mappingMetaData != null) {
             if (onlyUpdateIfNeeded) {
                 DocumentMapper existingMapper = documentMapper(mappingMetaData.type());
                 if (existingMapper == null || mappingMetaData.source().equals(existingMapper.mappingSource()) == false) {

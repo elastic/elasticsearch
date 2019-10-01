@@ -68,10 +68,8 @@ public class GetRollupIndexCapsActionRequestTests extends AbstractWireSerializin
                     Collections.singletonMap("_meta",
                         Collections.singletonMap(RollupField.ROLLUP_META, jobs))));
 
-            ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder(1);
-            mappings.put(RollupField.TYPE_NAME, mappingMeta);
             IndexMetaData meta = Mockito.mock(IndexMetaData.class);
-            Mockito.when(meta.getMappings()).thenReturn(mappings.build());
+            Mockito.when(meta.mapping()).thenReturn(mappingMeta);
             indices.put("foo", meta);
         }
 
@@ -96,10 +94,8 @@ public class GetRollupIndexCapsActionRequestTests extends AbstractWireSerializin
                     Collections.singletonMap("_meta",
                         Collections.singletonMap(RollupField.ROLLUP_META, jobs))));
 
-            ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder(1);
-            mappings.put(RollupField.TYPE_NAME, mappingMeta);
             IndexMetaData meta = Mockito.mock(IndexMetaData.class);
-            Mockito.when(meta.getMappings()).thenReturn(mappings.build());
+            Mockito.when(meta.mapping()).thenReturn(mappingMeta);
             indices.put("rollup_" + indexName, meta);
         }
 
@@ -124,10 +120,8 @@ public class GetRollupIndexCapsActionRequestTests extends AbstractWireSerializin
                     Collections.singletonMap("_meta",
                         Collections.singletonMap(RollupField.ROLLUP_META, jobs))));
 
-            ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder(1);
-            mappings.put(RollupField.TYPE_NAME, mappingMeta);
             IndexMetaData meta = Mockito.mock(IndexMetaData.class);
-            Mockito.when(meta.getMappings()).thenReturn(mappings.build());
+            Mockito.when(meta.mapping()).thenReturn(mappingMeta);
             indices.put("rollup_" + indexName, meta);
         }
 
@@ -153,10 +147,8 @@ public class GetRollupIndexCapsActionRequestTests extends AbstractWireSerializin
                     Collections.singletonMap("_meta",
                         Collections.singletonMap(RollupField.ROLLUP_META, jobs))));
 
-            ImmutableOpenMap.Builder<String, MappingMetaData> mappings = ImmutableOpenMap.builder(1);
-            mappings.put(RollupField.TYPE_NAME, mappingMeta);
             IndexMetaData meta = Mockito.mock(IndexMetaData.class);
-            Mockito.when(meta.getMappings()).thenReturn(mappings.build());
+            Mockito.when(meta.mapping()).thenReturn(mappingMeta);
             indices.put("rollup_foo", meta);
         }
 

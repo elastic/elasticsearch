@@ -141,7 +141,7 @@ public class TaskResultsService {
     }
 
     private int getTaskResultMappingVersion(IndexMetaData metaData) {
-        MappingMetaData mappingMetaData = metaData.getMappings().get(TASK_TYPE);
+        MappingMetaData mappingMetaData = metaData.mapping();
         if (mappingMetaData == null) {
             return 0;
         }

@@ -521,11 +521,6 @@ public class MetaDataTests extends ESTestCase {
         }
         {
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = metaData.findMappings(new String[]{"index1"},
-                     new String[]{"notfound"}, MapperPlugin.NOOP_FIELD_FILTER);
-            assertEquals(0, mappings.size());
-        }
-        {
-            ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = metaData.findMappings(new String[]{"index1"},
                     Strings.EMPTY_ARRAY, MapperPlugin.NOOP_FIELD_FILTER);
             assertEquals(1, mappings.size());
             assertIndexMappingsNotFiltered(mappings, "index1");

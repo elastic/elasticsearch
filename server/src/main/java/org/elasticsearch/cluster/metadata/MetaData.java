@@ -58,6 +58,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestStatus;
 
@@ -375,34 +376,26 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
      * @see MapperPlugin#getFieldFilter()
      *
      */
+    // TODO remove types here entirely
     public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> findMappings(String[] concreteIndices,
                                                                                             final String[] types,
                                                                                             Function<String, Predicate<String>> fieldFilter)
             throws IOException {
-        assert types != null;
+
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
             return ImmutableOpenMap.of();
         }
 
-        boolean isAllTypes = isAllTypes(types);
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> indexMapBuilder = ImmutableOpenMap.builder();
         Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
             IndexMetaData indexMetaData = indices.get(index);
             Predicate<String> fieldPredicate = fieldFilter.apply(index);
-            if (isAllTypes) {
-                indexMapBuilder.put(index, filterFields(indexMetaData.getMappings(), fieldPredicate));
-            } else {
-                ImmutableOpenMap.Builder<String, MappingMetaData> filteredMappings = ImmutableOpenMap.builder();
-                for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.getMappings()) {
-                    if (Regex.simpleMatch(types, cursor.key)) {
-                        filteredMappings.put(cursor.key, filterFields(cursor.value, fieldPredicate));
-                    }
-                }
-                if (!filteredMappings.isEmpty()) {
-                    indexMapBuilder.put(index, filteredMappings.build());
-                }
+            if (indexMetaData.mapping() != null) {
+                ImmutableOpenMap.Builder<String, MappingMetaData> map = ImmutableOpenMap.builder(1);
+                map.put(MapperService.SINGLE_MAPPING_NAME, indexMetaData.mapping());
+                indexMapBuilder.put(index, filterFields(map.build(), fieldPredicate));
             }
         }
         return indexMapBuilder.build();

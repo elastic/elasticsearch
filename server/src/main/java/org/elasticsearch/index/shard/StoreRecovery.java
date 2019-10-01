@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.shard;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -111,8 +109,8 @@ final class StoreRecovery {
                 throw new IllegalArgumentException("can't add shards from more than one index");
             }
             IndexMetaData sourceMetaData = shards.get(0).getIndexMetaData();
-            for (ObjectObjectCursor<String, MappingMetaData> mapping : sourceMetaData.getMappings()) {
-                mappingUpdateConsumer.accept(mapping.key, mapping.value);
+            if (sourceMetaData.mapping() != null) {
+                mappingUpdateConsumer.accept(sourceMetaData.mapping().type(), sourceMetaData.mapping());
             }
             indexShard.mapperService().merge(sourceMetaData, MapperService.MergeReason.MAPPING_RECOVERY);
             // now that the mapping is merged we can validate the index sort configuration.

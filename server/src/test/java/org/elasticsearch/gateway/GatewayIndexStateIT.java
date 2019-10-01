@@ -93,7 +93,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> verify meta _routing required exists");
         MappingMetaData mappingMd = client().admin().cluster().prepareState().execute().actionGet().getState().metaData()
-            .index("test").getMappings().get("type1");
+            .index("test").mapping();
         assertThat(mappingMd.routing().required(), equalTo(true));
 
         logger.info("--> restarting nodes...");
@@ -103,8 +103,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         ensureYellow();
 
         logger.info("--> verify meta _routing required exists");
-        mappingMd = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test").getMappings()
-                .get("type1");
+        mappingMd = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test").mapping();
         assertThat(mappingMd.routing().required(), equalTo(true));
     }
 

@@ -265,7 +265,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                 } else {
                     node.defaultConfig.put("discovery.zen.master_election.wait_for_joins_timeout", "5s");
                     if (nodes.size() > 1) {
-                        node.defaultConfig.put("discovery.zen.minimum_master_nodes", nodes.size() / 2 + 1 + "");
+                        node.defaultConfig.put("discovery.zen.minimum_master_nodes", Integer.toString(nodes.size() / 2 + 1));
                     }
                     if (node.getVersion().onOrAfter("6.5.0")) {
                         node.defaultConfig.put("discovery.zen.hosts_provider", "file");

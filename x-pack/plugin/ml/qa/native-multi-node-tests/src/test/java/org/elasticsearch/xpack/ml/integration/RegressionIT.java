@@ -296,9 +296,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         // Wait until state is one of REINDEXING or ANALYZING, or until it is STOPPED.
         assertBusy(() -> {
             DataFrameAnalyticsState state = getAnalyticsStats(jobId).get(0).getState();
-            DataFrameAnalyticsState reindexingOrAnalyzing = randomFrom(
-                DataFrameAnalyticsState.REINDEXING, DataFrameAnalyticsState.ANALYZING);
-            assertThat(state, is(anyOf(equalTo(reindexingOrAnalyzing), equalTo(DataFrameAnalyticsState.STOPPED))));
+            assertThat(state, is(anyOf(equalTo(DataFrameAnalyticsState.REINDEXING), equalTo(DataFrameAnalyticsState.ANALYZING),
+                equalTo(DataFrameAnalyticsState.STOPPED))));
         });
         stopAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);

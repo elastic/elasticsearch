@@ -185,14 +185,23 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     }
 
     public void updateReindexTaskProgress(ActionListener<Void> listener) {
+        getReindexTaskProgress(ActionListener.wrap(
+            // We set reindexing progress at least to 1 for a running process to be able to
+            // distinguish a job that is running for the first time against a job that is restarting.
+            reindexTaskProgress -> {
+                progressTracker.reindexingPercent.set(Math.max(1, reindexTaskProgress));
+                listener.onResponse(null);
+            },
+            listener::onFailure
+        ));
+    }
+
+    private void getReindexTaskProgress(ActionListener<Integer> listener) {
         TaskId reindexTaskId = getReindexTaskId();
         if (reindexTaskId == null) {
             // The task is not present which means either it has not started yet or it finished.
             // We keep track of whether the task has finished so we can use that to tell whether the progress 100.
-            if (isReindexingFinished) {
-                progressTracker.reindexingPercent.set(100);
-            }
-            listener.onResponse(null);
+            listener.onResponse(isReindexingFinished ? 100 : 0);
             return;
         }
 
@@ -202,19 +211,14 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
             taskResponse -> {
                 TaskResult taskResult = taskResponse.getTask();
                 BulkByScrollTask.Status taskStatus = (BulkByScrollTask.Status) taskResult.getTask().getStatus();
-                int progress = taskStatus.getTotal() == 0 ?
-                    0 : Math.max(1, (int) (taskStatus.getCreated() * 100.0 / taskStatus.getTotal()));
-                progressTracker.reindexingPercent.set(progress);
-                listener.onResponse(null);
+                int progress = (int) (taskStatus.getCreated() * 100.0 / taskStatus.getTotal());
+                listener.onResponse(progress);
             },
             error -> {
                 if (error instanceof ResourceNotFoundException) {
                     // The task is not present which means either it has not started yet or it finished.
                     // We keep track of whether the task has finished so we can use that to tell whether the progress 100.
-                    if (isReindexingFinished) {
-                        progressTracker.reindexingPercent.set(100);
-                    }
-                    listener.onResponse(null);
+                    listener.onResponse(isReindexingFinished ? 100 : 0);
                 } else {
                     listener.onFailure(error);
                 }

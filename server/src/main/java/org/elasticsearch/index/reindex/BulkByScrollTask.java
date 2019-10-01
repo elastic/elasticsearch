@@ -71,7 +71,6 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class BulkByScrollTask extends CancellableTask {
 
-    private volatile Status committedStatus;
     private volatile LeaderBulkByScrollTaskState leaderState;
     private volatile WorkerBulkByScrollTaskState workerState;
 
@@ -81,14 +80,6 @@ public class BulkByScrollTask extends CancellableTask {
 
     @Override
     public BulkByScrollTask.Status getStatus() {
-        if (committedStatus != null) {
-            return committedStatus;
-        }
-
-        return getUncommittedStatus();
-    }
-
-    public Status getUncommittedStatus() {
         if (isLeader()) {
             return leaderState.getStatus();
         }
@@ -98,10 +89,6 @@ public class BulkByScrollTask extends CancellableTask {
         }
 
         return emptyStatus();
-    }
-
-    public void setCommittedStatus(Status committedStatus) {
-        this.committedStatus = committedStatus;
     }
 
     /**

@@ -41,23 +41,22 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
     private final ThreadPool threadPool;
     private final String persistentTaskId;
     private final long allocationId;
-    private final Consumer<BulkByScrollTask.Status> committedCallback;
+    private final ActionListener<ReindexTaskStateDoc> finishedListener;
+    private final Runnable onCancel;
     private ThrottlingConsumer<Tuple<ScrollableHitSource.Checkpoint, BulkByScrollTask.Status>> checkpointThrottler;
 
     private int assignmentAttempts = 0;
     private ReindexTaskState lastState;
-    private FinishedListener finishedListener;
     private AtomicBoolean isDone = new AtomicBoolean();
 
     public ReindexTaskStateUpdater(ReindexIndexClient reindexIndexClient, ThreadPool threadPool, String persistentTaskId, long allocationId,
-                                   Consumer<BulkByScrollTask.Status> committedCallback) {
+                                   ActionListener<ReindexTaskStateDoc> finishedListener, Runnable onCancel) {
         this.reindexIndexClient = reindexIndexClient;
         this.threadPool = threadPool;
         this.persistentTaskId = persistentTaskId;
         this.allocationId = allocationId;
-        // TODO: At some point I think we would like to replace a single universal callback to a listener that
-        //  is passed to the checkpoint method and handles the version conflict
-        this.committedCallback = committedCallback;
+        this.finishedListener = finishedListener;
+        this.onCancel = onCancel;
     }
 
     public void assign(ActionListener<ReindexTaskStateDoc> listener) {
@@ -122,10 +121,6 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
         });
     }
 
-    public void addFinishedListener(FinishedListener finishedListener) {
-        this.finishedListener = finishedListener;
-    }
-
     @Override
     public void onCheckpoint(ScrollableHitSource.Checkpoint checkpoint, BulkByScrollTask.Status status) {
         assert checkpointThrottler != null;
@@ -145,15 +140,15 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
             @Override
             public void onResponse(ReindexTaskState taskState) {
                 lastState = taskState;
-                committedCallback.accept(status);
                 whenDone.run();
             }
 
             @Override
             public void onFailure(Exception e) {
                 if (e instanceof VersionConflictEngineException) {
+                    // TODO: Need to ensure that the allocation has changed
                     if (isDone.compareAndSet(false, true)) {
-                        finishedListener.onCancelled();
+                        onCancel.run();
                     }
                 }
                 whenDone.run();
@@ -188,10 +183,5 @@ public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
                 finishedListener.onFailure(e);
             }
         });
-    }
-
-    public interface FinishedListener extends ActionListener<ReindexTaskStateDoc> {
-
-        void onCancelled();
     }
 }

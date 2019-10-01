@@ -141,6 +141,7 @@ import org.elasticsearch.painless.node.PField;
 import org.elasticsearch.painless.node.SBlock;
 import org.elasticsearch.painless.node.SBreak;
 import org.elasticsearch.painless.node.SCatch;
+import org.elasticsearch.painless.node.SClass;
 import org.elasticsearch.painless.node.SContinue;
 import org.elasticsearch.painless.node.SDeclBlock;
 import org.elasticsearch.painless.node.SDeclaration;
@@ -152,7 +153,6 @@ import org.elasticsearch.painless.node.SFunction;
 import org.elasticsearch.painless.node.SIf;
 import org.elasticsearch.painless.node.SIfElse;
 import org.elasticsearch.painless.node.SReturn;
-import org.elasticsearch.painless.node.SClass;
 import org.elasticsearch.painless.node.SThrow;
 import org.elasticsearch.painless.node.STry;
 import org.elasticsearch.painless.node.SWhile;
@@ -272,7 +272,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             statements.add((AStatement)visit(ctx.block().dstatement()));
         }
 
-        return new SFunction(location(ctx), rtnType, name, paramTypes, paramNames, statements, false);
+        return new SFunction(location(ctx), rtnType, name, paramTypes, paramNames, new SBlock(location(ctx), statements), false);
     }
 
     @Override

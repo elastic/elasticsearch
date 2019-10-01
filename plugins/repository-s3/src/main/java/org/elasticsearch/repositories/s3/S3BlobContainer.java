@@ -35,6 +35,7 @@ import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.model.UploadPartResult;
+import com.amazonaws.services.s3.model.SSEAlgorithm;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
@@ -290,7 +291,7 @@ class S3BlobContainer extends AbstractBlobContainer {
     /**
      * Uploads a blob using a single upload request
      */
-    void executeSingleUpload(final S3BlobStore blobStore,
+        void executeSingleUpload(final S3BlobStore blobStore,
                              final String blobName,
                              final InputStream input,
                              final long blobSize) throws IOException {
@@ -304,13 +305,21 @@ class S3BlobContainer extends AbstractBlobContainer {
         }
 
         final ObjectMetadata md = new ObjectMetadata();
+        final PutObjectRequest putRequest = new PutObjectRequest(blobStore.bucket(), blobName, input, md);
         md.setContentLength(blobSize);
         if (blobStore.serverSideEncryption()) {
-            md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
+            if (blobStore.sseAwsKeyIsEmpty()) {
+                md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
+            }else {
+                md.setSSEAlgorithm(SSEAlgorithm.KMS.getAlgorithm());
+                putRequest.setSSEAwsKeyManagementParams(blobStore.getSSEAwsKey());
+            }
         }
-        final PutObjectRequest putRequest = new PutObjectRequest(blobStore.bucket(), blobName, input, md);
+
         putRequest.setStorageClass(blobStore.getStorageClass());
         putRequest.setCannedAcl(blobStore.getCannedACL());
+
+        putRequest.setMetadata(md);
 
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             SocketAccess.doPrivilegedVoid(() -> {
@@ -358,7 +367,12 @@ class S3BlobContainer extends AbstractBlobContainer {
         initRequest.setCannedACL(blobStore.getCannedACL());
         if (blobStore.serverSideEncryption()) {
             final ObjectMetadata md = new ObjectMetadata();
-            md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
+            if (blobStore.sseAwsKeyIsEmpty())
+                md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
+                else {
+                md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
+                initRequest.withSSEAwsKeyManagementParams(blobStore.getSSEAwsKey());
+            }
             initRequest.setObjectMetadata(md);
         }
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {

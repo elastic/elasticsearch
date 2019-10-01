@@ -301,6 +301,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         stop(false);
         nodes.all(ElasticsearchNode::goToNextVersion);
         start();
+        writeUnicastHostsFiles();
     }
 
     public void nextNodeToNextVersion() {
@@ -366,9 +367,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     public void waitForAllConditions() {
-        LOGGER.info("Waiting for nodes");
-        nodes.forEach(ElasticsearchNode::waitForAllConditions);
-
         writeUnicastHostsFiles();
 
         LOGGER.info("Starting to wait for cluster to form");

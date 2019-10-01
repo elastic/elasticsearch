@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -18,7 +18,10 @@
  */
 package org.elasticsearch.client.ml.inference;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.client.ml.inference.preprocessing.FrequencyEncodingTests;
+import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncodingTests;
+import org.elasticsearch.client.ml.inference.preprocessing.TargetMeanEncodingTests;
+import org.elasticsearch.client.ml.inference.trainedmodel.tree.TreeTests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -26,18 +29,19 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 
-public class TrainedModelConfigTests extends AbstractXContentTestCase<TrainedModelConfig> {
+public class TrainedModelDefinitionTests extends AbstractXContentTestCase<TrainedModelDefinition> {
 
     @Override
-    protected TrainedModelConfig doParseInstance(XContentParser parser) throws IOException {
-        return TrainedModelConfig.fromXContent(parser).build();
+    protected TrainedModelDefinition doParseInstance(XContentParser parser) throws IOException {
+        return TrainedModelDefinition.fromXContent(parser).build();
     }
 
     @Override
@@ -50,18 +54,22 @@ public class TrainedModelConfigTests extends AbstractXContentTestCase<TrainedMod
         return field -> !field.isEmpty();
     }
 
+    public static TrainedModelDefinition.Builder createRandomBuilder() {
+        int numberOfProcessors = randomIntBetween(1, 10);
+        return new TrainedModelDefinition.Builder()
+            .setPreProcessors(
+                randomBoolean() ? null :
+                    Stream.generate(() -> randomFrom(FrequencyEncodingTests.createRandom(),
+                        OneHotEncodingTests.createRandom(),
+                        TargetMeanEncodingTests.createRandom()))
+                        .limit(numberOfProcessors)
+                        .collect(Collectors.toList()))
+            .setTrainedModel(randomFrom(TreeTests.createRandom()));
+    }
+
     @Override
-    protected TrainedModelConfig createTestInstance() {
-        return new TrainedModelConfig(
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            Version.CURRENT,
-            randomBoolean() ? null : randomAlphaOfLength(100),
-            Instant.ofEpochMilli(randomNonNegativeLong()),
-            randomBoolean() ? null : randomNonNegativeLong(),
-            randomAlphaOfLength(10),
-            randomBoolean() ? null : TrainedModelDefinitionTests.createRandomBuilder().build(),
-            randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+    protected TrainedModelDefinition createTestInstance() {
+        return createRandomBuilder().build();
     }
 
     @Override

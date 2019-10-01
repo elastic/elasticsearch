@@ -23,11 +23,16 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.MetaDataUpgrader;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * {@link GatewayMetaState} constructor accepts a lot of arguments.
@@ -55,6 +60,12 @@ public class MockGatewayMetaState extends GatewayMetaState {
     }
 
     public void start(Settings settings, NodeEnvironment nodeEnvironment, NamedXContentRegistry xContentRegistry) {
-        start(settings, null, null, new MetaStateService(nodeEnvironment, xContentRegistry), null, null);
+        final TransportService transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(mock(ThreadPool.class));
+        final ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings())
+            .thenReturn(new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        start(settings, transportService, clusterService, new MetaStateService(nodeEnvironment, xContentRegistry),
+            null, null);
     }
 }

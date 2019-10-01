@@ -70,19 +70,13 @@ public class TestingConventionsTasks extends DefaultTask {
     }
 
     @Input
-    public Map<String, Set<File>> classFilesPerEnabledTask(FileTree testClassFiles) {
-        Map<String, Set<File>> collector = new HashMap<>();
-
-        // Gradle Test
-        collector.putAll(
-            getProject().getTasks().withType(Test.class).stream()
-                .filter(Task::getEnabled)
-                .collect(Collectors.toMap(
-                    Task::getPath,
-                    task -> task.getCandidateClassFiles().getFiles()
-                ))
-        );
-        return Collections.unmodifiableMap(collector);
+    public Map<String, Set<File>> getClassFilesPerEnabledTask() {
+        return getProject().getTasks().withType(Test.class).stream()
+            .filter(Task::getEnabled)
+            .collect(Collectors.toMap(
+                Task::getPath,
+                task -> task.getCandidateClassFiles().getFiles()
+            ));
     }
 
     @Input
@@ -154,7 +148,7 @@ public class TestingConventionsTasks extends DefaultTask {
                     .collect(Collectors.toList())
             ).getAsFileTree();
 
-            final Map<String, Set<File>> classFilesPerTask = classFilesPerEnabledTask(allTestClassFiles);
+            final Map<String, Set<File>> classFilesPerTask = getClassFilesPerEnabledTask();
 
             final Map<String, Set<Class<?>>> testClassesPerTask = classFilesPerTask.entrySet().stream()
                 .collect(

@@ -1,3 +1,5 @@
+// To mute tests follow example in file: example.csv-spec
+
 //
 // Commands
 //
@@ -39,6 +41,7 @@ CURRENT_DATE     |SCALAR
 CURRENT_TIME     |SCALAR
 CURRENT_TIMESTAMP|SCALAR
 CURTIME          |SCALAR
+DATETRUNC        |SCALAR
 DATE_TRUNC       |SCALAR
 DAY              |SCALAR
 DAYNAME          |SCALAR

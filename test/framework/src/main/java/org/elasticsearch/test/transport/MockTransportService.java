@@ -99,6 +99,10 @@ public final class MockTransportService extends TransportService {
         }
     }
 
+    public static MockTransportService createNewService(Settings settings, Version version, ThreadPool threadPool) {
+        return createNewService(settings, version, threadPool, null);
+    }
+
     public static MockTransportService createNewService(Settings settings, Version version, ThreadPool threadPool,
                                                         @Nullable ClusterSettings clusterSettings) {
         MockNioTransport mockTransport = newMockTransport(settings, version, threadPool);
@@ -463,7 +467,7 @@ public final class MockTransportService extends TransportService {
      * @return {@code true} if no other get connection behavior was registered for this address before.
      */
     public boolean addGetConnectionBehavior(TransportAddress transportAddress, StubbableConnectionManager.GetConnectionBehavior behavior) {
-        return connectionManager().addConnectBehavior(transportAddress, behavior);
+        return connectionManager().addGetConnectionBehavior(transportAddress, behavior);
     }
 
     /**

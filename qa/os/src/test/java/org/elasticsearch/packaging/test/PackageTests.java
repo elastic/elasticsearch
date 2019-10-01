@@ -121,15 +121,21 @@ public class PackageTests extends PackagingTestCase {
     public void test33RunsIfJavaNotOnPath() throws Exception {
         assumeThat(distribution().hasJdk, is(true));
 
-        // we don't require java be installed for the tests, but remove it if it's there
-        // since we don't require it for the tests, don't bother restoring it
+        // we don't require java be installed but some images have it
+        String backupPath = "/usr/bin/java." + getClass().getSimpleName() + ".bak";
         if (Files.exists(Paths.get("/usr/bin/java"))) {
-            sh.run("sudo rm -f /usr/bin/java");
+            sh.run("sudo mv /usr/bin/java " + backupPath);
         }
 
-        startElasticsearch(sh, installation);
-        runElasticsearchTests();
-        stopElasticsearch(sh);
+        try {
+            startElasticsearch(sh, installation);
+            runElasticsearchTests();
+            stopElasticsearch(sh);
+        } finally {
+            if (Files.exists(Paths.get(backupPath))) {
+                sh.run("sudo mv " + backupPath + " /usr/bin/java");
+            }
+        }
     }
 
     public void test42BundledJdkRemoved() throws Exception {

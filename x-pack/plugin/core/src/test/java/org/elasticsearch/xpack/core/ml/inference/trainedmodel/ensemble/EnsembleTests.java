@@ -33,6 +33,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
@@ -66,11 +67,10 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         List<TrainedModel> models = Stream.generate(() -> TreeTests.buildRandomTree(featureNames, 6))
             .limit(numberOfModels)
             .collect(Collectors.toList());
-        OutputAggregator outputAggregator = null;
-        if (randomBoolean()) {
-            List<Double> weights = Stream.generate(ESTestCase::randomDouble).limit(numberOfModels).collect(Collectors.toList());
-            outputAggregator = randomFrom(new WeightedMode(weights), new WeightedSum(weights));
-        }
+        List<Double> weights = randomBoolean() ?
+            null :
+            Stream.generate(ESTestCase::randomDouble).limit(numberOfModels).collect(Collectors.toList());
+        OutputAggregator outputAggregator = randomFrom(new WeightedMode(weights), new WeightedSum(weights));
         List<String> categoryLabels = null;
         if (randomBoolean()) {
             categoryLabels = Arrays.asList(generateRandomStringArray(randomIntBetween(1, 10), randomIntBetween(1, 10), false, false));
@@ -176,7 +176,8 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
 
     public void testEnsembleWithTargetTypeAndLabelsMismatch() {
         List<String> featureNames = Arrays.asList("foo", "bar");
-        expectThrows(ElasticsearchException.class, () -> {
+        String msg = "[target_type] should be [classification] if [classification_labels] is provided, and vice versa";
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> {
             Ensemble.builder()
                 .setFeatureNames(featureNames)
                 .setTrainedModels(Arrays.asList(
@@ -191,7 +192,8 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
                 .build()
                 .validate();
         });
-        expectThrows(ElasticsearchException.class, () -> {
+        assertThat(ex.getMessage(), equalTo(msg));
+        ex = expectThrows(ElasticsearchException.class, () -> {
             Ensemble.builder()
                 .setFeatureNames(featureNames)
                 .setTrainedModels(Arrays.asList(
@@ -206,6 +208,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
                 .build()
                 .validate();
         });
+        assertThat(ex.getMessage(), equalTo(msg));
     }
 
     public void testClassificationProbability() {
@@ -254,10 +257,11 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
 
         List<Double> featureVector = Arrays.asList(0.4, 0.0);
         Map<String, Object> featureMap = zipObjMap(featureNames, featureVector);
-        List<Double> expected = Arrays.asList(0.23147521, 0.768524783);
+        List<Double> expected = Arrays.asList(0.231475216, 0.768524783);
+        double eps = 0.000001;
         List<Double> probabilities = ensemble.classificationProbability(featureMap);
         for(int i = 0; i < expected.size(); i++) {
-            assertEquals(expected.get(i), probabilities.get(i), 0.000001);
+            assertThat(probabilities.get(i), closeTo(expected.get(i), eps));
         }
 
         featureVector = Arrays.asList(2.0, 0.7);
@@ -265,7 +269,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         expected = Arrays.asList(0.3100255188, 0.689974481);
         probabilities = ensemble.classificationProbability(featureMap);
         for(int i = 0; i < expected.size(); i++) {
-            assertEquals(expected.get(i), probabilities.get(i), 0.000001);
+            assertThat(probabilities.get(i), closeTo(expected.get(i), eps));
         }
 
         featureVector = Arrays.asList(0.0, 1.0);
@@ -273,7 +277,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         expected = Arrays.asList(0.231475216, 0.768524783);
         probabilities = ensemble.classificationProbability(featureMap);
         for(int i = 0; i < expected.size(); i++) {
-            assertEquals(expected.get(i), probabilities.get(i), 0.000001);
+            assertThat(probabilities.get(i), closeTo(expected.get(i), eps));
         }
     }
 
@@ -376,6 +380,7 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         featureMap = zipObjMap(featureNames, featureVector);
         assertEquals(0.5, ensemble.infer(featureMap), 0.00001);
 
+        // Test with NO aggregator supplied, verifies default behavior of non-weighted sum
         ensemble = Ensemble.builder()
             .setTargetType(TargetType.REGRESSION)
             .setFeatureNames(featureNames)

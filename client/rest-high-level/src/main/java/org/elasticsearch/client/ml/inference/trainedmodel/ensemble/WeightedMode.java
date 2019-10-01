@@ -41,7 +41,7 @@ public class WeightedMode implements OutputAggregator {
         true,
         a -> new WeightedMode((List<Double>)a[0]));
     static {
-        PARSER.declareDoubleArray(ConstructingObjectParser.constructorArg(), WEIGHTS);
+        PARSER.declareDoubleArray(ConstructingObjectParser.optionalConstructorArg(), WEIGHTS);
     }
 
     public static WeightedMode fromXContent(XContentParser parser) {

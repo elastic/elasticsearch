@@ -32,7 +32,7 @@ public class WeightedModeTests extends WeightedAggregatorTests<WeightedMode> {
 
     @Override
     protected WeightedMode createTestInstance() {
-        return createTestInstance(randomIntBetween(1, 100));
+        return randomBoolean() ? new WeightedMode() : createTestInstance(randomIntBetween(1, 100));
     }
 
     @Override
@@ -51,5 +51,8 @@ public class WeightedModeTests extends WeightedAggregatorTests<WeightedMode> {
 
         weightedMode = new WeightedMode(variedWeights);
         assertThat(weightedMode.aggregate(weightedMode.processValues(values)), equalTo(5.0));
+
+        weightedMode = new WeightedMode();
+        assertThat(weightedMode.aggregate(weightedMode.processValues(values)), equalTo(2.0));
     }
 }

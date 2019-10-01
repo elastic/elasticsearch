@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -36,7 +35,7 @@ public class WeightedSum implements StrictlyParsedOutputAggregator, LenientlyPar
             NAME.getPreferredName(),
             lenient,
             a -> new WeightedSum((List<Double>)a[0]));
-        parser.declareDoubleArray(ConstructingObjectParser.constructorArg(), WEIGHTS);
+        parser.declareDoubleArray(ConstructingObjectParser.optionalConstructorArg(), WEIGHTS);
         return parser;
     }
 
@@ -50,17 +49,28 @@ public class WeightedSum implements StrictlyParsedOutputAggregator, LenientlyPar
 
     private final List<Double> weights;
 
+    WeightedSum() {
+        this.weights = null;
+    }
+
     public WeightedSum(List<Double> weights) {
-        this.weights = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(weights, WEIGHTS.getPreferredName()));
+        this.weights = weights == null ? null : Collections.unmodifiableList(weights);
     }
 
     public WeightedSum(StreamInput in) throws IOException {
-        this.weights = Collections.unmodifiableList(in.readList(StreamInput::readDouble));
+        if (in.readBoolean()) {
+            this.weights = Collections.unmodifiableList(in.readList(StreamInput::readDouble));
+        } else {
+            this.weights = null;
+        }
     }
 
     @Override
     public List<Double> processValues(List<Double> values) {
         Objects.requireNonNull(values, "values must not be null");
+        if (weights == null) {
+            return values;
+        }
         if (values.size() != weights.size()) {
             throw new IllegalArgumentException("values must be the same length as weights.");
         }
@@ -70,7 +80,10 @@ public class WeightedSum implements StrictlyParsedOutputAggregator, LenientlyPar
     @Override
     public double aggregate(List<Double> values) {
         Objects.requireNonNull(values, "values must not be null");
-        Optional<Double> summation = values.stream().reduce((memo, v) -> memo + v);
+        if (values.isEmpty()) {
+            throw new IllegalArgumentException("values must not be empty");
+        }
+        Optional<Double> summation = values.stream().reduce(Double::sum);
         if (summation.isPresent()) {
             return summation.get();
         }
@@ -89,13 +102,18 @@ public class WeightedSum implements StrictlyParsedOutputAggregator, LenientlyPar
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(weights, StreamOutput::writeDouble);
+        out.writeBoolean(weights != null);
+        if (weights != null) {
+            out.writeCollection(weights, StreamOutput::writeDouble);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(WEIGHTS.getPreferredName(), weights);
+        if (weights != null) {
+            builder.field(WEIGHTS.getPreferredName(), weights);
+        }
         builder.endObject();
         return builder;
     }
@@ -115,6 +133,6 @@ public class WeightedSum implements StrictlyParsedOutputAggregator, LenientlyPar
 
     @Override
     public Integer expectedValueSize() {
-        return this.weights.size();
+        return weights == null ? null : this.weights.size();
     }
 }

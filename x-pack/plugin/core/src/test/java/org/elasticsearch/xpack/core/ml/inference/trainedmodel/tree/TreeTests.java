@@ -218,28 +218,31 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
 
     public void testTreeWithTargetTypeAndLabelsMismatch() {
         List<String> featureNames = Arrays.asList("foo", "bar");
-        expectThrows(ElasticsearchException.class, () -> {
+        String msg = "[target_type] should be [classification] if [classification_labels] is provided, and vice versa";
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> {
             Tree.builder()
                 .setRoot(TreeNode.builder(0)
                         .setLeftChild(1)
                         .setSplitFeature(1)
                         .setThreshold(randomDouble()))
-                .setFeatureNames(Arrays.asList("foo", "bar"))
+                .setFeatureNames(featureNames)
                 .setClassificationLabels(Arrays.asList("label1", "label2"))
                 .build()
                 .validate();
         });
-        expectThrows(ElasticsearchException.class, () -> {
+        assertThat(ex.getMessage(), equalTo(msg));
+        ex = expectThrows(ElasticsearchException.class, () -> {
             Tree.builder()
                 .setRoot(TreeNode.builder(0)
                     .setLeftChild(1)
                     .setSplitFeature(1)
                     .setThreshold(randomDouble()))
-                .setFeatureNames(Arrays.asList("foo", "bar"))
+                .setFeatureNames(featureNames)
                 .setTargetType(TargetType.CLASSIFICATION)
                 .build()
                 .validate();
         });
+        assertThat(ex.getMessage(), equalTo(msg));
     }
 
     private static Map<String, Object> zipObjMap(List<String> keys, List<Double> values) {

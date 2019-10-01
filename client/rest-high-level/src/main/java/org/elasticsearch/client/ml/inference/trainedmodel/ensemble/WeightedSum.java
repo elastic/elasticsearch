@@ -41,7 +41,7 @@ public class WeightedSum implements OutputAggregator {
         a -> new WeightedSum((List<Double>)a[0]));
 
     static {
-        PARSER.declareDoubleArray(ConstructingObjectParser.constructorArg(), WEIGHTS);
+        PARSER.declareDoubleArray(ConstructingObjectParser.optionalConstructorArg(), WEIGHTS);
     }
 
     public static WeightedSum fromXContent(XContentParser parser) {

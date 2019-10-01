@@ -33,6 +33,7 @@ import java.util.stream.Collectors;
 
 public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedModel {
 
+    // TODO should we have regression/classification sub-classes that accept the builder?
     public static final ParseField NAME = new ParseField("tree");
 
     public static final ParseField FEATURE_NAMES = new ParseField("feature_names");
@@ -228,7 +229,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
     @Override
     public void validate() {
         checkTargetType();
-        detectNullOrMissingNode();
+        detectMissingNodes();
         detectCycle();
     }
 
@@ -243,7 +244,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         if (nodes.isEmpty()) {
             return;
         }
-        Set<Integer> visited = new HashSet<>();
+        Set<Integer> visited = new HashSet<>(nodes.size());
         Queue<Integer> toVisit = new ArrayDeque<>(nodes.size());
         toVisit.add(0);
         while(toVisit.isEmpty() == false) {
@@ -262,7 +263,7 @@ public class Tree implements LenientlyParsedTrainedModel, StrictlyParsedTrainedM
         }
     }
 
-    private void detectNullOrMissingNode() {
+    private void detectMissingNodes() {
         if (nodes.isEmpty()) {
             return;
         }

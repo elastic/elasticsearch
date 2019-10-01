@@ -142,11 +142,11 @@ public class Ensemble implements TrainedModel {
     }
 
     public static class Builder {
-        List<String> featureNames;
-        List<TrainedModel> trainedModels;
-        OutputAggregator outputAggregator;
-        TargetType targetType;
-        List<String> classificationLabels;
+        private List<String> featureNames;
+        private List<TrainedModel> trainedModels;
+        private OutputAggregator outputAggregator;
+        private TargetType targetType;
+        private List<String> classificationLabels;
 
         public Builder setFeatureNames(List<String> featureNames) {
             this.featureNames = featureNames;

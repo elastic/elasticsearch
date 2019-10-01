@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 
 public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrainedModel {
 
+    // TODO should we have regression/classification sub-classes that accept the builder?
     public static final ParseField NAME = new ParseField("ensemble");
     public static final ParseField FEATURE_NAMES = new ParseField("feature_names");
     public static final ParseField TRAINED_MODELS = new ParseField("trained_models");
@@ -77,12 +78,12 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
 
     Ensemble(List<String> featureNames,
              List<TrainedModel> models,
-             @Nullable OutputAggregator outputAggregator,
+             OutputAggregator outputAggregator,
              TargetType targetType,
              @Nullable List<String> classificationLabels) {
         this.featureNames = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(featureNames, FEATURE_NAMES));
         this.models = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(models, TRAINED_MODELS));
-        this.outputAggregator = outputAggregator;
+        this.outputAggregator = ExceptionsHelper.requireNonNull(outputAggregator, AGGREGATE_OUTPUT);
         this.targetType = ExceptionsHelper.requireNonNull(targetType, TARGET_TYPE);
         this.classificationLabels = classificationLabels == null ? null : Collections.unmodifiableList(classificationLabels);
     }
@@ -90,7 +91,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     public Ensemble(StreamInput in) throws IOException {
         this.featureNames = Collections.unmodifiableList(in.readStringList());
         this.models = Collections.unmodifiableList(in.readNamedWriteableList(TrainedModel.class));
-        this.outputAggregator = in.readOptionalNamedWriteable(OutputAggregator.class);
+        this.outputAggregator = in.readNamedWriteable(OutputAggregator.class);
         this.targetType = TargetType.fromStream(in);
         if (in.readBoolean()) {
             this.classificationLabels = in.readStringList();
@@ -113,10 +114,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     @Override
     public double infer(List<Double> fields) {
         List<Double> processedInferences = inferAndProcess(fields);
-        if (outputAggregator != null) {
-            return outputAggregator.aggregate(processedInferences);
-        }
-        return processedInferences.stream().mapToDouble(Double::doubleValue).sum();
+        return outputAggregator.aggregate(processedInferences);
     }
 
     @Override
@@ -150,10 +148,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
 
     private List<Double> inferAndProcess(List<Double> fields) {
         List<Double> modelInferences = models.stream().map(m -> m.infer(fields)).collect(Collectors.toList());
-        if (outputAggregator != null) {
-            return outputAggregator.processValues(modelInferences);
-        }
-        return modelInferences;
+        return outputAggregator.processValues(modelInferences);
     }
 
     @Override
@@ -165,7 +160,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringCollection(featureNames);
         out.writeNamedWriteableList(models);
-        out.writeOptionalNamedWriteable(outputAggregator);
+        out.writeNamedWriteable(outputAggregator);
         targetType.writeTo(out);
         out.writeBoolean(classificationLabels != null);
         if (classificationLabels != null) {
@@ -183,13 +178,11 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         builder.startObject();
         builder.field(FEATURE_NAMES.getPreferredName(), featureNames);
         NamedXContentObjectHelper.writeNamedObjects(builder, params, true, TRAINED_MODELS.getPreferredName(), models);
-        if (outputAggregator != null) {
-            NamedXContentObjectHelper.writeNamedObjects(builder,
-                params,
-                false,
-                AGGREGATE_OUTPUT.getPreferredName(),
-                Collections.singletonList(outputAggregator));
-        }
+        NamedXContentObjectHelper.writeNamedObjects(builder,
+            params,
+            false,
+            AGGREGATE_OUTPUT.getPreferredName(),
+            Collections.singletonList(outputAggregator));
         builder.field(TARGET_TYPE.getPreferredName(), targetType.toString());
         if (classificationLabels != null) {
             builder.field(CLASSIFICATION_LABELS.getPreferredName(), classificationLabels);
@@ -226,8 +219,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
                     TRAINED_MODELS.getPreferredName());
             }
         }
-        if (outputAggregator != null &&
-            outputAggregator.expectedValueSize() != null &&
+        if (outputAggregator.expectedValueSize() != null &&
             outputAggregator.expectedValueSize() != models.size()) {
             throw ExceptionsHelper.badRequestException(
                 "[{}] expects value array of size [{}] but number of models is [{}]",
@@ -247,12 +239,12 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     }
 
     public static class Builder {
-        List<String> featureNames;
-        List<TrainedModel> trainedModels;
-        OutputAggregator outputAggregator;
-        TargetType targetType = TargetType.REGRESSION;
-        List<String> classificationLabels;
-        boolean modelsAreOrdered;
+        private List<String> featureNames;
+        private List<TrainedModel> trainedModels;
+        private OutputAggregator outputAggregator = new WeightedSum();
+        private TargetType targetType = TargetType.REGRESSION;
+        private List<String> classificationLabels;
+        private boolean modelsAreOrdered;
 
         private Builder (boolean modelsAreOrdered) {
             this.modelsAreOrdered = modelsAreOrdered;
@@ -277,7 +269,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         }
 
         public Builder setOutputAggregator(OutputAggregator outputAggregator) {
-            this.outputAggregator = outputAggregator;
+            this.outputAggregator = ExceptionsHelper.requireNonNull(outputAggregator, AGGREGATE_OUTPUT);
             return this;
         }
 
@@ -292,7 +284,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
         }
 
         private void setOutputAggregatorFromParser(List<OutputAggregator> outputAggregators) {
-            if ((outputAggregators.size() == 1) == false) {
+            if (outputAggregators.size() != 1) {
                 throw ExceptionsHelper.badRequestException("[{}] must have exactly one aggregator defined.",
                     AGGREGATE_OUTPUT.getPreferredName());
             }

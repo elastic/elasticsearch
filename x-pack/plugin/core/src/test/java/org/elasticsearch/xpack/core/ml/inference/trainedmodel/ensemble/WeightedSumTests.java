@@ -32,7 +32,7 @@ public class WeightedSumTests extends WeightedAggregatorTests<WeightedSum> {
 
     @Override
     protected WeightedSum createTestInstance() {
-        return createTestInstance(randomIntBetween(1, 100));
+        return randomBoolean() ? new WeightedSum() : createTestInstance(randomIntBetween(1, 100));
     }
 
     @Override
@@ -51,5 +51,8 @@ public class WeightedSumTests extends WeightedAggregatorTests<WeightedSum> {
 
         weightedSum = new WeightedSum(variedWeights);
         assertThat(weightedSum.aggregate(weightedSum.processValues(values)), equalTo(28.0));
+
+        weightedSum = new WeightedSum();
+        assertThat(weightedSum.aggregate(weightedSum.processValues(values)), equalTo(13.0));
     }
 }

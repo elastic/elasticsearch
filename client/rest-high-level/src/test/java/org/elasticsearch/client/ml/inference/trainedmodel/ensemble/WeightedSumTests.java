@@ -45,7 +45,7 @@ public class WeightedSumTests extends AbstractXContentTestCase<WeightedSum> {
 
     @Override
     protected WeightedSum createTestInstance() {
-        return createTestInstance(randomIntBetween(1, 100));
+        return randomBoolean() ? new WeightedSum(null) : createTestInstance(randomIntBetween(1, 100));
     }
 
 }

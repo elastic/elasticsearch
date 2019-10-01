@@ -21,7 +21,6 @@ package org.elasticsearch.client.ml.inference.trainedmodel.ensemble;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.WeightedMode;
 
 import java.io.IOException;
 import java.util.stream.Collectors;
@@ -36,7 +35,7 @@ public class WeightedModeTests extends AbstractXContentTestCase<WeightedMode> {
 
     @Override
     protected WeightedMode doParseInstance(XContentParser parser) throws IOException {
-        return WeightedMode.fromXContentLenient(parser);
+        return WeightedMode.fromXContent(parser);
     }
 
     @Override
@@ -46,7 +45,7 @@ public class WeightedModeTests extends AbstractXContentTestCase<WeightedMode> {
 
     @Override
     protected WeightedMode createTestInstance() {
-        return createTestInstance(randomIntBetween(1, 100));
+        return randomBoolean() ? new WeightedMode(null) : createTestInstance(randomIntBetween(1, 100));
     }
 
 }

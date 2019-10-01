@@ -76,8 +76,10 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
 
     @Before
     public void waitForMlTemplates() throws Exception {
-        List<String> templatesToWaitFor = XPackRestTestConstants.ML_POST_V660_TEMPLATES;
-        XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor);
+        if (getOldClusterVersion().onOrAfter(Version.V_6_6_0)) {
+            List<String> templatesToWaitFor = XPackRestTestConstants.ML_POST_V660_TEMPLATES;
+            XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor);
+        }
     }
 
     public void testMlConfigIndexMappingsAfterMigration() throws Exception {

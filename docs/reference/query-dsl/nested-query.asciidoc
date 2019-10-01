@@ -19,11 +19,11 @@ the root parent document.
 To use the `nested` query, your index must include a <<nested,nested>> field
 mapping. For example:
 
-[source,js]
+[source,console]
 ----
 PUT /my_index
 {
-    "mappings": {
+    "mappings" : {
         "properties" : {
             "obj1" : {
                 "type" : "nested"
@@ -33,17 +33,15 @@ PUT /my_index
 }
 
 ----
-// CONSOLE
-// TESTSETUP
 
 [[nested-query-ex-query]]
 ===== Example query
 
-[source,js]
+[source,console]
 ----
 GET /my_index/_search
 {
-    "query": {
+    "query":  {
         "nested" : {
             "path" : "obj1",
             "query" : {
@@ -59,7 +57,7 @@ GET /my_index/_search
     }
 }
 ----
-// CONSOLE
+// TEST[continued]
 
 [[nested-top-level-params]]
 ==== Top-level parameters for `nested`
@@ -80,6 +78,8 @@ such as `obj1.name`.
 Multi-level nesting is automatically supported, and detected, resulting in an
 inner nested query to automatically match the relevant nesting level, rather
 than root, if it exists within another nested query.
+
+See <<multi-level-nested-query-ex>> for an example.
 --
 
 `score_mode`::
@@ -117,3 +117,160 @@ If `false`, {es} returns an error if the `path` is an unmapped field.
 You can use this parameter to query multiple indices that may not contain the
 field `path`.
 --
+
+[[nested-query-notes]]
+==== Notes
+
+[[multi-level-nested-query-ex]]
+===== Multi-level nested queries
+
+To see how multi-level nested queries work,
+first you need an index that has nested fields.
+The following request defines mappings for the `drivers` index
+with nested `make` and `model` fields.
+
+[source,console]
+----
+PUT /drivers
+{
+    "mappings" : {
+        "properties" : {
+            "driver" : {
+                "type" : "nested",
+                "properties" : {
+                    "last_name" : {
+                        "type" : "text"
+                    },
+                    "vehicle" : {
+                        "type" : "nested",
+                        "properties" : {
+                            "make" : {
+                                "type" : "text"
+                            },
+                            "model" : {
+                                "type" : "text"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+----
+
+Next, index some documents to the `drivers` index.
+
+[source,console]
+----
+PUT /drivers/_doc/1
+{
+  "driver" : {
+        "last_name" : "McQueen",
+        "vehicle" : [
+            {
+                "make" : "Powell Motors",
+                "model" : "Canyonero"
+            },
+            {
+                "make" : "Miller-Meteor",
+                "model" : "Ecto-1"
+            }
+        ]
+    }
+}
+
+PUT /drivers/_doc/2?refresh
+{
+  "driver" : {
+        "last_name" : "Hudson",
+        "vehicle" : [
+            {
+                "make" : "Mifune",
+                "model" : "Mach Five"
+            },
+            {
+                "make" : "Miller-Meteor",
+                "model" : "Ecto-1"
+            }
+        ]
+    }
+}
+----
+// TEST[continued]
+
+You can now use a multi-level nested query
+to match documents based on the `make` and `model` fields.
+
+[source,console]
+----
+GET /drivers/_search
+{
+    "query" : {
+        "nested" : {
+            "path" : "driver",
+            "query" : {
+                "nested" : {
+                    "path" :  "driver.vehicle",
+                    "query" :  {
+                        "bool" : {
+                            "must" : [
+                                { "match" : { "driver.vehicle.make" : "Powell Motors" } },
+                                { "match" : { "driver.vehicle.model" : "Canyonero" } }
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+----
+// TEST[continued]
+
+The search request returns the following response:
+
+[source,console-result]
+----
+{
+  "took" : 5,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 1,
+      "relation" : "eq"
+    },
+    "max_score" : 3.7349272,
+    "hits" : [
+      {
+        "_index" : "drivers",
+        "_type" : "_doc",
+        "_id" : "1",
+        "_score" : 3.7349272,
+        "_source" : {
+          "driver" : {
+            "last_name" : "McQueen",
+            "vehicle" : [
+              {
+                "make" : "Powell Motors",
+                "model" : "Canyonero"
+              },
+              {
+                "make" : "Miller-Meteor",
+                "model" : "Ecto-1"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took" : 5/"took": $body.took/]

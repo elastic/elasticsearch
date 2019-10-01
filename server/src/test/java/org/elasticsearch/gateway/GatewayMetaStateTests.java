@@ -199,7 +199,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
                 clusterStateWithClosedIndex(indexMetaData, false),
                 clusterStateWithAssignedIndex(indexMetaData, false),
                 Collections.singleton(indexMetaData.getIndex()));
-        assertThat(indices.size(), equalTo(1));
+        assertThat(indices.size(), equalTo(0));
     }
 
     public void testGetRelevantIndicesForClosedPrevNotWrittenIndexOnDataOnlyNode() {
@@ -217,7 +217,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
                 clusterStateWithJustOpenedIndex(indexMetaData, false),
                 clusterStateWithClosedIndex(indexMetaData, false),
                 Collections.singleton(indexMetaData.getIndex()));
-        assertThat(indices.size(), equalTo(1));
+        assertThat(indices.size(), equalTo(0));
     }
 
     public void testResolveStatesToBeWritten() throws WriteStateException {

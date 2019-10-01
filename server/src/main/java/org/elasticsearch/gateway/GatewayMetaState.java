@@ -509,20 +509,6 @@ public class GatewayMetaState implements ClusterStateApplier, CoordinationState.
         for (ShardRouting routing : newRoutingNode) {
             indices.add(routing.index());
         }
-        // we have to check the meta data also: closed indices will not appear in the routing table, but we must still write the state if
-        // we have it written on disk previously
-        for (IndexMetaData indexMetaData : state.metaData()) {
-            boolean isOrWasClosed = indexMetaData.getState().equals(IndexMetaData.State.CLOSE);
-            // if the index is open we might still have to write the state if it just transitioned from closed to open
-            // so we have to check for that as well.
-            IndexMetaData previousMetaData = previousState.metaData().index(indexMetaData.getIndex());
-            if (previousMetaData != null) {
-                isOrWasClosed = isOrWasClosed || previousMetaData.getState().equals(IndexMetaData.State.CLOSE);
-            }
-            if (previouslyWrittenIndices.contains(indexMetaData.getIndex()) && isOrWasClosed) {
-                indices.add(indexMetaData.getIndex());
-            }
-        }
         return indices;
     }
 

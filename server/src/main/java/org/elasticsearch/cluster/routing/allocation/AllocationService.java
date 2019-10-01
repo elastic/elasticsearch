@@ -395,7 +395,7 @@ public class AllocationService {
         assert hasDeadNodes(allocation) == false : "dead nodes should be explicitly cleaned up. See disassociateDeadNodes";
         assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metaData(), allocation.nodes()).isEmpty() :
             "auto-expand replicas out of sync with number of nodes in the cluster";
-        
+
         removeDelayMarkers(allocation);
         // try to allocate existing shard copies first
         gatewayAllocator.allocateUnassigned(allocation);

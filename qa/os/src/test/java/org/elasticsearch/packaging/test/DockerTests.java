@@ -40,7 +40,6 @@ import static org.elasticsearch.packaging.util.Docker.existsInContainer;
 import static org.elasticsearch.packaging.util.Docker.removeContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainer;
 import static org.elasticsearch.packaging.util.Docker.verifyContainerInstallation;
-import static org.elasticsearch.packaging.util.Docker.waitForElasticsearchToBecomeAvailable;
 import static org.elasticsearch.packaging.util.Docker.waitForPathToExist;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileUtils.append;
@@ -48,6 +47,7 @@ import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.mkdir;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
+import static org.elasticsearch.packaging.util.ServerUtils.waitForElasticsearch;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.emptyString;
@@ -116,7 +116,7 @@ public class DockerTests extends PackagingTestCase {
      * is minimally functional.
      */
     public void test50BasicApiTests() throws Exception {
-        waitForElasticsearchToBecomeAvailable(distribution);
+        waitForElasticsearch();
 
         assertTrue(existsInContainer(installation.logs.resolve("gc.log")));
 
@@ -167,7 +167,7 @@ public class DockerTests extends PackagingTestCase {
                 "ES_JAVA_OPTS", "-XX:-UseCompressedOops"
             ));
 
-            waitForElasticsearchToBecomeAvailable(distribution);
+            waitForElasticsearch();
 
             final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));

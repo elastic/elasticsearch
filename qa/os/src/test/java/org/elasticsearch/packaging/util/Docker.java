@@ -155,33 +155,6 @@ public class Docker {
     }
 
     /**
-     * Waits for the Elasticsearch process to finish booting up. This takes a few seconds, so this action
-     * is not taken every time a container is started, since many tests check the Docker image in
-     * some way, and not Elasticsearch specifically.
-     */
-    public static void waitForElasticsearchToBecomeAvailable(Distribution distribution) throws InterruptedException {
-        int attempt = 0;
-
-        // Give Elasticsearch time to become available. I measured roughly 10s on my laptop
-        Thread.sleep(10 * 1000);
-
-        do {
-            String dockerLogs = sh.run("docker logs " + containerId).stdout;
-
-            if (distribution.isOSS() && dockerLogs.contains("recovered [0] indices into cluster_state")) {
-                return;
-            } else if (dockerLogs.contains("Active license is now")) {
-                return;
-            }
-
-            Thread.sleep(1000);
-        } while (attempt++ < 5);
-
-        String logs = sh.run("docker logs " + containerId).stdout;
-        fail("Elasticsearch did not become ready to accept connections.\n\n" + logs);
-    }
-
-    /**
      * Removes the currently running container.
      */
     public static void removeContainer() {

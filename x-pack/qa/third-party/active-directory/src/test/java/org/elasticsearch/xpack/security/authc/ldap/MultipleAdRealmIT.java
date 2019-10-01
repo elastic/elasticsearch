@@ -49,7 +49,7 @@ public class MultipleAdRealmIT extends AbstractAdLdapRealmTestCase {
         final Settings secondarySettings = super.buildRealmSettings(secondaryRealmConfig, secondaryRoleMappings,
             getNodeTrustedCertificates());
         secondarySettings.keySet().forEach(name -> {
-            String newName = name.replace(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL, XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + "2");
+            String newName = name.replace(XPACK_SECURITY_AUTHC_REALMS_EXTERNAL, XPACK_SECURITY_AUTHC_REALMS_EXTERNAL + "2");
             builder.copy(newName, name, secondarySettings);
         });
 
@@ -62,6 +62,7 @@ public class MultipleAdRealmIT extends AbstractAdLdapRealmTestCase {
      * Because one realm is using "common name" (cn) for login, and the other uses the "userid" (sAMAccountName) [see
      * {@link #setupSecondaryRealm()}], this is simply a matter of checking that we can authenticate with both identifiers.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35738")
     public void testCanAuthenticateAgainstBothRealms() throws IOException {
         assertAccessAllowed("Natasha Romanoff", "avengers");
         assertAccessAllowed("blackwidow", "avengers");

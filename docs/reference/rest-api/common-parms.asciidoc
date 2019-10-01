@@ -5,7 +5,7 @@ tag::actions[]
 --
 (Optional, string)
 Comma-separated list or wildcard expression
-used to limit the request.
+of actions used to limit the request.
 
 Omit this parameter to return all actions.
 --

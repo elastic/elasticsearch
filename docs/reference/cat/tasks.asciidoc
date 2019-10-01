@@ -76,9 +76,9 @@ include::{docdir}/cluster/tasks.asciidoc[tag=tasks-api-404]
 ===== Get information for a specific task
 
 [source,console]
-----------------------------------------------------------------------------
+----
 GET _cat/tasks/oTUltX4IQMOUUVeiohTt8A:124?v
-----------------------------------------------------------------------------
+----
 // TEST[skip:No tasks to retrieve]
 
 The API returns the following response:

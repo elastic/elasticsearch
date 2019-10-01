@@ -251,8 +251,12 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             projectName += "no-jdk-";
         }
         if (distribution.getType() == Type.ARCHIVE) {
-            Platform platform = distribution.getPlatform();
-            projectName += platform.toString() + (platform == Platform.WINDOWS ? "-zip" : "-tar");
+            if (distribution.getVersion().onOrAfter("7.0.0")) {
+                Platform platform = distribution.getPlatform();
+                projectName += platform.toString() + (platform == Platform.WINDOWS ? "-zip" : "-tar");
+            } else {
+                projectName = "zip"; 
+            }
         } else {
             projectName += distribution.getType();
         }

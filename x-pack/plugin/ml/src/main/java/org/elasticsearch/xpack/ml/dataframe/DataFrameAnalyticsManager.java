@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.dataframe.process.AnalyticsProcessManager;
@@ -67,61 +66,33 @@ public class DataFrameAnalyticsManager {
     }
 
     public void execute(DataFrameAnalyticsTask task, DataFrameAnalyticsState currentState, ClusterState clusterState) {
-        ActionListener<DataFrameAnalyticsConfig> reindexingStateListener = ActionListener.wrap(
-            config -> reindexDataframeAndStartAnalysis(task, config),
-            error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
-        );
-
         // With config in hand, determine action to take
         ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
             config -> {
-                DataFrameAnalyticsTaskState reindexingState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.REINDEXING,
-                    task.getAllocationId(), null);
                 switch(currentState) {
-                    // If we are STARTED, we are right at the beginning of our task, we should indicate that we are entering the
-                    // REINDEX state and start reindexing.
+                    // If we are STARTED, it means the job was started because the start API was called.
+                    // We should determine the job's starting state based on its previous progress.
                     case STARTED:
-                        task.updatePersistentTaskState(reindexingState, ActionListener.wrap(
-                            updatedTask -> reindexingStateListener.onResponse(config),
-                            error -> {
-                                if (error instanceof ResourceNotFoundException) {
-                                    // The task has been stopped
-                                } else {
-                                    reindexingStateListener.onFailure(error);
-                                }
-                            }));
+                        executeStartingJob(task, config);
                         break;
                     // The task has fully reindexed the documents and we should continue on with our analyses
                     case ANALYZING:
+                        LOGGER.debug("[{}] Reassigning job that was analyzing", config.getId());
                         startAnalytics(task, config, true);
                         break;
                     // If we are already at REINDEXING, we are not 100% sure if we reindexed ALL the docs.
                     // We will delete the destination index, recreate, reindex
                     case REINDEXING:
-                        ClientHelper.executeAsyncWithOrigin(client,
-                            ML_ORIGIN,
-                            DeleteIndexAction.INSTANCE,
-                            new DeleteIndexRequest(config.getDest().getIndex()),
-                            ActionListener.wrap(
-                                r-> reindexingStateListener.onResponse(config),
-                                e -> {
-                                    if (e instanceof IndexNotFoundException) {
-                                        reindexingStateListener.onResponse(config);
-                                    } else {
-                                        reindexingStateListener.onFailure(e);
-                                    }
-                                }
-                            ));
+                        LOGGER.debug("[{}] Reassigning job that was reindexing", config.getId());
+                        executeJobInMiddleOfReindexing(task, config);
                         break;
                     default:
-                        reindexingStateListener.onFailure(
-                            ExceptionsHelper.conflictStatusException(
-                                "Cannot execute analytics task [{}] as it is currently in state [{}]. " +
-                                "Must be one of [STARTED, REINDEXING, ANALYZING]", config.getId(), currentState));
+                        task.updateState(DataFrameAnalyticsState.FAILED, "Cannot execute analytics task [" + config.getId() +
+                            "] as it is in unknown state [" + currentState + "]. Must be one of [STARTED, REINDEXING, ANALYZING]");
                 }
 
             },
-            reindexingStateListener::onFailure
+            error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
         );
 
         // Retrieve configuration
@@ -132,6 +103,52 @@ public class DataFrameAnalyticsManager {
 
         // Make sure the state index and alias exist
         AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, stateAliasListener);
+    }
+
+    private void executeStartingJob(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {
+        DataFrameAnalyticsTaskState reindexingState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.REINDEXING,
+            task.getAllocationId(), null);
+        DataFrameAnalyticsTask.StartingState startingState = DataFrameAnalyticsTask.determineStartingState(
+            config.getId(), task.getParams().getProgressOnStart());
+
+        LOGGER.debug("[{}] Starting job from state [{}]", config.getId(), startingState);
+        switch (startingState) {
+            case FIRST_TIME:
+                task.updatePersistentTaskState(reindexingState, ActionListener.wrap(
+                    updatedTask -> reindexDataframeAndStartAnalysis(task, config),
+                    error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
+                ));
+                break;
+            case RESUMING_REINDEXING:
+                task.updatePersistentTaskState(reindexingState, ActionListener.wrap(
+                    updatedTask -> executeJobInMiddleOfReindexing(task, config),
+                    error -> task.updateState(DataFrameAnalyticsState.FAILED, error.getMessage())
+                ));
+                break;
+            case RESUMING_ANALYZING:
+                startAnalytics(task, config, true);
+                break;
+            case FINISHED:
+            default:
+                task.updateState(DataFrameAnalyticsState.FAILED, "Unexpected starting state [" + startingState + "]");
+        }
+    }
+
+    private void executeJobInMiddleOfReindexing(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {
+        ClientHelper.executeAsyncWithOrigin(client,
+            ML_ORIGIN,
+            DeleteIndexAction.INSTANCE,
+            new DeleteIndexRequest(config.getDest().getIndex()),
+            ActionListener.wrap(
+                r-> reindexDataframeAndStartAnalysis(task, config),
+                e -> {
+                    if (e instanceof IndexNotFoundException) {
+                        reindexDataframeAndStartAnalysis(task, config);
+                    } else {
+                        task.updateState(DataFrameAnalyticsState.FAILED, e.getMessage());
+                    }
+                }
+            ));
     }
 
     private void reindexDataframeAndStartAnalysis(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {

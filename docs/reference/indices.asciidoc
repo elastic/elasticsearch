@@ -139,6 +139,8 @@ include::indices/split-index.asciidoc[]
 
 include::indices/synced-flush.asciidoc[]
 
+include::indices/types-exists.asciidoc[]
+
 include::indices/apis/unfreeze.asciidoc[]
 
 include::indices/aliases.asciidoc[]

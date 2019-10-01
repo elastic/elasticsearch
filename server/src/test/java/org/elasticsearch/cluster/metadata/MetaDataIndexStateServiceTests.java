@@ -334,7 +334,7 @@ public class MetaDataIndexStateServiceTests extends ESTestCase {
     }
 
     public void testValidateShardLimit() {
-        int nodesInCluster = randomIntBetween(2,100);
+        int nodesInCluster = randomIntBetween(2,90);
         ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster);
         Settings clusterSettings = Settings.builder()
             .put(MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), counts.getShardsPerNode())

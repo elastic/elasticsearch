@@ -17,9 +17,7 @@ cluster.
 
 . <<modules-snapshots,Back up your data by taking a snapshot!>> Once you have
 started to upgrade your cluster to version {version} you must complete the
-upgrade. Rolling a node back to an earlier version is not possible, because
-nodes of version {version} write data in their data paths using a format that
-earlier versions cannot read. The only way to revert an incomplete upgrade is to
-completely delete the contents of the data path on each upgraded node. If this
-results in data loss then you will need to restore the lost data from a
-snapshot.
+upgrade. As soon as the cluster contains nodes of version {version} it may make
+changes to its internal state that cannot be reverted. If you cannot complete
+the upgrade then you must deploy an empty cluster and restore its contents from
+a snapshot.

@@ -22,13 +22,13 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -48,8 +48,10 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -96,10 +98,12 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36189")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
 public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
@@ -185,6 +189,10 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             assertThat(shardAllocationDecision.isDecisionTaken(), equalTo(true));
             assertThat(shardAllocationDecision.getAllocateDecision().getAllocationDecision(),
                 equalTo(AllocationDecision.NO_VALID_SHARD_COPY));
+            final List<NodeAllocationResult> nodeDecisions = shardAllocationDecision.getAllocateDecision().getNodeDecisions();
+            assertThat(nodeDecisions, hasSize(1));
+            final Exception storeException = nodeDecisions.get(0).getShardStoreInfo().getStoreException();
+            assertThat(storeException, instanceOf(CorruptIndexException.class));
         });
 
         internalCluster().restartNode(node, new InternalTestCluster.RestartCallback() {
@@ -329,6 +337,14 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
             final UnassignedInfo unassignedInfo = explanation.getUnassignedInfo();
             assertThat(unassignedInfo.getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
+
+            final ShardAllocationDecision shardAllocationDecision = explanation.getShardAllocationDecision();
+            assertThat(shardAllocationDecision.isDecisionTaken(), equalTo(true));
+            final List<NodeAllocationResult> nodeDecisions = shardAllocationDecision.getAllocateDecision().getNodeDecisions();
+            assertThat(nodeDecisions, hasSize(1));
+            final Decision canAllocateDecision = nodeDecisions.get(0).getCanAllocateDecision();
+            assertThat(canAllocateDecision, not(nullValue()));
+            assertThat(canAllocateDecision.toString(), containsString("TranslogCorruptedException")); // ugh
         });
 
         // have to shut down primary node - otherwise node lock is present

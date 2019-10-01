@@ -1,4 +1,16 @@
 
+tag::actions[]
+`actions`::
++
+--
+(Optional, string)
+Comma-separated list or wildcard expression
+used to limit the request.
+
+Omit this parameter to return all actions.
+--
+end::actions[]
+
 tag::active-only[]
 `active_only`::
 (Optional, boolean)
@@ -143,11 +155,6 @@ in the `completion_fields` or `fielddata_fields` parameters.
 --
 end::fields[]
 
-tag::generation[]
-Generation number, such as `0`. {es} increments this generation number
-for each segment written. {es} then uses this number to derive the segment name.
-end::generation[]
-
 tag::index-alias-filter[]
 <<query-dsl-bool-query, Filter query>>
 used to limit the index alias.
@@ -173,6 +180,32 @@ tag::from[]
 `from`::
 (Optional, integer) Starting document offset. Defaults to `0`.
 end::from[]
+
+tag::generation[]
+Generation number, such as `0`. {es} increments this generation number
+for each segment written. {es} then uses this number to derive the segment name.
+end::generation[]
+
+tag::group-by[]
+`group_by`::
++
+--
+(Optional, string)
+Key used to group tasks in the response.
+
+Possible values are:
+
+`nodes`::
+(Default)
+Node ID
+
+`parents`::
+Parent task ID
+
+`none`::
+Do not group tasks.
+--
+end::group-by[]
 
 tag::groups[]
 `groups`::
@@ -403,6 +436,27 @@ tag::node-id[]
 returned information.
 end::node-id[]
 
+tag::node-id-query-parm[]
+`node_id`::
+(Optional, string)
+Comma-separated list of node IDs or names
+used to limit returned information.
+end::node-id-query-parm[]
+
+tag::parent-task-id[]
+`parent_task_id`::
++
+--
+(Optional, string)
+Parent task ID
+used to limit returned information.
+
+To return all tasks,
+omit this parameter
+or use a value of `-1`.
+--
+end::parent-task-id[]
+
 tag::pipeline[]
 `pipeline`::
 (Optional, string) ID of the pipeline to use to preprocess incoming documents.
@@ -571,6 +625,12 @@ Name of the target index to create.
 include::{docdir}/indices/create-index.asciidoc[tag=index-name-reqs]
 --
 end::target-index[]
+
+tag::task-id[]
+`<task_id>`::
+(Optional, string) ID of the task to return
+(`node_id:task_number`).
+end::task-id[]
 
 tag::terminate_after[]
 `terminate_after`::

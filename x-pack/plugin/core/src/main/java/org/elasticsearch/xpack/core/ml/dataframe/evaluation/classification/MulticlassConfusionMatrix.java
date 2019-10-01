@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResu
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -104,10 +105,10 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
     @Override
     public final List<AggregationBuilder> aggs(String actualField, String predictedField) {
         if (topActualClassNames == null) {  // This is step 1
-            return List.of(
+            return Arrays.asList(
                 AggregationBuilders.terms(STEP_1_AGGREGATE_BY_ACTUAL_CLASS)
                     .field(actualField)
-                    .order(List.of(BucketOrder.count(false), BucketOrder.key(true)))
+                    .order(Arrays.asList(BucketOrder.count(false), BucketOrder.key(true)))
                     .size(size));
         }
         if (result == null) {  // This is step 2
@@ -115,18 +116,18 @@ public class MulticlassConfusionMatrix implements ClassificationMetric {
                 topActualClassNames.stream()
                     .map(className -> new KeyedFilter(className, QueryBuilders.termQuery(predictedField, className)))
                     .toArray(KeyedFilter[]::new);
-            return List.of(
+            return Arrays.asList(
                 AggregationBuilders.cardinality(STEP_2_CARDINALITY_OF_ACTUAL_CLASS)
                     .field(actualField),
                 AggregationBuilders.terms(STEP_2_AGGREGATE_BY_ACTUAL_CLASS)
                     .field(actualField)
-                    .order(List.of(BucketOrder.count(false), BucketOrder.key(true)))
+                    .order(Arrays.asList(BucketOrder.count(false), BucketOrder.key(true)))
                     .size(size)
                     .subAggregation(AggregationBuilders.filters(STEP_2_AGGREGATE_BY_PREDICTED_CLASS, keyedFilters)
                         .otherBucket(true)
                         .otherBucketKey(OTHER_BUCKET_KEY)));
         }
-        return List.of();
+        return Collections.emptyList();
     }
 
     @Override

@@ -263,8 +263,10 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         for (ElasticsearchNode node : nodes) {
             // Can only configure master nodes if we have node names defined
             if (nodeNames != null) {
-                node.defaultConfig.clear();
                 if (node.getVersion().onOrAfter("7.0.0")) {
+                    node.defaultConfig.keySet().stream()
+                        .filter(name -> name.startsWith("discovery.zen."))
+                        .forEach(node.defaultConfig::remove);
                     node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
                     node.defaultConfig.put("discovery.seed_providers", "file");
                     node.defaultConfig.put("discovery.seed_hosts", "[]");

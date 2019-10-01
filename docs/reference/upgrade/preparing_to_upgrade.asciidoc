@@ -1,0 +1,23 @@
+[float]
+=== Preparing to upgrade
+
+Before you start to upgrade your cluster to version {version}.
+
+. Check the <<deprecation-logging, deprecation log>> to see if you are using any
+deprecated features and update your code accordingly.
+
+. Review the <<breaking-changes,breaking changes>> and make any necessary
+changes to your code and configuration for version {version}.
+
+. If you use custom plugins, make sure compatible versions are available.
+
+. Test upgrades in a dev environment before upgrading your production cluster.
+
+. <<modules-snapshots,Back up your data by taking a snapshot!>> Once you have
+started to upgrade your cluster to version {version} you must complete the
+upgrade. Rolling a node back to an earlier version is not possible, because
+nodes of version {version} write data in their data paths using a format that
+earlier versions cannot read. The only way to revert an incomplete upgrade is to
+completely delete the contents of the data path on each upgraded node. If this
+results in data loss then you will need to restore the lost data from a
+snapshot.

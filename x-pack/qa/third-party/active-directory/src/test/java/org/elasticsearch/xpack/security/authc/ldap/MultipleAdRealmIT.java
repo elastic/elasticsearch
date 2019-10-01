@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc.ldap;
 
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -49,8 +50,13 @@ public class MultipleAdRealmIT extends AbstractAdLdapRealmTestCase {
         final Settings secondarySettings = super.buildRealmSettings(secondaryRealmConfig, secondaryRoleMappings,
             getNodeTrustedCertificates());
         secondarySettings.keySet().forEach(name -> {
-            String newName = name.replace(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL, XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + "2");
-            builder.copy(newName, name, secondarySettings);
+            final String newname;
+            if (name.contains(LdapRealmSettings.AD_TYPE)) {
+                newname = name.replace(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL, XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + "2");
+            } else {
+                newname = name.replace(XPACK_SECURITY_AUTHC_REALMS_LDAP_EXTERNAL, XPACK_SECURITY_AUTHC_REALMS_LDAP_EXTERNAL + "2");
+            }
+            builder.copy(newname, name, secondarySettings);
         });
 
         return builder.build();

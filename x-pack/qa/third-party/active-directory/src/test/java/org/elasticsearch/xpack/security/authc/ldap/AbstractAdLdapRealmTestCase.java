@@ -14,7 +14,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -25,16 +24,14 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRe
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
 import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.ssl.VerificationMode;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
@@ -99,8 +96,6 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
             )
     };
 
-    protected static final String TESTNODE_KEY = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem";
-    protected static final String TESTNODE_CERT = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt";
     protected static RealmConfig realmConfig;
     protected static List<RoleMappingEntry> roleMappings;
 
@@ -121,42 +116,8 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         final RealmConfig realm = AbstractAdLdapRealmTestCase.realmConfig;
-        final Path nodeCert = getDataPath(TESTNODE_CERT);
-        final Path nodeKey = getDataPath(TESTNODE_KEY);
         Settings.Builder builder = Settings.builder();
-        // don't use filter since it returns a prefixed secure setting instead of mock!
-        Settings settingsToAdd = super.nodeSettings(nodeOrdinal);
-        builder.put(settingsToAdd.filter(k -> k.startsWith("xpack.security.transport.ssl.") == false), false);
-        MockSecureSettings mockSecureSettings = (MockSecureSettings) Settings.builder().put(settingsToAdd).getSecureSettings();
-        if (mockSecureSettings != null) {
-            MockSecureSettings filteredSecureSettings = new MockSecureSettings();
-            builder.setSecureSettings(filteredSecureSettings);
-            for (String secureSetting : mockSecureSettings.getSettingNames()) {
-                if (secureSetting.startsWith("xpack.security.transport.ssl.") == false) {
-                    SecureString secureString = mockSecureSettings.getString(secureSetting);
-                    if (secureString == null) {
-                        final byte[] fileBytes;
-                        try (InputStream in = mockSecureSettings.getFile(secureSetting);
-                             ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
-                            int numRead;
-                            byte[] bytes = new byte[1024];
-                            while ((numRead = in.read(bytes)) != -1) {
-                                byteArrayOutputStream.write(bytes, 0, numRead);
-                            }
-                            byteArrayOutputStream.flush();
-                            fileBytes = byteArrayOutputStream.toByteArray();
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
-                        }
-
-                        filteredSecureSettings.setFile(secureSetting, fileBytes);
-                    } else {
-                        filteredSecureSettings.setString(secureSetting, new String(secureString.getChars()));
-                    }
-                }
-            }
-        }
-        addSslSettingsForKeyPair(builder, nodeKey, "testnode", nodeCert, getNodeTrustedCertificates());
+        builder.put(super.nodeSettings(nodeOrdinal), true);
         builder.put(buildRealmSettings(realm, roleMappings, getNodeTrustedCertificates()));
         return builder.build();
     }
@@ -284,15 +245,6 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
 
     protected static String userHeader(String username, String password) {
         return UsernamePasswordToken.basicAuthHeaderValue(username, new SecureString(password.toCharArray()));
-    }
-
-    private void addSslSettingsForKeyPair(Settings.Builder builder, Path key, String keyPassphrase, Path cert,
-                                          List<String> certificateAuthorities) {
-        builder.put("xpack.security.transport.ssl.key", key)
-            .put("xpack.security.transport.ssl.key_passphrase", keyPassphrase)
-            .put("xpack.security.transport.ssl.verification_mode", "certificate")
-            .put("xpack.security.transport.ssl.certificate", cert)
-            .putList("xpack.security.transport.ssl.certificate_authorities", certificateAuthorities);
     }
 
     /**
@@ -436,7 +388,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         protected Settings buildSettings(List<String> certificateAuthorities, int order) {
             Settings.Builder builder = Settings.builder()
                 .put("xpack.security.authc.realms." + type + ".external.order", order)
-                .put("xpack.security.authc.realms." + type + ".external.hostname_verification", false)
+                .put("xpack.security.authc.realms." + type + ".external.ssl.verification_mode", VerificationMode.CERTIFICATE)
                 .put("xpack.security.authc.realms." + type + ".external.unmapped_groups_as_roles", mapGroupsAsRoles)
                 .put(this.settings)
                 .putList("xpack.security.authc.realms." + type + ".external.ssl.certificate_authorities", certificateAuthorities);

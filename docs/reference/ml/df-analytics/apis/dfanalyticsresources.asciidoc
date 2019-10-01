@@ -180,7 +180,7 @@ hyperparameter optimization to give minimum validation errors.
 ===== Standard parameters
 
 `dependent_variable`::
-  (Required, string) Defines which field of the {dataframe} is to be predicted. 
+  (Required, string) Defines which field of the document is to be predicted. 
   This parameter is supplied by field name and must match one of the fields in 
   the index being used to train. If this field is missing from a document, then 
   that document will not be used for training, but a prediction with the trained 

@@ -11,6 +11,8 @@ setup:
             "outlier_score": 0.0,
             "regression_field_act": 10.9,
             "regression_field_pred": 10.9,
+            "classification_field_act": "dog",
+            "classification_field_pred": "dog",
             "all_true_field": true,
             "all_false_field": false
           }
@@ -26,6 +28,8 @@ setup:
             "outlier_score": 0.2,
             "regression_field_act": 12.0,
             "regression_field_pred": 9.9,
+            "classification_field_act": "cat",
+            "classification_field_pred": "cat",
             "all_true_field": true,
             "all_false_field": false
           }
@@ -41,6 +45,8 @@ setup:
             "outlier_score": 0.3,
             "regression_field_act": 20.9,
             "regression_field_pred": 5.9,
+            "classification_field_act": "mouse",
+            "classification_field_pred": "mouse",
             "all_true_field": true,
             "all_false_field": false
           }
@@ -56,6 +62,8 @@ setup:
             "outlier_score": 0.3,
             "regression_field_act": 11.9,
             "regression_field_pred": 11.9,
+            "classification_field_act": "dog",
+            "classification_field_pred": "cat",
             "all_true_field": true,
             "all_false_field": false
           }
@@ -71,6 +79,8 @@ setup:
             "outlier_score": 0.4,
             "regression_field_act": 42.9,
             "regression_field_pred": 42.9,
+            "classification_field_act": "cat",
+            "classification_field_pred": "dog",
             "all_true_field": true,
             "all_false_field": false
           }
@@ -86,6 +96,8 @@ setup:
             "outlier_score": 0.5,
             "regression_field_act": 0.42,
             "regression_field_pred": 0.42,
+            "classification_field_act": "dog",
+            "classification_field_pred": "dog",
             "all_true_field": true,
             "all_false_field": false
           }
@@ -101,6 +113,8 @@ setup:
             "outlier_score": 0.9,
             "regression_field_act": 1.1235813,
             "regression_field_pred": 1.12358,
+            "classification_field_act": "cat",
+            "classification_field_pred": "cat",
             "all_true_field": true,
             "all_false_field": false
           }
@@ -116,6 +130,8 @@ setup:
             "outlier_score": 0.95,
             "regression_field_act": -5.20,
             "regression_field_pred": -5.1,
+            "classification_field_act": "mouse",
+            "classification_field_pred": "cat",
             "all_true_field": true,
             "all_false_field": false
           }
@@ -569,6 +585,108 @@ setup:
               }
             }
           }
+
+---
+"Test classification given evaluation with empty metrics":
+  - do:
+      catch: /\[classification\] must have one or more metrics/
+      ml.evaluate_data_frame:
+        body: >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "classification": {
+                "actual_field": "classification_field_act.keyword",
+                "predicted_field": "classification_field_pred.keyword",
+                "metrics": { }
+              }
+            }
+          }
+---
+"Test classification multiclass_confusion_matrix":
+  - do:
+      ml.evaluate_data_frame:
+        body: >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "classification": {
+                "actual_field": "classification_field_act.keyword",
+                "predicted_field": "classification_field_pred.keyword",
+                "metrics": { "multiclass_confusion_matrix": {} }
+              }
+            }
+          }
+
+  - match: { classification.multiclass_confusion_matrix.confusion_matrix: {cat: {cat: 2, dog: 1, mouse: 0}, dog: {cat: 1, dog: 2, mouse: 0}, mouse: {cat: 1, dog: 0, mouse: 1} } }
+  - match: { classification.multiclass_confusion_matrix._other_: 0 }
+---
+"Test classification multiclass_confusion_matrix with explicit size":
+  - do:
+      ml.evaluate_data_frame:
+        body: >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "classification": {
+                "actual_field": "classification_field_act.keyword",
+                "predicted_field": "classification_field_pred.keyword",
+                "metrics": { "multiclass_confusion_matrix": { "size": 2 } }
+              }
+            }
+          }
+
+  - match: { classification.multiclass_confusion_matrix.confusion_matrix: {cat: {cat: 2, dog: 1}, dog: {cat: 1, dog: 2} } }
+  - match: { classification.multiclass_confusion_matrix._other_: 1 }
+---
+"Test classification with null metrics":
+  - do:
+      ml.evaluate_data_frame:
+        body: >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "classification": {
+                "actual_field": "classification_field_act.keyword",
+                "predicted_field": "classification_field_pred.keyword"
+              }
+            }
+          }
+
+  - match: { classification.multiclass_confusion_matrix.confusion_matrix: {cat: {cat: 2, dog: 1, mouse: 0}, dog: {cat: 1, dog: 2, mouse: 0}, mouse: {cat: 1, dog: 0, mouse: 1} } }
+  - match: { classification.multiclass_confusion_matrix._other_: 0 }
+---
+"Test classification given missing actual_field":
+  - do:
+      catch: /No documents found containing both \[missing, classification_field_pred.keyword\] fields/
+      ml.evaluate_data_frame:
+        body:  >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "classification": {
+                "actual_field": "missing",
+                "predicted_field": "classification_field_pred.keyword"
+              }
+            }
+          }
+
+---
+"Test classification given missing predicted_field":
+  - do:
+      catch: /No documents found containing both \[classification_field_act.keyword, missing\] fields/
+      ml.evaluate_data_frame:
+        body:  >
+          {
+            "index": "utopia",
+            "evaluation": {
+              "classification": {
+                "actual_field": "classification_field_act.keyword",
+                "predicted_field": "missing"
+              }
+            }
+          }
+
 ---
 "Test regression given evaluation with empty metrics":
   - do:

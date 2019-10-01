@@ -227,6 +227,33 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         accept("SELECT DATE_TRUNC('days', date) FROM test");
         accept("SELECT DATE_TRUNC('dd', date) FROM test");
         accept("SELECT DATE_TRUNC('d', date) FROM test");
+
+    }
+
+    public void testDatePartInvalidArgs() {
+        assertEquals("1:8: first argument of [DATE_PART(int, date)] must be [string], found value [int] type [integer]",
+            error("SELECT DATE_PART(int, date) FROM test"));
+        assertEquals("1:8: second argument of [DATE_PART(keyword, keyword)] must be [date or datetime], found value [keyword] " +
+            "type [keyword]", error("SELECT DATE_PART(keyword, keyword) FROM test"));
+        assertEquals("1:8: first argument of [DATE_PART('invalid', keyword)] must be one of [YEAR, QUARTER, MONTH, DAYOFYEAR, " +
+            "DAY, WEEK, WEEKDAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND, TZOFFSET] " +
+                "or their aliases, found value ['invalid']",
+            error("SELECT DATE_PART('invalid', keyword) FROM test"));
+        assertEquals("1:8: Unknown value ['tzofset'] for first argument of [DATE_PART('tzofset', keyword)]; " +
+                "did you mean [tzoffset]?",
+            error("SELECT DATE_PART('tzofset', keyword) FROM test"));
+        assertEquals("1:8: Unknown value ['dz'] for first argument of [DATE_PART('dz', keyword)]; " +
+                "did you mean [dd, tz, dw, dy, d]?",
+            error("SELECT DATE_PART('dz', keyword) FROM test"));
+    }
+
+    public void testDatePartValidArgs() {
+        accept("SELECT DATE_PART('weekday', date) FROM test");
+        accept("SELECT DATE_PART('dw', date) FROM test");
+        accept("SELECT DATE_PART('tz', date) FROM test");
+        accept("SELECT DATE_PART('dayofyear', date) FROM test");
+        accept("SELECT DATE_PART('dy', date) FROM test");
+        accept("SELECT DATE_PART('ms', date) FROM test");
     }
 
     public void testValidDateTimeFunctionsOnTime() {

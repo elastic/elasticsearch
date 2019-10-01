@@ -266,6 +266,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                 if (node.getVersion().onOrAfter("7.0.0")) {
                     node.defaultConfig.keySet().stream()
                         .filter(name -> name.startsWith("discovery.zen."))
+                        .collect(Collectors.toList())
                         .forEach(node.defaultConfig::remove);
                     node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
                     node.defaultConfig.put("discovery.seed_providers", "file");

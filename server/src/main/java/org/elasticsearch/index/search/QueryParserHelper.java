@@ -52,7 +52,7 @@ public final class QueryParserHelper {
             float boost = 1.0f;
             if (boostIndex != -1) {
                 fieldName = field.substring(0, boostIndex);
-                boost = Float.parseFloat(field.substring(boostIndex+1, field.length()));
+                boost = Float.parseFloat(field.substring(boostIndex+1));
             } else {
                 fieldName = field;
             }

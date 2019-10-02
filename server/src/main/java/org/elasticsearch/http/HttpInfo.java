@@ -73,14 +73,14 @@ public class HttpInfo implements Writeable, ToXContentFragment {
         TransportAddress publishAddress = address.publishAddress();
         String publishAddressString = publishAddress.toString();
         String hostString = publishAddress.address().getHostString();
+        if (CNAME_IN_PUBLISH_HOST) {
+            deprecationLogger.deprecated(
+                "es.http.cname_in_publish_address system property is deprecated and no longer affects http.publish_address " +
+                    "formatting. Remove this property to get rid of this deprecation warning."
+            );
+        }
         if (InetAddresses.isInetAddress(hostString) == false) {
             publishAddressString = hostString + '/' + publishAddress.toString();
-            if (CNAME_IN_PUBLISH_HOST) {
-                deprecationLogger.deprecated(
-                        "es.http.cname_in_publish_address system property is deprecated and no longer affects http.publish_address " +
-                                "formatting. Remove this property to get rid of this deprecation warning."
-                );
-            }
         }
         builder.field(Fields.PUBLISH_ADDRESS, publishAddressString);
         builder.humanReadableField(Fields.MAX_CONTENT_LENGTH_IN_BYTES, Fields.MAX_CONTENT_LENGTH, maxContentLength());

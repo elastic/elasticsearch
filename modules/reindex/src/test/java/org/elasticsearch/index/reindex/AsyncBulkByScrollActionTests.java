@@ -67,7 +67,6 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.index.shard.ShardId;
@@ -218,7 +217,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         ClientScrollableHitSource hitSource = new ClientScrollableHitSource(logger, buildTestBackoffPolicy(),
             threadPool,
             testTask.getWorkerState()::countSearchRetry, r -> fail(), ExceptionsHelper::reThrowIfNotNull,
-            new ParentTaskAssigningClient(client, localNode, testTask), testRequest.getSearchRequest(), null, null);
+            new ParentTaskAssigningClient(client, localNode, testTask), testRequest.getSearchRequest(), false, null);
         hitSource.setScroll(scrollId());
         hitSource.startNextScroll(TimeValue.timeValueSeconds(0));
         assertBusy(() -> assertEquals(client.scrollsToReject + 1, client.scrollAttempts.get()));
@@ -242,7 +241,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 ClientScrollableHitSource hitSource = new ClientScrollableHitSource(logger, buildTestBackoffPolicy(),
                     threadPool,
                     testTask.getWorkerState()::countSearchRetry, r -> fail(), validingOnFail,
-                    new ParentTaskAssigningClient(client, localNode, testTask), testRequest.getSearchRequest(), null, null);
+                    new ParentTaskAssigningClient(client, localNode, testTask), testRequest.getSearchRequest(), false, null);
                 hitSource.setScroll(scrollId());
                 hitSource.startNextScroll(TimeValue.timeValueSeconds(0));
                 assertBusy(() -> assertEquals(testRequest.getMaxRetries() + 1, client.scrollAttempts.get()));
@@ -717,7 +716,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         ScrollableHitSource.Checkpoint initialCheckpoint = new ScrollableHitSource.Checkpoint(initialRestartFromValue);
         AtomicReference<ScrollableHitSource.Checkpoint> resultCheckpoint = new AtomicReference<>();
         AtomicReference<BulkByScrollTask.Status> resultStatus = new AtomicReference<>();
-        DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction(SeqNoFieldMapper.NAME, initialCheckpoint, (c, s) -> {
+        DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction(true, initialCheckpoint, (c, s) -> {
             assertTrue(resultCheckpoint.compareAndSet(null, c));
             assertTrue(resultStatus.compareAndSet(null, s));
         }) {
@@ -777,13 +776,13 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         DummyAsyncBulkByScrollAction() {
             super(testTask, randomBoolean(), randomBoolean(), AsyncBulkByScrollActionTests.this.logger,
                 new ParentTaskAssigningClient(client, localNode, testTask), client.threadPool(), testRequest, listener,
-                null, null, null, null, null);
+                null, null, false, null, null);
         }
-        DummyAsyncBulkByScrollAction(String restartFromField, ScrollableHitSource.Checkpoint checkpoint,
+        DummyAsyncBulkByScrollAction(boolean resilient, ScrollableHitSource.Checkpoint checkpoint,
                                      Reindexer.CheckpointListener checkpointListener) {
             super(testTask, randomBoolean(), randomBoolean(), AsyncBulkByScrollActionTests.this.logger,
                 new ParentTaskAssigningClient(client, localNode, testTask), client.threadPool(), testRequest, listener,
-                null, null, restartFromField, checkpoint, checkpointListener);
+                null, null, resilient, checkpoint, checkpointListener);
         }
 
         @Override

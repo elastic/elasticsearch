@@ -23,21 +23,26 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.hamcrest.Matchers;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -88,17 +93,27 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
         String reindexNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         NodeClient reindexNodeClient = internalCluster().getInstance(NodeClient.class, reindexNode);
 
-        ReindexRequest request = new ReindexRequest();
-        request.setSourceIndices("test").setSourceBatchSize(1);
-        request.setDestIndex("dest");
-        request.setRequestsPerSecond(0.3f); // 30 seconds minimum
-        request.setAbortOnVersionConflict(false);
+        ReindexRequest reindexRequest = new ReindexRequest();
+        reindexRequest.setSourceIndices("test").setSourceBatchSize(1);
+        reindexRequest.setDestIndex("dest");
+        reindexRequest.setRequestsPerSecond(0.3f); // 30 seconds minimum
+        reindexRequest.setAbortOnVersionConflict(false);
         if (randomBoolean()) {
-            request.getSearchRequest().source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
+            reindexRequest.getSearchRequest().source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()));
         }
-        PlainListenableActionFuture<BulkByScrollResponse> reindexFuture = PlainListenableActionFuture.newListenableFuture();
-        Task reindexTask = reindexNodeClient.executeLocally(ReindexAction.INSTANCE, request, reindexFuture);
+        StartReindexJobAction.Request request = new StartReindexJobAction.Request(reindexRequest, false);
+        StartReindexJobAction.Response response = client().execute(StartReindexJobAction.INSTANCE, request).get();
 
+        TaskId taskId = new TaskId(response.getTaskId());
+
+        Set<String> names = Arrays.stream(internalCluster().getNodeNames())
+            .map(name -> Tuple.tuple(internalCluster().getInstance(NodeClient.class, name).getLocalNodeId(), name))
+            .filter(idAndName -> taskId.getNodeId().equals(idAndName.v1())).map(Tuple::v2).collect(Collectors.toSet());
+
+        assertEquals(1, names.size());
+        String notToRestart = names.iterator().next();
+
+        internalCluster().getInstances(NodeClient.class);
         assertBusy(() -> {
             IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats("test").execute().actionGet();
             assertThat(Stream.of(indicesStatsResponse.getIndex("test").getShards())
@@ -110,7 +125,9 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
 
         for (int i = 0; i < randomIntBetween(1,5); ++i) {
             // todo: replace following two lines with below once search fails on RED every time.
-            internalCluster().restartRandomDataNode();
+            String nodeToRestart = randomFrom(internalCluster().nodesInclude("test")
+                .stream().filter(id -> id.equals(notToRestart) == false).collect(Collectors.toSet()));
+            internalCluster().restartNode(nodeToRestart, new InternalTestCluster.RestartCallback());
             ensureGreen();
 //            internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
 //                @Override
@@ -121,13 +138,14 @@ public class ReindexResilientSearchIT extends ReindexTestCase {
 //            });
         }
 
-        rethrottle().setTaskId(new TaskId(reindexNodeClient.getLocalNodeId(), reindexTask.getId()))
+        rethrottle().setTaskId(taskId)
             .setRequestsPerSecond(Float.POSITIVE_INFINITY).execute().get();
 
-        BulkByScrollResponse bulkByScrollResponse = reindexFuture.actionGet(30, TimeUnit.SECONDS);
+        Map<String, Object> reindexResponse = client().admin().cluster().prepareGetTask(taskId).setWaitForCompletion(true)
+            .get(TimeValue.timeValueSeconds(30)).getTask().getResponseAsMap();
         // todo: this assert fails sometimes due to missing retry on transport closed
 //        assertThat(bulkByScrollResponse.getBulkFailures(), Matchers.empty());
-        assertEquals(0, bulkByScrollResponse.getSearchFailures().size());
+        assertEquals(Collections.emptyList(), reindexResponse.get("failures"));
 
         assertSameDocs(numberOfDocuments, "test", "dest");
     }

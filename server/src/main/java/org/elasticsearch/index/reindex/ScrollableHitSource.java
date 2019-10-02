@@ -39,7 +39,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -50,7 +49,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.ToLongFunction;
 
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.common.util.CollectionUtils.isEmpty;
@@ -69,35 +67,26 @@ public abstract class ScrollableHitSource {
     private final Runnable countSearchRetry;
     private final Consumer<AsyncResponse> onResponse;
     private final Consumer<Exception> fail;
-    private final ToLongFunction<Hit> restartFromValueFunction;
+    private final boolean resilient;
     private long restartFromValue = Long.MIN_VALUE; // need refinement if we support descending.
 
     public ScrollableHitSource(Logger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
                                Consumer<AsyncResponse> onResponse, Consumer<Exception> fail,
-                               String restartFromField, Checkpoint checkpoint) {
+                               boolean resilient, Checkpoint checkpoint) {
         this.logger = logger;
         this.backoffPolicy = backoffPolicy;
         this.threadPool = threadPool;
         this.countSearchRetry = countSearchRetry;
         this.onResponse = onResponse;
         this.fail = fail;
-        if (restartFromField != null) {
-            if (SeqNoFieldMapper.NAME.equals(restartFromField)) {
-                restartFromValueFunction = Hit::getSeqNo;
-                if (checkpoint != null) {
-                    restartFromValue = checkpoint.restartFromValue;
-                }
-            } else {
-                assert checkpoint == null;
-                restartFromValueFunction = hit -> Long.MIN_VALUE;
-                // todo: non-seqno field support.
-                // need to extract field, either from source or by asking for it explicitly.
-                // also we need to handle missing values.
-                // hit -> ((Number) hit.field(restartFromField).getValue()).longValue();
+        this.resilient = resilient;
+        if (resilient) {
+            // todo: remove this funtion.
+            if (checkpoint != null) {
+                restartFromValue = checkpoint.restartFromValue;
             }
         } else {
             assert checkpoint == null;
-            restartFromValueFunction = hit -> Long.MIN_VALUE;
         }
     }
 
@@ -144,7 +133,7 @@ public abstract class ScrollableHitSource {
 
     private RetryListener createRetryListener(Consumer<RejectAwareActionListener<Response>> restartHandler,
                                               Consumer<RejectAwareActionListener<Response>> retryScrollHandler) {
-        if (canRestart()) {
+        if (resilient) {
             return new RetryListener(logger, threadPool, backoffPolicy,
                 countRetries(restartHandler), countRetries(retryScrollHandler),
                 ActionListener.wrap(this::onResponse, fail));
@@ -213,8 +202,8 @@ public abstract class ScrollableHitSource {
     }
 
     private long extractRestartFromValue(List<? extends Hit> hits, long defaultValue) {
-        if (hits.size() != 0) {
-            return restartFromValueFunction.applyAsLong(hits.get(hits.size() - 1));
+        if (resilient && hits.size() != 0) {
+            return hits.get(hits.size() - 1).getSeqNo();
         } else {
             return defaultValue;
         }
@@ -235,7 +224,6 @@ public abstract class ScrollableHitSource {
 
     protected abstract void doStartNextScroll(String scrollId, TimeValue extraKeepAlive,
                                               RejectAwareActionListener<Response> searchListener);
-    protected abstract boolean canRestart();
     protected abstract String[] indices();
 
     /**

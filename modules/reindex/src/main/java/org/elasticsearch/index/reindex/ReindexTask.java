@@ -182,7 +182,7 @@ public class ReindexTask extends AllocatedPersistentTask {
                 public void onFailure(Exception ex) {
                     handleError(shouldStoreResult, taskUpdater, ex);
                 }
-            }), checkpoint, taskUpdater);
+            }), checkpoint, taskUpdater, true);
         }
         // send this after we started reindex to ensure sub-tasks are created.
         sendStartedNotification(reindexJob.shouldStoreResult());

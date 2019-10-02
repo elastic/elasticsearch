@@ -35,7 +35,7 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<De
                                     ThreadPool threadPool, DeleteByQueryRequest request, ScriptService scriptService,
                                     ActionListener<BulkByScrollResponse> listener) {
         super(task, false, true, logger, client, threadPool, request, listener,
-            scriptService, null, null, null, null);
+            scriptService, null, false, null, null);
     }
 
     @Override

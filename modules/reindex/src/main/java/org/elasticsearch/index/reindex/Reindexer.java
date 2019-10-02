@@ -102,23 +102,34 @@ public class Reindexer {
     }
 
     public void execute(BulkByScrollTask task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener,
-                        ScrollableHitSource.Checkpoint checkpoint, CheckpointListener checkpointListener) {
+                        ScrollableHitSource.Checkpoint checkpoint, CheckpointListener checkpointListener, boolean resilient) {
         request.getSearchRequest().allowPartialSearchResults(false);
-        // Notice that this is called both on leader and workers when slicing.
-        String resumableSortingField = request.getRemoteInfo() == null ? getOrAddRestartFromField(request.getSearchRequest()) : null;
+        // remote reindex not supported yet.
+        resilient = resilient && request.getRemoteInfo() == null;
 
+        // Notice that this is called both on leader and workers when slicing.
+        if (resilient) {
+            // notice this modifies the request.
+            resilient = addSeqNoSorting(request.getSearchRequest());
+        }
+
+        final boolean finalResilient = resilient;
         BulkByScrollParallelizationHelper.executeSlicedAction(task, request, ReindexAction.INSTANCE, listener, client,
             clusterService.localNode(),
             () -> {
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
                 AsyncIndexBySearchAction searchAction = new AsyncIndexBySearchAction(task, logger, assigningClient, threadPool,
-                    scriptService, reindexSslConfig, request, resumableSortingField, listener, checkpoint, checkpointListener);
+                    scriptService, reindexSslConfig, request, finalResilient, listener, checkpoint, checkpointListener);
                 searchAction.start();
             });
-
     }
 
-    private static String getOrAddRestartFromField(SearchRequest searchRequest) {
+    /**
+     *
+     * @param searchRequest this searchRequest is modified here.
+     * @return true if we have the necessary sorting or were able to add it. False if no such sorting can be established.
+     */
+    private static boolean addSeqNoSorting(SearchRequest searchRequest) {
         // we keep with the tradition of modifying the input request, though this can lead to strange results (in transport clients).
         List<SortBuilder<?>> sorts = searchRequest.source().sorts();
         if (sorts != null && sorts.size() >= 1) {
@@ -127,16 +138,17 @@ public class Reindexer {
                 FieldSortBuilder fieldSort = (FieldSortBuilder) firstSort;
                 if (SeqNoFieldMapper.NAME.equals(fieldSort.getFieldName())
                     && fieldSort.order() == SortOrder.ASC) {
-                    return SeqNoFieldMapper.NAME;
+                    return true;
                 }
-                // todo: support non seq_no fields and descending, but need to check field is numeric and handle missing values too then.
+                // we cannot support any non seq_no fields and can only support ascending, since we otherwise risk missing docs
+                // that are updated "backwards" in sort sequence.
             }
-            return null;
+            return false;
         }
 
         // use unmapped_type to ensure that sorting works when index is newly created without mappings
         searchRequest.source().sort(new FieldSortBuilder(SeqNoFieldMapper.NAME).unmappedType("long"));
-        return SeqNoFieldMapper.NAME;
+        return true;
     }
 
     /**
@@ -206,7 +218,7 @@ public class Reindexer {
 
         AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
                                  ThreadPool threadPool, ScriptService scriptService, ReindexSslConfig sslConfig, ReindexRequest request,
-                                 String restartFromField, ActionListener<BulkByScrollResponse> listener,
+                                 boolean resilient, ActionListener<BulkByScrollResponse> listener,
                                  ScrollableHitSource.Checkpoint checkpoint, CheckpointListener checkpointListener) {
             super(task,
                 /*
@@ -214,13 +226,13 @@ public class Reindexer {
                  * external versioning.
                  */
                 request.getDestination().versionType() != VersionType.INTERNAL,
-                SeqNoFieldMapper.NAME.equals(restartFromField), logger, client, threadPool, request, listener,
-                scriptService, sslConfig, restartFromField, checkpoint, checkpointListener);
+                resilient, logger, client, threadPool, request, listener,
+                scriptService, sslConfig, resilient, checkpoint, checkpointListener);
         }
 
         @Override
         protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy,
-                                                                  String restartFromField, ScrollableHitSource.Checkpoint checkpoint) {
+                                                                  boolean resilient, ScrollableHitSource.Checkpoint checkpoint) {
             if (mainRequest.getRemoteInfo() != null) {
                 RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
                 createdThreads = synchronizedList(new ArrayList<>());
@@ -230,7 +242,7 @@ public class Reindexer {
                     this::onScrollResponse, this::finishHim,
                     restClient, remoteInfo.getQuery(), mainRequest.getSearchRequest());
             }
-            return super.buildScrollableResultSource(backoffPolicy, restartFromField, checkpoint);
+            return super.buildScrollableResultSource(backoffPolicy, resilient, checkpoint);
         }
 
         @Override

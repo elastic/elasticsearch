@@ -77,7 +77,7 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadat
     private class TestAction extends Reindexer.AsyncIndexBySearchAction {
         TestAction() {
             super(ReindexMetadataTests.this.task, ReindexMetadataTests.this.logger, null, ReindexMetadataTests.this.threadPool,
-                null, null, request(), null, listener(), null, null);
+                null, null, request(), false, listener(), null, null);
         }
 
         public ReindexRequest mainRequest() {

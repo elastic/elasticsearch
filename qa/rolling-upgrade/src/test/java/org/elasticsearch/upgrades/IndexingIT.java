@@ -19,19 +19,25 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -142,6 +148,61 @@ public class IndexingIT extends AbstractRollingTestCase {
             client().performRequest(delete);
 
             assertCount("test_index", expectedCount + 5);
+        }
+    }
+
+    public void testAutoIdWithOpTypeCreate() throws IOException {
+        final String indexName = "auto_id_and_op_type_create_index";
+        StringBuilder b = new StringBuilder();
+        b.append("{\"create\": {\"_index\": \"").append(indexName).append("\"}}\n");
+        b.append("{\"f1\": \"v\"}\n");
+        Request bulk = new Request("POST", "/_bulk");
+        bulk.addParameter("refresh", "true");
+        bulk.setJsonEntity(b.toString());
+
+        switch (CLUSTER_TYPE) {
+            case OLD:
+                Settings.Builder settings = Settings.builder()
+                    .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
+                createIndex(indexName, settings.build());
+                break;
+            case MIXED:
+                Request waitForGreen = new Request("GET", "/_cluster/health");
+                waitForGreen.addParameter("wait_for_nodes", "3");
+                client().performRequest(waitForGreen);
+
+                Version minNodeVersion = null;
+                Map<?, ?> response = entityAsMap(client().performRequest(new Request("GET", "_nodes")));
+                Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
+                for (Map.Entry<?, ?> node : nodes.entrySet()) {
+                    Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
+                    Version nodeVersion = Version.fromString(nodeInfo.get("version").toString());
+                    if (minNodeVersion == null) {
+                        minNodeVersion = nodeVersion;
+                    } else if (nodeVersion.before(minNodeVersion)) {
+                        minNodeVersion = nodeVersion;
+                    }
+                }
+
+                if (minNodeVersion.before(Version.V_7_5_0)) {
+                    ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(bulk));
+                    assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+                    assertThat(e.getMessage(),
+                        // if request goes to 7.5+ node
+                        either(containsString("optype create not supported for indexing requests without explicit id until"))
+                            // if request goes to < 7.5 node
+                            .or(containsString("an id must be provided if version type or value are set")
+                            ));
+                } else {
+                    client().performRequest(bulk);
+                }
+                break;
+            case UPGRADED:
+                client().performRequest(bulk);
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
     }
 

@@ -685,41 +685,38 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void finalizeSnapshot(final SnapshotId snapshotId,
-                                         final ShardGenerations shardGenerations,
-                                         final long startTime,
-                                         final String failure,
-                                         final int totalShards,
-                                         final List<SnapshotShardFailure> shardFailures,
-                                         final long repositoryStateId,
-                                         final boolean includeGlobalState,
-                                         final MetaData clusterMetaData,
-                                         final Map<String, Object> userMetadata,
-                                         final Version version,
-                                         final ActionListener<SnapshotInfo> listener) {
+                                 final ShardGenerations shardGenerations,
+                                 final long startTime,
+                                 final String failure,
+                                 final int totalShards,
+                                 final List<SnapshotShardFailure> shardFailures,
+                                 final long repositoryStateId,
+                                 final boolean includeGlobalState,
+                                 final MetaData clusterMetaData,
+                                 final Map<String, Object> userMetadata,
+                                 final Version version,
+                                 final ActionListener<SnapshotInfo> listener) {
 
         final List<IndexId> indices = shardGenerations.indices();
-        // Once we're done writing all metadata, we update the index-N blob to finalize the snapshot
-        final ActionListener<SnapshotInfo> afterMetaWrites = ActionListener.wrap(snapshotInfo -> {
-            // Once we are done writing the updated index-N blob we remove the now unreferenced index-${uuid} blobs in each shard directory
-            // if all nodes are at least at version SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION
-            // If there are older version nodes in the cluster, we don't need to run this cleanup as it will have already happened when
-            // writing the index-${N} to each shard directory.
-            final RepositoryData existingRepositoryData = getRepositoryData();
-            final RepositoryData updatedRepositoryData =
-                existingRepositoryData.addSnapshot(snapshotId, snapshotInfo.state(), shardGenerations);
-            writeIndexGen(updatedRepositoryData, repositoryStateId, version);
-            if (version.onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
-                cleanupOldShardGens(existingRepositoryData, updatedRepositoryData);
-            }
-            listener.onResponse(snapshotInfo);
-        }, ex -> listener.onFailure(new SnapshotException(metadata.name(), snapshotId, "failed to update snapshot in repository", ex)));
-
-        // We upload one meta blob for each index, one for the cluster-state and one snap-${uuid}.dat blob
-        final GroupedActionListener<SnapshotInfo> allMetaListener =
-            new GroupedActionListener<>(ActionListener.map(afterMetaWrites, snapshotInfos -> {
-                assert snapshotInfos.size() == 1 : "Should have only received a single SnapshotInfo but received " + snapshotInfos;
-                return snapshotInfos.iterator().next();
-            }), 2 + indices.size());
+        // Once we are done writing the updated index-N blob we remove the now unreferenced index-${uuid} blobs in each shard
+        // directory if all nodes are at least at version SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION
+        // If there are older version nodes in the cluster, we don't need to run this cleanup as it will have already happened
+        // when writing the index-${N} to each shard directory.
+        final ActionListener<SnapshotInfo> allMetaListener = new GroupedActionListener<>(
+            ActionListener.wrap(snapshotInfos -> {
+                    assert snapshotInfos.size() == 1 : "Should have only received a single SnapshotInfo but received " + snapshotInfos;
+                    final SnapshotInfo snapshotInfo = snapshotInfos.iterator().next();
+                    final RepositoryData existingRepositoryData = getRepositoryData();
+                    final RepositoryData updatedRepositoryData =
+                        existingRepositoryData.addSnapshot(snapshotId, snapshotInfo.state(), shardGenerations);
+                    writeIndexGen(updatedRepositoryData, repositoryStateId, version);
+                    if (version.onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
+                        cleanupOldShardGens(existingRepositoryData, updatedRepositoryData);
+                    }
+                    listener.onResponse(snapshotInfo);
+                },
+                e -> listener.onFailure(new SnapshotException(metadata.name(), snapshotId, "failed to update snapshot in repository", e))),
+            2 + indices.size());
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
 
         // We ignore all FileAlreadyExistsException when writing metadata since otherwise a master failover while in this method will
@@ -742,7 +739,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }));
         }
 
-        executor.execute(ActionRunnable.wrap(afterMetaWrites, afterMetaListener -> {
+        executor.execute(ActionRunnable.wrap(allMetaListener, afterMetaListener -> {
             final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshotId,
                 indices.stream().map(IndexId::getName).collect(Collectors.toList()),
                 startTime, failure, threadPool.absoluteTimeInMillis(), totalShards, shardFailures,

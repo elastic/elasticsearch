@@ -49,17 +49,23 @@ public class CustomPassageFormatter extends PassageFormatter {
             pos = passage.getStartOffset();
             for (int i = 0; i < passage.getNumMatches(); i++) {
                 int start = passage.getMatchStarts()[i];
+                assert start >= pos && start < passage.getEndOffset();
+                // append content before this start
+                append(sb, content, pos, start);
+
                 int end = passage.getMatchEnds()[i];
-                // its possible to have overlapping terms
-                if (start > pos) {
-                    append(sb, content, pos, start);
+                assert end > start;
+                // Look ahead to expand 'end' past all overlapping:
+                while (i + 1 < passage.getNumMatches() && passage.getMatchStarts()[i + 1] < end) {
+                    end = passage.getMatchEnds()[++i];
                 }
-                if (end > pos) {
-                    sb.append(preTag);
-                    append(sb, content, Math.max(pos, start), end);
-                    sb.append(postTag);
-                    pos = end;
-                }
+                end = Math.min(end, passage.getEndOffset()); // in case match straddles past passage
+
+                sb.append(preTag);
+                append(sb, content, start, end);
+                sb.append(postTag);
+
+                pos = end;
             }
             // its possible a "term" from the analyzer could span a sentence boundary.
             append(sb, content, pos, Math.max(pos, passage.getEndOffset()));

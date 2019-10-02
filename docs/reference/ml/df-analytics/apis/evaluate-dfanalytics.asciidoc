@@ -172,3 +172,79 @@ only.
 <3> The ground truth value for the actual house price. This is required in order 
 to evaluate results.
 <4> The predicted value for house price calculated by the {reganalysis}.
+
+
+The following example calculates the training error:
+
+[source,console]
+--------------------------------------------------
+POST _ml/data_frame/_evaluate
+{
+  "index": "student_performance_mathematics_reg",
+  "query": {
+    "term": {
+      "ml.is_training": {
+        "value": true <1>
+      }
+    }
+  },
+  "evaluation": {
+    "regression": { 
+      "actual_field": "G3", <2>
+      "predicted_field": "ml.G3_prediction", <3>
+      "metrics": {  
+        "r_squared": {},
+        "mean_squared_error": {}                             
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+<1> In this example, a test/train split (`training_percent`) was defined for the 
+{reganalysis}. This query limits evaluation to be performed on the train split 
+only. It means that a training error will be calculated.
+<2> The field that contains the ground truth value for the actual student 
+performance. This is required in order to evaluate results.
+<3> The field that contains the predicted value for student performance 
+calculated by the {reganalysis}.
+
+
+The next example calculates the testing error. The only difference compared with 
+the previous example is that `ml.is_training` is set to `false` this time, so 
+the query excludes the train split from the evaluation.
+
+[source,console]
+--------------------------------------------------
+POST _ml/data_frame/_evaluate
+{
+  "index": "student_performance_mathematics_reg",
+  "query": {
+    "term": {
+      "ml.is_training": {
+        "value": false <1>
+      }
+    }
+  },
+  "evaluation": {
+    "regression": { 
+      "actual_field": "G3", <2>
+      "predicted_field": "ml.G3_prediction", <3>
+      "metrics": {  
+        "r_squared": {},
+        "mean_squared_error": {}                             
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+<1> In this example, a test/train split (`training_percent`) was defined for the 
+{reganalysis}. This query limits evaluation to be performed on the test split 
+only. It means that a testing error will be calculated.
+<2> The field that contains the ground truth value for the actual student 
+performance. This is required in order to evaluate results.
+<3> The field that contains the predicted value for student performance 
+calculated by the {reganalysis}.

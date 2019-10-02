@@ -37,4 +37,9 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
      * @return {@code true} if this analysis persists state that can later be used to restore from a given point
      */
     boolean persistsState();
+
+    /**
+     * Returns the document id for the analysis state
+     */
+    String getStateDocId(String jobId);
 }

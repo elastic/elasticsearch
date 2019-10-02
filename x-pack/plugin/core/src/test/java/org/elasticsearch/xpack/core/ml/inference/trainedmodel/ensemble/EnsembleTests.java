@@ -108,25 +108,6 @@ public class EnsembleTests extends AbstractSerializingTestCase<Ensemble> {
         return new NamedWriteableRegistry(entries);
     }
 
-    public void testEnsembleWithModelsThatHaveDifferentFeatureNames() {
-        List<String> featureNames = Arrays.asList("foo", "bar", "baz", "farequote");
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> {
-            Ensemble.builder().setFeatureNames(featureNames)
-                .setTrainedModels(Arrays.asList(TreeTests.buildRandomTree(Arrays.asList("bar", "foo", "baz", "farequote"), 6)))
-                .build()
-                .validate();
-        });
-        assertThat(ex.getMessage(), equalTo("[feature_names] must be the same and in the same order for each of the trained_models"));
-
-        ex = expectThrows(ElasticsearchException.class, () -> {
-            Ensemble.builder().setFeatureNames(featureNames)
-                .setTrainedModels(Arrays.asList(TreeTests.buildRandomTree(Arrays.asList("completely_different"), 6)))
-                .build()
-                .validate();
-        });
-        assertThat(ex.getMessage(), equalTo("[feature_names] must be the same and in the same order for each of the trained_models"));
-    }
-
     public void testEnsembleWithAggregatedOutputDifferingFromTrainedModels() {
         List<String> featureNames = Arrays.asList("foo", "bar");
         int numberOfModels = 5;

@@ -67,6 +67,8 @@ include::rollup/index.asciidoc[]
 
 include::frozen-indices.asciidoc[]
 
+include::{xes-repo-dir}/watcher/index.asciidoc[]
+
 include::rest-api/index.asciidoc[]
 
 include::commands/index.asciidoc[]

@@ -42,6 +42,7 @@ import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.core.enrich.action.EnrichPolicyExecutionTask;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -64,6 +65,7 @@ public class EnrichPolicyRunner implements Runnable {
 
     private final String policyName;
     private final EnrichPolicy policy;
+    private final EnrichPolicyExecutionTask task;
     private final ActionListener<PolicyExecutionResult> listener;
     private final ClusterService clusterService;
     private final Client client;
@@ -71,11 +73,12 @@ public class EnrichPolicyRunner implements Runnable {
     private final LongSupplier nowSupplier;
     private final int fetchSize;
 
-    EnrichPolicyRunner(String policyName, EnrichPolicy policy, ActionListener<PolicyExecutionResult> listener,
-                       ClusterService clusterService, Client client, IndexNameExpressionResolver indexNameExpressionResolver,
-                       LongSupplier nowSupplier, int fetchSize) {
+    EnrichPolicyRunner(String policyName, EnrichPolicy policy, EnrichPolicyExecutionTask task,
+                       ActionListener<PolicyExecutionResult> listener, ClusterService clusterService, Client client,
+                       IndexNameExpressionResolver indexNameExpressionResolver, LongSupplier nowSupplier, int fetchSize) {
         this.policyName = policyName;
         this.policy = policy;
+        this.task = task;
         this.listener = listener;
         this.clusterService = clusterService;
         this.client = client;
@@ -86,8 +89,9 @@ public class EnrichPolicyRunner implements Runnable {
 
     @Override
     public void run() {
-        // Collect the source index information
         logger.info("Policy [{}]: Running enrich policy", policyName);
+        task.setStatus(new EnrichPolicyExecutionTask.Status(EnrichPolicyExecutionTask.PolicyPhases.RUNNING));
+        // Collect the source index information
         final String[] sourceIndices = policy.getIndices().toArray(new String[0]);
         logger.debug("Policy [{}]: Checking source indices [{}]", policyName, sourceIndices);
         GetIndexRequest getIndexRequest = new GetIndexRequest().indices(sourceIndices);

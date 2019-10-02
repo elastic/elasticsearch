@@ -44,8 +44,11 @@ import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.core.enrich.action.EnrichPolicyExecutionTask;
+import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -1112,7 +1115,26 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                                                   Long createTime) {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         IndexNameExpressionResolver resolver = getInstanceFromNode(IndexNameExpressionResolver.class);
-        return new EnrichPolicyRunner(policyName, policy, listener, clusterService, client(), resolver, () -> createTime,
+        TaskManager taskManager = getInstanceFromNode(TaskManager.class);
+        ExecuteEnrichPolicyAction.Request request = new ExecuteEnrichPolicyAction.Request(policyName);
+        EnrichPolicyExecutionTask task = ((EnrichPolicyExecutionTask) taskManager.register("enrich", "", request));
+        // The executor would wrap the listener in order to clean up the task in the
+        // task manager, but we're just testing the runner, so we make sure to clean
+        // up after ourselves.
+        ActionListener<PolicyExecutionResult> wrappedListener = new ActionListener<>() {
+            @Override
+            public void onResponse(PolicyExecutionResult policyExecutionResult) {
+                taskManager.unregister(task);
+                listener.onResponse(policyExecutionResult);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                taskManager.unregister(task);
+                listener.onFailure(e);
+            }
+        };
+        return new EnrichPolicyRunner(policyName, policy, task, wrappedListener, clusterService, client(), resolver, () -> createTime,
             randomIntBetween(1, 10000));
     }
 

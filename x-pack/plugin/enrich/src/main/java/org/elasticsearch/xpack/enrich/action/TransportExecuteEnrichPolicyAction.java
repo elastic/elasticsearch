@@ -59,7 +59,7 @@ public class TransportExecuteEnrichPolicyAction
     @Override
     protected void masterOperation(Task task, ExecuteEnrichPolicyAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
-        executor.runPolicy(request.getName(), new ActionListener<>() {
+        executor.runPolicy(request, new ActionListener<>() {
             @Override
             public void onResponse(PolicyExecutionResult policyExecutionResult) {
                 listener.onResponse(new AcknowledgedResponse(policyExecutionResult.isCompleted()));

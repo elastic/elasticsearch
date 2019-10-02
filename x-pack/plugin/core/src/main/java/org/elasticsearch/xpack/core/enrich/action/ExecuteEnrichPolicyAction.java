@@ -6,13 +6,19 @@
 package org.elasticsearch.xpack.core.enrich.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 public class ExecuteEnrichPolicyAction extends ActionType<AcknowledgedResponse> {
@@ -59,6 +65,11 @@ public class ExecuteEnrichPolicyAction extends ActionType<AcknowledgedResponse> 
         }
 
         @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new EnrichPolicyExecutionTask(id, type, action, getDescription(), parentTaskId, headers);
+        }
+
+        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
@@ -69,6 +80,58 @@ public class ExecuteEnrichPolicyAction extends ActionType<AcknowledgedResponse> 
         @Override
         public int hashCode() {
             return Objects.hash(name);
+        }
+    }
+
+    public static class Response extends ActionResponse implements ToXContentObject {
+
+        private final TaskId taskId;
+        private final EnrichPolicyExecutionTask.Status status;
+
+        public Response(EnrichPolicyExecutionTask.Status status) {
+            this.taskId = null;
+            this.status = status;
+        }
+
+        public Response(TaskId taskId) {
+            this.taskId = taskId;
+            this.status = null;
+        }
+
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            if (in.readBoolean()) {
+                this.status = new EnrichPolicyExecutionTask.Status(in);
+                this.taskId = null;
+            } else {
+                this.taskId = TaskId.readFromStream(in);
+                this.status = null;
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            boolean waitedForCompletion = status != null;
+            out.writeBoolean(waitedForCompletion);
+            if (waitedForCompletion) {
+                status.writeTo(out);
+            } else {
+                taskId.writeTo(out);
+            }
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            {
+                if (taskId != null) {
+                    builder.field("task", taskId.getNodeId() + ":" + taskId.getId());
+                } else {
+                    builder.field("status", status);
+                }
+            }
+            builder.endObject();
+            return builder;
         }
     }
 }

@@ -1,0 +1,88 @@
+package org.elasticsearch.xpack.core.enrich.action;
+
+import java.io.IOException;
+import java.util.Map;
+
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+
+public class EnrichPolicyExecutionTask extends Task {
+
+    private volatile Status status;
+
+    public EnrichPolicyExecutionTask(long id, String type, String action, String description, TaskId parentTask,
+                                     Map<String, String> headers) {
+        super(id, type, action, description, parentTask, headers);
+    }
+
+    public EnrichPolicyExecutionTask(long id, String type, String action, String description, TaskId parentTask, long startTime,
+                                     long startTimeNanos, Map<String, String> headers) {
+        super(id, type, action, description, parentTask, startTime, startTimeNanos, headers);
+    }
+
+    @Override
+    public Status getStatus() {
+        return status;
+    }
+
+    public void setStatus(Status status) {
+        this.status = status;
+    }
+
+    public static final class PolicyPhases {
+        private PolicyPhases() {}
+
+        public static final String SCHEDULED = "SCHEDULED";
+        public static final String RUNNING = "RUNNING";
+        public static final String COMPLETE = "COMPLETE";
+        public static final String FAILED = "FAILED";
+    }
+
+    public static final class Status implements Task.Status {
+
+        public static final String NAME = "enrich-policy-execution";
+
+        static final String PHASE_FIELD = "phase";
+
+        private final String phase;
+
+        public Status(String phase) {
+            this.phase = phase;
+        }
+
+        public Status(StreamInput in) throws IOException {
+            this.phase = in.readString();
+        }
+
+        public String getPhase() {
+            return phase;
+        }
+
+        public boolean isCompleted() {
+            return PolicyPhases.COMPLETE.equals(phase);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(phase);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            {
+                builder.field(PHASE_FIELD, phase);
+            }
+            builder.endObject();
+            return builder;
+        }
+    }
+}

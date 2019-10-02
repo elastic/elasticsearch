@@ -21,6 +21,8 @@ package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
 
+import java.util.Objects;
+
 public final class BytesArray extends BytesReference {
 
     public static final BytesArray EMPTY = new BytesArray(BytesRef.EMPTY_BYTES, 0, 0);
@@ -67,10 +69,7 @@ public final class BytesArray extends BytesReference {
 
     @Override
     public BytesReference slice(int from, int length) {
-        if (from < 0 || (from + length) > this.length) {
-            throw new IllegalArgumentException("can't slice a buffer with length [" + this.length +
-                "], with slice parameters from [" + from + "], length [" + length + "]");
-        }
+        Objects.checkFromIndexSize(from, length, this.length);
         return new BytesArray(bytes, offset + from, length);
     }
 

@@ -52,6 +52,8 @@ include::high-availability.asciidoc[]
 
 include::security/index.asciidoc[]
 
+include::{xes-repo-dir}/watcher/index.asciidoc[]
+
 include::commands/index.asciidoc[]
 
 include::how-to.asciidoc[]

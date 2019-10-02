@@ -5,20 +5,14 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression;
 
-import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 
 import java.util.List;
 
-public interface RegressionMetric extends ToXContentObject, NamedWriteable {
-
-    /**
-     * Returns the name of the metric (which may differ to the writeable name)
-     */
-    String getMetricName();
+public interface RegressionMetric extends EvaluationMetric {
 
     /**
      * Builds the aggregation that collect required data to compute the metric
@@ -29,9 +23,8 @@ public interface RegressionMetric extends ToXContentObject, NamedWriteable {
     List<AggregationBuilder> aggs(String actualField, String predictedField);
 
     /**
-     * Calculates the metric result
-     * @param aggs the aggregations
-     * @return the metric result
+     * Processes given aggregations as a step towards computing result
+     * @param aggs aggregations from {@link SearchResponse}
      */
-    EvaluationMetricResult evaluate(Aggregations aggs);
+    void process(Aggregations aggs);
 }

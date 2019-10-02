@@ -35,6 +35,7 @@ plugins {
     id 'com.gradle.build-scan' version '2.4'
     id 'lifecycle-base'
     id 'elasticsearch.global-build-info'
+    id "com.diffplug.gradle.spotless" version "3.24.2" apply false
 }
 
 apply plugin: 'nebula.info-scm'
@@ -98,6 +99,34 @@ subprojects {
   plugins.withType(BuildPlugin).whenPluginAdded {
     project.licenseFile = project.rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
     project.noticeFile = project.rootProject.file('NOTICE.txt')
+
+    // Projects that should be formatted and checked with Spotless are
+    // listed here, by project path. Once the number of formatted projects
+    // is greater than the number of unformatted projects, this can be
+    // switched to an exclude list, and eventualy removed completely.
+    def projectPathsToFormat = [
+      // ':build-tools'
+    ]
+
+    if (projectPathsToFormat.contains(project.path)) {
+      project.apply plugin: "com.diffplug.gradle.spotless"
+
+      spotless {
+        java {
+
+          removeUnusedImports()
+          eclipse().configFile rootProject.file('.eclipseformat.xml')
+          trimTrailingWhitespace()
+
+          // See CONTRIBUTING.md for details of when to enabled this.
+          if (System.getProperty('spotless.paddedcell') != null) {
+            paddedCell()
+          }
+        }
+      }
+
+      precommit.dependsOn 'spotlessJavaCheck'
+    }
   }
 }
 

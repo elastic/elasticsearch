@@ -37,7 +37,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
-import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -118,7 +118,7 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
             }
         );
 
-        SearchRequest totalTransformCount = client.prepareSearch(TransformInternalIndex.INDEX_NAME_PATTERN)
+        SearchRequest totalTransformCount = client.prepareSearch(TransformInternalIndexConstants.INDEX_NAME_PATTERN)
             .setTrackTotalHits(true)
             .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(), TransformConfig.NAME))))

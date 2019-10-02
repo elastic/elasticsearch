@@ -5,37 +5,26 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
-import org.elasticsearch.common.time.IsoLocale;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isDate;
-import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTruncProcessor.process;
-import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.BinaryDateTimeProcessor.BinaryDateOperation.TRUNC;
 
-public class DateTrunc extends BinaryScalarFunction {
+public class DateTrunc extends BinaryDateTimeFunction {
 
-    public enum Part {
+    public enum Part implements DateTimeField {
 
         MILLENNIUM(dt -> {
             int year = dt.getYear();
@@ -110,34 +99,32 @@ public class DateTrunc extends BinaryScalarFunction {
         NANOSECOND(dt -> dt, "nanoseconds", "ns");
 
         private static final Map<String, Part> NAME_TO_PART;
+        private static final List<String> VALID_VALUES;
 
         static {
-            NAME_TO_PART = new HashMap<>();
-
-            for (Part datePart : Part.values()) {
-                String lowerCaseName = datePart.name().toLowerCase(IsoLocale.ROOT);
-
-                NAME_TO_PART.put(lowerCaseName, datePart);
-                for (String alias : datePart.aliases) {
-                    NAME_TO_PART.put(alias, datePart);
-                }
-            }
+            NAME_TO_PART = DateTimeField.initializeResolutionMap(values());
+            VALID_VALUES = DateTimeField.initializeValidValues(values());
         }
 
-        private Set<String> aliases;
         private Function<ZonedDateTime, ZonedDateTime> truncateFunction;
+        private Set<String> aliases;
 
         Part(Function<ZonedDateTime, ZonedDateTime> truncateFunction, String... aliases) {
             this.truncateFunction = truncateFunction;
             this.aliases = Set.of(aliases);
         }
 
-        public static Part resolveTruncate(String truncateTo) {
-            return NAME_TO_PART.get(truncateTo.toLowerCase(IsoLocale.ROOT));
+        @Override
+        public Iterable<String> aliases() {
+            return aliases;
         }
 
         public static List<String> findSimilar(String match) {
-            return StringUtils.findSimilar(match, NAME_TO_PART.keySet());
+            return DateTimeField.findSimilar(NAME_TO_PART.keySet(), match);
+        }
+
+        public static Part resolve(String truncateTo) {
+            return DateTimeField.resolveMatch(NAME_TO_PART, truncateTo);
         }
 
         public ZonedDateTime truncate(ZonedDateTime dateTime) {
@@ -145,11 +132,8 @@ public class DateTrunc extends BinaryScalarFunction {
         }
     }
 
-    private final ZoneId zoneId;
-
     public DateTrunc(Source source, Expression truncateTo, Expression timestamp, ZoneId zoneId) {
-        super(source, truncateTo, timestamp);
-        this.zoneId = zoneId;
+        super(source, truncateTo, timestamp, zoneId, TRUNC);
     }
 
     @Override
@@ -158,49 +142,13 @@ public class DateTrunc extends BinaryScalarFunction {
     }
 
     @Override
-    protected TypeResolution resolveType() {
-        TypeResolution resolution = isString(left(), sourceText(), Expressions.ParamOrdinal.FIRST);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-
-        if (left().foldable()) {
-            String truncateToValue = (String) left().fold();
-            if (truncateToValue != null && Part.resolveTruncate(truncateToValue) == null) {
-                List<String> similar = Part.findSimilar(truncateToValue);
-                if (similar.isEmpty()) {
-                    return new TypeResolution(format(null, "first argument of [{}] must be one of {} or their aliases, found value [{}]",
-                        sourceText(),
-                        Part.values(),
-                        Expressions.name(left())));
-                } else {
-                    return new TypeResolution(format(null, "Unknown value [{}] for first argument of [{}]; did you mean {}?",
-                        Expressions.name(left()),
-                        sourceText(),
-                        similar));
-                }
-            }
-        }
-        resolution = isDate(right(), sourceText(), Expressions.ParamOrdinal.SECOND);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-        return TypeResolution.TYPE_RESOLVED;
-    }
-
-    @Override
     protected BinaryScalarFunction replaceChildren(Expression newTruncateTo, Expression newTimestamp) {
-        return new DateTrunc(source(), newTruncateTo, newTimestamp, zoneId);
+        return new DateTrunc(source(), newTruncateTo, newTimestamp, zoneId());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, DateTrunc::new, left(), right(), zoneId);
-    }
-
-    @Override
-    protected Pipe makePipe() {
-        return new DateTruncPipe(source(), this, Expressions.pipe(left()), Expressions.pipe(right()), zoneId);
+        return NodeInfo.create(this, DateTrunc::new, left(), right(), zoneId());
     }
 
     @Override
@@ -209,39 +157,27 @@ public class DateTrunc extends BinaryScalarFunction {
     }
 
     @Override
+    protected boolean resolveDateTimeField(String dateTimeField) {
+        return Part.resolve(dateTimeField) != null;
+    }
+
+    @Override
+    protected List<String> findSimilarDateTimeFields(String dateTimeField) {
+        return Part.findSimilar(dateTimeField);
+    }
+
+    @Override
+    protected String scriptMethodName() {
+        return "dateTrunc";
+    }
+
+    @Override
     public Object fold() {
-        return process(left().fold(), right().fold(), zoneId);
+        return DateTruncProcessor.process(left().fold(), right().fold(), zoneId());
     }
 
     @Override
-    protected ScriptTemplate asScriptFrom(ScriptTemplate leftScript, ScriptTemplate rightScript) {
-        return new ScriptTemplate(
-            formatTemplate("{sql}.dateTrunc(" + leftScript.template() + "," + rightScript.template()+ ",{})"),
-            paramsBuilder()
-                .script(leftScript.params())
-                .script(rightScript.params())
-                .variable(zoneId.getId())
-                .build(),
-            dataType());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), zoneId);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        if (!super.equals(o)) {
-            return false;
-        }
-        DateTrunc dateTrunc = (DateTrunc) o;
-        return Objects.equals(zoneId, dateTrunc.zoneId);
+    protected List<String> validDateTimeFieldValues() {
+        return Part.VALID_VALUES;
     }
 }

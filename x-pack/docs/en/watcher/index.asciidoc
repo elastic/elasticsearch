@@ -87,3 +87,7 @@ include::java.asciidoc[]
 include::managing-watches.asciidoc[]
 
 include::example-watches.asciidoc[]
+
+include::troubleshooting.asciidoc[]
+
+include::limitations.asciidoc[]

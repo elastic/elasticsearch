@@ -184,7 +184,7 @@ public class TerminalTests extends ESTestCase {
         // read from an input stream to a character array
         byte[] source = "hellohello!\n".getBytes(StandardCharsets.UTF_8);
         try (InputStream stream = new ByteArrayInputStream(source);
-             InputStreamReader reader = new InputStreamReader(stream)) {
+             InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
             terminal.readLineToCharArray(reader, 10);
         }
     }
@@ -192,7 +192,7 @@ public class TerminalTests extends ESTestCase {
     private void assertRead(String source, String expected) {
         Terminal.SystemTerminal terminal = new Terminal.SystemTerminal();
         try (InputStream stream = new ByteArrayInputStream(source.getBytes(StandardCharsets.UTF_8));
-             InputStreamReader reader = new InputStreamReader(stream)) {
+             InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
             char[] result = terminal.readLineToCharArray(reader, 10);
             assertThat(result, equalTo(expected.toCharArray()));
         } catch (IOException e) {
@@ -203,7 +203,7 @@ public class TerminalTests extends ESTestCase {
     private void assertReadLines(String source, String... expected) {
         Terminal.SystemTerminal terminal = new Terminal.SystemTerminal();
         try (InputStream stream = new ByteArrayInputStream(source.getBytes(StandardCharsets.UTF_8));
-             InputStreamReader reader = new InputStreamReader(stream)) {
+             InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
             char[] result;
             for (String exp : expected) {
                 result = terminal.readLineToCharArray(reader, 10);

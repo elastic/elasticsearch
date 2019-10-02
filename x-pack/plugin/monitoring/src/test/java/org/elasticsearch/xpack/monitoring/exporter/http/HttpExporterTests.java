@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
+import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter.Config;
 import org.junit.Before;
 import org.mockito.InOrder;
@@ -106,6 +107,40 @@ public class HttpExporterTests extends ESTestCase {
         assertThat(e, hasToString(containsString("Failed to parse value [[]] for setting [" + prefix + ".host]")));
         assertThat(e.getCause(), instanceOf(SettingsException.class));
         assertThat(e.getCause(), hasToString(containsString("host list for [" + prefix + ".host] is empty")));
+    }
+
+    public void testEmptyHostListOkayIfTypeNotSetDefault() {
+        runTestEmptyHostListOkayIfTypeNotSet(true);
+    }
+
+    public void testEmptyHostListOkayIfTypeNotSetExplicit() {
+        runTestEmptyHostListOkayIfTypeNotSet(true);
+    }
+
+    private void runTestEmptyHostListOkayIfTypeNotSet(final boolean useDefault) {
+        final String prefix = "xpack.monitoring.exporters.example";
+        final Settings.Builder builder = Settings.builder();
+        if (useDefault == false) {
+            builder.put(prefix + ".type", Exporter.TYPE_SETTING.getConcreteSettingForNamespace("example").get(Settings.EMPTY));
+        }
+        builder.putList(prefix + ".host", Collections.emptyList());
+        final Settings settings = builder.build();
+        HttpExporter.HOST_SETTING.getConcreteSetting(prefix + ".host").get(settings);
+    }
+
+    public void testHostListIsRejectedIfTypeIsNotHttp() {
+        final String prefix = "xpack.monitoring.exporters.example";
+        final Settings.Builder builder = Settings.builder().put(prefix + ".type", "local");
+        builder.putList(prefix + ".host", List.of("https://example.com:443"));
+        final Settings settings = builder.build();
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> HttpExporter.HOST_SETTING.getConcreteSetting(prefix + ".host").get(settings));
+        assertThat(
+            e,
+            hasToString(containsString("Failed to parse value [[\"https://example.com:443\"]] for setting [" + prefix + ".host]")));
+        assertThat(e.getCause(), instanceOf(SettingsException.class));
+        assertThat(e.getCause(), hasToString(containsString("host list for [" + prefix + ".host] is set but type is [local]")));
     }
 
     public void testInvalidHost() {

@@ -103,7 +103,9 @@ public class HttpExporter extends Exporter {
                             final String type = (String) settings.get(Exporter.TYPE_SETTING.getConcreteSettingForNamespace(namespace));
 
                             if (hosts.isEmpty()) {
-                                if (Objects.equals(Exporter.TYPE_SETTING.getConcreteSettingForNamespace(Settings.EMPTY), type)) {
+                                final String defaultType =
+                                    Exporter.TYPE_SETTING.getConcreteSettingForNamespace(namespace).get(Settings.EMPTY);
+                                if (Objects.equals(type, defaultType)) {
                                     // hosts can only be empty if the type is unset
                                     return;
                                 } else {

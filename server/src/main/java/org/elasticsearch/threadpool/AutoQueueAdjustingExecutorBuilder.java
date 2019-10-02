@@ -76,23 +76,27 @@ public final class AutoQueueAdjustingExecutorBuilder extends ExecutorBuilder<Aut
             minSizeKey,
             Integer.toString(minQueueSize),
             s -> Setting.parseInt(s, 0, minSizeKey),
-            new Setting.Validator<Integer>() {
+            new Setting.Validator<>() {
+
                 @Override
-                public void validate(Integer value) {
+                public void validate(final Integer value) {
+
                 }
 
                 @Override
-                public void validate(Integer value, Map<Setting<Integer>, Integer> settings) {
-                    if (value > settings.get(tempMaxQueueSizeSetting)) {
+                public void validate(final Integer value, final Map<Setting<?>, Object> settings) {
+                    if (value > (int) settings.get(tempMaxQueueSizeSetting)) {
                         throw new IllegalArgumentException("Failed to parse value [" + value + "] for setting [" + minSizeKey
                             + "] must be <= " + settings.get(tempMaxQueueSizeSetting));
                     }
                 }
 
                 @Override
-                public Iterator<Setting<Integer>> settings() {
-                    return Arrays.asList(tempMaxQueueSizeSetting).iterator();
+                public Iterator<Setting<?>> settings() {
+                    final List<Setting<?>> settings = List.of(tempMaxQueueSizeSetting);
+                    return settings.iterator();
                 }
+
             },
             Setting.Property.NodeScope);
         this.maxQueueSizeSetting = new Setting<>(
@@ -100,22 +104,26 @@ public final class AutoQueueAdjustingExecutorBuilder extends ExecutorBuilder<Aut
                 Integer.toString(maxQueueSize),
                 s -> Setting.parseInt(s, 0, maxSizeKey),
                 new Setting.Validator<Integer>() {
+
                     @Override
                     public void validate(Integer value) {
+
                     }
 
                     @Override
-                    public void validate(Integer value, Map<Setting<Integer>, Integer> settings) {
-                        if (value < settings.get(tempMinQueueSizeSetting)) {
+                    public void validate(final Integer value, final Map<Setting<?>, Object> settings) {
+                        if (value < (int) settings.get(tempMinQueueSizeSetting)) {
                             throw new IllegalArgumentException("Failed to parse value [" + value + "] for setting [" + minSizeKey
                                 + "] must be >= " + settings.get(tempMinQueueSizeSetting));
                         }
                     }
 
                     @Override
-                    public Iterator<Setting<Integer>> settings() {
-                        return Arrays.asList(tempMinQueueSizeSetting).iterator();
+                    public Iterator<Setting<?>> settings() {
+                        final List<Setting<?>> settings = List.of(tempMinQueueSizeSetting);
+                        return settings.iterator();
                     }
+
                 },
                 Setting.Property.NodeScope);
         this.frameSizeSetting = Setting.intSetting(frameSizeKey, frameSize, 100, Setting.Property.NodeScope);

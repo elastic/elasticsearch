@@ -317,8 +317,8 @@ public final class IndexSettings {
         }
 
         @Override
-        public void validate(final String value, final Map<Setting<String>, String> settings) {
-            final String requiredPipeline = settings.get(IndexSettings.REQUIRED_PIPELINE);
+        public void validate(final String value, final Map<Setting<?>, Object> settings) {
+            final String requiredPipeline = (String) settings.get(IndexSettings.REQUIRED_PIPELINE);
             if (value.equals(IngestService.NOOP_PIPELINE_NAME) == false
                 && requiredPipeline.equals(IngestService.NOOP_PIPELINE_NAME) == false) {
                 throw new IllegalArgumentException(
@@ -327,8 +327,9 @@ public final class IndexSettings {
         }
 
         @Override
-        public Iterator<Setting<String>> settings() {
-            return List.of(REQUIRED_PIPELINE).iterator();
+        public Iterator<Setting<?>> settings() {
+            final List<Setting<?>> settings = List.of(REQUIRED_PIPELINE);
+            return settings.iterator();
         }
 
     }
@@ -341,8 +342,8 @@ public final class IndexSettings {
         }
 
         @Override
-        public void validate(final String value, final Map<Setting<String>, String> settings) {
-            final String defaultPipeline = settings.get(IndexSettings.DEFAULT_PIPELINE);
+        public void validate(final String value, final Map<Setting<?>, Object> settings) {
+            final String defaultPipeline = (String) settings.get(IndexSettings.DEFAULT_PIPELINE);
             if (value.equals(IngestService.NOOP_PIPELINE_NAME) && defaultPipeline.equals(IngestService.NOOP_PIPELINE_NAME) == false) {
                 throw new IllegalArgumentException(
                     "index has a required pipeline [" + value + "] and a default pipeline [" + defaultPipeline + "]");
@@ -350,8 +351,9 @@ public final class IndexSettings {
         }
 
         @Override
-        public Iterator<Setting<String>> settings() {
-            return List.of(DEFAULT_PIPELINE).iterator();
+        public Iterator<Setting<?>> settings() {
+            final List<Setting<?>> settings = List.of(DEFAULT_PIPELINE);
+            return settings.iterator();
         }
 
     }

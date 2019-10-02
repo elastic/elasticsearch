@@ -18,11 +18,13 @@
  */
 package org.elasticsearch.client.ml.inference.trainedmodel.tree;
 
+import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -50,16 +52,17 @@ public class TreeTests extends AbstractXContentTestCase<Tree> {
     }
 
     public static Tree createRandom() {
-        return buildRandomTree(randomIntBetween(2, 15),  6);
-    }
-
-    public static Tree buildRandomTree(int numFeatures, int depth) {
-
-        Tree.Builder builder = Tree.builder();
-        List<String> featureNames = new ArrayList<>(numFeatures);
-        for(int i = 0; i < numFeatures; i++) {
+        int numberOfFeatures = randomIntBetween(1, 10);
+        List<String> featureNames = new ArrayList<>();
+        for (int i = 0; i < numberOfFeatures; i++) {
             featureNames.add(randomAlphaOfLength(10));
         }
+        return buildRandomTree(featureNames,  6);
+    }
+
+    public static Tree buildRandomTree(List<String> featureNames, int depth) {
+        int numFeatures = featureNames.size();
+        Tree.Builder builder = Tree.builder();
         builder.setFeatureNames(featureNames);
 
         TreeNode.Builder node = builder.addJunction(0, randomInt(numFeatures), true, randomDouble());
@@ -80,8 +83,13 @@ public class TreeTests extends AbstractXContentTestCase<Tree> {
             }
             childNodes = nextNodes;
         }
-
-        return builder.build();
+        List<String> categoryLabels = null;
+        if (randomBoolean()) {
+            categoryLabels = Arrays.asList(generateRandomStringArray(randomIntBetween(1, 10), randomIntBetween(1, 10), false, false));
+        }
+        return builder.setClassificationLabels(categoryLabels)
+            .setTargetType(randomFrom(TargetType.values()))
+            .build();
     }
 
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class RegressionTests extends AbstractSerializingTestCase<Regression> {
 
@@ -123,5 +124,12 @@ public class RegressionTests extends AbstractSerializingTestCase<Regression> {
             () -> new Regression("foo", 0.0, 0.0, 0.5, 500, 1.0, "result", 100.0001));
 
         assertThat(e.getMessage(), equalTo("[training_percent] must be a double in [1, 100]"));
+    }
+
+    public void testGetStateDocId() {
+        Regression regression = createRandom();
+        assertThat(regression.persistsState(), is(true));
+        String randomId = randomAlphaOfLength(10);
+        assertThat(regression.getStateDocId(randomId), equalTo(randomId + "_regression_state#1"));
     }
 }

@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Multi
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -40,7 +42,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     public void testEvaluate_MulticlassClassification_DefaultMetrics() {
         EvaluateDataFrameAction.Request evaluateDataFrameRequest =
             new EvaluateDataFrameAction.Request()
-                .setIndices(List.of(ANIMALS_DATA_INDEX))
+                .setIndices(Arrays.asList(ANIMALS_DATA_INDEX))
                 .setEvaluation(new Classification(ACTUAL_CLASS_FIELD, PREDICTED_CLASS_FIELD, null));
 
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
@@ -51,22 +53,46 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         MulticlassConfusionMatrix.Result confusionMatrixResult =
             (MulticlassConfusionMatrix.Result) evaluateDataFrameResponse.getMetrics().get(0);
         assertThat(confusionMatrixResult.getMetricName(), equalTo(MulticlassConfusionMatrix.NAME.getPreferredName()));
-        assertThat(
-            confusionMatrixResult.getConfusionMatrix(),
-            equalTo(Map.of(
-                "ant", Map.of("ant", 1L, "cat", 4L, "dog", 3L, "fox", 2L, "mouse", 5L),
-                "cat", Map.of("ant", 3L, "cat", 1L, "dog", 5L, "fox", 4L, "mouse", 2L),
-                "dog", Map.of("ant", 4L, "cat", 2L, "dog", 1L, "fox", 5L, "mouse", 3L),
-                "fox", Map.of("ant", 5L, "cat", 3L, "dog", 2L, "fox", 1L, "mouse", 4L),
-                "mouse", Map.of("ant", 2L, "cat", 5L, "dog", 4L, "fox", 3L, "mouse", 1L))));
+        Map<String, Map<String, Long>> expectedConfusionMatrix = new HashMap<>();
+        expectedConfusionMatrix.put("ant", new HashMap<>());
+        expectedConfusionMatrix.get("ant").put("ant", 1L);
+        expectedConfusionMatrix.get("ant").put("cat", 4L);
+        expectedConfusionMatrix.get("ant").put("dog", 3L);
+        expectedConfusionMatrix.get("ant").put("fox", 2L);
+        expectedConfusionMatrix.get("ant").put("mouse", 5L);
+        expectedConfusionMatrix.put("cat", new HashMap<>());
+        expectedConfusionMatrix.get("cat").put("ant", 3L);
+        expectedConfusionMatrix.get("cat").put("cat", 1L);
+        expectedConfusionMatrix.get("cat").put("dog", 5L);
+        expectedConfusionMatrix.get("cat").put("fox", 4L);
+        expectedConfusionMatrix.get("cat").put("mouse", 2L);
+        expectedConfusionMatrix.put("dog", new HashMap<>());
+        expectedConfusionMatrix.get("dog").put("ant", 4L);
+        expectedConfusionMatrix.get("dog").put("cat", 2L);
+        expectedConfusionMatrix.get("dog").put("dog", 1L);
+        expectedConfusionMatrix.get("dog").put("fox", 5L);
+        expectedConfusionMatrix.get("dog").put("mouse", 3L);
+        expectedConfusionMatrix.put("fox", new HashMap<>());
+        expectedConfusionMatrix.get("fox").put("ant", 5L);
+        expectedConfusionMatrix.get("fox").put("cat", 3L);
+        expectedConfusionMatrix.get("fox").put("dog", 2L);
+        expectedConfusionMatrix.get("fox").put("fox", 1L);
+        expectedConfusionMatrix.get("fox").put("mouse", 4L);
+        expectedConfusionMatrix.put("mouse", new HashMap<>());
+        expectedConfusionMatrix.get("mouse").put("ant", 2L);
+        expectedConfusionMatrix.get("mouse").put("cat", 5L);
+        expectedConfusionMatrix.get("mouse").put("dog", 4L);
+        expectedConfusionMatrix.get("mouse").put("fox", 3L);
+        expectedConfusionMatrix.get("mouse").put("mouse", 1L);
+        assertThat(confusionMatrixResult.getConfusionMatrix(), equalTo(expectedConfusionMatrix));
         assertThat(confusionMatrixResult.getOtherClassesCount(), equalTo(0L));
     }
 
     public void testEvaluate_MulticlassClassification_ConfusionMatrixMetricWithDefaultSize() {
         EvaluateDataFrameAction.Request evaluateDataFrameRequest =
             new EvaluateDataFrameAction.Request()
-                .setIndices(List.of(ANIMALS_DATA_INDEX))
-                .setEvaluation(new Classification(ACTUAL_CLASS_FIELD, PREDICTED_CLASS_FIELD, List.of(new MulticlassConfusionMatrix())));
+                .setIndices(Arrays.asList(ANIMALS_DATA_INDEX))
+                .setEvaluation(new Classification(ACTUAL_CLASS_FIELD, PREDICTED_CLASS_FIELD, Arrays.asList(new MulticlassConfusionMatrix())));
 
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
             client().execute(EvaluateDataFrameAction.INSTANCE, evaluateDataFrameRequest).actionGet();
@@ -76,22 +102,46 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         MulticlassConfusionMatrix.Result confusionMatrixResult =
             (MulticlassConfusionMatrix.Result) evaluateDataFrameResponse.getMetrics().get(0);
         assertThat(confusionMatrixResult.getMetricName(), equalTo(MulticlassConfusionMatrix.NAME.getPreferredName()));
-        assertThat(
-            confusionMatrixResult.getConfusionMatrix(),
-            equalTo(Map.of(
-                "ant", Map.of("ant", 1L, "cat", 4L, "dog", 3L, "fox", 2L, "mouse", 5L),
-                "cat", Map.of("ant", 3L, "cat", 1L, "dog", 5L, "fox", 4L, "mouse", 2L),
-                "dog", Map.of("ant", 4L, "cat", 2L, "dog", 1L, "fox", 5L, "mouse", 3L),
-                "fox", Map.of("ant", 5L, "cat", 3L, "dog", 2L, "fox", 1L, "mouse", 4L),
-                "mouse", Map.of("ant", 2L, "cat", 5L, "dog", 4L, "fox", 3L, "mouse", 1L))));
+        Map<String, Map<String, Long>> expectedConfusionMatrix = new HashMap<>();
+        expectedConfusionMatrix.put("ant", new HashMap<>());
+        expectedConfusionMatrix.get("ant").put("ant", 1L);
+        expectedConfusionMatrix.get("ant").put("cat", 4L);
+        expectedConfusionMatrix.get("ant").put("dog", 3L);
+        expectedConfusionMatrix.get("ant").put("fox", 2L);
+        expectedConfusionMatrix.get("ant").put("mouse", 5L);
+        expectedConfusionMatrix.put("cat", new HashMap<>());
+        expectedConfusionMatrix.get("cat").put("ant", 3L);
+        expectedConfusionMatrix.get("cat").put("cat", 1L);
+        expectedConfusionMatrix.get("cat").put("dog", 5L);
+        expectedConfusionMatrix.get("cat").put("fox", 4L);
+        expectedConfusionMatrix.get("cat").put("mouse", 2L);
+        expectedConfusionMatrix.put("dog", new HashMap<>());
+        expectedConfusionMatrix.get("dog").put("ant", 4L);
+        expectedConfusionMatrix.get("dog").put("cat", 2L);
+        expectedConfusionMatrix.get("dog").put("dog", 1L);
+        expectedConfusionMatrix.get("dog").put("fox", 5L);
+        expectedConfusionMatrix.get("dog").put("mouse", 3L);
+        expectedConfusionMatrix.put("fox", new HashMap<>());
+        expectedConfusionMatrix.get("fox").put("ant", 5L);
+        expectedConfusionMatrix.get("fox").put("cat", 3L);
+        expectedConfusionMatrix.get("fox").put("dog", 2L);
+        expectedConfusionMatrix.get("fox").put("fox", 1L);
+        expectedConfusionMatrix.get("fox").put("mouse", 4L);
+        expectedConfusionMatrix.put("mouse", new HashMap<>());
+        expectedConfusionMatrix.get("mouse").put("ant", 2L);
+        expectedConfusionMatrix.get("mouse").put("cat", 5L);
+        expectedConfusionMatrix.get("mouse").put("dog", 4L);
+        expectedConfusionMatrix.get("mouse").put("fox", 3L);
+        expectedConfusionMatrix.get("mouse").put("mouse", 1L);
+        assertThat(confusionMatrixResult.getConfusionMatrix(), equalTo(expectedConfusionMatrix));
         assertThat(confusionMatrixResult.getOtherClassesCount(), equalTo(0L));
     }
 
     public void testEvaluate_MulticlassClassification_ConfusionMatrixMetricWithUserProvidedSize() {
         EvaluateDataFrameAction.Request evaluateDataFrameRequest =
             new EvaluateDataFrameAction.Request()
-                .setIndices(List.of(ANIMALS_DATA_INDEX))
-                .setEvaluation(new Classification(ACTUAL_CLASS_FIELD, PREDICTED_CLASS_FIELD, List.of(new MulticlassConfusionMatrix(3))));
+                .setIndices(Arrays.asList(ANIMALS_DATA_INDEX))
+                .setEvaluation(new Classification(ACTUAL_CLASS_FIELD, PREDICTED_CLASS_FIELD, Arrays.asList(new MulticlassConfusionMatrix(3))));
 
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
             client().execute(EvaluateDataFrameAction.INSTANCE, evaluateDataFrameRequest).actionGet();
@@ -101,12 +151,23 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         MulticlassConfusionMatrix.Result confusionMatrixResult =
             (MulticlassConfusionMatrix.Result) evaluateDataFrameResponse.getMetrics().get(0);
         assertThat(confusionMatrixResult.getMetricName(), equalTo(MulticlassConfusionMatrix.NAME.getPreferredName()));
-        assertThat(
-            confusionMatrixResult.getConfusionMatrix(),
-            equalTo(Map.of(
-                "ant", Map.of("ant", 1L, "cat", 4L, "dog", 3L, "_other_", 7L),
-                "cat", Map.of("ant", 3L, "cat", 1L, "dog", 5L, "_other_", 6L),
-                "dog", Map.of("ant", 4L, "cat", 2L, "dog", 1L, "_other_", 8L))));
+        Map<String, Map<String, Long>> expectedConfusionMatrix = new HashMap<>();
+        expectedConfusionMatrix.put("ant", new HashMap<>());
+        expectedConfusionMatrix.get("ant").put("ant", 1L);
+        expectedConfusionMatrix.get("ant").put("cat", 4L);
+        expectedConfusionMatrix.get("ant").put("dog", 3L);
+        expectedConfusionMatrix.get("ant").put("_other_", 7L);
+        expectedConfusionMatrix.put("cat", new HashMap<>());
+        expectedConfusionMatrix.get("cat").put("ant", 3L);
+        expectedConfusionMatrix.get("cat").put("cat", 1L);
+        expectedConfusionMatrix.get("cat").put("dog", 5L);
+        expectedConfusionMatrix.get("cat").put("_other_", 6L);
+        expectedConfusionMatrix.put("dog", new HashMap<>());
+        expectedConfusionMatrix.get("dog").put("ant", 4L);
+        expectedConfusionMatrix.get("dog").put("cat", 2L);
+        expectedConfusionMatrix.get("dog").put("dog", 1L);
+        expectedConfusionMatrix.get("dog").put("_other_", 8L);
+        assertThat(confusionMatrixResult.getConfusionMatrix(), equalTo(expectedConfusionMatrix));
         assertThat(confusionMatrixResult.getOtherClassesCount(), equalTo(2L));
     }
 
@@ -115,7 +176,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
             .addMapping("_doc", ACTUAL_CLASS_FIELD, "type=keyword", PREDICTED_CLASS_FIELD, "type=keyword")
             .get();
 
-        List<String> classNames = List.of("dog", "cat", "mouse", "ant", "fox");
+        List<String> classNames = Arrays.asList("dog", "cat", "mouse", "ant", "fox");
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < classNames.size(); i++) {

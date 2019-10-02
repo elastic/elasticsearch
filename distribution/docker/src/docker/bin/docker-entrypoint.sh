@@ -76,6 +76,29 @@ done < <(env)
 export ES_JAVA_OPTS="-Des.cgroups.hierarchy.override=/ $ES_JAVA_OPTS"
 
 if [[ -f bin/elasticsearch-users ]]; then
+  # Source the password from a file, if specified. This means that the
+  # password itself doesn't need to be specified as an env var when running
+  # the container.
+  if [[ -n "$ELASTIC_PASSWORD_FILE" ]]; then
+    if [[ -n "$ELASTIC_PASSWORD" ]]; then
+      echo "ERROR: Both ELASTIC_PASSWORD and ELASTIC_PASSWORD_FILE are set. These are mutually exclusive." >&2
+      exit 1
+    fi
+
+    if [[ ! -e "$ELASTIC_PASSWORD_FILE" ]]; then
+      echo "ERROR: Password file $ELASTIC_PASSWORD_FILE does not exist" >&2
+      exit 1
+    fi
+
+    if [[ ! -r "$ELASTIC_PASSWORD_FILE" ]]; then
+      echo "ERROR: Password file $ELASTIC_PASSWORD_FILE is not readable" >&2
+      exit 1
+    fi
+
+    ELASTIC_PASSWORD="$(cat "$ELASTIC_PASSWORD_FILE")"
+    unset ELASTIC_PASSWORD_FILE
+  fi
+
   # Check for the ELASTIC_PASSWORD environment variable to set the
   # bootstrap password for Security.
   #

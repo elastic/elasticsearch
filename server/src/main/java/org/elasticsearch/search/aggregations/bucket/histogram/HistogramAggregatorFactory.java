@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -54,11 +55,20 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
             + missing + "]");
     }
 
-    public HistogramAggregatorFactory(String name, ValuesSourceConfig<ValuesSource> config, double interval, double offset,
-                                      BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
-                                      SearchContext context, AggregatorFactory parent,
-                                      AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, config, context, parent, subFactoriesBuilder, metaData);
+    public HistogramAggregatorFactory(String name,
+                                        ValuesSourceConfig<ValuesSource> config,
+                                        double interval,
+                                        double offset,
+                                        BucketOrder order,
+                                        boolean keyed,
+                                        long minDocCount,
+                                        double minBound,
+                                        double maxBound,
+                                        QueryShardContext queryShardContext,
+                                        AggregatorFactory parent,
+                                        AggregatorFactories.Builder subFactoriesBuilder,
+                                        Map<String, Object> metaData) throws IOException {
+        super(name, config, queryShardContext, parent, subFactoriesBuilder, metaData);
         this.interval = interval;
         this.offset = offset;
         this.order = order;
@@ -73,14 +83,18 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+    protected Aggregator doCreateInternal(ValuesSource valuesSource,
+                                            SearchContext searchContext,
+                                            Aggregator parent,
+                                            boolean collectsFromSingleBucket,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
         if (collectsFromSingleBucket == false) {
-            return asMultiBucketAggregator(this, context, parent);
+            return asMultiBucketAggregator(this, searchContext, parent);
         }
         if (valuesSource instanceof ValuesSource.Numeric) {
             return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
-                (ValuesSource.Numeric) valuesSource, config.format(), context, parent, pipelineAggregators, metaData);
+                (ValuesSource.Numeric) valuesSource, config.format(), searchContext, parent, pipelineAggregators, metaData);
         } else if (valuesSource instanceof ValuesSource.Range) {
             ValuesSource.Range rangeValueSource = (ValuesSource.Range) valuesSource;
             if (rangeValueSource.rangeType().isNumeric() == false) {
@@ -88,7 +102,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
                     + rangeValueSource.rangeType().name + "]");
             }
             return new RangeHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
-                (ValuesSource.Range) valuesSource, config.format(), context, parent, pipelineAggregators,
+                (ValuesSource.Range) valuesSource, config.format(), searchContext, parent, pipelineAggregators,
                 metaData);
         }
         else {
@@ -98,9 +112,11 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     }
 
     @Override
-    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException {
+    protected Aggregator createUnmapped(SearchContext searchContext,
+                                            Aggregator parent,
+                                            List<PipelineAggregator> pipelineAggregators,
+                                            Map<String, Object> metaData) throws IOException {
         return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
-            null, config.format(), context, parent, pipelineAggregators, metaData);
+            null, config.format(), searchContext, parent, pipelineAggregators, metaData);
     }
 }

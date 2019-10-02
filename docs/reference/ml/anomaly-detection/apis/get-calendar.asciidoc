@@ -68,15 +68,15 @@ The API returns the following information:
 The following example gets configuration information for the `planned-outages`
 calendar:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ml/calendars/planned-outages
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:setup:calendar_outages_addjob]
 
 The API returns the following results:
-[source,js]
+
+[source,console-result]
 ----
 {
   "count": 1,
@@ -90,4 +90,3 @@ The API returns the following results:
   ]
 }
 ----
-// TESTRESPONSE

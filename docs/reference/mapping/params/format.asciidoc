@@ -9,7 +9,7 @@ Besides the <<built-in-date-formats,built-in formats>>, your own
 <<custom-date-formats,custom formats>> can be specified using the familiar
 `yyyy/MM/dd` syntax:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT my_index
 {
@@ -23,7 +23,6 @@ PUT my_index
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Many APIs which support date values also support <<date-math,date math>>
 expressions, such as `now-1m/d` -- the current time, minus one month, rounded

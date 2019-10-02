@@ -3,7 +3,7 @@
 :request: UnfollowRequest
 :response: AcknowledgedResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Unfollow API
 

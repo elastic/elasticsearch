@@ -50,7 +50,7 @@ The following properties can be updated after the model snapshot is created:
 
 The following example updates the snapshot identified as `1491852978`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST
 _ml/anomaly_detectors/it_ops_new_logs/model_snapshots/1491852978/_update
@@ -59,7 +59,6 @@ _ml/anomaly_detectors/it_ops_new_logs/model_snapshots/1491852978/_update
   "retain": true
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:todo]
 
 When the snapshot is updated, you receive the following results:

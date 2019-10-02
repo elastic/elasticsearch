@@ -10,7 +10,7 @@ array with all the fetched termvectors, each element having the structure
 provided by the <<docs-termvectors,termvectors>>
 API. Here is an example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_mtermvectors
 {
@@ -30,7 +30,6 @@ POST /_mtermvectors
    ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 See the <<docs-termvectors,termvectors>> API for a description of possible parameters.
@@ -38,7 +37,7 @@ See the <<docs-termvectors,termvectors>> API for a description of possible param
 The `_mtermvectors` endpoint can also be used against an index (in which case it
 is not required in the body):
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /twitter/_mtermvectors
 {
@@ -56,12 +55,11 @@ POST /twitter/_mtermvectors
    ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 If all requested documents are on same index and also the parameters are the same, the request can be simplified:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /twitter/_mtermvectors
 {
@@ -74,14 +72,13 @@ POST /twitter/_mtermvectors
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 Additionally, just like for the <<docs-termvectors,termvectors>>
 API, term vectors could be generated for user provided documents.
 The mapping used is determined by `_index`.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_mtermvectors
 {
@@ -103,5 +100,4 @@ POST /_mtermvectors
    ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]

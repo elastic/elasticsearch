@@ -3,7 +3,7 @@
 
 This multi-bucket aggregation is similar to the normal
 <<search-aggregations-bucket-histogram-aggregation,histogram>>, but it can
-only be used with date values. Because dates are represented internally in 
+only be used with date or date range values. Because dates are represented internally in 
 Elasticsearch as long values, it is possible, but not as accurate, to use the
 normal `histogram` on dates as well. The main difference in the two APIs is
 that here the interval can be specified using date/time expressions. Time-based
@@ -58,7 +58,7 @@ seconds of the following minute in the specified timezone, compensating for any
 intervening leap seconds, so that the number of minutes and seconds past the
 hour is the same at the start and end.
 
-hours (`h`, `1h`) ::
+hour (`h`, `1h`) ::
 All hours begin at 00 minutes and 00 seconds.
 
 One hour (1h) is the interval between 00:00 minutes of the first hour and 00:00
@@ -67,7 +67,7 @@ intervening leap seconds, so that the number of minutes and seconds past the hou
 is the same at the start and end.
 
 
-days (`d`, `1d`) ::
+day (`d`, `1d`) ::
 All days begin at the earliest possible time, which is usually 00:00:00
 (midnight).
 
@@ -307,7 +307,7 @@ POST /sales/_search?size=0
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -377,7 +377,7 @@ If you don't specify a timezone, UTC is used. This would result in both of these
 documents being placed into the same day bucket, which starts at midnight UTC
 on 1 October 2015:
 
-[source,js]
+[source,console-result]
 ---------------------------------
 {
   ...
@@ -419,7 +419,7 @@ GET my_index/_search?size=0
 Now the first document falls into the bucket for 30 September 2015, while the
 second document falls into the bucket for 1 October 2015:
 
-[source,js]
+[source,console-result]
 ---------------------------------
 {
   ...
@@ -496,7 +496,7 @@ GET my_index/_search?size=0
 Instead of a single bucket starting at midnight, the above request groups the
 documents into buckets starting at 6am:
 
-[source,js]
+[source,console-result]
 -----------------------------
 {
   ...
@@ -548,7 +548,7 @@ POST /sales/_search?size=0
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -650,7 +650,7 @@ POST /sales/_search?size=0
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   ...

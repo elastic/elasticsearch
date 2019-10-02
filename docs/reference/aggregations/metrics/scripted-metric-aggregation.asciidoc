@@ -32,7 +32,7 @@ The above aggregation demonstrates how one would use the script aggregation comp
 
 The response for the above aggregation:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "took": 218,
@@ -84,7 +84,7 @@ in a global `params` object so that it can be shared between the scripts.
 ////
 Verify this response as well but in a hidden block.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "took": 218,

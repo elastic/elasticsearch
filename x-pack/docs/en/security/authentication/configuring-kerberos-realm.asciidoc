@@ -151,7 +151,7 @@ users by their `username` field.
 The following example uses the role mapping API to map `user@REALM` to the roles 
 `monitoring` and `user`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/role_mapping/kerbrolemapping
 {
@@ -162,7 +162,6 @@ POST /_security/role_mapping/kerbrolemapping
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 In case you want to support Kerberos cross realm authentication you may 
 need to map roles based on the Kerberos realm name. For such scenarios 

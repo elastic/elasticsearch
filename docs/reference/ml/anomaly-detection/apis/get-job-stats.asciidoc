@@ -82,11 +82,10 @@ The API returns the following information:
 
 The following example gets usage information for the `farequote` job:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ml/anomaly_detectors/farequote/_stats
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:todo]
 
 The API returns the following results:

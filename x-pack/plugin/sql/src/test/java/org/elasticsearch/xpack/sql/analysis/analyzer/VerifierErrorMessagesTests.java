@@ -203,6 +203,59 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:8: Invalid datetime field [ABS]. Use any datetime function.", error("SELECT EXTRACT(ABS FROM date) FROM test"));
     }
 
+    public void testDateTruncInvalidArgs() {
+        assertEquals("1:8: first argument of [DATE_TRUNC(int, date)] must be [string], found value [int] type [integer]",
+            error("SELECT DATE_TRUNC(int, date) FROM test"));
+        assertEquals("1:8: second argument of [DATE_TRUNC(keyword, keyword)] must be [date or datetime], found value [keyword] " +
+                "type [keyword]", error("SELECT DATE_TRUNC(keyword, keyword) FROM test"));
+        assertEquals("1:8: first argument of [DATE_TRUNC('invalid', keyword)] must be one of [MILLENNIUM, CENTURY, DECADE, " + "" +
+                "YEAR, QUARTER, MONTH, WEEK, DAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND] " +
+                "or their aliases, found value ['invalid']",
+            error("SELECT DATE_TRUNC('invalid', keyword) FROM test"));
+        assertEquals("1:8: Unknown value ['millenioum'] for first argument of [DATE_TRUNC('millenioum', keyword)]; " +
+                "did you mean [millennium, millennia]?",
+            error("SELECT DATE_TRUNC('millenioum', keyword) FROM test"));
+        assertEquals("1:8: Unknown value ['yyyz'] for first argument of [DATE_TRUNC('yyyz', keyword)]; " +
+                "did you mean [yyyy, yy]?",
+            error("SELECT DATE_TRUNC('yyyz', keyword) FROM test"));
+    }
+
+    public void testDateTruncValidArgs() {
+        accept("SELECT DATE_TRUNC('decade', date) FROM test");
+        accept("SELECT DATE_TRUNC('decades', date) FROM test");
+        accept("SELECT DATE_TRUNC('day', date) FROM test");
+        accept("SELECT DATE_TRUNC('days', date) FROM test");
+        accept("SELECT DATE_TRUNC('dd', date) FROM test");
+        accept("SELECT DATE_TRUNC('d', date) FROM test");
+
+    }
+
+    public void testDatePartInvalidArgs() {
+        assertEquals("1:8: first argument of [DATE_PART(int, date)] must be [string], found value [int] type [integer]",
+            error("SELECT DATE_PART(int, date) FROM test"));
+        assertEquals("1:8: second argument of [DATE_PART(keyword, keyword)] must be [date or datetime], found value [keyword] " +
+            "type [keyword]", error("SELECT DATE_PART(keyword, keyword) FROM test"));
+        assertEquals("1:8: first argument of [DATE_PART('invalid', keyword)] must be one of [YEAR, QUARTER, MONTH, DAYOFYEAR, " +
+            "DAY, WEEK, WEEKDAY, HOUR, MINUTE, SECOND, MILLISECOND, MICROSECOND, NANOSECOND, TZOFFSET] " +
+                "or their aliases, found value ['invalid']",
+            error("SELECT DATE_PART('invalid', keyword) FROM test"));
+        assertEquals("1:8: Unknown value ['tzofset'] for first argument of [DATE_PART('tzofset', keyword)]; " +
+                "did you mean [tzoffset]?",
+            error("SELECT DATE_PART('tzofset', keyword) FROM test"));
+        assertEquals("1:8: Unknown value ['dz'] for first argument of [DATE_PART('dz', keyword)]; " +
+                "did you mean [dd, tz, dw, dy, d]?",
+            error("SELECT DATE_PART('dz', keyword) FROM test"));
+    }
+
+    public void testDatePartValidArgs() {
+        accept("SELECT DATE_PART('weekday', date) FROM test");
+        accept("SELECT DATE_PART('dw', date) FROM test");
+        accept("SELECT DATE_PART('tz', date) FROM test");
+        accept("SELECT DATE_PART('dayofyear', date) FROM test");
+        accept("SELECT DATE_PART('dy', date) FROM test");
+        accept("SELECT DATE_PART('ms', date) FROM test");
+    }
+
     public void testValidDateTimeFunctionsOnTime() {
         accept("SELECT HOUR_OF_DAY(CAST(date AS TIME)) FROM test");
         accept("SELECT MINUTE_OF_HOUR(CAST(date AS TIME)) FROM test");
@@ -818,4 +871,57 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         accept("SELECT ST_X(shape) FROM test");
     }
 
+    //
+    // Pivot verifications
+    //
+    public void testPivotNonExactColumn() {
+        assertEquals("1:72: Field [text] of data type [text] cannot be used for grouping;"
+                + " No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
+                error("SELECT * FROM (SELECT int, text, keyword FROM test) " + "PIVOT(AVG(int) FOR text IN ('bla'))"));
+    }
+
+    public void testPivotColumnUsedInsteadOfAgg() {
+        assertEquals("1:59: No aggregate function found in PIVOT at [int]",
+                error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(int FOR keyword IN ('bla'))"));
+    }
+
+    public void testPivotScalarUsedInsteadOfAgg() {
+        assertEquals("1:59: No aggregate function found in PIVOT at [ROUND(int)]",
+                error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(ROUND(int) FOR keyword IN ('bla'))"));
+    }
+
+    public void testPivotScalarUsedAlongSideAgg() {
+        assertEquals("1:59: Non-aggregate function found in PIVOT at [AVG(int) + ROUND(int)]",
+                error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(AVG(int) + ROUND(int) FOR keyword IN ('bla'))"));
+    }
+
+    public void testPivotValueNotFoldable() {
+        assertEquals("1:91: Non-literal [bool] found inside PIVOT values",
+                error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(AVG(int) FOR keyword IN ('bla', bool))"));
+    }
+
+    public void testPivotWithFunctionInput() {
+        assertEquals("1:37: No functions allowed (yet); encountered [YEAR(date)]",
+                error("SELECT * FROM (SELECT int, keyword, YEAR(date) FROM test) " + "PIVOT(AVG(int) FOR keyword IN ('bla'))"));
+    }
+
+    public void testPivotWithFoldableFunctionInValues() {
+        assertEquals("1:85: Non-literal [UCASE('bla')] found inside PIVOT values",
+                error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(AVG(int) FOR keyword IN ( UCASE('bla') ))"));
+    }
+
+    public void testPivotWithNull() {
+        assertEquals("1:85: Null not allowed as a PIVOT value",
+                error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(AVG(int) FOR keyword IN ( null ))"));
+    }
+
+    public void testPivotValuesHaveDifferentTypeThanColumn() {
+        assertEquals("1:81: Literal ['bla'] of type [keyword] does not match type [boolean] of PIVOT column [bool]",
+                error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(AVG(int) FOR bool IN ('bla'))"));
+    }
+
+    public void testPivotValuesWithMultipleDifferencesThanColumn() {
+        assertEquals("1:81: Literal ['bla'] of type [keyword] does not match type [boolean] of PIVOT column [bool]",
+                error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(AVG(int) FOR bool IN ('bla', true))"));
+    }
 }

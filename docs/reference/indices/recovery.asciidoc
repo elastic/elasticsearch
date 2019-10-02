@@ -1,16 +1,18 @@
 [[indices-recovery]]
-=== Indices Recovery
+=== Index recovery API
+++++
+<titleabbrev>Index recovery</titleabbrev>
+++++
 
-The indices recovery API provides insight into on-going index shard recoveries.
+The index recovery API provides insight into on-going index shard recoveries.
 Recovery status may be reported for specific indices, or cluster-wide.
 
 For example, the following command would show recovery information for the indices "index1" and "index2".
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET index1,index2/_recovery?human
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT index1\nPUT index2\n/]
 
 To see cluster-wide recovery status simply leave out the index names.
@@ -19,9 +21,9 @@ To see cluster-wide recovery status simply leave out the index names.
 
 Here we create a repository and snapshot index1 in
 order to restore it right after and prints out the
-indices recovery result.
+index recovery result.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 # create the index
 PUT index1
@@ -33,6 +35,7 @@ PUT /_snapshot/my_repository
 
 # snapshot the index
 PUT /_snapshot/my_repository/snap_1?wait_for_completion=true
+{"indices": "index1"}
 
 # delete the index
 DELETE index1
@@ -41,9 +44,8 @@ DELETE index1
 POST /_snapshot/my_repository/snap_1/_restore?wait_for_completion=true
 
 --------------------------------------------------
-// CONSOLE
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "snapshot": {
@@ -59,19 +61,18 @@ POST /_snapshot/my_repository/snap_1/_restore?wait_for_completion=true
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_recovery?human
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 Response:
-[source,js]
+
+[source,console-result]
 --------------------------------------------------
 {
   "index1" : {
@@ -155,16 +156,15 @@ Additionally, the output shows the number and percent of files recovered, as wel
 
 In some cases a higher level of detail may be preferable. Setting "detailed=true" will present a list of physical files in recovery.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _recovery?human&detailed=true
 --------------------------------------------------
-// CONSOLE
 // TEST[s/^/PUT index1\n{"settings": {"index.number_of_shards": 1}}\n/]
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "index1" : {

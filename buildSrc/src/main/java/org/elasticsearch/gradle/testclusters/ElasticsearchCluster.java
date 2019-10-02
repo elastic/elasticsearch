@@ -254,16 +254,36 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         } else {
             nodeNames = nodes.stream().map(ElasticsearchNode::getName).map(this::safeName).collect(Collectors.joining(","));
         }
+        ElasticsearchNode firstNode = null;
         for (ElasticsearchNode node : nodes) {
+            // Can only configure master nodes if we have node names defined
             if (nodeNames != null) {
-                // Can only configure master nodes if we have node names defined
-                if (node.getVersion().getMajor() >= 7) {
+                if (node.getVersion().onOrAfter("7.0.0")) {
                     node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
                     node.defaultConfig.put("discovery.seed_providers", "file");
                     node.defaultConfig.put("discovery.seed_hosts", "[]");
+                } else {
+                    node.defaultConfig.put("discovery.zen.master_election.wait_for_joins_timeout", "5s");
+                    if (nodes.size() > 1) {
+                        node.defaultConfig.put("discovery.zen.minimum_master_nodes", Integer.toString(nodes.size() / 2 + 1));
+                    }
+                    if (node.getVersion().onOrAfter("6.5.0")) {
+                        node.defaultConfig.put("discovery.zen.hosts_provider", "file");
+                        node.defaultConfig.put("discovery.zen.ping.unicast.hosts", "[]");
+                    } else {
+                        if (firstNode == null) {
+                            node.defaultConfig.put("discovery.zen.ping.unicast.hosts", "[]");
+                        } else {
+                            firstNode.waitForAllConditions();
+                            node.defaultConfig.put("discovery.zen.ping.unicast.hosts", "[\"" + firstNode.getTransportPortURI() + "\"]");
+                        }
+                    }
                 }
             }
             node.start();
+            if (firstNode == null) {
+                firstNode = node;
+            }
         }
     }
 

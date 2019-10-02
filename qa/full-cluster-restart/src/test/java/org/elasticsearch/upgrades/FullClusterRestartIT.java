@@ -674,6 +674,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             ensureGreen(index);
             // Recovering a synced-flush index from 5.x to 6.x might be subtle as a 5.x index commit does not have all 6.x commit tags.
             if (randomBoolean()) {
+                // needs to call a replication action to sync the global checkpoint from primaries to replication.
+                assertOK(client().performRequest(new Request("POST", "/" + index + "/_refresh")));
                 // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
                 // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
                 assertBusy(() -> {
@@ -688,7 +690,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 });
             } else {
                 // Explicitly flush so we're sure to have a bunch of documents in the Lucene index
-                assertOK(client().performRequest(new Request("POST", "/_flush")));
+                Request flushRequest = new Request("POST", "/" + index + "/_flush");
+                flushRequest.addParameter("force", "true");
+                flushRequest.addParameter("wait_if_ongoing", "true");
+                assertOK(client().performRequest(flushRequest));
             }
             if (shouldHaveTranslog) {
                 // Update a few documents so we are sure to have a translog

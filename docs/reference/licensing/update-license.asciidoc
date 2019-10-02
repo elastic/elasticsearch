@@ -55,7 +55,7 @@ install the license. See <<configuring-tls>>.
 
 The following example updates to a basic license:
 
-[source,js]
+[source,console]
 ------------------------------------------------------------
 POST /_license
 {
@@ -73,7 +73,6 @@ POST /_license
     ]
 }
 ------------------------------------------------------------
-// CONSOLE
 // TEST[skip:license testing issues]
 
 NOTE: These values are invalid; you must substitute the appropriate content
@@ -132,7 +131,7 @@ receive the following response:
 To complete the update, you must re-submit the API request and set the
 `acknowledge` parameter to `true`. For example:
 
-[source,js]
+[source,console]
 ------------------------------------------------------------
 POST /_license?acknowledge=true
 {
@@ -150,7 +149,6 @@ POST /_license?acknowledge=true
     ]
 }
 ------------------------------------------------------------
-// CONSOLE
 // TEST[skip:license testing issues]
 
 Alternatively:

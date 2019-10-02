@@ -98,7 +98,7 @@ object types have been defined in the mapping
 
 Possible response snippet:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "aggregations": {

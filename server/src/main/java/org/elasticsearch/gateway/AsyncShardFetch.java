@@ -231,6 +231,13 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     protected abstract void reroute(ShardId shardId, String reason);
 
     /**
+     * Clear cache for node, ensuring next fetch will fetch a fresh copy.
+     */
+    synchronized void clearCacheForNode(String nodeId) {
+        cache.remove(nodeId);
+    }
+
+    /**
      * Fills the shard fetched data with new (data) nodes and a fresh NodeEntry, and removes from
      * it nodes that are no longer part of the state.
      */

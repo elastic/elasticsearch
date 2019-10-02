@@ -13,7 +13,7 @@ should be grouped on, and what metrics to collect for each group.
 
 A full job configuration might look like this:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _rollup/job/sensor
 {
@@ -47,7 +47,6 @@ PUT _rollup/job/sensor
     ]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:sensor_index]
 
 ==== Logistical Details

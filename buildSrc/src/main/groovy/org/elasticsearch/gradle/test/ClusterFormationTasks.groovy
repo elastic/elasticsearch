@@ -659,8 +659,7 @@ class ClusterFormationTasks {
     static Task configureExecTask(String name, Project project, Task setup, NodeInfo node, Object[] execArgs) {
         return project.tasks.create(name: name, type: LoggedExec, dependsOn: setup) { Exec exec ->
             exec.workingDir node.cwd
-            if ((project.isRuntimeJavaHomeSet && node.isBwcNode == false) // runtime Java might not be compatible with old nodes
-                    || node.config.distribution == 'integ-test-zip') {
+            if (useRuntimeJava(project, node)) {
                 exec.environment.put('JAVA_HOME', project.runtimeJavaHome)
             } else {
                 // force JAVA_HOME to *not* be set
@@ -678,6 +677,12 @@ class ClusterFormationTasks {
         }
     }
 
+    public static boolean useRuntimeJava(Project project, NodeInfo node) {
+        return (project.isRuntimeJavaHomeSet ||
+                (node.isBwcNode == false && node.nodeVersion.before(Version.fromString("7.0.0"))) ||
+                node.config.distribution == 'integ-test-zip')
+    }
+
     /** Adds a task to start an elasticsearch node with the given configuration */
     static Task configureStartTask(String name, Project project, Task setup, NodeInfo node) {
         // this closure is converted into ant nodes by groovy's AntBuilder
@@ -685,8 +690,7 @@ class ClusterFormationTasks {
             ant.exec(executable: node.executable, spawn: node.config.daemonize, newenvironment: true,
                      dir: node.cwd, taskname: 'elasticsearch') {
                 node.env.each { key, value -> env(key: key, value: value) }
-                if ((project.isRuntimeJavaHomeSet && node.isBwcNode == false) // runtime Java might not be compatible with old nodes
-                        || node.config.distribution == 'integ-test-zip') {
+                if (useRuntimeJava(project, node)) {
                     env(key: 'JAVA_HOME', value: project.runtimeJavaHome)
                 }
                 node.args.each { arg(value: it) }

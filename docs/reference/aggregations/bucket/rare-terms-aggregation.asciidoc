@@ -102,7 +102,7 @@ GET /_search
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -141,7 +141,7 @@ GET /_search
 
 This now shows the "jazz" term which has a `doc_count` of 2":
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...

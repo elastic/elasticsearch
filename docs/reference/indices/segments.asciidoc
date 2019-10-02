@@ -21,8 +21,6 @@ GET /twitter/_segments
 
 `GET /_segments`
 
-`GET /_cat/segments/<index>`
-
 
 [[index-segments-api-path-params]]
 ==== {api-path-parms-title}

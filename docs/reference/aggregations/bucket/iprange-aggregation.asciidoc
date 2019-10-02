@@ -27,7 +27,7 @@ GET /ip_addresses/_search
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -76,7 +76,7 @@ GET /ip_addresses/_search
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -130,7 +130,7 @@ GET /ip_addresses/_search
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -178,7 +178,7 @@ GET /ip_addresses/_search
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...

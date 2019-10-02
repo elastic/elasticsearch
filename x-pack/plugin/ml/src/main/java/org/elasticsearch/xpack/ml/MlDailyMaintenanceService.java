@@ -79,12 +79,12 @@ public class MlDailyMaintenanceService implements Releasable {
         return TimeValue.timeValueMillis(next.toInstant().toEpochMilli() - now.toInstant().toEpochMilli());
     }
 
-    public void start() {
+    public synchronized void start() {
         LOGGER.debug("Starting ML daily maintenance service");
         scheduleNext();
     }
 
-    public void stop() {
+    public synchronized void stop() {
         LOGGER.debug("Stopping ML daily maintenance service");
         if (cancellable != null && cancellable.isCancelled() == false) {
             cancellable.cancel();
@@ -100,7 +100,7 @@ public class MlDailyMaintenanceService implements Releasable {
         stop();
     }
 
-    private void scheduleNext() {
+    private synchronized void scheduleNext() {
         try {
             cancellable = threadPool.schedule(this::triggerTasks, schedulerProvider.get(), ThreadPool.Names.GENERIC);
         } catch (EsRejectedExecutionException e) {
@@ -116,7 +116,13 @@ public class MlDailyMaintenanceService implements Releasable {
         LOGGER.info("triggering scheduled [ML] maintenance tasks");
         executeAsyncWithOrigin(client, ML_ORIGIN, DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request(),
                 ActionListener.wrap(
-                        response -> LOGGER.info("Successfully completed [ML] maintenance tasks"),
+                        response -> {
+                            if (response.isDeleted()) {
+                                LOGGER.info("Successfully completed [ML] maintenance tasks");
+                            } else {
+                                LOGGER.info("Halting [ML] maintenance tasks before completion as elapsed time is too great");
+                            }
+                        },
                         e -> LOGGER.error("An error occurred during maintenance tasks execution", e)));
         scheduleNext();
     }

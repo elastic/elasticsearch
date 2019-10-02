@@ -3,7 +3,7 @@
 :request: StartRollupJobRequest
 :response: StartRollupJobResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Start Rollup Job API
 

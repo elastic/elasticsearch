@@ -125,7 +125,7 @@ The above example returns the top question tags and per tag the top answer owner
 
 Possible response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "took": 25,

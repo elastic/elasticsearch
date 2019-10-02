@@ -106,7 +106,7 @@ POST test/_search
 
 The response contains suggestions scored by the most likely spell correction first. In this case we received the expected correction "nobel prize".
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "_shards": ...

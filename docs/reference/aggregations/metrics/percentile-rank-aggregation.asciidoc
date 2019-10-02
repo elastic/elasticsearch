@@ -43,7 +43,7 @@ GET latency/_search
 
 The response will look like this:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -87,7 +87,7 @@ GET latency/_search
 
 Response:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...

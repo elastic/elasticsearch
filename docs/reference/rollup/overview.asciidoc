@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[rollup-overview]]
-== Overview
+=== {rollup-cap} overview
+++++
+<titleabbrev>Overview</titleabbrev>
+++++
 
 experimental[]
 
@@ -23,7 +26,7 @@ reading often diminishes with time.  It's not useless -- it could easily contrib
 value often leads to deletion rather than paying the fixed storage cost.
 
 [float]
-=== Rollup store historical data at reduced granularity
+==== Rollup stores historical data at reduced granularity
 
 That's where Rollup comes into play.  The Rollup functionality summarizes old, high-granularity data into a reduced
 granularity format for long-term storage.  By "rolling" the data up into a single summary document, historical data
@@ -39,7 +42,7 @@ automates this process of summarizing historical data.
 Details about setting up and configuring Rollup are covered in <<rollup-put-job,Create Job API>>
 
 [float]
-=== Rollup uses standard query DSL
+==== Rollup uses standard query DSL
 
 The Rollup feature exposes a new search endpoint (`/_rollup_search` vs the standard `/_search`) which knows how to search
 over rolled-up data.  Importantly, this endpoint accepts 100% normal {es} Query DSL.  Your application does not need to learn
@@ -53,7 +56,7 @@ But if your queries, aggregations and dashboards only use the available function
 data is trivial.
 
 [float]
-=== Rollup merges "live" and "rolled" data
+==== Rollup merges "live" and "rolled" data
 
 A useful feature of Rollup is the ability to query both "live", realtime data in addition to historical "rolled" data
 in a single query.
@@ -67,7 +70,7 @@ It will take the results from both data sources and merge them together.  If the
 "rolled" data, live data is preferred to increase accuracy.
 
 [float]
-=== Rollup is multi-interval aware
+==== Rollup is multi-interval aware
 
 Finally, Rollup is capable of intelligently utilizing the best interval available.  If you've worked with summarizing
 features of other products, you'll find that they can be limiting.  If you configure rollups at daily intervals... your

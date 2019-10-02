@@ -41,7 +41,7 @@ all products in our catalog, not just on the "shirts").
 
 The response for the above aggregation:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...

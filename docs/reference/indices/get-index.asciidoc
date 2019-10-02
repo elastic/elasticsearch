@@ -6,11 +6,10 @@
 
 Returns information about one or more indexes.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /twitter
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 NOTE: Before 7.0.0, the 'mappings' definition used to include a type name. Although mappings

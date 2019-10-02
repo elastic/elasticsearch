@@ -7,8 +7,10 @@ package org.elasticsearch.xpack.sql.optimizer;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer.PruneSubqueryAliases;
+import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expression.TypeResolution;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Foldables;
@@ -19,6 +21,7 @@ import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
@@ -86,12 +89,17 @@ import org.elasticsearch.xpack.sql.optimizer.Optimizer.PropagateEquals;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.PruneDuplicateFunctions;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceFoldableAttributes;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceMinMaxWithTopHits;
+import org.elasticsearch.xpack.sql.optimizer.Optimizer.RewritePivot;
+import org.elasticsearch.xpack.sql.optimizer.Optimizer.SimplifyCase;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.SimplifyConditional;
+import org.elasticsearch.xpack.sql.optimizer.Optimizer.SortAggregateOnOrderBy;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.sql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowTables;
@@ -112,13 +120,10 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.sql.expression.Expression.TypeResolution;
 import static org.elasticsearch.xpack.sql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.sql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.sql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.sql.expression.Literal.of;
-import static org.elasticsearch.xpack.sql.optimizer.Optimizer.SimplifyCase;
-import static org.elasticsearch.xpack.sql.optimizer.Optimizer.SortAggregateOnOrderBy;
 import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 import static org.hamcrest.Matchers.contains;
@@ -294,7 +299,7 @@ public class OptimizerTests extends ESTestCase {
         // check now with an alias
         result = new ConstantFolding().rule(new Alias(EMPTY, "a", exp));
         assertEquals("a", Expressions.name(result));
-        assertEquals(5, ((Literal) result).value());
+        assertEquals(Alias.class, result.getClass());
     }
 
     public void testConstantFoldingBinaryComparison() {
@@ -1497,5 +1502,24 @@ public class OptimizerTests extends ESTestCase {
         assertTrue(groupings.get(1) instanceof Alias);
         assertEquals(firstAlias, groupings.get(0));
         assertEquals(secondAlias, groupings.get(1));
+    }
+
+    public void testPivotRewrite() {
+        FieldAttribute column = getFieldAttribute("pivot");
+        FieldAttribute number = getFieldAttribute("number");
+        List<NamedExpression> values = Arrays.asList(new Alias(EMPTY, "ONE", L(1)), new Alias(EMPTY, "TWO", L(2)));
+        List<NamedExpression> aggs = Arrays.asList(new Avg(EMPTY, number));
+        Pivot pivot = new Pivot(EMPTY, new EsRelation(EMPTY, new EsIndex("table", emptyMap()), false), column, values, aggs);
+
+        LogicalPlan result = new RewritePivot().apply(pivot);
+        assertEquals(Pivot.class, result.getClass());
+        Pivot pv = (Pivot) result;
+        assertEquals(pv.aggregates(), aggs);
+        assertEquals(Filter.class, pv.child().getClass());
+        Filter f = (Filter) pv.child();
+        assertEquals(In.class, f.condition().getClass());
+        In in = (In) f.condition();
+        assertEquals(column, in.value());
+        assertEquals(Arrays.asList(L(1), L(2)), in.list());
     }
 }

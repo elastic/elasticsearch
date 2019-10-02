@@ -78,7 +78,7 @@ The `buckets_path` parameter is then used to "point" at one of the sibling metri
 
 An example response from the above aggregation may look like:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "took": 11,

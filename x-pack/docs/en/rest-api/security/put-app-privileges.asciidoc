@@ -122,6 +122,7 @@ PUT /_security/privilege
   }
 }
 --------------------------------------------------
+
 <1> When an existing privilege is updated, `created` is set to false.
 
 To add multiple privileges, submit a POST request to the 

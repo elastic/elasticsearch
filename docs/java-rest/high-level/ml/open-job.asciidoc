@@ -3,6 +3,7 @@
 :request: OpenJobRequest
 :response: OpenJobResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
 === Open {anomaly-job} API
 

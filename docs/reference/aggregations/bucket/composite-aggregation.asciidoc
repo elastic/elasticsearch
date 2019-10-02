@@ -422,7 +422,7 @@ GET /_search
 
 \... returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -520,7 +520,7 @@ GET /_search
 
 \... returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...

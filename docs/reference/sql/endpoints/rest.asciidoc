@@ -143,7 +143,7 @@ POST /_sql?format=json
 
 Which returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "columns": [
@@ -285,7 +285,7 @@ POST /_sql?format=json
 
 Which looks like:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "rows" : [
@@ -322,14 +322,12 @@ POST /_sql/close
 
 Which will like return the
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "succeeded" : true
 }
 --------------------------------------------------
-// TESTRESPONSE
-
 
 
 [[sql-rest-filtering]]
@@ -390,7 +388,7 @@ POST /_sql?format=json
 
 Which returns:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "columns": [
@@ -426,7 +424,7 @@ POST /_sql?format=json
 
 Which looks like:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     "values": [

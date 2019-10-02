@@ -169,7 +169,8 @@ For example, the following mapping configuration maps `John Doe` to the
 `user` role:
 
 Using the role-mapping API:
-[source,js]
+
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/users
 {
@@ -180,7 +181,7 @@ PUT /_security/role_mapping/users
   "enabled": true
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The distinguished name (DN) of a PKI user.
 
 Or, alternatively, configured inside a role-mapping file. The file's path
@@ -267,7 +268,7 @@ the following role mapping rule will assign the `role_for_pki1_direct` role to
 all users that have been authenticated directly by the `pki1` realm, by
 connecting to {es} instead of going through {kib}:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/direct_pki_only
 {
@@ -287,7 +288,7 @@ PUT /_security/role_mapping/direct_pki_only
   "enabled": true
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> only when this metadata field is set (it is *not* `null`) the user has been
 authenticated in the delegation scenario.
 

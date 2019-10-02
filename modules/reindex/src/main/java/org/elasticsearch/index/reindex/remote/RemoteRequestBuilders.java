@@ -176,15 +176,6 @@ final class RemoteRequestBuilders {
         }
     }
 
-    private static void checkIndexOrType(String name, String indexOrType) {
-        if (indexOrType.indexOf(',') >= 0) {
-            throw new IllegalArgumentException(name + " containing [,] not supported but got [" + indexOrType + "]");
-        }
-        if (indexOrType.indexOf('/') >= 0) {
-            throw new IllegalArgumentException(name + " containing [/] not supported but got [" + indexOrType + "]");
-        }
-    }
-
     private static String sortToUri(SortBuilder<?> sort) {
         if (sort instanceof FieldSortBuilder) {
             FieldSortBuilder f = (FieldSortBuilder) sort;

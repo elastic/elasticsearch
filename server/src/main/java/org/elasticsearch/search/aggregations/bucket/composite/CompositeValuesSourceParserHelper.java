@@ -69,7 +69,7 @@ public class CompositeValuesSourceParserHelper {
         } else if (builder.getClass() == HistogramValuesSourceBuilder.class) {
             code = 2;
         } else if (builder.getClass() == GeoTileGridValuesSourceBuilder.class) {
-            if (out.getVersion().before(Version.V_8_0_0)) {
+            if (out.getVersion().before(Version.V_7_5_0)) {
                 throw new IOException("Attempting to serialize [" + builder.getClass().getSimpleName()
                     + "] to a node with unsupported version [" + out.getVersion() + "]");
             }

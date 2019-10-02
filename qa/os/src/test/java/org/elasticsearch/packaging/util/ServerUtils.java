@@ -70,8 +70,7 @@ public class ServerUtils {
                 started = true;
 
             } catch (IOException e) {
-                // we want to retry if the connection is refused
-                logger.debug("Got connection refused when waiting for cluster health", e);
+                logger.info("Got exception when waiting for cluster health", e);
             }
 
             timeElapsed = System.currentTimeMillis() - startTime;

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
@@ -28,17 +29,47 @@ public interface TrainedModel extends NamedXContentObject, NamedWriteable {
     double infer(Map<String, Object> fields);
 
     /**
-     * @return {@code true} if the model is classification, {@code false} otherwise.
+     * @param fields similar to {@link TrainedModel#infer(Map)}, but fields are already in order and doubles
+     * @return The predicted value.
      */
-    boolean isClassification();
+    double infer(List<Double> fields);
+
+    /**
+     * @return {@link TargetType} for the model.
+     */
+    TargetType targetType();
 
     /**
      * This gathers the probabilities for each potential classification value.
+     *
+     * The probabilities are indexed by classification ordinal label encoding.
+     * The length of this list is equal to the number of classification labels.
      *
      * This only should return if the implementation model is inferring classification values and not regression
      * @param fields The fields and their values to infer against
      * @return The probabilities of each classification value
      */
-    List<Double> inferProbabilities(Map<String, Object> fields);
+    List<Double> classificationProbability(Map<String, Object> fields);
 
+    /**
+     * @param fields similar to {@link TrainedModel#classificationProbability(Map)} but the fields are already in order and doubles
+     * @return The probabilities of each classification value
+     */
+    List<Double> classificationProbability(List<Double> fields);
+
+    /**
+     * The ordinal encoded list of the classification labels.
+     * @return Oridinal encoded list of classification labels.
+     */
+    @Nullable
+    List<String> classificationLabels();
+
+    /**
+     * Runs validations against the model.
+     *
+     * Example: {@link org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree} should check if there are any loops
+     *
+     * @throws org.elasticsearch.ElasticsearchException if validations fail
+     */
+    void validate();
 }

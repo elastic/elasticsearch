@@ -26,7 +26,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
 import org.elasticsearch.xpack.core.graph.action.GraphExploreRequestBuilder;
 import org.elasticsearch.xpack.graph.Graph;
@@ -118,7 +118,7 @@ public class GraphTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(ScriptedTimeoutPlugin.class, Graph.class, XPackPlugin.class);
+        return pluginList(ScriptedTimeoutPlugin.class, Graph.class, LocalStateCompositeXPackPlugin.class);
     }
 
     public void testSignificanceQueryCrawl() {

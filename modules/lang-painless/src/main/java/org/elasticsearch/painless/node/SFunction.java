@@ -29,6 +29,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.symbol.FunctionTable;
 import org.objectweb.asm.Opcodes;
 
 import java.lang.invoke.MethodType;
@@ -126,14 +127,15 @@ public final class SFunction extends AStatement {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(FunctionTable functions, Locals locals) {
         if (block.statements.isEmpty()) {
             throw createError(new IllegalArgumentException("Cannot generate an empty function [" + name + "]."));
         }
 
         locals = Locals.newLocalScope(locals);
+
         block.lastSource = true;
-        block.analyze(locals);
+        block.analyze(functions, locals);
         methodEscape = block.methodEscape;
 
         if (!methodEscape && returnType != void.class) {

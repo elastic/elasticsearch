@@ -24,13 +24,13 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Constant;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
-import org.elasticsearch.painless.Locals.LocalMethod;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.symbol.FunctionTable;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
@@ -62,10 +62,10 @@ import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_DELEGATE_
 import static org.elasticsearch.painless.WriterConstants.DEF_BOOTSTRAP_METHOD;
 import static org.elasticsearch.painless.WriterConstants.EMPTY_MAP_METHOD;
 import static org.elasticsearch.painless.WriterConstants.EXCEPTION_TYPE;
+import static org.elasticsearch.painless.WriterConstants.FUNCTION_TABLE_TYPE;
 import static org.elasticsearch.painless.WriterConstants.GET_NAME_METHOD;
 import static org.elasticsearch.painless.WriterConstants.GET_SOURCE_METHOD;
 import static org.elasticsearch.painless.WriterConstants.GET_STATEMENTS_METHOD;
-import static org.elasticsearch.painless.WriterConstants.MAP_TYPE;
 import static org.elasticsearch.painless.WriterConstants.OUT_OF_MEMORY_ERROR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.PAINLESS_ERROR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.PAINLESS_EXPLAIN_ERROR_GET_HEADERS_METHOD;
@@ -87,6 +87,7 @@ public final class SClass extends AStatement {
 
     private CompilerSettings settings;
 
+    private FunctionTable table;
     private Locals mainMethod;
     private final Set<String> extractedVariables;
     private final List<org.objectweb.asm.commons.Method> getMethods;
@@ -133,29 +134,30 @@ public final class SClass extends AStatement {
     }
 
     public void analyze(PainlessLookup painlessLookup) {
-        Map<String, LocalMethod> methods = new HashMap<>();
+        table = new FunctionTable();
 
         for (SFunction function : functions) {
             function.generateSignature(painlessLookup);
 
-            String key = Locals.buildLocalMethodKey(function.name, function.parameters.size());
+            String key = FunctionTable.buildLocalFunctionKey(function.name, function.parameters.size());
 
-            if (methods.put(key,
-                    new LocalMethod(function.name, function.returnType, function.typeParameters, function.methodType)) != null) {
-                throw createError(new IllegalArgumentException("Duplicate functions with name [" + function.name + "]."));
+            if (table.getFunction(key) != null) {
+                throw createError(new IllegalArgumentException("function [" + key + "] already defined"));
             }
+
+            table.addFunction(function.name, function.returnType, function.typeParameters, false);
         }
 
-        Locals locals = Locals.newProgramScope(scriptClassInfo, painlessLookup, methods.values());
-        analyze(locals);
+        Locals locals = Locals.newProgramScope(scriptClassInfo, painlessLookup);
+        analyze(table, locals);
     }
 
     @Override
-    void analyze(Locals program) {
-        for (SFunction function : functions) {
+    void analyze(FunctionTable functions, Locals program) {
+        for (SFunction function : this.functions) {
             Locals functionLocals =
                 Locals.newFunctionScope(program, function.returnType, function.parameters, settings.getMaxLoopCounter());
-            function.analyze(functionLocals);
+            function.analyze(functions, functionLocals);
         }
 
         if (statements == null || statements.isEmpty()) {
@@ -187,7 +189,7 @@ public final class SClass extends AStatement {
 
             statement.lastSource = statement == last;
 
-            statement.analyze(mainMethod);
+            statement.analyze(functions, mainMethod);
 
             methodEscape = statement.methodEscape;
             allEscape = statement.allEscape;
@@ -212,7 +214,7 @@ public final class SClass extends AStatement {
         MethodWriter bootstrapDef = classWriter.newMethodWriter(Opcodes.ACC_STATIC | Opcodes.ACC_VARARGS, DEF_BOOTSTRAP_METHOD);
         bootstrapDef.visitCode();
         bootstrapDef.getStatic(CLASS_TYPE, "$DEFINITION", DEFINITION_TYPE);
-        bootstrapDef.getStatic(CLASS_TYPE, "$LOCALS", MAP_TYPE);
+        bootstrapDef.getStatic(CLASS_TYPE, "$FUNCTIONS", FUNCTION_TABLE_TYPE);
         bootstrapDef.loadArgs();
         bootstrapDef.invokeStatic(DEF_BOOTSTRAP_DELEGATE_TYPE, DEF_BOOTSTRAP_DELEGATE_METHOD);
         bootstrapDef.returnValue();
@@ -226,7 +228,8 @@ public final class SClass extends AStatement {
         // Write the static variables used by the method to bootstrap def calls
         classVisitor.visitField(
                 Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$DEFINITION", DEFINITION_TYPE.getDescriptor(), null, null).visitEnd();
-        classVisitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$LOCALS", MAP_TYPE.getDescriptor(), null, null).visitEnd();
+        classVisitor.visitField(
+                Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "$FUNCTIONS", FUNCTION_TABLE_TYPE.getDescriptor(), null, null).visitEnd();
 
         org.objectweb.asm.commons.Method init;
 
@@ -345,7 +348,7 @@ public final class SClass extends AStatement {
         bytes = classWriter.getClassBytes();
 
         Map<String, Object> statics = new HashMap<>();
-        statics.put("$LOCALS", mainMethod.getMethods());
+        statics.put("$FUNCTIONS", table);
 
         for (Map.Entry<Object, String> instanceBinding : globals.getInstanceBindings().entrySet()) {
             statics.put(instanceBinding.getValue(), instanceBinding.getKey());

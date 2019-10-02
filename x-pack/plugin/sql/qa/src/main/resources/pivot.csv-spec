@@ -1,3 +1,5 @@
+// To mute tests follow example in file: example.csv-spec
+
 averageWithOneValue
 schema::languages:bt|'F':d
 SELECT * FROM (SELECT languages, gender, salary FROM test_emp) PIVOT (AVG(salary) FOR gender IN ('F'));

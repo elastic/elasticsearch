@@ -475,7 +475,7 @@ public class Setting<T> implements ToXContentObject {
      * Returns the raw (string) settings value. If the setting is not present in the given settings object the default value is returned
      * instead. This is useful if the value can't be parsed due to an invalid value to access the actual value.
      */
-    public final String getRaw(final Settings settings) {
+    private String getRaw(final Settings settings) {
         checkDeprecation(settings);
         return innerGetRaw(settings);
     }

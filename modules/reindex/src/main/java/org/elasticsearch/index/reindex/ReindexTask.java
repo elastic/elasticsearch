@@ -211,6 +211,7 @@ public class ReindexTask extends AllocatedPersistentTask {
             reindexer.execute(childTask, reindexRequest, new ContextPreservingActionListener<>(context, new ActionListener<>() {
                 @Override
                 public void onResponse(BulkByScrollResponse response) {
+                    transientStatus = response.getStatus();
                     taskUpdater.finish(response, null);
                 }
 

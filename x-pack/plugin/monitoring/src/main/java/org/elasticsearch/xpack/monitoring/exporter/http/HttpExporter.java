@@ -90,6 +90,7 @@ public class HttpExporter extends Exporter {
                     Collections.emptyList(),
                     Function.identity(),
                     new Setting.Validator<>() {
+
                         @Override
                         public void validate(final List<String> value) {
 
@@ -99,10 +100,10 @@ public class HttpExporter extends Exporter {
                         public void validate(final List<String> hosts, final Map<Setting<?>, Object> settings) {
                             final String namespace =
                                 HttpExporter.HOST_SETTING.getNamespace(HttpExporter.HOST_SETTING.getConcreteSetting(key));
-                            final String type = (String)settings.get(Exporter.TYPE_SETTING.getConcreteSettingForNamespace(namespace));
+                            final String type = (String) settings.get(Exporter.TYPE_SETTING.getConcreteSettingForNamespace(namespace));
 
                             if (hosts.isEmpty()) {
-                                if ("".equals(type)) {
+                                if (Objects.equals(Exporter.TYPE_SETTING.getConcreteSettingForNamespace(Settings.EMPTY), type)) {
                                     // hosts can only be empty if the type is unset
                                     return;
                                 } else {
@@ -146,6 +147,7 @@ public class HttpExporter extends Exporter {
                             final List<Setting<?>> settings = List.of(Exporter.TYPE_SETTING.getConcreteSettingForNamespace(namespace));
                             return settings.iterator();
                         }
+
                     },
                     Property.Dynamic,
                     Property.NodeScope));

@@ -35,18 +35,6 @@ public abstract class Exporter implements AutoCloseable {
         "type",
         key -> Setting.simpleString(
             key,
-//            v -> {
-//                switch (v) {
-//                    case "":
-//                    case "http":
-//                    case "local":
-//                        break;
-//                    default:
-//                        throw new IllegalArgumentException("only exporter types [http] and [local] are allowed [" + v +
-//                            "] is invalid");
-//                }
-//            },
-
             new Setting.Validator<>() {
 
                 @Override
@@ -63,7 +51,7 @@ public abstract class Exporter implements AutoCloseable {
                             // if the type is http, then hosts must be set
                             final String namespace = TYPE_SETTING.getNamespace(TYPE_SETTING.getConcreteSetting(key));
                             final Setting<List<String>> hostsSetting = HttpExporter.HOST_SETTING.getConcreteSettingForNamespace(namespace);
-                            @SuppressWarnings("unchecked") final List<String> hosts = (List<String>)settings.get(hostsSetting);
+                            @SuppressWarnings("unchecked") final List<String> hosts = (List<String>) settings.get(hostsSetting);
                             if (hosts.isEmpty()) {
                                 throw new SettingsException("host list for [" + hostsSetting.getKey() + "] is empty");
                             }

@@ -99,7 +99,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         adjustLoggingLevels.setJsonEntity(
             "{\"transient\": {" +
                 "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"trace\"," +
-                "\"logger.org.elasticsearch.xpack.dataframe\": \"trace\"" +
+                "\"logger.org.elasticsearch.xpack.dataframe\": \"trace\"," +
                 "\"logger.org.elasticsearch.xpack.transform\": \"trace\"" +
                 "}}");
         client().performRequest(adjustLoggingLevels);

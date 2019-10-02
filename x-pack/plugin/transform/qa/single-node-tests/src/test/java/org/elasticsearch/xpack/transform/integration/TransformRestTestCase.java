@@ -20,7 +20,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.transform.TransformField;
-import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.junit.After;
 import org.junit.AfterClass;
 
@@ -384,7 +384,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         assertTrue(transformConfigs.isEmpty());
 
         // the configuration index should be empty
-        Request request = new Request("GET", TransformInternalIndex.LATEST_INDEX_NAME + "/_search");
+        Request request = new Request("GET", TransformInternalIndexConstants.LATEST_INDEX_NAME + "/_search");
         try {
             Response searchResponse = adminClient().performRequest(request);
             Map<String, Object> searchResult = entityAsMap(searchResponse);

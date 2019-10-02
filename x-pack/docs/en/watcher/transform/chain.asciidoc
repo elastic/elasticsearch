@@ -1,16 +1,16 @@
 [role="xpack"]
 [[transform-chain]]
-=== Chain Transform
+=== Chain transform
 
-A <<transform, Transform>> that executes an ordered list of configured transforms
+A <<transform,transform>> that executes an ordered list of configured transforms
 in a chain, where the output of one transform serves as the input of the next
 transform in the chain. The payload that is accepted by this transform serves as
 the input of the first transform in the chain and the output of the last transform
 in the chain is the output of the `chain` transform as a whole.
 
 You can use chain transforms to build more complex transforms out of the other
-available transforms. For example, you can combine a <<transform-search, `search`>>
-transform and a <<transform-script, `script`>> transform, as shown in the
+available transforms. For example, you can combine a <<transform-search,`search`>>
+transform and a <<transform-script,`script`>> transform, as shown in the
 following snippet:
 
 [source,js]

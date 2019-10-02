@@ -37,7 +37,7 @@ versions << [
   'hadoop2': '2.8.1'
 ]
 
-testFixtures.useFixture ":test:fixtures:krb5kdc-fixture"
+testFixtures.useFixture ":test:fixtures:krb5kdc-fixture", "hdfs"
 
 configurations {
   hdfsFixture

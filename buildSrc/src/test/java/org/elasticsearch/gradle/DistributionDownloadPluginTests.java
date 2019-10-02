@@ -90,7 +90,7 @@ public class DistributionDownloadPluginTests extends GradleUnitTestCase {
     public void testFlavorForIntegTest() {
         assertDistroError(createProject(null),
             "testdistro", "5.0.0", Type.INTEG_TEST_ZIP, null, Flavor.OSS, null,
-            "flavor not allowed for elasticsearch distribution [testdistro]");
+            "flavor [oss] not allowed for elasticsearch distribution [testdistro] of type [integ_test_zip]");
     }
 
     public void testBundledJdkDefault() {

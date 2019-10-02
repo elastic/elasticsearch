@@ -89,7 +89,6 @@ Possible response:
                    "hits": [
                       {
                          "_index": "sales",
-                         "_type": "_doc",
                          "_id": "AVnNBmauCQpcRyxw6ChK",
                          "_source": {
                             "date": "2015/03/01 00:00:00",
@@ -117,7 +116,6 @@ Possible response:
                    "hits": [
                       {
                          "_index": "sales",
-                         "_type": "_doc",
                          "_id": "AVnNBmauCQpcRyxw6ChL",
                          "_source": {
                             "date": "2015/03/01 00:00:00",
@@ -145,7 +143,6 @@ Possible response:
                    "hits": [
                       {
                          "_index": "sales",
-                         "_type": "_doc",
                          "_id": "AVnNBmatCQpcRyxw6ChH",
                          "_source": {
                             "date": "2015/01/01 00:00:00",
@@ -331,7 +328,6 @@ Top hits response snippet with a nested hit, which resides in the first slot of 
                 "hits": [
                   {
                     "_index": "sales",
-                    "_type" : "_doc",
                     "_id": "1",
                     "_nested": {
                       "field": "comments",  <1>
@@ -385,7 +381,6 @@ the second slow of the `nested_child_field` field:
  "hits": [
    {
      "_index": "a",
-     "_type": "b",
      "_id": "1",
      "_score": 1,
      "_nested" : {

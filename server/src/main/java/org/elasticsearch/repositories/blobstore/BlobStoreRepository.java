@@ -686,8 +686,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     writeIndexGen(getRepositoryData().addSnapshot(snapshotId, snapshotInfo.state(), indices), repositoryStateId);
                     listener.onResponse(snapshotInfo);
                 },
-                ex -> listener.onFailure(new SnapshotException(metadata.name(), snapshotId, "failed to update snapshot in repository", ex)))
-                , 2 + indices.size());
+                ex ->
+                    listener.onFailure(new SnapshotException(metadata.name(), snapshotId, "failed to update snapshot in repository", ex))),
+                2 + indices.size());
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
 
         // We ignore all FileAlreadyExistsException when writing metadata since otherwise a master failover while in this method will

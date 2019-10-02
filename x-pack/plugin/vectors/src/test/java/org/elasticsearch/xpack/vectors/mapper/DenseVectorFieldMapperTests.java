@@ -23,7 +23,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.vectors.Vectors;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(Vectors.class, XPackPlugin.class);
+        return pluginList(Vectors.class, LocalStateCompositeXPackPlugin.class);
     }
 
     public void testMappingExceedDimsLimit() throws IOException {

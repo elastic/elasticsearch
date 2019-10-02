@@ -135,13 +135,13 @@ GET /_mget?routing=key1
 
 [float]
 [[mget-security]]
-==== Security
+===== Security
 
 See <<url-access-control>>.
 
 [float]
 [[multi-get-partial-responses]]
-==== Partial responses
+===== Partial responses
 
 To ensure fast responses, the multi get API responds with partial results if one or more shards fail. 
 See <<shard-failures, Shard failures>> for more information.

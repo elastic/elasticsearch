@@ -92,7 +92,8 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         EvaluateDataFrameAction.Request evaluateDataFrameRequest =
             new EvaluateDataFrameAction.Request()
                 .setIndices(Arrays.asList(ANIMALS_DATA_INDEX))
-                .setEvaluation(new Classification(ACTUAL_CLASS_FIELD, PREDICTED_CLASS_FIELD, Arrays.asList(new MulticlassConfusionMatrix())));
+                .setEvaluation(
+                    new Classification(ACTUAL_CLASS_FIELD, PREDICTED_CLASS_FIELD, Arrays.asList(new MulticlassConfusionMatrix())));
 
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
             client().execute(EvaluateDataFrameAction.INSTANCE, evaluateDataFrameRequest).actionGet();
@@ -141,7 +142,8 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         EvaluateDataFrameAction.Request evaluateDataFrameRequest =
             new EvaluateDataFrameAction.Request()
                 .setIndices(Arrays.asList(ANIMALS_DATA_INDEX))
-                .setEvaluation(new Classification(ACTUAL_CLASS_FIELD, PREDICTED_CLASS_FIELD, Arrays.asList(new MulticlassConfusionMatrix(3))));
+                .setEvaluation(
+                    new Classification(ACTUAL_CLASS_FIELD, PREDICTED_CLASS_FIELD, Arrays.asList(new MulticlassConfusionMatrix(3))));
 
         EvaluateDataFrameAction.Response evaluateDataFrameResponse =
             client().execute(EvaluateDataFrameAction.INSTANCE, evaluateDataFrameRequest).actionGet();

@@ -125,14 +125,43 @@ public class JsonLoggerTests extends ESTestCase {
             );
         }
     }
+    public void testMessageOverride2() throws IOException {
 
+        final Logger testLogger = LogManager.getLogger("test");
+
+        testLogger.info(ESLogMessage.message("some message {} {}")
+                                    .param("value")
+                                    .paramField("key1","value1")
+                                    .field("key2","value2")
+                                    .build());
+
+        final Path path = clusterLogsPath();
+        try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
+            List<Map<String, String>> jsonLogs = stream
+                .collect(Collectors.toList());
+
+            assertThat(jsonLogs, contains(
+                allOf(
+                    hasEntry("type", "file"),
+                    hasEntry("level", "INFO"),
+                    hasEntry("component", "test"),
+                    hasEntry("cluster.name", "elasticsearch"),
+                    hasEntry("node.name", "sample-name"),
+                    hasEntry("message", "some message value value1"),
+                    hasEntry("key1", "value1"),
+                    hasEntry("key2", "value2"))
+                )
+            );
+        }
+    }
 
     public void testMessageOverride() throws IOException {
 
         final Logger testLogger = LogManager.getLogger("custom.test");
 
         testLogger.info(ESLogMessage.message("some message")
-                .with("message","overriden"));
+                .field("message","overriden")
+                .build());
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
             System.getProperty("es.logs.cluster_name") + "_custom.json");

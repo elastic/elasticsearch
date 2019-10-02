@@ -24,7 +24,9 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.SuppressLoggerChecks;
 
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -32,7 +34,7 @@ import java.util.stream.Stream;
 /**
  * A base class for custom log4j logger messages. Carries additional fields which will populate JSON fields in logs.
  */
-public abstract class ESLogMessage extends ParameterizedMessage {
+public class ESLogMessage extends ParameterizedMessage {
     private static final JsonStringEncoder JSON_STRING_ENCODER = JsonStringEncoder.getInstance();
     private final Map<String, Object> fields;
 
@@ -82,8 +84,39 @@ public abstract class ESLogMessage extends ParameterizedMessage {
             .collect(Collectors.joining(", ")) + "]";
     }
 
-    public static ESLogMessage message(String messagePattern, Object... args){
-        return new ESLogMessage(new LinkedHashMap<>(), messagePattern, args) {
-        };
+    public static ESLogMessageBuilder message(String messagePattern){
+        return new ESLogMessageBuilder().message(messagePattern);
+    }
+
+    public static class ESLogMessageBuilder {
+        private String parametrizedMessage;
+        private List<Object> parameters = new ArrayList<>();
+        private  Map<String, Object> fields = new LinkedHashMap<>();
+
+        public ESLogMessageBuilder message(String parametrizedMessage){
+            this.parametrizedMessage = parametrizedMessage;
+            return this;
+        }
+
+        public ESLogMessageBuilder param(Object object){
+            parameters.add(object);
+            return this;
+        }
+
+        public ESLogMessageBuilder paramField(String key, Object value){
+            parameters.add(value);
+            fields.put(key,value);
+            return this;
+        }
+
+        public ESLogMessageBuilder field(String key, Object value){
+            fields.put(key,value);
+            return this;
+        }
+
+        public ESLogMessage build(){
+            return new ESLogMessage(fields, parametrizedMessage, parameters.toArray()) ;
+        }
+
     }
 }

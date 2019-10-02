@@ -228,7 +228,8 @@ public class OpenLdapTests extends ESTestCase {
     public void testResolveSingleValuedAttributeFromConnection() throws Exception {
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "oldap-test");
         final Settings settings = Settings.builder()
-                .putList(getFullSettingKey(realmId.getName(), LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING), "cn", "sn")
+                .putList(getFullSettingKey(realmId.getName(), LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING.apply("ldap")),
+                        "cn", "sn")
                 .build();
         final RealmConfig config = new RealmConfig(realmId, settings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
@@ -244,7 +245,8 @@ public class OpenLdapTests extends ESTestCase {
     public void testResolveMultiValuedAttributeFromConnection() throws Exception {
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "oldap-test");
         final Settings settings = Settings.builder()
-                .putList(getFullSettingKey(realmId.getName(), LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING), "objectClass")
+                .putList(getFullSettingKey(realmId.getName(), LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING.apply("ldap")),
+                        "objectClass")
                 .build();
         final RealmConfig config = new RealmConfig(realmId, settings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
@@ -260,7 +262,8 @@ public class OpenLdapTests extends ESTestCase {
     public void testResolveMissingAttributeFromConnection() throws Exception {
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ldap", "oldap-test");
         final Settings settings = Settings.builder()
-                .putList(getFullSettingKey(realmId.getName(), LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING), "alias")
+                .putList(getFullSettingKey(realmId.getName(), LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING.apply("ldap")),
+                        "alias")
                 .build();
         final RealmConfig config = new RealmConfig(realmId, settings,
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));

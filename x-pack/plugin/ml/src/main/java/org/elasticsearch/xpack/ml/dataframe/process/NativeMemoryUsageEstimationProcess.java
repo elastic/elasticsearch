@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
 
 import java.io.InputStream;
@@ -27,6 +28,11 @@ public class NativeMemoryUsageEstimationProcess extends AbstractNativeAnalyticsP
 
     @Override
     public AnalyticsProcessConfig getConfig() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void restoreState(BytesReference state) {
         throw new UnsupportedOperationException();
     }
 }

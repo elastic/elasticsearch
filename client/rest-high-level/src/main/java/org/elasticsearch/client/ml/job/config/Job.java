@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.client.ml.job.config;
 
-import org.elasticsearch.client.ml.job.util.TimeUtil;
+import org.elasticsearch.client.common.TimeUtil;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;

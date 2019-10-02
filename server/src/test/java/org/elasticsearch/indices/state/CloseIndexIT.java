@@ -453,8 +453,8 @@ public class CloseIndexIT extends ESIntegTestCase {
             .put("index.routing.allocation.include._name", dataNodes.get(1))).get();
         ensureGreen(indexName);
         internalCluster().fullRestart();
-        assertIndexIsClosed(indexName);
         ensureGreen(indexName);
+        assertIndexIsClosed(indexName);
     }
 
     public void testResyncPropagatePrimaryTerm() throws Exception {

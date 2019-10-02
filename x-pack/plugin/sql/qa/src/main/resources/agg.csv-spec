@@ -1,3 +1,5 @@
+// To mute tests follow example in file: example.csv-spec
+
 //
 // Aggs not supported by H2 / traditional SQL stores
 //

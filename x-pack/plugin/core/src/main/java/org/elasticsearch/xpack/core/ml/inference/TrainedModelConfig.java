@@ -17,18 +17,13 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
-import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -65,11 +60,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         parser.declareLong(TrainedModelConfig.Builder::setModelVersion, MODEL_VERSION);
         parser.declareString(TrainedModelConfig.Builder::setModelType, MODEL_TYPE);
         parser.declareObject(TrainedModelConfig.Builder::setMetadata, (p, c) -> p.map(), METADATA);
-        parser.declareNamedObjects(TrainedModelConfig.Builder::setDefinition,
-            (p, c, n) -> ignoreUnknownFields ?
-                p.namedObject(LenientlyParsedTrainedModel.class, n, null) :
-                p.namedObject(StrictlyParsedTrainedModel.class, n, null),
-            (modelDocBuilder) -> { /* Noop does not matter as we will throw if more than one is defined */ },
+        parser.declareObject(TrainedModelConfig.Builder::setDefinition,
+            (p, c) -> TrainedModelDefinition.fromXContent(p, ignoreUnknownFields),
             DEFINITION);
         return parser;
     }
@@ -94,7 +86,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     // TODO how to reference and store large models that will not be executed in Java???
     // Potentially allow this to be null and have an {index: indexName, doc: model_doc_id} or something
     // TODO Should this be lazily parsed when loading via the index???
-    private final TrainedModel definition;
+    private final TrainedModelDefinition definition;
     TrainedModelConfig(String modelId,
                        String createdBy,
                        Version version,
@@ -102,7 +94,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                        Instant createdTime,
                        Long modelVersion,
                        String modelType,
-                       TrainedModel definition,
+                       TrainedModelDefinition definition,
                        Map<String, Object> metadata) {
         this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
         this.createdBy = ExceptionsHelper.requireNonNull(createdBy, CREATED_BY);
@@ -123,7 +115,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         createdTime = in.readInstant();
         modelVersion = in.readVLong();
         modelType = in.readString();
-        definition = in.readOptionalNamedWriteable(TrainedModel.class);
+        definition = in.readOptionalWriteable(TrainedModelDefinition::new);
         metadata = in.readMap();
     }
 
@@ -160,7 +152,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     }
 
     @Nullable
-    public TrainedModel getDefinition() {
+    public TrainedModelDefinition getDefinition() {
         return definition;
     }
 
@@ -177,7 +169,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         out.writeInstant(createdTime);
         out.writeVLong(modelVersion);
         out.writeString(modelType);
-        out.writeOptionalNamedWriteable(definition);
+        out.writeOptionalWriteable(definition);
         out.writeMap(metadata);
     }
 
@@ -194,11 +186,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         builder.field(MODEL_VERSION.getPreferredName(), modelVersion);
         builder.field(MODEL_TYPE.getPreferredName(), modelType);
         if (definition != null) {
-            NamedXContentObjectHelper.writeNamedObjects(builder,
-                params,
-                false,
-                DEFINITION.getPreferredName(),
-                Collections.singletonList(definition));
+            builder.field(DEFINITION.getPreferredName(), definition);
         }
         if (metadata != null) {
             builder.field(METADATA.getPreferredName(), metadata);
@@ -241,7 +229,6 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             modelVersion);
     }
 
-
     public static class Builder {
 
         private String modelId;
@@ -252,7 +239,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         private Long modelVersion;
         private String modelType;
         private Map<String, Object> metadata;
-        private TrainedModel definition;
+        private TrainedModelDefinition.Builder definition;
 
         public Builder setModelId(String modelId) {
             this.modelId = modelId;
@@ -298,17 +285,9 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             return this;
         }
 
-        public Builder setDefinition(TrainedModel definition) {
+        public Builder setDefinition(TrainedModelDefinition.Builder definition) {
             this.definition = definition;
             return this;
-        }
-
-        private Builder setDefinition(List<TrainedModel> definition) {
-            if (definition.size() != 1) {
-                throw ExceptionsHelper.badRequestException("[{}] must have exactly one trained model defined.",
-                    DEFINITION.getPreferredName());
-            }
-            return setDefinition(definition.get(0));
         }
 
         // TODO move to REST level instead of here in the builder
@@ -352,7 +331,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 createdTime,
                 modelVersion,
                 modelType,
-                definition,
+                definition == null ? null : definition.build(),
                 metadata);
         }
 
@@ -365,7 +344,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 Instant.now(),
                 modelVersion,
                 modelType,
-                definition,
+                definition == null ? null : definition.build(),
                 metadata);
         }
     }

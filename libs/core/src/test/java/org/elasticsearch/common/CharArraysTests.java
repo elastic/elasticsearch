@@ -23,6 +23,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.nio.charset.StandardCharsets;
 
+import static org.hamcrest.Matchers.is;
+
 public class CharArraysTests extends ESTestCase {
 
     public void testCharsToBytes() {
@@ -70,10 +72,12 @@ public class CharArraysTests extends ESTestCase {
         assertTrue(CharArrays.constantTimeEquals(value.toCharArray(), value.toCharArray()));
 
         // we want a different string, so ensure the first character is different, but the same overall length
-        final String other = new String(
-            randomAlphaOfLengthNotBeginningWith(value.substring(0, 1), value.length(), value.length()));
-        assertFalse("value: " + value + ", other: " + other, CharArrays.constantTimeEquals(value, other));
-        assertFalse(CharArrays.constantTimeEquals(value.toCharArray(), other.toCharArray()));
+        final int length = value.length();
+        final String other = length > 0 ? new String(randomAlphaOfLengthNotBeginningWith(value.substring(0, 1), length, length)) : "";
+        final boolean expectedEquals = length == 0;
+
+        assertThat("value: " + value + ", other: " + other, CharArrays.constantTimeEquals(value, other), is(expectedEquals));
+        assertThat(CharArrays.constantTimeEquals(value.toCharArray(), other.toCharArray()), is(expectedEquals));
     }
 
     private char[] randomAlphaOfLengthNotBeginningWith(String undesiredPrefix, int min, int max) {

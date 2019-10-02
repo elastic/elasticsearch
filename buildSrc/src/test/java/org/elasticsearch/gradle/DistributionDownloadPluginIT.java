@@ -50,12 +50,17 @@ public class DistributionDownloadPluginIT extends GradleIntegrationTestCase {
 
     public void testBwc() throws Exception {
         assertExtractedDistro("1.1.0", "archive", "linux", null, null,
-            "tests.local_distro.config", "linux-tar",
+            "tests.local_distro.config", "zip",
             "tests.local_distro.project", ":distribution:bwc:minor",
             "tests.current_version", "2.0.0");
     }
 
     public void testReleased() throws Exception {
+        doTestReleased("7.0.0", "/downloads/elasticsearch/elasticsearch-7.0.0-windows-x86_64.zip");
+        doTestReleased("6.5.0", "/downloads/elasticsearch/elasticsearch-6.5.0.zip");
+    }
+
+    private void doTestReleased(String version, String urlPath) throws IOException {
         WireMockServer wireMock = new WireMockServer(0);
         try {
             final byte[] filebytes;
@@ -63,12 +68,11 @@ public class DistributionDownloadPluginIT extends GradleIntegrationTestCase {
                      Files.newInputStream(Paths.get("src/testKit/distribution-download/distribution/files/fake_elasticsearch.zip"))) {
                 filebytes = stream.readAllBytes();
             }
-            String urlPath = "/downloads/elasticsearch/elasticsearch-7.0.0-windows-x86_64.zip";
             wireMock.stubFor(head(urlEqualTo(urlPath)).willReturn(aResponse().withStatus(200)));
             wireMock.stubFor(get(urlEqualTo(urlPath)).willReturn(aResponse().withStatus(200).withBody(filebytes)));
             wireMock.start();
 
-            assertExtractedDistro("7.0.0", "archive", "windows", null, null,
+            assertExtractedDistro(version, "archive", "windows", null, null,
                 "tests.download_service", wireMock.baseUrl());
         } catch (Exception e) {
             // for debugging

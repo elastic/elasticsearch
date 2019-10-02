@@ -9,7 +9,12 @@ NOTE: If you are running a version prior to 6.0,
 and reindex your old indices or bring up a new {version} cluster and
 <<reindex-upgrade-remote, reindex from remote>>.
 
-To perform a  full cluster restart upgrade to {version}:
+include::preparing_to_upgrade.asciidoc[]
+
+[float]
+=== Upgrading your cluster
+
+To perform a full cluster restart upgrade to {version}:
 
 . *Disable shard allocation.*
 +
@@ -20,7 +25,7 @@ include::disable-shard-alloc.asciidoc[]
 . *Stop indexing and perform a synced flush.*
 +
 --
-Performing a <<synced-flush-api, synced-flush>> speeds up shard
+Performing a <<indices-synced-flush-api, synced-flush>> speeds up shard
 recovery.
 
 include::synced-flush.asciidoc[]
@@ -52,6 +57,11 @@ include::upgrade-node.asciidoc[]
 include::set-paths-tip.asciidoc[]
 --
 
+If upgrading from a 6.x cluster, you must also
+<<modules-discovery-bootstrap-cluster,configure cluster bootstrapping>> by
+setting the <<initial_master_nodes,`cluster.initial_master_nodes` setting>> on
+the master-eligible nodes.
+
 . *Upgrade any plugins.*
 +
 Use the `elasticsearch-plugin` script to install the upgraded version of each
@@ -69,10 +79,6 @@ particular, the placement of the realm type changed. See
 If you have dedicated master nodes, start them first and wait for them to
 form a cluster and elect a master before proceeding with your data nodes.
 You can check progress by looking at the logs.
-
-If upgrading from a 6.x cluster, you must
-<<modules-discovery-bootstrap-cluster,configure cluster bootstrapping>> by
-setting the `cluster.initial_master_nodes` setting.
 
 As soon as enough master-eligible nodes have discovered each other, they form a
 cluster and elect a master. At that point, you can use

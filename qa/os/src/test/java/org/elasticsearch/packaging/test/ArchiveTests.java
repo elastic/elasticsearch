@@ -74,7 +74,7 @@ public class ArchiveTests extends PackagingTestCase {
         assertThat(r.stdout, isEmptyString());
     }
 
-    public void test30NoJava() throws Exception {
+    public void test30MissingBundledJdk() throws Exception {
         final Installation.Executables bin = installation.executables();
         sh.getEnv().remove("JAVA_HOME");
 
@@ -87,12 +87,23 @@ public class ArchiveTests extends PackagingTestCase {
             // ask for elasticsearch version to quickly exit if java is actually found (ie test failure)
             final Result runResult = sh.runIgnoreExitCode(bin.elasticsearch.toString() + " -v");
             assertThat(runResult.exitCode, is(1));
-            assertThat(runResult.stderr, containsString("could not find java in JAVA_HOME or bundled"));
+            assertThat(runResult.stderr, containsString("could not find java in bundled jdk"));
         } finally {
             if (distribution().hasJdk) {
                 mv(relocatedJdk, installation.bundledJdk);
             }
         }
+    }
+
+    public void test31BadJavaHome() throws Exception {
+        final Installation.Executables bin = installation.executables();
+        sh.getEnv().put("JAVA_HOME", "doesnotexist");
+
+        // ask for elasticsearch version to quickly exit if java is actually found (ie test failure)
+        final Result runResult = sh.runIgnoreExitCode(bin.elasticsearch.toString() + " -v");
+        assertThat(runResult.exitCode, is(1));
+        assertThat(runResult.stderr, containsString("could not find java in JAVA_HOME"));
+
     }
 
     public void test40CreateKeystoreManually() throws Exception {
@@ -174,7 +185,7 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test53JavaHomeWithSpecialCharacters() throws Exception {
         Platforms.onWindows(() -> {
-            final Shell sh = new Shell();
+            final Shell sh = newShell();
             try {
                 // once windows 2012 is no longer supported and powershell 5.0 is always available we can change this command
                 sh.run("cmd /c mklink /D 'C:\\Program Files (x86)\\java' $Env:SYSTEM_JAVA_HOME");
@@ -197,18 +208,12 @@ public class ArchiveTests extends PackagingTestCase {
         });
 
         Platforms.onLinux(() -> {
-            final Shell sh = new Shell();
-            // Create temporary directory with a space and link to java binary.
-            // Use it as java_home
-            String testJavaHome = FileUtils.mkdir(Paths.get("/home", ARCHIVE_OWNER, "java home")).toAbsolutePath().toString();
+            final Shell sh = newShell();
+            // Create temporary directory with a space and link to real java home
+            String testJavaHome = Paths.get("/tmp", "java home").toString();
             try {
                 final String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
-                final String java = systemJavaHome + "/bin/java";
-
-                sh.run("mkdir -p \"" + testJavaHome + "/bin\"");
-                sh.run("ln -s \"" + java + "\" \"" + testJavaHome + "/bin/java\"");
-                sh.run("chown -R " + ARCHIVE_OWNER + ":" + ARCHIVE_OWNER + " \"" + testJavaHome + "\"");
-
+                sh.run("ln -s \"" + systemJavaHome + "\" \"" + testJavaHome + "\"");
                 sh.getEnv().put("JAVA_HOME", testJavaHome);
 
                 //verify ES can start, stop and run plugin list

@@ -9,6 +9,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePartProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTruncProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.sql.util.StringUtils;
 import java.time.Duration;
 import java.time.OffsetTime;
 import java.time.Period;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
@@ -371,7 +373,11 @@ public final class InternalSqlScriptUtils {
     }
 
     public static ZonedDateTime dateTrunc(String truncateTo, Object dateTime, String tzId) {
-        return (ZonedDateTime) DateTruncProcessor.process(truncateTo, asDateTime(dateTime) ,tzId);
+        return (ZonedDateTime) DateTruncProcessor.process(truncateTo, asDateTime(dateTime) , ZoneId.of(tzId));
+    }
+
+    public static Integer datePart(String dateField, Object dateTime, String tzId) {
+        return (Integer) DatePartProcessor.process(dateField, asDateTime(dateTime) , ZoneId.of(tzId));
     }
 
     public static ZonedDateTime asDateTime(Object dateTime) {

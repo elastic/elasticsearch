@@ -26,6 +26,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
@@ -248,7 +250,20 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             }
             final String ref = readFirstLine(head);
             if (ref.startsWith("ref:")) {
-                revision = readFirstLine(gitDir.resolve(ref.substring("ref:".length()).trim()));
+                String branchname = ref.substring("ref:".length()).trim();
+                Path refFile = gitDir.resolve(branchname);
+                if (Files.exists(refFile)) {
+                    revision = readFirstLine(refFile);
+                } else {
+                    // Check packed references for commit ID
+                    Pattern p = Pattern.compile("^([a-f0-9]+) " + branchname + "$");
+                    revision = Files.lines(dotGit.resolve("packed-refs"))
+                        .map(p::matcher)
+                        .filter(Matcher::matches)
+                        .map(m -> m.group(1))
+                        .findFirst()
+                        .orElseThrow(() -> new IOException("Packed reference not found"));
+                }
             } else {
                 // we are in detached HEAD state
                 revision = ref;

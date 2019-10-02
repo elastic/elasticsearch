@@ -124,23 +124,33 @@ public class ReindexTask extends AllocatedPersistentTask {
             allocationId, new ActionListener<>() {
             @Override
             public void onResponse(ReindexTaskStateDoc stateDoc) {
-                if (shouldStoreResult) {
-                    BulkByScrollResponse response = stateDoc.getReindexResponse();
-                    taskManager.storeResult(ReindexTask.this, response, new ActionListener<>() {
-                        @Override
-                        public void onResponse(BulkByScrollResponse response) {
+                updatePersistentTaskState(new ReindexJobState(taskId, ReindexJobState.Status.DONE), new ActionListener<>() {
+                    @Override
+                    public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
+                        if (shouldStoreResult) {
+                            taskManager.storeResult(ReindexTask.this, stateDoc.getReindexResponse(), new ActionListener<>() {
+                                @Override
+                                public void onResponse(BulkByScrollResponse response) {
+                                    markAsCompleted();
+                                }
+
+                                @Override
+                                public void onFailure(Exception ex) {
+                                    logger.info("Failed to store task result", ex);
+                                    markAsFailed(ex);
+                                }
+                            });
+                        } else {
                             markAsCompleted();
                         }
+                    }
 
-                        @Override
-                        public void onFailure(Exception ex) {
-                            logger.info("Failed to store task result", ex);
-                            markAsFailed(ex);
-                        }
-                    });
-                } else {
-                    markAsCompleted();
-                }
+                    @Override
+                    public void onFailure(Exception ex) {
+                        logger.info("Failed to update task in cluster state to success", ex);
+                        markEphemeralTaskFailed(shouldStoreResult, ex);
+                    }
+                });
             }
 
             @Override

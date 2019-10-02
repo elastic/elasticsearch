@@ -18,11 +18,11 @@
  */
 package org.elasticsearch.client.ml.inference.trainedmodel;
 
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.client.ml.inference.NamedXContentObject;
 
 import java.util.List;
 
-public interface TrainedModel extends ToXContentObject {
+public interface TrainedModel extends NamedXContentObject {
 
     /**
      * @return List of featureNames expected by the model. In the order that they are expected

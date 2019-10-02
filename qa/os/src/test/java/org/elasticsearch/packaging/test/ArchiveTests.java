@@ -198,17 +198,11 @@ public class ArchiveTests extends PackagingTestCase {
 
         Platforms.onLinux(() -> {
             final Shell sh = new Shell();
-            // Create temporary directory with a space and link to java binary.
-            // Use it as java_home
-            String testJavaHome = FileUtils.mkdir(Paths.get("/home", ARCHIVE_OWNER, "java home")).toAbsolutePath().toString();
+            // Create temporary directory with a space and link to real java home
+            String testJavaHome = Paths.get("/tmp", "java home").toString();
             try {
                 final String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
-                final String java = systemJavaHome + "/bin/java";
-
-                sh.run("mkdir -p \"" + testJavaHome + "/bin\"");
-                sh.run("ln -s \"" + java + "\" \"" + testJavaHome + "/bin/java\"");
-                sh.run("chown -R " + ARCHIVE_OWNER + ":" + ARCHIVE_OWNER + " \"" + testJavaHome + "\"");
-
+                sh.run("ln -s \"" + systemJavaHome + "\" \"" + testJavaHome + "\"");
                 sh.getEnv().put("JAVA_HOME", testJavaHome);
 
                 //verify ES can start, stop and run plugin list

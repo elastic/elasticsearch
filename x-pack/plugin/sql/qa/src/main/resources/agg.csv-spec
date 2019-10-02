@@ -146,6 +146,33 @@ null           |null           |null           |null          |null           |n
 4              |4              |72             |4             |4.0            |0.0            |NaN            |NaN   
 ;
 
+aggSumWithColumnRepeated
+SELECT gender AS g, gender, SUM(salary) AS s3, SUM(salary), SUM(salary) AS s5 FROM test_emp GROUP BY gender;
+
+g:s  | gender:s  | s3:i  | SUM(salary):i | s5:i
+null |null       |487605 |487605         |487605
+F    |F          |1666196|1666196        |1666196
+M    |M          |2671054|2671054        |2671054
+;
+
+aggSumWithAliasWithColumnRepeated
+SELECT gender AS g, gender, SUM(salary) AS s3, SUM(salary), SUM(salary) AS s5 FROM test_emp GROUP BY g;
+
+g:s  | gender:s  | s3:i  | SUM(salary):i | s5:i
+null |null       |487605 |487605         |487605
+F    |F          |1666196|1666196        |1666196
+M    |M          |2671054|2671054        |2671054
+;
+
+aggSumWithNumericRefWithColumnRepeated
+SELECT gender AS g, gender, SUM(salary) AS s3, SUM(salary), SUM(salary) AS s5 FROM test_emp GROUP BY 2;
+
+g:s  | gender:s  | s3:i  | SUM(salary):i | s5:i
+null |null       |487605 |487605         |487605
+F    |F          |1666196|1666196        |1666196
+M    |M          |2671054|2671054        |2671054
+;
+
 aggByComplexCastedValue
 SELECT CONVERT(CONCAT(LTRIM(CONVERT("emp_no", SQL_VARCHAR)), LTRIM(CONVERT("languages", SQL_VARCHAR))), SQL_BIGINT) AS "TEMP"
 FROM "test_emp" GROUP BY "TEMP" ORDER BY "TEMP" LIMIT 20;

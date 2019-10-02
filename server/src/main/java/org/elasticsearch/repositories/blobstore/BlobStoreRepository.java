@@ -98,7 +98,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -639,53 +638,60 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public SnapshotInfo finalizeSnapshot(final SnapshotId snapshotId,
-                                         final List<IndexId> indices,
-                                         final long startTime,
-                                         final String failure,
-                                         final int totalShards,
-                                         final List<SnapshotShardFailure> shardFailures,
-                                         final long repositoryStateId,
-                                         final boolean includeGlobalState,
-                                         final MetaData clusterMetaData,
-                                         final Map<String, Object> userMetadata) {
-        SnapshotInfo blobStoreSnapshot = new SnapshotInfo(snapshotId,
-            indices.stream().map(IndexId::getName).collect(Collectors.toList()),
-            startTime, failure, threadPool.absoluteTimeInMillis(), totalShards, shardFailures,
-            includeGlobalState, userMetadata);
+    public void finalizeSnapshot(final SnapshotId snapshotId,
+                                 final List<IndexId> indices,
+                                 final long startTime,
+                                 final String failure,
+                                 final int totalShards,
+                                 final List<SnapshotShardFailure> shardFailures,
+                                 final long repositoryStateId,
+                                 final boolean includeGlobalState,
+                                 final MetaData clusterMetaData,
+                                 final Map<String, Object> userMetadata,
+                                 final ActionListener<SnapshotInfo> listener) {
 
-        try {
-            // We ignore all FileAlreadyExistsException here since otherwise a master failover while in this method will
-            // mean that no snap-${uuid}.dat blob is ever written for this snapshot. This is safe because any updated version of the
-            // index or global metadata will be compatible with the segments written in this snapshot as well.
-            // Failing on an already existing index-${repoGeneration} below ensures that the index.latest blob is not updated in a way that
-            // decrements the generation it points at
+        // Once we're done writing all metadata, we update the index-N blob to finalize the snapshot
+        final ActionListener<SnapshotInfo> afterMetaWrites = ActionListener.wrap(snapshotInfo -> {
+            writeIndexGen(getRepositoryData().addSnapshot(snapshotId, snapshotInfo.state(), indices), repositoryStateId);
+            listener.onResponse(snapshotInfo);
+        }, ex -> listener.onFailure(new SnapshotException(metadata.name(), snapshotId, "failed to update snapshot in repository", ex)));
 
-            // Write Global MetaData
+        // We upload one meta blob for each index, one for the cluster-state and one snap-${uuid}.dat blob
+        final GroupedActionListener<SnapshotInfo> allMetaListener =
+            new GroupedActionListener<>(ActionListener.map(afterMetaWrites, snapshotInfos -> {
+                assert snapshotInfos.size() == 1 : "Should have only received a single SnapshotInfo but received " + snapshotInfos;
+                return snapshotInfos.iterator().next();
+            }), 2 + indices.size());
+        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+
+        // We ignore all FileAlreadyExistsException when writing metadata since otherwise a master failover while in this method will
+        // mean that no snap-${uuid}.dat blob is ever written for this snapshot. This is safe because any updated version of the
+        // index or global metadata will be compatible with the segments written in this snapshot as well.
+        // Failing on an already existing index-${repoGeneration} below ensures that the index.latest blob is not updated in a way
+        // that decrements the generation it points at
+
+        // Write Global MetaData
+        executor.execute(ActionRunnable.wrap(allMetaListener, l -> {
             globalMetaDataFormat.write(clusterMetaData, blobContainer(), snapshotId.getUUID(), false);
+            l.onResponse(null);
+        }));
 
-            // write the index metadata for each index in the snapshot
-            for (IndexId index : indices) {
+        // write the index metadata for each index in the snapshot
+        for (IndexId index : indices) {
+            executor.execute(ActionRunnable.wrap(allMetaListener, l -> {
                 indexMetaDataFormat.write(clusterMetaData.index(index.getName()), indexContainer(index), snapshotId.getUUID(), false);
-            }
-        } catch (IOException ex) {
-            throw new SnapshotException(metadata.name(), snapshotId, "failed to write metadata for snapshot", ex);
+                l.onResponse(null);
+            }));
         }
 
-        try {
-            final RepositoryData updatedRepositoryData = getRepositoryData().addSnapshot(snapshotId, blobStoreSnapshot.state(), indices);
-            snapshotFormat.write(blobStoreSnapshot, blobContainer(), snapshotId.getUUID(), false);
-            writeIndexGen(updatedRepositoryData, repositoryStateId);
-        } catch (FileAlreadyExistsException ex) {
-            // if another master was elected and took over finalizing the snapshot, it is possible
-            // that both nodes try to finalize the snapshot and write to the same blobs, so we just
-            // log a warning here and carry on
-            throw new RepositoryException(metadata.name(), "Blob already exists while " +
-                "finalizing snapshot, assume the snapshot has already been saved", ex);
-        } catch (IOException ex) {
-            throw new RepositoryException(metadata.name(), "failed to update snapshot in repository", ex);
-        }
-        return blobStoreSnapshot;
+        executor.execute(ActionRunnable.wrap(afterMetaWrites, afterMetaListener -> {
+            final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshotId,
+                indices.stream().map(IndexId::getName).collect(Collectors.toList()),
+                startTime, failure, threadPool.absoluteTimeInMillis(), totalShards, shardFailures,
+                includeGlobalState, userMetadata);
+            snapshotFormat.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), false);
+            afterMetaListener.onResponse(snapshotInfo);
+        }));
     }
 
     @Override

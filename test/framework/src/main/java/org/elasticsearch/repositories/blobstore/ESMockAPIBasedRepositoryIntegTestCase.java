@@ -165,7 +165,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
             }
         }
 
-        private void handleAsError(final HttpExchange exchange) throws IOException {
+        protected void handleAsError(final HttpExchange exchange) throws IOException {
             Streams.readFully(exchange.getRequestBody());
             exchange.sendResponseHeaders(HttpStatus.SC_INTERNAL_SERVER_ERROR, -1);
             exchange.close();

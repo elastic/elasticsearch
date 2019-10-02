@@ -5,14 +5,11 @@
  */
 package org.elasticsearch.upgrades;
 
-import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.core.IndexerState;
 import org.elasticsearch.client.transform.GetTransformStatsResponse;
 import org.elasticsearch.client.transform.transforms.DestConfig;
@@ -25,7 +22,6 @@ import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -58,7 +54,8 @@ import static org.hamcrest.Matchers.oneOf;
 public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
 
     private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
-    private static final String DATAFRAME_ENDPOINT = "/_data_frame/transforms/";
+    private static final String DATAFRAME_ENDPOINT = "/_transform/";
+    private static final String DATAFRAME_ENDPOINT_DEPRECATED = "/_data_frame/transforms/";
     private static final String CONTINUOUS_TRANSFORM_ID = "continuous-transform-upgrade-job";
     private static final String CONTINUOUS_TRANSFORM_SOURCE = "transform-upgrade-continuous-source";
     private static final List<String> ENTITIES = Stream.iterate(1, n -> n + 1)
@@ -78,15 +75,6 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
 
     protected static void waitForPendingDataFrameTasks() throws Exception {
         waitForPendingTasks(adminClient(), taskName -> taskName.startsWith("data_frame/transforms") == false);
-    }
-
-    // todo: use old API's on old and new API's no new cluster
-    @Override
-    protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
-        RestClientBuilder builder = RestClient.builder(hosts);
-        configureClient(builder, settings);
-        builder.setStrictDeprecationMode(false);
-        return builder.build();
     }
 
     /**
@@ -260,33 +248,37 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         });
     }
 
+    private String getTransformEndpoint() {
+        return CLUSTER_TYPE == ClusterType.UPGRADED ? DATAFRAME_ENDPOINT : DATAFRAME_ENDPOINT_DEPRECATED;
+    }
+
     private void putTransform(String id, TransformConfig config) throws IOException {
-        final Request createDataframeTransformRequest = new Request("PUT", DATAFRAME_ENDPOINT + id);
+        final Request createDataframeTransformRequest = new Request("PUT", getTransformEndpoint() + id);
         createDataframeTransformRequest.setJsonEntity(Strings.toString(config));
         Response response = client().performRequest(createDataframeTransformRequest);
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
     private void deleteTransform(String id) throws IOException {
-        Response response = client().performRequest(new Request("DELETE", DATAFRAME_ENDPOINT + id));
+        Response response = client().performRequest(new Request("DELETE", getTransformEndpoint() + id));
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
     private void startTransform(String id) throws IOException  {
-        final Request startDataframeTransformRequest = new Request("POST", DATAFRAME_ENDPOINT + id + "/_start");
+        final Request startDataframeTransformRequest = new Request("POST", getTransformEndpoint() + id + "/_start");
         Response response = client().performRequest(startDataframeTransformRequest);
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
     private void stopTransform(String id) throws IOException  {
         final Request stopDataframeTransformRequest = new Request("POST",
-            DATAFRAME_ENDPOINT + id + "/_stop?wait_for_completion=true");
+            getTransformEndpoint() + id + "/_stop?wait_for_completion=true");
         Response response = client().performRequest(stopDataframeTransformRequest);
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
     private TransformStats getTransformStats(String id) throws IOException {
-        final Request getStats = new Request("GET", DATAFRAME_ENDPOINT + id + "/_stats");
+        final Request getStats = new Request("GET", getTransformEndpoint() + id + "/_stats");
         Response response = client().performRequest(getStats);
         assertEquals(200, response.getStatusLine().getStatusCode());
         XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());

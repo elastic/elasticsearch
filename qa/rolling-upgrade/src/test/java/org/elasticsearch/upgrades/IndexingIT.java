@@ -23,8 +23,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.action.document.RestBulkAction;
 
@@ -160,9 +162,10 @@ public class IndexingIT extends AbstractRollingTestCase {
 
         switch (CLUSTER_TYPE) {
             case OLD:
-                Request createTestIndex = new Request("PUT", "/" + indexName);
-                createTestIndex.setJsonEntity("{\"settings\": {\"index.number_of_replicas\": 0}}");
-                client().performRequest(createTestIndex);
+                Settings.Builder settings = Settings.builder()
+                    .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
+                createIndex(indexName, settings.build());
                 break;
             case MIXED:
                 Request waitForGreen = new Request("GET", "/_cluster/health");

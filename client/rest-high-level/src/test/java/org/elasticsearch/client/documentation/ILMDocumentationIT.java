@@ -57,6 +57,7 @@ import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.slm.DeleteSnapshotLifecyclePolicyRequest;
 import org.elasticsearch.client.slm.ExecuteSnapshotLifecyclePolicyRequest;
 import org.elasticsearch.client.slm.ExecuteSnapshotLifecyclePolicyResponse;
+import org.elasticsearch.client.slm.ExecuteSnapshotLifecycleRetentionRequest;
 import org.elasticsearch.client.slm.GetSnapshotLifecyclePolicyRequest;
 import org.elasticsearch.client.slm.GetSnapshotLifecyclePolicyResponse;
 import org.elasticsearch.client.slm.GetSnapshotLifecycleStatsRequest;
@@ -987,6 +988,44 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::slm-delete-snapshot-lifecycle-policy-execute-async
 
         assertTrue(deleteResp.isAcknowledged());
+
+        //////// EXECUTE RETENTION
+        // tag::slm-execute-snapshot-lifecycle-retention
+        ExecuteSnapshotLifecycleRetentionRequest req =
+            new ExecuteSnapshotLifecycleRetentionRequest();
+        // end::slm-execute-snapshot-lifecycle-retention
+
+        // tag::slm-execute-snapshot-lifecycle-retention-execute
+        AcknowledgedResponse retentionResp =
+            client.indexLifecycle()
+                .executeSnapshotLifecycleRetention(req,
+                    RequestOptions.DEFAULT);
+        // end::slm-execute-snapshot-lifecycle-retention-execute
+
+        // tag::slm-execute-snapshot-lifecycle-retention-response
+        final boolean acked = retentionResp.isAcknowledged();
+        // end::slm-execute-snapshot-lifecycle-retention-response
+
+        // tag::slm-execute-snapshot-lifecycle-policy-execute-listener
+        ActionListener<AcknowledgedResponse> retentionListener =
+            new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse r) {
+                    assert r.isAcknowledged(); // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+        // end::slm-execute-snapshot-lifecycle-retention-execute-listener
+
+        // tag::slm-execute-snapshot-lifecycle-retention-execute-async
+        client.indexLifecycle()
+            .executeSnapshotLifecycleRetentionAsync(req,
+                RequestOptions.DEFAULT, retentionListener);
+        // end::slm-execute-snapshot-lifecycle-retention-execute-async
     }
 
     private void assertSnapshotExists(final RestHighLevelClient client, final String repo, final String snapshotName) throws Exception {

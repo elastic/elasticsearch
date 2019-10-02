@@ -17,7 +17,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.snapshots.SnapshotException;
+import org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -210,9 +210,10 @@ public class SLMSnapshotBlockingIntegTests extends ESIntegTestCase {
                 try {
                     logger.info("--> cancelling snapshot {}", secondSnapName);
                     client().admin().cluster().prepareDeleteSnapshot(REPO, secondSnapName).get();
-                } catch (SnapshotException e) {
+                } catch (ConcurrentSnapshotExecutionException e) {
                     logger.info("--> attempted to stop second snapshot", e);
                     // just wait and retry
+                    fail("attempted to stop second snapshot but a snapshot or delete was in progress");
                 }
             });
 

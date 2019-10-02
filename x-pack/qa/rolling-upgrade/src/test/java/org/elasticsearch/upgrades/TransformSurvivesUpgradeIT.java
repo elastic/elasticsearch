@@ -99,7 +99,9 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         adjustLoggingLevels.setJsonEntity(
             "{\"transient\": {" +
                 "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"trace\"," +
-                "\"logger.org.elasticsearch.xpack.dataframe\": \"trace\"}}");
+                "\"logger.org.elasticsearch.xpack.dataframe\": \"trace\"" +
+                "\"logger.org.elasticsearch.xpack.transform\": \"trace\"" +
+                "}}");
         client().performRequest(adjustLoggingLevels);
         Request waitForYellow = new Request("GET", "/_cluster/health");
         waitForYellow.addParameter("wait_for_nodes", "3");

@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.process.ProcessResultsParser;
+import org.elasticsearch.xpack.ml.process.StateToProcessWriterHelper;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -55,5 +57,13 @@ public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<Analy
     @Override
     public AnalyticsProcessConfig getConfig() {
         return config;
+    }
+
+    @Override
+    public void restoreState(BytesReference state) throws IOException {
+        Objects.requireNonNull(state);
+        try (OutputStream restoreStream = processRestoreStream()) {
+            StateToProcessWriterHelper.writeStateToStream(state, restoreStream);
+        }
     }
 }

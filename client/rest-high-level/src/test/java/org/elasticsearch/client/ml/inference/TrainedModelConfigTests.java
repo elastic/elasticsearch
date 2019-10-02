@@ -19,7 +19,6 @@
 package org.elasticsearch.client.ml.inference;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.client.ml.inference.trainedmodel.tree.TreeTests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -61,7 +60,7 @@ public class TrainedModelConfigTests extends AbstractXContentTestCase<TrainedMod
             Instant.ofEpochMilli(randomNonNegativeLong()),
             randomBoolean() ? null : randomNonNegativeLong(),
             randomAlphaOfLength(10),
-            randomFrom(TreeTests.createRandom()),
+            randomBoolean() ? null : TrainedModelDefinitionTests.createRandomBuilder().build(),
             randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));
     }
 

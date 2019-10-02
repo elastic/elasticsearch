@@ -20,7 +20,6 @@ package org.elasticsearch.client.ml.inference;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.common.TimeUtil;
-import org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -31,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -64,9 +62,8 @@ public class TrainedModelConfig implements ToXContentObject {
         PARSER.declareLong(TrainedModelConfig.Builder::setModelVersion, MODEL_VERSION);
         PARSER.declareString(TrainedModelConfig.Builder::setModelType, MODEL_TYPE);
         PARSER.declareObject(TrainedModelConfig.Builder::setMetadata, (p, c) -> p.map(), METADATA);
-        PARSER.declareNamedObjects(TrainedModelConfig.Builder::setDefinition,
-            (p, c, n) -> p.namedObject(TrainedModel.class, n, null),
-            (modelDocBuilder) -> { /* Noop does not matter client side */ },
+        PARSER.declareObject(TrainedModelConfig.Builder::setDefinition,
+            (p, c) -> TrainedModelDefinition.fromXContent(p),
             DEFINITION);
     }
 
@@ -82,7 +79,7 @@ public class TrainedModelConfig implements ToXContentObject {
     private final Long modelVersion;
     private final String modelType;
     private final Map<String, Object> metadata;
-    private final TrainedModel definition;
+    private final TrainedModelDefinition definition;
 
     TrainedModelConfig(String modelId,
                        String createdBy,
@@ -91,7 +88,7 @@ public class TrainedModelConfig implements ToXContentObject {
                        Instant createdTime,
                        Long modelVersion,
                        String modelType,
-                       TrainedModel definition,
+                       TrainedModelDefinition definition,
                        Map<String, Object> metadata) {
         this.modelId = modelId;
         this.createdBy = createdBy;
@@ -136,7 +133,7 @@ public class TrainedModelConfig implements ToXContentObject {
         return metadata;
     }
 
-    public TrainedModel getDefinition() {
+    public TrainedModelDefinition getDefinition() {
         return definition;
     }
 
@@ -169,11 +166,7 @@ public class TrainedModelConfig implements ToXContentObject {
             builder.field(MODEL_TYPE.getPreferredName(), modelType);
         }
         if (definition != null) {
-            NamedXContentObjectHelper.writeNamedObjects(builder,
-                params,
-                false,
-                DEFINITION.getPreferredName(),
-                Collections.singletonList(definition));
+            builder.field(DEFINITION.getPreferredName(), definition);
         }
         if (metadata != null) {
             builder.field(METADATA.getPreferredName(), metadata);
@@ -227,7 +220,7 @@ public class TrainedModelConfig implements ToXContentObject {
         private Long modelVersion;
         private String modelType;
         private Map<String, Object> metadata;
-        private TrainedModel definition;
+        private TrainedModelDefinition.Builder definition;
 
         public Builder setModelId(String modelId) {
             this.modelId = modelId;
@@ -273,14 +266,9 @@ public class TrainedModelConfig implements ToXContentObject {
             return this;
         }
 
-        public Builder setDefinition(TrainedModel definition) {
+        public Builder setDefinition(TrainedModelDefinition.Builder definition) {
             this.definition = definition;
             return this;
-        }
-
-        private Builder setDefinition(List<TrainedModel> definition) {
-            assert definition.size() == 1;
-            return setDefinition(definition.get(0));
         }
 
         public TrainedModelConfig build() {
@@ -292,7 +280,7 @@ public class TrainedModelConfig implements ToXContentObject {
                 createdTime,
                 modelVersion,
                 modelType,
-                definition,
+                definition == null ? null : definition.build(),
                 metadata);
         }
     }

@@ -89,7 +89,7 @@ task thirdPartyTest (type: Test) {
     include '**/GoogleCloudStorageThirdPartyTests.class'
     systemProperty 'tests.security.manager', false
     systemProperty 'test.google.bucket', gcsBucket
-    systemProperty 'test.google.base', gcsBasePath
+    systemProperty 'test.google.base', gcsBasePath + "_third_party_tests_" + project.testSeed
     nonInputProperties.systemProperty 'test.google.account', "${ -> encodedCredentials.call() }"
 }
 
@@ -128,7 +128,7 @@ check.dependsOn thirdPartyTest
 
 Map<String, Object> expansions = [
         'bucket': gcsBucket,
-        'base_path': gcsBasePath
+        'base_path': gcsBasePath + "_integration_tests"
 ]
 
 processTestResources {

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.authc;
 
 import com.google.common.collect.Sets;
+
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -287,9 +288,26 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(invalidateResponse.getPreviouslyInvalidatedApiKeys().size(), equalTo(0));
         assertThat(invalidateResponse.getErrors().size(), equalTo(0));
 
+        awaitApiKeysRemoverCompletion();
+        refreshSecurityIndex();
+
         PlainActionFuture<GetApiKeyResponse> getApiKeyResponseListener = new PlainActionFuture<>();
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingRealmName("file"), getApiKeyResponseListener);
-        assertThat(getApiKeyResponseListener.get().getApiKeyInfos().length, is(2));
+        Set<String> expectedKeyIds = Sets.newHashSet(createdApiKeys.get(0).getId(), createdApiKeys.get(1).getId());
+        boolean apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover = false;
+        for (ApiKey apiKey : getApiKeyResponseListener.get().getApiKeyInfos()) {
+            assertThat(apiKey.getId(), isIn(expectedKeyIds));
+            if (apiKey.getId().equals(createdApiKeys.get(0).getId())) {
+                // has been invalidated but not yet deleted by ExpiredApiKeysRemover
+                assertThat(apiKey.isInvalidated(), is(true));
+                apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover = true;
+            } else if (apiKey.getId().equals(createdApiKeys.get(1).getId())) {
+                // active api key
+                assertThat(apiKey.isInvalidated(), is(false));
+            }
+        }
+        assertThat(getApiKeyResponseListener.get().getApiKeyInfos().length,
+                is((apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover) ? 2 : 1));
 
         client = waitForExpiredApiKeysRemoverTriggerReadyAndGetClient().filterWithHeader(
                 Collections.singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
@@ -302,16 +320,24 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(listener.get().getInvalidatedApiKeys().size(), is(1));
 
         awaitApiKeysRemoverCompletion();
-
         refreshSecurityIndex();
 
-        // Verify that 1st invalidated API key is deleted whereas the next one is not
+        // Verify that 1st invalidated API key is deleted whereas the next one may be or may not be as it depends on whether update was
+        // indexed before ExpiredApiKeysRemover ran
         getApiKeyResponseListener = new PlainActionFuture<>();
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingRealmName("file"), getApiKeyResponseListener);
-        assertThat(getApiKeyResponseListener.get().getApiKeyInfos().length, is(1));
-        ApiKey apiKey = getApiKeyResponseListener.get().getApiKeyInfos()[0];
-        assertThat(apiKey.getId(), is(createdApiKeys.get(1).getId()));
-        assertThat(apiKey.isInvalidated(), is(true));
+        expectedKeyIds = Sets.newHashSet(createdApiKeys.get(1).getId());
+        apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover = false;
+        for (ApiKey apiKey : getApiKeyResponseListener.get().getApiKeyInfos()) {
+            assertThat(apiKey.getId(), isIn(expectedKeyIds));
+            if (apiKey.getId().equals(createdApiKeys.get(1).getId())) {
+                // has been invalidated but not yet deleted by ExpiredApiKeysRemover
+                assertThat(apiKey.isInvalidated(), is(true));
+                apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover = true;
+            }
+        }
+        assertThat(getApiKeyResponseListener.get().getApiKeyInfos().length,
+                is((apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover) ? 1 : 0));
     }
 
     private Client waitForExpiredApiKeysRemoverTriggerReadyAndGetClient() throws Exception {
@@ -334,7 +360,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         return internalCluster().client(nodeWithMostRecentRun);
     }
 
-    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/41747")
     public void testExpiredApiKeysBehaviorWhenKeysExpired1WeekBeforeAnd1DayBefore() throws Exception {
         Client client = waitForExpiredApiKeysRemoverTriggerReadyAndGetClient().filterWithHeader(
                 Collections.singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
@@ -359,7 +384,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 .get();
         assertThat(expirationDateUpdatedResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
 
-        // Expire the 2nd key such that it cannot be deleted by the remover
+        // Expire the 2nd key such that it can be deleted by the remover
         // hack doc to modify the expiration time to the week before
         Instant weekBefore = created.minus(8L, ChronoUnit.DAYS);
         assertTrue(Instant.now().isAfter(weekBefore));
@@ -379,13 +404,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         refreshSecurityIndex();
 
-        // Verify get API keys does not return expired and deleted key
+        // Verify get API keys does not return api keys deleted by ExpiredApiKeysRemover
         getApiKeyResponseListener = new PlainActionFuture<>();
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingRealmName("file"), getApiKeyResponseListener);
-        assertThat(getApiKeyResponseListener.get().getApiKeyInfos().length, is(3));
 
         Set<String> expectedKeyIds = Sets.newHashSet(createdApiKeys.get(0).getId(), createdApiKeys.get(2).getId(),
                 createdApiKeys.get(3).getId());
+        boolean apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover = false;
         for (ApiKey apiKey : getApiKeyResponseListener.get().getApiKeyInfos()) {
             assertThat(apiKey.getId(), isIn(expectedKeyIds));
             if (apiKey.getId().equals(createdApiKeys.get(0).getId())) {
@@ -393,9 +418,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 assertTrue(apiKey.getExpiration().isBefore(Instant.now()));
                 assertThat(apiKey.isInvalidated(), is(false));
             } else if (apiKey.getId().equals(createdApiKeys.get(2).getId())) {
-                // has not been expired as no expiration, but invalidated
+                // has not been expired as no expiration, is invalidated but not yet deleted by ExpiredApiKeysRemover
                 assertThat(apiKey.getExpiration(), is(nullValue()));
                 assertThat(apiKey.isInvalidated(), is(true));
+                apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover = true;
             } else if (apiKey.getId().equals(createdApiKeys.get(3).getId())) {
                 // has not been expired as no expiration, not invalidated
                 assertThat(apiKey.getExpiration(), is(nullValue()));
@@ -404,6 +430,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 fail("unexpected API key " + apiKey);
             }
         }
+        assertThat(getApiKeyResponseListener.get().getApiKeyInfos().length,
+                is((apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover) ? 3 : 2));
     }
 
     private void refreshSecurityIndex() throws Exception {

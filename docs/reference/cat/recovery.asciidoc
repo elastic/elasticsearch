@@ -5,7 +5,7 @@
 ++++
 
 Returns information about ongoing and completed index shard recoveries, similar
-to the <<indices-recovery, indices recovery>> API.
+to the <<indices-recovery, index recovery>> API.
 
 
 [[cat-recovery-api-request]]
@@ -13,13 +13,15 @@ to the <<indices-recovery, indices recovery>> API.
 
 `GET /_cat/recovery/<index>`
 
+`GET /_cat/recovery`
+
 
 [[cat-recovery-api-desc]]
 ==== {api-description-title}
 
 The cat recovery API returns information about index shard recoveries, both
 ongoing and completed. It is a more compact view of the JSON
-<<indices-recovery,indices recovery>> API.
+<<indices-recovery,index recovery>> API.
 
 A recovery event occurs anytime an index shard moves to a different node in the
 cluster. This can happen during a snapshot recovery, a change in replication
@@ -37,13 +39,19 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
 [[cat-recovery-query-params]]
 ==== {api-query-parms-title}
 
+include::{docdir}/rest-api/common-parms.asciidoc[tag=active-only]
+
 include::{docdir}/rest-api/common-parms.asciidoc[tag=bytes]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=detailed]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-query-parm]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
 

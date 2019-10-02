@@ -213,7 +213,10 @@ public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
         PlainActionFuture<ReindexTaskState> future = PlainActionFuture.newFuture();
         reindexClient.getReindexTaskDoc(taskId, future);
         ReindexTaskState reindexTaskState = future.actionGet();
-        assertEquals(10, reindexTaskState.getStateDoc().getCheckpoint().getRestartFromValue());
+        assertBusy(() -> {
+            assertNotNull(reindexTaskState.getStateDoc().getCheckpoint());
+            assertEquals(10, reindexTaskState.getStateDoc().getCheckpoint().getRestartFromValue());
+        });
     }
 
     public void testFinishStoresResult() throws Exception {

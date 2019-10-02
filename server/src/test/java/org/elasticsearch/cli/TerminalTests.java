@@ -20,10 +20,23 @@
 package org.elasticsearch.cli;
 
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Rule;
+import org.junit.rules.ExpectedException;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class TerminalTests extends ESTestCase {
+
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
+
     public void testVerbosity() throws Exception {
         MockTerminal terminal = new MockTerminal();
         terminal.setVerbosity(Terminal.Verbosity.SILENT);
@@ -97,6 +110,17 @@ public class TerminalTests extends ESTestCase {
         assertFalse(terminal.promptYesNo("Answer?", true));
     }
 
+    public void testMaxSecretLength() throws Exception {
+        MockTerminal terminal = new MockTerminal();
+        String secret = "A very long secret, too long in fact for our purposes.";
+        terminal.addSecretInput(secret);
+
+        expectedException.expect(IllegalStateException.class);
+        expectedException.expectMessage("Secret exceeded maximum length of " + (secret.length() - 1));
+
+        terminal.readSecret("Secret? ", secret.length() - 1);
+    }
+
     public void testTerminalReusesBufferedReaders() throws Exception {
         Terminal.SystemTerminal terminal = new Terminal.SystemTerminal();
         BufferedReader reader1 = terminal.getReader();
@@ -128,6 +152,66 @@ public class TerminalTests extends ESTestCase {
         logTerminal.errorPrintln(verbosity, text);
         String output = logTerminal.getErrorOutput();
         assertTrue(output, output.isEmpty());
+    }
+
+    public void testSystemTerminalReadsSingleLines() throws Exception {
+        assertRead("\n", "");
+        assertRead("\r", "");
+        assertRead("\r\n", "");
+
+        assertRead("hello\n", "hello");
+        assertRead("hello\r", "hello");
+        assertRead("hello\r\n", "hello");
+
+        assertRead("hellohello\n", "hellohello");
+        assertRead("hellohello\r", "hellohello");
+        assertRead("hellohello\r\n", "hellohello");
+    }
+
+    public void testSystemTerminalReadsMultipleLines() throws Exception {
+        assertReadLines("hello\nhello\n", "hello", "hello");
+        assertReadLines("hello\rhello\r", "hello", "hello");
+        assertReadLines("hello\r\nhello\r\n", "hello", "hello");
+
+        assertReadLines("one\ntwo\n\nthree", "one", "two", "", "three");
+        assertReadLines("one\r\ntwo\r\n\r\nthree", "one", "two", "", "three");
+    }
+
+    public void testOverflow() throws Exception {
+        Terminal.SystemTerminal terminal = new Terminal.SystemTerminal();
+        expectedException.expect(RuntimeException.class);
+        expectedException.expectMessage("password too long");
+        // read from an input stream to a character array
+        byte[] source = "hellohello!\n".getBytes(StandardCharsets.UTF_8);
+        try (InputStream stream = new ByteArrayInputStream(source);
+             InputStreamReader reader = new InputStreamReader(stream)) {
+            terminal.readLineToCharArray(reader, 10);
+        }
+    }
+
+    private void assertRead(String source, String expected) {
+        Terminal.SystemTerminal terminal = new Terminal.SystemTerminal();
+        try (InputStream stream = new ByteArrayInputStream(source.getBytes(StandardCharsets.UTF_8));
+             InputStreamReader reader = new InputStreamReader(stream)) {
+            char[] result = terminal.readLineToCharArray(reader, 10);
+            assertThat(result, equalTo(expected.toCharArray()));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void assertReadLines(String source, String... expected) {
+        Terminal.SystemTerminal terminal = new Terminal.SystemTerminal();
+        try (InputStream stream = new ByteArrayInputStream(source.getBytes(StandardCharsets.UTF_8));
+             InputStreamReader reader = new InputStreamReader(stream)) {
+            char[] result;
+            for (String exp : expected) {
+                result = terminal.readLineToCharArray(reader, 10);
+                assertThat(result, equalTo(exp.toCharArray()));
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
 }

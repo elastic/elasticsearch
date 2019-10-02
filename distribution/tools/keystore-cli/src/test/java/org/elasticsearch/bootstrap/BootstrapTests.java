@@ -28,17 +28,29 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
+import org.junit.rules.ExpectedException;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class BootstrapTests extends ESTestCase {
     Environment env;
     List<FileSystem> fileSystems = new ArrayList<>();
+
+    private static final int MAX_PASSPHRASE_LENGTH = 10;
+
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
 
     @After
     public void closeMockFileSystems() throws IOException {
@@ -64,6 +76,45 @@ public class BootstrapTests extends ESTestCase {
             SecureString seedAfterLoad = KeyStoreWrapper.SEED_SETTING.get(Settings.builder().setSecureSettings(secureSettings).build());
             assertEquals(seedAfterLoad.toString(), seed.toString());
             assertTrue(Files.exists(configPath.resolve("elasticsearch.keystore")));
+        }
+    }
+
+    public void testReadCharsFromStdin() throws Exception {
+        assertPassphraseRead("\n", "");
+        assertPassphraseRead("\r", "");
+        assertPassphraseRead("\r\n", "");
+
+        assertPassphraseRead("hello", "hello");
+        assertPassphraseRead("hello\n", "hello");
+        assertPassphraseRead("hello\r", "hello");
+        assertPassphraseRead("hello\r\n", "hello");
+
+        assertPassphraseRead("hellohello", "hellohello");
+        assertPassphraseRead("hellohello\n", "hellohello");
+        assertPassphraseRead("hellohello\r", "hellohello");
+        assertPassphraseRead("hellohello\r\n", "hellohello");
+
+        assertPassphraseRead("hello\nhi\n", "hello");
+        assertPassphraseRead("hello\rhi\r", "hello");
+        assertPassphraseRead("hello\r\nhi\r\n", "hello");
+    }
+
+    private void assertPassphraseRead(String source, String expected) {
+        try (InputStream stream = new ByteArrayInputStream(source.getBytes(StandardCharsets.UTF_8))) {
+            char[] result = Bootstrap.readPassphrase(stream, MAX_PASSPHRASE_LENGTH);
+            assertThat(result, equalTo(expected.toCharArray()));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void testOverflow() throws Exception {
+        expectedException.expect(RuntimeException.class);
+        expectedException.expectMessage("Password exceeds max length of 10");
+        // read from an input stream to a character array
+        byte[] source = "hellohello!\n".getBytes(StandardCharsets.UTF_8);
+        try (InputStream stream = new ByteArrayInputStream(source)) {
+            Bootstrap.readPassphrase(stream, MAX_PASSPHRASE_LENGTH);
         }
     }
 }

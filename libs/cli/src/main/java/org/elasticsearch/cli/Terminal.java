@@ -24,7 +24,9 @@ import java.io.Console;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.io.Reader;
 import java.nio.charset.Charset;
+import java.util.Arrays;
 import java.util.Locale;
 
 /**
@@ -80,6 +82,16 @@ public abstract class Terminal {
 
     /** Reads password text from the terminal input. See {@link Console#readPassword()}}. */
     public abstract char[] readSecret(String prompt);
+
+    /** Read password text form terminal input up to a maximum length. */
+    public char[] readSecret(String prompt, int maxLength) {
+        char[] result = readSecret(prompt);
+        if (result.length > maxLength) {
+            Arrays.fill(result, '\0');
+            throw new IllegalStateException("Secret exceeded maximum length of " + maxLength);
+        }
+        return result;
+    }
 
     /** Returns a Writer which can be used to write to the terminal directly using standard output. */
     public abstract PrintWriter getWriter();
@@ -189,6 +201,8 @@ public abstract class Terminal {
 
         private BufferedReader reader;
 
+        private boolean ignoreNextNewline = false;
+
         SystemTerminal() {
             super(System.lineSeparator());
         }
@@ -230,6 +244,59 @@ public abstract class Terminal {
         @Override
         public char[] readSecret(String text) {
             return readText(text).toCharArray();
+        }
+
+        @Override
+        public char[] readSecret(String text, int maxLength) {
+            getErrorWriter().println(text);
+            return readLineToCharArray(getReader(), maxLength);
+        }
+
+        /**
+         * This method has to keep track of a little bit of state in order to account for
+         * line breaks in a system-independent way.
+         *
+         * Visible for testing.
+         */
+        char[] readLineToCharArray(Reader reader, int maxLength) {
+            char[] buf = new char[maxLength];
+            try {
+                int len = 0;
+                int next;
+                while ((next = reader.read()) != -1) {
+                    char nextChar = (char) next;
+                    if (nextChar == '\n') {
+                        if (ignoreNextNewline) {
+                            ignoreNextNewline = false;
+                            continue;
+                        } else {
+                            break;
+                        }
+                    }
+                    if (nextChar == '\r') {
+                        ignoreNextNewline = true;
+                        break;
+                    }
+                    ignoreNextNewline = false;
+                    if (len < maxLength) {
+                        buf[len] = nextChar;
+                    }
+                    len++;
+                }
+
+                if (len < maxLength) {
+                    char[] shortResult = Arrays.copyOf(buf, len);
+                    Arrays.fill(buf, '\0');
+                    return shortResult;
+                }
+                if (len > maxLength) {
+                    Arrays.fill(buf, '\0');
+                    throw new RuntimeException("password too long");
+                }
+                return buf;
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 }

@@ -201,6 +201,13 @@ public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
 
         BulkByScrollTask.Status status = new BulkByScrollTask.Status(Collections.emptyList(), null);
         updater.onCheckpoint(new ScrollableHitSource.Checkpoint(10), status);
+        assertBusy(() -> {
+            PlainActionFuture<ReindexTaskState> future = PlainActionFuture.newFuture();
+            reindexClient.getReindexTaskDoc(taskId, future);
+            ReindexTaskState reindexTaskState = future.actionGet();
+            assertNotNull(reindexTaskState.getStateDoc().getCheckpoint());
+            assertEquals(10, reindexTaskState.getStateDoc().getCheckpoint().getRestartFromValue());
+        });
 
 
         BulkByScrollResponse response = new BulkByScrollResponse(TimeValue.timeValueSeconds(5), status, Collections.emptyList(),
@@ -210,13 +217,9 @@ public class ReindexTaskStateUpdaterTests extends ReindexTestCase {
 
         updater.onCheckpoint(new ScrollableHitSource.Checkpoint(20), status);
 
-        PlainActionFuture<ReindexTaskState> future = PlainActionFuture.newFuture();
-        reindexClient.getReindexTaskDoc(taskId, future);
-        ReindexTaskState reindexTaskState = future.actionGet();
-        assertBusy(() -> {
-            assertNotNull(reindexTaskState.getStateDoc().getCheckpoint());
-            assertEquals(10, reindexTaskState.getStateDoc().getCheckpoint().getRestartFromValue());
-        });
+        PlainActionFuture<ReindexTaskState> getFuture = PlainActionFuture.newFuture();
+        reindexClient.getReindexTaskDoc(taskId, getFuture);
+        assertEquals(10, getFuture.actionGet().getStateDoc().getCheckpoint().getRestartFromValue());
     }
 
     public void testFinishStoresResult() throws Exception {

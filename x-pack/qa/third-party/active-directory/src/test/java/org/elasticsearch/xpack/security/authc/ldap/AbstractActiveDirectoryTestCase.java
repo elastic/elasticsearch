@@ -84,10 +84,10 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
         Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
 
         // fake realms so ssl will get loaded
-        builder.putList("xpack.security.authc.realms.active_directory.foo.ssl.certificate_authorities", certificatePaths);
-        builder.put("xpack.security.authc.realms.active_directory.foo.ssl.verification_mode", VerificationMode.FULL);
-        builder.putList("xpack.security.authc.realms.active_directory.bar.ssl.certificate_authorities", certificatePaths);
-        builder.put("xpack.security.authc.realms.active_directory.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
+        builder.putList("xpack.security.authc.realms.foo.ssl.certificate_authorities", certificatePaths);
+        builder.put("xpack.security.authc.realms.foo.ssl.verification_mode", VerificationMode.FULL);
+        builder.putList("xpack.security.authc.realms.bar.ssl.certificate_authorities", certificatePaths);
+        builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
         globalSettings = builder.build();
         Environment environment = TestEnvironment.newEnvironment(globalSettings);
         sslService = new SSLService(globalSettings, environment);

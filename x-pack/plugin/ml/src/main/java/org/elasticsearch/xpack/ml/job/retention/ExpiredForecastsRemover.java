@@ -32,6 +32,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
@@ -44,6 +45,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * Removes up to {@link #MAX_FORECASTS} forecasts (stats + forecasts docs) that have expired.
@@ -71,10 +73,10 @@ public class ExpiredForecastsRemover implements MlDataRemover {
     }
 
     @Override
-    public void remove(ActionListener<Boolean> listener) {
+    public void remove(ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier) {
         LOGGER.debug("Removing forecasts that expire before [{}]", cutoffEpochMs);
         ActionListener<SearchResponse> forecastStatsHandler = ActionListener.wrap(
-                searchResponse -> deleteForecasts(searchResponse, listener),
+                searchResponse -> deleteForecasts(searchResponse, listener, isTimedOutSupplier),
                 e -> listener.onFailure(new ElasticsearchException("An error occurred while searching forecasts to delete", e)));
 
         SearchSourceBuilder source = new SearchSourceBuilder();
@@ -84,18 +86,26 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         source.size(MAX_FORECASTS);
         source.trackTotalHits(true);
 
+        // _doc is the most efficient sort order and will also disable scoring
+        source.sort(ElasticsearchMappings.ES_DOC);
+
         SearchRequest searchRequest = new SearchRequest(RESULTS_INDEX_PATTERN);
         searchRequest.source(source);
         client.execute(SearchAction.INSTANCE, searchRequest, new ThreadedActionListener<>(LOGGER, threadPool,
                 MachineLearning.UTILITY_THREAD_POOL_NAME, forecastStatsHandler, false));
     }
 
-    private void deleteForecasts(SearchResponse searchResponse, ActionListener<Boolean> listener) {
+    private void deleteForecasts(SearchResponse searchResponse, ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier) {
         List<ForecastRequestStats> forecastsToDelete;
         try {
             forecastsToDelete = findForecastsToDelete(searchResponse);
         } catch (IOException e) {
             listener.onFailure(e);
+            return;
+        }
+
+        if (isTimedOutSupplier.get()) {
+            listener.onResponse(false);
             return;
         }
 
@@ -157,6 +167,10 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         }
         QueryBuilder query = QueryBuilders.boolQuery().filter(boolQuery);
         request.setQuery(query);
+
+        // _doc is the most efficient sort order and will also disable scoring
+        request.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
+
         return request;
     }
 }

@@ -11,7 +11,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -78,14 +80,19 @@ public final class MatchProcessor extends AbstractEnrichProcessor {
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
         try {
             // If a document does not have the enrich key, return the unchanged document
-            final String value = ingestDocument.getFieldValue(field, String.class, ignoreMissing);
+            final Object value = ingestDocument.getFieldValue(field, Object.class, ignoreMissing);
             if (value == null) {
                 handler.accept(ingestDocument, null);
                 return;
             }
 
-            TermQueryBuilder termQuery = new TermQueryBuilder(matchField, value);
-            ConstantScoreQueryBuilder constantScore = new ConstantScoreQueryBuilder(termQuery);
+            final QueryBuilder actualQuery;
+            if (value instanceof List) {
+                actualQuery = new TermsQueryBuilder(matchField, (List) value);
+            } else {
+                actualQuery = new TermQueryBuilder(matchField, value);
+            }
+            ConstantScoreQueryBuilder constantScore = new ConstantScoreQueryBuilder(actualQuery);
             SearchSourceBuilder searchBuilder = new SearchSourceBuilder();
             searchBuilder.from(0);
             searchBuilder.size(maxMatches);

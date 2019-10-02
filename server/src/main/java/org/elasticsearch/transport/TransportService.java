@@ -374,6 +374,18 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         };
     }
 
+    public ConnectionManager.ConnectionValidator clusterNameOnlyValidator(DiscoveryNode node, ClusterName clusterName) {
+        return (newConnection, actualProfile, listener) -> {
+            handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true, ActionListener.map(listener, resp -> {
+                ClusterName remote = resp.clusterName;
+                if (clusterName.equals(remote) == false) {
+                    throw new ConnectTransportException(node, "handshake failed. unexpected remote cluster name " + remote);
+                }
+                return null;
+            }));
+        };
+    }
+
     /**
      * Establishes and returns a new connection to the given node. The connection is NOT maintained by this service, it's the callers
      * responsibility to close the connection once it goes out of scope.

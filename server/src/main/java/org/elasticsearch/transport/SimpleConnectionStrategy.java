@@ -49,12 +49,18 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
     private final AtomicLong counter = new AtomicLong();
     private final List<Supplier<TransportAddress>> addresses;
     private final SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
+    private final ConnectionProfile profile;
 
     SimpleConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
                              int maxNumRemoteConnections, List<Supplier<TransportAddress>> addresses) {
         super(clusterAlias, transportService, connectionManager);
         this.maxNumRemoteConnections = maxNumRemoteConnections;
         this.addresses = addresses;
+        // TODO: Move into the ConnectionManager
+        this.profile = new ConnectionProfile.Builder()
+            .addConnections(1, TransportRequestOptions.Type.REG, TransportRequestOptions.Type.PING)
+            .addConnections(0, TransportRequestOptions.Type.BULK, TransportRequestOptions.Type.STATE, TransportRequestOptions.Type.RECOVERY)
+            .build();
     }
 
     @Override
@@ -96,9 +102,13 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
             openConnectionStep.whenComplete(connection -> {
                 ConnectionProfile connectionProfile = connectionManager.getConnectionManager().getConnectionProfile();
                 transportService.handshake(connection, connectionProfile.getHandshakeTimeout().millis(),
-                    getRemoteClusterNamePredicate(remoteClusterName), new ActionListener<>() {
+                    getRemoteClusterNamePredicate(remoteClusterName.get()), new ActionListener<>() {
                         @Override
                         public void onResponse(TransportService.HandshakeResponse handshakeResponse) {
+                            if (remoteClusterName.get() == null) {
+                                assert handshakeResponse.getClusterName().value() != null;
+                                remoteClusterName.set(handshakeResponse.getClusterName());
+                            }
                             IOUtils.closeWhileHandlingException(connection);
                             handshakeStep.onResponse(null);
                         }
@@ -151,9 +161,11 @@ public class SimpleConnectionStrategy extends RemoteConnectionStrategy {
 
             for (int i = 0; i < remaining; ++i) {
                 TransportAddress address = nextAddress(resolved);
-                DiscoveryNode node = new DiscoveryNode(clusterAlias + "#" + address, address, Version.CURRENT.minimumCompatibilityVersion());
-                connectionManager.connectToNode(node, null, (connection, profile, listener1) -> listener1.onResponse(null),
-                    new ActionListener<>() {
+                String id = clusterAlias + "#" + address;
+                DiscoveryNode node = new DiscoveryNode(id, address, Version.CURRENT.minimumCompatibilityVersion());
+
+                ConnectionManager.ConnectionValidator validator = transportService.clusterNameOnlyValidator(node, remoteClusterName.get());
+                connectionManager.connectToNode(node, profile, validator, new ActionListener<>() {
                         @Override
                         public void onResponse(Void v) {
                             compositeListener.onResponse(v);

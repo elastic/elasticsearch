@@ -23,7 +23,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.ClusterName;
@@ -168,17 +167,17 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         return result;
     }
 
-    static Predicate<ClusterName> getRemoteClusterNamePredicate(SetOnce<ClusterName> remoteClusterName) {
+    static Predicate<ClusterName> getRemoteClusterNamePredicate(ClusterName remoteClusterName) {
         return new Predicate<>() {
             @Override
             public boolean test(ClusterName c) {
-                return remoteClusterName.get() == null || c.equals(remoteClusterName.get());
+                return remoteClusterName == null || c.equals(remoteClusterName);
             }
 
             @Override
             public String toString() {
-                return remoteClusterName.get() == null ? "any cluster name"
-                    : "expected remote cluster name [" + remoteClusterName.get().value() + "]";
+                return remoteClusterName == null ? "any cluster name"
+                    : "expected remote cluster name [" + remoteClusterName.value() + "]";
             }
         };
     }

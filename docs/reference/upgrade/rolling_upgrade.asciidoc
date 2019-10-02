@@ -22,7 +22,12 @@ Rolling upgrades are supported:
 Upgrading directly to {version} from 6.7 or earlier requires a
 <<restart-upgrade, full cluster restart>>.
 
-To perform a rolling upgrade from 6.8 to {version}:
+include::preparing_to_upgrade.asciidoc[]
+
+[float]
+=== Upgrading your cluster
+
+To perform a rolling upgrade to {version}:
 
 . *Disable shard allocation*.
 +

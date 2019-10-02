@@ -679,16 +679,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         // We upload one meta blob for each index, one for the cluster-state and one snap-${uuid}.dat blob
         // Once we're done writing all metadata, we update the index-N blob to finalize the snapshot
-        final GroupedActionListener<SnapshotInfo> allMetaListener =
-            new GroupedActionListener<>(ActionListener.wrap(snapshotInfos -> {
+        final ActionListener<SnapshotInfo> allMetaListener = new GroupedActionListener<>(
+            ActionListener.wrap(snapshotInfos -> {
                     assert snapshotInfos.size() == 1 : "Should have only received a single SnapshotInfo but received " + snapshotInfos;
                     final SnapshotInfo snapshotInfo = snapshotInfos.iterator().next();
                     writeIndexGen(getRepositoryData().addSnapshot(snapshotId, snapshotInfo.state(), indices), repositoryStateId);
                     listener.onResponse(snapshotInfo);
                 },
-                ex ->
-                    listener.onFailure(new SnapshotException(metadata.name(), snapshotId, "failed to update snapshot in repository", ex))),
-                2 + indices.size());
+                e -> listener.onFailure(new SnapshotException(metadata.name(), snapshotId, "failed to update snapshot in repository", e))),
+            2 + indices.size());
         final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
 
         // We ignore all FileAlreadyExistsException when writing metadata since otherwise a master failover while in this method will

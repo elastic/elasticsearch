@@ -74,16 +74,15 @@ The following properties can be updated after the {dfeed} is created:
   that are supported by {es} can be used, as this object is passed verbatim to
   {es}. By default, this property has the following value:
   `{"match_all": {"boost": 1}}`.
-  +
-  --
-  WARNING: If you change the query, then the analyzed data will also be changed, 
-  therefore the required time to learn might be long and the understandability 
-  of the results is unpredictable.
-  If you want to make significant changes to the source data, we would recommend 
-  you clone it and create a second job containing the amendments. Let both run 
-  in parallel and close one when you are satisfied with the results of the other 
-  job.
-  --
++
+--
+WARNING: If you change the query, then the analyzed data will also be changed, 
+therefore the required time to learn might be long and the understandability of 
+the results is unpredictable.
+If you want to make significant changes to the source data, we would recommend 
+you clone it and create a second job containing the amendments. Let both run in 
+parallel and close one when you are satisfied with the results of the other job.
+--
 
 `query_delay`::
   (Optional, <<time-units, time units>>) The number of seconds behind real-time 

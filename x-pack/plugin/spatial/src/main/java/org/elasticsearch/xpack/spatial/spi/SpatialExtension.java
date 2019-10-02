@@ -21,7 +21,8 @@ public class SpatialExtension implements GeoShapeFieldMapper.Extension {
 
     @Override
     public List<GeoShapeFieldMapper.CRSHandlerFactory> getCRSHandlerFactories() {
-        if (getLicenseState().isSpatialProjectionAllowed()) {
+        XPackLicenseState licenseState = getLicenseState();
+        if (licenseState != null && licenseState.isSpatialProjectionAllowed()) {
             return List.of(new Proj4JHandlerFactory());
         }
         return Collections.emptyList();

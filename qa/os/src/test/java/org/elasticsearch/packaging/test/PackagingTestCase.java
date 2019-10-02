@@ -27,11 +27,9 @@ import com.carrotsearch.randomizedtesting.annotations.Timeout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.Shell;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -42,7 +40,6 @@ import org.junit.rules.TestWatcher;
 import org.junit.runner.Description;
 import org.junit.runner.RunWith;
 
-import java.nio.file.Files;
 import java.nio.file.Paths;
 
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
@@ -133,16 +130,5 @@ public abstract class PackagingTestCase extends Assert {
             });
         }
         return sh;
-    }
-
-    @After
-    public void tearDown() throws Exception {
-        if (installation == null || Files.exists(installation.logs) == false) {
-            return;
-        }
-        // clean up logs between logs so we only show logs from the running tests if we dump them on failure
-        FileUtils.rm(installation.logs);
-        Files.createDirectories(installation.logs);
-        sh.chown(installation.logs);
     }
 }

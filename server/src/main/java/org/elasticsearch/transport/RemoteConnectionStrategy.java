@@ -23,8 +23,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -36,20 +38,24 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 
 public abstract class RemoteConnectionStrategy implements TransportConnectionListener, Closeable {
 
-    protected static final Logger logger = LogManager.getLogger(RemoteConnectionStrategy.class);
+    private static final Logger logger = LogManager.getLogger(RemoteConnectionStrategy.class);
 
     private static final int MAX_LISTENERS = 100;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Object mutex = new Object();
-    private final ThreadPool threadPool;
-    protected final RemoteConnectionManager connectionManager;
     private List<ActionListener<Void>> listeners = new ArrayList<>();
 
-    RemoteConnectionStrategy(ThreadPool threadPool, RemoteConnectionManager connectionManager) {
-        this.threadPool = threadPool;
+    protected final TransportService transportService;
+    protected final RemoteConnectionManager connectionManager;
+    protected final String clusterAlias;
+
+    RemoteConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager) {
+        this.clusterAlias = clusterAlias;
+        this.transportService = transportService;
         this.connectionManager = connectionManager;
         connectionManager.getConnectionManager().addListener(this);
     }
@@ -61,7 +67,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     void connect(ActionListener<Void> connectListener) {
         boolean runConnect = false;
         final ActionListener<Void> listener =
-            ContextPreservingActionListener.wrapPreservingContext(connectListener, threadPool.getThreadContext());
+            ContextPreservingActionListener.wrapPreservingContext(connectListener, transportService.getThreadPool().getThreadContext());
         boolean closed;
         synchronized (mutex) {
             closed = this.closed.get();
@@ -83,7 +89,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             return;
         }
         if (runConnect) {
-            ExecutorService executor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
+            ExecutorService executor = transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT);
             executor.submit(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
@@ -160,5 +166,20 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             }
         }
         return result;
+    }
+
+    static Predicate<ClusterName> getRemoteClusterNamePredicate(SetOnce<ClusterName> remoteClusterName) {
+        return new Predicate<>() {
+            @Override
+            public boolean test(ClusterName c) {
+                return remoteClusterName.get() == null || c.equals(remoteClusterName.get());
+            }
+
+            @Override
+            public String toString() {
+                return remoteClusterName.get() == null ? "any cluster name"
+                    : "expected remote cluster name [" + remoteClusterName.get().value() + "]";
+            }
+        };
     }
 }

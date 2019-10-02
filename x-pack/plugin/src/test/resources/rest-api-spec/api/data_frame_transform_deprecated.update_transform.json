@@ -15,6 +15,10 @@
               "required": true,
               "description": "The id of the transform."
             }
+          },
+          "deprecated":{
+            "version":"7.5.0",
+            "description":"[_data_frame/transforms/] is deprecated, use [_transform/] in the future."
           }
         }
       ]

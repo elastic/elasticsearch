@@ -10,7 +10,11 @@
           "path":"/_data_frame/transforms/_preview",
           "methods":[
             "POST"
-          ]
+          ],
+          "deprecated":{
+            "version":"7.5.0",
+            "description":"[_data_frame/transforms/] is deprecated, use [_transform/] in the future."
+          }
         }
       ]
     },

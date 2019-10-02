@@ -16,13 +16,21 @@
               "type":"string",
               "description":"The id or comma delimited list of id expressions of the transforms to get, '_all' or '*' implies get all transforms"
             }
+          },
+          "deprecated":{
+            "version":"7.5.0",
+            "description":"[_data_frame/transforms/] is deprecated, use [_transform/] in the future."
           }
         },
         {
           "path":"/_data_frame/transforms",
           "methods":[
             "GET"
-          ]
+          ],
+          "deprecated":{
+            "version":"7.5.0",
+            "description":"[_data_frame/transforms/] is deprecated, use [_transform/] in the future."
+          }
         }
       ]
     },

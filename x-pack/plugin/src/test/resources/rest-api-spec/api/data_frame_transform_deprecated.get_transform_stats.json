@@ -16,6 +16,10 @@
               "type":"string",
               "description":"The id of the transform for which to get stats. '_all' or '*' implies all transforms"
             }
+          },
+          "deprecated":{
+            "version":"7.5.0",
+            "description":"[_data_frame/transforms/] is deprecated, use [_transform/] in the future."
           }
         }
       ]

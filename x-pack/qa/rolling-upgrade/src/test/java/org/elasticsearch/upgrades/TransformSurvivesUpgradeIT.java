@@ -5,11 +5,14 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.core.IndexerState;
 import org.elasticsearch.client.transform.GetTransformStatsResponse;
 import org.elasticsearch.client.transform.transforms.DestConfig;
@@ -22,6 +25,7 @@ import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -75,6 +79,14 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
 
     protected static void waitForPendingDataFrameTasks() throws Exception {
         waitForPendingTasks(adminClient(), taskName -> taskName.startsWith("data_frame/transforms") == false);
+    }
+
+    @Override
+    protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
+        RestClientBuilder builder = RestClient.builder(hosts);
+        configureClient(builder, settings);
+        builder.setStrictDeprecationMode(false);
+        return builder.build();
     }
 
     /**

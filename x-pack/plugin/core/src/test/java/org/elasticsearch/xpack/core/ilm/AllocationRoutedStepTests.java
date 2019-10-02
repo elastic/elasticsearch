@@ -100,11 +100,11 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
     public void testRequireConditionMetOnlyOneCopyAllocated() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Map<String, String> includes = Collections.singletonMap(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "foo", "bar");
+        Map<String, String> requires = Collections.singletonMap(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "foo", "bar");
         Settings.Builder existingSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id)
             .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID());
         Settings.Builder node1Settings = Settings.builder();
-        includes.forEach((k, v) -> {
+        requires.forEach((k, v) -> {
             existingSettings.put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
             node1Settings.put(Node.NODE_ATTRIBUTES.getKey() + k, v);
         });
@@ -122,11 +122,11 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
 
     public void testExcludeConditionMetOnlyOneCopyAllocated() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Map<String, String> includes = Collections.singletonMap(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "foo", "bar");
+        Map<String, String> excludes = Collections.singletonMap(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "foo", "bar");
         Settings.Builder existingSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id)
             .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID());
         Settings.Builder node1Settings = Settings.builder();
-        includes.forEach((k, v) -> {
+        excludes.forEach((k, v) -> {
             existingSettings.put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + k, v);
             node1Settings.put(Node.NODE_ATTRIBUTES.getKey() + k, v);
         });

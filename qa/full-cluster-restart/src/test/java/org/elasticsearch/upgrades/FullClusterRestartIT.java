@@ -23,6 +23,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
@@ -681,7 +682,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             if (randomBoolean()) {
                 // We had a bug before where we failed to perform peer recovery with sync_id from 5.x to 6.x.
                 // We added this synced flush so we can exercise different paths of recovery code.
-                client().performRequest(new Request("POST", index + "/_flush/synced"));
+                try {
+                    client().performRequest(new Request("POST", index + "/_flush/synced"));
+                } catch (ResponseException ignored) {
+                    // synced flush is optional here
+                }
             }
             if (shouldHaveTranslog) {
                 // Update a few documents so we are sure to have a translog

@@ -99,6 +99,10 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+        if (enabled == false) {
+            return Map.of();
+        }
+
         EnrichProcessorFactory factory = new EnrichProcessorFactory(parameters.client);
         parameters.ingestService.addIngestClusterStateListener(factory);
         return Map.of(EnrichProcessorFactory.TYPE, factory);
@@ -145,6 +149,10 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+        if (enabled == false) {
+            return List.of();
+        }
+
         EnrichPolicyLocks enrichPolicyLocks = new EnrichPolicyLocks();
         EnrichPolicyExecutor enrichPolicyExecutor = new EnrichPolicyExecutor(settings, clusterService, client, threadPool,
             new IndexNameExpressionResolver(), enrichPolicyLocks, System::currentTimeMillis);

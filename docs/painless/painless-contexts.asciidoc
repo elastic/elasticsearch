@@ -47,9 +47,9 @@ specialized code may define new ways to use a Painless script.
 | Ingest processor                  | <<painless-ingest-processor-context, Painless Documentation>>
                                     | {ref}/script-processor.html[Elasticsearch Documentation]
 | Watcher condition                 | <<painless-watcher-condition-context, Painless Documentation>>
-                                    | {xpack-ref}/condition-script.html[Elasticsearch Documentation]
+                                    | {ref}/condition-script.html[Elasticsearch Documentation]
 | Watcher transform                 | <<painless-watcher-transform-context, Painless Documentation>>
-                                    | {xpack-ref}/transform-script.html[Elasticsearch Documentation]
+                                    | {ref}/transform-script.html[Elasticsearch Documentation]
 |====
 
 include::painless-contexts/index.asciidoc[]

@@ -37,7 +37,9 @@ import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -125,29 +127,29 @@ public class JsonLoggerTests extends ESTestCase {
             );
         }
     }
-    public void testMessageOverride2() throws IOException {
+    public void testBuildingMessage() throws IOException {
 
-        final Logger testLogger = LogManager.getLogger("test");
+        final Logger testLogger = LogManager.getLogger("custom.test");
 
-        testLogger.info(ESLogMessage.message("some message {} {}")
-                                    .param("value")
-                                    .paramField("key1","value1")
-                                    .field("key2","value2")
+        testLogger.info(ParameterizedStructuredMessage.of("some message {} {}", "value0")
+                                    .with("key1","value1")
+                                    .with("key2","value2")
                                     .build());
 
-        final Path path = clusterLogsPath();
+        final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
+            System.getProperty("es.logs.cluster_name") + "_custom.json");
         try (Stream<Map<String, String>> stream = JsonLogsStream.mapStreamFrom(path)) {
             List<Map<String, String>> jsonLogs = stream
                 .collect(Collectors.toList());
 
             assertThat(jsonLogs, contains(
                 allOf(
-                    hasEntry("type", "file"),
+                    hasEntry("type", "custom"),
                     hasEntry("level", "INFO"),
-                    hasEntry("component", "test"),
+                    hasEntry("component", "c.test"),
                     hasEntry("cluster.name", "elasticsearch"),
                     hasEntry("node.name", "sample-name"),
-                    hasEntry("message", "some message value value1"),
+                    hasEntry("message", "some message value0 value1"),
                     hasEntry("key1", "value1"),
                     hasEntry("key2", "value2"))
                 )
@@ -158,10 +160,10 @@ public class JsonLoggerTests extends ESTestCase {
     public void testMessageOverride() throws IOException {
 
         final Logger testLogger = LogManager.getLogger("custom.test");
+        testLogger.info(ParameterizedStructuredMessage.of("some message")
+                                                      .with("message","overriden")
+                                                      .build());
 
-        testLogger.info(ESLogMessage.message("some message")
-                .field("message","overriden")
-                .build());
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
             System.getProperty("es.logs.cluster_name") + "_custom.json");
@@ -180,6 +182,13 @@ public class JsonLoggerTests extends ESTestCase {
                 )
             );
         }
+
+        final Path plaintextPath = PathUtils.get(System.getProperty("es.logs.base_path"),
+            System.getProperty("es.logs.cluster_name") + "_plaintext.json");
+        List<String> lines = Files.readAllLines(plaintextPath);
+        assertThat(lines,contains("some message"));
+
+
     }
 
     public void testCustomMessageWithMultipleFields() throws IOException {

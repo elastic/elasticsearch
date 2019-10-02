@@ -63,7 +63,7 @@ public final class CustomMapFieldsConverter extends LogEventPatternConverter {
 
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
-        if (event.getMessage() instanceof ESLogMessage) {
+        if (event.getMessage() instanceof ESLogMessage ) {
             ESLogMessage logMessage = (ESLogMessage) event.getMessage();
 
             String separator = "";
@@ -80,6 +80,10 @@ public final class CustomMapFieldsConverter extends LogEventPatternConverter {
                     }
                 }
             }
+        }
+        if(event.getMessage() instanceof ParameterizedStructuredMessage) {
+            ParameterizedStructuredMessage logMessage = (ParameterizedStructuredMessage) event.getMessage();
+            logMessage.asJson(toAppendTo);
         }
     }
 }

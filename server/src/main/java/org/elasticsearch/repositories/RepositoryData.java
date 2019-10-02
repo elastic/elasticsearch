@@ -124,6 +124,20 @@ public final class RepositoryData {
     }
 
     /**
+     * Returns the list of {@link IndexId} that have their snapshots updated but not removed (because they are still referenced by other
+     * snapshots) after removing the given snapshot from the repository.
+     *
+     * @param snapshotId SnapshotId to remove
+     * @return List of indices that are changed but not removed
+     */
+    public List<IndexId> indicesToUpdateAfterRemovingSnapshot(SnapshotId snapshotId) {
+        return indexSnapshots.entrySet().stream()
+            .filter(entry -> entry.getValue().size() > 1 && entry.getValue().contains(snapshotId))
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toList());
+    }
+
+    /**
      * Add a snapshot and its indices to the repository; returns a new instance.  If the snapshot
      * already exists in the repository data, this method throws an IllegalArgumentException.
      */

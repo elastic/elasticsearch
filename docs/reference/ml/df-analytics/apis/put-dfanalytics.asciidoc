@@ -177,7 +177,7 @@ The API returns the following result:
 
 
 [[ml-put-dfanalytics-example-r]]
-===== {regression-cap} example
+===== {regression-cap} examples
 
 The following example creates the `house_price_regression_analysis` 
 {dfanalytics-job}, the analysis type is `regression`:
@@ -235,3 +235,29 @@ The API returns the following result:
 // TESTRESPONSE[s/1567168659127/$body.$_path/]
 // TESTRESPONSE[s/"version": "8.0.0"/"version": $body.version/]
 
+
+The following example creates a job and specifies a training percent:
+
+[source,console]
+--------------------------------------------------
+PUT _ml/data_frame/analytics/student_performance_mathematics_0.3
+{
+ "source": {
+   "index": "student_performance_mathematics"
+ },
+ "dest": {
+   "index":"student_performance_mathematics_reg"
+ },
+ "analysis":
+   {
+     "regression": {
+       "dependent_variable": "G3",
+       "training_percent": 70  <1>
+     }
+   }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+<1> The `training_percent` defines the percentage of the data set that will be used 
+for training the model.

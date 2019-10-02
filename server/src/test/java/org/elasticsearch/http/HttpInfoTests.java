@@ -40,7 +40,7 @@ public class HttpInfoTests extends ESTestCase {
                 new BoundTransportAddress(
                     new TransportAddress[]{new TransportAddress(localhost, port)},
                     new TransportAddress(localhost, port)
-                ), 0L, false
+                ), 0L
             ), "localhost/" + NetworkAddress.format(localhost) + ':' + port
         );
     }
@@ -53,12 +53,9 @@ public class HttpInfoTests extends ESTestCase {
                         new BoundTransportAddress(
                                 new TransportAddress[]{new TransportAddress(localhost, port)},
                                 new TransportAddress(localhost, port)
-                        ), 0L, true
+                        ), 0L
                 ), "localhost/" + NetworkAddress.format(localhost) + ':' + port
         );
-        assertWarnings(
-                "es.http.cname_in_publish_address system property is deprecated and no longer affects http.publish_address " +
-                "formatting. Remove this property to get rid of this deprecation warning.");
     }
 
     public void testCorrectDisplayPublishedIp() throws Exception {
@@ -69,7 +66,7 @@ public class HttpInfoTests extends ESTestCase {
                 new BoundTransportAddress(
                     new TransportAddress[]{new TransportAddress(localhost, port)},
                     new TransportAddress(localhost, port)
-                ), 0L, false
+                ), 0L
             ), NetworkAddress.format(localhost) + ':' + port
         );
     }
@@ -79,10 +76,7 @@ public class HttpInfoTests extends ESTestCase {
         TransportAddress localhost =
             new TransportAddress(InetAddress.getByName(NetworkAddress.format(InetAddress.getByName("0:0:0:0:0:0:0:1"))), port);
         assertPublishAddress(
-            new HttpInfo(
-                new BoundTransportAddress(new TransportAddress[]{localhost}, localhost), 0L, false
-            ), localhost.toString()
-        );
+            new HttpInfo(new BoundTransportAddress(new TransportAddress[]{localhost}, localhost), 0L), localhost.toString());
     }
 
     @SuppressWarnings("unchecked")

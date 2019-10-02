@@ -78,7 +78,8 @@ public class ScriptScoreQuery extends Query {
         if (scoreMode == ScoreMode.COMPLETE_NO_SCORES && minScore == null) {
             return subQuery.createWeight(searcher, scoreMode, boost);
         }
-        ScoreMode subQueryScoreMode = scriptBuilder.needs_score() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+        boolean needsScore = scriptBuilder.needs_score();
+        ScoreMode subQueryScoreMode = needsScore ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
         Weight subQueryWeight = subQuery.createWeight(searcher, subQueryScoreMode, boost);
 
         return new Weight(this){
@@ -113,7 +114,7 @@ public class ScriptScoreQuery extends Query {
                 assert doc == newDoc; // subquery should have already matched above
                 float score = scorer.score();
                 
-                Explanation explanation = explanationHolder.get(score, subQueryExplanation);
+                Explanation explanation = explanationHolder.get(score, needsScore ? subQueryExplanation : null);
                 if (explanation == null) {
                     // no explanation provided by user; give a simple one
                     String desc = "script score function, computed with script:\"" + script + "\"";

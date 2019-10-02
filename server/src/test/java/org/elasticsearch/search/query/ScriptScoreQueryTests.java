@@ -84,7 +84,7 @@ public class ScriptScoreQueryTests extends ESTestCase {
         Script script = new Script("script using explain");
         ScoreScript.LeafFactory factory = newFactory(script, true, explanation -> {
             assertNotNull(explanation);
-            explanation.set("this explains the score", true);
+            explanation.set("this explains the score");
             return 1.0;
         });
 

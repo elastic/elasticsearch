@@ -40,24 +40,21 @@ public abstract class ScoreScript {
     /** A helper to take in an explanation from a script and turn it into an {@link org.apache.lucene.search.Explanation}  */
     public static class ExplanationHolder {
         private String description;
-        private boolean usesScore;
 
         /**
          * Explain the current score.
          *
          * @param description A textual description of how the score was calculated
-         * @param usesScore {@code true} if {@code _score} was used, {@code false} otherwise
          */
-        public void set(String description, boolean usesScore) {
+        public void set(String description) {
             this.description = description;
-            this.usesScore = usesScore;
         }
 
         public Explanation get(double score, Explanation subQueryExplanation) {
             if (description == null) {
                 return null;
             }
-            if (usesScore) {
+            if (subQueryExplanation != null) {
                 return Explanation.match(score, description, subQueryExplanation);
             }
             return Explanation.match(score, description);

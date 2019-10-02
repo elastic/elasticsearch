@@ -46,7 +46,7 @@ public final class LdapRealmSettings {
             settings.addAll(LdapUserSearchSessionFactorySettings.getSettings());
             settings.addAll(DelegatedAuthorizationSettings.getSettings(type));
         }
-        settings.addAll(LdapMetaDataResolverSettings.getSettings());
+        settings.addAll(LdapMetaDataResolverSettings.getSettings(type));
         settings.addAll(RealmSettings.getStandardSettings(type));
         return settings;
     }

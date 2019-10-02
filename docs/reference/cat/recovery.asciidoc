@@ -4,6 +4,7 @@
 <titleabbrev>cat recovery</titleabbrev>
 ++++
 
+
 Returns information about ongoing and completed shard recoveries,
 similar to the <<indices-recovery, index recovery>> API.
 
@@ -12,6 +13,8 @@ similar to the <<indices-recovery, index recovery>> API.
 ==== {api-request-title}
 
 `GET /_cat/recovery/<index>`
+
+`GET /_cat/recovery`
 
 
 [[cat-recovery-api-desc]]
@@ -33,13 +36,19 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=index]
 [[cat-recovery-query-params]]
 ==== {api-query-parms-title}
 
+include::{docdir}/rest-api/common-parms.asciidoc[tag=active-only]
+
 include::{docdir}/rest-api/common-parms.asciidoc[tag=bytes]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=detailed]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=http-format]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=cat-h]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=help]
+
+include::{docdir}/rest-api/common-parms.asciidoc[tag=index-query-parm]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
 

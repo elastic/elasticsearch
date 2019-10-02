@@ -4,6 +4,7 @@
 <titleabbrev>Index recovery</titleabbrev>
 ++++
 
+
 Returns information about ongoing and completed shard recoveries.
 
 [source,console]

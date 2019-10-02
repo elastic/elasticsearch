@@ -386,8 +386,10 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
             IndexMetaData indexMetaData = indices.get(index);
-            Predicate<String> fieldPredicate = fieldFilter.apply(index);
-            indexMapBuilder.put(index, filterFields(indexMetaData.mapping(), fieldPredicate));
+            if (indexMetaData.mapping() != null) {
+                Predicate<String> fieldPredicate = fieldFilter.apply(index);
+                indexMapBuilder.put(index, filterFields(indexMetaData.mapping(), fieldPredicate));
+            }
         }
         return indexMapBuilder.build();
     }

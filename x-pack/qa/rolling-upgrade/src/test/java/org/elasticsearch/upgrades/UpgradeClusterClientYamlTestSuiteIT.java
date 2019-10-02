@@ -8,10 +8,7 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
-import org.apache.http.HttpHost;
 import org.apache.lucene.util.TimeUnits;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -21,7 +18,6 @@ import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
@@ -78,12 +74,4 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
                 .build();
     }
 
-    // temporary disable deprecation checks
-    @Override
-    protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
-        RestClientBuilder builder = RestClient.builder(hosts);
-        configureClient(builder, settings);
-        builder.setStrictDeprecationMode(false);
-        return builder.build();
-    }
 }

@@ -38,6 +38,38 @@ if [[ "$1" != "eswrapper" ]]; then
   fi
 fi
 
+# Allow environment variables to be set by creating a file with the
+# contents, and setting an environment variable with the suffix _FILE to
+# point to it. This can be used to provide secrets to a container, without
+# the values being specified explicitly when running the container.
+for VAR_NAME_FILE in $(env | cut -f1 -d= | grep '_FILE$'); do
+  if [[ -n "$VAR_NAME_FILE" ]]; then
+    VAR_NAME="${VAR_NAME_FILE%_FILE}"
+
+    if [[ -n "${!VAR_NAME}" ]]; then
+      echo "ERROR: Both $VAR_NAME_FILE and $VAR_NAME are set. These are mutually exclusive." >&2
+      exit 1
+    fi
+
+    if [[ ! -e "${!VAR_NAME_FILE}" ]]; then
+      echo "ERROR: File ${!VAR_NAME_FILE} does not exist" >&2
+      exit 1
+    fi
+
+    if [[ ! -r "${!VAR_NAME_FILE}" ]]; then
+      echo "ERROR: File ${!VAR_NAME_FILE} is not readable" >&2
+      exit 1
+    fi
+
+    echo "Setting $VAR_NAME from ${!VAR_NAME_FILE}" >&2
+    export "$VAR_NAME"="$(cat ${!VAR_NAME_FILE})"
+
+    unset VAR_NAME
+    # Unset the suffixed environment variable
+    unset "$VAR_NAME_FILE"
+  fi
+done
+
 # Parse Docker env vars to customize Elasticsearch
 #
 # e.g. Setting the env var cluster.name=testcluster
@@ -76,29 +108,6 @@ done < <(env)
 export ES_JAVA_OPTS="-Des.cgroups.hierarchy.override=/ $ES_JAVA_OPTS"
 
 if [[ -f bin/elasticsearch-users ]]; then
-  # Source the password from a file, if specified. This means that the
-  # password itself doesn't need to be specified as an env var when running
-  # the container.
-  if [[ -n "$ELASTIC_PASSWORD_FILE" ]]; then
-    if [[ -n "$ELASTIC_PASSWORD" ]]; then
-      echo "ERROR: Both ELASTIC_PASSWORD and ELASTIC_PASSWORD_FILE are set. These are mutually exclusive." >&2
-      exit 1
-    fi
-
-    if [[ ! -e "$ELASTIC_PASSWORD_FILE" ]]; then
-      echo "ERROR: Password file $ELASTIC_PASSWORD_FILE does not exist" >&2
-      exit 1
-    fi
-
-    if [[ ! -r "$ELASTIC_PASSWORD_FILE" ]]; then
-      echo "ERROR: Password file $ELASTIC_PASSWORD_FILE is not readable" >&2
-      exit 1
-    fi
-
-    ELASTIC_PASSWORD="$(cat "$ELASTIC_PASSWORD_FILE")"
-    unset ELASTIC_PASSWORD_FILE
-  fi
-
   # Check for the ELASTIC_PASSWORD environment variable to set the
   # bootstrap password for Security.
   #

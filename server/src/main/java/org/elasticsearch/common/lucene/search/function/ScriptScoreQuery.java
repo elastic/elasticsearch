@@ -118,8 +118,12 @@ public class ScriptScoreQuery extends Query {
                 if (explanation == null) {
                     // no explanation provided by user; give a simple one
                     String desc = "script score function, computed with script:\"" + script + "\"";
-                    Explanation scoreExp = Explanation.match(subQueryExplanation.getValue(), "_score: ", subQueryExplanation);
-                    explanation = Explanation.match(score, desc, scoreExp);
+                    if (needsScore) {
+                        Explanation scoreExp = Explanation.match(subQueryExplanation.getValue(), "_score: ", subQueryExplanation);
+                        explanation = Explanation.match(score, desc, scoreExp);
+                    } else {
+                        explanation = Explanation.match(score, desc);
+                    }
                 }
                 
                 if (minScore != null && minScore > explanation.getValue().floatValue()) {

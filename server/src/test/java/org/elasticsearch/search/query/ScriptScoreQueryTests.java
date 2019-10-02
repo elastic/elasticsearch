@@ -47,6 +47,7 @@ import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.collection.IsArrayWithSize.arrayWithSize;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -109,7 +110,25 @@ public class ScriptScoreQueryTests extends ESTestCase {
         String description = explanation.getDescription();
         assertThat(description, containsString("script score function, computed with script:"));
         assertThat(description, containsString("script without setting explanation"));
+        assertThat(explanation.getDetails(), arrayWithSize(1));
+        assertThat(explanation.getDetails()[0].getDescription(), containsString("_score"));
         assertThat(explanation.getValue(), equalTo(1.5f));
+    }
+
+    public void testExplainDefaultNoScore() throws IOException {
+        Script script = new Script("script without setting explanation and no score");
+        ScoreScript.LeafFactory factory = newFactory(script, false, explanation -> 2.0);
+
+        ScriptScoreQuery query = new ScriptScoreQuery(Queries.newMatchAllQuery(), script, factory,
+            null, "index", 0, Version.CURRENT);
+        Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE, 1.0f);
+        Explanation explanation = weight.explain(leafReaderContext, 0);
+        assertNotNull(explanation);
+        String description = explanation.getDescription();
+        assertThat(description, containsString("script score function, computed with script:"));
+        assertThat(description, containsString("script without setting explanation and no score"));
+        assertThat(explanation.getDetails(), arrayWithSize(0));
+        assertThat(explanation.getValue(), equalTo(2.0f));
     }
 
     private ScoreScript.LeafFactory newFactory(Script script, boolean needsScore,

@@ -232,5 +232,5 @@ class org.elasticsearch.index.query.IntervalFilterScript$Interval {
 }
 
 class org.elasticsearch.script.ScoreScript$ExplanationHolder {
-  void set(String,boolean)
+  void set(String)
 }

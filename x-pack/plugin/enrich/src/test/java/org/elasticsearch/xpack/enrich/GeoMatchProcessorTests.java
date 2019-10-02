@@ -16,6 +16,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -39,20 +41,38 @@ import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GeoMatchProcessorTests extends ESTestCase {
 
     public void testBasics() {
+        Point expectedPoint = new Point(-122.084110, 37.386637);
+        testBasicsForFieldValue(Map.of("lat", 37.386637, "lon", -122.084110), expectedPoint);
+        testBasicsForFieldValue("37.386637, -122.084110", expectedPoint);
+        testBasicsForFieldValue("POINT (-122.084110 37.386637)", expectedPoint);
+        testBasicsForFieldValue(List.of(-122.084110, 37.386637), expectedPoint);
+        testBasicsForFieldValue(List.of(List.of(-122.084110, 37.386637), "37.386637, -122.084110", "POINT (-122.084110 37.386637)"),
+            new MultiPoint(List.of(expectedPoint, expectedPoint, expectedPoint)));
+
+        testBasicsForFieldValue("not a point", null);
+    }
+
+    private void testBasicsForFieldValue(Object fieldValue, Geometry expectedGeometry) {
         int maxMatches = randomIntBetween(1, 8);
         MockSearchFunction mockSearch = mockedSearchFunction(Map.of("key", Map.of("shape", "object", "zipcode",94040)));
         GeoMatchProcessor processor = new GeoMatchProcessor("_tag", mockSearch, "_name", "location", "entry",
-            false, true, "shape", maxMatches, ShapeRelation.INTERSECTS);
+            false, false, "shape", maxMatches, ShapeRelation.INTERSECTS);
         IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL,
-            Map.of("location", "37.386637, -122.084110"));
+            Map.of("location", fieldValue));
         // Run
         IngestDocument[] holder = new IngestDocument[1];
         processor.execute(ingestDocument, (result, e) -> holder[0] = result);
-        assertThat(holder[0], notNullValue());
+        if (expectedGeometry == null) {
+            assertThat(holder[0], nullValue());
+            return;
+        } else {
+            assertThat(holder[0], notNullValue());
+        }
         // Check request
         SearchRequest request = mockSearch.getCapturedRequest();
         assertThat(request.indices().length, equalTo(1));
@@ -67,13 +87,14 @@ public class GeoMatchProcessorTests extends ESTestCase {
         assertThat(((ConstantScoreQueryBuilder) request.source().query()).innerQuery(), instanceOf(GeoShapeQueryBuilder.class));
         GeoShapeQueryBuilder shapeQueryBuilder = (GeoShapeQueryBuilder) ((ConstantScoreQueryBuilder) request.source().query()).innerQuery();
         assertThat(shapeQueryBuilder.fieldName(), equalTo("shape"));
-        assertThat(shapeQueryBuilder.shape(), equalTo(new Point(-122.084110, 37.386637)));
+        assertThat(shapeQueryBuilder.shape(), equalTo(expectedGeometry));
 
         // Check result
         List<?> entries = ingestDocument.getFieldValue("entry", List.class);
         Map<?, ?> entry = (Map<?, ?>) entries.get(0);
         assertThat(entry.size(), equalTo(2));
         assertThat(entry.get("zipcode"), equalTo(94040));
+
     }
 
     private static final class MockSearchFunction implements BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>>  {

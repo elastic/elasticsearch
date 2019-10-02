@@ -11,10 +11,14 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.BiConsumer;
 
 public final class GeoMatchProcessor extends AbstractEnrichProcessor {
@@ -49,10 +53,34 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
         this.shapeRelation = shapeRelation;
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public QueryBuilder getQueryBuilder(Object fieldValue) {
-        GeoPoint point = GeoUtils.parseGeoPoint(fieldValue, true);
-        GeoShapeQueryBuilder shapeQuery = new GeoShapeQueryBuilder(matchField, new Point(point.lon(), point.lat()));
+        List<Point> points = new ArrayList<>();
+        if (fieldValue instanceof List) {
+            List<Object> values = (List<Object>) fieldValue;
+            if (values.size() == 2 && values.get(0) instanceof Number) {
+                GeoPoint geoPoint = GeoUtils.parseGeoPoint(values, true);
+                points.add(new Point(geoPoint.lon(), geoPoint.lat()));
+            } else {
+                for (Object value : values) {
+                    GeoPoint geoPoint = GeoUtils.parseGeoPoint(value, true);
+                    points.add(new Point(geoPoint.lon(), geoPoint.lat()));
+                }
+            }
+        } else {
+            GeoPoint geoPoint = GeoUtils.parseGeoPoint(fieldValue, true);
+            points.add(new Point(geoPoint.lon(), geoPoint.lat()));
+        }
+        final Geometry queryGeometry;
+        if (points.isEmpty()) {
+            throw new IllegalArgumentException("no geopoints found");
+        } else if (points.size() == 1) {
+            queryGeometry = points.get(0);
+        } else {
+            queryGeometry = new MultiPoint(points);
+        }
+        GeoShapeQueryBuilder shapeQuery = new GeoShapeQueryBuilder(matchField, queryGeometry);
         shapeQuery.relation(shapeRelation);
         return shapeQuery;
     }

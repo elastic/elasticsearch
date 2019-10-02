@@ -1008,7 +1008,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // tag::slm-execute-snapshot-lifecycle-policy-execute-listener
         ActionListener<AcknowledgedResponse> retentionListener =
-            new ActionListener<>() {
+            new ActionListener<AcknowledgedResponse>() {
                 @Override
                 public void onResponse(AcknowledgedResponse r) {
                     assert r.isAcknowledged(); // <1>

@@ -97,7 +97,9 @@ public abstract class Command implements Closeable {
             if (e.exitCode == ExitCodes.USAGE) {
                 printHelp(terminal, true);
             }
-            terminal.errorPrintln(this.exitErrorVerbosityLevel(), "ERROR: " + e.getMessage());
+            if (e.shouldPrintOnExit) {
+                terminal.errorPrintln(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage());
+            }
             return e.exitCode;
         }
         return ExitCodes.OK;
@@ -161,15 +163,6 @@ public abstract class Command implements Closeable {
      */
     protected boolean addShutdownHook() {
         return true;
-    }
-
-    /**
-     * Return the verbosity level for program exit exceptions. Most of our tools are interactive and we want to show
-     * errors even when the "--silent" option is selected, but in some cases we may want to suppress output
-     * altogether and let the user respond to error codes alone.
-     */
-    protected Terminal.Verbosity exitErrorVerbosityLevel() {
-        return Terminal.Verbosity.SILENT;
     }
 
     /** Gets the shutdown hook thread if it exists **/

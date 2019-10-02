@@ -219,8 +219,9 @@ public class MultiCommandTests extends CommandTestCase {
         MultiCommand mc = new ErrorHandlingMultiCommand();
         mc.subcommands.put("throw", new ErrorThrowingSubCommand() {
             @Override
-            protected Terminal.Verbosity exitErrorVerbosityLevel() {
-                return Terminal.Verbosity.NORMAL;
+            protected void execute(Terminal terminal, OptionSet options) throws Exception {
+                terminal.errorPrintln(Terminal.Verbosity.NORMAL, "Dummy error");
+                throw new UserException(1, "Dummy error", false);
             }
         });
         mc.main(new String[]{"throw", "--silent"}, terminal);

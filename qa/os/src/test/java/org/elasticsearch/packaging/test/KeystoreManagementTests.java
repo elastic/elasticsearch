@@ -80,7 +80,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.elasticsearchKeystore + " has-passwd");
         assertThat("has-passwd should fail", r.exitCode, not(is(0)));
-        assertThat("has-passwd should fail", r.stderr, containsString("ERROR: Keystore is not password protected"));
+        assertThat("has-passwd should fail", r.stderr, containsString("ERROR: Keystore is not password-protected"));
     }
 
     public void test20CreateKeystoreManually() throws Exception {

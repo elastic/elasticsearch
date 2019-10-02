@@ -42,15 +42,15 @@ public class HasPasswordKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     public void testFailsWithNoKeystore() throws Exception {
         UserException e = expectThrows(UserException.class, this::execute);
-        assertEquals(e.getMessage(), HasPasswordKeyStoreCommand.NO_PASSWORD_EXIT_CODE, e.exitCode);
-        assertThat(e.getMessage(), containsString("Elasticsearch keystore not found"));
+        assertEquals("Exit code should be 1", HasPasswordKeyStoreCommand.NO_PASSWORD_EXIT_CODE, e.exitCode);
+        assertThat("Exception should have null message", e.getMessage(), containsString("Elasticsearch keystore not found"));
     }
 
     public void testFailsWhenKeystoreLacksPassword() throws Exception {
         createKeystore("");
         UserException e = expectThrows(UserException.class, this::execute);
-        assertEquals(e.getMessage(), HasPasswordKeyStoreCommand.NO_PASSWORD_EXIT_CODE, e.exitCode);
-        assertThat(e.getMessage(), containsString("Keystore is not password protected"));
+        assertEquals("Exit code should be 1", HasPasswordKeyStoreCommand.NO_PASSWORD_EXIT_CODE, e.exitCode);
+        assertThat("Exception should have null message", e.getMessage(), containsString("Keystore is not password-protected"));
     }
 
     public void testSucceedsWhenKeystoreHasPassword() throws Exception {

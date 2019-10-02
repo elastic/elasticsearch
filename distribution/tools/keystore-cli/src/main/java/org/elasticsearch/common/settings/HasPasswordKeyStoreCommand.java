@@ -39,17 +39,18 @@ public class HasPasswordKeyStoreCommand extends KeyStoreAwareCommand {
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         final Path configFile = env.configFile();
         final KeyStoreWrapper keyStore = KeyStoreWrapper.load(configFile);
+
+        // We handle error printing here so we can respect the "--silent" flag
+        // We have to throw an exception to get a nonzero exit code
         if (keyStore == null) {
-            throw new UserException(NO_PASSWORD_EXIT_CODE, "Elasticsearch keystore not found");
+            terminal.errorPrintln(Terminal.Verbosity.NORMAL, "ERROR: Elasticsearch keystore not found");
+            throw new UserException(NO_PASSWORD_EXIT_CODE, "Elasticsearch keystore not found", false);
         }
         if (keyStore.hasPassword() == false) {
-            throw new UserException(NO_PASSWORD_EXIT_CODE, "Keystore is not password protected");
+            terminal.errorPrintln(Terminal.Verbosity.NORMAL, "ERROR: Keystore is not password-protected");
+            throw new UserException(NO_PASSWORD_EXIT_CODE, "Keystore is not password-protected", false);
         }
-        terminal.println(Terminal.Verbosity.NORMAL, "Keystore is password-protected");
-    }
 
-    @Override
-    protected Terminal.Verbosity exitErrorVerbosityLevel() {
-        return Terminal.Verbosity.NORMAL;
+        terminal.println(Terminal.Verbosity.NORMAL, "Keystore is password-protected");
     }
 }

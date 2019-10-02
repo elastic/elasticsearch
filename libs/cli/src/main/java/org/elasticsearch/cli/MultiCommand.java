@@ -37,8 +37,6 @@ public class MultiCommand extends Command {
 
     private final NonOptionArgumentSpec<String> arguments = parser.nonOptions("command");
 
-    private Command subcommand = null;
-
     /**
      * Construct the multi-command with the specified command description and runnable to execute before main is invoked.
      *
@@ -72,24 +70,16 @@ public class MultiCommand extends Command {
         if (args.length == 0) {
             throw new UserException(ExitCodes.USAGE, "Missing command");
         }
-        this.subcommand = subcommands.get(args[0]);
-        if (this.subcommand == null) {
+        Command subcommand = subcommands.get(args[0]);
+        if (subcommand == null) {
             throw new UserException(ExitCodes.USAGE, "Unknown command [" + args[0] + "]");
         }
-        this.subcommand.mainWithoutErrorHandling(Arrays.copyOfRange(args, 1, args.length), terminal);
+        subcommand.mainWithoutErrorHandling(Arrays.copyOfRange(args, 1, args.length), terminal);
     }
 
     @Override
     public void close() throws IOException {
         IOUtils.close(subcommands.values());
-    }
-
-    @Override
-    protected Terminal.Verbosity  exitErrorVerbosityLevel() {
-        if (this.subcommand != null) {
-            return this.subcommand.exitErrorVerbosityLevel();
-        }
-        return super.exitErrorVerbosityLevel();
     }
 
 }

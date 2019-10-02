@@ -27,10 +27,22 @@ public class UserException extends Exception {
     /** The exist status the cli should use when catching this user error. */
     public final int exitCode;
 
+    /** Should this message be printed? */
+    public final boolean shouldPrintOnExit;
+
+    /** Constructs a UserException with an exit status, a message to show the user,
+        and an flag specifying whether the error should be printed. */
+    public UserException(int exitCode, String msg, boolean shouldPrintOnExit) {
+        super(msg);
+        this.exitCode = exitCode;
+        this.shouldPrintOnExit = shouldPrintOnExit;
+    }
+
     /** Constructs a UserException with an exit status and message to show the user. */
     public UserException(int exitCode, String msg) {
         super(msg);
         this.exitCode = exitCode;
+        this.shouldPrintOnExit = true;
     }
 
     /**
@@ -43,6 +55,7 @@ public class UserException extends Exception {
     public UserException(final int exitCode, final String msg, final Throwable cause) {
         super(msg, cause);
         this.exitCode = exitCode;
+        this.shouldPrintOnExit = true;
     }
 
 }

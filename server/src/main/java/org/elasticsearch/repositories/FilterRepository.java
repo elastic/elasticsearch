@@ -74,11 +74,6 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData metaData) {
-        in.initializeSnapshot(snapshotId, indices, metaData);
-    }
-
-    @Override
     public void finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards,
                                  List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState,
                                  MetaData metaData, Map<String, Object> userMetadata, ActionListener<SnapshotInfo> listener) {

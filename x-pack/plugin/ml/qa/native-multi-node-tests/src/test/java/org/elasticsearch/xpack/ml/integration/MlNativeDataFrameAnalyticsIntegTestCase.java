@@ -199,7 +199,8 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         assertBusy(() -> assertTrue(indexExists(AuditorField.NOTIFICATIONS_INDEX)));
         assertBusy(() -> {
             String[] actualAuditMessages = fetchAllAuditMessages(configId);
-            assertThat(actualAuditMessages.length, equalTo(expectedAuditMessagePrefixes.length));
+            assertThat("Messages: " + Arrays.toString(actualAuditMessages), actualAuditMessages.length,
+                equalTo(expectedAuditMessagePrefixes.length));
             for (int i = 0; i < actualAuditMessages.length; i++) {
                 assertThat(actualAuditMessages[i], startsWith(expectedAuditMessagePrefixes[i]));
             }

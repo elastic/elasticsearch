@@ -116,7 +116,13 @@ public class MlDailyMaintenanceService implements Releasable {
         LOGGER.info("triggering scheduled [ML] maintenance tasks");
         executeAsyncWithOrigin(client, ML_ORIGIN, DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request(),
                 ActionListener.wrap(
-                        response -> LOGGER.info("Successfully completed [ML] maintenance tasks"),
+                        response -> {
+                            if (response.isDeleted()) {
+                                LOGGER.info("Successfully completed [ML] maintenance tasks");
+                            } else {
+                                LOGGER.info("Halting [ML] maintenance tasks before completion as elapsed time is too great");
+                            }
+                        },
                         e -> LOGGER.error("An error occurred during maintenance tasks execution", e)));
         scheduleNext();
     }

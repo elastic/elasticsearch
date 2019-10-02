@@ -77,6 +77,7 @@ public class MemoryUsageEstimationProcessManager {
             processFactory.createAnalyticsProcess(
                 config,
                 processConfig,
+                null,
                 executorServiceForProcess,
                 // The handler passed here will never be called as AbstractNativeProcess.detectCrash method returns early when
                 // (processInStream == null) which is the case for MemoryUsageEstimationProcess.

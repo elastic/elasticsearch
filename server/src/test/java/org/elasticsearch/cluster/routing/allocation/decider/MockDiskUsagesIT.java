@@ -185,7 +185,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         // Move all nodes above the low watermark so no shard movement can occur, and at least one node above the flood stage watermark so
         // the index is blocked
         clusterInfoService.diskUsageFunction = (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, 100,
-            discoveryNode.getId().equals(nodeIds.get(2)) ? between(0, 4) : between(0, 14));
+            discoveryNode.getId().equals(nodeIds.get(2)) ? between(0, 4) : between(0, 9));
 
         assertBusy(() -> assertBlocked(
             client().prepareIndex().setIndex("test").setType("doc").setId("1").setSource("foo", "bar"),

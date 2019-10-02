@@ -172,9 +172,6 @@ POST _ml/data_frame/_evaluate
 only. 
 <3> The ground truth value for the actual house price. This is required in order 
 to evaluate results.
-<<<<<<< HEAD
-<4> The predicted value for house price calculated by the {reganalysis}.
-=======
 <4> The predicted value for house price calculated by the {reganalysis}.
 
 
@@ -252,4 +249,3 @@ only. It means that a testing error will be calculated.
 performance. This is required in order to evaluate results.
 <3> The field that contains the predicted value for student performance 
 calculated by the {reganalysis}.
->>>>>>> 4977baf63ac... [DOCS] Adds examples to the PUT dfa and the evaluate dfa APIs (#46966)

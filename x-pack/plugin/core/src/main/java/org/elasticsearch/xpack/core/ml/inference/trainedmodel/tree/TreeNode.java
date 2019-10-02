@@ -143,7 +143,7 @@ public class TreeNode implements ToXContentObject, Writeable {
     }
 
     public boolean isLeaf() {
-        return leftChild < 1;
+        return leftChild < 0;
     }
 
     public int compare(List<Double> features) {

@@ -50,6 +50,7 @@ result field to be present.
 +
 --
 Available evaluation types:
+
 * `binary_soft_classification`
 * `regression`
 --

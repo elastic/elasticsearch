@@ -11,10 +11,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.inference.action.InferenceResults;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -28,7 +28,7 @@ public class LocalModel implements Model {
     }
 
     @Override
-    public void infer(Map<String, Object> fields, ActionListener<Object> listener) {
+    public void infer(Map<String, Object> fields, ActionListener<InferenceResults> listener) {
         trainedModelDefinition.getPreProcessors().forEach(preProcessor -> preProcessor.process(fields));
         double value = trainedModelDefinition.getTrainedModel().infer(fields);
         if (trainedModelDefinition.getTrainedModel().targetType() == TargetType.CLASSIFICATION &&
@@ -42,16 +42,17 @@ public class LocalModel implements Model {
                     trainedModelDefinition.getTrainedModel().classificationLabels()));
                 return;
             }
-            listener.onResponse(trainedModelDefinition.getTrainedModel().classificationLabels().get(classIndex));
+            listener.onResponse(InferenceResults.valueAndLabel(value,
+                trainedModelDefinition.getTrainedModel().classificationLabels().get(classIndex)));
             return;
         }
-        listener.onResponse(Double.valueOf(value));
+        listener.onResponse(InferenceResults.valueOnly(value));
     }
 
     @Override
-    public void confidence(Map<String, Object> fields, int topN, ActionListener<Object> listener) {
+    public void confidence(Map<String, Object> fields, int topN, ActionListener<InferenceResults> listener) {
         if (topN == 0) {
-            listener.onResponse(Collections.emptyMap());
+            infer(fields, listener);
             return;
         }
         if (trainedModelDefinition.getTrainedModel().targetType() != TargetType.CLASSIFICATION) {
@@ -82,11 +83,16 @@ public class LocalModel implements Model {
             trainedModelDefinition.getTrainedModel().classificationLabels();
 
         int count = topN < 0 ? probabilities.size() : topN;
-        Map<String, Double> probabilityMap = new HashMap<>(count);
+        List<InferenceResults.TopClassEntry> topClassEntries = new ArrayList<>(count);
         for(int i = 0; i < count; i++) {
             int idx = sortedIndices[i];
-            probabilityMap.put(labels.get(idx), probabilities.get(idx));
+            topClassEntries.add(new InferenceResults.TopClassEntry(labels.get(idx), probabilities.get(idx)));
         }
-        listener.onResponse(probabilityMap);
+
+        listener.onResponse(new InferenceResults(((Number)sortedIndices[0]).doubleValue(),
+            trainedModelDefinition.getTrainedModel().classificationLabels() == null ?
+                null :
+                trainedModelDefinition.getTrainedModel().classificationLabels().get(sortedIndices[0]),
+            topClassEntries));
     }
 }

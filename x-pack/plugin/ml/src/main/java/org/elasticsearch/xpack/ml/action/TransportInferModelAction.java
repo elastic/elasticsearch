@@ -14,6 +14,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.inference.action.InferModelAction;
+import org.elasticsearch.xpack.ml.inference.action.InferenceResults;
 import org.elasticsearch.xpack.ml.inference.loadingservice.Model;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
@@ -39,14 +40,14 @@ public class TransportInferModelAction extends HandledTransportAction<InferModel
     @Override
     protected void doExecute(Task task, InferModelAction.Request request, ActionListener<InferModelAction.Response> listener) {
 
-        ActionListener<List<Object>> inferenceCompleteListener = ActionListener.wrap(
+        ActionListener<List<InferenceResults>> inferenceCompleteListener = ActionListener.wrap(
             inferenceResponse -> listener.onResponse(new InferModelAction.Response(inferenceResponse)),
             listener::onFailure
         );
 
         ActionListener<Model> getModelListener = ActionListener.wrap(
             model -> {
-                TypedChainTaskExecutor<Object> typedChainTaskExecutor =
+                TypedChainTaskExecutor<InferenceResults> typedChainTaskExecutor =
                     new TypedChainTaskExecutor<>(client.threadPool().executor(ThreadPool.Names.SAME),
                     // run through all tasks
                     r -> true,

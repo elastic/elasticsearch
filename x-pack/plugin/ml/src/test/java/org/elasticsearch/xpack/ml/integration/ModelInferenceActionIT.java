@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.inference.action.InferModelAction;
-import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
+import org.elasticsearch.xpack.ml.inference.action.InferenceResults;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.junit.Before;
 
@@ -36,11 +36,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ModelInferenceActionIT extends MlSingleNodeTestCase {
@@ -108,56 +110,40 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         // Test regression
         InferModelAction.Request request = new InferModelAction.Request(modelId1, 0, toInfer, null);
         InferModelAction.Response response = client().execute(InferModelAction.INSTANCE, request).actionGet();
-        assertThat(response.getInferenceResponse(), contains(1.3, 1.25));
+        assertThat(response.getInferenceResponse().stream().map(InferenceResults::getNumericValue).collect(Collectors.toList()),
+            contains(1.3, 1.25));
 
         request = new InferModelAction.Request(modelId1, 0, toInfer2, null);
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
-        assertThat(response.getInferenceResponse(), contains(1.65, 1.55));
+        assertThat(response.getInferenceResponse().stream().map(InferenceResults::getNumericValue).collect(Collectors.toList()),
+            contains(1.65, 1.55));
 
 
         // Test classification
         request = new InferModelAction.Request(modelId2, 0, toInfer, null);
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
-        assertThat(response.getInferenceResponse(), contains("not_to_be", "to_be"));
+        assertThat(response.getInferenceResponse().stream().map(InferenceResults::getClassificationLabel).collect(Collectors.toList()),
+            contains("not_to_be", "to_be"));
 
         // Get top classes
         request = new InferModelAction.Request(modelId2, 0, toInfer, 2);
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
 
-        Map<String, Double> probabilities = (Map<String, Double>) response.getInferenceResponse().get(0);
-        assertThat(probabilities.get("not_to_be"), greaterThan(probabilities.get("to_be")));
+        assertThat(response.getInferenceResponse().get(0).getTopClasses().get(0).getLabel(), equalTo("not_to_be"));
+        assertThat(response.getInferenceResponse().get(0).getTopClasses().get(1).getLabel(), equalTo("to_be"));
+        assertThat(response.getInferenceResponse().get(0).getTopClasses().get(0).getProbability(),
+            greaterThan(response.getInferenceResponse().get(0).getTopClasses().get(1).getProbability()));
 
-        probabilities = (Map<String, Double>) response.getInferenceResponse().get(1);
-        assertThat(probabilities.get("to_be"), greaterThan(probabilities.get("not_to_be")));
-
-
-        request = new InferModelAction.Request(modelId2, 0, toInfer2, null);
-        response = client().execute(InferModelAction.INSTANCE, request).actionGet();
-        assertThat(response.getInferenceResponse(), contains("to_be", "not_to_be"));
-
-        request = new InferModelAction.Request(modelId2, 0, toInfer2, 2);
-        response = client().execute(InferModelAction.INSTANCE, request).actionGet();
-
-        probabilities = (Map<String, Double>) response.getInferenceResponse().get(0);
-        assertThat(probabilities.get("to_be"), greaterThan(probabilities.get("not_to_be")));
-
-        probabilities = (Map<String, Double>) response.getInferenceResponse().get(1);
-        assertThat(probabilities.get("not_to_be"), greaterThan(probabilities.get("to_be")));
+        assertThat(response.getInferenceResponse().get(1).getTopClasses().get(0).getLabel(), equalTo("to_be"));
+        assertThat(response.getInferenceResponse().get(1).getTopClasses().get(1).getLabel(), equalTo("not_to_be"));
+        assertThat(response.getInferenceResponse().get(1).getTopClasses().get(0).getProbability(),
+            greaterThan(response.getInferenceResponse().get(1).getTopClasses().get(1).getProbability()));
 
         // Test that top classes restrict the number returned
         request = new InferModelAction.Request(modelId2, 0, toInfer2, 1);
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
-        probabilities = (Map<String, Double>) response.getInferenceResponse().get(0);
-        assertThat(probabilities.size(), equalTo(1));
-
-        probabilities = (Map<String, Double>) response.getInferenceResponse().get(1);
-        assertThat(probabilities.size(), equalTo(1));
-
-        // test -1 gets all top classes
-        request = new InferModelAction.Request(modelId2, 0, toInfer2, -1);
-        response = client().execute(InferModelAction.INSTANCE, request).actionGet();
-        probabilities = (Map<String, Double>) response.getInferenceResponse().get(0);
-        assertThat(probabilities.size(), equalTo(2));
+        assertThat(response.getInferenceResponse().get(0).getTopClasses(), hasSize(1));
+        assertThat(response.getInferenceResponse().get(0).getTopClasses().get(0).getLabel(), equalTo("to_be"));
     }
 
     public void testInferMissingModel() {
@@ -261,10 +247,6 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             .build();
     }
 
-
-    public void testLoadMissingModels() throws Exception {
-
-    }
 
     private static TrainedModelConfig buildTrainedModelConfig(String modelId, long modelVersion) {
         return buildTrainedModelConfigBuilder(modelId, modelVersion).build(Version.CURRENT);

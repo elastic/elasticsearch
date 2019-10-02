@@ -129,26 +129,25 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
 
     public static class Response extends ActionResponse {
 
-        // TODO come up with a better union type object
-        private final List<Object> inferenceResponse;
+        private final List<InferenceResults> inferenceResponse;
 
-        public Response(List<Object> inferenceResponse) {
+        public Response(List<InferenceResults> inferenceResponse) {
             super();
             this.inferenceResponse = Collections.unmodifiableList(inferenceResponse);
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.inferenceResponse = Collections.unmodifiableList(in.readList(StreamInput::readGenericValue));
+            this.inferenceResponse = Collections.unmodifiableList(in.readList(InferenceResults::new));
         }
 
-        public List<Object> getInferenceResponse() {
+        public List<InferenceResults> getInferenceResponse() {
             return inferenceResponse;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(inferenceResponse, StreamOutput::writeGenericValue);
+            out.writeCollection(inferenceResponse);
         }
 
         @Override

@@ -7,25 +7,18 @@ package org.elasticsearch.xpack.ml.inference.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.inference.action.InferModelAction.Response;
 
-import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class InferModelActionResponseTests extends AbstractWireSerializingTestCase<Response> {
 
     @Override
-    @SuppressWarnings("unchecked")
     protected Response createTestInstance() {
-        Supplier<Object> resultSupplier = randomFrom(() -> randomAlphaOfLength(10),
-            ESTestCase::randomDouble,
-            () -> Stream.generate(() -> randomAlphaOfLength(10))
-                .limit(randomIntBetween(1, 10))
-                .collect(Collectors.toMap(Function.identity(), v -> randomDouble())));
-        return new Response(Stream.generate(resultSupplier).limit(randomIntBetween(0, 10)).collect(Collectors.toList()));
+        return new Response(Stream.generate(InferenceResultsTests::createRandomResults)
+            .limit(randomIntBetween(0, 10))
+            .collect(Collectors.toList()));
     }
 
     @Override

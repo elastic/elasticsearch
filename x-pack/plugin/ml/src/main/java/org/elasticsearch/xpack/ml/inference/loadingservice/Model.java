@@ -6,12 +6,13 @@
 package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.ml.inference.action.InferenceResults;
 
 import java.util.Map;
 
 public interface Model {
 
-    void infer(Map<String, Object> fields, ActionListener<Object> listener);
+    void infer(Map<String, Object> fields, ActionListener<InferenceResults> listener);
 
-    void confidence(Map<String, Object> fields, int topN, ActionListener<Object> listener);
+    void confidence(Map<String, Object> fields, int topN, ActionListener<InferenceResults> listener);
 }

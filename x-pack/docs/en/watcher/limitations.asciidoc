@@ -26,7 +26,7 @@ image::images/watcher-ui-edit-watch.png[Editing a watch in Kibana]
 [float]
 === Security integration
 
-When the {security-features} are enabled, a watch stores information about what
-the user who stored the watch is allowed to execute **at that time**. This means,
-if those permissions change over time, the watch will still be able to execute
-with the permissions that existed when the watch was created.
+When {security} is enabled, a watch stores information about what the user who
+stored the watch is allowed to execute **at that time**. This means, if those
+permissions change over time, the watch will still be able to execute with the
+permissions that existed when the watch was created.

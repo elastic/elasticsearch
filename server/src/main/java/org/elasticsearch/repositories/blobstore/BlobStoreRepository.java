@@ -89,7 +89,6 @@ import org.elasticsearch.repositories.RepositoryCleanupResult;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
-import org.elasticsearch.snapshots.SnapshotCreationException;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -356,21 +355,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public RepositoryMetaData getMetadata() {
         return metadata;
-    }
-
-    @Override
-    public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData clusterMetaData) {
-        try {
-            // Write Global MetaData
-            globalMetaDataFormat.write(clusterMetaData, blobContainer(), snapshotId.getUUID(), true);
-
-            // write the index metadata for each index in the snapshot
-            for (IndexId index : indices) {
-                indexMetaDataFormat.write(clusterMetaData.index(index.getName()), indexContainer(index), snapshotId.getUUID(), true);
-            }
-        } catch (IOException ex) {
-            throw new SnapshotCreationException(metadata.name(), snapshotId, ex);
-        }
     }
 
     @Override

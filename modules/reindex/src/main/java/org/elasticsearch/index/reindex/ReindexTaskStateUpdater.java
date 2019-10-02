@@ -29,7 +29,6 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 
 public class ReindexTaskStateUpdater implements Reindexer.CheckpointListener {
 

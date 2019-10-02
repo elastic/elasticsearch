@@ -87,7 +87,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                 service.getRemoteClusterService().getConnections().forEach(con -> {
                     con.getConnectionManager().addListener(new TransportConnectionListener() {
                         @Override
-                        public void onNodeDisconnected(DiscoveryNode node) {
+                        public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
                             if (remoteNode.equals(node)) {
                                 semaphore.release();
                             }

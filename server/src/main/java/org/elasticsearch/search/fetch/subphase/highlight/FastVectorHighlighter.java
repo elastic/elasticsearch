@@ -203,7 +203,7 @@ public class FastVectorHighlighter implements Highlighter {
             return null;
 
         } catch (Exception e) {
-            throw new FetchPhaseExecutionException(context,
+            throw new FetchPhaseExecutionException(context.shardTarget(),
                 "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
         }
     }

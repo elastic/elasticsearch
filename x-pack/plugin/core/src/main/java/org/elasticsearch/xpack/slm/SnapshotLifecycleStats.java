@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,7 +72,7 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), RETENTION_FAILED);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), RETENTION_TIMED_OUT);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), RETENTION_TIME_MILLIS);
-        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> SnapshotPolicyStats.parse(p, n), POLICY_STATS);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), SnapshotPolicyStats.PARSER, POLICY_STATS);
     }
 
     public SnapshotLifecycleStats() {
@@ -213,23 +214,25 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
         builder.field(RETENTION_TIME.getPreferredName(), retentionTime);
         builder.field(RETENTION_TIME_MILLIS.getPreferredName(), retentionTime.millis());
 
-        Map<String, SnapshotPolicyStats> metrics = getMetrics();
-        long totalTaken = metrics.values().stream().mapToLong(s -> s.snapshotsTaken.count()).sum();
-        long totalFailed = metrics.values().stream().mapToLong(s -> s.snapshotsFailed.count()).sum();
-        long totalDeleted = metrics.values().stream().mapToLong(s -> s.snapshotsDeleted.count()).sum();
-        long totalDeleteFailures = metrics.values().stream().mapToLong(s -> s.snapshotDeleteFailures.count()).sum();
+        List<SnapshotPolicyStats> metrics = getMetrics().values().stream()
+            .sorted(Comparator.comparing(SnapshotPolicyStats::getPolicyId)) // maintain a consistent order when serializing
+            .collect(Collectors.toList());
+        long totalTaken = metrics.stream().mapToLong(s -> s.snapshotsTaken.count()).sum();
+        long totalFailed = metrics.stream().mapToLong(s -> s.snapshotsFailed.count()).sum();
+        long totalDeleted = metrics.stream().mapToLong(s -> s.snapshotsDeleted.count()).sum();
+        long totalDeleteFailures = metrics.stream().mapToLong(s -> s.snapshotDeleteFailures.count()).sum();
         builder.field(TOTAL_TAKEN.getPreferredName(), totalTaken);
         builder.field(TOTAL_FAILED.getPreferredName(), totalFailed);
         builder.field(TOTAL_DELETIONS.getPreferredName(), totalDeleted);
         builder.field(TOTAL_DELETION_FAILURES.getPreferredName(), totalDeleteFailures);
-        builder.startObject(POLICY_STATS.getPreferredName());
-        for (Map.Entry<String, SnapshotPolicyStats> policy : metrics.entrySet()) {
-            SnapshotPolicyStats perPolicyMetrics = policy.getValue();
-            builder.startObject(perPolicyMetrics.policyId);
-            perPolicyMetrics.toXContent(builder, params);
+
+        builder.startArray(POLICY_STATS.getPreferredName());
+        for (SnapshotPolicyStats stats : metrics) {
+            builder.startObject();
+            stats.toXContent(builder, params);
             builder.endObject();
         }
-        builder.endObject();
+        builder.endArray();
         builder.endObject();
         return builder;
     }
@@ -268,22 +271,25 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
         private final CounterMetric snapshotsDeleted = new CounterMetric();
         private final CounterMetric snapshotDeleteFailures = new CounterMetric();
 
+        public static final ParseField POLICY_ID = new ParseField("policy");
         public static final ParseField SNAPSHOTS_TAKEN = new ParseField("snapshots_taken");
         public static final ParseField SNAPSHOTS_FAILED = new ParseField("snapshots_failed");
         public static final ParseField SNAPSHOTS_DELETED = new ParseField("snapshots_deleted");
         public static final ParseField SNAPSHOT_DELETION_FAILURES = new ParseField("snapshot_deletion_failures");
 
-        private static final ConstructingObjectParser<SnapshotPolicyStats, String> PARSER =
+        static final ConstructingObjectParser<SnapshotPolicyStats, Void> PARSER =
             new ConstructingObjectParser<>("snapshot_policy_stats", true,
-                (a, id) -> {
-                    long taken = (long) a[0];
-                    long failed = (long) a[1];
-                    long deleted = (long) a[2];
-                    long deleteFailed = (long) a[3];
+                a -> {
+                    String id = (String) a[0];
+                    long taken = (long) a[1];
+                    long failed = (long) a[2];
+                    long deleted = (long) a[3];
+                    long deleteFailed = (long) a[4];
                     return new SnapshotPolicyStats(id, taken, failed, deleted, deleteFailed);
                 });
 
         static {
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), POLICY_ID);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), SNAPSHOTS_TAKEN);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), SNAPSHOTS_FAILED);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), SNAPSHOTS_DELETED);
@@ -310,8 +316,8 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
             this.snapshotDeleteFailures.inc(in.readVLong());
         }
 
-        public static SnapshotPolicyStats parse(XContentParser parser, String policyId) {
-            return PARSER.apply(parser, policyId);
+        public static SnapshotPolicyStats parse(XContentParser parser) {
+            return PARSER.apply(parser, null);
         }
 
         public SnapshotPolicyStats merge(SnapshotPolicyStats other) {
@@ -337,6 +343,10 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
 
         void snapshotDeleteFailure() {
             snapshotDeleteFailures.inc();
+        }
+
+        public String getPolicyId() {
+            return policyId;
         }
 
         @Override
@@ -372,6 +382,7 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(SnapshotPolicyStats.POLICY_ID.getPreferredName(), policyId);
             builder.field(SnapshotPolicyStats.SNAPSHOTS_TAKEN.getPreferredName(), snapshotsTaken.count());
             builder.field(SnapshotPolicyStats.SNAPSHOTS_FAILED.getPreferredName(), snapshotsFailed.count());
             builder.field(SnapshotPolicyStats.SNAPSHOTS_DELETED.getPreferredName(), snapshotsDeleted.count());

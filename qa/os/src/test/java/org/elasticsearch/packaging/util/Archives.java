@@ -350,9 +350,9 @@ public class Archives {
         String pid = slurp(pidFile).trim();
         assertThat(pid, is(not(emptyOrNullString())));
 
-        Platforms.onLinux(() -> sh.run("kill -SIGTERM " + pid));
+        Platforms.onLinux(() -> sh.run("kill -SIGTERM " + pid + "; tail --pid=" + pid + " -f /dev/null"));
         Platforms.onWindows(() -> {
-            sh.run("Stop-Process -Force -Id " + pid + " ; Wait-Process -Id " + pid);
+            sh.run("Get-Process -Id " + pid + " | Stop-Process -Force; Wait-Process -Id " + pid);
 
             // Clear the asynchronous event handlers
             sh.runIgnoreExitCode("Get-EventSubscriber | " +

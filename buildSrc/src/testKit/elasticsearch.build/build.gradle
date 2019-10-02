@@ -14,12 +14,6 @@ dependencies {
 
 repositories {
     jcenter()
-    repositories {
-        maven {
-            name "local-repo"
-            url System.getProperty("local.repo.path")
-        }
-    }
 }
 
 // todo remove offending rules
@@ -29,6 +23,8 @@ forbiddenApisTest.enabled = false
 jarHell.enabled = false
 // we don't have tests for now
 test.enabled = false
+// This requires an additional Jar not part of build-tools
+loggerUsageCheck.enabled = false
 
 task hello {
     doFirst {

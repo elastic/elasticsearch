@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -111,7 +112,7 @@ public class TransformConfigManager {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = checkpoint.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
 
-            IndexRequest indexRequest = new IndexRequest(TransformInternalIndex.LATEST_INDEX_NAME)
+            IndexRequest indexRequest = new IndexRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME)
                     .opType(DocWriteRequest.OpType.INDEX)
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                     .id(TransformCheckpoint.documentId(checkpoint.getTransformId(), checkpoint.getCheckpoint()))
@@ -150,7 +151,7 @@ public class TransformConfigManager {
     public void updateTransformConfiguration(TransformConfig transformConfig,
                                              SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
                                              ActionListener<Boolean> listener) {
-        if (seqNoPrimaryTermAndIndex.getIndex().equals(TransformInternalIndex.LATEST_INDEX_NAME)) {
+        if (seqNoPrimaryTermAndIndex.getIndex().equals(TransformInternalIndexConstants.LATEST_INDEX_NAME)) {
             // update the config in the same, current index using optimistic concurrency control
             putTransformConfiguration(transformConfig, DocWriteRequest.OpType.INDEX, seqNoPrimaryTermAndIndex, listener);
         } else {
@@ -167,9 +168,9 @@ public class TransformConfigManager {
      * @param listener listener to alert on completion
      */
     public void deleteOldTransformConfigurations(String transformId, ActionListener<Boolean> listener) {
-        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(TransformInternalIndex.INDEX_NAME_PATTERN)
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)
             .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
-                .mustNot(QueryBuilders.termQuery("_index", TransformInternalIndex.LATEST_INDEX_NAME))
+                .mustNot(QueryBuilders.termQuery("_index", TransformInternalIndexConstants.LATEST_INDEX_NAME))
                 .filter(QueryBuilders.termQuery("_id", TransformConfig.documentId(transformId)))))
             .setIndicesOptions(IndicesOptions.lenientExpandOpen());
 
@@ -194,9 +195,9 @@ public class TransformConfigManager {
      * @param listener listener to alert on completion
      */
     public void deleteOldTransformStoredDocuments(String transformId, ActionListener<Boolean> listener) {
-        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(TransformInternalIndex.INDEX_NAME_PATTERN)
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(TransformInternalIndexConstants.INDEX_NAME_PATTERN)
             .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
-                .mustNot(QueryBuilders.termQuery("_index", TransformInternalIndex.LATEST_INDEX_NAME))
+                .mustNot(QueryBuilders.termQuery("_index", TransformInternalIndexConstants.LATEST_INDEX_NAME))
                 .filter(QueryBuilders.termQuery("_id", TransformStoredDoc.documentId(transformId)))))
             .setIndicesOptions(IndicesOptions.lenientExpandOpen());
 
@@ -221,7 +222,7 @@ public class TransformConfigManager {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = transformConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
 
-            IndexRequest indexRequest = new IndexRequest(TransformInternalIndex.LATEST_INDEX_NAME)
+            IndexRequest indexRequest = new IndexRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME)
                 .opType(optType)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .id(TransformConfig.documentId(transformConfig.getId()))
@@ -260,7 +261,7 @@ public class TransformConfigManager {
      */
     public void getTransformCheckpoint(String transformId, long checkpoint, ActionListener<TransformCheckpoint> resultListener) {
         QueryBuilder queryBuilder = QueryBuilders.termQuery("_id", TransformCheckpoint.documentId(transformId, checkpoint));
-        SearchRequest searchRequest = client.prepareSearch(TransformInternalIndex.INDEX_NAME_PATTERN)
+        SearchRequest searchRequest = client.prepareSearch(TransformInternalIndexConstants.INDEX_NAME_PATTERN)
             .setQuery(queryBuilder)
             // use sort to get the last
             .addSort("_index", SortOrder.DESC)
@@ -289,7 +290,7 @@ public class TransformConfigManager {
      */
     public void getTransformConfiguration(String transformId, ActionListener<TransformConfig> resultListener) {
         QueryBuilder queryBuilder = QueryBuilders.termQuery("_id", TransformConfig.documentId(transformId));
-        SearchRequest searchRequest = client.prepareSearch(TransformInternalIndex.INDEX_NAME_PATTERN)
+        SearchRequest searchRequest = client.prepareSearch(TransformInternalIndexConstants.INDEX_NAME_PATTERN)
             .setQuery(queryBuilder)
             // use sort to get the last
             .addSort("_index", SortOrder.DESC)
@@ -320,7 +321,7 @@ public class TransformConfigManager {
                                                    ActionListener<Tuple<TransformConfig,
                                                        SeqNoPrimaryTermAndIndex>> configAndVersionListener) {
         QueryBuilder queryBuilder = QueryBuilders.termQuery("_id", TransformConfig.documentId(transformId));
-        SearchRequest searchRequest = client.prepareSearch(TransformInternalIndex.INDEX_NAME_PATTERN)
+        SearchRequest searchRequest = client.prepareSearch(TransformInternalIndexConstants.INDEX_NAME_PATTERN)
             .setQuery(queryBuilder)
             // use sort to get the last
             .addSort("_index", SortOrder.DESC)
@@ -361,7 +362,7 @@ public class TransformConfigManager {
         String[] idTokens = ExpandedIdsMatcher.tokenizeExpression(transformIdsExpression);
         QueryBuilder queryBuilder = buildQueryFromTokenizedIds(idTokens, TransformConfig.NAME);
 
-        SearchRequest request = client.prepareSearch(TransformInternalIndex.INDEX_NAME_PATTERN)
+        SearchRequest request = client.prepareSearch(TransformInternalIndexConstants.INDEX_NAME_PATTERN)
             .addSort(TransformField.ID.getPreferredName(), SortOrder.ASC)
             .setFrom(pageParams.getFrom())
             .setTrackTotalHits(true)
@@ -412,7 +413,7 @@ public class TransformConfigManager {
         DeleteByQueryRequest request = new DeleteByQueryRequest()
             .setAbortOnVersionConflict(false); //since these documents are not updated, a conflict just means it was deleted previously
 
-        request.indices(TransformInternalIndex.INDEX_NAME_PATTERN);
+        request.indices(TransformInternalIndexConstants.INDEX_NAME_PATTERN);
         QueryBuilder query = QueryBuilders.termQuery(TransformField.ID.getPreferredName(), transformId);
         request.setQuery(query);
         request.setRefresh(true);
@@ -440,12 +441,12 @@ public class TransformConfigManager {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = stats.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
 
-            IndexRequest indexRequest = new IndexRequest(TransformInternalIndex.LATEST_INDEX_NAME)
+            IndexRequest indexRequest = new IndexRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .id(TransformStoredDoc.documentId(stats.getId()))
                 .source(source);
             if (seqNoPrimaryTermAndIndex != null &&
-                seqNoPrimaryTermAndIndex.getIndex().equals(TransformInternalIndex.LATEST_INDEX_NAME)) {
+                seqNoPrimaryTermAndIndex.getIndex().equals(TransformInternalIndexConstants.LATEST_INDEX_NAME)) {
                 indexRequest.opType(DocWriteRequest.OpType.INDEX)
                     .setIfSeqNo(seqNoPrimaryTermAndIndex.getSeqNo())
                     .setIfPrimaryTerm(seqNoPrimaryTermAndIndex.getPrimaryTerm());
@@ -471,7 +472,7 @@ public class TransformConfigManager {
     public void getTransformStoredDoc(String transformId,
                                       ActionListener<Tuple<TransformStoredDoc, SeqNoPrimaryTermAndIndex>> resultListener) {
         QueryBuilder queryBuilder = QueryBuilders.termQuery("_id", TransformStoredDoc.documentId(transformId));
-        SearchRequest searchRequest = client.prepareSearch(TransformInternalIndex.INDEX_NAME_PATTERN)
+        SearchRequest searchRequest = client.prepareSearch(TransformInternalIndexConstants.INDEX_NAME_PATTERN)
             .setQuery(queryBuilder)
             // use sort to get the last
             .addSort("_index", SortOrder.DESC)
@@ -507,7 +508,7 @@ public class TransformConfigManager {
             .filter(QueryBuilders.termsQuery(TransformField.ID.getPreferredName(), transformIds))
             .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(), TransformStoredDoc.NAME)));
 
-        SearchRequest searchRequest = client.prepareSearch(TransformInternalIndex.INDEX_NAME_PATTERN)
+        SearchRequest searchRequest = client.prepareSearch(TransformInternalIndexConstants.INDEX_NAME_PATTERN)
             .addSort(TransformField.ID.getPreferredName(), SortOrder.ASC)
             .addSort("_index", SortOrder.DESC)
             .setQuery(builder)

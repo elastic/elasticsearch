@@ -152,7 +152,7 @@ public class FetchSourceSubPhaseTests extends ESTestCase {
         SearchContext searchContext = new FetchSourceSubPhaseTestSearchContext(fetchSourceContext,
                 source == null ? null : BytesReference.bytes(source));
         FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
-        final SearchHit searchHit = new SearchHit(1, null, null, nestedIdentity, null);
+        final SearchHit searchHit = new SearchHit(1, null, nestedIdentity, null);
         hitContext.reset(searchHit, null, 1, null);
         FetchSourceSubPhase phase = new FetchSourceSubPhase();
         phase.hitExecute(searchContext, hitContext);

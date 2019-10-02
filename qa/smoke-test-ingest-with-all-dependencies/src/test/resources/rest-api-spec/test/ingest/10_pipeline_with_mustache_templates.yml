@@ -38,7 +38,6 @@
   - do:
       get:
         index: test
-        type: test
         id: 1
   - length: { _source: 2 }
   - match: { _source.index_type_id: "test/test/1" }
@@ -123,7 +122,6 @@
   - do:
       get:
         index: test
-        type: test
         id: 1
   - length: { _source: 5 }
   - match: { _source.field1: "1" }
@@ -145,7 +143,6 @@
   - do:
       get:
         index: test
-        type: test
         id: 1
   - length: { _source: 2 }
   - match: { _source.field1: "field2" }
@@ -165,7 +162,6 @@
   - do:
       get:
         index: test
-        type: test
         id: 1
   - length: { _source: 1 }
   - match: { _source.field_to_remove: "field2" }
@@ -214,7 +210,6 @@
   - do:
       get:
         index: test
-        type: test
         id: 1
   - length: { _source: 2 }
   - match: { _source.do_nothing: "foo" }
@@ -268,7 +263,6 @@
   - do:
       get:
         index: test
-        type: test
         id: 1
   - length: { _source: 2 }
   - match: { _source.values_flat: ["foo_bar", "foo_baz"] }

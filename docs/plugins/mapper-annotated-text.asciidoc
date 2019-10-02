@@ -114,12 +114,12 @@ in this example where a search for `Beck` will not match `Jeff Beck` :
 # Example documents
 PUT my_index/_doc/1
 {
-  "my_field": "[Beck](Beck) announced a new tour"<2>
+  "my_field": "[Beck](Beck) announced a new tour"<1>
 }
 
 PUT my_index/_doc/2
 {
-  "my_field": "[Jeff Beck](Jeff+Beck&Guitarist) plays a strat"<1>
+  "my_field": "[Jeff Beck](Jeff+Beck&Guitarist) plays a strat"<2>
 }
 
 # Example search

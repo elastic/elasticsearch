@@ -64,7 +64,7 @@ GET /myindex/_ilm/explain
 
 Which returns the following information:
 
-[source,console]
+[source,console-result]
 --------------------------------------------------
 {
   "indices" : {

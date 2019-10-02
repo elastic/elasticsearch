@@ -10,7 +10,7 @@ dependencies {
     }
 }
 
-testFixtures.useFixture ":x-pack:test:idp-fixture"
+testFixtures.useFixture ":x-pack:test:idp-fixture", "openldap"
 
 Project idpFixtureProject = xpackProject("test:idp-fixture")
 String outputDir = "${project.buildDir}/generated-resources/${project.name}"

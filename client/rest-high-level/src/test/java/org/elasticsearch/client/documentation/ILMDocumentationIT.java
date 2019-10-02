@@ -874,7 +874,6 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
 
         assertNotNull(policyMeta);
         assertThat(retrievedPolicy, equalTo(policy));
-        assertThat(policyVersion, equalTo(1L));
 
         createIndex("idx", Settings.builder().put("index.number_of_shards", 1).build());
 

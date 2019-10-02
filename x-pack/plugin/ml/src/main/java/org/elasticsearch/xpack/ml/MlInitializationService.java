@@ -39,6 +39,7 @@ class MlInitializationService implements LocalNodeMasterListener, ClusterStateLi
         this.clusterService = clusterService;
         this.client = client;
         clusterService.addListener(this);
+        clusterService.addLocalNodeMasterListener(this);
     }
 
     @Override
@@ -80,7 +81,7 @@ class MlInitializationService implements LocalNodeMasterListener, ClusterStateLi
         return ThreadPool.Names.GENERIC;
     }
 
-    private void installDailyMaintenanceService() {
+    private synchronized void installDailyMaintenanceService() {
         if (mlDailyMaintenanceService == null) {
             mlDailyMaintenanceService = new MlDailyMaintenanceService(clusterService.getClusterName(), threadPool, client);
             mlDailyMaintenanceService.start();
@@ -93,7 +94,7 @@ class MlInitializationService implements LocalNodeMasterListener, ClusterStateLi
         }
     }
 
-    private void uninstallDailyMaintenanceService() {
+    private synchronized void uninstallDailyMaintenanceService() {
         if (mlDailyMaintenanceService != null) {
             mlDailyMaintenanceService.stop();
             mlDailyMaintenanceService = null;
@@ -106,7 +107,7 @@ class MlInitializationService implements LocalNodeMasterListener, ClusterStateLi
     }
 
     /** For testing */
-    void setDailyMaintenanceService(MlDailyMaintenanceService service) {
+    synchronized void setDailyMaintenanceService(MlDailyMaintenanceService service) {
         mlDailyMaintenanceService = service;
     }
 }

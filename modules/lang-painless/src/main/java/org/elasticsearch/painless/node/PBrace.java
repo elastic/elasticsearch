@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -26,6 +27,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.FunctionTable;
 
 import java.util.List;
 import java.util.Map;
@@ -60,10 +62,10 @@ public final class PBrace extends AStoreable {
     }
 
     @Override
-    void analyze(Locals locals) {
-        prefix.analyze(locals);
+    void analyze(FunctionTable functions, Locals locals) {
+        prefix.analyze(functions, locals);
         prefix.expected = prefix.actual;
-        prefix = prefix.cast(locals);
+        prefix = prefix.cast(functions, locals);
 
         if (prefix.actual.isArray()) {
             sub = new PSubBrace(location, prefix.actual, index);
@@ -82,14 +84,14 @@ public final class PBrace extends AStoreable {
         sub.read = read;
         sub.expected = expected;
         sub.explicit = explicit;
-        sub.analyze(locals);
+        sub.analyze(functions, locals);
         actual = sub.actual;
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        prefix.write(writer, globals);
-        sub.write(writer, globals);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        prefix.write(classWriter, methodWriter, globals);
+        sub.write(classWriter, methodWriter, globals);
     }
 
     @Override
@@ -109,19 +111,19 @@ public final class PBrace extends AStoreable {
     }
 
     @Override
-    void setup(MethodWriter writer, Globals globals) {
-        prefix.write(writer, globals);
-        sub.setup(writer, globals);
+    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        prefix.write(classWriter, methodWriter, globals);
+        sub.setup(classWriter, methodWriter, globals);
     }
 
     @Override
-    void load(MethodWriter writer, Globals globals) {
-        sub.load(writer, globals);
+    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        sub.load(classWriter, methodWriter, globals);
     }
 
     @Override
-    void store(MethodWriter writer, Globals globals) {
-        sub.store(writer, globals);
+    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        sub.store(classWriter, methodWriter, globals);
     }
 
     @Override

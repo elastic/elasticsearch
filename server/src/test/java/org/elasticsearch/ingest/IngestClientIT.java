@@ -202,11 +202,11 @@ public class IngestClientIT extends ESIntegTestCase {
         BulkResponse response = client().bulk(bulkRequest).actionGet();
 
         assertThat(response.getItems().length, equalTo(bulkRequest.requests().size()));
-        Map<String, Object> inserted = client().prepareGet("index", "type", "1")
+        Map<String, Object> inserted = client().prepareGet("index", "1")
             .get().getSourceAsMap();
         assertThat(inserted.get("field1"), equalTo("val1"));
         assertThat(inserted.get("processed"), equalTo(true));
-        Map<String, Object> upserted = client().prepareGet("index", "type", "2")
+        Map<String, Object> upserted = client().prepareGet("index", "2")
             .get().getSourceAsMap();
         assertThat(upserted.get("field1"), equalTo("upserted_val"));
         assertThat(upserted.get("processed"), equalTo(true));
@@ -233,14 +233,14 @@ public class IngestClientIT extends ESIntegTestCase {
 
         client().prepareIndex("test", "type", "1").setPipeline("_id").setSource("field", "value", "fail", false).get();
 
-        Map<String, Object> doc = client().prepareGet("test", "type", "1")
+        Map<String, Object> doc = client().prepareGet("test", "1")
                 .get().getSourceAsMap();
         assertThat(doc.get("field"), equalTo("value"));
         assertThat(doc.get("processed"), equalTo(true));
 
         client().prepareBulk().add(
                 client().prepareIndex("test", "type", "2").setSource("field", "value2", "fail", false).setPipeline("_id")).get();
-        doc = client().prepareGet("test", "type", "2").get().getSourceAsMap();
+        doc = client().prepareGet("test", "2").get().getSourceAsMap();
         assertThat(doc.get("field"), equalTo("value2"));
         assertThat(doc.get("processed"), equalTo(true));
 

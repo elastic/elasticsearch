@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="basic"]
-[[update-data-frame-transform]]
+[[update-transform]]
 === Update {transforms} API
 
 [subs="attributes"]
@@ -12,12 +12,12 @@ Updates an existing {transform}.
 
 beta[]
 
-[[update-data-frame-transform-request]]
+[[update-transform-request]]
 ==== {api-request-title}
 
-`POST _data_frame/transforms/<data_frame_transform_id>/_update`
+`POST _data_frame/transforms/<transform_id>/_update`
 
-[[update-data-frame-transform-prereqs]]
+[[update-transform-prereqs]]
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have
@@ -28,7 +28,7 @@ have `read` and `view_index_metadata` privileges on the source index and `read`,
 information, see {stack-ov}/security-privileges.html[Security privileges] and
 {stack-ov}/built-in-roles.html[Built-in roles].
 
-[[update-data-frame-transform-desc]]
+[[update-transform-desc]]
 ==== {api-description-title}
 
 This API updates an existing {transform}. All settings except description do not
@@ -45,15 +45,15 @@ IMPORTANT:  You must use {kib} or this API to update a {transform}.
             If {es} {security-features} are enabled, do not give users any
             privileges on `.data-frame-internal*` indices.
 
-[[update-data-frame-transform-path-parms]]
+[[update-transform-path-parms]]
 ==== {api-path-parms-title}
 
-`<data_frame_transform_id>`::
+`<transform_id>`::
   (Required, string) Identifier for the {transform}. This identifier
   can contain lowercase alphanumeric characters (a-z and 0-9), hyphens, and
   underscores. It must start and end with alphanumeric characters.
 
-[[update-data-frame-transform-query-parms]]
+[[update-transform-query-parms]]
 ==== {api-query-parms-title}
 
 `defer_validation`::
@@ -61,7 +61,7 @@ IMPORTANT:  You must use {kib} or this API to update a {transform}.
   behavior may be desired if the source index does not exist until after the
   {transform} is updated.
 
-[[update-data-frame-transform-request-body]]
+[[update-transform-request-body]]
 ==== {api-request-body-title}
 
 `description`::
@@ -118,7 +118,7 @@ delays.
       (Optional, <<time-units, time units>>) The time delay between the current 
       time and the latest input data time. The default value is `60s`.
 
-[[update-data-frame-transform-example]]
+[[update-transform-example]]
 ==== {api-examples-title}
 
 [source,console]

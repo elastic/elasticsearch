@@ -108,7 +108,7 @@ public class TransportPutDataFrameAnalyticsAction
     }
 
     @Override
-    protected void masterOperation(Task task, PutDataFrameAnalyticsAction.Request request, ClusterState state,
+    protected void masterOperation(PutDataFrameAnalyticsAction.Request request, ClusterState state,
                                    ActionListener<PutDataFrameAnalyticsAction.Response> listener) {
         validateConfig(request.getConfig());
         DataFrameAnalyticsConfig memoryCappedConfig =

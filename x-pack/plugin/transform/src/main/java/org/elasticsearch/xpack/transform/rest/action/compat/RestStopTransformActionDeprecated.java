@@ -16,6 +16,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
+import org.elasticsearch.xpack.core.transform.action.compat.StopTransformActionDeprecated;
 
 public class RestStopTransformActionDeprecated extends BaseRestHandler {
 
@@ -43,7 +44,7 @@ public class RestStopTransformActionDeprecated extends BaseRestHandler {
             timeout,
             allowNoMatch);
 
-        return channel -> client.execute(StopTransformAction.INSTANCE, request,
+        return channel -> client.execute(StopTransformActionDeprecated.INSTANCE, request,
                 new RestToXContentListener<>(channel));
     }
 

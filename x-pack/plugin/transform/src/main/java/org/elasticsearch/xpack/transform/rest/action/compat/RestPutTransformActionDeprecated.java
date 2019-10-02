@@ -17,6 +17,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
+import org.elasticsearch.xpack.core.transform.action.compat.PutTransformActionDeprecated;
 
 import java.io.IOException;
 
@@ -43,6 +44,6 @@ public class RestPutTransformActionDeprecated extends BaseRestHandler {
         boolean deferValidation = restRequest.paramAsBoolean(TransformField.DEFER_VALIDATION.getPreferredName(), false);
         PutTransformAction.Request request = PutTransformAction.Request.fromXContent(parser, id, deferValidation);
 
-        return channel -> client.execute(PutTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(PutTransformActionDeprecated.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

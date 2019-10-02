@@ -17,6 +17,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
+import org.elasticsearch.xpack.core.transform.action.compat.StartTransformActionDeprecated;
 
 public class RestStartTransformActionDeprecated extends BaseRestHandler {
 
@@ -34,7 +35,7 @@ public class RestStartTransformActionDeprecated extends BaseRestHandler {
         String id = restRequest.param(TransformField.ID.getPreferredName());
         StartTransformAction.Request request = new StartTransformAction.Request(id);
         request.timeout(restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT));
-        return channel -> client.execute(StartTransformAction.INSTANCE, request,
+        return channel -> client.execute(StartTransformActionDeprecated.INSTANCE, request,
                 new RestToXContentListener<>(channel));
     }
 

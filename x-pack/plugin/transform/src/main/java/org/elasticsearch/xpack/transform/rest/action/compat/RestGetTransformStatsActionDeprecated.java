@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
+import org.elasticsearch.xpack.core.transform.action.compat.GetTransformStatsActionDeprecated;
 
 import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MATCH;
 
@@ -43,7 +44,7 @@ public class RestGetTransformStatsActionDeprecated extends BaseRestHandler {
                 new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                     restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
         }
-        return channel -> client.execute(GetTransformStatsAction.INSTANCE, request,
+        return channel -> client.execute(GetTransformStatsActionDeprecated.INSTANCE, request,
                 new RestToXContentListener<>(channel));
     }
 

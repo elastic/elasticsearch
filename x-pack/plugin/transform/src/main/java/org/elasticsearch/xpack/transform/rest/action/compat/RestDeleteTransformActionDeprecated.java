@@ -16,6 +16,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
+import org.elasticsearch.xpack.core.transform.action.compat.DeleteTransformActionDeprecated;
 
 public class RestDeleteTransformActionDeprecated extends BaseRestHandler {
 
@@ -37,7 +38,7 @@ public class RestDeleteTransformActionDeprecated extends BaseRestHandler {
         boolean force = restRequest.paramAsBoolean(TransformField.FORCE.getPreferredName(), false);
         DeleteTransformAction.Request request = new DeleteTransformAction.Request(id, force);
 
-        return channel -> client.execute(DeleteTransformAction.INSTANCE, request,
+        return channel -> client.execute(DeleteTransformActionDeprecated.INSTANCE, request,
                 new RestToXContentListener<>(channel));
     }
 

@@ -17,6 +17,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
+import org.elasticsearch.xpack.core.transform.action.compat.PreviewTransformActionDeprecated;
 
 import java.io.IOException;
 
@@ -40,6 +41,6 @@ public class RestPreviewTransformActionDeprecated extends BaseRestHandler {
         XContentParser parser = restRequest.contentParser();
 
         PreviewTransformAction.Request request = PreviewTransformAction.Request.fromXContent(parser);
-        return channel -> client.execute(PreviewTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(PreviewTransformActionDeprecated.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

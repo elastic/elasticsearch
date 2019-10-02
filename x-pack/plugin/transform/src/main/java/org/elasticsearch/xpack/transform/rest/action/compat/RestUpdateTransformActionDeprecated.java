@@ -17,6 +17,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
+import org.elasticsearch.xpack.core.transform.action.compat.UpdateTransformActionDeprecated;
 
 import java.io.IOException;
 
@@ -43,6 +44,6 @@ public class RestUpdateTransformActionDeprecated extends BaseRestHandler {
         XContentParser parser = restRequest.contentParser();
         UpdateTransformAction.Request request = UpdateTransformAction.Request.fromXContent(parser, id, deferValidation);
 
-        return channel -> client.execute(UpdateTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(UpdateTransformActionDeprecated.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

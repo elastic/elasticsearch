@@ -92,7 +92,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
       testClusters."${baseName}".nextNodeToNextVersion()
     }
     systemProperty 'tests.rest.suite', 'mixed_cluster'
-    systemProperty 'tests.upgrade_from_version', version.toString()
+    systemProperty 'tests.upgrade_from_version', project.version.replace("-SNAPSHOT", "")
     systemProperty 'tests.first_round', 'true'
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",") }")
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName() }")
@@ -105,7 +105,7 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
       testClusters."${baseName}".nextNodeToNextVersion()
     }
     systemProperty 'tests.rest.suite', 'mixed_cluster'
-    systemProperty 'tests.upgrade_from_version', version.toString()
+    systemProperty 'tests.upgrade_from_version', project.version.replace("-SNAPSHOT", "")
     systemProperty 'tests.first_round', 'false'
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",") }")
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName() }")

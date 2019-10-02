@@ -23,7 +23,7 @@ TIP: In production environments, we strongly recommend using a separate cluster
 monitoring cluster prevents production cluster outages from impacting your 
 ability to access your monitoring data. It also prevents monitoring activities 
 from impacting the performance of your production cluster. See
-{stack-ov}/monitoring-production.html[Monitoring in a production environment].
+<<monitoring-production>>.
 
 --
 

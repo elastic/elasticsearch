@@ -107,7 +107,7 @@ cluster that stores the monitoring data must have at least one
 <<ingest,ingest node>>. 
 
 For more information about typical monitoring architectures, 
-see {stack-ov}/how-monitoring-works.html[How Monitoring Works].
+see <<how-monitoring-works>>.
 --
 
 . If you choose to use an `http` exporter: 

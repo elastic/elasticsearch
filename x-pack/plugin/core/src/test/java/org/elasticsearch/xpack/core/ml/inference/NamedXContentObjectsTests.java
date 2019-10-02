@@ -17,6 +17,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.EnsembleTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeTests;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncodingTests;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.LenientlyParsedPreProcessor;
@@ -157,7 +158,7 @@ public class NamedXContentObjectsTests extends AbstractXContentTestCase<NamedXCo
         NamedObjectContainer container = new NamedObjectContainer();
         container.setPreProcessors(preProcessors);
         container.setUseExplicitPreprocessorOrder(true);
-        container.setModel(TreeTests.buildRandomTree(5, 4));
+        container.setModel(randomFrom(TreeTests.createRandom(), EnsembleTests.createRandom()));
         return container;
     }
 

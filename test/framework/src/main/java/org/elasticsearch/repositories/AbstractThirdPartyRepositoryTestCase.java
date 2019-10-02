@@ -73,6 +73,12 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         deleteAndAssertEmpty(getRepository().basePath());
     }
 
+    @Override
+    public void tearDown() throws Exception {
+        deleteAndAssertEmpty(getRepository().basePath());
+        super.tearDown();
+    }
+
     private void deleteAndAssertEmpty(BlobPath path) throws Exception {
         final BlobStoreRepository repo = getRepository();
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();

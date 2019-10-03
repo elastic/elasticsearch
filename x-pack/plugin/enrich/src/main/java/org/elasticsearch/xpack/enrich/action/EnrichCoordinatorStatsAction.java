@@ -145,7 +145,8 @@ public class EnrichCoordinatorStatsAction extends ActionType<EnrichCoordinatorSt
 
         @Override
         protected NodeResponse nodeOperation(NodeRequest request, Task task) {
-            return new NodeResponse(clusterService.localNode(), coordinator.getStats());
+            DiscoveryNode node = clusterService.localNode();
+            return new NodeResponse(node, coordinator.getStats(node.getId()));
         }
     }
 

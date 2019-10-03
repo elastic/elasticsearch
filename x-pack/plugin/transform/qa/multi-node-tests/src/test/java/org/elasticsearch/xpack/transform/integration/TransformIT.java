@@ -16,9 +16,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.transform.transforms.DataFrameTransformConfig;
-import org.elasticsearch.client.transform.transforms.DataFrameTransformConfigUpdate;
-import org.elasticsearch.client.transform.transforms.DataFrameTransformStats;
+import org.elasticsearch.client.transform.transforms.TransformConfig;
+import org.elasticsearch.client.transform.transforms.TransformConfigUpdate;
+import org.elasticsearch.client.transform.transforms.TransformStats;
 import org.elasticsearch.client.transform.transforms.DestConfig;
 import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.client.transform.transforms.pivot.SingleGroupSource;
@@ -65,7 +65,7 @@ public class TransformIT extends TransformIntegTestCase {
             .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
-        DataFrameTransformConfig config = createTransformConfig("transform-crud",
+        TransformConfig config = createTransformConfig("transform-crud",
             groups,
             aggs,
             "reviews-by-user-business-day",
@@ -78,7 +78,7 @@ public class TransformIT extends TransformIntegTestCase {
 
         stopTransform(config.getId());
 
-        DataFrameTransformConfig storedConfig = getTransform(config.getId()).getTransformConfigurations().get(0);
+        TransformConfig storedConfig = getTransform(config.getId()).getTransformConfigurations().get(0);
         assertThat(storedConfig.getVersion(), equalTo(Version.CURRENT));
         Instant now = Instant.now();
         assertTrue("[create_time] is not before current time", storedConfig.getCreateTime().isBefore(now));
@@ -98,7 +98,7 @@ public class TransformIT extends TransformIntegTestCase {
             .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
-        DataFrameTransformConfig config = createTransformConfigBuilder("transform-crud",
+        TransformConfig config = createTransformConfigBuilder("transform-crud",
             groups,
             aggs,
             "reviews-by-user-business-day",
@@ -112,7 +112,7 @@ public class TransformIT extends TransformIntegTestCase {
 
         waitUntilCheckpoint(config.getId(), 1L);
         assertThat(getTransformStats(config.getId()).getTransformsStats().get(0).getState(),
-                equalTo(DataFrameTransformStats.State.STARTED));
+                equalTo(TransformStats.State.STARTED));
 
         long docsIndexed = getTransformStats(config.getId())
             .getTransformsStats()
@@ -120,7 +120,7 @@ public class TransformIT extends TransformIntegTestCase {
             .getIndexerStats()
             .getNumDocuments();
 
-        DataFrameTransformConfig storedConfig = getTransform(config.getId()).getTransformConfigurations().get(0);
+        TransformConfig storedConfig = getTransform(config.getId()).getTransformConfigurations().get(0);
         assertThat(storedConfig.getVersion(), equalTo(Version.CURRENT));
         Instant now = Instant.now();
         assertTrue("[create_time] is not before current time", storedConfig.getCreateTime().isBefore(now));
@@ -155,7 +155,7 @@ public class TransformIT extends TransformIntegTestCase {
 
         String id = "transform-to-update";
         String dest = "reviews-by-user-business-day-to-update";
-        DataFrameTransformConfig config = createTransformConfigBuilder(id,
+        TransformConfig config = createTransformConfigBuilder(id,
             groups,
             aggs,
             dest,
@@ -169,7 +169,7 @@ public class TransformIT extends TransformIntegTestCase {
 
         waitUntilCheckpoint(config.getId(), 1L);
         assertThat(getTransformStats(config.getId()).getTransformsStats().get(0).getState(),
-            oneOf(DataFrameTransformStats.State.STARTED, DataFrameTransformStats.State.INDEXING));
+            oneOf(TransformStats.State.STARTED, TransformStats.State.INDEXING));
 
         long docsIndexed = getTransformStats(config.getId())
             .getTransformsStats()
@@ -177,13 +177,13 @@ public class TransformIT extends TransformIntegTestCase {
             .getIndexerStats()
             .getNumDocuments();
 
-        DataFrameTransformConfig storedConfig = getTransform(config.getId()).getTransformConfigurations().get(0);
+        TransformConfig storedConfig = getTransform(config.getId()).getTransformConfigurations().get(0);
         assertThat(storedConfig.getVersion(), equalTo(Version.CURRENT));
         Instant now = Instant.now();
         assertTrue("[create_time] is not before current time", storedConfig.getCreateTime().isBefore(now));
 
         String pipelineId = "add_forty_two";
-        DataFrameTransformConfigUpdate update = DataFrameTransformConfigUpdate.builder()
+        TransformConfigUpdate update = TransformConfigUpdate.builder()
             .setDescription("updated config")
             .setDest(DestConfig.builder().setIndex(dest).setPipeline(pipelineId).build())
             .build();

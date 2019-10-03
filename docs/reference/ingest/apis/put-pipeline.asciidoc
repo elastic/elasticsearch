@@ -19,6 +19,51 @@ PUT _ingest/pipeline/my-pipeline-id
 }
 --------------------------------------------------
 
+[float]
+[[versioning-pipelines]]
+==== Pipeline versioning
+
+Pipelines can optionally add a `version` number, which can be any integer value,
+in order to simplify pipeline management by external systems. The `version`
+field is completely optional and it is meant solely for external management of
+pipelines.
+
+[source,console]
+--------------------------------------------------
+PUT /_ingest/pipeline/my-pipeline-id
+{
+  "description" : "describe pipeline",
+  "version" : 123,
+  "processors" : [
+    {
+      "set" : {
+        "field": "foo",
+        "value": "bar"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+To unset a `version`, simply replace the pipeline without specifying
+one.
+
+[source,console]
+--------------------------------------------------
+PUT /_ingest/pipeline/my-pipeline-id
+{
+  "description" : "describe pipeline",
+  "processors" : [
+    {
+      "set" : {
+        "field": "foo",
+        "value": "bar"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
 //////////////////////////
 
 [source,console]

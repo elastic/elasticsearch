@@ -436,6 +436,47 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testDeleteByQueryTask() throws Exception {
+        final String sourceIndex = "source456";
+        {
+            // Prepare
+            Settings settings = Settings.builder()
+                .put("number_of_shards", 1)
+                .put("number_of_replicas", 0)
+                .build();
+            createIndex(sourceIndex, settings);
+            assertEquals(
+                RestStatus.OK,
+                highLevelClient().bulk(
+                    new BulkRequest()
+                        .add(new IndexRequest(sourceIndex).id("1")
+                            .source(Collections.singletonMap("foo", 1), XContentType.JSON))
+                        .add(new IndexRequest(sourceIndex).id("2")
+                            .source(Collections.singletonMap("foo", 2), XContentType.JSON))
+                        .add(new IndexRequest(sourceIndex).id("3")
+                            .source(Collections.singletonMap("foo", 3), XContentType.JSON))
+                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
+                    RequestOptions.DEFAULT
+                ).status()
+            );
+        }
+        {
+            // tag::submit-delete_by_query-task
+            DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest();
+            deleteByQueryRequest.indices(sourceIndex);
+            deleteByQueryRequest.setQuery(new IdsQueryBuilder().addIds("1"));
+            deleteByQueryRequest.setRefresh(true);
+
+            TaskSubmissionResponse deleteByQuerySubmission = highLevelClient()
+                .submitDeleteByQueryTask(deleteByQueryRequest, RequestOptions.DEFAULT);
+
+            String taskId = deleteByQuerySubmission.getTask();
+            // end::submit-delete_by_query-task
+
+            assertBusy(checkCompletionStatus(client(), taskId));
+        }
+    }
+
     private static TaskId findTaskToRethrottle(String actionName) throws IOException {
         long start = System.nanoTime();
         ListTasksRequest request = new ListTasksRequest();

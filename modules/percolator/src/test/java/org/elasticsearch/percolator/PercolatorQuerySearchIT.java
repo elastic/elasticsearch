@@ -665,7 +665,6 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                 .get();
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getType(), equalTo("type"));
         assertThat(response.getHits().getAt(0).getIndex(), equalTo("test1"));
 
         response = client().prepareSearch()
@@ -674,7 +673,6 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                 .get();
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).getType(), equalTo("type"));
         assertThat(response.getHits().getAt(0).getIndex(), equalTo("test2"));
 
         // Unacceptable:

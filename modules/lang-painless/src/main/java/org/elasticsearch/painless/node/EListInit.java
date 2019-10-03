@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -97,19 +98,19 @@ public final class EListInit extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
 
-        writer.newInstance(MethodWriter.getType(actual));
-        writer.dup();
-        writer.invokeConstructor(
+        methodWriter.newInstance(MethodWriter.getType(actual));
+        methodWriter.dup();
+        methodWriter.invokeConstructor(
                     Type.getType(constructor.javaConstructor.getDeclaringClass()), Method.getMethod(constructor.javaConstructor));
 
         for (AExpression value : values) {
-            writer.dup();
-            value.write(writer, globals);
-            writer.invokeMethodCall(method);
-            writer.pop();
+            methodWriter.dup();
+            value.write(classWriter, methodWriter, globals);
+            methodWriter.invokeMethodCall(method);
+            methodWriter.pop();
         }
     }
 

@@ -34,9 +34,18 @@ public final class GetPolicyResponse {
         args -> new GetPolicyResponse((List<NamedPolicy>) args[0])
     );
 
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<NamedPolicy, Void> CONFIG_PARSER = new ConstructingObjectParser<>(
+        "config",
+        true,
+        args -> (NamedPolicy) args[0]
+    );
+
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
-            (p, c) -> NamedPolicy.fromXContent(p), new ParseField("policies"));
+            CONFIG_PARSER::apply, new ParseField("policies"));
+        CONFIG_PARSER.declareObject(ConstructingObjectParser.constructorArg(),
+            (p, c) -> NamedPolicy.fromXContent(p), new ParseField("config"));
     }
 
     private final List<NamedPolicy> policies;

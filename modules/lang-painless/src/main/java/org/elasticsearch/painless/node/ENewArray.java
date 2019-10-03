@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -85,30 +86,30 @@ public final class ENewArray extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
 
         if (initialize) {
-            writer.push(arguments.size());
-            writer.newArray(MethodWriter.getType(actual.getComponentType()));
+            methodWriter.push(arguments.size());
+            methodWriter.newArray(MethodWriter.getType(actual.getComponentType()));
 
             for (int index = 0; index < arguments.size(); ++index) {
                 AExpression argument = arguments.get(index);
 
-                writer.dup();
-                writer.push(index);
-                argument.write(writer, globals);
-                writer.arrayStore(MethodWriter.getType(actual.getComponentType()));
+                methodWriter.dup();
+                methodWriter.push(index);
+                argument.write(classWriter, methodWriter, globals);
+                methodWriter.arrayStore(MethodWriter.getType(actual.getComponentType()));
             }
         } else {
             for (AExpression argument : arguments) {
-                argument.write(writer, globals);
+                argument.write(classWriter, methodWriter, globals);
             }
 
             if (arguments.size() > 1) {
-                writer.visitMultiANewArrayInsn(MethodWriter.getType(actual).getDescriptor(), arguments.size());
+                methodWriter.visitMultiANewArrayInsn(MethodWriter.getType(actual).getDescriptor(), arguments.size());
             } else {
-                writer.newArray(MethodWriter.getType(actual.getComponentType()));
+                methodWriter.newArray(MethodWriter.getType(actual.getComponentType()));
             }
         }
     }

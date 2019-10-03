@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
@@ -28,6 +29,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Type;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 
@@ -61,9 +63,11 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
 
     @Override
     void analyze(Locals locals) {
-        SReturn code = new SReturn(location, new ENewArray(location, type, Arrays.asList(new EVariable(location, "size")), false));
+        SReturn code = new SReturn(location,
+                new ENewArray(location, type, Arrays.asList(new EVariable(location, "size")), false));
         function = new SFunction(location, type, locals.getNextSyntheticName(),
-                Arrays.asList("int"), Arrays.asList("size"), Arrays.asList(code), true);
+                Collections.singletonList("int"), Collections.singletonList("size"),
+                new SBlock(location, Collections.singletonList(code)), true);
         function.storeSettings(settings);
         function.generateSignature(locals.getPainlessLookup());
         function.extractVariables(null);
@@ -82,13 +86,13 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         if (ref != null) {
-            writer.writeDebugInfo(location);
-            writer.invokeLambdaCall(ref);
+            methodWriter.writeDebugInfo(location);
+            methodWriter.invokeLambdaCall(ref);
         } else {
             // push a null instruction as a placeholder for future lambda instructions
-            writer.push((String)null);
+            methodWriter.push((String)null);
         }
 
         globals.addSyntheticMethod(function);

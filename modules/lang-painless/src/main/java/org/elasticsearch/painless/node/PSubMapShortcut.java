@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -90,14 +91,14 @@ final class PSubMapShortcut extends AStoreable {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        index.write(writer, globals);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        index.write(classWriter, methodWriter, globals);
 
-        writer.writeDebugInfo(location);
-        writer.invokeMethodCall(getter);
+        methodWriter.writeDebugInfo(location);
+        methodWriter.invokeMethodCall(getter);
 
         if (getter.returnType != getter.javaMethod.getReturnType()) {
-            writer.checkCast(MethodWriter.getType(getter.returnType));
+            methodWriter.checkCast(MethodWriter.getType(getter.returnType));
         }
     }
 
@@ -117,25 +118,25 @@ final class PSubMapShortcut extends AStoreable {
     }
 
     @Override
-    void setup(MethodWriter writer, Globals globals) {
-        index.write(writer, globals);
+    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        index.write(classWriter, methodWriter, globals);
     }
 
     @Override
-    void load(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
-        writer.invokeMethodCall(getter);
+    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
+        methodWriter.invokeMethodCall(getter);
 
         if (getter.returnType != getter.javaMethod.getReturnType()) {
-            writer.checkCast(MethodWriter.getType(getter.returnType));
+            methodWriter.checkCast(MethodWriter.getType(getter.returnType));
         }
     }
 
     @Override
-    void store(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
-        writer.invokeMethodCall(setter);
-        writer.writePop(MethodWriter.getType(setter.returnType).getSize());
+    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
+        methodWriter.invokeMethodCall(setter);
+        methodWriter.writePop(MethodWriter.getType(setter.returnType).getSize());
     }
 
     @Override

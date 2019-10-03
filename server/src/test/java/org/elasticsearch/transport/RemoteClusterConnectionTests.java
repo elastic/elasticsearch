@@ -101,6 +101,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
 
 public class RemoteClusterConnectionTests extends ESTestCase {
 
@@ -344,14 +345,14 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     CountDownLatch latchConnected = new CountDownLatch(1);
                     connectionManager.addListener(new TransportConnectionListener() {
                         @Override
-                        public void onNodeDisconnected(DiscoveryNode node) {
+                        public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
                             if (node.equals(discoverableNode)) {
                                 latchDisconnect.countDown();
                             }
                         }
 
                         @Override
-                        public void onNodeConnected(DiscoveryNode node) {
+                        public void onNodeConnected(DiscoveryNode node, Transport.Connection connection) {
                             if (node.equals(spareNode)) {
                                 latchConnected.countDown();
                             }
@@ -480,7 +481,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 ConnectionManager delegate = new ConnectionManager(Settings.EMPTY, service.transport);
                 StubbableConnectionManager connectionManager = new StubbableConnectionManager(delegate, Settings.EMPTY, service.transport);
 
-                connectionManager.addConnectBehavior(seedNode.getAddress(), (cm, discoveryNode) -> {
+                connectionManager.addGetConnectionBehavior(seedNode.getAddress(), (cm, discoveryNode) -> {
                     if (discoveryNode == seedNode) {
                         return seedConnection;
                     }
@@ -958,8 +959,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                 barrier.await();
                                 for (int j = 0; j < numGetCalls; j++) {
                                     try {
-                                        DiscoveryNode node = connection.getAnyConnectedNode();
-                                        assertNotNull(node);
+                                        Transport.Connection lowLevelConnection = connection.getConnection();
+                                        assertNotNull(lowLevelConnection);
                                     } catch (NoSuchRemoteClusterException e) {
                                         // ignore, this is an expected exception
                                     }
@@ -989,7 +990,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                             ActionListener.map(fut, x -> null)));
                                     } else {
                                         DiscoveryNode node = randomFrom(discoverableNodes).v2().get();
-                                        connection.onNodeDisconnected(node);
+                                        connection.onNodeDisconnected(node, mock(Transport.Connection.class));
                                     }
                                 }
                             } catch (Exception ex) {
@@ -1097,14 +1098,14 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 ConnectionManager delegate = new ConnectionManager(Settings.EMPTY, service.transport);
                 StubbableConnectionManager connectionManager = new StubbableConnectionManager(delegate, Settings.EMPTY, service.transport);
 
-                connectionManager.setDefaultNodeConnectedBehavior(cm -> Collections.singleton(connectedNode));
+                connectionManager.setDefaultNodeConnectedBehavior((cm, node) -> connectedNode.equals(node));
 
-                connectionManager.addConnectBehavior(connectedNode.getAddress(), (cm, discoveryNode) -> {
-                    if (discoveryNode == connectedNode) {
-                        return seedConnection;
-                    }
-                    return cm.getConnection(discoveryNode);
+                connectionManager.addGetConnectionBehavior(connectedNode.getAddress(), (cm, discoveryNode) -> seedConnection);
+
+                connectionManager.addGetConnectionBehavior(disconnectedNode.getAddress(), (cm, discoveryNode) -> {
+                    throw new NodeNotConnectedException(discoveryNode, "");
                 });
+
                 service.start();
                 service.acceptIncomingRequests();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
@@ -1118,13 +1119,13 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     for (int i = 0; i < 10; i++) {
                         // we don't use the transport service connection manager so we will get a proxy connection for the local node
                         Transport.Connection remoteConnection = connection.getConnection(service.getLocalNode());
-                        assertThat(remoteConnection, instanceOf(RemoteClusterConnection.ProxyConnection.class));
+                        assertThat(remoteConnection, instanceOf(RemoteConnectionManager.ProxyConnection.class));
                         assertThat(remoteConnection.getNode(), equalTo(service.getLocalNode()));
                     }
                     for (int i = 0; i < 10; i++) {
                         //always a proxy connection as the target node is not connected
                         Transport.Connection remoteConnection = connection.getConnection(disconnectedNode);
-                        assertThat(remoteConnection, instanceOf(RemoteClusterConnection.ProxyConnection.class));
+                        assertThat(remoteConnection, instanceOf(RemoteConnectionManager.ProxyConnection.class));
                         assertThat(remoteConnection.getNode(), sameInstance(disconnectedNode));
                     }
                 }

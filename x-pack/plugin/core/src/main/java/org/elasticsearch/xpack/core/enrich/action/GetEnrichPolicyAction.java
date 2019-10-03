@@ -105,8 +105,16 @@ public class GetEnrichPolicyAction extends ActionType<GetEnrichPolicyAction.Resp
             {
                 builder.startArray("policies");
                 {
-                    for (EnrichPolicy.NamedPolicy policy: policies) {
-                        policy.toXContent(builder, params);
+                    for (EnrichPolicy.NamedPolicy policy : policies) {
+                        builder.startObject();
+                        {
+                            builder.startObject("config");
+                            {
+                                policy.toXContent(builder, params);
+                            }
+                            builder.endObject();
+                        }
+                        builder.endObject();
                     }
                 }
                 builder.endArray();

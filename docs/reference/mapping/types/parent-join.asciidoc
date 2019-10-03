@@ -179,7 +179,6 @@ Will return:
         "hits": [
             {
                 "_index": "my_index",
-                "_type": "_doc",
                 "_id": "1",
                 "_score": null,
                 "_source": {
@@ -192,7 +191,6 @@ Will return:
             },
             {
                 "_index": "my_index",
-                "_type": "_doc",
                 "_id": "2",
                 "_score": null,
                 "_source": {
@@ -205,7 +203,6 @@ Will return:
             },
             {
                 "_index": "my_index",
-                "_type": "_doc",
                 "_id": "3",
                 "_score": null,
                 "_routing": "1",
@@ -222,7 +219,6 @@ Will return:
             },
             {
                 "_index": "my_index",
-                "_type": "_doc",
                 "_id": "4",
                 "_score": null,
                 "_routing": "1",

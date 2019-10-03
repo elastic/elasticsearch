@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -154,21 +155,21 @@ public final class ECallLocal extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
 
         if (localMethod != null) {
             for (AExpression argument : arguments) {
-                argument.write(writer, globals);
+                argument.write(classWriter, methodWriter, globals);
             }
 
-            writer.invokeStatic(CLASS_TYPE, new Method(localMethod.name, localMethod.methodType.toMethodDescriptorString()));
+            methodWriter.invokeStatic(CLASS_TYPE, new Method(localMethod.name, localMethod.methodType.toMethodDescriptorString()));
         } else if (importedMethod != null) {
             for (AExpression argument : arguments) {
-                argument.write(writer, globals);
+                argument.write(classWriter, methodWriter, globals);
             }
 
-            writer.invokeStatic(Type.getType(importedMethod.targetClass),
+            methodWriter.invokeStatic(Type.getType(importedMethod.targetClass),
                     new Method(importedMethod.javaMethod.getName(), importedMethod.methodType.toMethodDescriptorString()));
         } else if (classBinding != null) {
             String name = globals.addClassBinding(classBinding.javaConstructor.getDeclaringClass());
@@ -177,45 +178,45 @@ public final class ECallLocal extends AExpression {
 
             Label nonNull = new Label();
 
-            writer.loadThis();
-            writer.getField(CLASS_TYPE, name, type);
-            writer.ifNonNull(nonNull);
-            writer.loadThis();
-            writer.newInstance(type);
-            writer.dup();
+            methodWriter.loadThis();
+            methodWriter.getField(CLASS_TYPE, name, type);
+            methodWriter.ifNonNull(nonNull);
+            methodWriter.loadThis();
+            methodWriter.newInstance(type);
+            methodWriter.dup();
 
             if (classBindingOffset == 1) {
-                writer.loadThis();
+                methodWriter.loadThis();
             }
 
             for (int argument = 0; argument < javaConstructorParameterCount; ++argument) {
-                arguments.get(argument).write(writer, globals);
+                arguments.get(argument).write(classWriter, methodWriter, globals);
             }
 
-            writer.invokeConstructor(type, Method.getMethod(classBinding.javaConstructor));
-            writer.putField(CLASS_TYPE, name, type);
+            methodWriter.invokeConstructor(type, Method.getMethod(classBinding.javaConstructor));
+            methodWriter.putField(CLASS_TYPE, name, type);
 
-            writer.mark(nonNull);
-            writer.loadThis();
-            writer.getField(CLASS_TYPE, name, type);
+            methodWriter.mark(nonNull);
+            methodWriter.loadThis();
+            methodWriter.getField(CLASS_TYPE, name, type);
 
             for (int argument = 0; argument < classBinding.javaMethod.getParameterCount(); ++argument) {
-                arguments.get(argument + javaConstructorParameterCount).write(writer, globals);
+                arguments.get(argument + javaConstructorParameterCount).write(classWriter, methodWriter, globals);
             }
 
-            writer.invokeVirtual(type, Method.getMethod(classBinding.javaMethod));
+            methodWriter.invokeVirtual(type, Method.getMethod(classBinding.javaMethod));
         } else if (instanceBinding != null) {
             String name = globals.addInstanceBinding(instanceBinding.targetInstance);
             Type type = Type.getType(instanceBinding.targetInstance.getClass());
 
-            writer.loadThis();
-            writer.getStatic(CLASS_TYPE, name, type);
+            methodWriter.loadThis();
+            methodWriter.getStatic(CLASS_TYPE, name, type);
 
             for (int argument = 0; argument < instanceBinding.javaMethod.getParameterCount(); ++argument) {
-                arguments.get(argument).write(writer, globals);
+                arguments.get(argument).write(classWriter, methodWriter, globals);
             }
 
-            writer.invokeVirtual(type, Method.getMethod(instanceBinding.javaMethod));
+            methodWriter.invokeVirtual(type, Method.getMethod(instanceBinding.javaMethod));
         } else {
             throw new IllegalStateException("Illegal tree structure.");
         }

@@ -10,6 +10,8 @@ initscript {
     }
 }
 
+boolean USE_ARTIFACTORY=false
+
 ['VAULT_ADDR', 'VAULT_ROLE_ID', 'VAULT_SECRET_ID'].each {
     if (System.env."$it" == null) {
         throw new GradleException("$it must be set!")
@@ -37,45 +39,51 @@ final Vault vault = new Vault(
 )
         .withRetries(5, 1000)
 
-final Map<String,String> artifactoryCredentials = vault.logical()
-        .read("secret/elasticsearch-ci/artifactory.elstc.co")
-        .getData();
 
-logger.info("Using elastic artifactory repos")
-Closure configCache = {
-    return {
-        name "artifactory-gradle-release"
-        url "https://artifactory.elstc.co/artifactory/gradle-release"
-        credentials {
-            username artifactoryCredentials.get("username")
-            password artifactoryCredentials.get("token")
+if (USE_ARTIFACTORY) {
+    final Map<String,String> artifactoryCredentials = vault.logical()
+            .read("secret/elasticsearch-ci/artifactory.elstc.co")
+            .getData();
+    logger.info("Using elastic artifactory repos")
+    Closure configCache = {
+        return {
+            name "artifactory-gradle-release"
+            url "https://artifactory.elstc.co/artifactory/gradle-release"
+            credentials {
+                username artifactoryCredentials.get("username")
+                password artifactoryCredentials.get("token")
+            }
         }
     }
-}
-settingsEvaluated { settings ->
-    settings.pluginManagement {
-        repositories {
-            maven configCache()
-        }
-    }
-}
-projectsLoaded {
-    allprojects {
-        buildscript {
+    settingsEvaluated { settings ->
+        settings.pluginManagement {
             repositories {
                 maven configCache()
             }
         }
-        repositories {
-            maven configCache()
+    }
+    projectsLoaded {
+        allprojects {
+            buildscript {
+                repositories {
+                    maven configCache()
+                }
+            }
+            repositories {
+                maven configCache()
+            }
         }
     }
+}
+
+projectsLoaded {
     rootProject {
         project.pluginManager.withPlugin('com.gradle.build-scan') {
             buildScan.server = 'https://gradle-enterprise.elastic.co'
         }
     }
 }
+
 
 final String buildCacheUrl = System.getProperty('org.elasticsearch.build.cache.url')
 final boolean buildCachePush = Boolean.valueOf(System.getProperty('org.elasticsearch.build.cache.push', 'false'))

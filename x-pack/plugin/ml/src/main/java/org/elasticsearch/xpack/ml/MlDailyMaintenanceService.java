@@ -79,12 +79,12 @@ public class MlDailyMaintenanceService implements Releasable {
         return TimeValue.timeValueMillis(next.toInstant().toEpochMilli() - now.toInstant().toEpochMilli());
     }
 
-    public void start() {
+    public synchronized void start() {
         LOGGER.debug("Starting ML daily maintenance service");
         scheduleNext();
     }
 
-    public void stop() {
+    public synchronized void stop() {
         LOGGER.debug("Stopping ML daily maintenance service");
         if (cancellable != null && cancellable.isCancelled() == false) {
             cancellable.cancel();
@@ -100,7 +100,7 @@ public class MlDailyMaintenanceService implements Releasable {
         stop();
     }
 
-    private void scheduleNext() {
+    private synchronized void scheduleNext() {
         try {
             cancellable = threadPool.schedule(this::triggerTasks, schedulerProvider.get(), ThreadPool.Names.GENERIC);
         } catch (EsRejectedExecutionException e) {

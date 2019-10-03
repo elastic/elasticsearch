@@ -844,4 +844,57 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         accept("SELECT ST_X(shape) FROM test");
     }
 
+    //
+    // Pivot verifications
+    //
+    public void testPivotNonExactColumn() {
+        assertEquals("1:72: Field [text] of data type [text] cannot be used for grouping;"
+                + " No keyword/multi-field defined exact matches for [text]; define one or use MATCH/QUERY instead",
+                error("SELECT * FROM (SELECT int, text, keyword FROM test) " + "PIVOT(AVG(int) FOR text IN ('bla'))"));
+    }
+
+    public void testPivotColumnUsedInsteadOfAgg() {
+        assertEquals("1:59: No aggregate function found in PIVOT at [int]",
+                error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(int FOR keyword IN ('bla'))"));
+    }
+
+    public void testPivotScalarUsedInsteadOfAgg() {
+        assertEquals("1:59: No aggregate function found in PIVOT at [ROUND(int)]",
+                error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(ROUND(int) FOR keyword IN ('bla'))"));
+    }
+
+    public void testPivotScalarUsedAlongSideAgg() {
+        assertEquals("1:59: Non-aggregate function found in PIVOT at [AVG(int) + ROUND(int)]",
+                error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(AVG(int) + ROUND(int) FOR keyword IN ('bla'))"));
+    }
+
+    public void testPivotValueNotFoldable() {
+        assertEquals("1:91: Non-literal [bool] found inside PIVOT values",
+                error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(AVG(int) FOR keyword IN ('bla', bool))"));
+    }
+
+    public void testPivotWithFunctionInput() {
+        assertEquals("1:37: No functions allowed (yet); encountered [YEAR(date)]",
+                error("SELECT * FROM (SELECT int, keyword, YEAR(date) FROM test) " + "PIVOT(AVG(int) FOR keyword IN ('bla'))"));
+    }
+
+    public void testPivotWithFoldableFunctionInValues() {
+        assertEquals("1:85: Non-literal [UCASE('bla')] found inside PIVOT values",
+                error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(AVG(int) FOR keyword IN ( UCASE('bla') ))"));
+    }
+
+    public void testPivotWithNull() {
+        assertEquals("1:85: Null not allowed as a PIVOT value",
+                error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(AVG(int) FOR keyword IN ( null ))"));
+    }
+
+    public void testPivotValuesHaveDifferentTypeThanColumn() {
+        assertEquals("1:81: Literal ['bla'] of type [keyword] does not match type [boolean] of PIVOT column [bool]",
+                error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(AVG(int) FOR bool IN ('bla'))"));
+    }
+
+    public void testPivotValuesWithMultipleDifferencesThanColumn() {
+        assertEquals("1:81: Literal ['bla'] of type [keyword] does not match type [boolean] of PIVOT column [bool]",
+                error("SELECT * FROM (SELECT int, keyword, bool FROM test) " + "PIVOT(AVG(int) FOR bool IN ('bla', true))"));
+    }
 }

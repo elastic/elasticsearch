@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -84,37 +85,37 @@ public final class EBool extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         if (operation == Operation.AND) {
             Label fals = new Label();
             Label end = new Label();
 
-            left.write(writer, globals);
-            writer.ifZCmp(Opcodes.IFEQ, fals);
-            right.write(writer, globals);
-            writer.ifZCmp(Opcodes.IFEQ, fals);
+            left.write(classWriter, methodWriter, globals);
+            methodWriter.ifZCmp(Opcodes.IFEQ, fals);
+            right.write(classWriter, methodWriter, globals);
+            methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
-            writer.push(true);
-            writer.goTo(end);
-            writer.mark(fals);
-            writer.push(false);
-            writer.mark(end);
+            methodWriter.push(true);
+            methodWriter.goTo(end);
+            methodWriter.mark(fals);
+            methodWriter.push(false);
+            methodWriter.mark(end);
         } else if (operation == Operation.OR) {
             Label tru = new Label();
             Label fals = new Label();
             Label end = new Label();
 
-            left.write(writer, globals);
-            writer.ifZCmp(Opcodes.IFNE, tru);
-            right.write(writer, globals);
-            writer.ifZCmp(Opcodes.IFEQ, fals);
+            left.write(classWriter, methodWriter, globals);
+            methodWriter.ifZCmp(Opcodes.IFNE, tru);
+            right.write(classWriter, methodWriter, globals);
+            methodWriter.ifZCmp(Opcodes.IFEQ, fals);
 
-            writer.mark(tru);
-            writer.push(true);
-            writer.goTo(end);
-            writer.mark(fals);
-            writer.push(false);
-            writer.mark(end);
+            methodWriter.mark(tru);
+            methodWriter.push(true);
+            methodWriter.goTo(end);
+            methodWriter.mark(fals);
+            methodWriter.push(false);
+            methodWriter.mark(end);
         } else {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }

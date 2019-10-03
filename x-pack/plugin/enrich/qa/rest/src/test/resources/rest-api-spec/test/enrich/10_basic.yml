@@ -20,18 +20,18 @@
       enrich.get_policy:
         name: policy-crud
   - length: { policies: 1 }
-  - match: { policies.0.match.name: policy-crud }
-  - match: { policies.0.match.indices: ["bar*"] }
-  - match: { policies.0.match.match_field: baz }
-  - match: { policies.0.match.enrich_fields: ["a", "b"] }
+  - match: { policies.0.config.match.name: policy-crud }
+  - match: { policies.0.config.match.indices: ["bar*"] }
+  - match: { policies.0.config.match.match_field: baz }
+  - match: { policies.0.config.match.enrich_fields: ["a", "b"] }
 
   - do:
       enrich.get_policy: {}
   - length: { policies: 1 }
-  - match: { policies.0.match.name: policy-crud }
-  - match: { policies.0.match.indices: ["bar*"] }
-  - match: { policies.0.match.match_field: baz }
-  - match: { policies.0.match.enrich_fields: ["a", "b"] }
+  - match: { policies.0.config.match.name: policy-crud }
+  - match: { policies.0.config.match.indices: ["bar*"] }
+  - match: { policies.0.config.match.match_field: baz }
+  - match: { policies.0.config.match.enrich_fields: ["a", "b"] }
 
   - do:
       enrich.stats: {}

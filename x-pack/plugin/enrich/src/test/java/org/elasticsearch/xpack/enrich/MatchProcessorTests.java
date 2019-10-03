@@ -13,12 +13,10 @@ import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.ingest.IngestDocument;
@@ -252,8 +250,7 @@ public class MatchProcessorTests extends ESTestCase {
 
     public SearchResponse mockResponse(Map<String, Map<String, ?>> documents) {
         SearchHit[] searchHits = documents.entrySet().stream().map(e -> {
-            SearchHit searchHit = new SearchHit(randomInt(100), e.getKey(), new Text(MapperService.SINGLE_MAPPING_NAME),
-                Collections.emptyMap());
+            SearchHit searchHit = new SearchHit(randomInt(100), e.getKey(), Collections.emptyMap());
             try (XContentBuilder builder = XContentBuilder.builder(XContentType.SMILE.xContent())) {
                 builder.map(e.getValue());
                 builder.flush();

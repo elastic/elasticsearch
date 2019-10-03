@@ -77,7 +77,7 @@ public class Literal extends NamedExpression {
 
     @Override
     public Attribute toAttribute() {
-        return new LiteralAttribute(source(), name(), null, nullable(), id(), false, dataType, this);
+        return new LiteralAttribute(source(), name(), dataType, null, nullable(), id(), false, this);
     }
 
     @Override

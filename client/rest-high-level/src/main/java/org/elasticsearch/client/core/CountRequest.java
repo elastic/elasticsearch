@@ -19,10 +19,8 @@
 
 package org.elasticsearch.client.core;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,7 +37,7 @@ import static org.elasticsearch.action.search.SearchRequest.DEFAULT_INDICES_OPTI
 /**
  * Encapsulates a request to _count API against one, several or all indices.
  */
-public final class CountRequest extends ActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
+public final class CountRequest implements Validatable, ToXContentObject {
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] types = Strings.EMPTY_ARRAY;
@@ -76,11 +74,6 @@ public final class CountRequest extends ActionRequest implements IndicesRequest.
     public CountRequest(String[] indices, QueryBuilder query) {
         indices(indices);
         this.query = Objects.requireNonNull(query, "query must not be null");;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     /**

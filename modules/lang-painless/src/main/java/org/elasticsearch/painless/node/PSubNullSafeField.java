@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -79,26 +80,26 @@ public class PSubNullSafeField extends AStoreable {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         Label end = new Label();
-        writer.dup();
-        writer.ifNull(end);
-        guarded.write(writer, globals);
-        writer.mark(end);
+        methodWriter.dup();
+        methodWriter.ifNull(end);
+        guarded.write(classWriter, methodWriter, globals);
+        methodWriter.mark(end);
     }
 
     @Override
-    void setup(MethodWriter writer, Globals globals) {
+    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         throw createError(new IllegalArgumentException("Can't write to null safe field"));
     }
 
     @Override
-    void load(MethodWriter writer, Globals globals) {
+    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         throw createError(new IllegalArgumentException("Can't write to null safe field"));
     }
 
     @Override
-    void store(MethodWriter writer, Globals globals) {
+    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         throw createError(new IllegalArgumentException("Can't write to null safe field"));
     }
 

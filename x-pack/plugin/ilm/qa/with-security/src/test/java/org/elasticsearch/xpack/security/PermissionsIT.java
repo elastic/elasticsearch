@@ -245,8 +245,7 @@ public class PermissionsIT extends ESRestTestCase {
      * which was rolled over by an ILM policy.
      */
     @TestIssueLogging(value = "org.elasticsearch:DEBUG", issueUrl = "https://github.com/elastic/elasticsearch/issues/41440")
-    public void testWhenUserLimitedByOnlyAliasOfIndexCanWriteToIndexWhichWasRolledoverByILMPolicy()
-            throws IOException, InterruptedException {
+    public void testWhenUserLimitedByOnlyAliasOfIndexCanWriteToIndexWhichWasRolledoverByILMPolicy() throws Exception {
         /*
          * Setup:
          * - ILM policy to rollover index when max docs condition is met
@@ -265,33 +264,24 @@ public class PermissionsIT extends ESRestTestCase {
         refresh("foo_alias");
 
         // wait so the ILM policy triggers rollover action, verify that the new index exists
-        assertThat(awaitBusy(() -> {
+        assertBusy(() -> {
             Request request = new Request("HEAD", "/" + "foo-logs-000002");
-            int status;
-            try {
-                status = adminClient().performRequest(request).getStatusLine().getStatusCode();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-            return status == 200;
-        }), is(true));
+            int status = adminClient().performRequest(request).getStatusLine().getStatusCode();
+            assertThat(status, equalTo(200));
+        });
 
         // test_user: index docs using alias, now should be able write to new index
         indexDocs("test_user", "x-pack-test-password", "foo_alias", 1);
         refresh("foo_alias");
 
         // verify that the doc has been indexed into new write index
-        awaitBusy(() -> {
+        assertBusy(() -> {
             Request request = new Request("GET", "/foo-logs-000002/_search");
-            Response response;
-            try {
-                response = adminClient().performRequest(request);
-                try (InputStream content = response.getEntity().getContent()) {
-                    Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
-                    return ((Integer) XContentMapValues.extractValue("hits.total.value", map)) == 1;
-                }
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+            Response response = adminClient().performRequest(request);
+            try (InputStream content = response.getEntity().getContent()) {
+                Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
+                Integer totalHits = (Integer) XContentMapValues.extractValue("hits.total.value", map);
+                assertThat(totalHits, equalTo(1));
             }
         });
     }

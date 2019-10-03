@@ -132,9 +132,10 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.oneOf;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndexRecoveryIT extends ESIntegTestCase {
@@ -789,9 +790,11 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 if (PeerRecoverySourceService.Actions.START_RECOVERY.equals(action) && count.incrementAndGet() == 1) {
                     // ensures that it's considered as valid recovery attempt by source
                     try {
-                        awaitBusy(() -> client(blueNodeName).admin().cluster().prepareState().setLocal(true).get()
-                            .getState().getRoutingTable().index("test").shard(0).getAllInitializingShards().isEmpty() == false);
-                    } catch (InterruptedException e) {
+                        assertBusy(() -> assertThat(
+                            "Expected there to be some initializing shards",
+                            client(blueNodeName).admin().cluster().prepareState().setLocal(true).get()
+                                .getState().getRoutingTable().index("test").shard(0).getAllInitializingShards(), not(empty())));
+                    } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
                     connection.sendRequest(requestId, action, request, options);
@@ -1473,7 +1476,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     try {
                         IndexResponse response = client().prepareIndex(indexName, "_doc")
                             .setSource(Map.of("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON).get();
-                        assertThat(response.getResult(), isOneOf(CREATED, UPDATED));
+                        assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));
                     } catch (ElasticsearchException ignored) {
                     }
                 }

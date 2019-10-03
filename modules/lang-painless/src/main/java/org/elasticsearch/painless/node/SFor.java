@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -173,27 +174,27 @@ public final class SFor extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeStatementOffset(location);
 
         Label start = new Label();
         Label begin = afterthought == null ? start : new Label();
         Label end = new Label();
 
         if (initializer instanceof SDeclBlock) {
-            initializer.write(writer, globals);
+            initializer.write(classWriter, methodWriter, globals);
         } else if (initializer instanceof AExpression) {
             AExpression initializer = (AExpression)this.initializer;
 
-            initializer.write(writer, globals);
-            writer.writePop(MethodWriter.getType(initializer.expected).getSize());
+            initializer.write(classWriter, methodWriter, globals);
+            methodWriter.writePop(MethodWriter.getType(initializer.expected).getSize());
         }
 
-        writer.mark(start);
+        methodWriter.mark(start);
 
         if (condition != null && !continuous) {
-            condition.write(writer, globals);
-            writer.ifZCmp(Opcodes.IFEQ, end);
+            condition.write(classWriter, methodWriter, globals);
+            methodWriter.ifZCmp(Opcodes.IFEQ, end);
         }
 
         boolean allEscape = false;
@@ -208,29 +209,29 @@ public final class SFor extends AStatement {
             }
 
             if (loopCounter != null) {
-                writer.writeLoopCounter(loopCounter.getSlot(), statementCount, location);
+                methodWriter.writeLoopCounter(loopCounter.getSlot(), statementCount, location);
             }
 
             block.continu = begin;
             block.brake = end;
-            block.write(writer, globals);
+            block.write(classWriter, methodWriter, globals);
         } else {
             if (loopCounter != null) {
-                writer.writeLoopCounter(loopCounter.getSlot(), 1, location);
+                methodWriter.writeLoopCounter(loopCounter.getSlot(), 1, location);
             }
         }
 
         if (afterthought != null) {
-            writer.mark(begin);
-            afterthought.write(writer, globals);
-            writer.writePop(MethodWriter.getType(afterthought.expected).getSize());
+            methodWriter.mark(begin);
+            afterthought.write(classWriter, methodWriter, globals);
+            methodWriter.writePop(MethodWriter.getType(afterthought.expected).getSize());
         }
 
         if (afterthought != null || !allEscape) {
-            writer.goTo(start);
+            methodWriter.goTo(start);
         }
 
-        writer.mark(end);
+        methodWriter.mark(end);
     }
 
     @Override

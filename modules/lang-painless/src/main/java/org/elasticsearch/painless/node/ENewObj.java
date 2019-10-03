@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -103,20 +104,20 @@ public final class ENewObj extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
 
-        writer.newInstance(MethodWriter.getType(actual));
+        methodWriter.newInstance(MethodWriter.getType(actual));
 
         if (read) {
-            writer.dup();
+            methodWriter.dup();
         }
 
         for (AExpression argument : arguments) {
-            argument.write(writer, globals);
+            argument.write(classWriter, methodWriter, globals);
         }
 
-        writer.invokeConstructor(
+        methodWriter.invokeConstructor(
                     Type.getType(constructor.javaConstructor.getDeclaringClass()), Method.getMethod(constructor.javaConstructor));
     }
 

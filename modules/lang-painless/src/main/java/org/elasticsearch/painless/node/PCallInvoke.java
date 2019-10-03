@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -103,9 +104,9 @@ public final class PCallInvoke extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        prefix.write(writer, globals);
-        sub.write(writer, globals);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        prefix.write(classWriter, methodWriter, globals);
+        sub.write(classWriter, methodWriter, globals);
     }
 
     @Override

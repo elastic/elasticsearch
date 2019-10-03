@@ -731,16 +731,20 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testFlushIsDisabledDuringTranslogRecovery() throws IOException {
-        assertFalse(engine.isRecovering());
+        engine.ensureCanFlush(); // recovered already
         ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
         engine.index(indexForDoc(doc));
         engine.close();
 
         engine = new InternalEngine(engine.config());
+        expectThrows(IllegalStateException.class, engine::ensureCanFlush);
         expectThrows(IllegalStateException.class, () -> engine.flush(true, true));
-        assertTrue(engine.isRecovering());
-        engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
-        assertFalse(engine.isRecovering());
+        if (randomBoolean()) {
+            engine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
+        } else {
+            engine.skipTranslogRecovery();
+        }
+        engine.ensureCanFlush(); // ready
         doc = testParsedDocument("2", null, testDocumentWithTextField(), SOURCE, null);
         engine.index(indexForDoc(doc));
         engine.flush();
@@ -2825,7 +2829,7 @@ public class InternalEngineTests extends EngineTestCase {
             {
                 for (int i = 0; i < 2; i++) {
                     try (InternalEngine engine = new InternalEngine(config)) {
-                        assertTrue(engine.isRecovering());
+                        expectThrows(IllegalStateException.class, engine::ensureCanFlush);
                         Map<String, String> userData = engine.getLastCommittedSegmentInfos().getUserData();
                         if (i == 0) {
                             assertEquals("1", userData.get(Translog.TRANSLOG_GENERATION_KEY));
@@ -5260,7 +5264,7 @@ public class InternalEngineTests extends EngineTestCase {
                 minTranslogGen = engine.getTranslog().getMinFileGeneration();
             }
 
-            store.trimUnsafeCommits(globalCheckpoint.get(), minTranslogGen,config.getIndexSettings().getIndexVersionCreated());
+            store.trimUnsafeCommits(config.getTranslogConfig().getTranslogPath());
             long safeMaxSeqNo =
                 commitMaxSeqNo.stream().filter(s -> s <= globalCheckpoint.get())
                     .reduce((s1, s2) -> s2) // get the last one.

@@ -20,6 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Globals;
@@ -95,45 +96,45 @@ final class SSubEachIterable extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeStatementOffset(location);
 
-        expression.write(writer, globals);
+        expression.write(classWriter, methodWriter, globals);
 
         if (method == null) {
             org.objectweb.asm.Type methodType = org.objectweb.asm.Type
                     .getMethodType(org.objectweb.asm.Type.getType(Iterator.class), org.objectweb.asm.Type.getType(Object.class));
-            writer.invokeDefCall("iterator", methodType, DefBootstrap.ITERATOR);
+            methodWriter.invokeDefCall("iterator", methodType, DefBootstrap.ITERATOR);
         } else {
-            writer.invokeMethodCall(method);
+            methodWriter.invokeMethodCall(method);
         }
 
-        writer.visitVarInsn(MethodWriter.getType(iterator.clazz).getOpcode(Opcodes.ISTORE), iterator.getSlot());
+        methodWriter.visitVarInsn(MethodWriter.getType(iterator.clazz).getOpcode(Opcodes.ISTORE), iterator.getSlot());
 
         Label begin = new Label();
         Label end = new Label();
 
-        writer.mark(begin);
+        methodWriter.mark(begin);
 
-        writer.visitVarInsn(MethodWriter.getType(iterator.clazz).getOpcode(Opcodes.ILOAD), iterator.getSlot());
-        writer.invokeInterface(ITERATOR_TYPE, ITERATOR_HASNEXT);
-        writer.ifZCmp(MethodWriter.EQ, end);
+        methodWriter.visitVarInsn(MethodWriter.getType(iterator.clazz).getOpcode(Opcodes.ILOAD), iterator.getSlot());
+        methodWriter.invokeInterface(ITERATOR_TYPE, ITERATOR_HASNEXT);
+        methodWriter.ifZCmp(MethodWriter.EQ, end);
 
-        writer.visitVarInsn(MethodWriter.getType(iterator.clazz).getOpcode(Opcodes.ILOAD), iterator.getSlot());
-        writer.invokeInterface(ITERATOR_TYPE, ITERATOR_NEXT);
-        writer.writeCast(cast);
-        writer.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
+        methodWriter.visitVarInsn(MethodWriter.getType(iterator.clazz).getOpcode(Opcodes.ILOAD), iterator.getSlot());
+        methodWriter.invokeInterface(ITERATOR_TYPE, ITERATOR_NEXT);
+        methodWriter.writeCast(cast);
+        methodWriter.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
 
         if (loopCounter != null) {
-            writer.writeLoopCounter(loopCounter.getSlot(), statementCount, location);
+            methodWriter.writeLoopCounter(loopCounter.getSlot(), statementCount, location);
         }
 
         block.continu = begin;
         block.brake = end;
-        block.write(writer, globals);
+        block.write(classWriter, methodWriter, globals);
 
-        writer.goTo(begin);
-        writer.mark(end);
+        methodWriter.goTo(begin);
+        methodWriter.mark(end);
     }
 
     @Override

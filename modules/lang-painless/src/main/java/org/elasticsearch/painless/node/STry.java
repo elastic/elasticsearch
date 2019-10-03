@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -108,34 +109,34 @@ public final class STry extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeStatementOffset(location);
 
         Label begin = new Label();
         Label end = new Label();
         Label exception = new Label();
 
-        writer.mark(begin);
+        methodWriter.mark(begin);
 
         block.continu = continu;
         block.brake = brake;
-        block.write(writer, globals);
+        block.write(classWriter, methodWriter, globals);
 
         if (!block.allEscape) {
-            writer.goTo(exception);
+            methodWriter.goTo(exception);
         }
 
-        writer.mark(end);
+        methodWriter.mark(end);
 
         for (SCatch catc : catches) {
             catc.begin = begin;
             catc.end = end;
             catc.exception = catches.size() > 1 ? exception : null;
-            catc.write(writer, globals);
+            catc.write(classWriter, methodWriter, globals);
         }
 
         if (!block.allEscape || catches.size() > 1) {
-            writer.mark(exception);
+            methodWriter.mark(exception);
         }
     }
 

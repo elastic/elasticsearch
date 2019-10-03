@@ -968,12 +968,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // Don't wait for state, just start up quickly. This will also allow new and old nodes in the BWC case to become the master
         defaultConfig.put("discovery.initial_state_timeout", "0s");
 
-        // TODO: Remove these once https://github.com/elastic/elasticsearch/issues/46091 is fixed
-        defaultConfig.put("logger.org.elasticsearch.action.support.master.TransportMasterNodeAction", "TRACE");
-        defaultConfig.put("logger.org.elasticsearch.cluster.metadata.MetaDataCreateIndexService", "TRACE");
-        defaultConfig.put("logger.org.elasticsearch.cluster.service", "DEBUG");
-        defaultConfig.put("logger.org.elasticsearch.cluster.coordination", "DEBUG");
-        defaultConfig.put("logger.org.elasticsearch.gateway.MetaStateService", "TRACE");
         if (getVersion().getMajor() >= 8) {
             defaultConfig.put("cluster.service.slow_task_logging_threshold", "5s");
             defaultConfig.put("cluster.service.slow_master_task_logging_threshold", "5s");

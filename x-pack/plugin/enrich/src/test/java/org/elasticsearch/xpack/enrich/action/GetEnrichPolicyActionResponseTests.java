@@ -33,8 +33,12 @@ public class GetEnrichPolicyActionResponseTests extends AbstractSerializingTestC
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             assert token == XContentParser.Token.START_OBJECT;
+            assert parser.nextToken() == XContentParser.Token.FIELD_NAME;
+            assert parser.currentName().equals("config");
+            assert parser.nextToken() == XContentParser.Token.START_OBJECT;
             EnrichPolicy.NamedPolicy policy = EnrichPolicy.NamedPolicy.fromXContent(parser);
             policies.put(policy.getName(), policy.getPolicy());
+            assert parser.nextToken() == XContentParser.Token.END_OBJECT;
         }
 
         return new GetEnrichPolicyAction.Response(policies);

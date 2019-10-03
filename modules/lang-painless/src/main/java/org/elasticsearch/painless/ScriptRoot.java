@@ -34,7 +34,7 @@ public class ScriptRoot {
     protected final CompilerSettings compilerSettings;
     protected final ScriptClassInfo scriptClassInfo;
 
-    protected final SClass classRoot;
+    protected final SClass classNode;
 
     protected final FunctionTable functionTable = new FunctionTable();
     protected int syntheticCounter = 0;
@@ -43,7 +43,7 @@ public class ScriptRoot {
         this.painlessLookup = Objects.requireNonNull(painlessLookup);
         this.compilerSettings = Objects.requireNonNull(compilerSettings);
         this.scriptClassInfo = Objects.requireNonNull(scriptClassInfo);
-        this.classRoot = Objects.requireNonNull(classRoot);
+        this.classNode = Objects.requireNonNull(classRoot);
     }
 
     public PainlessLookup getPainlessLookup() {
@@ -58,8 +58,8 @@ public class ScriptRoot {
         return scriptClassInfo;
     }
 
-    public SClass getClassRoot() {
-        return classRoot;
+    public SClass getClassNode() {
+        return classNode;
     }
 
     public FunctionTable getFunctionTable() {

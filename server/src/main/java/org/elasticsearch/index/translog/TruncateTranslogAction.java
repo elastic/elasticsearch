@@ -180,7 +180,7 @@ public class TruncateTranslogAction {
             long primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardPath.getShardId().id());
             final TranslogDeletionPolicy translogDeletionPolicy =
                 new TranslogDeletionPolicy(indexSettings.getTranslogRetentionSize().getBytes(),
-                    indexSettings.getTranslogRetentionAge().getMillis());
+                    indexSettings.getTranslogRetentionAge().getMillis(), Integer.MAX_VALUE);
             try (Translog translog = new Translog(translogConfig, translogUUID,
                 translogDeletionPolicy, () -> translogGlobalCheckpoint, () -> primaryTerm);
                  Translog.Snapshot snapshot = translog.newSnapshot()) {

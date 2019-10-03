@@ -208,13 +208,13 @@ public class SettingTests extends ESTestCase {
         public static boolean invokedWithDependencies;
 
         @Override
-        public void validate(String value) {
+        public void validate(final String value) {
             invokedInIsolation = true;
             assertThat(value, equalTo("foo.bar value"));
         }
 
         @Override
-        public void validate(String value, Map<Setting<String>, String> settings) {
+        public void validate(final String value, final Map<Setting<?>, Object> settings) {
             invokedWithDependencies = true;
             assertTrue(settings.keySet().contains(BAZ_QUX_SETTING));
             assertThat(settings.get(BAZ_QUX_SETTING), equalTo("baz.qux value"));
@@ -223,8 +223,9 @@ public class SettingTests extends ESTestCase {
         }
 
         @Override
-        public Iterator<Setting<String>> settings() {
-            return Arrays.asList(BAZ_QUX_SETTING, QUUX_QUUZ_SETTING).iterator();
+        public Iterator<Setting<?>> settings() {
+            final List<Setting<?>> settings = List.of(BAZ_QUX_SETTING, QUUX_QUUZ_SETTING);
+            return settings.iterator();
         }
     }
 

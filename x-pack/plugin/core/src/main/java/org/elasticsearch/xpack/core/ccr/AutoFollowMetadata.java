@@ -183,15 +183,16 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<AutoFollowPattern, Void> PARSER =
             new ConstructingObjectParser<>("auto_follow_pattern",
-                args -> new AutoFollowPattern((String) args[0], (List<String>) args[1], (String) args[2], (boolean) args[3],
-                    (Integer) args[4], (Integer) args[5], (Integer) args[6], (Integer) args[7], (ByteSizeValue) args[8],
-                    (ByteSizeValue) args[9], (Integer) args[10], (ByteSizeValue) args[11], (TimeValue) args[12], (TimeValue) args[13]));
+                args -> new AutoFollowPattern((String) args[0], (List<String>) args[1], (String) args[2],
+                    args[3] == null || (boolean) args[3], (Integer) args[4], (Integer) args[5], (Integer) args[6], (Integer) args[7],
+                    (ByteSizeValue) args[8], (ByteSizeValue) args[9], (Integer) args[10], (ByteSizeValue) args[11], (TimeValue) args[12],
+                    (TimeValue) args[13]));
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), REMOTE_CLUSTER_FIELD);
             PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), LEADER_PATTERNS_FIELD);
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FOLLOW_PATTERN_FIELD);
-            PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ACTIVE);
+            PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ACTIVE);
             ImmutableFollowParameters.initParser(PARSER);
         }
 

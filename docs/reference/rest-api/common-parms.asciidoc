@@ -134,6 +134,13 @@ Wildcard expressions are not accepted.
 --
 end::expand-wildcards[]
 
+tag::field_statistics[]
+`field_statistics`::
+(Optional, boolean) Whether document count, sum of document frequencies, and 
+sum of total term frequencies should be returned.
+Defaults to `true`.
+end::field_statistics[]
+
 tag::fielddata-fields[]
 `fielddata_fields`::
 (Optional, string)
@@ -443,6 +450,12 @@ Comma-separated list of node IDs or names
 used to limit returned information.
 end::node-id-query-parm[]
 
+tag::offsets[]
+`<offsets>`::
+(Optional, boolean) Whether term offsets should be returned.
+Defaults to `true`.
+end::offsets[]
+
 tag::parent-task-id[]
 `parent_task_id`::
 +
@@ -468,6 +481,18 @@ tag::path-pipeline[]
 used to limit the request.
 end::path-pipeline[]
 
+tag::payloads[]
+`payloads`::
+(Optional, boolean) Whether term payloads should be returned.
+Defaults to `true`.
+end::payloads[]
+
+tag::positions[]
+`positions`::
+(Optional, boolean) Whether term positions should be returned.
+Defaults to `true`.
+end::positions[]
+
 tag::preference[]
 `preference`::
 (Optional, string) Specifies the node or shard the operation should be 
@@ -484,6 +509,12 @@ tag::query[]
 (Optional, <<query-dsl,query object>>) Defines the search definition using the 
 <<query-dsl,Query DSL>>.
 end::query[]
+
+tag::realtime[]
+`realtime`::
+(Optional, boolean) Whether the request is real-time as opposed to near-real-time. 
+Defaults to `true`.
+end::realtime[]
 
 tag::refresh[]
 `refresh`::
@@ -631,6 +662,12 @@ tag::task-id[]
 (Optional, string) ID of the task to return
 (`node_id:task_number`).
 end::task-id[]
+
+tag::term_statistics[]
+`term_statistics`::
+(Optional, boolean) Whether total term frequency and document frequency should be returned. 
+Defaults to `false`.
+end::term_statistics[]
 
 tag::terminate_after[]
 `terminate_after`::

@@ -265,6 +265,14 @@ public final class IndexSettings {
             Property.Dynamic, Property.IndexScope);
 
     /**
+     * Controls the number of translog files that are no longer needed for persistence reasons will be kept around before being deleted.
+     * This is a safeguard making sure that the translog deletion policy won't keep too many translog files especially when they're small.
+     * This setting is intentionally not registered, it is only used in tests
+     **/
+    public static final Setting<Integer> INDEX_TRANSLOG_RETENTION_TOTAL_FILES_SETTING =
+        Setting.intSetting("index.translog.retention.total_files", 100, 0, Setting.Property.IndexScope);
+
+    /**
      * Controls the maximum length of time since a retention lease is created or renewed before it is considered expired.
      */
     public static final Setting<TimeValue> INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING =
@@ -830,6 +838,14 @@ public final class IndexSettings {
     public TimeValue getTranslogRetentionAge() {
         assert softDeleteEnabled == false || translogRetentionAge.millis() == -1L : translogRetentionSize;
         return translogRetentionAge;
+    }
+
+    /**
+     * Returns the maximum number of translog files that that no longer required for persistence should be kept for peer recovery
+     * when soft-deletes is disabled.
+     */
+    public int getTranslogRetentionTotalFiles() {
+        return INDEX_TRANSLOG_RETENTION_TOTAL_FILES_SETTING.get(getSettings());
     }
 
     /**

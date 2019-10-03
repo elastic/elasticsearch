@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
@@ -253,7 +255,7 @@ public class SecurityTests extends ESTestCase {
         new Security.ValidateLicenseForFIPS(false).accept(node, state);
 
         final boolean isLicenseValidForFips =
-            FIPS140LicenseBootstrapCheck.ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode());
+            Security.FIPS_ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode());
         if (isLicenseValidForFips) {
             new Security.ValidateLicenseForFIPS(true).accept(node, state);
         } else {
@@ -376,5 +378,92 @@ public class SecurityTests extends ESTestCase {
             .build();
         Security.validateRealmSettings(settings);
         // no-exception
+    }
+
+    public void testValidateForFipsKeystoreWithImplicitJksType() {
+        assumeFalse("The default keystore type changed to PKCS12 in JDK9", JavaVersion.current().compareTo(JavaVersion.parse("9")) > -1);
+        final Settings settings = Settings.builder()
+            .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
+            .put("xpack.security.transport.ssl.keystore.path", "path/to/keystore")
+            .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(),
+                randomFrom(Hasher.getAvailableAlgoStoredHash().stream()
+                    .filter(alg -> alg.startsWith("pbkdf2") == false).collect(Collectors.toList())))
+            .build();
+            final IllegalArgumentException iae =
+                expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings,null));
+            assertThat(iae.getMessage(), containsString("JKS Keystores cannot be used in a FIPS 140 compliant JVM"));
+    }
+
+    public void testValidateForFipsKeystoreWithExplicitJksType() {
+        final Settings settings = Settings.builder()
+            .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
+            .put("xpack.security.transport.ssl.keystore.path", "path/to/keystore")
+            .put("xpack.security.transport.ssl.keystore.type", "JKS")
+            .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(),
+                randomFrom(Hasher.getAvailableAlgoStoredHash().stream()
+                    .filter(alg -> alg.startsWith("pbkdf2")).collect(Collectors.toList())))
+            .build();
+        final IllegalArgumentException iae =
+            expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings, null));
+        assertThat(iae.getMessage(), containsString("JKS Keystores cannot be used in a FIPS 140 compliant JVM"));
+    }
+
+    public void testValidateForFipsInvalidPasswordHashingAlgorithm() {
+        final Settings settings = Settings.builder()
+            .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
+            .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(),
+                randomFrom(Hasher.getAvailableAlgoStoredHash().stream()
+                    .filter(alg -> alg.startsWith("pbkdf2") == false).collect(Collectors.toList())))
+            .build();
+        final IllegalArgumentException iae =
+            expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings, null));
+        assertThat(iae.getMessage(), containsString("Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM."));
+    }
+
+    public void testValidateForFipsInvalidLicense() throws Exception{
+        createComponents(Settings.EMPTY);
+        licenseState.update(
+            randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD), true, null);
+        final Settings settings = Settings.builder()
+            .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
+            .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(),
+                randomFrom(Hasher.getAvailableAlgoStoredHash().stream()
+                    .filter(alg -> alg.startsWith("pbkdf2")).collect(Collectors.toList())))
+            .build();
+        final IllegalArgumentException iae =
+            expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings, licenseState));
+        assertThat(iae.getMessage(), containsString("FIPS mode is only allowed with a Platinum or Trial license"));
+    }
+
+    public void testValidateForFipsMultipleValidationErrors() throws Exception{
+        createComponents(Settings.EMPTY);
+        licenseState.update(
+            randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD), true, null);
+        final Settings settings = Settings.builder()
+            .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
+            .put("xpack.security.transport.ssl.keystore.path", "path/to/keystore")
+            .put("xpack.security.transport.ssl.keystore.type", "JKS")
+            .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(),
+                randomFrom(Hasher.getAvailableAlgoStoredHash().stream()
+                    .filter(alg -> alg.startsWith("pbkdf2") == false).collect(Collectors.toList())))
+            .build();
+        final IllegalArgumentException iae =
+            expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings, licenseState));
+        assertThat(iae.getMessage(), containsString("JKS Keystores cannot be used in a FIPS 140 compliant JVM"));
+        assertThat(iae.getMessage(), containsString("Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM."));
+        assertThat(iae.getMessage(), containsString("FIPS mode is only allowed with a Platinum or Trial license"));
+    }
+
+    public void testValidateForFipsNoErrors() {
+        final Settings settings = Settings.builder()
+            .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
+            .put("xpack.security.transport.ssl.keystore.path", "path/to/keystore")
+            .put("xpack.security.transport.ssl.keystore.type", "BCFKS")
+            .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(),
+                randomFrom(Hasher.getAvailableAlgoStoredHash().stream()
+                    .filter(alg -> alg.startsWith("pbkdf2")).collect(Collectors.toList())))
+            .build();
+        Security.validateForFips(settings, null);
+        // no exception thrown
     }
 }

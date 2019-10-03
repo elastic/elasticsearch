@@ -1,0 +1,15 @@
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+    name 'repository-encrypted'
+    description 'Elasticsearch Expanded Pack Plugin - client-side AES-GCM encrypted repositories.'
+    classname 'org.elasticsearch.repositories.encrypted.EncryptedRepositoryPlugin'
+    extendedPlugins = ['x-pack-core']
+}
+
+dependencies {
+  compile 'org.bouncycastle:bcprov-jdk15on:1.62'
+}
+
+integTest.enabled = false

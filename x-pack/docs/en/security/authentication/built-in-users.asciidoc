@@ -134,11 +134,10 @@ If you have upgraded from an older version of Elasticsearch,
 the `logstash_system` user may have defaulted to _disabled_ for security reasons.
 Once the password has been changed, you can enable the user via the following API call:
 
-[source,js]
+[source,console]
 ---------------------------------------------------------------------
 PUT _security/user/logstash_system/_enable
 ---------------------------------------------------------------------
-// CONSOLE
 
 See {logstash-ref}/ls-security.html#ls-monitoring-user[Configuring credentials for {ls} monitoring]. 
 

@@ -29,7 +29,6 @@ For example, run the following command:
 --ca elastic-stack-ca.p12 \ <1>
 --multiple
 ----------------------------------------------------------------------
-// NOTCONSOLE
 <1> Use the certificate authority that you created in <<encrypting-communications-certificates>>.
 
 You are prompted for information about each new node. Specify `node-2` and
@@ -56,7 +55,6 @@ Archive:  certificate-bundle.zip
    creating: node-3/
   inflating: node-3/node-3.p12   
 ----------------------------------------------------------------------
-// NOTCONSOLE
   
 The `certificate-bundle.zip` file contains a folder for each of your nodes. Each
 folder contains a single PKCS#12 keystore that includes a node certificate,
@@ -154,22 +152,20 @@ If you encounter errors, you can see some common problems and solutions in
 For example, log into {kib} with the `elastic` built-in user. Go to
 *Dev Tools > Console* and run the {ref}/cluster-health.html[cluster health API]:
 
-[source,js]
+[source,console]
 ----------------------------------
 GET _cluster/health
 ----------------------------------
-// CONSOLE 
 
 Confirm the `number_of_nodes` in the response from this API.
 
 You can also use the {ref}/cat-nodes.html[cat nodes API] to identify the master
 node:
 
-[source,js]
+[source,console]
 ----------------------------------
 GET _cat/nodes?v
-----------------------------------
-// CONSOLE 
+---------------------------------- 
 
 The node that has an asterisk(*) in the `master` column is the elected master
 node. 

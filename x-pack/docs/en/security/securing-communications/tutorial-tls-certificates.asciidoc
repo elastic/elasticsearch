@@ -20,7 +20,6 @@ Run the following command:
 ----------------------------------------------------------------------
 ./bin/elasticsearch-certutil ca
 ----------------------------------------------------------------------
-// NOTCONSOLE
 
 You are prompted for an output filename and a password. In this tutorial, we'll
 use the default filename (`elastic-stack-ca.p12`).
@@ -53,7 +52,6 @@ Run the following command:
   --ip 127.0.0.1,::1 \//<3>
   --out config/certs/node-1.p12 //<4>
 ----------------------------------------------------------------------
-// NOTCONSOLE
 <1> The `--ca` parameter contains the name of certificate authority that you
 generated for this cluster.
 <2> The `--dns` parameter contains a comma-separated list of DNS names for the

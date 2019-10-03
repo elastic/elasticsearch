@@ -14,7 +14,7 @@ thus bound to a well-defined set of indices (and potentially a set of
 The following role definition grants read access only to the `category`,
 `@timestamp`, and `message` fields in all the `events-*` indices.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/role/test_role1
 {
@@ -29,7 +29,6 @@ POST /_security/role/test_role1
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 Access to the following meta fields is always allowed: `_id`,
 `_type`, `_parent`, `_routing`, `_timestamp`, `_ttl`, `_size` and `_index`. If
@@ -40,7 +39,7 @@ NOTE: Omitting the fields entry entirely disables field level security.
 You can also specify field expressions. For example, the following
 example grants read access to all fields that start with an `event_` prefix:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/role/test_role2
 {
@@ -55,7 +54,6 @@ POST /_security/role/test_role2
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 Use the dot notations to refer to nested fields in more complex documents. For
 example, assuming the following document:
@@ -75,7 +73,7 @@ example, assuming the following document:
 The following role definition enables only read access to the customer `handle`
 field:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/role/test_role3
 {
@@ -90,12 +88,11 @@ POST /_security/role/test_role3
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 This is where wildcard support shines. For example, use `customer.*` to enable
 only read access to the `customer` data:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/role/test_role4
 {
@@ -110,11 +107,10 @@ POST /_security/role/test_role4
   ]
 }
 --------------------------------------------------
-// CONSOLE 
 
 You can deny permission to access fields with the following syntax:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/role/test_role5
 {
@@ -130,7 +126,6 @@ POST /_security/role/test_role5
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 The following rules apply:
 
@@ -143,7 +138,7 @@ those which match the pattern in the denied fields.
 
 For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/role/test_role6
 {
@@ -159,7 +154,6 @@ POST /_security/role/test_role6
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 In the above example, users can read all fields with the prefix "customer."
 except for "customer.handle".
@@ -171,7 +165,7 @@ When a user has several roles that specify field level permissions, the
 resulting field level permissions per index are the union of the individual role
 permissions. For example, if these two roles are merged:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/role/test_role7
 {
@@ -201,7 +195,6 @@ POST /_security/role/test_role8
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 The resulting permission is equal to:
 

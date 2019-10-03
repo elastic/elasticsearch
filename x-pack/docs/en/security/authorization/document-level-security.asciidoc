@@ -14,7 +14,7 @@ the indices.
 The following role definition grants read access only to documents that
 belong to the `click` category within all the `events-*` indices:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/role/click_role
 {
@@ -27,7 +27,6 @@ POST /_security/role/click_role
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 NOTE: Omitting the `query` entry entirely disables document level security for
       the respective indices permission entry.
@@ -38,7 +37,7 @@ search request and supports the full {es} {ref}/query-dsl.html[Query DSL].
 For example, the following role grants read access only to the documents whose
 `department_id` equals `12`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/role/dept_role
 {
@@ -53,7 +52,6 @@ POST /_security/role/dept_role
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 NOTE: `query` also accepts queries written as string values.
 

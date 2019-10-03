@@ -277,6 +277,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
             }
             if (firstNode == null) {
                 firstNode = node;
+                firstNode.start();
             }
         }
         nodes.forEach(ElasticsearchNode::start);
@@ -305,7 +306,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                 if (firstNode == null) {
                     node.defaultConfig.put("discovery.zen.ping.unicast.hosts", "[]");
                 } else {
-                    firstNode.start();
                     firstNode.waitForAllConditions();
                     node.defaultConfig.put("discovery.zen.ping.unicast.hosts", "[\"" + firstNode.getTransportPortURI() + "\"]");
                 }

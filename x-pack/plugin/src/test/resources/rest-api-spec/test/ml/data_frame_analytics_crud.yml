@@ -1564,7 +1564,8 @@ setup:
       "eta": 0.5,
       "maximum_number_trees": 400,
       "feature_bag_fraction": 0.3,
-      "training_percent": 60.3
+      "training_percent": 60.3,
+      "num_top_classes": 0
     }
   }}
   - is_true: create_time

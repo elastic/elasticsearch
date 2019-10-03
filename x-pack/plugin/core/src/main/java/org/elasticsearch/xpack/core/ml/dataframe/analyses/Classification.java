@@ -61,7 +61,7 @@ public class Classification implements DataFrameAnalysis {
     private final String dependentVariable;
     private final BoostedTreeParams boostedTreeParams;
     private final String predictionFieldName;
-    private final Integer numTopClasses;
+    private final int numTopClasses;
     private final double trainingPercent;
 
     public Classification(String dependentVariable,
@@ -78,12 +78,12 @@ public class Classification implements DataFrameAnalysis {
         this.dependentVariable = ExceptionsHelper.requireNonNull(dependentVariable, DEPENDENT_VARIABLE);
         this.boostedTreeParams = ExceptionsHelper.requireNonNull(boostedTreeParams, BoostedTreeParams.NAME);
         this.predictionFieldName = predictionFieldName;
-        this.numTopClasses = numTopClasses;
+        this.numTopClasses = numTopClasses == null ? 0 : numTopClasses;
         this.trainingPercent = trainingPercent == null ? 100.0 : trainingPercent;
     }
 
     public Classification(String dependentVariable) {
-        this(dependentVariable, new BoostedTreeParams(null, null, null, null, null), null, null, null);
+        this(dependentVariable, new BoostedTreeParams(), null, null, null);
     }
 
     public Classification(StreamInput in) throws IOException {
@@ -121,9 +121,7 @@ public class Classification implements DataFrameAnalysis {
         builder.startObject();
         builder.field(DEPENDENT_VARIABLE.getPreferredName(), dependentVariable);
         boostedTreeParams.toXContent(builder, params);
-        if (numTopClasses != null) {
-            builder.field(NUM_TOP_CLASSES.getPreferredName(), numTopClasses);
-        }
+        builder.field(NUM_TOP_CLASSES.getPreferredName(), numTopClasses);
         if (predictionFieldName != null) {
             builder.field(PREDICTION_FIELD_NAME.getPreferredName(), predictionFieldName);
         }
@@ -137,9 +135,7 @@ public class Classification implements DataFrameAnalysis {
         Map<String, Object> params = new HashMap<>();
         params.put(DEPENDENT_VARIABLE.getPreferredName(), dependentVariable);
         params.putAll(boostedTreeParams.getParams());
-        if (numTopClasses != null) {
-            params.put(NUM_TOP_CLASSES.getPreferredName(), numTopClasses);
-        }
+        params.put(NUM_TOP_CLASSES.getPreferredName(), numTopClasses);
         if (predictionFieldName != null) {
             params.put(PREDICTION_FIELD_NAME.getPreferredName(), predictionFieldName);
         }

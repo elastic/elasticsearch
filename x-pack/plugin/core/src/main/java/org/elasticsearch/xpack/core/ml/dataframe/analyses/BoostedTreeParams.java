@@ -76,6 +76,10 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
         this.featureBagFraction = featureBagFraction;
     }
 
+    BoostedTreeParams() {
+        this(null, null, null, null, null);
+    }
+
     BoostedTreeParams(StreamInput in) throws IOException {
         lambda = in.readOptionalDouble();
         gamma = in.readOptionalDouble();

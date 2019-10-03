@@ -74,7 +74,7 @@ public class Regression implements DataFrameAnalysis {
     }
 
     public Regression(String dependentVariable) {
-        this(dependentVariable, new BoostedTreeParams(null, null, null, null, null), null, null);
+        this(dependentVariable, new BoostedTreeParams(), null, null);
     }
 
     public Regression(StreamInput in) throws IOException {

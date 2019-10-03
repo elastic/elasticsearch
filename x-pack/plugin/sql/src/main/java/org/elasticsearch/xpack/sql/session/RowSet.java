@@ -22,11 +22,6 @@ public interface RowSet extends RowView {
 
     void reset();
 
-    /**
-     * The key used by PlanExecutor#nextPage to fetch the next page.
-     */
-    Cursor nextPageCursor();
-
     default void forEachRow(Consumer<? super RowView> action) {
         for (boolean hasRows = hasCurrentRow(); hasRows; hasRows = advanceRow()) {
             action.accept(this);

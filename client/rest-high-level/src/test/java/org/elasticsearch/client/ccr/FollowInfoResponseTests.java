@@ -23,6 +23,7 @@ import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 
@@ -37,7 +38,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class FollowInfoResponseTests extends AbstractResponseTestCase<FollowInfoAction.Response, FollowInfoResponse> {
 
     @Override
-    protected FollowInfoAction.Response createServerTestInstance() {
+    protected FollowInfoAction.Response createServerTestInstance(XContentType xContentType) {
         int numInfos = randomIntBetween(0, 32);
         List<FollowInfoAction.Response.FollowerInfo> infos = new ArrayList<>(numInfos);
         for (int i = 0; i < numInfos; i++) {

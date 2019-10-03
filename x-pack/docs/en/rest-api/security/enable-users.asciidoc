@@ -40,9 +40,8 @@ For more information about the native realm, see
 
 The following example enables the user `jacknich`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/user/jacknich/_enable
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:jacknich_user]

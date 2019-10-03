@@ -66,7 +66,7 @@ The API returns the following information:
 The following example gets information about one category for the
 `esxi_log` job:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ml/anomaly_detectors/esxi_log/results/categories
 {
@@ -75,7 +75,6 @@ GET _ml/anomaly_detectors/esxi_log/results/categories
   }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:todo]
 
 In this example, the API returns the following information:

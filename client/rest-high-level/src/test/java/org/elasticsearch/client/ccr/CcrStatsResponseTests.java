@@ -24,6 +24,7 @@ import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.client.ccr.IndicesFollowStats.ShardFollowStats;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
@@ -44,7 +45,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class CcrStatsResponseTests extends AbstractResponseTestCase<CcrStatsAction.Response, CcrStatsResponse> {
 
     @Override
-    protected CcrStatsAction.Response createServerTestInstance() {
+    protected CcrStatsAction.Response createServerTestInstance(XContentType xContentType) {
         org.elasticsearch.xpack.core.ccr.AutoFollowStats autoFollowStats = new org.elasticsearch.xpack.core.ccr.AutoFollowStats(
             randomNonNegativeLong(),
             randomNonNegativeLong(),

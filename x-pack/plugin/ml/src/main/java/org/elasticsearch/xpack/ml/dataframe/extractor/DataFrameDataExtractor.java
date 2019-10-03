@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.dataframe.extractor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchAction;
@@ -22,6 +23,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.Types;
 import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsIndex;
 
@@ -50,6 +52,8 @@ public class DataFrameDataExtractor {
 
     private static final Logger LOGGER = LogManager.getLogger(DataFrameDataExtractor.class);
     private static final TimeValue SCROLL_TIMEOUT = new TimeValue(30, TimeUnit.MINUTES);
+
+    private static final String EMPTY_STRING = "";
 
     private final Client client;
     private final DataFrameDataExtractorContext context;
@@ -184,8 +188,15 @@ public class DataFrameDataExtractor {
             if (values.length == 1 && (values[0] instanceof Number || values[0] instanceof String)) {
                 extractedValues[i] = Objects.toString(values[0]);
             } else {
-                extractedValues = null;
-                break;
+                if (values.length == 0 && context.includeRowsWithMissingValues) {
+                    // if values is empty then it means it's a missing value
+                    extractedValues[i] = EMPTY_STRING;
+                } else {
+                    // we are here if we have a missing value but the analysis does not support those
+                    // or the value type is not supported (e.g. arrays, etc.)
+                    extractedValues = null;
+                    break;
+                }
             }
         }
         return new Row(extractedValues, hit);
@@ -225,21 +236,40 @@ public class DataFrameDataExtractor {
     }
 
     public DataSummary collectDataSummary() {
-        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE)
+        SearchRequestBuilder searchRequestBuilder = buildDataSummarySearchRequestBuilder();
+        SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
+        return new DataSummary(searchResponse.getHits().getTotalHits().value, context.extractedFields.getAllFields().size());
+    }
+
+    public void collectDataSummaryAsync(ActionListener<DataSummary> dataSummaryActionListener) {
+        SearchRequestBuilder searchRequestBuilder = buildDataSummarySearchRequestBuilder();
+        final int numberOfFields = context.extractedFields.getAllFields().size();
+
+        ClientHelper.executeWithHeadersAsync(context.headers,
+            ClientHelper.ML_ORIGIN,
+            client,
+            SearchAction.INSTANCE,
+            searchRequestBuilder.request(),
+            ActionListener.wrap(
+                searchResponse -> dataSummaryActionListener.onResponse(
+                    new DataSummary(searchResponse.getHits().getTotalHits().value, numberOfFields)),
+            dataSummaryActionListener::onFailure
+        ));
+    }
+
+    private SearchRequestBuilder buildDataSummarySearchRequestBuilder() {
+        return new SearchRequestBuilder(client, SearchAction.INSTANCE)
             .setIndices(context.indices)
             .setSize(0)
             .setQuery(context.query)
             .setTrackTotalHits(true);
-
-        SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
-        return new DataSummary(searchResponse.getHits().getTotalHits().value, context.extractedFields.getAllFields().size());
     }
 
     public Set<String> getCategoricalFields() {
         Set<String> categoricalFields = new HashSet<>();
         for (ExtractedField extractedField : context.extractedFields.getAllFields()) {
             String fieldName = extractedField.getName();
-            if (ExtractedFieldsDetector.CATEGORICAL_TYPES.containsAll(extractedField.getTypes())) {
+            if (Types.categorical().containsAll(extractedField.getTypes())) {
                 categoricalFields.add(fieldName);
             }
         }

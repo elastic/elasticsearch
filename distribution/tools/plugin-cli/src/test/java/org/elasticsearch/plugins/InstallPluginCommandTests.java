@@ -789,7 +789,7 @@ public class InstallPluginCommandTests extends ESTestCase {
     public void testBatchFlag() throws Exception {
         MockTerminal terminal = new MockTerminal();
         installPlugin(terminal, true);
-        assertThat(terminal.getOutput(), containsString("WARNING: plugin requires additional permissions"));
+        assertThat(terminal.getErrorOutput(), containsString("WARNING: plugin requires additional permissions"));
         assertThat(terminal.getOutput(), containsString("-> Downloading"));
         // No progress bar in batch mode
         assertThat(terminal.getOutput(), not(containsString("100%")));
@@ -1225,7 +1225,7 @@ public class InstallPluginCommandTests extends ESTestCase {
             UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
             assertEquals("installation aborted by user", e.getMessage());
 
-            assertThat(terminal.getOutput(), containsString("WARNING: " + warning));
+            assertThat(terminal.getErrorOutput(), containsString("WARNING: " + warning));
             try (Stream<Path> fileStream = Files.list(env.v2().pluginsFile())) {
                 assertThat(fileStream.collect(Collectors.toList()), empty());
             }
@@ -1238,7 +1238,7 @@ public class InstallPluginCommandTests extends ESTestCase {
             terminal.addTextInput("n");
             e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
             assertEquals("installation aborted by user", e.getMessage());
-            assertThat(terminal.getOutput(), containsString("WARNING: " + warning));
+            assertThat(terminal.getErrorOutput(), containsString("WARNING: " + warning));
             try (Stream<Path> fileStream = Files.list(env.v2().pluginsFile())) {
                 assertThat(fileStream.collect(Collectors.toList()), empty());
             }
@@ -1251,7 +1251,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         }
         installPlugin(pluginZip, env.v1());
         for (String warning : warnings) {
-            assertThat(terminal.getOutput(), containsString("WARNING: " + warning));
+            assertThat(terminal.getErrorOutput(), containsString("WARNING: " + warning));
         }
     }
 

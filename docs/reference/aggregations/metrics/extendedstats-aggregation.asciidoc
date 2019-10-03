@@ -7,7 +7,7 @@ The `extended_stats` aggregations is an extended version of the <<search-aggrega
 
 Assuming the data consists of documents representing exams grades (between 0 and 100) of students
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /exams/_search
 {
@@ -17,13 +17,12 @@ GET /exams/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:exams]
 
 The above aggregation computes the grades statistics over all documents. The aggregation type is `extended_stats` and the `field` setting defines the numeric field of the documents the stats will be computed on. The above will return the following:
 
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
     ...
@@ -55,7 +54,7 @@ By default, the `extended_stats` metric will return an object called `std_deviat
 deviations from the mean.  This can be a useful way to visualize variance of your data.  If you want a different boundary, for example
 three standard deviations, you can set `sigma` in the request:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /exams/_search
 {
@@ -70,7 +69,6 @@ GET /exams/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:exams]
 <1> `sigma` controls how many standard deviations +/- from the mean should be displayed
 
@@ -89,7 +87,7 @@ if your data is skewed heavily left or right, the value returned will be mislead
 
 Computing the grades stats based on a script:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /exams/_search
 {
@@ -106,12 +104,11 @@ GET /exams/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:exams]
 
 This will interpret the `script` parameter as an `inline` script with the `painless` script language and no script parameters. To use a stored script use the following syntax:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /exams/_search
 {
@@ -130,14 +127,13 @@ GET /exams/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:exams,stored_example_script]
 
 ===== Value Script
 
 It turned out that the exam was way above the level of the students and a grade correction needs to be applied. We can use value script to get the new stats:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /exams/_search
 {
@@ -158,7 +154,6 @@ GET /exams/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:exams]
 
 ==== Missing value
@@ -167,7 +162,7 @@ The `missing` parameter defines how documents that are missing a value should be
 By default they will be ignored but it is also possible to treat them as if they
 had a value.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /exams/_search
 {
@@ -182,7 +177,6 @@ GET /exams/_search
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:exams]
 
 <1> Documents without a value in the `grade` field will fall into the same bucket as documents that have the value `0`.

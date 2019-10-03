@@ -202,11 +202,15 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                 previousTest = snippet
                 return
             }
-            if (snippet.testResponse) {
+            if (snippet.testResponse || snippet.language == 'console-result') {
                 response(snippet)
                 return
             }
-            if (snippet.test || snippet.console) {
+            if ((snippet.language == 'js') && (snippet.console)) {
+                throw new InvalidUserDataException(
+                        "$snippet: Use `[source,console]` instead of `// CONSOLE`.")
+            }
+            if (snippet.test || snippet.language == 'console') {
                 test(snippet)
                 previousTest = snippet
                 return

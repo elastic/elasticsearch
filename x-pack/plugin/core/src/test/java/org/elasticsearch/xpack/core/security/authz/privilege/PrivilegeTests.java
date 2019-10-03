@@ -9,17 +9,18 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
-import org.mockito.Mockito;
 
 import java.util.Set;
 import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
 
 public class PrivilegeTests extends ESTestCase {
     @Rule
@@ -35,13 +36,13 @@ public class PrivilegeTests extends ESTestCase {
     private void verifyClusterActionAllowed(ClusterPrivilege clusterPrivilege, String... actions) {
         ClusterPermission clusterPermission = clusterPrivilege.buildPermission(ClusterPermission.builder()).build();
         for (String action: actions) {
-            assertTrue(clusterPermission.check(action, Mockito.mock(TransportRequest.class)));
+            assertTrue(clusterPermission.check(action, mock(TransportRequest.class), mock(Authentication.class)));
         }
     }
     private void verifyClusterActionDenied(ClusterPrivilege clusterPrivilege, String... actions) {
         ClusterPermission clusterPermission = clusterPrivilege.buildPermission(ClusterPermission.builder()).build();
         for (String action: actions) {
-            assertFalse(clusterPermission.check(action, Mockito.mock(TransportRequest.class)));
+            assertFalse(clusterPermission.check(action, mock(TransportRequest.class), mock(Authentication.class)));
         }
     }
     public void testCluster() throws Exception {

@@ -41,9 +41,8 @@ For more information about the native realm, see
 
 The following example disables the user `jacknich`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/user/jacknich/_disable
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:jacknich_user]

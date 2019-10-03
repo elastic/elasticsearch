@@ -14,22 +14,21 @@ Which shards will be searched on can also be controlled by providing the
 `routing` parameter. For example, when indexing tweets, the routing value can be
 the user name:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /twitter/_doc?routing=kimchy
 {
     "user" : "kimchy",
-    "postDate" : "2009-11-15T14:12:12",
+    "post_date" : "2009-11-15T14:12:12",
     "message" : "trying out Elasticsearch"
 }
 --------------------------------------------------
-// CONSOLE
 
 In such a case, if we want to search only on the tweets for a specific
 user, we can specify it as the routing, resulting in the search hitting
 only the relevant shard:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /twitter/_search?routing=kimchy
 {
@@ -47,7 +46,6 @@ POST /twitter/_search?routing=kimchy
     }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 The routing parameter can be multi valued represented as a comma
@@ -70,7 +68,7 @@ based on a number of criteria:
 This can be turned off by changing the dynamic cluster setting
 `cluster.routing.use_adaptive_replica_selection` from `true` to `false`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_cluster/settings
 {
@@ -79,7 +77,6 @@ PUT /_cluster/settings
     }
 }
 --------------------------------------------------
-// CONSOLE
 
 If adaptive replica selection is turned off, searches are sent to the
 index/indices shards in a round robin fashion between all copies of the data
@@ -95,7 +92,7 @@ statistics aggregation per group. It can later be retrieved using the
 specifically. For example, here is a search body request that associate
 the request with two different groups:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_search
 {
@@ -105,7 +102,6 @@ POST /_search
     "stats" : ["group1", "group2"]
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:twitter]
 
 [float]
@@ -130,13 +126,10 @@ Setting this value to `-1` resets the global search timeout to no timeout.
 === Search Cancellation
 
 Searches can be cancelled using standard <<task-cancellation,task cancellation>>
-mechanism. By default, a running search only checks if it is cancelled or
-not on segment boundaries, therefore the cancellation can be delayed by large
-segments. The search cancellation responsiveness can be improved by setting
-the dynamic cluster-level setting `search.low_level_cancellation` to `true`.
-However, it comes with an additional overhead of more frequent cancellation
-checks that can be noticeable on large fast running search queries. Changing this
-setting only affects the searches that start after the change is made.
+mechanism and are also automatically cancelled when the http connection used to
+perform the request is closed by the client. It is fundamental that the http
+client sending requests closes connections whenever requests time out or are
+aborted.
 
 [float]
 [[search-concurrency-and-parallelism]]

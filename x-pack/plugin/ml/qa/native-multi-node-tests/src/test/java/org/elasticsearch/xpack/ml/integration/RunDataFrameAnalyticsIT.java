@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -13,26 +14,31 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
 import org.junit.After;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.startsWith;
 
 public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
@@ -71,6 +77,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         putAnalytics(config);
 
         assertState(id, DataFrameAnalyticsState.STOPPED);
+        assertProgress(id, 0, 0, 0, 0);
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
@@ -106,6 +113,16 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             }
         }
         assertThat(scoreOfOutlier, is(greaterThan(scoreOfNonOutlier)));
+
+        assertProgress(id, 100, 100, 100, 100);
+        assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
+        assertThatAuditMessagesMatch(id,
+            "Created analytics with analysis type [outlier_detection]",
+            "Estimated memory usage for this analytics to be",
+            "Started analytics",
+            "Creating destination index [test-outlier-detection-with-few-docs-results]",
+            "Finished reindexing to destination index [test-outlier-detection-with-few-docs-results]",
+            "Finished analysis");
     }
 
     public void testOutlierDetectionWithEnoughDocumentsToScroll() throws Exception {
@@ -136,6 +153,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         putAnalytics(config);
 
         assertState(id, DataFrameAnalyticsState.STOPPED);
+        assertProgress(id, 0, 0, 0, 0);
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
@@ -149,6 +167,16 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setTrackTotalHits(true)
             .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score")).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) docCount));
+
+        assertProgress(id, 100, 100, 100, 100);
+        assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
+        assertThatAuditMessagesMatch(id,
+            "Created analytics with analysis type [outlier_detection]",
+            "Estimated memory usage for this analytics to be",
+            "Started analytics",
+            "Creating destination index [test-outlier-detection-with-enough-docs-to-scroll-results]",
+            "Finished reindexing to destination index [test-outlier-detection-with-enough-docs-to-scroll-results]",
+            "Finished analysis");
     }
 
     public void testOutlierDetectionWithMoreFieldsThanDocValueFieldLimit() throws Exception {
@@ -194,6 +222,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         putAnalytics(config);
 
         assertState(id, DataFrameAnalyticsState.STOPPED);
+        assertProgress(id, 0, 0, 0, 0);
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
@@ -217,10 +246,19 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             double outlierScore = (double) resultsObject.get("outlier_score");
             assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
         }
+
+        assertProgress(id, 100, 100, 100, 100);
+        assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
+        assertThatAuditMessagesMatch(id,
+            "Created analytics with analysis type [outlier_detection]",
+            "Estimated memory usage for this analytics to be",
+            "Started analytics",
+            "Creating destination index [test-outlier-detection-with-more-fields-than-docvalue-limit-results]",
+            "Finished reindexing to destination index [test-outlier-detection-with-more-fields-than-docvalue-limit-results]",
+            "Finished analysis");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/43960")
-    public void testStopOutlierDetectionWithEnoughDocumentsToScroll() {
+    public void testStopOutlierDetectionWithEnoughDocumentsToScroll() throws Exception {
         String sourceIndex = "test-stop-outlier-detection-with-enough-docs-to-scroll";
 
         client().admin().indices().prepareCreate(sourceIndex)
@@ -249,7 +287,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         assertState(id, DataFrameAnalyticsState.STOPPED);
         startAnalytics(id);
-        assertState(id, DataFrameAnalyticsState.STARTED);
+        // State here could be any of STARTED, REINDEXING or ANALYZING
 
         assertThat(stopAnalytics(id).isStopped(), is(true));
         assertState(id, DataFrameAnalyticsState.STOPPED);
@@ -268,6 +306,13 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         } else {
             logger.debug("We stopped during reindexing: [{}] < [{}]", searchResponse.getHits().getTotalHits().value, docCount);
         }
+
+        assertThatAuditMessagesMatch(id,
+            "Created analytics with analysis type [outlier_detection]",
+            "Estimated memory usage for this analytics to be",
+            "Started analytics",
+            "Creating destination index [test-stop-outlier-detection-with-enough-docs-to-scroll-results]",
+            "Stopped analytics");
     }
 
     public void testOutlierDetectionWithMultipleSourceIndices() throws Exception {
@@ -305,6 +350,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         putAnalytics(config);
 
         assertState(id, DataFrameAnalyticsState.STOPPED);
+        assertProgress(id, 0, 0, 0, 0);
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
@@ -318,6 +364,16 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setTrackTotalHits(true)
             .setQuery(QueryBuilders.existsQuery("ml.outlier_score")).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) bulkRequestBuilder.numberOfActions()));
+
+        assertProgress(id, 100, 100, 100, 100);
+        assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
+        assertThatAuditMessagesMatch(id,
+            "Created analytics with analysis type [outlier_detection]",
+            "Estimated memory usage for this analytics to be",
+            "Started analytics",
+            "Creating destination index [test-outlier-detection-with-multiple-source-indices-results]",
+            "Finished reindexing to destination index [test-outlier-detection-with-multiple-source-indices-results]",
+            "Finished analysis");
     }
 
     public void testOutlierDetectionWithPreExistingDestIndex() throws Exception {
@@ -351,6 +407,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         putAnalytics(config);
 
         assertState(id, DataFrameAnalyticsState.STOPPED);
+        assertProgress(id, 0, 0, 0, 0);
 
         startAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
@@ -364,27 +421,30 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setTrackTotalHits(true)
             .setQuery(QueryBuilders.existsQuery("ml.outlier_score")).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) bulkRequestBuilder.numberOfActions()));
+
+        assertProgress(id, 100, 100, 100, 100);
+        assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
+        assertThatAuditMessagesMatch(id,
+            "Created analytics with analysis type [outlier_detection]",
+            "Estimated memory usage for this analytics to be",
+            "Started analytics",
+            "Using existing destination index [test-outlier-detection-with-pre-existing-dest-index-results]",
+            "Finished reindexing to destination index [test-outlier-detection-with-pre-existing-dest-index-results]",
+            "Finished analysis");
     }
 
-    public void testRegressionWithNumericFeatureAndFewDocuments() throws Exception {
-        String sourceIndex = "test-regression-with-numeric-feature-and-few-docs";
+    public void testModelMemoryLimitLowerThanEstimatedMemoryUsage() throws Exception {
+        String sourceIndex = "test-model-memory-limit";
 
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        client().admin().indices().prepareCreate(sourceIndex)
+            .addMapping("_doc", "col_1", "type=double", "col_2", "type=float", "col_3", "type=keyword")
+            .get();
 
-        List<Double> featureValues = Arrays.asList(1.0, 2.0, 3.0);
-        List<Double> dependentVariableValues = Arrays.asList(10.0, 20.0, 30.0);
-
-        for (int i = 0; i < 350; i++) {
-            Double field = featureValues.get(i % 3);
-            Double value = dependentVariableValues.get(i % 3);
-
-            IndexRequest indexRequest = new IndexRequest(sourceIndex);
-            if (i < 300) {
-                indexRequest.source("feature", field, "variable", value);
-            } else {
-                indexRequest.source("feature", field);
-            }
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < 10000; i++) {  // This number of rows should make memory usage estimate greater than 1MB
+            IndexRequest indexRequest = new IndexRequest(sourceIndex)
+                .id("doc_" + i)
+                .source("col_1", 1.0, "col_2", 1.0, "col_3", "str");
             bulkRequestBuilder.add(indexRequest);
         }
         BulkResponse bulkResponse = bulkRequestBuilder.get();
@@ -392,41 +452,95 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             fail("Failed to index data: " + bulkResponse.buildFailureMessage());
         }
 
-        String id = "test_regression_with_numeric_feature_and_few_docs";
-        DataFrameAnalyticsConfig config = buildRegressionAnalytics(id, new String[] {sourceIndex},
-            sourceIndex + "-results", null, "variable");
+        String id = "test_model_memory_limit_lower_than_estimated_memory_usage";
+        ByteSizeValue modelMemoryLimit = new ByteSizeValue(1, ByteSizeUnit.MB);
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
+            .setId(id)
+            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null))
+            .setDest(new DataFrameAnalyticsDest(sourceIndex + "-results", null))
+            .setAnalysis(new OutlierDetection())
+            .setModelMemoryLimit(modelMemoryLimit)
+            .build();
+
+        registerAnalytics(config);
+        putAnalytics(config);
+        assertState(id, DataFrameAnalyticsState.STOPPED);
+
+        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> startAnalytics(id));
+        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(
+            exception.getMessage(),
+            startsWith("Cannot start because the configured model memory limit [" + modelMemoryLimit +
+                "] is lower than the expected memory usage"));
+
+        assertThatAuditMessagesMatch(id,
+            "Created analytics with analysis type [outlier_detection]",
+            "Estimated memory usage for this analytics to be");
+    }
+
+    public void testOutlierDetectionStopAndRestart() throws Exception {
+        String sourceIndex = "test-outlier-detection-stop-and-restart";
+
+        client().admin().indices().prepareCreate(sourceIndex)
+            .addMapping("_doc", "numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
+            .get();
+
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        int docCount = randomIntBetween(1024, 2048);
+        for (int i = 0; i < docCount; i++) {
+            IndexRequest indexRequest = new IndexRequest(sourceIndex);
+            indexRequest.source("numeric_1", randomDouble(), "numeric_2", randomFloat(), "categorical_1", randomAlphaOfLength(10));
+            bulkRequestBuilder.add(indexRequest);
+        }
+        BulkResponse bulkResponse = bulkRequestBuilder.get();
+        if (bulkResponse.hasFailures()) {
+            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        }
+
+        String id = "test_outlier_detection_stop_and_restart";
+        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(
+            id, new String[] {sourceIndex}, sourceIndex + "-results", "custom_ml");
         registerAnalytics(config);
         putAnalytics(config);
 
         assertState(id, DataFrameAnalyticsState.STOPPED);
-
         startAnalytics(id);
+
+        // Wait until state is one of REINDEXING or ANALYZING, or until it is STOPPED.
+        assertBusy(() -> {
+            DataFrameAnalyticsState state = getAnalyticsStats(id).get(0).getState();
+            assertThat(state, is(anyOf(equalTo(DataFrameAnalyticsState.REINDEXING), equalTo(DataFrameAnalyticsState.ANALYZING),
+                equalTo(DataFrameAnalyticsState.STOPPED))));
+        });
+        stopAnalytics(id);
         waitUntilAnalyticsIsStopped(id);
 
-        int resultsWithPrediction = 0;
-        SearchResponse sourceData = client().prepareSearch(sourceIndex).get();
-        for (SearchHit hit : sourceData.getHits()) {
-            GetResponse destDocGetResponse = client().prepareGet().setIndex(config.getDest().getIndex()).setId(hit.getId()).get();
-            assertThat(destDocGetResponse.isExists(), is(true));
-            Map<String, Object> sourceDoc = hit.getSourceAsMap();
-            Map<String, Object> destDoc = destDocGetResponse.getSource();
-            for (String field : sourceDoc.keySet()) {
-                assertThat(destDoc.containsKey(field), is(true));
-                assertThat(destDoc.get(field), equalTo(sourceDoc.get(field)));
-            }
-            assertThat(destDoc.containsKey("ml"), is(true));
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> resultsObject = (Map<String, Object>) destDoc.get("ml");
-
-            if (resultsObject.containsKey("variable_prediction")) {
-                resultsWithPrediction++;
-                double featureValue = (double) destDoc.get("feature");
-                double predictionValue = (double) resultsObject.get("variable_prediction");
-                // it seems for this case values can be as far off as 2.0
-                assertThat(predictionValue, closeTo(10 * featureValue, 2.0));
+        // Now let's start it again
+        try {
+            startAnalytics(id);
+        } catch (Exception e) {
+            if (e.getMessage().equals("Cannot start because the job has already finished")) {
+                // That means the job had managed to complete
+            } else {
+                throw e;
             }
         }
-        assertThat(resultsWithPrediction, greaterThan(0));
+
+        waitUntilAnalyticsIsStopped(id);
+
+        // Check we've got all docs
+        SearchResponse searchResponse = client().prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true).get();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) docCount));
+
+        // Check they all have an outlier_score
+        searchResponse = client().prepareSearch(config.getDest().getIndex())
+            .setTrackTotalHits(true)
+            .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score")).get();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) docCount));
+
+        assertProgress(id, 100, 100, 100, 100);
+        assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
     }
 }

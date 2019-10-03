@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
@@ -29,14 +30,13 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.node.SFunction.FunctionReserved;
+import org.elasticsearch.painless.symbol.FunctionTable;
 import org.objectweb.asm.Opcodes;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -64,13 +64,14 @@ import java.util.Set;
  */
 public final class ELambda extends AExpression implements ILambda {
 
-    private final FunctionReserved reserved;
     private final List<String> paramTypeStrs;
     private final List<String> paramNameStrs;
     private final List<AStatement> statements;
 
     private CompilerSettings settings;
 
+    // extracted variables required to determine captures
+    private final Set<String> extractedVariables;
     // desugared synthetic method (lambda body)
     private SFunction desugared;
     // captured variables
@@ -80,14 +81,15 @@ public final class ELambda extends AExpression implements ILambda {
     // dynamic parent, deferred until link time
     private String defPointer;
 
-    public ELambda(FunctionReserved reserved, Location location,
+    public ELambda(Location location,
                    List<String> paramTypes, List<String> paramNames,
                    List<AStatement> statements) {
         super(location);
-        this.reserved = Objects.requireNonNull(reserved);
         this.paramTypeStrs = Collections.unmodifiableList(paramTypes);
         this.paramNameStrs = Collections.unmodifiableList(paramNames);
         this.statements = Collections.unmodifiableList(statements);
+
+        this.extractedVariables = new HashSet<>();
     }
 
     @Override
@@ -102,12 +104,14 @@ public final class ELambda extends AExpression implements ILambda {
     @Override
     void extractVariables(Set<String> variables) {
         for (AStatement statement : statements) {
-            statement.extractVariables(variables);
+            statement.extractVariables(extractedVariables);
         }
+
+        variables.addAll(extractedVariables);
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(FunctionTable functions, Locals locals) {
         Class<?> returnType;
         List<String> actualParamTypeStrs;
         PainlessMethod interfaceMethod;
@@ -154,14 +158,9 @@ public final class ELambda extends AExpression implements ILambda {
                 }
             }
         }
-        // gather any variables used by the lambda body first.
-        Set<String> variables = new HashSet<>();
-        for (AStatement statement : statements) {
-            statement.extractVariables(variables);
-        }
         // any of those variables defined in our scope need to be captured
         captures = new ArrayList<>();
-        for (String variable : variables) {
+        for (String variable : extractedVariables) {
             if (locals.hasVariable(variable)) {
                 captures.add(locals.getVariable(location, variable));
             }
@@ -178,12 +177,13 @@ public final class ELambda extends AExpression implements ILambda {
 
         // desugar lambda body into a synthetic method
         String name = locals.getNextSyntheticName();
-        desugared = new SFunction(reserved, location, PainlessLookupUtility.typeToCanonicalTypeName(returnType), name,
-                                  paramTypes, paramNames, statements, true);
+        desugared = new SFunction(location, PainlessLookupUtility.typeToCanonicalTypeName(returnType), name, paramTypes, paramNames,
+                new SBlock(location, statements), true);
         desugared.storeSettings(settings);
         desugared.generateSignature(locals.getPainlessLookup());
-        desugared.analyze(Locals.newLambdaScope(locals.getProgramScope(), desugared.name, returnType,
+        desugared.analyze(functions, Locals.newLambdaScope(locals.getProgramScope(), desugared.name, returnType,
                                                 desugared.parameters, captures.size(), settings.getMaxLoopCounter()));
+        functions.addFunction(desugared.name, desugared.returnType, desugared.typeParameters, true);
 
         // setup method reference to synthetic method
         if (expected == null) {
@@ -193,29 +193,29 @@ public final class ELambda extends AExpression implements ILambda {
         } else {
             defPointer = null;
             ref = FunctionRef.create(
-                    locals.getPainlessLookup(), locals.getMethods(), location, expected, "this", desugared.name, captures.size());
+                    locals.getPainlessLookup(), functions, location, expected, "this", desugared.name, captures.size());
             actual = expected;
         }
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
 
         if (ref != null) {
-            writer.writeDebugInfo(location);
+            methodWriter.writeDebugInfo(location);
             // load captures
             for (Variable capture : captures) {
-                writer.visitVarInsn(MethodWriter.getType(capture.clazz).getOpcode(Opcodes.ILOAD), capture.getSlot());
+                methodWriter.visitVarInsn(MethodWriter.getType(capture.clazz).getOpcode(Opcodes.ILOAD), capture.getSlot());
             }
 
-            writer.invokeLambdaCall(ref);
+            methodWriter.invokeLambdaCall(ref);
         } else {
             // placeholder
-            writer.push((String)null);
+            methodWriter.push((String)null);
             // load captures
             for (Variable capture : captures) {
-                writer.visitVarInsn(MethodWriter.getType(capture.clazz).getOpcode(Opcodes.ILOAD), capture.getSlot());
+                methodWriter.visitVarInsn(MethodWriter.getType(capture.clazz).getOpcode(Opcodes.ILOAD), capture.getSlot());
             }
         }
 

@@ -404,7 +404,9 @@ public class Setting<T> implements ToXContentObject {
      * @return true if the setting is present in the given settings instance, otherwise false
      */
     public boolean exists(final Settings settings) {
-        return settings.keySet().contains(getKey());
+        SecureSettings secureSettings = settings.getSecureSettings();
+        return settings.keySet().contains(getKey()) &&
+            (secureSettings == null || secureSettings.getSettingNames().contains(getKey()) == false);
     }
 
     /**
@@ -473,7 +475,7 @@ public class Setting<T> implements ToXContentObject {
      * Returns the raw (string) settings value. If the setting is not present in the given settings object the default value is returned
      * instead. This is useful if the value can't be parsed due to an invalid value to access the actual value.
      */
-    public final String getRaw(final Settings settings) {
+    private String getRaw(final Settings settings) {
         checkDeprecation(settings);
         return innerGetRaw(settings);
     }

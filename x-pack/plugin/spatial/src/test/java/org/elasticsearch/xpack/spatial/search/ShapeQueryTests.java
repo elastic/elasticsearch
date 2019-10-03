@@ -19,7 +19,7 @@ import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryBuilder;
 import org.elasticsearch.xpack.spatial.util.ShapeTestUtils;
@@ -62,6 +62,8 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
 
         // index random shapes
         numDocs = randomIntBetween(25, 50);
+        // reset query geometry to make sure we pick one from the indexed shapes
+        queryGeometry = null;
         Geometry geometry;
         for (int i = 0; i < numDocs; ++i) {
             geometry = ShapeTestUtils.randomGeometry(false);
@@ -77,6 +79,10 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
                 client().prepareIndex(IGNORE_MALFORMED_INDEX, FIELD_TYPE).setRefreshPolicy(IMMEDIATE).setSource(geoJson).get();
             } catch (Exception e) {
                 // sometimes GeoTestUtil will create invalid geometry; catch and continue:
+                if (queryGeometry == geometry) {
+                    // reset query geometry as it didn't get indexed
+                    queryGeometry = null;
+                }
                 --i;
                 continue;
             }
@@ -178,7 +184,7 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(SpatialPlugin.class, XPackPlugin.class);
+        return pluginList(SpatialPlugin.class, LocalStateCompositeXPackPlugin.class);
     }
 
     /**
@@ -216,7 +222,7 @@ public class ShapeQueryTests extends ESSingleNodeTestCase {
             .setRefreshPolicy(IMMEDIATE).get();
         client().prepareIndex(IGNORE_MALFORMED_INDEX, FIELD_TYPE, "aNullshape").setSource("{\"" + FIELD + "\": null}",
             XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
-        GetResponse result = client().prepareGet(INDEX, FIELD_TYPE, "aNullshape").get();
+        GetResponse result = client().prepareGet(INDEX, "aNullshape").get();
         assertThat(result.getField(FIELD), nullValue());
     }
 

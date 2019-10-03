@@ -38,6 +38,8 @@ public interface TestClusterConfiguration {
 
     void setVersion(String version);
 
+    void setVersions(List<String> version);
+
     void setTestDistribution(TestDistribution distribution);
 
     void plugin(URI plugin);
@@ -85,6 +87,8 @@ public interface TestClusterConfiguration {
     void start();
 
     void restart();
+
+    void goToNextVersion();
 
     void extraConfigFile(String destination, File from);
 
@@ -165,7 +169,7 @@ public interface TestClusterConfiguration {
     default String safeName(String name) {
         return name
             .replaceAll("^[^a-zA-Z0-9]+", "")
-            .replaceAll("[^a-zA-Z0-9]+", "-");
+            .replaceAll("[^a-zA-Z0-9\\.]+", "-");
     }
 
     boolean isProcessAlive();

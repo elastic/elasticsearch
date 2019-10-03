@@ -750,7 +750,7 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     protected Engine.Get newGet(boolean realtime, ParsedDocument doc) {
-        return new Engine.Get(realtime, false, doc.type(), doc.id(), newUid(doc));
+        return new Engine.Get(realtime, false, doc.id(), newUid(doc));
     }
 
     protected Engine.Index indexForDoc(ParsedDocument doc) {
@@ -802,9 +802,6 @@ public abstract class EngineTestCase extends ESTestCase {
                     break;
                 case EXTERNAL_GTE:
                     version = randomBoolean() ? Math.max(i - 1, 0) : i;
-                    break;
-                case FORCE:
-                    version = randomNonNegativeLong();
                     break;
                 default:
                     throw new UnsupportedOperationException("unknown version type: " + versionType);
@@ -1074,17 +1071,19 @@ public abstract class EngineTestCase extends ESTestCase {
             || (engine instanceof InternalEngine) == false) {
             return;
         }
-        final long maxSeqNo = ((InternalEngine) engine).getLocalCheckpointTracker().getMaxSeqNo();
         final List<Translog.Operation> translogOps = new ArrayList<>();
         try (Translog.Snapshot snapshot = EngineTestCase.getTranslog(engine).newSnapshot()) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
-                assertThat("translog operation [" + op + "] > max_seq_no[" + maxSeqNo + "]", op.seqNo(), lessThanOrEqualTo(maxSeqNo));
                 translogOps.add(op);
             }
         }
         final Map<Long, Translog.Operation> luceneOps = readAllOperationsInLucene(engine, mapper).stream()
             .collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
+        final long maxSeqNo = ((InternalEngine) engine).getLocalCheckpointTracker().getMaxSeqNo();
+        for (Translog.Operation op : translogOps) {
+            assertThat("translog operation [" + op + "] > max_seq_no[" + maxSeqNo + "]", op.seqNo(), lessThanOrEqualTo(maxSeqNo));
+        }
         for (Translog.Operation op : luceneOps.values()) {
             assertThat("lucene operation [" + op + "] > max_seq_no[" + maxSeqNo + "]", op.seqNo(), lessThanOrEqualTo(maxSeqNo));
         }
@@ -1128,34 +1127,38 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public static void assertAtMostOneLuceneDocumentPerSequenceNumber(Engine engine) throws IOException {
-        if (engine.config().getIndexSettings().isSoftDeleteEnabled() == false || engine instanceof InternalEngine == false) {
-            return;
+        if (engine instanceof InternalEngine) {
+            try {
+                engine.refresh("test");
+                try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+                    assertAtMostOneLuceneDocumentPerSequenceNumber(engine.config().getIndexSettings(), searcher.getDirectoryReader());
+                }
+            } catch (AlreadyClosedException ignored) {
+                // engine was closed
+            }
         }
-        try {
-            engine.refresh("test");
-            try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-                DirectoryReader reader = Lucene.wrapAllDocsLive(searcher.getDirectoryReader());
-                Set<Long> seqNos = new HashSet<>();
-                for (LeafReaderContext leaf : reader.leaves()) {
-                    NumericDocValues primaryTermDocValues = leaf.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
-                    NumericDocValues seqNoDocValues = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
-                    int docId;
-                    while ((docId = seqNoDocValues.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                        assertTrue(seqNoDocValues.advanceExact(docId));
-                        long seqNo = seqNoDocValues.longValue();
-                        assertThat(seqNo, greaterThanOrEqualTo(0L));
-                        if (primaryTermDocValues.advanceExact(docId)) {
-                            if (seqNos.add(seqNo) == false) {
-                                final IdOnlyFieldVisitor idFieldVisitor = new IdOnlyFieldVisitor();
-                                leaf.reader().document(docId, idFieldVisitor);
-                                throw new AssertionError("found multiple documents for seq=" + seqNo + " id=" + idFieldVisitor.getId());
-                            }
-                        }
+    }
+
+    public static void assertAtMostOneLuceneDocumentPerSequenceNumber(IndexSettings indexSettings,
+                                                                      DirectoryReader reader) throws IOException {
+        Set<Long> seqNos = new HashSet<>();
+        final DirectoryReader wrappedReader = indexSettings.isSoftDeleteEnabled() ? Lucene.wrapAllDocsLive(reader) : reader;
+        for (LeafReaderContext leaf : wrappedReader.leaves()) {
+            NumericDocValues primaryTermDocValues = leaf.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+            NumericDocValues seqNoDocValues = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+            int docId;
+            while ((docId = seqNoDocValues.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                assertTrue(seqNoDocValues.advanceExact(docId));
+                long seqNo = seqNoDocValues.longValue();
+                assertThat(seqNo, greaterThanOrEqualTo(0L));
+                if (primaryTermDocValues.advanceExact(docId)) {
+                    if (seqNos.add(seqNo) == false) {
+                        final IdOnlyFieldVisitor idFieldVisitor = new IdOnlyFieldVisitor();
+                        leaf.reader().document(docId, idFieldVisitor);
+                        throw new AssertionError("found multiple documents for seq=" + seqNo + " id=" + idFieldVisitor.getId());
                     }
                 }
             }
-        } catch (AlreadyClosedException ignored) {
-
         }
     }
 

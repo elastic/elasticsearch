@@ -48,7 +48,6 @@ import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
-import org.gradle.api.artifacts.repositories.ArtifactRepository
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository
 import org.gradle.api.artifacts.repositories.IvyPatternRepositoryLayout
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository
@@ -78,18 +77,17 @@ import org.gradle.authentication.http.HttpHeaderAuthentication
 import org.gradle.external.javadoc.CoreJavadocOptions
 import org.gradle.internal.jvm.Jvm
 import org.gradle.language.base.plugins.LifecycleBasePlugin
+import org.gradle.process.CommandLineArgumentProvider
 import org.gradle.process.ExecResult
 import org.gradle.process.ExecSpec
 import org.gradle.util.GradleVersion
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
-import java.time.ZoneOffset
-import java.time.ZonedDateTime
 import java.util.regex.Matcher
 
-import static org.elasticsearch.gradle.tool.Boilerplate.maybeConfigure
 import static org.elasticsearch.gradle.tool.Boilerplate.findByName
+import static org.elasticsearch.gradle.tool.Boilerplate.maybeConfigure
 
 /**
  * Encapsulates build configuration for elasticsearch projects.
@@ -410,11 +408,11 @@ class BuildPlugin implements Plugin<Project> {
         project.getRepositories().all { repository ->
             if (repository instanceof MavenArtifactRepository) {
                 final MavenArtifactRepository maven = (MavenArtifactRepository) repository
-                assertRepositoryURIUsesHttps(maven, project, maven.getUrl())
-                repository.getArtifactUrls().each { uri -> assertRepositoryURIUsesHttps(maven, project, uri) }
+                assertRepositoryURIIsSecure(maven.name, project.path, maven.getUrl())
+                repository.getArtifactUrls().each { uri -> assertRepositoryURIIsSecure(maven.name, project.path, uri) }
             } else if (repository instanceof IvyArtifactRepository) {
                 final IvyArtifactRepository ivy = (IvyArtifactRepository) repository
-                assertRepositoryURIUsesHttps(ivy, project, ivy.getUrl())
+                assertRepositoryURIIsSecure(ivy.name, project.path, ivy.getUrl())
             }
         }
         RepositoryHandler repos = project.repositories
@@ -454,9 +452,15 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    private static void assertRepositoryURIUsesHttps(final ArtifactRepository repository, final Project project, final URI uri) {
-        if (uri != null && uri.toURL().getProtocol().equals("http")) {
-            throw new GradleException("repository [${repository.name}] on project with path [${project.path}] is using http for artifacts on [${uri.toURL()}]")
+    static void assertRepositoryURIIsSecure(final String repositoryName, final String projectPath, final URI uri) {
+        if (uri != null && ["file", "https", "s3"].contains(uri.getScheme()) == false) {
+            final String message = String.format(
+                    Locale.ROOT,
+                    "repository [%s] on project with path [%s] is not using a secure protocol for artifacts on [%s]",
+                    repositoryName,
+                    projectPath,
+                    uri.toURL())
+            throw new GradleException(message)
         }
     }
 
@@ -834,10 +838,9 @@ class BuildPlugin implements Plugin<Project> {
 
                 test.jvmArgs "-Xmx${System.getProperty('tests.heap.size', '512m')}",
                         "-Xms${System.getProperty('tests.heap.size', '512m')}",
-                        '-XX:+HeapDumpOnOutOfMemoryError',
-                        "-XX:HeapDumpPath=$heapdumpDir",
                         '--illegal-access=warn'
 
+                test.jvmArgumentProviders.add({ ['-XX:+HeapDumpOnOutOfMemoryError', "-XX:HeapDumpPath=$heapdumpDir"] } as CommandLineArgumentProvider)
 
                 if (System.getProperty('tests.jvm.argline')) {
                     test.jvmArgs System.getProperty('tests.jvm.argline').split(" ")
@@ -848,8 +851,7 @@ class BuildPlugin implements Plugin<Project> {
                 }
 
                 // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
-                test.systemProperties 'gradle.dist.lib': new File(project.class.location.toURI()).parent,
-                        'java.io.tmpdir': './temp',
+                test.systemProperties 'java.io.tmpdir': './temp',
                         'java.awt.headless': 'true',
                         'tests.gradle': 'true',
                         'tests.artifact': project.name,
@@ -865,6 +867,7 @@ class BuildPlugin implements Plugin<Project> {
                 }
 
                 // don't track these as inputs since they contain absolute paths and break cache relocatability
+                nonInputProperties.systemProperty('gradle.dist.lib', new File(project.class.location.toURI()).parent)
                 nonInputProperties.systemProperty('gradle.worker.jar', "${project.gradle.getGradleUserHomeDir()}/caches/${project.gradle.gradleVersion}/workerMain/gradle-worker.jar")
                 nonInputProperties.systemProperty('gradle.user.home', project.gradle.getGradleUserHomeDir())
 
@@ -880,6 +883,15 @@ class BuildPlugin implements Plugin<Project> {
 
                 // TODO: remove this once ctx isn't added to update script params in 7.0
                 test.systemProperty 'es.scripting.update.ctx_in_params', 'false'
+
+                // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
+                test.systemProperty 'es.transport.cname_in_publish_address', 'true'
+
+                // Set netty system properties to the properties we configure in jvm.options
+                test.systemProperty('io.netty.noUnsafe', 'true')
+                test.systemProperty('io.netty.noKeySetOptimization', 'true')
+                test.systemProperty('io.netty.recycler.maxCapacityPerThread', '0')
+                test.systemProperty('io.netty.allocator.numDirectArenas', '0')
 
                 test.testLogging { TestLoggingContainer logging ->
                     logging.showExceptions = true

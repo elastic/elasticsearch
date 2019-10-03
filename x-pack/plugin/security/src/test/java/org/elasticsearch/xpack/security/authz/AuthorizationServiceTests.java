@@ -119,7 +119,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
-import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
@@ -321,9 +320,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             @Override
             public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
                 final Predicate<TransportRequest> requestPredicate = r -> r == request;
-                final Predicate<String> actionPredicate =
-                    Automatons.predicate(((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns());
-                builder.add(this, actionPredicate, requestPredicate);
+                builder.add(this, ((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns(),
+                    requestPredicate);
                 return builder;
             }
         };
@@ -348,9 +346,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             @Override
             public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
                 final Predicate<TransportRequest> requestPredicate = r -> false;
-                final Predicate<String> actionPredicate =
-                    Automatons.predicate(((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns());
-                builder.add(this, actionPredicate,requestPredicate);
+                builder.add(this, ((ActionClusterPrivilege) ClusterPrivilegeResolver.MANAGE_SECURITY).getAllowedActionPatterns(),
+                    requestPredicate);
                 return builder;
             }
         };
@@ -1021,7 +1018,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         requests.add(new Tuple<>(TermVectorsAction.NAME,
                 new TermVectorsRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), "id")));
         requests.add(
-                new Tuple<>(GetAction.NAME, new GetRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), "type", "id")));
+                new Tuple<>(GetAction.NAME, new GetRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), "id")));
         requests.add(new Tuple<>(TermVectorsAction.NAME,
                 new TermVectorsRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), "id")));
         requests.add(new Tuple<>(IndicesAliasesAction.NAME, new IndicesAliasesRequest()
@@ -1252,7 +1249,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     private static Tuple<String, TransportRequest> randomCompositeRequest() {
         switch (randomIntBetween(0, 7)) {
             case 0:
-                return Tuple.tuple(MultiGetAction.NAME, new MultiGetRequest().add("index", "type", "id"));
+                return Tuple.tuple(MultiGetAction.NAME, new MultiGetRequest().add("index", "id"));
             case 1:
                 return Tuple.tuple(MultiSearchAction.NAME, new MultiSearchRequest().add(new SearchRequest()));
             case 2:

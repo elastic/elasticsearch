@@ -48,7 +48,6 @@ public class InboundHandler {
     private final OutboundHandler outboundHandler;
     private final CircuitBreakerService circuitBreakerService;
     private final InboundMessage.Reader reader;
-    private final TransportLogger transportLogger;
     private final TransportHandshaker handshaker;
     private final TransportKeepAlive keepAlive;
 
@@ -57,13 +56,11 @@ public class InboundHandler {
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
 
     InboundHandler(ThreadPool threadPool, OutboundHandler outboundHandler, InboundMessage.Reader reader,
-                   CircuitBreakerService circuitBreakerService, TransportLogger transportLogger, TransportHandshaker handshaker,
-                   TransportKeepAlive keepAlive) {
+                   CircuitBreakerService circuitBreakerService, TransportHandshaker handshaker, TransportKeepAlive keepAlive) {
         this.threadPool = threadPool;
         this.outboundHandler = outboundHandler;
         this.circuitBreakerService = circuitBreakerService;
         this.reader = reader;
-        this.transportLogger = transportLogger;
         this.handshaker = handshaker;
         this.keepAlive = keepAlive;
     }
@@ -97,7 +94,7 @@ public class InboundHandler {
 
     void inboundMessage(TcpChannel channel, BytesReference message) throws Exception {
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
-        transportLogger.logInboundMessage(channel, message);
+        TransportLogger.logInboundMessage(channel, message);
         readBytesMetric.inc(message.length() + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE);
         // Message length of 0 is a ping
         if (message.length() != 0) {
@@ -224,7 +221,7 @@ public class InboundHandler {
         });
     }
 
-    private void handlerResponseError(StreamInput stream, final TransportResponseHandler handler) {
+    private void handlerResponseError(StreamInput stream, final TransportResponseHandler<?> handler) {
         Exception error;
         try {
             error = stream.readException();
@@ -234,7 +231,7 @@ public class InboundHandler {
         handleException(handler, error);
     }
 
-    private void handleException(final TransportResponseHandler handler, Throwable error) {
+    private void handleException(final TransportResponseHandler<?> handler, Throwable error) {
         if (!(error instanceof RemoteTransportException)) {
             error = new RemoteTransportException(error.getMessage(), error);
         }
@@ -253,7 +250,7 @@ public class InboundHandler {
         private final TransportRequest request;
         private final TransportChannel transportChannel;
 
-        RequestHandler(RequestHandlerRegistry reg, TransportRequest request, TransportChannel transportChannel) {
+        RequestHandler(RequestHandlerRegistry<?> reg, TransportRequest request, TransportChannel transportChannel) {
             this.reg = reg;
             this.request = request;
             this.transportChannel = transportChannel;

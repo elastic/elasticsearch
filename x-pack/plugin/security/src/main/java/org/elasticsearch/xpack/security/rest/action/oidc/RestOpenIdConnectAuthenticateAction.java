@@ -38,6 +38,7 @@ public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHa
         PARSER.declareString(OpenIdConnectAuthenticateRequest::setRedirectUri, new ParseField("redirect_uri"));
         PARSER.declareString(OpenIdConnectAuthenticateRequest::setState, new ParseField("state"));
         PARSER.declareString(OpenIdConnectAuthenticateRequest::setNonce, new ParseField("nonce"));
+        PARSER.declareStringOrNull(OpenIdConnectAuthenticateRequest::setRealm, new ParseField("realm"));
     }
 
     public RestOpenIdConnectAuthenticateAction(Settings settings, RestController controller, XPackLicenseState licenseState) {

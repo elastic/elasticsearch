@@ -17,7 +17,7 @@ the <<indices-put-mapping,PUT mapping API>>.
 Norms can be disabled (but not reenabled after the fact), using the
 <<indices-put-mapping,PUT mapping API>> like so:
 
-[source,js]
+[source,console]
 ------------
 PUT my_index/_mapping
 {
@@ -29,7 +29,6 @@ PUT my_index/_mapping
   }
 }
 ------------
-// CONSOLE
 // TEST[s/^/PUT my_index\n/]
 
 NOTE: Norms will not be removed instantly, but will be removed as old segments

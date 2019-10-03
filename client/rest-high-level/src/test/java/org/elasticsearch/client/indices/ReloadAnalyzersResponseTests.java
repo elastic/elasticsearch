@@ -22,6 +22,7 @@ package org.elasticsearch.client.indices;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.xpack.core.action.ReloadAnalyzersResponse.ReloadDetails;
 
@@ -48,7 +49,7 @@ public class ReloadAnalyzersResponseTests
     private Set<Integer> shardIds;
 
     @Override
-    protected org.elasticsearch.xpack.core.action.ReloadAnalyzersResponse createServerTestInstance() {
+    protected org.elasticsearch.xpack.core.action.ReloadAnalyzersResponse createServerTestInstance(XContentType xContentType) {
         index = randomAlphaOfLength(8);
         id = randomAlphaOfLength(8);
         final int total = randomIntBetween(1, 16);

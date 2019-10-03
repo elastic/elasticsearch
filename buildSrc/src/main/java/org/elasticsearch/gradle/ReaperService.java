@@ -142,7 +142,13 @@ public class ReaperService {
             Matcher matcher = REAPER_JAR_PATH_PATTERN.matcher(mainPath);
 
             if (matcher.matches()) {
-                return Path.of(matcher.group(1));
+                String path = matcher.group(1);
+                return Path.of(
+                    OS.<String>conditional()
+                        .onWindows(() -> path.substring(1))
+                        .onUnix(() -> path)
+                        .supply()
+                );
             } else {
                 throw new RuntimeException("Unable to locate " + REAPER_CLASS + " on build classpath.");
             }

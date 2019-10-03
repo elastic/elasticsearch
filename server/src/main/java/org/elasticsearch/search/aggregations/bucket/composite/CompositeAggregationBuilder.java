@@ -25,12 +25,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -195,8 +195,8 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     }
 
     @Override
-    protected AggregatorFactory doBuild(SearchContext context, AggregatorFactory parent,
-                                           AggregatorFactories.Builder subfactoriesBuilder) throws IOException {
+    protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
+                                        AggregatorFactories.Builder subfactoriesBuilder) throws IOException {
         AggregatorFactory invalid = checkParentIsNullOrNested(parent);
         if (invalid != null) {
             throw new IllegalArgumentException("[composite] aggregation cannot be used with a parent aggregation of" +
@@ -204,7 +204,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         }
         CompositeValuesSourceConfig[] configs = new CompositeValuesSourceConfig[sources.size()];
         for (int i = 0; i < configs.length; i++) {
-            configs[i] = sources.get(i).build(context);
+            configs[i] = sources.get(i).build(queryShardContext);
             if (configs[i].valuesSource().needsScores()) {
                 throw new IllegalArgumentException("[sources] cannot access _score");
             }
@@ -235,7 +235,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         } else {
             afterKey = null;
         }
-        return new CompositeAggregationFactory(name, context, parent, subfactoriesBuilder, metaData, size, configs, afterKey);
+        return new CompositeAggregationFactory(name, queryShardContext, parent, subfactoriesBuilder, metaData, size, configs, afterKey);
     }
 
 

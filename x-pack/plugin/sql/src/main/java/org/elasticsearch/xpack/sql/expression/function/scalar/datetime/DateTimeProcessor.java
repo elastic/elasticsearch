@@ -63,7 +63,6 @@ public class DateTimeProcessor extends BaseDateTimeProcessor {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeEnum(extractor);
     }
 

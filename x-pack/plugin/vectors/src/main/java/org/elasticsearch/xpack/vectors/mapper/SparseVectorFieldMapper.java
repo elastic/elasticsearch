@@ -181,7 +181,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
             }
         }
 
-        BytesRef br = VectorEncoderDecoder.encodeSparseVector(dims, values, dimCount);
+        BytesRef br = VectorEncoderDecoder.encodeSparseVector(indexCreatedVersion, dims, values, dimCount);
         BinaryDocValuesField field = new BinaryDocValuesField(fieldType().name(), br);
         context.doc().addWithKey(fieldType().name(), field);
     }

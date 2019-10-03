@@ -107,7 +107,7 @@ The API returns the following information:
 The following example gets overall buckets for {anomaly-jobs} with IDs matching
 `job-*`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ml/anomaly_detectors/job-*/results/overall_buckets
 {
@@ -115,7 +115,6 @@ GET _ml/anomaly_detectors/job-*/results/overall_buckets
   "start": "1403532000000"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:todo]
 
 In this example, the API returns a single result that matches the specified
@@ -153,7 +152,7 @@ score and time constraints. The `overall_score` is the max job score as
 
 The next example is similar but this time `top_n` is set to `2`:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET _ml/anomaly_detectors/job-*/results/overall_buckets
 {
@@ -162,7 +161,6 @@ GET _ml/anomaly_detectors/job-*/results/overall_buckets
   "start": "1403532000000"
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[skip:todo]
 
 Note how the `overall_score` is now the average of the top 2 job scores:

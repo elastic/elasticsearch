@@ -17,9 +17,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
-import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -51,8 +49,9 @@ public class MeanSquaredErrorTests extends AbstractSerializingTestCase<MeanSquar
         ));
 
         MeanSquaredError mse = new MeanSquaredError();
-        EvaluationMetricResult result = mse.evaluate(aggs);
+        mse.process(aggs);
 
+        EvaluationMetricResult result = mse.getResult().get();
         String expected = "{\"error\":0.8123}";
         assertThat(Strings.toString(result), equalTo(expected));
     }
@@ -63,8 +62,10 @@ public class MeanSquaredErrorTests extends AbstractSerializingTestCase<MeanSquar
         ));
 
         MeanSquaredError mse = new MeanSquaredError();
-        EvaluationMetricResult result = mse.evaluate(aggs);
-        assertThat(result, is(nullValue()));
+        mse.process(aggs);
+
+        EvaluationMetricResult result = mse.getResult().get();
+        assertThat(result, equalTo(new MeanSquaredError.Result(0.0)));
     }
 
     private static NumericMetricsAggregation.SingleValue createSingleMetricAgg(String name, double value) {

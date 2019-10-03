@@ -184,7 +184,8 @@ Directory `admins` group to both the `monitoring` and `user` roles, maps the
 role.
 
 Configured via the role-mapping API:
-[source,js]
+
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/admins
 {
@@ -195,10 +196,10 @@ PUT /_security/role_mapping/admins
   "enabled": true
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The Active Directory distinguished name (DN) of the `admins` group.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /_security/role_mapping/basic_users
 {
@@ -214,7 +215,7 @@ PUT /_security/role_mapping/basic_users
   "enabled": true
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The Active Directory distinguished name (DN) of the `users` group.
 <2> The Active Directory distinguished name (DN) of the user `John Doe`.
 

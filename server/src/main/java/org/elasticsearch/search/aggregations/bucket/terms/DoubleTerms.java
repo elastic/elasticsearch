@@ -82,11 +82,6 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
         }
 
         @Override
-        Bucket newBucket(long docCount, InternalAggregations aggs, long docCountError) {
-            return new Bucket(term, docCount, aggs, showDocCountError, docCountError, format);
-        }
-
-        @Override
         protected final XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
             builder.field(CommonFields.KEY.getPreferredName(), term);
             if (format != DocValueFormat.RAW) {
@@ -174,5 +169,10 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
             }
         }
         return newAggs.get(0).doReduce(newAggs, reduceContext);
+    }
+
+    @Override
+    Bucket createBucket(long docCount, InternalAggregations aggs, long docCountError, DoubleTerms.Bucket prototype) {
+        return new Bucket(prototype.term, docCount, aggs, prototype.showDocCountError, docCountError, format);
     }
 }

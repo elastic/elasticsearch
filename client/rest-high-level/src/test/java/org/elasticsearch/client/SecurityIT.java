@@ -190,7 +190,7 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
                 .name(roleName)
                 .clusterPrivileges(randomSubsetOf(randomInt(3), Role.ClusterPrivilegeName.ALL_ARRAY))
                 .indicesPrivileges(
-                        randomArray(3, IndicesPrivileges[]::new, () -> IndicesPrivilegesTests.createNewRandom(randomAlphaOfLength(3))))
+                        randomArray(3, IndicesPrivileges[]::new, () -> IndicesPrivilegesTests.createNewRandom("{\"match_all\": {}}")))
                 .applicationResourcePrivileges(randomArray(3, ApplicationResourcePrivileges[]::new,
                         () -> ApplicationResourcePrivilegesTests.createNewRandom(randomAlphaOfLength(3).toLowerCase(Locale.ROOT))))
                 .runAsPrivilege(randomArray(3, String[]::new, () -> randomAlphaOfLength(3)));

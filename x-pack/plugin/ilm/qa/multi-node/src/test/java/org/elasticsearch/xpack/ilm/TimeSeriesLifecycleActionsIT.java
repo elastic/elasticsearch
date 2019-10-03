@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -65,6 +67,8 @@ import static org.hamcrest.Matchers.nullValue;
 public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     private String index;
     private String policy;
+
+    private static final Logger logger = LogManager.getLogger(TimeSeriesLifecycleActionsIT.class);
 
     @Before
     public void refreshIndex() {
@@ -383,7 +387,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // index document so snapshot actually does something
         indexDocument();
         // start snapshot
-        request = new Request("PUT", "/_snapshot/repo/snapshot");
+        String snapName = "snapshot-" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        request = new Request("PUT", "/_snapshot/repo/" + snapName);
         request.addParameter("wait_for_completion", "false");
         request.setJsonEntity("{\"indices\": \"" + index + "\"}");
         assertOK(client().performRequest(request));
@@ -392,8 +397,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // assert that index was deleted
         assertBusy(() -> assertFalse(indexExists(index)), 2, TimeUnit.MINUTES);
         // assert that snapshot is still in progress and clean up
-        assertThat(getSnapshotState("snapshot"), equalTo("SUCCESS"));
-        assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
+        assertThat(getSnapshotState(snapName), equalTo("SUCCESS"));
+        assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/" + snapName)));
     }
 
     public void testReadOnly() throws Exception {
@@ -961,7 +966,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         return (Map<String, Object>) response.get("settings");
     }
 
-    private StepKey getStepKeyForIndex(String indexName) throws IOException {
+    public static StepKey getStepKeyForIndex(String indexName) throws IOException {
         Map<String, Object> indexResponse = explainIndex(indexName);
         if (indexResponse == null) {
             return new StepKey(null, null, null);
@@ -988,11 +993,12 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         return ((Map<String, String>) indexResponse.get("step_info")).get("reason");
     }
 
-    private Map<String, Object> explainIndex(String indexName) throws IOException {
+    private static Map<String, Object> explainIndex(String indexName) throws IOException {
         return explain(indexName, false, false).get(indexName);
     }
 
-    private Map<String, Map<String, Object>> explain(String indexPattern, boolean onlyErrors, boolean onlyManaged) throws IOException {
+    private static Map<String, Map<String, Object>> explain(String indexPattern, boolean onlyErrors,
+                                                            boolean onlyManaged) throws IOException {
         Request explainRequest = new Request("GET", indexPattern + "/_ilm/explain");
         explainRequest.addParameter("only_errors", Boolean.toString(onlyErrors));
         explainRequest.addParameter("only_managed", Boolean.toString(onlyManaged));

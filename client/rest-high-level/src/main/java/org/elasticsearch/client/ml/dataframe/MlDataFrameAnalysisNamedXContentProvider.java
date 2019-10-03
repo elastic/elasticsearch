@@ -32,6 +32,10 @@ public class MlDataFrameAnalysisNamedXContentProvider implements NamedXContentPr
             new NamedXContentRegistry.Entry(
                 DataFrameAnalysis.class,
                 OutlierDetection.NAME,
-                (p, c) -> OutlierDetection.fromXContent(p)));
+                (p, c) -> OutlierDetection.fromXContent(p)),
+            new NamedXContentRegistry.Entry(
+                DataFrameAnalysis.class,
+                Regression.NAME,
+                (p, c) -> Regression.fromXContent(p)));
     }
 }

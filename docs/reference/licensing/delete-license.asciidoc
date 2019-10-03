@@ -31,11 +31,10 @@ For more information, see
 
 The following example queries the info API:
 
-[source,js]
+[source,console]
 ------------------------------------------------------------
 DELETE /_license
 ------------------------------------------------------------
-// CONSOLE
 // TEST[skip:license testing issues]
 
 When the license is successfully deleted, the API returns the following response:

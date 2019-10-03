@@ -35,7 +35,6 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -69,7 +68,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
     public void testIntegerRangeQuery() throws Exception {
         Query query = new QueryStringQueryBuilder(INTEGER_RANGE_FIELD_NAME + ":[-450 TO 45000]").toQuery(createShardContext());
         Query range = IntRange.newIntersectsQuery(INTEGER_RANGE_FIELD_NAME, new int[]{-450}, new int[]{45000});
-        Query dv = RangeFieldMapper.RangeType.INTEGER.dvRangeQuery(INTEGER_RANGE_FIELD_NAME,
+        Query dv = RangeType.INTEGER.dvRangeQuery(INTEGER_RANGE_FIELD_NAME,
             BinaryDocValuesRangeQuery.QueryType.INTERSECTS, -450, 45000, true, true);
         assertEquals(new IndexOrDocValuesQuery(range, dv), query);
     }
@@ -77,7 +76,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
     public void testLongRangeQuery() throws Exception {
         Query query = new QueryStringQueryBuilder(LONG_RANGE_FIELD_NAME + ":[-450 TO 45000]").toQuery(createShardContext());
         Query range = LongRange.newIntersectsQuery(LONG_RANGE_FIELD_NAME, new long[]{-450}, new long[]{45000});
-        Query dv = RangeFieldMapper.RangeType.LONG.dvRangeQuery(LONG_RANGE_FIELD_NAME,
+        Query dv = RangeType.LONG.dvRangeQuery(LONG_RANGE_FIELD_NAME,
             BinaryDocValuesRangeQuery.QueryType.INTERSECTS, -450, 45000, true, true);
         assertEquals(new IndexOrDocValuesQuery(range, dv), query);
     }
@@ -85,7 +84,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
     public void testFloatRangeQuery() throws Exception {
         Query query = new QueryStringQueryBuilder(FLOAT_RANGE_FIELD_NAME + ":[-450 TO 45000]").toQuery(createShardContext());
         Query range = FloatRange.newIntersectsQuery(FLOAT_RANGE_FIELD_NAME, new float[]{-450}, new float[]{45000});
-        Query dv = RangeFieldMapper.RangeType.FLOAT.dvRangeQuery(FLOAT_RANGE_FIELD_NAME,
+        Query dv = RangeType.FLOAT.dvRangeQuery(FLOAT_RANGE_FIELD_NAME,
             BinaryDocValuesRangeQuery.QueryType.INTERSECTS, -450.0f, 45000.0f, true, true);
         assertEquals(new IndexOrDocValuesQuery(range, dv), query);
     }
@@ -93,7 +92,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
     public void testDoubleRangeQuery() throws Exception {
         Query query = new QueryStringQueryBuilder(DOUBLE_RANGE_FIELD_NAME + ":[-450 TO 45000]").toQuery(createShardContext());
         Query range = DoubleRange.newIntersectsQuery(DOUBLE_RANGE_FIELD_NAME, new double[]{-450}, new double[]{45000});
-        Query dv = RangeFieldMapper.RangeType.DOUBLE.dvRangeQuery(DOUBLE_RANGE_FIELD_NAME,
+        Query dv = RangeType.DOUBLE.dvRangeQuery(DOUBLE_RANGE_FIELD_NAME,
             BinaryDocValuesRangeQuery.QueryType.INTERSECTS, -450.0, 45000.0, true, true);
         assertEquals(new IndexOrDocValuesQuery(range, dv), query);
     }
@@ -106,7 +105,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
         Query range = LongRange.newIntersectsQuery(DATE_RANGE_FIELD_NAME,
             new long[]{ parser.parse("2010-01-01", () -> 0).toEpochMilli()},
             new long[]{ parser.parse("2018-01-01", () -> 0).toEpochMilli()});
-        Query dv = RangeFieldMapper.RangeType.DATE.dvRangeQuery(DATE_RANGE_FIELD_NAME,
+        Query dv = RangeType.DATE.dvRangeQuery(DATE_RANGE_FIELD_NAME,
             BinaryDocValuesRangeQuery.QueryType.INTERSECTS,
             parser.parse("2010-01-01", () -> 0).toEpochMilli(),
             parser.parse("2018-01-01", () -> 0).toEpochMilli(), true, true);
@@ -118,7 +117,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
         InetAddress upper = InetAddresses.forString("192.168.0.5");
         Query query = new QueryStringQueryBuilder(IP_RANGE_FIELD_NAME + ":[192.168.0.1 TO 192.168.0.5]").toQuery(createShardContext());
         Query range = InetAddressRange.newIntersectsQuery(IP_RANGE_FIELD_NAME, lower, upper);
-        Query dv = RangeFieldMapper.RangeType.IP.dvRangeQuery(IP_RANGE_FIELD_NAME,
+        Query dv = RangeType.IP.dvRangeQuery(IP_RANGE_FIELD_NAME,
             BinaryDocValuesRangeQuery.QueryType.INTERSECTS,
             lower, upper, true, true);
         assertEquals(new IndexOrDocValuesQuery(range, dv), query);
@@ -130,7 +129,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
     }
 
     @Override
-    protected void doAssertLuceneQuery(QueryStringQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(QueryStringQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, either(instanceOf(PointRangeQuery.class)).or(instanceOf(IndexOrDocValuesQuery.class)));
     }
 }

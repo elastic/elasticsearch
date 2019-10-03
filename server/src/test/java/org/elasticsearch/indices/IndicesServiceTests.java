@@ -594,7 +594,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testUnderShardLimit() {
-        int nodesInCluster = randomIntBetween(2,100);
+        int nodesInCluster = randomIntBetween(2,90);
         // Calculate the counts for a cluster 1 node smaller than we have to ensure we have headroom
         ClusterShardLimitIT.ShardCounts counts = forDataNodeCount(nodesInCluster - 1);
 

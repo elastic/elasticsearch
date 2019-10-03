@@ -50,7 +50,7 @@ public class LocalModel implements Model {
     }
 
     @Override
-    public void confidence(Map<String, Object> fields, int topN, ActionListener<InferenceResults> listener) {
+    public void classificationProbability(Map<String, Object> fields, int topN, ActionListener<InferenceResults> listener) {
         if (topN == 0) {
             infer(fields, listener);
             return;

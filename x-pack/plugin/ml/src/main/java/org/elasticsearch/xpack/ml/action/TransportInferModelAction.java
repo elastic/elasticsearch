@@ -55,7 +55,8 @@ public class TransportInferModelAction extends HandledTransportAction<InferModel
                     ex -> true);
                 if (request.getTopClasses() != null) {
                     request.getObjectsToInfer().forEach(stringObjectMap ->
-                        typedChainTaskExecutor.add(chainedTask -> model.confidence(stringObjectMap, request.getTopClasses(), chainedTask))
+                        typedChainTaskExecutor.add(chainedTask ->
+                            model.classificationProbability(stringObjectMap, request.getTopClasses(), chainedTask))
                     );
                 } else {
                     request.getObjectsToInfer().forEach(stringObjectMap ->
@@ -67,6 +68,6 @@ public class TransportInferModelAction extends HandledTransportAction<InferModel
             listener::onFailure
         );
 
-        this.modelLoadingService.getModelAndCache(request.getModelId(), request.getModelVersion(), getModelListener);
+        this.modelLoadingService.getModel(request.getModelId(), request.getModelVersion(), getModelListener);
     }
 }

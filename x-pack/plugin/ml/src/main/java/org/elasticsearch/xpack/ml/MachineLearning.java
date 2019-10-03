@@ -500,7 +500,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             xContentRegistry);
 
         final TrainedModelProvider trainedModelProvider = new TrainedModelProvider(client, xContentRegistry);
-        final ModelLoadingService modelLoadingService = new ModelLoadingService(trainedModelProvider);
+        final ModelLoadingService modelLoadingService = new ModelLoadingService(trainedModelProvider, threadPool, clusterService);
         // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager if ML is enabled
         JobManagerHolder jobManagerHolder = new JobManagerHolder(jobManager);
 

@@ -53,14 +53,14 @@ public class LocalModelTests extends ESTestCase {
         assertThat(result.getTopClasses(), is(nullValue()));
 
         future = new PlainActionFuture<>();
-        model.confidence(fields, 0, future);
+        model.classificationProbability(fields, 0, future);
         result = future.get();
         assertThat(result.getNumericValue(), equalTo(0.0));
         assertThat(result.getClassificationLabel(), is(nullValue()));
         assertThat(result.getTopClasses(), is(nullValue()));
 
         future = new PlainActionFuture<>();
-        model.confidence(fields, 1, future);
+        model.classificationProbability(fields, 1, future);
         result = future.get();
         assertThat(result.getTopClasses().get(0).getProbability(), closeTo(0.5498339973124778, 0.0000001));
         assertThat(result.getTopClasses().get(0).getLabel(), equalTo("0"));
@@ -78,25 +78,25 @@ public class LocalModelTests extends ESTestCase {
         assertThat(result.getClassificationLabel(), equalTo("not_to_be"));
 
         future = new PlainActionFuture<>();
-        model.confidence(fields, 0, future);
+        model.classificationProbability(fields, 0, future);
         result = future.get();
         assertThat(result.getNumericValue(), equalTo(0.0));
         assertThat(result.getClassificationLabel(), equalTo("not_to_be"));
         assertThat(result.getTopClasses(), is(nullValue()));
 
         future = new PlainActionFuture<>();
-        model.confidence(fields, 1, future);
+        model.classificationProbability(fields, 1, future);
         result = future.get();
         assertThat(result.getTopClasses().get(0).getProbability(), closeTo(0.5498339973124778, 0.0000001));
         assertThat(result.getTopClasses().get(0).getLabel(), equalTo("not_to_be"));
 
         future = new PlainActionFuture<>();
-        model.confidence(fields, 2, future);
+        model.classificationProbability(fields, 2, future);
         result = future.get();
         assertThat(result.getTopClasses(), hasSize(2));
 
         future = new PlainActionFuture<>();
-        model.confidence(fields, -1, future);
+        model.classificationProbability(fields, -1, future);
         result = future.get();
         assertThat(result.getTopClasses(), hasSize(2));
     }
@@ -120,7 +120,7 @@ public class LocalModelTests extends ESTestCase {
         assertThat(results.getNumericValue(), equalTo(1.3));
 
         PlainActionFuture<InferenceResults> failedFuture = new PlainActionFuture<>();
-        model.confidence(fields, -1, failedFuture);
+        model.classificationProbability(fields, -1, failedFuture);
         ExecutionException ex = expectThrows(ExecutionException.class, failedFuture::get);
         assertThat(ex.getCause().getMessage(), equalTo("top result probabilities is only available for classification models"));
     }

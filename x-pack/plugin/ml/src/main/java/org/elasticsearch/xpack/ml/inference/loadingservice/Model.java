@@ -14,5 +14,5 @@ public interface Model {
 
     void infer(Map<String, Object> fields, ActionListener<InferenceResults> listener);
 
-    void confidence(Map<String, Object> fields, int topN, ActionListener<InferenceResults> listener);
+    void classificationProbability(Map<String, Object> fields, int topN, ActionListener<InferenceResults> listener);
 }

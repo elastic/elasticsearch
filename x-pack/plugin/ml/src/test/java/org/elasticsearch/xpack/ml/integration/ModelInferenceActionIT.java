@@ -55,7 +55,6 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         waitForMlTemplates();
     }
 
-    @SuppressWarnings("unchecked")
     public void testInferModels() throws Exception {
         String modelId1 = "test-load-models-regression";
         String modelId2 = "test-load-models-classification";
@@ -245,11 +244,6 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             .setTrainedModels(Arrays.asList(tree1, tree2, tree3))
             .setOutputAggregator(new WeightedSum(Arrays.asList(0.5, 0.5, 0.5)))
             .build();
-    }
-
-
-    private static TrainedModelConfig buildTrainedModelConfig(String modelId, long modelVersion) {
-        return buildTrainedModelConfigBuilder(modelId, modelVersion).build(Version.CURRENT);
     }
 
     private static TrainedModelConfig.Builder buildTrainedModelConfigBuilder(String modelId, long modelVersion) {

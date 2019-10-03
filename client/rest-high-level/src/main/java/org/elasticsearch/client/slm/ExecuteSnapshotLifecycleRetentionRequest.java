@@ -17,19 +17,9 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.build'
-apply plugin: 'nebula.maven-base-publish'
-apply plugin: 'nebula.maven-scm'
+package org.elasticsearch.client.slm;
 
-dependencies {
-    testCompile(project(":test:framework")) {
-        exclude group: 'org.elasticsearch', module: 'elasticsearch-geo'
-    }
+import org.elasticsearch.client.TimedRequest;
+
+public class ExecuteSnapshotLifecycleRetentionRequest extends TimedRequest {
 }
-
-forbiddenApisMain {
-    // geo does not depend on server
-    // TODO: Need to decide how we want to handle for forbidden signatures with the changes to core
-    replaceSignatureFiles 'jdk-signatures'
-}
-

@@ -744,7 +744,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public IndexMetaData getSnapshotIndexMetaData(final SnapshotId snapshotId, final IndexId index) throws IOException {
-        return indexMetaDataFormat.read(indexContainer(index), snapshotId.getUUID());
+        try {
+            return indexMetaDataFormat.read(indexContainer(index), snapshotId.getUUID());
+        } catch (NoSuchFileException e) {
+            throw new SnapshotMissingException(metadata.name(), snapshotId, e);
+        }
     }
 
     private BlobPath indicesPath() {

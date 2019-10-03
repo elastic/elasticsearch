@@ -36,7 +36,7 @@ import java.util.regex.Matcher
 /**
  * A task which will run a closure on each snippet in the documentation.
  */
-public class SnippetsTask extends DefaultTask {
+class SnippetsTask extends DefaultTask {
     private static final String SCHAR = /(?:\\\/|[^\/])/
     private static final String SUBSTITUTION = /s\/($SCHAR+)\/($SCHAR*)\//
     private static final String CATCH = /catch:\s*((?:\/[^\/]+\/)|[^ \]]+)/
@@ -51,6 +51,7 @@ public class SnippetsTask extends DefaultTask {
      * Action to take on each snippet. Called with a single parameter, an
      * instance of Snippet.
      */
+    @Input
     Closure perSnippet
 
     /**
@@ -73,7 +74,7 @@ public class SnippetsTask extends DefaultTask {
     Map<String, String> defaultSubstitutions = [:]
 
     @TaskAction
-    public void executeTask() {
+    void executeTask() {
         /*
          * Walks each line of each file, building snippets as it encounters
          * the lines that make up the snippet.

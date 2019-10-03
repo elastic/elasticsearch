@@ -371,7 +371,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             if (blobStore.sseAwsKeyIsEmpty())
                 md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
                 else {
-                md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
+                md.setSSEAlgorithm(SSEAlgorithm.KMS.getAlgorithm());
                 initRequest.withSSEAwsKeyManagementParams(blobStore.getSSEAwsKey());
             }
             initRequest.setObjectMetadata(md);

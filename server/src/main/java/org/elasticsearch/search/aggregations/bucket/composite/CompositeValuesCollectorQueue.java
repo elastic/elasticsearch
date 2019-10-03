@@ -26,15 +26,17 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.support.BreakingPriorityQueueWrapper;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * A specialized {@link PriorityQueue} implementation for composite buckets.
  */
-final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> implements Releasable {
+final class CompositeValuesCollectorQueue extends BreakingPriorityQueueWrapper<Integer> implements Releasable {
     private class Slot {
         int value;
 
@@ -73,8 +75,9 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
      * @param size The number of composite buckets to keep.
      * @param afterKey composite key
      */
-    CompositeValuesCollectorQueue(BigArrays bigArrays, SingleDimensionValuesSource<?>[] sources, int size, CompositeKey afterKey) {
-        super(size);
+    CompositeValuesCollectorQueue(BigArrays bigArrays, SingleDimensionValuesSource<?>[] sources, int size,
+                                  CompositeKey afterKey, Consumer<Long> circuitBreaker) {
+        super(size, circuitBreaker);
         this.bigArrays = bigArrays;
         this.maxSize = size;
         this.arrays = sources;

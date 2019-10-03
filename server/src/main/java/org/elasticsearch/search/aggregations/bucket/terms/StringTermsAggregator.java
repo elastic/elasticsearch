@@ -138,33 +138,39 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
         final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
 
         long otherDocCount = 0;
-        BucketPriorityQueue<StringTerms.Bucket> ordered = new BucketPriorityQueue<>(size, order.comparator(this));
-        StringTerms.Bucket spare = null;
-        for (int i = 0; i < bucketOrds.size(); i++) {
-            if (spare == null) {
-                spare = new StringTerms.Bucket(new BytesRef(), 0, null, showTermDocCountError, 0, format);
-            }
-            bucketOrds.get(i, spare.termBytes);
-            spare.docCount = bucketDocCount(i);
-            otherDocCount += spare.docCount;
-            spare.bucketOrd = i;
-            if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
-                spare = ordered.insertWithOverflow(spare);
+
+        final StringTerms.Bucket[] list;
+        long[] survivingBucketOrds;
+        try (BucketPriorityQueue<StringTerms.Bucket> ordered
+                 = new BucketPriorityQueue<>(size, order.comparator(this), this::addRequestCircuitBreakerBytes)) {
+            StringTerms.Bucket spare = null;
+            for (int i = 0; i < bucketOrds.size(); i++) {
                 if (spare == null) {
-                    consumeBucketsAndMaybeBreak(1);
+                    spare = new StringTerms.Bucket(new BytesRef(), 0, null, showTermDocCountError, 0, format);
                 }
+                bucketOrds.get(i, spare.termBytes);
+                spare.docCount = bucketDocCount(i);
+                otherDocCount += spare.docCount;
+                spare.bucketOrd = i;
+                if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
+                    spare = ordered.insertWithOverflow(spare);
+                    if (spare == null) {
+                        consumeBucketsAndMaybeBreak(1);
+                    }
+                }
+            }
+
+            // Get the top buckets
+            list = new StringTerms.Bucket[ordered.size()];
+            survivingBucketOrds = new long[ordered.size()];
+            for (int i = ordered.size() - 1; i >= 0; --i) {
+                final StringTerms.Bucket bucket = ordered.pop();
+                survivingBucketOrds[i] = bucket.bucketOrd;
+                list[i] = bucket;
+                otherDocCount -= bucket.docCount;
             }
         }
 
-        // Get the top buckets
-        final StringTerms.Bucket[] list = new StringTerms.Bucket[ordered.size()];
-        long survivingBucketOrds[] = new long[ordered.size()];
-        for (int i = ordered.size() - 1; i >= 0; --i) {
-            final StringTerms.Bucket bucket = ordered.pop();
-            survivingBucketOrds[i] = bucket.bucketOrd;
-            list[i] = bucket;
-            otherDocCount -= bucket.docCount;
-        }
         // replay any deferred collections
         runDeferredCollections(survivingBucketOrds);
 

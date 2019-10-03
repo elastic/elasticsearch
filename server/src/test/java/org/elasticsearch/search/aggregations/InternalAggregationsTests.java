@@ -19,11 +19,18 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
+import org.elasticsearch.indices.breaker.BreakerSettings;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;
@@ -54,6 +61,72 @@ public class InternalAggregationsTests extends ESTestCase {
     }
 
     public void testNonFinalReduceTopLevelPipelineAggs()  {
+        MockBigArrays bigArrays = new MockBigArrays(null, new CircuitBreakerService() {
+            @Override
+            public void registerBreaker(BreakerSettings breakerSettings) {
+
+            }
+
+            @Override
+            public CircuitBreaker getBreaker(String name) {
+                return new CircuitBreaker() {
+                    @Override
+                    public void circuitBreak(String fieldName, long bytesNeeded) {
+
+                    }
+
+                    @Override
+                    public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                        return 0;
+                    }
+
+                    @Override
+                    public long addWithoutBreaking(long bytes) {
+                        return 0;
+                    }
+
+                    @Override
+                    public long getUsed() {
+                        return 0;
+                    }
+
+                    @Override
+                    public long getLimit() {
+                        return 0;
+                    }
+
+                    @Override
+                    public double getOverhead() {
+                        return 0;
+                    }
+
+                    @Override
+                    public long getTrippedCount() {
+                        return 0;
+                    }
+
+                    @Override
+                    public String getName() {
+                        return null;
+                    }
+
+                    @Override
+                    public Durability getDurability() {
+                        return null;
+                    }
+                };
+            }
+
+            @Override
+            public AllCircuitBreakerStats stats() {
+                return null;
+            }
+
+            @Override
+            public CircuitBreakerStats stats(String name) {
+                return null;
+            }
+        });
         InternalAggregation terms = new StringTerms("name", BucketOrder.key(true),
             10, 1, Collections.emptyList(), Collections.emptyMap(), DocValueFormat.RAW, 25, false, 10, Collections.emptyList(), 0);
         List<SiblingPipelineAggregator> topLevelPipelineAggs = new ArrayList<>();
@@ -61,7 +134,7 @@ public class InternalAggregationsTests extends ESTestCase {
         topLevelPipelineAggs.add((SiblingPipelineAggregator)maxBucketPipelineAggregationBuilder.create());
         List<InternalAggregations> aggs = Collections.singletonList(new InternalAggregations(Collections.singletonList(terms),
             topLevelPipelineAggs));
-        InternalAggregation.ReduceContext reduceContext = new InternalAggregation.ReduceContext(null, null, false);
+        InternalAggregation.ReduceContext reduceContext = new InternalAggregation.ReduceContext(bigArrays, null, false);
         InternalAggregations reducedAggs = InternalAggregations.reduce(aggs, reduceContext);
         assertEquals(1, reducedAggs.getTopLevelPipelineAggregators().size());
         assertEquals(1, reducedAggs.aggregations.size());
@@ -73,7 +146,73 @@ public class InternalAggregationsTests extends ESTestCase {
 
         MaxBucketPipelineAggregationBuilder maxBucketPipelineAggregationBuilder = new MaxBucketPipelineAggregationBuilder("test", "test");
         SiblingPipelineAggregator siblingPipelineAggregator = (SiblingPipelineAggregator) maxBucketPipelineAggregationBuilder.create();
-        InternalAggregation.ReduceContext reduceContext = new InternalAggregation.ReduceContext(null, null, true);
+        MockBigArrays bigArrays = new MockBigArrays(null, new CircuitBreakerService() {
+            @Override
+            public void registerBreaker(BreakerSettings breakerSettings) {
+
+            }
+
+            @Override
+            public CircuitBreaker getBreaker(String name) {
+                return new CircuitBreaker() {
+                    @Override
+                    public void circuitBreak(String fieldName, long bytesNeeded) {
+
+                    }
+
+                    @Override
+                    public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                        return 0;
+                    }
+
+                    @Override
+                    public long addWithoutBreaking(long bytes) {
+                        return 0;
+                    }
+
+                    @Override
+                    public long getUsed() {
+                        return 0;
+                    }
+
+                    @Override
+                    public long getLimit() {
+                        return 0;
+                    }
+
+                    @Override
+                    public double getOverhead() {
+                        return 0;
+                    }
+
+                    @Override
+                    public long getTrippedCount() {
+                        return 0;
+                    }
+
+                    @Override
+                    public String getName() {
+                        return null;
+                    }
+
+                    @Override
+                    public Durability getDurability() {
+                        return null;
+                    }
+                };
+            }
+
+            @Override
+            public AllCircuitBreakerStats stats() {
+                return null;
+            }
+
+            @Override
+            public CircuitBreakerStats stats(String name) {
+                return null;
+            }
+        });
+        InternalAggregation.ReduceContext reduceContext = new InternalAggregation.ReduceContext(bigArrays, null, true);
         final InternalAggregations reducedAggs;
         if (randomBoolean()) {
             InternalAggregations aggs = new InternalAggregations(Collections.singletonList(terms),

@@ -26,13 +26,13 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude.LongFilter;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -130,42 +130,46 @@ public class LongTermsAggregator extends TermsAggregator {
             }
         }
 
+        final LongTerms.Bucket[] list;
+        long[] survivingBucketOrds;
         final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
         long otherDocCount = 0;
-        BucketPriorityQueue<LongTerms.Bucket> ordered = new BucketPriorityQueue<>(size, order.comparator(this));
-        LongTerms.Bucket spare = null;
-        for (long i = 0; i < bucketOrds.size(); i++) {
-            if (spare == null) {
-                spare = new LongTerms.Bucket(0, 0, null, showTermDocCountError, 0, format);
-            }
-            spare.term = bucketOrds.get(i);
-            spare.docCount = bucketDocCount(i);
-            otherDocCount += spare.docCount;
-            spare.bucketOrd = i;
-            if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
-                spare = ordered.insertWithOverflow(spare);
+        try (BucketPriorityQueue<LongTerms.Bucket> ordered
+                 = new BucketPriorityQueue<>(size, order.comparator(this), this::addRequestCircuitBreakerBytes)) {
+            LongTerms.Bucket spare = null;
+            for (long i = 0; i < bucketOrds.size(); i++) {
                 if (spare == null) {
-                    consumeBucketsAndMaybeBreak(1);
+                    spare = new LongTerms.Bucket(0, 0, null, showTermDocCountError, 0, format);
+                }
+                spare.term = bucketOrds.get(i);
+                spare.docCount = bucketDocCount(i);
+                otherDocCount += spare.docCount;
+                spare.bucketOrd = i;
+                if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
+                    spare = ordered.insertWithOverflow(spare);
+                    if (spare == null) {
+                        consumeBucketsAndMaybeBreak(1);
+                    }
                 }
             }
-        }
 
-        // Get the top buckets
-        final LongTerms.Bucket[] list = new LongTerms.Bucket[ordered.size()];
-        long survivingBucketOrds[] = new long[ordered.size()];
-        for (int i = ordered.size() - 1; i >= 0; --i) {
-            final LongTerms.Bucket bucket = (LongTerms.Bucket) ordered.pop();
-            survivingBucketOrds[i] = bucket.bucketOrd;
-            list[i] = bucket;
-            otherDocCount -= bucket.docCount;
+            // Get the top buckets
+            list = new LongTerms.Bucket[ordered.size()];
+            survivingBucketOrds = new long[ordered.size()];
+            for (int i = ordered.size() - 1; i >= 0; --i) {
+                final LongTerms.Bucket bucket = ordered.pop();
+                survivingBucketOrds[i] = bucket.bucketOrd;
+                list[i] = bucket;
+                otherDocCount -= bucket.docCount;
+            }
         }
 
         runDeferredCollections(survivingBucketOrds);
 
         // Now build the aggs
-        for (int i = 0; i < list.length; i++) {
-            list[i].aggregations = bucketAggregations(list[i].bucketOrd);
-            list[i].docCountError = 0;
+        for (LongTerms.Bucket bucket : list) {
+            bucket.aggregations = bucketAggregations(bucket.bucketOrd);
+            bucket.docCountError = 0;
         }
 
         return new LongTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),

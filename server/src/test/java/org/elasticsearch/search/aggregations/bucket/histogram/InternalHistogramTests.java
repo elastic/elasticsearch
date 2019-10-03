@@ -20,7 +20,14 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
+import org.elasticsearch.indices.breaker.BreakerSettings;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -93,6 +100,73 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
 
     // issue 26787
     public void testHandlesNaN() {
+        MockBigArrays bigArrays = new MockBigArrays(null, new CircuitBreakerService() {
+            @Override
+            public void registerBreaker(BreakerSettings breakerSettings) {
+
+            }
+
+            @Override
+            public CircuitBreaker getBreaker(String name) {
+                return new CircuitBreaker() {
+                    @Override
+                    public void circuitBreak(String fieldName, long bytesNeeded) {
+
+                    }
+
+                    @Override
+                    public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                        return 0;
+                    }
+
+                    @Override
+                    public long addWithoutBreaking(long bytes) {
+                        return 0;
+                    }
+
+                    @Override
+                    public long getUsed() {
+                        return 0;
+                    }
+
+                    @Override
+                    public long getLimit() {
+                        return 0;
+                    }
+
+                    @Override
+                    public double getOverhead() {
+                        return 0;
+                    }
+
+                    @Override
+                    public long getTrippedCount() {
+                        return 0;
+                    }
+
+                    @Override
+                    public String getName() {
+                        return null;
+                    }
+
+                    @Override
+                    public Durability getDurability() {
+                        return null;
+                    }
+                };
+            }
+
+            @Override
+            public AllCircuitBreakerStats stats() {
+                return null;
+            }
+
+            @Override
+            public CircuitBreakerStats stats(String name) {
+                return null;
+            }
+        });
+
         InternalHistogram histogram = createTestInstance();
         InternalHistogram histogram2 = createTestInstance();
         List<InternalHistogram.Bucket> buckets = histogram.getBuckets();
@@ -109,7 +183,8 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
         newBuckets.add(new InternalHistogram.Bucket(Double.NaN, b.docCount, keyed, b.format, b.aggregations));
         
         InternalHistogram newHistogram = histogram.create(newBuckets);
-        newHistogram.doReduce(Arrays.asList(newHistogram, histogram2), new InternalAggregation.ReduceContext(null, null, false));
+        newHistogram.doReduce(Arrays.asList(newHistogram, histogram2),
+            new InternalAggregation.ReduceContext(bigArrays, null, false));
     }
 
     @Override

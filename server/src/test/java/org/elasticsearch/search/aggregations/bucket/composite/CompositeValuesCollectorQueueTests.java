@@ -273,7 +273,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                 CompositeKey last = null;
                 while (pos < size) {
                     final CompositeValuesCollectorQueue queue =
-                        new CompositeValuesCollectorQueue(BigArrays.NON_RECYCLING_INSTANCE, sources, size, last);
+                        new CompositeValuesCollectorQueue(BigArrays.NON_RECYCLING_INSTANCE, sources, size, last, aLong -> {});
                     final SortedDocsProducer docsProducer = sources[0].createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery());
                     for (LeafReaderContext leafReaderContext : reader.leaves()) {
                         final LeafBucketCollector leafCollector = new LeafBucketCollector() {

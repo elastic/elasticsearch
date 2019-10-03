@@ -92,7 +92,8 @@ final class CompositeAggregator extends BucketsAggregator {
         for (int i = 0; i < sourceConfigs.length; i++) {
             this.sources[i] = createValuesSource(context.bigArrays(), context.searcher().getIndexReader(), sourceConfigs[i], size);
         }
-        this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size, rawAfterKey);
+        this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size,
+            rawAfterKey, this::addRequestCircuitBreakerBytes);
         this.sortedDocsProducer = sources[0].createSortedDocsProducerOrNull(context.searcher().getIndexReader(), context.query());
     }
 

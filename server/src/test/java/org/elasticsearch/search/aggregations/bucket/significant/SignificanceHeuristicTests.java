@@ -22,12 +22,15 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -35,6 +38,10 @@ import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
+import org.elasticsearch.indices.breaker.BreakerSettings;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchShardTarget;
@@ -147,8 +154,74 @@ public class SignificanceHeuristicTests extends ESTestCase {
     }
 
     public void testReduce() {
+        MockBigArrays bigArrays = new MockBigArrays(null, new CircuitBreakerService() {
+            @Override
+            public void registerBreaker(BreakerSettings breakerSettings) {
+
+            }
+
+            @Override
+            public CircuitBreaker getBreaker(String name) {
+                return new CircuitBreaker() {
+                    @Override
+                    public void circuitBreak(String fieldName, long bytesNeeded) {
+
+                    }
+
+                    @Override
+                    public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                        return 0;
+                    }
+
+                    @Override
+                    public long addWithoutBreaking(long bytes) {
+                        return 0;
+                    }
+
+                    @Override
+                    public long getUsed() {
+                        return 0;
+                    }
+
+                    @Override
+                    public long getLimit() {
+                        return 0;
+                    }
+
+                    @Override
+                    public double getOverhead() {
+                        return 0;
+                    }
+
+                    @Override
+                    public long getTrippedCount() {
+                        return 0;
+                    }
+
+                    @Override
+                    public String getName() {
+                        return null;
+                    }
+
+                    @Override
+                    public Durability getDurability() {
+                        return null;
+                    }
+                };
+            }
+
+            @Override
+            public AllCircuitBreakerStats stats() {
+                return null;
+            }
+
+            @Override
+            public CircuitBreakerStats stats(String name) {
+                return null;
+            }
+        });
         List<InternalAggregation> aggs = createInternalAggregations();
-        InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(null, null, true);
+        InternalAggregation.ReduceContext context = new InternalAggregation.ReduceContext(bigArrays, null, true);
         SignificantTerms reducedAgg = (SignificantTerms) aggs.get(0).doReduce(aggs, context);
         assertThat(reducedAgg.getBuckets().size(), equalTo(2));
         assertThat(reducedAgg.getBuckets().get(0).getSubsetDf(), equalTo(8L));

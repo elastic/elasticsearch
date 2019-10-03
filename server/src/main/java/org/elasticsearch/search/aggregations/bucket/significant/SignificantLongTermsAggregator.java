@@ -79,39 +79,43 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
 
         long supersetSize = termsAggFactory.getSupersetNumDocs();
         long subsetSize = numCollectedDocs;
+        SignificantLongTerms.Bucket[] list;
+        final long[] survivingBucketOrds;
 
-        BucketSignificancePriorityQueue<SignificantLongTerms.Bucket> ordered = new BucketSignificancePriorityQueue<>(size);
-        SignificantLongTerms.Bucket spare = null;
-        for (long i = 0; i < bucketOrds.size(); i++) {
-            final int docCount = bucketDocCount(i);
-            if (docCount < bucketCountThresholds.getShardMinDocCount()) {
-                continue;
-            }
-            if (spare == null) {
-                spare = new SignificantLongTerms.Bucket(0, 0, 0, 0, 0, null, format);
-            }
-            spare.term = bucketOrds.get(i);
-            spare.subsetDf = docCount;
-            spare.subsetSize = subsetSize;
-            spare.supersetDf = termsAggFactory.getBackgroundFrequency(spare.term);
-            spare.supersetSize = supersetSize;
-            // During shard-local down-selection we use subset/superset stats that are for this shard only
-            // Back at the central reducer these properties will be updated with global stats
-            spare.updateScore(significanceHeuristic);
+        try (BucketSignificancePriorityQueue<SignificantLongTerms.Bucket> ordered
+                 = new BucketSignificancePriorityQueue<>(size, this::addRequestCircuitBreakerBytes)) {
+            SignificantLongTerms.Bucket spare = null;
+            for (long i = 0; i < bucketOrds.size(); i++) {
+                final int docCount = bucketDocCount(i);
+                if (docCount < bucketCountThresholds.getShardMinDocCount()) {
+                    continue;
+                }
+                if (spare == null) {
+                    spare = new SignificantLongTerms.Bucket(0, 0, 0, 0, 0, null, format);
+                }
+                spare.term = bucketOrds.get(i);
+                spare.subsetDf = docCount;
+                spare.subsetSize = subsetSize;
+                spare.supersetDf = termsAggFactory.getBackgroundFrequency(spare.term);
+                spare.supersetSize = supersetSize;
+                // During shard-local down-selection we use subset/superset stats that are for this shard only
+                // Back at the central reducer these properties will be updated with global stats
+                spare.updateScore(significanceHeuristic);
 
-            spare.bucketOrd = i;
-            spare = ordered.insertWithOverflow(spare);
-            if (spare == null) {
-                consumeBucketsAndMaybeBreak(1);
+                spare.bucketOrd = i;
+                spare = ordered.insertWithOverflow(spare);
+                if (spare == null) {
+                    consumeBucketsAndMaybeBreak(1);
+                }
             }
-        }
 
-        SignificantLongTerms.Bucket[] list = new SignificantLongTerms.Bucket[ordered.size()];
-        final long[] survivingBucketOrds = new long[ordered.size()];
-        for (int i = ordered.size() - 1; i >= 0; i--) {
-            final SignificantLongTerms.Bucket bucket = ordered.pop();
-            survivingBucketOrds[i] = bucket.bucketOrd;
-            list[i] = bucket;
+            list = new SignificantLongTerms.Bucket[ordered.size()];
+            survivingBucketOrds = new long[ordered.size()];
+            for (int i = ordered.size() - 1; i >= 0; i--) {
+                final SignificantLongTerms.Bucket bucket = ordered.pop();
+                survivingBucketOrds[i] = bucket.bucketOrd;
+                list[i] = bucket;
+            }
         }
 
         runDeferredCollections(survivingBucketOrds);

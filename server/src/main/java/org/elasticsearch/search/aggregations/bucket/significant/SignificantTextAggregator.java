@@ -192,48 +192,52 @@ public class SignificantTextAggregator extends BucketsAggregator {
         long supersetSize = termsAggFactory.getSupersetNumDocs();
         long subsetSize = numCollectedDocs;
 
-        BucketSignificancePriorityQueue<SignificantStringTerms.Bucket> ordered = new BucketSignificancePriorityQueue<>(size);
-        SignificantStringTerms.Bucket spare = null;
-        for (int i = 0; i < bucketOrds.size(); i++) {
-            final int docCount = bucketDocCount(i);
-            if (docCount < bucketCountThresholds.getShardMinDocCount()) {
-                continue;
+        try (BucketSignificancePriorityQueue<SignificantStringTerms.Bucket> ordered
+                 = new BucketSignificancePriorityQueue<>(size, this::addRequestCircuitBreakerBytes)) {
+
+            SignificantStringTerms.Bucket spare = null;
+            for (int i = 0; i < bucketOrds.size(); i++) {
+                final int docCount = bucketDocCount(i);
+                if (docCount < bucketCountThresholds.getShardMinDocCount()) {
+                    continue;
+                }
+
+                if (spare == null) {
+                    spare = new SignificantStringTerms.Bucket(new BytesRef(), 0, 0, 0, 0, null, format);
+                }
+
+                bucketOrds.get(i, spare.termBytes);
+                spare.subsetDf = docCount;
+                spare.subsetSize = subsetSize;
+                spare.supersetDf = termsAggFactory.getBackgroundFrequency(spare.termBytes);
+                spare.supersetSize = supersetSize;
+                // During shard-local down-selection we use subset/superset stats
+                // that are for this shard only
+                // Back at the central reducer these properties will be updated with
+                // global stats
+                spare.updateScore(significanceHeuristic);
+
+                spare.bucketOrd = i;
+                spare = ordered.insertWithOverflow(spare);
+                if (spare == null) {
+                    consumeBucketsAndMaybeBreak(1);
+                }
             }
 
-            if (spare == null) {
-                spare = new SignificantStringTerms.Bucket(new BytesRef(), 0, 0, 0, 0, null, format);
+            final SignificantStringTerms.Bucket[] list = new SignificantStringTerms.Bucket[ordered.size()];
+            for (int i = ordered.size() - 1; i >= 0; i--) {
+                final SignificantStringTerms.Bucket bucket = ordered.pop();
+                // the terms are owned by the BytesRefHash, we need to pull a copy since the
+                // BytesRef hash data may be recycled at some point
+                bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);
+                bucket.aggregations = bucketAggregations(bucket.bucketOrd);
+                list[i] = bucket;
             }
 
-            bucketOrds.get(i, spare.termBytes);
-            spare.subsetDf = docCount;
-            spare.subsetSize = subsetSize;
-            spare.supersetDf = termsAggFactory.getBackgroundFrequency(spare.termBytes);
-            spare.supersetSize = supersetSize;
-            // During shard-local down-selection we use subset/superset stats
-            // that are for this shard only
-            // Back at the central reducer these properties will be updated with
-            // global stats
-            spare.updateScore(significanceHeuristic);
-
-            spare.bucketOrd = i;
-            spare = ordered.insertWithOverflow(spare);
-            if (spare == null) {
-                consumeBucketsAndMaybeBreak(1);
-            }
-        }
-
-        final SignificantStringTerms.Bucket[] list = new SignificantStringTerms.Bucket[ordered.size()];
-        for (int i = ordered.size() - 1; i >= 0; i--) {
-            final SignificantStringTerms.Bucket bucket = ordered.pop();
-            // the terms are owned by the BytesRefHash, we need to pull a copy since the BytesRef hash data may be recycled at some point
-            bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);
-            bucket.aggregations = bucketAggregations(bucket.bucketOrd);
-            list[i] = bucket;
-        }
-
-        return new SignificantStringTerms( name, bucketCountThresholds.getRequiredSize(),
+            return new SignificantStringTerms(name, bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(), pipelineAggregators(),
                 metaData(), format, subsetSize, supersetSize, significanceHeuristic, Arrays.asList(list));
+        }
     }
 
 

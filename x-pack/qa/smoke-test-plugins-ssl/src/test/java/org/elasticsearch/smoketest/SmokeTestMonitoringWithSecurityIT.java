@@ -54,7 +54,9 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -234,6 +236,16 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
                 fail("monitoring date not exported yet: " + e.getMessage());
             }
         });
+    }
+
+    public void testSettingsFilter() throws IOException {
+        final Request request = new Request("GET", "/_cluster/settings");
+        final Response response = client().performRequest(request);
+        final ObjectPath path = ObjectPath.createFromResponse(response);
+        final Map<String, Object> settings = path.evaluate("transient.xpack.monitoring.exporters._http");
+        assertThat(settings, hasKey("type"));
+        assertThat(settings, not(hasKey("auth")));
+        assertThat(settings, not(hasKey("ssl")));
     }
 
     private String randomNodeHttpAddress() throws IOException {

@@ -12,7 +12,9 @@ import java.util.Map;
 
 public interface Model {
 
-    void infer(Map<String, Object> fields, ActionListener<InferenceResults> listener);
+    String getResultsType();
 
-    void classificationProbability(Map<String, Object> fields, int topN, ActionListener<InferenceResults> listener);
+    void infer(Map<String, Object> fields, ActionListener<InferenceResults<?>> listener);
+
+    void classificationProbability(Map<String, Object> fields, int topN, ActionListener<InferenceResults<?>> listener);
 }

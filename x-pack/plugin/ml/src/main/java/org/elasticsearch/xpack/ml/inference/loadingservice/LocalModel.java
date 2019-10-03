@@ -11,7 +11,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.inference.action.ClassificationInferenceResults;
 import org.elasticsearch.xpack.ml.inference.action.InferenceResults;
+import org.elasticsearch.xpack.ml.inference.action.RegressionInferenceResults;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -23,34 +25,55 @@ import java.util.stream.IntStream;
 public class LocalModel implements Model {
 
     private final TrainedModelDefinition trainedModelDefinition;
-    public LocalModel(TrainedModelDefinition trainedModelDefinition) {
+    private final String modelId;
+    public LocalModel(String modelId, TrainedModelDefinition trainedModelDefinition) {
         this.trainedModelDefinition = trainedModelDefinition;
+        this.modelId = modelId;
     }
 
     @Override
-    public void infer(Map<String, Object> fields, ActionListener<InferenceResults> listener) {
+    public String getResultsType() {
+        switch (trainedModelDefinition.getTrainedModel().targetType()) {
+            case CLASSIFICATION:
+                return ClassificationInferenceResults.RESULT_TYPE;
+            case REGRESSION:
+                return RegressionInferenceResults.RESULT_TYPE;
+            default:
+                throw ExceptionsHelper.badRequestException("Model [{}] has unsupported target type [{}]",
+                    modelId,
+                    trainedModelDefinition.getTrainedModel().targetType());
+        }
+    }
+
+    @Override
+    public void infer(Map<String, Object> fields, ActionListener<InferenceResults<?>> listener) {
         trainedModelDefinition.getPreProcessors().forEach(preProcessor -> preProcessor.process(fields));
         double value = trainedModelDefinition.getTrainedModel().infer(fields);
-        if (trainedModelDefinition.getTrainedModel().targetType() == TargetType.CLASSIFICATION &&
-            trainedModelDefinition.getTrainedModel().classificationLabels() != null) {
-            assert value == Math.rint(value);
-            int classIndex = Double.valueOf(value).intValue();
-            if (classIndex < 0 || classIndex >= trainedModelDefinition.getTrainedModel().classificationLabels().size()) {
-                listener.onFailure(new ElasticsearchStatusException("model returned classification [{}] which is invalid given labels {}",
-                    RestStatus.INTERNAL_SERVER_ERROR,
-                    classIndex,
-                    trainedModelDefinition.getTrainedModel().classificationLabels()));
-                return;
+        InferenceResults<?> inferenceResults;
+        if (trainedModelDefinition.getTrainedModel().targetType() == TargetType.CLASSIFICATION) {
+            String classificationLabel = null;
+            if (trainedModelDefinition.getTrainedModel().classificationLabels() != null) {
+                assert value == Math.rint(value);
+                int classIndex = Double.valueOf(value).intValue();
+                if (classIndex < 0 || classIndex >= trainedModelDefinition.getTrainedModel().classificationLabels().size()) {
+                    listener.onFailure(new ElasticsearchStatusException(
+                        "model returned classification [{}] which is invalid given labels {}",
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                        classIndex,
+                        trainedModelDefinition.getTrainedModel().classificationLabels()));
+                    return;
+                }
+                classificationLabel = trainedModelDefinition.getTrainedModel().classificationLabels().get(classIndex);
             }
-            listener.onResponse(InferenceResults.valueAndLabel(value,
-                trainedModelDefinition.getTrainedModel().classificationLabels().get(classIndex)));
-            return;
+            inferenceResults = new ClassificationInferenceResults(value, classificationLabel, null);
+        } else {
+            inferenceResults = new RegressionInferenceResults(value);
         }
-        listener.onResponse(InferenceResults.valueOnly(value));
+        listener.onResponse(inferenceResults);
     }
 
     @Override
-    public void classificationProbability(Map<String, Object> fields, int topN, ActionListener<InferenceResults> listener) {
+    public void classificationProbability(Map<String, Object> fields, int topN, ActionListener<InferenceResults<?>> listener) {
         if (topN == 0) {
             infer(fields, listener);
             return;
@@ -83,13 +106,13 @@ public class LocalModel implements Model {
             trainedModelDefinition.getTrainedModel().classificationLabels();
 
         int count = topN < 0 ? probabilities.size() : topN;
-        List<InferenceResults.TopClassEntry> topClassEntries = new ArrayList<>(count);
+        List<ClassificationInferenceResults.TopClassEntry> topClassEntries = new ArrayList<>(count);
         for(int i = 0; i < count; i++) {
             int idx = sortedIndices[i];
-            topClassEntries.add(new InferenceResults.TopClassEntry(labels.get(idx), probabilities.get(idx)));
+            topClassEntries.add(new ClassificationInferenceResults.TopClassEntry(labels.get(idx), probabilities.get(idx)));
         }
 
-        listener.onResponse(new InferenceResults(((Number)sortedIndices[0]).doubleValue(),
+        listener.onResponse(new ClassificationInferenceResults(((Number)sortedIndices[0]).doubleValue(),
             trainedModelDefinition.getTrainedModel().classificationLabels() == null ?
                 null :
                 trainedModelDefinition.getTrainedModel().classificationLabels().get(sortedIndices[0]),

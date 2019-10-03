@@ -45,7 +45,6 @@ public class ModelLoadingService implements ClusterStateListener {
         this.provider = trainedModelProvider;
         this.threadPool = threadPool;
         clusterService.addListener(this);
-        // TODO should we load state here? Or will it get the applied state because it is a listener?
     }
 
     public void getModel(String modelId, long modelVersion, ActionListener<Model> modelActionListener) {
@@ -62,7 +61,8 @@ public class ModelLoadingService implements ClusterStateListener {
             // by a simulated pipeline
             logger.debug("[{}] version [{}] not actively loading, eager loading without cache", modelId, modelVersion);
             provider.getTrainedModel(modelId, modelVersion, ActionListener.wrap(
-                trainedModelConfig -> modelActionListener.onResponse(new LocalModel(trainedModelConfig.getDefinition())),
+                trainedModelConfig ->
+                    modelActionListener.onResponse(new LocalModel(trainedModelConfig.getModelId(), trainedModelConfig.getDefinition())),
                 modelActionListener::onFailure
             ));
         } else {
@@ -115,7 +115,7 @@ public class ModelLoadingService implements ClusterStateListener {
 
     private void handleLoadSuccess(String modelKey, TrainedModelConfig trainedModelConfig) {
         Queue<ActionListener<Model>> listeners;
-        Model loadedModel = new LocalModel(trainedModelConfig.getDefinition());
+        Model loadedModel = new LocalModel(trainedModelConfig.getModelId(), trainedModelConfig.getDefinition());
         synchronized (loadingListeners) {
             listeners = loadingListeners.remove(modelKey);
             // If there is no loadingListener that means the loading was canceled and the listener was already notified as such
@@ -233,9 +233,12 @@ public class ModelLoadingService implements ClusterStateListener {
                         if (processor instanceof Map<?, ?>) {
                             Object processorConfig = ((Map<?, ?>)processor).get(InferenceProcessor.TYPE);
                             if (processorConfig instanceof Map<?, ?>) {
-                                String modelId = ((Map<?, ?>)processorConfig).get(InferenceProcessor.MODEL_ID).toString();
-                                // TODO also read model version
-                                allReferencedModelKeys.add(modelKey(modelId, 0));
+                                Object modelId = ((Map<?, ?>)processorConfig).get(InferenceProcessor.MODEL_ID);
+                                if (modelId != null) {
+                                    assert modelId instanceof String;
+                                    // TODO also read model version
+                                    allReferencedModelKeys.add(modelKey(modelId.toString(), 0));
+                                }
                             }
                         }
                     }

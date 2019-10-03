@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
+import org.elasticsearch.xpack.ml.inference.action.ClassificationInferenceResults;
 import org.elasticsearch.xpack.ml.inference.action.InferModelAction;
 import org.elasticsearch.xpack.ml.inference.action.InferenceResults;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -109,40 +110,48 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         // Test regression
         InferModelAction.Request request = new InferModelAction.Request(modelId1, 0, toInfer, null);
         InferModelAction.Response response = client().execute(InferModelAction.INSTANCE, request).actionGet();
-        assertThat(response.getInferenceResponse().stream().map(InferenceResults::getNumericValue).collect(Collectors.toList()),
+        assertThat(response.getInferenceResponse().stream().map(InferenceResults::value).collect(Collectors.toList()),
             contains(1.3, 1.25));
 
         request = new InferModelAction.Request(modelId1, 0, toInfer2, null);
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
-        assertThat(response.getInferenceResponse().stream().map(InferenceResults::getNumericValue).collect(Collectors.toList()),
+        assertThat(response.getInferenceResponse().stream().map(InferenceResults::value).collect(Collectors.toList()),
             contains(1.65, 1.55));
 
 
         // Test classification
         request = new InferModelAction.Request(modelId2, 0, toInfer, null);
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
-        assertThat(response.getInferenceResponse().stream().map(InferenceResults::getClassificationLabel).collect(Collectors.toList()),
+        assertThat(response.getInferenceResponse().stream().map(InferenceResults::valueAsString).collect(Collectors.toList()),
             contains("not_to_be", "to_be"));
 
         // Get top classes
         request = new InferModelAction.Request(modelId2, 0, toInfer, 2);
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
+        assertThat(response.getResultsType(), equalTo(ClassificationInferenceResults.RESULT_TYPE));
 
-        assertThat(response.getInferenceResponse().get(0).getTopClasses().get(0).getLabel(), equalTo("not_to_be"));
-        assertThat(response.getInferenceResponse().get(0).getTopClasses().get(1).getLabel(), equalTo("to_be"));
-        assertThat(response.getInferenceResponse().get(0).getTopClasses().get(0).getProbability(),
-            greaterThan(response.getInferenceResponse().get(0).getTopClasses().get(1).getProbability()));
+        ClassificationInferenceResults classificationInferenceResults =
+            (ClassificationInferenceResults)response.getInferenceResponse().get(0);
 
-        assertThat(response.getInferenceResponse().get(1).getTopClasses().get(0).getLabel(), equalTo("to_be"));
-        assertThat(response.getInferenceResponse().get(1).getTopClasses().get(1).getLabel(), equalTo("not_to_be"));
-        assertThat(response.getInferenceResponse().get(1).getTopClasses().get(0).getProbability(),
-            greaterThan(response.getInferenceResponse().get(1).getTopClasses().get(1).getProbability()));
+        assertThat(classificationInferenceResults.getTopClasses().get(0).getLabel(), equalTo("not_to_be"));
+        assertThat(classificationInferenceResults.getTopClasses().get(1).getLabel(), equalTo("to_be"));
+        assertThat(classificationInferenceResults.getTopClasses().get(0).getProbability(),
+            greaterThan(classificationInferenceResults.getTopClasses().get(1).getProbability()));
+
+        classificationInferenceResults = (ClassificationInferenceResults)response.getInferenceResponse().get(1);
+        assertThat(classificationInferenceResults.getTopClasses().get(0).getLabel(), equalTo("to_be"));
+        assertThat(classificationInferenceResults.getTopClasses().get(1).getLabel(), equalTo("not_to_be"));
+        assertThat(classificationInferenceResults.getTopClasses().get(0).getProbability(),
+            greaterThan(classificationInferenceResults.getTopClasses().get(1).getProbability()));
 
         // Test that top classes restrict the number returned
         request = new InferModelAction.Request(modelId2, 0, toInfer2, 1);
         response = client().execute(InferModelAction.INSTANCE, request).actionGet();
-        assertThat(response.getInferenceResponse().get(0).getTopClasses(), hasSize(1));
-        assertThat(response.getInferenceResponse().get(0).getTopClasses().get(0).getLabel(), equalTo("to_be"));
+        assertThat(response.getResultsType(), equalTo(ClassificationInferenceResults.RESULT_TYPE));
+
+        classificationInferenceResults = (ClassificationInferenceResults)response.getInferenceResponse().get(0);
+        assertThat(classificationInferenceResults.getTopClasses(), hasSize(1));
+        assertThat(classificationInferenceResults.getTopClasses().get(0).getLabel(), equalTo("to_be"));
     }
 
     public void testInferMissingModel() {

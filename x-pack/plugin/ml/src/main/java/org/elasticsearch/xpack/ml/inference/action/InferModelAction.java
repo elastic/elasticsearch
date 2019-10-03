@@ -13,9 +13,10 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -45,8 +46,9 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         public Request(String modelId, long modelVersion, List<Map<String, Object>> objectsToInfer, Integer topClasses) {
             this.modelId = modelId;
             this.modelVersion = modelVersion;
-            this.objectsToInfer = objectsToInfer == null ? Collections.emptyList() :
-                Collections.unmodifiableList(new ArrayList<>(objectsToInfer));
+            this.objectsToInfer = objectsToInfer == null ?
+                Collections.emptyList() :
+                Collections.unmodifiableList(objectsToInfer);
             this.cacheModel = true;
             this.topClasses = topClasses;
         }
@@ -54,7 +56,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         public Request(String modelId, long modelVersion, Map<String, Object> objectToInfer, Integer topClasses) {
             this(modelId,
                 modelVersion,
-                objectToInfer == null ? Collections.emptyList() : Collections.singletonList(objectToInfer),
+                objectToInfer == null ? null : Arrays.asList(objectToInfer),
                 topClasses);
         }
 
@@ -129,24 +131,40 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
 
     public static class Response extends ActionResponse {
 
-        private final List<InferenceResults> inferenceResponse;
+        private final List<InferenceResults<?>> inferenceResponse;
+        private final String resultsType;
 
-        public Response(List<InferenceResults> inferenceResponse) {
+        public Response(List<InferenceResults<?>> inferenceResponse, String resultsType) {
             super();
-            this.inferenceResponse = Collections.unmodifiableList(inferenceResponse);
+            this.resultsType = ExceptionsHelper.requireNonNull(resultsType, "resultsType");
+            this.inferenceResponse = inferenceResponse == null ?
+                Collections.emptyList() :
+                Collections.unmodifiableList(inferenceResponse);
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.inferenceResponse = Collections.unmodifiableList(in.readList(InferenceResults::new));
+            this.resultsType = in.readString();
+            if(resultsType.equals(ClassificationInferenceResults.RESULT_TYPE)) {
+                this.inferenceResponse = Collections.unmodifiableList(in.readList(ClassificationInferenceResults::new));
+            } else if (this.resultsType.equals(RegressionInferenceResults.RESULT_TYPE)) {
+                this.inferenceResponse = Collections.unmodifiableList(in.readList(RegressionInferenceResults::new));
+            } else {
+                throw new IOException("Unrecognized result type [" + resultsType + "]");
+            }
         }
 
-        public List<InferenceResults> getInferenceResponse() {
+        public List<InferenceResults<?>> getInferenceResponse() {
             return inferenceResponse;
+        }
+
+        public String getResultsType() {
+            return resultsType;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(resultsType);
             out.writeCollection(inferenceResponse);
         }
 
@@ -155,12 +173,12 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             InferModelAction.Response that = (InferModelAction.Response) o;
-            return Objects.equals(inferenceResponse, that.inferenceResponse);
+            return Objects.equals(resultsType, that.resultsType) && Objects.equals(inferenceResponse, that.inferenceResponse);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(inferenceResponse);
+            return Objects.hash(resultsType, inferenceResponse);
         }
 
     }

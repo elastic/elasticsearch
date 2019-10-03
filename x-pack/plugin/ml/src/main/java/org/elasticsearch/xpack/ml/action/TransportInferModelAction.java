@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.ml.inference.loadingservice.Model;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
 
-import java.util.List;
 
 public class TransportInferModelAction extends HandledTransportAction<InferModelAction.Request, InferModelAction.Response> {
 
@@ -40,14 +39,9 @@ public class TransportInferModelAction extends HandledTransportAction<InferModel
     @Override
     protected void doExecute(Task task, InferModelAction.Request request, ActionListener<InferModelAction.Response> listener) {
 
-        ActionListener<List<InferenceResults>> inferenceCompleteListener = ActionListener.wrap(
-            inferenceResponse -> listener.onResponse(new InferModelAction.Response(inferenceResponse)),
-            listener::onFailure
-        );
-
         ActionListener<Model> getModelListener = ActionListener.wrap(
             model -> {
-                TypedChainTaskExecutor<InferenceResults> typedChainTaskExecutor =
+                TypedChainTaskExecutor<InferenceResults<?>> typedChainTaskExecutor =
                     new TypedChainTaskExecutor<>(client.threadPool().executor(ThreadPool.Names.SAME),
                     // run through all tasks
                     r -> true,
@@ -63,7 +57,11 @@ public class TransportInferModelAction extends HandledTransportAction<InferModel
                         typedChainTaskExecutor.add(chainedTask -> model.infer(stringObjectMap, chainedTask))
                     );
                 }
-                typedChainTaskExecutor.execute(inferenceCompleteListener);
+                typedChainTaskExecutor.execute(ActionListener.wrap(
+                    inferenceResultsInterfaces ->
+                        listener.onResponse(new InferModelAction.Response(inferenceResultsInterfaces, model.getResultsType())),
+                    listener::onFailure
+                ));
             },
             listener::onFailure
         );

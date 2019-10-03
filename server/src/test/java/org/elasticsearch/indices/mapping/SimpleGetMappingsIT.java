@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.mapping;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.common.Priority;

@@ -22,6 +22,7 @@ import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -40,11 +41,12 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
     }
 
     @Override
-    public void remove(ActionListener<Boolean> listener) {
-        removeData(newJobIterator(), listener);
+    public void remove(ActionListener<Boolean> listener, Supplier<Boolean> isTimedOutSupplier) {
+        removeData(newJobIterator(), listener, isTimedOutSupplier);
     }
 
-    private void removeData(WrappedBatchedJobsIterator jobIterator, ActionListener<Boolean> listener) {
+    private void removeData(WrappedBatchedJobsIterator jobIterator, ActionListener<Boolean> listener,
+                            Supplier<Boolean> isTimedOutSupplier) {
         if (jobIterator.hasNext() == false) {
             listener.onResponse(true);
             return;
@@ -56,13 +58,19 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
             return;
         }
 
+        if (isTimedOutSupplier.get()) {
+            listener.onResponse(false);
+            return;
+        }
+
         Long retentionDays = getRetentionDays(job);
         if (retentionDays == null) {
-            removeData(jobIterator, listener);
+            removeData(jobIterator, listener, isTimedOutSupplier);
             return;
         }
         long cutoffEpochMs = calcCutoffEpochMs(retentionDays);
-        removeDataBefore(job, cutoffEpochMs, ActionListener.wrap(response -> removeData(jobIterator, listener), listener::onFailure));
+        removeDataBefore(job, cutoffEpochMs,
+            ActionListener.wrap(response -> removeData(jobIterator, listener, isTimedOutSupplier), listener::onFailure));
     }
 
     private WrappedBatchedJobsIterator newJobIterator() {

@@ -21,8 +21,8 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
-import org.elasticsearch.xpack.transform.notifications.DataFrameAuditor;
-import org.elasticsearch.xpack.transform.persistence.DataFrameTransformsConfigManager;
+import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
+import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 public class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
 
@@ -31,10 +31,10 @@ public class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
     private final TimeSyncConfig timeSyncConfig;
 
     TimeBasedCheckpointProvider(final Client client,
-                                final DataFrameTransformsConfigManager dataFrameTransformsConfigManager,
-                                final DataFrameAuditor dataFrameAuditor,
+                                final TransformConfigManager transformConfigManager,
+                                final TransformAuditor transformAuditor,
                                 final TransformConfig transformConfig) {
-        super(client, dataFrameTransformsConfigManager, dataFrameAuditor, transformConfig);
+        super(client, transformConfigManager, transformAuditor, transformConfig);
         timeSyncConfig = (TimeSyncConfig) transformConfig.getSyncConfig();
     }
 
@@ -64,7 +64,7 @@ public class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
 
         logger.trace("query for changes based on time: {}", sourceBuilder);
 
-        ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(), ClientHelper.DATA_FRAME_ORIGIN, client, SearchAction.INSTANCE,
+        ClientHelper.executeWithHeadersAsync(transformConfig.getHeaders(), ClientHelper.TRANSFORM_ORIGIN, client, SearchAction.INSTANCE,
                 searchRequest, ActionListener.wrap(r -> {
                     listener.onResponse(r.getHits().getTotalHits().value > 0L);
                 }, listener::onFailure));

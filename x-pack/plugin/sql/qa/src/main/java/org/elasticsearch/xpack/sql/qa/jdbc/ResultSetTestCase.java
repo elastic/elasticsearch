@@ -1449,6 +1449,34 @@ public class ResultSetTestCase extends JdbcIntegrationTestCase {
         assertThrowsWritesUnsupportedForUpdate(() -> r.rowDeleted());
     }
     
+    public void testResultSetNotInitialized() throws Exception {
+        createTestDataForNumericValueTypes(() -> randomInt());
+
+        SQLException sqle = expectThrows(SQLException.class, () -> {
+            doWithQuery(SELECT_WILDCARD, rs -> {
+                assertFalse(rs.isAfterLast());
+                rs.getObject(1);
+            });
+        });
+        assertEquals("No row available", sqle.getMessage());
+    }
+
+    public void testResultSetConsumed() throws Exception {
+        createTestDataForNumericValueTypes(() -> randomInt());
+
+        SQLException sqle = expectThrows(SQLException.class, () -> {
+            doWithQuery("SELECT * FROM test LIMIT 1", rs -> {
+                assertFalse(rs.isAfterLast());
+                assertTrue(rs.next());
+                assertFalse(rs.isAfterLast());
+                assertFalse(rs.next());
+                assertTrue(rs.isAfterLast());
+                rs.getObject(1);
+            });
+        });
+        assertEquals("No row available", sqle.getMessage());
+    }
+
     private void doWithQuery(String query, CheckedConsumer<ResultSet, SQLException> consumer) throws SQLException {
         doWithQuery(() -> esJdbc(timeZoneId), query, consumer);
     }

@@ -19,14 +19,14 @@ public class TransformStoredDocTests extends AbstractSerializingTransformTestCas
     protected static ToXContent.Params TO_XCONTENT_PARAMS = new ToXContent.MapParams(
         Collections.singletonMap(TransformField.FOR_INTERNAL_STORAGE, "true"));
 
-    public static TransformStoredDoc randomDataFrameTransformStoredDoc(String id) {
+    public static TransformStoredDoc randomTransformStoredDoc(String id) {
         return new TransformStoredDoc(id,
                 TransformStateTests.randomDataFrameTransformState(),
                 TransformIndexerStatsTests.randomStats());
     }
 
     public static TransformStoredDoc randomDataFrameTransformStoredDoc() {
-        return randomDataFrameTransformStoredDoc(randomAlphaOfLengthBetween(1, 10));
+        return randomTransformStoredDoc(randomAlphaOfLengthBetween(1, 10));
     }
 
     @Override

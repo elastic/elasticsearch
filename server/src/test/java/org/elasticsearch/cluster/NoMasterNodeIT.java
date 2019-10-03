@@ -96,19 +96,19 @@ public class NoMasterNodeIT extends ESIntegTestCase {
             assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
 
-        assertThrows(clientToMasterlessNode.prepareGet("test", "type1", "1"),
+        assertThrows(clientToMasterlessNode.prepareGet("test", "1"),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(clientToMasterlessNode.prepareGet("no_index", "type1", "1"),
+        assertThrows(clientToMasterlessNode.prepareGet("no_index", "1"),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(clientToMasterlessNode.prepareMultiGet().add("test", "type1", "1"),
+        assertThrows(clientToMasterlessNode.prepareMultiGet().add("test", "1"),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        assertThrows(clientToMasterlessNode.prepareMultiGet().add("no_index", "type1", "1"),
+        assertThrows(clientToMasterlessNode.prepareMultiGet().add("no_index", "1"),
             ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
@@ -219,13 +219,12 @@ public class NoMasterNodeIT extends ESIntegTestCase {
 
         final Client clientToMasterlessNode = client();
 
-        assertTrue(awaitBusy(() -> {
-                ClusterState state = clientToMasterlessNode.admin().cluster().prepareState().setLocal(true).get().getState();
-                return state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID);
-            }
-        ));
+        assertBusy(() -> {
+            ClusterState state = clientToMasterlessNode.admin().cluster().prepareState().setLocal(true).get().getState();
+            assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
+        });
 
-        GetResponse getResponse = clientToMasterlessNode.prepareGet("test1", "type1", "1").get();
+        GetResponse getResponse = clientToMasterlessNode.prepareGet("test1", "1").get();
         assertExists(getResponse);
 
         SearchResponse countResponse = clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0).get();

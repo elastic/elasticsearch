@@ -41,11 +41,11 @@ public final class TransformProgressGatherer {
         SearchRequest request = getSearchRequest(config, filterQuery);
 
         ActionListener<SearchResponse> searchResponseActionListener = ActionListener.wrap(
-            searchResponse -> progressListener.onResponse(searchResponseToDataFrameTransformProgressFunction().apply(searchResponse)),
+            searchResponse -> progressListener.onResponse(searchResponseToTransformProgressFunction().apply(searchResponse)),
             progressListener::onFailure
         );
         ClientHelper.executeWithHeadersAsync(config.getHeaders(),
-            ClientHelper.DATA_FRAME_ORIGIN,
+            ClientHelper.TRANSFORM_ORIGIN,
             client,
             SearchAction.INSTANCE,
             request,
@@ -72,7 +72,7 @@ public final class TransformProgressGatherer {
         return request;
     }
 
-    public static Function<SearchResponse, TransformProgress> searchResponseToDataFrameTransformProgressFunction() {
+    public static Function<SearchResponse, TransformProgress> searchResponseToTransformProgressFunction() {
         return searchResponse -> new TransformProgress(searchResponse.getHits().getTotalHits().value, 0L, 0L);
     }
 }

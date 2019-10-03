@@ -18,8 +18,7 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -31,9 +30,9 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Request to preview a MachineLearning Datafeed 
+ * Request to preview a MachineLearning Datafeed
  */
-public class PreviewDatafeedRequest extends ActionRequest implements ToXContentObject {
+public class PreviewDatafeedRequest implements Validatable, ToXContentObject {
 
     public static final ConstructingObjectParser<PreviewDatafeedRequest, Void> PARSER = new ConstructingObjectParser<>(
         "open_datafeed_request", true, a -> new PreviewDatafeedRequest((String) a[0]));
@@ -59,11 +58,6 @@ public class PreviewDatafeedRequest extends ActionRequest implements ToXContentO
 
     public String getDatafeedId() {
         return datafeedId;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     @Override

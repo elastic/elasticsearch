@@ -543,21 +543,6 @@ public class JobConfigProvider {
 
     }
 
-    private SearchRequest makeExpandIdsSearchRequest(String expression, boolean excludeDeleting) {
-        String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens, excludeDeleting));
-        sourceBuilder.sort(Job.ID.getPreferredName());
-        sourceBuilder.fetchSource(false);
-        sourceBuilder.docValueField(Job.ID.getPreferredName(), null);
-        sourceBuilder.docValueField(Job.GROUPS.getPreferredName(), null);
-
-        return client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setSource(sourceBuilder)
-                .setSize(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
-                .request();
-    }
-
     /**
      * The same logic as {@link #expandJobsIds(String, boolean, boolean, ActionListener)} but
      * the full anomaly detector job configuration is returned.

@@ -49,7 +49,7 @@ public class Pivot {
     public static final int DEFAULT_INITIAL_PAGE_SIZE = 500;
     public static final int TEST_QUERY_PAGE_SIZE = 50;
 
-    private static final String COMPOSITE_AGGREGATION_NAME = "_data_frame";
+    private static final String COMPOSITE_AGGREGATION_NAME = "_transform";
     private static final Logger logger = LogManager.getLogger(Pivot.class);
 
     private final PivotConfig config;
@@ -72,7 +72,7 @@ public class Pivot {
 
     public void validateConfig() {
         for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
-            if (Aggregations.isSupportedByDataframe(agg.getType()) == false) {
+            if (Aggregations.isSupportedByTransform(agg.getType()) == false) {
                 throw new ElasticsearchStatusException("Unsupported aggregation type [" + agg.getType() + "]", RestStatus.BAD_REQUEST);
             }
         }
@@ -164,7 +164,7 @@ public class Pivot {
 
     public Stream<Map<String, Object>> extractResults(CompositeAggregation agg,
                                                       Map<String, String> fieldTypeMap,
-                                                      TransformIndexerStats dataFrameIndexerTransformStats) {
+                                                      TransformIndexerStats transformIndexerStats) {
 
         GroupConfig groups = config.getGroupConfig();
         Collection<AggregationBuilder> aggregationBuilders = config.getAggregationConfig().getAggregatorFactories();
@@ -175,7 +175,7 @@ public class Pivot {
             aggregationBuilders,
             pipelineAggregationBuilders,
             fieldTypeMap,
-            dataFrameIndexerTransformStats);
+            transformIndexerStats);
     }
 
     public QueryBuilder filterBuckets(Map<String, Set<String>> changedBuckets) {
@@ -239,7 +239,7 @@ public class Pivot {
                     LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
             compositeAggregation = CompositeAggregationBuilder.parse(COMPOSITE_AGGREGATION_NAME, parser);
         } catch (IOException e) {
-            throw new RuntimeException(TransformMessages.DATA_FRAME_TRANSFORM_PIVOT_FAILED_TO_CREATE_COMPOSITE_AGGREGATION, e);
+            throw new RuntimeException(TransformMessages.TRANSFORM_PIVOT_FAILED_TO_CREATE_COMPOSITE_AGGREGATION, e);
         }
         return compositeAggregation;
     }

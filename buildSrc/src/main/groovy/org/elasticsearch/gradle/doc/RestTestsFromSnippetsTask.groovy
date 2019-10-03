@@ -237,7 +237,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                 }
             } else {
                 current.println('---')
-                if (test.name != null) {
+                if (test.name != null && test.name.isBlank() == false) {
                     def num = names.compute(test.name, { key, old -> old == null ? 1 : old + 1 })
                     def name = num == 1 ? test.name : test.name + "_" + num
                     current.println("\"$name\":")

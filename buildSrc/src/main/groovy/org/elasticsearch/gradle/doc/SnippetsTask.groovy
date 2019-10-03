@@ -164,15 +164,11 @@ public class SnippetsTask extends DefaultTask {
                     }
                     return
                 }
-                matcher = line =~ /\["?name"?,\s*"?([-\w]+)"?].*/
-                if(matcher.matches()) {
-                    name = matcher.group(1)
-                    return
-                }
-                matcher = line =~ /\["?source"?,\s*"?([-\w]+)"?(,.*)?].*/
+                matcher = line =~ /\["?source"?,\s*"?([-\w]+)"?(,((?!id=).)*(id="?([-\w]+)"?)?(.*))?].*/
                 if (matcher.matches()) {
                     lastLanguage = matcher.group(1)
                     lastLanguageLine = lineNumber
+                    name = matcher.group(5)
                     return
                 }
                 if (line ==~ /\/\/\s*AUTOSENSE\s*/) {

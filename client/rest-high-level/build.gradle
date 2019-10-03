@@ -65,6 +65,7 @@ dependencies {
   //this is needed to make RestHighLevelClientTests#testApiNamingConventions work from IDEs
   testCompile "org.elasticsearch:rest-api-spec:${version}"
 
+
   restSpec "org.elasticsearch:rest-api-spec:${version}"
 }
 
@@ -90,6 +91,7 @@ forbiddenApisMain {
   addSignatureFiles 'http-signatures'
   signaturesFiles += files('src/main/resources/forbidden/rest-high-level-signatures.txt')
 }
+
 File nodeCert = file("./testnode.crt")
 File nodeTrustStore = file("./testnode.jks")
 

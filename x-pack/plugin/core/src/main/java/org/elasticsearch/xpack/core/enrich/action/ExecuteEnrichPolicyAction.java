@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.enrich.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,13 +20,13 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class ExecuteEnrichPolicyAction extends ActionType<AcknowledgedResponse> {
+public class ExecuteEnrichPolicyAction extends ActionType<ExecuteEnrichPolicyAction.Response> {
 
     public static final ExecuteEnrichPolicyAction INSTANCE = new ExecuteEnrichPolicyAction();
     public static final String NAME = "cluster:admin/xpack/enrich/execute";
 
     private ExecuteEnrichPolicyAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, ExecuteEnrichPolicyAction.Response::new);
     }
 
     public static class Request extends MasterNodeRequest<Request> {
@@ -96,6 +95,14 @@ public class ExecuteEnrichPolicyAction extends ActionType<AcknowledgedResponse> 
         public Response(TaskId taskId) {
             this.taskId = taskId;
             this.status = null;
+        }
+
+        public TaskId getTaskId() {
+            return taskId;
+        }
+
+        public EnrichPolicyExecutionTask.Status getStatus() {
+            return status;
         }
 
         public Response(StreamInput in) throws IOException {

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.enrich.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,7 +28,7 @@ import org.elasticsearch.xpack.enrich.EnrichPolicyLocks;
 import java.io.IOException;
 
 public class TransportExecuteEnrichPolicyAction
-    extends TransportMasterNodeAction<ExecuteEnrichPolicyAction.Request, AcknowledgedResponse> {
+    extends TransportMasterNodeAction<ExecuteEnrichPolicyAction.Request, ExecuteEnrichPolicyAction.Response> {
 
     private final EnrichPolicyExecutor executor;
 
@@ -53,23 +52,18 @@ public class TransportExecuteEnrichPolicyAction
         return ThreadPool.Names.SAME;
     }
 
-    protected AcknowledgedResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
     @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
+    protected ExecuteEnrichPolicyAction.Response read(StreamInput in) throws IOException {
+        return new ExecuteEnrichPolicyAction.Response(in);
     }
 
     @Override
     protected void masterOperation(Task task, ExecuteEnrichPolicyAction.Request request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) {
+                                   ActionListener<ExecuteEnrichPolicyAction.Response> listener) {
         executor.runPolicy(request, new ActionListener<>() {
             @Override
             public void onResponse(EnrichPolicyExecutionTask.Status executionStatus) {
-                // FIXHERE: Return response instead
-                listener.onResponse(new AcknowledgedResponse(executionStatus.isCompleted()));
+                listener.onResponse(new ExecuteEnrichPolicyAction.Response(executionStatus));
             }
 
             @Override

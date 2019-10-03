@@ -170,7 +170,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/47469")
     public void testSingleValuedFieldWithFormatter() throws IOException {
         TextFieldMapper.TextFieldType fieldType = new TextFieldMapper.TextFieldType();
         fieldType.setName("text");

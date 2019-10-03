@@ -19,7 +19,9 @@
 
 package org.elasticsearch.repositories.s3;
 
+
 import com.amazonaws.services.s3.model.CannedAccessControlList;
+import com.amazonaws.services.s3.model.SSEAwsKeyManagementParams;
 import com.amazonaws.services.s3.model.StorageClass;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -41,6 +43,8 @@ class S3BlobStore implements BlobStore {
 
     private final boolean serverSideEncryption;
 
+    private final String sseAwsKeyId;
+
     private final CannedAccessControlList cannedACL;
 
     private final StorageClass storageClass;
@@ -49,7 +53,7 @@ class S3BlobStore implements BlobStore {
 
     S3BlobStore(S3Service service, String bucket, boolean serverSideEncryption,
                 ByteSizeValue bufferSize, String cannedACL, String storageClass,
-                RepositoryMetaData repositoryMetaData) {
+                RepositoryMetaData repositoryMetaData, String sseAwsKeyId) {
         this.service = service;
         this.bucket = bucket;
         this.serverSideEncryption = serverSideEncryption;
@@ -57,7 +61,17 @@ class S3BlobStore implements BlobStore {
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
         this.repositoryMetaData = repositoryMetaData;
+        this.sseAwsKeyId = sseAwsKeyId;
     }
+
+    public boolean sseAwsKeyIsEmpty() {
+        if (sseAwsKeyId == null || sseAwsKeyId.trim().isEmpty()) {
+            return true;
+        }
+        return false;
+    }
+
+    public SSEAwsKeyManagementParams getSSEAwsKey() { return new SSEAwsKeyManagementParams(sseAwsKeyId); }
 
     @Override
     public String toString() {

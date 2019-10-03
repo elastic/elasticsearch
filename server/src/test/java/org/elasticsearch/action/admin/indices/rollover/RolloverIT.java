@@ -406,4 +406,29 @@ public class RolloverIT extends ESIntegTestCase {
         assertEquals(writeIndexPrefix + "000001", rolloverResponse.getOldIndex());
         assertEquals(writeIndexPrefix + "000002", rolloverResponse.getNewIndex());
     }
+
+    public void testRolloverWithClosedWriteIndex() throws Exception {
+        final String aliasName = "alias";
+        final String openNonwriteIndex = "open-index-nonwrite";
+        final String closedIndex = "closed-index-nonwrite";
+        final String writeIndexPrefix = "write-index-";
+        assertAcked(prepareCreate(openNonwriteIndex).addAlias(new Alias(aliasName)).get());
+        assertAcked(prepareCreate(closedIndex).addAlias(new Alias(aliasName)).get());
+        assertAcked(prepareCreate(writeIndexPrefix + "000001").addAlias(new Alias(aliasName).writeIndex(true)).get());
+
+        index(closedIndex, SINGLE_MAPPING_NAME, null, "{\"foo\": \"bar\"}");
+        index(aliasName, SINGLE_MAPPING_NAME, null, "{\"foo\": \"bar\"}");
+        index(aliasName, SINGLE_MAPPING_NAME, null, "{\"foo\": \"bar\"}");
+        refresh(aliasName);
+
+        assertAcked(client().admin().indices().prepareClose(closedIndex).get());
+        assertAcked(client().admin().indices().prepareClose(writeIndexPrefix + "000001").get());
+
+        RolloverResponse rolloverResponse = client().admin().indices().prepareRolloverIndex(aliasName)
+            .addMaxIndexDocsCondition(1)
+            .get();
+        assertTrue(rolloverResponse.isRolledOver());
+        assertEquals(writeIndexPrefix + "000001", rolloverResponse.getOldIndex());
+        assertEquals(writeIndexPrefix + "000002", rolloverResponse.getNewIndex());
+    }
 }

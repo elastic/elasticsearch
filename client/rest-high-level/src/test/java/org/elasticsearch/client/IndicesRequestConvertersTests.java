@@ -1088,8 +1088,8 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         names.put("foo^bar", "foo%5Ebar");
 
         PutIndexTemplateRequest putTemplateRequest =
-                new PutIndexTemplateRequest(ESTestCase.randomFrom(names.keySet()))
-                .patterns(Arrays.asList(ESTestCase.generateRandomStringArray(20, 100, false, false)));
+                new PutIndexTemplateRequest(ESTestCase.randomFrom(names.keySet()),
+                    List.of(ESTestCase.generateRandomStringArray(20, 100, false, false)));
         if (ESTestCase.randomBoolean()) {
             putTemplateRequest.order(ESTestCase.randomInt());
         }
@@ -1116,7 +1116,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
             putTemplateRequest.cause(cause);
             expectedParams.put("cause", cause);
         }
-        RequestConvertersTests.setRandomMasterTimeout(putTemplateRequest, expectedParams);
+        RequestConvertersTests.setRandomMasterTimeout(putTemplateRequest::masterNodeTimeout, expectedParams);
 
         Request request = IndicesRequestConverters.putTemplate(putTemplateRequest);
         Assert.assertThat(request.getEndpoint(), equalTo("/_template/" + names.get(putTemplateRequest.name())));

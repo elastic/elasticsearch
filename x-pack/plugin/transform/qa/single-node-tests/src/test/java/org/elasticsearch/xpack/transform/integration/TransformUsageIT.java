@@ -11,7 +11,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
-import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -53,7 +53,7 @@ public class TransformUsageIT extends TransformRestTestCase {
         stopTransform("test_usage", false);
 
         Request statsExistsRequest = new Request("GET",
-            TransformInternalIndex.LATEST_INDEX_NAME+"/_search?q=" +
+            TransformInternalIndexConstants.LATEST_INDEX_NAME+"/_search?q=" +
                 INDEX_DOC_TYPE.getPreferredName() + ":" +
                 TransformStoredDoc.NAME);
         // Verify that we have one stat document
@@ -95,7 +95,7 @@ public class TransformUsageIT extends TransformRestTestCase {
                     XContentMapValues.extractValue("transform.stats." + statName, statsMap));
             }
             // Refresh the index so that statistics are searchable
-            refreshIndex(TransformInternalIndex.LATEST_INDEX_VERSIONED_NAME);
+            refreshIndex(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
         }, 60, TimeUnit.SECONDS);
 
 

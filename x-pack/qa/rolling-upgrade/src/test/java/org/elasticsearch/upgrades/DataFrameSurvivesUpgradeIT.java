@@ -11,9 +11,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.core.IndexerState;
-import org.elasticsearch.client.transform.GetDataFrameTransformStatsResponse;
-import org.elasticsearch.client.transform.transforms.DataFrameTransformConfig;
-import org.elasticsearch.client.transform.transforms.DataFrameTransformStats;
+import org.elasticsearch.client.transform.GetTransformStatsResponse;
+import org.elasticsearch.client.transform.transforms.TransformConfig;
+import org.elasticsearch.client.transform.transforms.TransformStats;
 import org.elasticsearch.client.transform.transforms.DestConfig;
 import org.elasticsearch.client.transform.transforms.SourceConfig;
 import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
@@ -129,7 +129,7 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             totalDocsWrittenSum += docs * ENTITIES.size();
         }
         long totalDocsWritten = totalDocsWrittenSum;
-        DataFrameTransformConfig config = DataFrameTransformConfig.builder()
+        TransformConfig config = TransformConfig.builder()
             .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
             .setPivotConfig(PivotConfig.builder()
                 .setAggregations(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.avg("stars").field("stars")))
@@ -146,12 +146,12 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         waitUntilAfterCheckpoint(CONTINUOUS_DATA_FRAME_ID, 0L);
 
         assertBusy(() -> {
-            DataFrameTransformStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
+            TransformStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
             assertThat(stateAndStats.getIndexerStats().getOutputDocuments(), equalTo((long)ENTITIES.size()));
             assertThat(stateAndStats.getIndexerStats().getNumDocuments(), equalTo(totalDocsWritten));
             // Even if we get back to started, we may periodically get set back to `indexing` when triggered.
             // Though short lived due to no changes on the source indices, it could result in flaky test behavior
-            assertThat(stateAndStats.getState(), oneOf(DataFrameTransformStats.State.STARTED, DataFrameTransformStats.State.INDEXING));
+            assertThat(stateAndStats.getState(), oneOf(TransformStats.State.STARTED, TransformStats.State.INDEXING));
         }, 120, TimeUnit.SECONDS);
 
 
@@ -165,13 +165,13 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         // A continuous data frame should automatically become started when it gets assigned to a node
         // if it was assigned to the node that was removed from the cluster
         assertBusy(() -> {
-            DataFrameTransformStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
-            assertThat(stateAndStats.getState(), oneOf(DataFrameTransformStats.State.STARTED, DataFrameTransformStats.State.INDEXING));
+            TransformStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
+            assertThat(stateAndStats.getState(), oneOf(TransformStats.State.STARTED, TransformStats.State.INDEXING));
         },
         120,
         TimeUnit.SECONDS);
 
-        DataFrameTransformStats previousStateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
+        TransformStats previousStateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
 
         // Add a new user and write data to it
         // This is so we can have more reliable data counts, as writing to existing entities requires
@@ -190,10 +190,10 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             greaterThanOrEqualTo(docs + previousStateAndStats.getIndexerStats().getNumDocuments())),
             120,
             TimeUnit.SECONDS);
-        DataFrameTransformStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
+        TransformStats stateAndStats = getTransformStats(CONTINUOUS_DATA_FRAME_ID);
 
         assertThat(stateAndStats.getState(),
-            oneOf(DataFrameTransformStats.State.STARTED, DataFrameTransformStats.State.INDEXING));
+            oneOf(TransformStats.State.STARTED, TransformStats.State.INDEXING));
         awaitWrittenIndexerState(CONTINUOUS_DATA_FRAME_ID, (responseBody) -> {
             Map<String, Object> indexerStats = (Map<String,Object>)((List<?>)XContentMapValues.extractValue("hits.hits._source.stats",
                 responseBody))
@@ -245,7 +245,7 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         });
     }
 
-    private void putTransform(String id, DataFrameTransformConfig config) throws IOException {
+    private void putTransform(String id, TransformConfig config) throws IOException {
         final Request createDataframeTransformRequest = new Request("PUT", DATAFRAME_ENDPOINT + id);
         createDataframeTransformRequest.setJsonEntity(Strings.toString(config));
         Response response = client().performRequest(createDataframeTransformRequest);
@@ -270,7 +270,7 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
-    private DataFrameTransformStats getTransformStats(String id) throws IOException {
+    private TransformStats getTransformStats(String id) throws IOException {
         final Request getStats = new Request("GET", DATAFRAME_ENDPOINT + id + "/_stats");
         Response response = client().performRequest(getStats);
         assertEquals(200, response.getStatusLine().getStatusCode());
@@ -278,7 +278,7 @@ public class DataFrameSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         try (XContentParser parser = xContentType.xContent().createParser(
             NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
             response.getEntity().getContent())) {
-            GetDataFrameTransformStatsResponse resp = GetDataFrameTransformStatsResponse.fromXContent(parser);
+            GetTransformStatsResponse resp = GetTransformStatsResponse.fromXContent(parser);
             assertThat(resp.getTransformsStats(), hasSize(1));
             return resp.getTransformsStats().get(0);
         }

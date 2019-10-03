@@ -580,7 +580,7 @@ include::ilm/remove_lifecycle_policy_from_index.asciidoc[]
 == {transform-cap} APIs
 
 :upid: {mainid}
-:doc-tests-file: {doc-tests}/DataFrameTransformDocumentationIT.java
+:doc-tests-file: {doc-tests}/TransformDocumentationIT.java
 
 The Java High Level REST Client supports the following {transform}
 APIs:

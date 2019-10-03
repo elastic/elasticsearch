@@ -1421,6 +1421,20 @@ public class FieldSortIT extends ESIntegTestCase {
                                                             .endObject()
                                                         .endObject()
                                                     .endObject()
+                                                    .startObject("bar")
+                                                        .field("type", "nested")
+                                                        .startObject("properties")
+                                                            .startObject("foo")
+                                                                .field("type", "text")
+                                                                .field("fielddata", true)
+                                                                .startObject("fields")
+                                                                    .startObject("sub")
+                                                                        .field("type", "keyword")
+                                                                    .endObject()
+                                                                .endObject()
+                                                            .endObject()
+                                                        .endObject()
+                                                    .endObject()
                                                 .endObject()
                                             .endObject()
                                         .endObject()
@@ -1472,6 +1486,22 @@ public class FieldSortIT extends ESIntegTestCase {
         assertThat(hits[1].getSortValues().length, is(1));
         assertThat(hits[0].getSortValues()[0], is("bar"));
         assertThat(hits[1].getSortValues()[0], is("abc"));
+
+        {
+            SearchPhaseExecutionException exc = expectThrows(SearchPhaseExecutionException.class,
+                () -> client().prepareSearch()
+                    .setQuery(matchAllQuery())
+                    .addSort(SortBuilders
+                        .fieldSort("nested.bar.foo")
+                        .setNestedSort(new NestedSortBuilder("nested")
+                            .setNestedSort(new NestedSortBuilder("nested.bar")
+                                .setMaxChildren(1)))
+                        .order(SortOrder.DESC))
+                    .get()
+            );
+            assertThat(exc.toString(),
+                containsString("max_children is only supported on top level of nested sort"));
+        }
 
         // We sort on nested sub field
         searchResponse = client().prepareSearch()

@@ -88,7 +88,6 @@ GET index/_search
     "hits": [
       {
         "_index": "index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.18232156,
         "_source": {
@@ -97,7 +96,6 @@ GET index/_search
       },
       {
         "_index": "index",
-        "_type": "_doc",
         "_id": "2",
         "_score": 0.18232156,
         "_source": {
@@ -148,7 +146,6 @@ GET index/_search
     "hits": [
       {
         "_index": "index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.8025915,
         "_source": {
@@ -207,7 +204,6 @@ GET index/_search
     "hits": [
       {
         "_index": "index",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.8025915,
         "_source": {

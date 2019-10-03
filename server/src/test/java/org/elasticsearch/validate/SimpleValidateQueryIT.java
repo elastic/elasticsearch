@@ -305,7 +305,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
             .setSource("followers", new int[] {1, 2, 3}).get();
         refresh();
 
-        TermsQueryBuilder termsLookupQuery = QueryBuilders.termsLookupQuery("user", new TermsLookup("twitter", "_doc", "1", "followers"));
+        TermsQueryBuilder termsLookupQuery = QueryBuilders.termsLookupQuery("user", new TermsLookup("twitter", "1", "followers"));
         ValidateQueryResponse response = client().admin().indices().prepareValidateQuery("twitter")
             .setQuery(termsLookupQuery)
             .setExplain(true)

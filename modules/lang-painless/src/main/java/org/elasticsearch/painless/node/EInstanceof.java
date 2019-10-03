@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -61,7 +62,6 @@ public final class EInstanceof extends AExpression {
 
     @Override
     void analyze(ClassTable classTable, Locals locals) {
-
         // ensure the specified type is part of the definition
         Class<?> clazz = classTable.getPainlessLookup().canonicalTypeNameToType(this.type);
 
@@ -88,19 +88,19 @@ public final class EInstanceof extends AExpression {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         // primitive types
         if (primitiveExpression) {
             // run the expression anyway (who knows what it does)
-            expression.write(writer, globals);
+            expression.write(classWriter, methodWriter, globals);
             // discard its result
-            writer.writePop(MethodWriter.getType(expression.actual).getSize());
+            methodWriter.writePop(MethodWriter.getType(expression.actual).getSize());
             // push our result: its a primitive so it cannot be null.
-            writer.push(resolvedType.isAssignableFrom(expressionType));
+            methodWriter.push(resolvedType.isAssignableFrom(expressionType));
         } else {
             // ordinary instanceof
-            expression.write(writer, globals);
-            writer.instanceOf(org.objectweb.asm.Type.getType(resolvedType));
+            expression.write(classWriter, methodWriter, globals);
+            methodWriter.instanceOf(org.objectweb.asm.Type.getType(resolvedType));
         }
     }
 

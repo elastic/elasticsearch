@@ -30,7 +30,7 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.internal.ShardSearchTransportRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
 
@@ -60,7 +60,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
         SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
-            public void sendCanMatch(Transport.Connection connection, ShardSearchTransportRequest request, SearchTask task,
+            public void sendCanMatch(Transport.Connection connection, ShardSearchRequest request, SearchTask task,
                                      ActionListener<SearchService.CanMatchResponse> listener) {
                 new Thread(() -> listener.onResponse(new SearchService.CanMatchResponse(request.shardId().id() == 0 ? shard1 :
                     shard2))).start();
@@ -117,7 +117,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         final boolean shard1 = randomBoolean();
         SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
-            public void sendCanMatch(Transport.Connection connection, ShardSearchTransportRequest request, SearchTask task,
+            public void sendCanMatch(Transport.Connection connection, ShardSearchRequest request, SearchTask task,
                                      ActionListener<SearchService.CanMatchResponse> listener) {
                 boolean throwException = request.shardId().id() != 0;
                 if (throwException && randomBoolean()) {
@@ -185,7 +185,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                     @Override
                     public void sendCanMatch(
                             Transport.Connection connection,
-                            ShardSearchTransportRequest request,
+                            ShardSearchRequest request,
                             SearchTask task,
                             ActionListener<SearchService.CanMatchResponse> listener) {
                         listener.onResponse(new SearchService.CanMatchResponse(randomBoolean()));

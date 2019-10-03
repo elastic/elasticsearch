@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -37,7 +38,7 @@ import static java.util.Collections.emptyList;
  */
 public final class SBlock extends AStatement {
 
-    private final List<AStatement> statements;
+    final List<AStatement> statements;
 
     public SBlock(Location location, List<AStatement> statements) {
         super(location);
@@ -77,7 +78,6 @@ public final class SBlock extends AStatement {
             statement.inLoop = inLoop;
             statement.lastSource = lastSource && statement == last;
             statement.lastLoop = (beginLoop || lastLoop) && statement == last;
-
             statement.analyze(classTable, locals);
 
             methodEscape = statement.methodEscape;
@@ -90,11 +90,11 @@ public final class SBlock extends AStatement {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
         for (AStatement statement : statements) {
             statement.continu = continu;
             statement.brake = brake;
-            statement.write(writer, globals);
+            statement.write(classWriter, methodWriter, globals);
         }
     }
 

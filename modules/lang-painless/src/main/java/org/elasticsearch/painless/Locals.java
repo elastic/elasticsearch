@@ -45,9 +45,7 @@ public final class Locals {
 
     /** Creates a new local variable scope (e.g. loop) inside the current scope */
     public static Locals newLocalScope(Locals currentScope) {
-        Locals locals = new Locals(currentScope);
-
-        return locals;
+        return new Locals(currentScope);
     }
 
     /**

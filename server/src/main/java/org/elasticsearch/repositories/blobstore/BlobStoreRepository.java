@@ -363,6 +363,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             try {
                 final Map<String, BlobMetaData> rootBlobs = blobContainer().listBlobs();
                 final RepositoryData repositoryData = getRepositoryData(latestGeneration(rootBlobs.keySet()));
+                // Cache the indices that were found before writing out the new index-N blob so that a stuck master will never
+                // delete an index that was created by another master node after writing this index-N blob.
                 final Map<String, BlobContainer> foundIndices = blobStore().blobContainer(indicesPath()).children();
                 doDeleteShardSnapshots(snapshotId, repositoryStateId, foundIndices, rootBlobs, repositoryData, version, listener);
             } catch (Exception ex) {
@@ -417,7 +419,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             deleteFromMetaListener = res -> afterDeleteFromMeta(snapshotId, listener, rootBlobs, foundIndices, newRepoData, res);
         }
 
-        final List<IndexId> indices = repositoryData.indicesAfterRemovingSnapshot(snapshotId);
+        final List<IndexId> indices = repositoryData.indicesToUpdateAfterRemovingSnapshot(snapshotId);
 
         if (indices.isEmpty()) {
             // No indices folders have to be updated, we go straight to the next step

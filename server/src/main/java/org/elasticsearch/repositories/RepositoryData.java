@@ -43,7 +43,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -143,15 +142,15 @@ public final class RepositoryData {
     }
 
     /**
-     * Returns the list of {@link IndexId} that will still be in use by the snapshots referenced in this instance after removing the given
-     * snapshot.
+     * Returns the list of {@link IndexId} that have their snapshots updated but not removed (because they are still referenced by other
+     * snapshots) after removing the given snapshot from the repository.
      *
-     * @param snapshotId SnapshotId that would be remove
-     * @return List of indices that would still be referenced
+     * @param snapshotId SnapshotId to remove
+     * @return List of indices that are changed but not removed
      */
-    public List<IndexId> indicesAfterRemovingSnapshot(SnapshotId snapshotId) {
+    public List<IndexId> indicesToUpdateAfterRemovingSnapshot(SnapshotId snapshotId) {
         return indexSnapshots.entrySet().stream()
-            .filter(Predicate.not(entry -> entry.getValue().size() == 1 && entry.getValue().contains(snapshotId)))
+            .filter(entry -> entry.getValue().size() > 1 && entry.getValue().contains(snapshotId))
             .map(Map.Entry::getKey)
             .collect(Collectors.toList());
     }

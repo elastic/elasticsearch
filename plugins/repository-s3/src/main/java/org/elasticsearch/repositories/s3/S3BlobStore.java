@@ -65,10 +65,7 @@ class S3BlobStore implements BlobStore {
     }
 
     public boolean sseAwsKeyIsEmpty() {
-        if (sseAwsKeyId == null || sseAwsKeyId.trim().isEmpty()) {
-            return true;
-        }
-        return false;
+        return sseAwsKeyId == null || sseAwsKeyId.trim().isEmpty();
     }
 
     public SSEAwsKeyManagementParams getSSEAwsKey() { return new SSEAwsKeyManagementParams(sseAwsKeyId); }

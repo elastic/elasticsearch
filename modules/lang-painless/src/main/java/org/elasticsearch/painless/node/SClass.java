@@ -30,7 +30,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.lookup.PainlessLookup;
-import org.elasticsearch.painless.symbol.ClassTable;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.symbol.FunctionTable;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;
@@ -88,7 +88,7 @@ public final class SClass extends AStatement {
 
     private CompilerSettings settings;
 
-    private ClassTable table;
+    private ScriptRoot table;
     private Locals mainMethod;
     private final Set<String> extractedVariables;
     private final List<org.objectweb.asm.commons.Method> getMethods;
@@ -135,7 +135,7 @@ public final class SClass extends AStatement {
     }
 
     public void analyze(PainlessLookup painlessLookup) {
-        table = new ClassTable(painlessLookup, settings, scriptClassInfo);
+        table = new ScriptRoot(painlessLookup, settings, scriptClassInfo, this);
 
         for (SFunction function : functions) {
             function.generateSignature(painlessLookup);
@@ -154,11 +154,11 @@ public final class SClass extends AStatement {
     }
 
     @Override
-    void analyze(ClassTable classTable, Locals program) {
+    void analyze(ScriptRoot scriptRoot, Locals program) {
         for (SFunction function : this.functions) {
             Locals functionLocals =
                 Locals.newFunctionScope(program, function.returnType, function.parameters, settings.getMaxLoopCounter());
-            function.analyze(classTable, functionLocals);
+            function.analyze(scriptRoot, functionLocals);
         }
 
         if (statements == null || statements.isEmpty()) {
@@ -189,7 +189,7 @@ public final class SClass extends AStatement {
             }
 
             statement.lastSource = statement == last;
-            statement.analyze(classTable, mainMethod);
+            statement.analyze(scriptRoot, mainMethod);
 
             methodEscape = statement.methodEscape;
             allEscape = statement.allEscape;

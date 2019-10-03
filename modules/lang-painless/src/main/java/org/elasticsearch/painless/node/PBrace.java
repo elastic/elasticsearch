@@ -27,7 +27,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.ClassTable;
+import org.elasticsearch.painless.ScriptRoot;
 
 import java.util.List;
 import java.util.Map;
@@ -62,10 +62,10 @@ public final class PBrace extends AStoreable {
     }
 
     @Override
-    void analyze(ClassTable classTable, Locals locals) {
-        prefix.analyze(classTable, locals);
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
+        prefix.analyze(scriptRoot, locals);
         prefix.expected = prefix.actual;
-        prefix = prefix.cast(classTable, locals);
+        prefix = prefix.cast(scriptRoot, locals);
 
         if (prefix.actual.isArray()) {
             sub = new PSubBrace(location, prefix.actual, index);
@@ -84,7 +84,7 @@ public final class PBrace extends AStoreable {
         sub.read = read;
         sub.expected = expected;
         sub.explicit = explicit;
-        sub.analyze(classTable, locals);
+        sub.analyze(scriptRoot, locals);
         actual = sub.actual;
     }
 

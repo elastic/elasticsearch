@@ -26,7 +26,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ClassTable;
+import org.elasticsearch.painless.ScriptRoot;
 import org.objectweb.asm.Type;
 
 import java.util.Arrays;
@@ -63,18 +63,18 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
     }
 
     @Override
-    void analyze(ClassTable classTable, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         SReturn code = new SReturn(location, new ENewArray(location, type, Arrays.asList(new EVariable(location, "size")), false));
         function = new SFunction(
-                location, type, classTable.getNextSyntheticName("newarray"),
+                location, type, scriptRoot.getNextSyntheticName("newarray"),
                 Collections.singletonList("int"), Collections.singletonList("size"),
                 new SBlock(location, Collections.singletonList(code)), true);
         function.storeSettings(settings);
-        function.generateSignature(classTable.getPainlessLookup());
+        function.generateSignature(scriptRoot.getPainlessLookup());
         function.extractVariables(null);
-        function.analyze(classTable, Locals.newLambdaScope(locals.getProgramScope(), function.name, function.returnType,
+        function.analyze(scriptRoot, Locals.newLambdaScope(locals.getProgramScope(), function.name, function.returnType,
                 function.parameters, 0, settings.getMaxLoopCounter()));
-        classTable.getFunctionTable().addFunction(function.name, function.returnType, function.typeParameters, true);
+        scriptRoot.getFunctionTable().addFunction(function.name, function.returnType, function.typeParameters, true);
 
         if (expected == null) {
             ref = null;
@@ -82,7 +82,7 @@ public final class ENewArrayFunctionRef extends AExpression implements ILambda {
             defPointer = "Sthis." + function.name + ",0";
         } else {
             defPointer = null;
-            ref = FunctionRef.create(classTable.getPainlessLookup(), classTable.getFunctionTable(),
+            ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(),
                     location, expected, "this", function.name, 0);
             actual = expected;
         }

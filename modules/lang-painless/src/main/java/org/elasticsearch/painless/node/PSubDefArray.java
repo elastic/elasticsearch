@@ -27,7 +27,7 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.ClassTable;
+import org.elasticsearch.painless.ScriptRoot;
 import org.objectweb.asm.Type;
 
 import java.time.ZonedDateTime;
@@ -57,10 +57,10 @@ final class PSubDefArray extends AStoreable {
     }
 
     @Override
-    void analyze(ClassTable classTable, Locals locals) {
-        index.analyze(classTable, locals);
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
+        index.analyze(scriptRoot, locals);
         index.expected = index.actual;
-        index = index.cast(classTable, locals);
+        index = index.cast(scriptRoot, locals);
 
         // TODO: remove ZonedDateTime exception when JodaCompatibleDateTime is removed
         actual = expected == null || expected == ZonedDateTime.class || explicit ? def.class : expected;

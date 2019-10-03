@@ -30,7 +30,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.ClassTable;
+import org.elasticsearch.painless.ScriptRoot;
 import org.objectweb.asm.Opcodes;
 
 import java.util.ArrayList;
@@ -111,7 +111,7 @@ public final class ELambda extends AExpression implements ILambda {
     }
 
     @Override
-    void analyze(ClassTable classTable, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         Class<?> returnType;
         List<String> actualParamTypeStrs;
         PainlessMethod interfaceMethod;
@@ -132,7 +132,7 @@ public final class ELambda extends AExpression implements ILambda {
 
         } else {
             // we know the method statically, infer return type and any unknown/def types
-            interfaceMethod = classTable.getPainlessLookup().lookupFunctionalInterfacePainlessMethod(expected);
+            interfaceMethod = scriptRoot.getPainlessLookup().lookupFunctionalInterfacePainlessMethod(expected);
             if (interfaceMethod == null) {
                 throw createError(new IllegalArgumentException("Cannot pass lambda to " +
                         "[" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "], not a functional interface"));
@@ -176,15 +176,15 @@ public final class ELambda extends AExpression implements ILambda {
         paramNames.addAll(paramNameStrs);
 
         // desugar lambda body into a synthetic method
-        String name = classTable.getNextSyntheticName("lambda");
+        String name = scriptRoot.getNextSyntheticName("lambda");
         desugared = new SFunction(
                 location, PainlessLookupUtility.typeToCanonicalTypeName(returnType), name, paramTypes, paramNames,
                 new SBlock(location, statements), true);
         desugared.storeSettings(settings);
-        desugared.generateSignature(classTable.getPainlessLookup());
-        desugared.analyze(classTable, Locals.newLambdaScope(locals.getProgramScope(), desugared.name, returnType,
+        desugared.generateSignature(scriptRoot.getPainlessLookup());
+        desugared.analyze(scriptRoot, Locals.newLambdaScope(locals.getProgramScope(), desugared.name, returnType,
                                                 desugared.parameters, captures.size(), settings.getMaxLoopCounter()));
-        classTable.getFunctionTable().addFunction(desugared.name, desugared.returnType, desugared.typeParameters, true);
+        scriptRoot.getFunctionTable().addFunction(desugared.name, desugared.returnType, desugared.typeParameters, true);
 
         // setup method reference to synthetic method
         if (expected == null) {
@@ -193,7 +193,7 @@ public final class ELambda extends AExpression implements ILambda {
             defPointer = "Sthis." + name + "," + captures.size();
         } else {
             defPointer = null;
-            ref = FunctionRef.create(classTable.getPainlessLookup(), classTable.getFunctionTable(),
+            ref = FunctionRef.create(scriptRoot.getPainlessLookup(), scriptRoot.getFunctionTable(),
                     location, expected, "this", desugared.name, captures.size());
             actual = expected;
         }

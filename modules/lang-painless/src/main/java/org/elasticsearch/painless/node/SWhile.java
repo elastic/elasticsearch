@@ -25,7 +25,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ClassTable;
+import org.elasticsearch.painless.ScriptRoot;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -67,12 +67,12 @@ public final class SWhile extends AStatement {
     }
 
     @Override
-    void analyze(ClassTable classTable, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         locals = Locals.newLocalScope(locals);
 
         condition.expected = boolean.class;
-        condition.analyze(classTable, locals);
-        condition = condition.cast(classTable, locals);
+        condition.analyze(scriptRoot, locals);
+        condition = condition.cast(scriptRoot, locals);
 
         if (condition.constant != null) {
             continuous = (boolean)condition.constant;
@@ -90,7 +90,7 @@ public final class SWhile extends AStatement {
             block.beginLoop = true;
             block.inLoop = true;
 
-            block.analyze(classTable, locals);
+            block.analyze(scriptRoot, locals);
 
             if (block.loopEscape && !block.anyContinue) {
                 throw createError(new IllegalArgumentException("Extraneous while loop."));

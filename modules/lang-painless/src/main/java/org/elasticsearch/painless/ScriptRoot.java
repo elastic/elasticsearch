@@ -17,30 +17,33 @@
  * under the License.
  */
 
-package org.elasticsearch.painless.symbol;
+package org.elasticsearch.painless;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.node.SClass;
+import org.elasticsearch.painless.symbol.FunctionTable;
 
 import java.util.Objects;
 
 /**
  * Stores information for use across the entirety of compilation.
  */
-public class ClassTable {
+public class ScriptRoot {
 
     protected final PainlessLookup painlessLookup;
     protected final CompilerSettings compilerSettings;
     protected final ScriptClassInfo scriptClassInfo;
 
+    protected final SClass classRoot;
+
     protected final FunctionTable functionTable = new FunctionTable();
     protected int syntheticCounter = 0;
 
-    public ClassTable(PainlessLookup painlessLookup, CompilerSettings compilerSettings, ScriptClassInfo scriptClassInfo) {
+    public ScriptRoot(PainlessLookup painlessLookup, CompilerSettings compilerSettings, ScriptClassInfo scriptClassInfo, SClass classRoot) {
         this.painlessLookup = Objects.requireNonNull(painlessLookup);
         this.compilerSettings = Objects.requireNonNull(compilerSettings);
         this.scriptClassInfo = Objects.requireNonNull(scriptClassInfo);
+        this.classRoot = Objects.requireNonNull(classRoot);
     }
 
     public PainlessLookup getPainlessLookup() {
@@ -53,6 +56,10 @@ public class ClassTable {
 
     public ScriptClassInfo getScriptClassInfo() {
         return scriptClassInfo;
+    }
+
+    public SClass getClassRoot() {
+        return classRoot;
     }
 
     public FunctionTable getFunctionTable() {

@@ -27,7 +27,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.ClassTable;
+import org.elasticsearch.painless.ScriptRoot;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.commons.Method;
 
@@ -69,14 +69,14 @@ public final class ENewObj extends AExpression {
     }
 
     @Override
-    void analyze(ClassTable classTable, Locals locals) {
-        actual = classTable.getPainlessLookup().canonicalTypeNameToType(this.type);
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
+        actual = scriptRoot.getPainlessLookup().canonicalTypeNameToType(this.type);
 
         if (actual == null) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
-        constructor = classTable.getPainlessLookup().lookupPainlessConstructor(actual, arguments.size());
+        constructor = scriptRoot.getPainlessLookup().lookupPainlessConstructor(actual, arguments.size());
 
         if (constructor == null) {
             throw createError(new IllegalArgumentException(
@@ -97,8 +97,8 @@ public final class ENewObj extends AExpression {
 
             expression.expected = types[argument];
             expression.internal = true;
-            expression.analyze(classTable, locals);
-            arguments.set(argument, expression.cast(classTable, locals));
+            expression.analyze(scriptRoot, locals);
+            arguments.set(argument, expression.cast(scriptRoot, locals));
         }
 
         statement = true;

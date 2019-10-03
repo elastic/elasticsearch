@@ -25,7 +25,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ClassTable;
+import org.elasticsearch.painless.ScriptRoot;
 
 import java.util.Objects;
 import java.util.Set;
@@ -56,10 +56,10 @@ final class PSubBrace extends AStoreable {
     }
 
     @Override
-    void analyze(ClassTable classTable, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         index.expected = int.class;
-        index.analyze(classTable, locals);
-        index = index.cast(classTable, locals);
+        index.analyze(scriptRoot, locals);
+        index = index.cast(scriptRoot, locals);
 
         actual = clazz.getComponentType();
     }

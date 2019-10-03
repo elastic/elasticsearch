@@ -55,6 +55,10 @@
 
 ---
 "Test pause and resume auto follow pattern":
+  - skip:
+      version: " - 7.9.99"
+      reason: "pause/resume auto-follow patterns is supported since 8.0"
+
   - do:
       cluster.state: {}
 

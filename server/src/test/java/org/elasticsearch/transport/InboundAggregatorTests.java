@@ -81,7 +81,6 @@ public class InboundAggregatorTests extends ESTestCase {
 
         assertThat(message.get(), notNullValue());
         assertFalse(message.get().isPing());
-        assertTrue(message.get().getHeader().isFullyParsed());
         assertTrue(message.get().getHeader().isRequest());
         assertThat(message.get().getHeader().getRequestId(), equalTo(requestId));
         assertThat(message.get().getHeader().getVersion(), equalTo(Version.CURRENT));

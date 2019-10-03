@@ -66,8 +66,8 @@ public class InboundAggregator {
             }
             CompositeBytesReference compositeBytesReference = new CompositeBytesReference(references);
             try (StreamInput input = compositeBytesReference.streamInput()) {
-                currentHeader.finishParsing(input);
-                messageConsumer.accept(new AggregatedMessage(currentHeader, input, false));
+//                currentHeader.finishParsing(input);
+//                messageConsumer.accept(new AggregatedMessage(currentHeader, input, false));
             } finally {
                 Releasables.close(contentAggregation);
                 contentAggregation.clear();

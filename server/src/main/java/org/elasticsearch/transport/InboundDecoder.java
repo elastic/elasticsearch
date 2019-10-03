@@ -25,10 +25,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.internal.io.IOUtils;
 
+import java.io.Closeable;
 import java.io.IOException;
 
-public class InboundDecoder {
+public class InboundDecoder implements Closeable {
 
     private static final ReleasableBytesReference END_CONTENT = new ReleasableBytesReference(BytesArray.EMPTY, () -> {});
 
@@ -102,6 +104,11 @@ public class InboundDecoder {
         }
     }
 
+    @Override
+    public void close() {
+        IOUtils.closeWhileHandlingException(decompressor);
+    }
+
     private boolean isDone() {
         return bytesConsumed == networkMessageSize;
     }
@@ -118,5 +125,4 @@ public class InboundDecoder {
     private boolean isOnHeader() {
         return networkMessageSize == -1;
     }
-
 }

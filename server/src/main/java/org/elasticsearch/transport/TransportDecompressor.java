@@ -28,12 +28,13 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
-public class TransportDecompressor {
+public class TransportDecompressor implements Closeable {
 
     private final Inflater inflater;
     private final PageCacheRecycler recycler;
@@ -121,6 +122,7 @@ public class TransportDecompressor {
         }
     }
 
+    @Override
     public void close() {
         inflater.end();
         for (Recycler.V<byte[]> page : pages) {

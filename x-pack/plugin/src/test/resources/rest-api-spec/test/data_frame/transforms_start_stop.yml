@@ -5,6 +5,9 @@ setup:
         body:
           mappings:
             properties:
+              time_alias:
+                type: alias
+                path: time
               time:
                 type: date
               airline:
@@ -322,3 +325,27 @@ teardown:
   - do:
       data_frame.delete_data_frame_transform:
         transform_id: "airline-transform-stop-all"
+---
+"Test start/stop with field alias":
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "airline_via_field_alias"
+        body: >
+          {
+            "source": {"index": "airline-data"},
+            "dest": {"index": "airline-data-time-alias"},
+            "pivot": {
+              "group_by": {"time": {"date_histogram": {"field": "time_alias", "calendar_interval": "1m"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - do:
+      data_frame.start_data_frame_transform:
+        transform_id: "airline_via_field_alias"
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_mapping:
+        index: airline-data-time-alias
+  - match: { airline-data-time-alias.mappings.properties.time.type: date }
+  - match: { airline-data-time-alias.mappings.properties.avg_response.type: double }

@@ -1,9 +1,8 @@
 [role="xpack"]
 [[watcher-api-activate-watch]]
-=== Activate Watch API
+=== Activate watch API
 
-A watch can be either
-{xpack-ref}/how-watcher-works.html#watch-active-state[active or inactive]. This
+A watch can be either <<watch-active-state,active or inactive>>. This
 API enables you to activate a currently inactive watch.
 
 [float]

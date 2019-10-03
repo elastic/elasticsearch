@@ -1,6 +1,6 @@
 [role="xpack"]
 [[watcher-api-delete-watch]]
-=== Delete Watch API
+=== Delete watch API
 
 The DELETE watch API removes a watch from {watcher}.
 

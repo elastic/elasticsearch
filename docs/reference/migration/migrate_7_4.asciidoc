@@ -124,6 +124,13 @@ be disabled by setting the system property
 === Settings changes
 
 [discrete]
+[[breaking_74_unique_realm_names]]
+==== Authentication realm name uniqueness is enforced
+
+Authentication realm name uniqueness is now enforced. If you configure more than one realm of any type
+with the same name, the node fails to start.
+
+[discrete]
 [[deprecate-pidfile]]
 ==== `pidfile` setting is being replaced by `node.pidfile`
 

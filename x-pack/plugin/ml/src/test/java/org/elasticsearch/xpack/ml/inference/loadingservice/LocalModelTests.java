@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.WeightedM
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.WeightedSum;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode;
-import org.elasticsearch.xpack.ml.inference.action.ClassificationInferenceResults;
-import org.elasticsearch.xpack.ml.inference.action.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 
 import java.util.Arrays;
 import java.util.HashMap;

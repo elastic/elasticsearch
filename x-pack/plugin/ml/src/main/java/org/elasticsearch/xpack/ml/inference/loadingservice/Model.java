@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.ml.inference.action.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 
 import java.util.Map;
 

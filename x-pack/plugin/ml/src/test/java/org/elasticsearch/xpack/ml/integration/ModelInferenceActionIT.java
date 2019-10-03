@@ -24,9 +24,9 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
-import org.elasticsearch.xpack.ml.inference.action.ClassificationInferenceResults;
-import org.elasticsearch.xpack.ml.inference.action.InferModelAction;
-import org.elasticsearch.xpack.ml.inference.action.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.junit.Before;
 

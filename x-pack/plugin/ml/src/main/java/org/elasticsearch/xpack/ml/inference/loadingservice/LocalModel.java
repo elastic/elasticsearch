@@ -11,9 +11,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.inference.action.ClassificationInferenceResults;
-import org.elasticsearch.xpack.ml.inference.action.InferenceResults;
-import org.elasticsearch.xpack.ml.inference.action.RegressionInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
 
 import java.util.ArrayList;
 import java.util.Comparator;

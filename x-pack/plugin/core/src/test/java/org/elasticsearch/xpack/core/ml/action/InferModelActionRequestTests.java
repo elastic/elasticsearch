@@ -3,11 +3,11 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.inference.action;
+package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.ml.inference.action.InferModelAction.Request;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction.Request;
 
 import java.util.function.Function;
 import java.util.stream.Collectors;

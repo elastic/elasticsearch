@@ -84,8 +84,10 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
 
     @Override
     public void triggered(SchedulerEngine.Event event) {
-        assert event.getJobName().equals(SnapshotRetentionService.SLM_RETENTION_JOB_ID) :
-            "expected id to be " + SnapshotRetentionService.SLM_RETENTION_JOB_ID + " but it was " + event.getJobName();
+        assert event.getJobName().equals(SnapshotRetentionService.SLM_RETENTION_JOB_ID) ||
+            event.getJobName().equals(SnapshotRetentionService.SLM_RETENTION_MANUAL_JOB_ID):
+            "expected id to be " + SnapshotRetentionService.SLM_RETENTION_JOB_ID + " or " +
+                SnapshotRetentionService.SLM_RETENTION_MANUAL_JOB_ID + " but it was " + event.getJobName();
 
         final ClusterState state = clusterService.state();
         if (SnapshotLifecycleService.ilmStoppedOrStopping(state)) {
@@ -324,6 +326,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             List<SnapshotInfo> snapshots = entry.getValue();
             for (SnapshotInfo info : snapshots) {
                 final String policyId = getPolicyId(info);
+                final long deleteStartTime = nowNanoSupplier.getAsLong();
                 deleteSnapshot(policyId, repo, info.snapshotId(), slmStats, ActionListener.wrap(acknowledgedResponse -> {
                     deleted.incrementAndGet();
                     if (acknowledgedResponse.isAcknowledged()) {
@@ -349,13 +352,15 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                 }));
                 // Check whether we have exceeded the maximum time allowed to spend deleting
                 // snapshots, if we have, short-circuit the rest of the deletions
-                TimeValue elapsedDeletionTime = TimeValue.timeValueNanos(nowNanoSupplier.getAsLong() - startTime);
-                logger.debug("elapsed time for deletion of [{}] snapshot: {}", info.snapshotId(), elapsedDeletionTime);
-                if (elapsedDeletionTime.compareTo(maximumTime) > 0) {
+                long finishTime = nowNanoSupplier.getAsLong();
+                TimeValue deletionTime = TimeValue.timeValueNanos(finishTime - deleteStartTime);
+                logger.debug("elapsed time for deletion of [{}] snapshot: {}", info.snapshotId(), deletionTime);
+                TimeValue totalDeletionTime = TimeValue.timeValueNanos(finishTime - startTime);
+                if (totalDeletionTime.compareTo(maximumTime) > 0) {
                     logger.info("maximum snapshot retention deletion time reached, time spent: [{}]," +
                             " maximum allowed time: [{}], deleted [{}] out of [{}] snapshots scheduled for deletion, failed to delete [{}]",
-                        elapsedDeletionTime, maximumTime, deleted, count, failed);
-                    slmStats.deletionTime(elapsedDeletionTime);
+                        totalDeletionTime, maximumTime, deleted, count, failed);
+                    slmStats.deletionTime(totalDeletionTime);
                     slmStats.retentionTimedOut();
                     return;
                 }
@@ -387,8 +392,8 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                     } else {
                         logger.warn("[{}] snapshot [{}] delete issued but the request was not acknowledged", repo, snapshot);
                     }
-                    listener.onResponse(acknowledgedResponse);
                     slmStats.snapshotDeleted(slmPolicy);
+                    listener.onResponse(acknowledgedResponse);
                 }
 
                 @Override

@@ -75,7 +75,6 @@ The response from the above index request:
 {
   "found": true,
   "_index": "circles",
-  "_type": "_doc",
   "_id": "1",
   "_version": 1,
   "_seq_no": 22,
@@ -113,7 +112,6 @@ The response from the above index request:
 {
   "found": true,
   "_index": "circles",
-  "_type": "_doc",
   "_id": "2",
   "_version": 1,
   "_seq_no": 22,

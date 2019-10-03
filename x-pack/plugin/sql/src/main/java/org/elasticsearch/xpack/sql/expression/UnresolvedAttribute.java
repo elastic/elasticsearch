@@ -65,7 +65,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
-    protected Attribute clone(Source source, String name, String qualifier, Nullability nullability,
+    protected Attribute clone(Source source, String name, DataType dataType, String qualifier, Nullability nullability,
                               ExpressionId id, boolean synthetic) {
         return this;
     }

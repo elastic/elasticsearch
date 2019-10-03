@@ -400,8 +400,8 @@ public class ClusterServiceIT extends ESIntegTestCase {
         block1.countDown();
         invoked2.await();
 
-        // whenever we test for no tasks, we need to awaitBusy since this is a live node
-        assertTrue(awaitBusy(() -> clusterService.getMasterService().pendingTasks().isEmpty()));
+        // whenever we test for no tasks, we need to wait since this is a live node
+        assertBusy(() -> assertTrue("Pending tasks not empty", clusterService.getMasterService().pendingTasks().isEmpty()));
         waitNoPendingTasksOnAll();
 
         final CountDownLatch block2 = new CountDownLatch(1);

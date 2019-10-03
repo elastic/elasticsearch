@@ -100,7 +100,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
                     "The SAS token used in this test allowed for checking container existence. This test only supports tokens " +
                         "that grant only the documented permission requirements for the Azure repository plugin."));
             } catch (StorageException e) {
-                if (e.getHttpStatusCode() == HttpURLConnection.HTTP_UNAUTHORIZED) {
+                if (e.getHttpStatusCode() == HttpURLConnection.HTTP_FORBIDDEN) {
                     future.onResponse(null);
                 } else {
                     future.onFailure(e);

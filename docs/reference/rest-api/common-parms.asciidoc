@@ -1,4 +1,25 @@
 
+
+tag::actions[]
+`actions`::
++
+--
+(Optional, string)
+Comma-separated list or wildcard expression
+of actions used to limit the request.
+
+Omit this parameter to return all actions.
+--
+end::actions[]
+
+tag::active-only[]
+`active_only`::
+(Optional, boolean)
+If `true`,
+the response only includes ongoing shard recoveries.
+Defaults to `false`.
+end::active-only[]
+
 tag::index-alias[]
 Comma-separated list or wildcard expression of index alias names
 used to limit the request.
@@ -17,7 +38,6 @@ Index aliases which include the target index.
 See <<indices-aliases>>.
 end::target-index-aliases[]
 
-
 tag::allow-no-indices[]
 `allow_no_indices`::
 (Optional, boolean) If `true`,
@@ -30,7 +50,7 @@ that point to a missing or closed index.
 end::allow-no-indices[]
 
 tag::analyzer[]
-analyzer`::
+`analyzer`::
 (Optional, string) Analyzer to use for the query string.
 end::analyzer[]
 
@@ -67,6 +87,14 @@ tag::default_operator[]
 (Optional, string) The default operator for query string query: AND or OR. 
 Defaults to `OR`.
 end::default_operator[]
+
+tag::detailed[]
+`detailed`::
+(Optional, boolean)
+If `true`,
+the response includes detailed information about shard recoveries.
+Defaults to `false`.
+end::detailed[]
 
 tag::df[]
 `df`::
@@ -128,11 +156,6 @@ in the `completion_fields` or `fielddata_fields` parameters.
 --
 end::fields[]
 
-tag::generation[]
-Generation number, such as `0`. {es} increments this generation number
-for each segment written. {es} then uses this number to derive the segment name.
-end::generation[]
-
 tag::index-alias-filter[]
 <<query-dsl-bool-query, Filter query>>
 used to limit the index alias.
@@ -158,6 +181,32 @@ tag::from[]
 `from`::
 (Optional, integer) Starting document offset. Defaults to `0`.
 end::from[]
+
+tag::generation[]
+Generation number, such as `0`. {es} increments this generation number
+for each segment written. {es} then uses this number to derive the segment name.
+end::generation[]
+
+tag::group-by[]
+`group_by`::
++
+--
+(Optional, string)
+Key used to group tasks in the response.
+
+Possible values are:
+
+`nodes`::
+(Default)
+Node ID
+
+`parents`::
+Parent task ID
+
+`none`::
+Do not group tasks.
+--
+end::group-by[]
 
 tag::groups[]
 `groups`::
@@ -188,6 +237,12 @@ tag::if_seq_no[]
 (Optional, integer) Only perform the operation if the document has this
 sequence number. See <<optimistic-concurrency-control-index>>.
 end::if_seq_no[]
+
+tag::ignore_throttled[]
+`ignore_throttled`::
+(Optional, boolean) If `true`, concrete, expanded or aliased indices are 
+ignored when throttled.
+end::ignore_throttled[]
 
 tag::index-ignore-unavailable[]
 `ignore_unavailable`::
@@ -221,6 +276,13 @@ tag::include-unloaded-segments[]
 (Optional, boolean) If `true`, the response includes information from segments
 that are **not** loaded into memory. Defaults to `false`.
 end::include-unloaded-segments[]
+
+tag::index-query-parm[]
+`index`::
+(Optional, string)
+Comma-separated list or wildcard expression of index names
+used to limit the request.
+end::index-query-parm[]
 
 tag::index[]
 `<index>`::
@@ -375,10 +437,37 @@ tag::node-id[]
 returned information.
 end::node-id[]
 
+tag::node-id-query-parm[]
+`node_id`::
+(Optional, string)
+Comma-separated list of node IDs or names
+used to limit returned information.
+end::node-id-query-parm[]
+
+tag::parent-task-id[]
+`parent_task_id`::
++
+--
+(Optional, string)
+Parent task ID
+used to limit returned information.
+
+To return all tasks,
+omit this parameter
+or use a value of `-1`.
+--
+end::parent-task-id[]
+
 tag::pipeline[]
 `pipeline`::
 (Optional, string) ID of the pipeline to use to preprocess incoming documents.
 end::pipeline[]
+
+tag::path-pipeline[]
+`<pipeline>`::
+(Optional, string) Comma-separated list or wildcard expression of pipeline IDs
+used to limit the request.
+end::path-pipeline[]
 
 tag::preference[]
 `preference`::
@@ -390,6 +479,12 @@ tag::search-q[]
 `q`::
 (Optional, string) Query in the Lucene query string syntax.
 end::search-q[]
+
+tag::query[]
+`query`::
+(Optional, <<query-dsl,query object>>) Defines the search definition using the 
+<<query-dsl,Query DSL>>.
+end::query[]
 
 tag::refresh[]
 `refresh`::
@@ -469,6 +564,10 @@ the segment has most likely been written to disk
 but needs a <<indices-refresh,refresh>> to be searchable.
 end::segment-search[]
 
+tag::segment-size[]
+Disk space used by the segment, such as `50kb`.
+end::segment-size[]
+
 tag::settings[]
 `settings`::
 (Optional, <<index-modules-settings,index setting object>>) Configuration
@@ -481,10 +580,6 @@ tag::target-index-settings[]
 Configuration options for the target index.
 See <<index-modules-settings>>.
 end::target-index-settings[]
-
-tag::segment-size[]
-Disk space used by the segment, such as `50kb`.
-end::segment-size[]
 
 tag::slices[]
 `slices`::
@@ -531,6 +626,12 @@ Name of the target index to create.
 include::{docdir}/indices/create-index.asciidoc[tag=index-name-reqs]
 --
 end::target-index[]
+
+tag::task-id[]
+`<task_id>`::
+(Optional, string) ID of the task to return
+(`node_id:task_number`).
+end::task-id[]
 
 tag::terminate_after[]
 `terminate_after`::

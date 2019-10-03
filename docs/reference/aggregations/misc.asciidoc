@@ -138,7 +138,6 @@ In the response, the aggregations names will be changed to respectively `date_hi
                             "hits" : [
                                 {
                                   "_index": "twitter",
-                                  "_type": "_doc",
                                   "_id": "0",
                                   "_score": 1.0,
                                   "_source": {

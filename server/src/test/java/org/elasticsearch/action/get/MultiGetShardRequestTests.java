@@ -45,8 +45,7 @@ public class MultiGetShardRequestTests extends ESTestCase {
         MultiGetShardRequest multiGetShardRequest = new MultiGetShardRequest(multiGetRequest, "index", 0);
         int numItems = iterations(10, 30);
         for (int i = 0; i < numItems; i++) {
-            MultiGetRequest.Item item = new MultiGetRequest.Item("alias-" + randomAlphaOfLength(randomIntBetween(1, 10)),
-                "type", "id-" + i);
+            MultiGetRequest.Item item = new MultiGetRequest.Item("alias-" + randomAlphaOfLength(randomIntBetween(1, 10)), "id-" + i);
             if (randomBoolean()) {
                 int numFields = randomIntBetween(1, 5);
                 String[] fields = new String[numFields];
@@ -81,7 +80,6 @@ public class MultiGetShardRequestTests extends ESTestCase {
             MultiGetRequest.Item item = multiGetShardRequest.items.get(i);
             MultiGetRequest.Item item2 = multiGetShardRequest2.items.get(i);
                 assertThat(item2.index(), equalTo(item.index()));
-            assertThat(item2.type(), equalTo(item.type()));
             assertThat(item2.id(), equalTo(item.id()));
             assertThat(item2.storedFields(), equalTo(item.storedFields()));
             assertThat(item2.version(), equalTo(item.version()));

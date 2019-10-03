@@ -30,7 +30,6 @@
  - do:
       get:
           index:  index
-          type:   not_doc
           id:     1
 
  - match: { _source.foo:        baz }
@@ -67,11 +66,9 @@
   - do:
       get: # using typeful API on purpose
         index:  index
-        type:   not_doc
         id:     1
 
   - match:   { _index:   "index" }
-  - match:   { _type:    "not_doc" }
   - match:   { _id:      "1" }
   - match:   { _version: 2}
   - match: { _source.foo:        baz }

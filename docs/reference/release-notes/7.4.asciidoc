@@ -151,9 +151,6 @@ Engine::
 * Async IO Processor release before notify {pull}43682[#43682]
 * Enable indexing optimization using sequence numbers on replicas {pull}43616[#43616] (issue: {issue}34099[#34099])
 
-Features/Features::
-* Disable String interning on field names for JSON parsing {pull}41039[#41039] (issue: {issue}39890[#39890])
-
 Features/ILM::
 * Add node setting for disabling SLM {pull}46794[#46794] (issue: {issue}38461[#38461])
 * Include in-progress snapshot for a policy with get SLM policy API {pull}45245[#45245]

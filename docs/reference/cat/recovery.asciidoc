@@ -4,8 +4,9 @@
 <titleabbrev>cat recovery</titleabbrev>
 ++++
 
-Returns information about ongoing and completed index shard recoveries, similar
-to the <<indices-recovery, index recovery>> API.
+
+Returns information about ongoing and completed shard recoveries,
+similar to the <<indices-recovery, index recovery>> API.
 
 
 [[cat-recovery-api-request]]
@@ -19,15 +20,11 @@ to the <<indices-recovery, index recovery>> API.
 [[cat-recovery-api-desc]]
 ==== {api-description-title}
 
-The cat recovery API returns information about index shard recoveries, both
+The cat recovery API returns information about shard recoveries, both
 ongoing and completed. It is a more compact view of the JSON
 <<indices-recovery,index recovery>> API.
 
-A recovery event occurs anytime an index shard moves to a different node in the
-cluster. This can happen during a snapshot recovery, a change in replication
-level, node failure, or on node startup. This last type is called a local store
-recovery and is the normal way for shards to be loaded from disk when a node
-starts up.
+include::{docdir}/indices/recovery.asciidoc[tag=shard-recovery-desc]
 
 
 [[cat-recovery-path-params]]

@@ -544,8 +544,7 @@ final class IndicesRequestConverters {
 
     static Request validateQuery(ValidateQueryRequest validateQueryRequest) throws IOException {
         String[] indices = validateQueryRequest.indices() == null ? Strings.EMPTY_ARRAY : validateQueryRequest.indices();
-        String[] types = validateQueryRequest.types() == null || indices.length <= 0 ? Strings.EMPTY_ARRAY : validateQueryRequest.types();
-        String endpoint = RequestConverters.endpoint(indices, types, "_validate/query");
+        String endpoint = RequestConverters.endpoint(indices, "_validate/query");
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params();
         params.withIndicesOptions(validateQueryRequest.indicesOptions());

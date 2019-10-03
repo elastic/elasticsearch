@@ -19,12 +19,14 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.symbol.FunctionTable;
 import org.objectweb.asm.Opcodes;
 
 import java.util.Objects;
@@ -66,7 +68,7 @@ public final class SDeclaration extends AStatement {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(FunctionTable functions, Locals locals) {
         Class<?> clazz = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
 
         if (clazz == null) {
@@ -75,37 +77,37 @@ public final class SDeclaration extends AStatement {
 
         if (expression != null) {
             expression.expected = clazz;
-            expression.analyze(locals);
-            expression = expression.cast(locals);
+            expression.analyze(functions, locals);
+            expression = expression.cast(functions, locals);
         }
 
         variable = locals.addVariable(location, clazz, name, false);
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeStatementOffset(location);
 
         if (expression == null) {
             Class<?> sort = variable.clazz;
 
             if (sort == void.class || sort == boolean.class || sort == byte.class ||
                 sort == short.class || sort == char.class || sort == int.class) {
-                writer.push(0);
+                methodWriter.push(0);
             } else if (sort == long.class) {
-                writer.push(0L);
+                methodWriter.push(0L);
             } else if (sort == float.class) {
-                writer.push(0F);
+                methodWriter.push(0F);
             } else if (sort == double.class) {
-                writer.push(0D);
+                methodWriter.push(0D);
             } else {
-                writer.visitInsn(Opcodes.ACONST_NULL);
+                methodWriter.visitInsn(Opcodes.ACONST_NULL);
             }
         } else {
-            expression.write(writer, globals);
+            expression.write(classWriter, methodWriter, globals);
         }
 
-        writer.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
+        methodWriter.visitVarInsn(MethodWriter.getType(variable.clazz).getOpcode(Opcodes.ISTORE), variable.getSlot());
     }
 
     @Override

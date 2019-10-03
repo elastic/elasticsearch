@@ -17,7 +17,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -67,18 +67,18 @@ public class PivotConfig implements Writeable, ToXContentObject {
                 });
 
         parser.declareObject(constructorArg(),
-                (p, c) -> (GroupConfig.fromXContent(p, lenient)), DataFrameField.GROUP_BY);
+                (p, c) -> (GroupConfig.fromXContent(p, lenient)), TransformField.GROUP_BY);
 
-        parser.declareObject(optionalConstructorArg(), (p, c) -> AggregationConfig.fromXContent(p, lenient), DataFrameField.AGGREGATIONS);
-        parser.declareObject(optionalConstructorArg(), (p, c) -> AggregationConfig.fromXContent(p, lenient), DataFrameField.AGGS);
-        parser.declareInt(optionalConstructorArg(), DataFrameField.MAX_PAGE_SEARCH_SIZE);
+        parser.declareObject(optionalConstructorArg(), (p, c) -> AggregationConfig.fromXContent(p, lenient), TransformField.AGGREGATIONS);
+        parser.declareObject(optionalConstructorArg(), (p, c) -> AggregationConfig.fromXContent(p, lenient), TransformField.AGGS);
+        parser.declareInt(optionalConstructorArg(), TransformField.MAX_PAGE_SEARCH_SIZE);
 
         return parser;
     }
 
     public PivotConfig(final GroupConfig groups, final AggregationConfig aggregationConfig, Integer maxPageSearchSize) {
-        this.groups = ExceptionsHelper.requireNonNull(groups, DataFrameField.GROUP_BY.getPreferredName());
-        this.aggregationConfig = ExceptionsHelper.requireNonNull(aggregationConfig, DataFrameField.AGGREGATIONS.getPreferredName());
+        this.groups = ExceptionsHelper.requireNonNull(groups, TransformField.GROUP_BY.getPreferredName());
+        this.aggregationConfig = ExceptionsHelper.requireNonNull(aggregationConfig, TransformField.AGGREGATIONS.getPreferredName());
         this.maxPageSearchSize = maxPageSearchSize;
     }
 
@@ -91,10 +91,10 @@ public class PivotConfig implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(DataFrameField.GROUP_BY.getPreferredName(), groups);
-        builder.field(DataFrameField.AGGREGATIONS.getPreferredName(), aggregationConfig);
+        builder.field(TransformField.GROUP_BY.getPreferredName(), groups);
+        builder.field(TransformField.AGGREGATIONS.getPreferredName(), aggregationConfig);
         if (maxPageSearchSize != null) {
-            builder.field(DataFrameField.MAX_PAGE_SEARCH_SIZE.getPreferredName(), maxPageSearchSize);
+            builder.field(TransformField.MAX_PAGE_SEARCH_SIZE.getPreferredName(), maxPageSearchSize);
         }
         builder.endObject();
         return builder;

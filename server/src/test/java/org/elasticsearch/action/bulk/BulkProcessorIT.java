@@ -217,7 +217,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
                     testDocs++;
                     processor.add(new IndexRequest("test", "test", Integer.toString(testDocs))
                         .source(Requests.INDEX_CONTENT_TYPE, "field", "value"));
-                    multiGetRequestBuilder.add("test", "test", Integer.toString(testDocs));
+                    multiGetRequestBuilder.add("test", Integer.toString(testDocs));
                 } else {
                     testReadOnlyDocs++;
                     processor.add(new IndexRequest("test-ro", "test", Integer.toString(testReadOnlyDocs))
@@ -268,7 +268,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
                         .startObject().field("field", randomRealisticUnicodeOfLengthBetween(1, 30)).endObject()) + "\n";
                 processor.add(new BytesArray(source), null, null, XContentType.JSON);
             }
-            multiGetRequestBuilder.add("test", "test", Integer.toString(i));
+            multiGetRequestBuilder.add("test", Integer.toString(i));
         }
         return multiGetRequestBuilder;
     }
@@ -290,7 +290,6 @@ public class BulkProcessorIT extends ESIntegTestCase {
         int i = 1;
         for (MultiGetItemResponse multiGetItemResponse : multiGetResponse) {
             assertThat(multiGetItemResponse.getIndex(), equalTo("test"));
-            assertThat(multiGetItemResponse.getType(), equalTo("test"));
             assertThat(multiGetItemResponse.getId(), equalTo(Integer.toString(i++)));
         }
     }

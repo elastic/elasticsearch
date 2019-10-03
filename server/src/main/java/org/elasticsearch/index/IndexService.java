@@ -31,6 +31,7 @@ import org.elasticsearch.Assertions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -57,6 +58,7 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.SearchIndexNameMatcher;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -133,6 +135,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final ThreadPool threadPool;
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
+    private final ClusterService clusterService;
     private final Client client;
     private final CircuitBreakerService circuitBreakerService;
     private Supplier<Sort> indexSortSupplier;
@@ -150,6 +153,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             BigArrays bigArrays,
             ThreadPool threadPool,
             ScriptService scriptService,
+            ClusterService clusterService,
             Client client,
             QueryCache queryCache,
             IndexStorePlugin.DirectoryFactory directoryFactory,
@@ -200,6 +204,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
         this.scriptService = scriptService;
+        this.clusterService = clusterService;
         this.client = client;
         this.eventListener = eventListener;
         this.nodeEnv = nodeEnv;
@@ -528,9 +533,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      * {@link IndexReader}-specific optimizations, such as rewriting containing range queries.
      */
     public QueryShardContext newQueryShardContext(int shardId, IndexSearcher searcher, LongSupplier nowInMillis, String clusterAlias) {
+        SearchIndexNameMatcher indexNameMatcher = new SearchIndexNameMatcher(index().getName(), clusterAlias, clusterService);
         return new QueryShardContext(
             shardId, indexSettings, bigArrays, indexCache.bitsetFilterCache(), indexFieldData::getForField, mapperService(),
-            similarityService(), scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis, clusterAlias);
+            similarityService(), scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis, clusterAlias,
+            indexNameMatcher);
     }
 
     /**

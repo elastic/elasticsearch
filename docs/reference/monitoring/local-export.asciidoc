@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[local-exporter]]
-=== Local Exporters
+=== Local exporters
 
 The `local` exporter is the default exporter in {monitoring}. It routes data 
 back into the same (local) cluster. In other words, it uses the production 
@@ -56,7 +56,7 @@ For more information about the configuration options for the `local` exporter,
 see <<local-exporter-settings>>.
 
 [[local-exporter-cleaner]]
-==== Cleaner Service
+==== Cleaner service
 
 One feature of the `local` exporter, which is not present in the `http` exporter, 
 is a cleaner service. The cleaner service runs once per day at 01:00 AM UTC on 

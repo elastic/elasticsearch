@@ -88,7 +88,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
 
     private void givenDataFrameRows(int rows) {
         AnalyticsProcessConfig config = new AnalyticsProcessConfig(
-            rows, 1, ByteSizeValue.ZERO, 1, "ml", Collections.emptySet(), mock(DataFrameAnalysis.class));
+            "job_id", rows, 1, ByteSizeValue.ZERO, 1, "ml", Collections.emptySet(), mock(DataFrameAnalysis.class));
         when(process.getConfig()).thenReturn(config);
     }
 

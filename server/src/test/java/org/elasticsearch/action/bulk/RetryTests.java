@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.junit.After;
@@ -226,7 +227,8 @@ public class RetryTests extends ESTestCase {
         }
 
         private BulkItemResponse successfulResponse() {
-            return new BulkItemResponse(1, OpType.DELETE, new DeleteResponse(null, null, null, 0, 0, 0, false));
+            return new BulkItemResponse(1, OpType.DELETE, new DeleteResponse(
+                new ShardId("test", "test", 0), "_doc", "test", 0, 0, 0, false));
         }
 
         private BulkItemResponse failedResponse() {

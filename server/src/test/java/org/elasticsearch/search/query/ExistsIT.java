@@ -135,9 +135,8 @@ public class ExistsIT extends ESIntegTestCase {
             } catch (AssertionError e) {
                 for (SearchHit searchHit : allDocs.getHits()) {
                     final String index = searchHit.getIndex();
-                    final String type = searchHit.getType();
                     final String id = searchHit.getId();
-                    final ExplainResponse explanation = client().prepareExplain(index, type, id)
+                    final ExplainResponse explanation = client().prepareExplain(index, id)
                             .setQuery(QueryBuilders.existsQuery(fieldName)).get();
                     logger.info("Explanation for [{}] / [{}] / [{}]: [{}]", fieldName, id, searchHit.getSourceAsString(),
                             explanation.getExplanation());

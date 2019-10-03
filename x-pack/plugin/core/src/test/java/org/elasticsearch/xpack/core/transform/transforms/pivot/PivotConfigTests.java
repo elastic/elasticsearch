@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.core.transform.transforms.AbstractSerializingDataFrameTestCase;
+import org.elasticsearch.xpack.core.transform.transforms.AbstractSerializingTransformTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -21,7 +21,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 
-public class PivotConfigTests extends AbstractSerializingDataFrameTestCase<PivotConfig> {
+public class PivotConfigTests extends AbstractSerializingTransformTestCase<PivotConfig> {
 
     public static PivotConfig randomPivotConfig() {
         return new PivotConfig(GroupConfigTests.randomGroupConfig(),

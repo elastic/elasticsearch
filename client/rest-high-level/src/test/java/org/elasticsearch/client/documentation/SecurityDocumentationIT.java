@@ -201,7 +201,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // 9 users are expected to be returned
             // test_users (3): user1, user2, user3
             // system_users (6): elastic, beats_system, apm_system, logstash_system, kibana, remote_monitoring_user
-            assertThat(users.size(), equalTo(10));
+            assertThat(users.size(), equalTo(9));
         }
 
         {

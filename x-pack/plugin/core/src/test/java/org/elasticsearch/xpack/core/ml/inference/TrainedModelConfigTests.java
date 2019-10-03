@@ -14,7 +14,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeTests;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.junit.Before;
@@ -65,7 +64,7 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             Instant.ofEpochMilli(randomNonNegativeLong()),
             randomBoolean() ? null : randomNonNegativeLong(),
             randomAlphaOfLength(10),
-            randomBoolean() ? null : randomFrom(TreeTests.createRandom()),
+            randomBoolean() ? null : TrainedModelDefinitionTests.createRandomBuilder().build(),
             randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));
     }
 
@@ -97,14 +96,18 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
     public void testValidateWithInvalidID() {
         String modelId = "InvalidID-";
         ElasticsearchException ex = expectThrows(ElasticsearchException.class,
-            () -> TrainedModelConfig.builder().setDefinition(randomFrom(TreeTests.createRandom())).setModelId(modelId).validate());
+            () -> TrainedModelConfig.builder()
+                .setDefinition(TrainedModelDefinitionTests.createRandomBuilder())
+                .setModelId(modelId).validate());
         assertThat(ex.getMessage(), equalTo(Messages.getMessage(Messages.INVALID_ID, "model_id", modelId)));
     }
 
     public void testValidateWithLongID() {
         String modelId = IntStream.range(0, 100).mapToObj(x -> "a").collect(Collectors.joining());
         ElasticsearchException ex = expectThrows(ElasticsearchException.class,
-            () -> TrainedModelConfig.builder().setDefinition(randomFrom(TreeTests.createRandom())).setModelId(modelId).validate());
+            () -> TrainedModelConfig.builder()
+                .setDefinition(TrainedModelDefinitionTests.createRandomBuilder())
+                .setModelId(modelId).validate());
         assertThat(ex.getMessage(), equalTo(Messages.getMessage(Messages.ID_TOO_LONG, "model_id", modelId, MlStrings.ID_LENGTH_LIMIT)));
     }
 
@@ -112,21 +115,21 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
         String modelId = "simplemodel";
         ElasticsearchException ex = expectThrows(ElasticsearchException.class,
             () -> TrainedModelConfig.builder()
-                .setDefinition(randomFrom(TreeTests.createRandom()))
+                .setDefinition(TrainedModelDefinitionTests.createRandomBuilder())
                 .setCreatedTime(Instant.now())
                 .setModelId(modelId).validate());
         assertThat(ex.getMessage(), equalTo("illegal to set [created_time] at inference model creation"));
 
         ex = expectThrows(ElasticsearchException.class,
             () -> TrainedModelConfig.builder()
-                .setDefinition(randomFrom(TreeTests.createRandom()))
+                .setDefinition(TrainedModelDefinitionTests.createRandomBuilder())
                 .setVersion(Version.CURRENT)
                 .setModelId(modelId).validate());
         assertThat(ex.getMessage(), equalTo("illegal to set [version] at inference model creation"));
 
         ex = expectThrows(ElasticsearchException.class,
             () -> TrainedModelConfig.builder()
-                .setDefinition(randomFrom(TreeTests.createRandom()))
+                .setDefinition(TrainedModelDefinitionTests.createRandomBuilder())
                 .setCreatedBy("ml_user")
                 .setModelId(modelId).validate());
         assertThat(ex.getMessage(), equalTo("illegal to set [created_by] at inference model creation"));

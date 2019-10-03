@@ -31,6 +31,7 @@ import org.junit.After;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -475,5 +476,71 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertThatAuditMessagesMatch(id,
             "Created analytics with analysis type [outlier_detection]",
             "Estimated memory usage for this analytics to be");
+    }
+
+    public void testOutlierDetectionStopAndRestart() throws Exception {
+        String sourceIndex = "test-outlier-detection-stop-and-restart";
+
+        client().admin().indices().prepareCreate(sourceIndex)
+            .addMapping("_doc", "numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
+            .get();
+
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        int docCount = randomIntBetween(1024, 2048);
+        for (int i = 0; i < docCount; i++) {
+            IndexRequest indexRequest = new IndexRequest(sourceIndex);
+            indexRequest.source("numeric_1", randomDouble(), "numeric_2", randomFloat(), "categorical_1", randomAlphaOfLength(10));
+            bulkRequestBuilder.add(indexRequest);
+        }
+        BulkResponse bulkResponse = bulkRequestBuilder.get();
+        if (bulkResponse.hasFailures()) {
+            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        }
+
+        String id = "test_outlier_detection_stop_and_restart";
+        DataFrameAnalyticsConfig config = buildOutlierDetectionAnalytics(
+            id, new String[] {sourceIndex}, sourceIndex + "-results", "custom_ml");
+        registerAnalytics(config);
+        putAnalytics(config);
+
+        assertState(id, DataFrameAnalyticsState.STOPPED);
+        startAnalytics(id);
+
+        // Wait until state is one of REINDEXING or ANALYZING, or until it is STOPPED.
+        assertBusy(() -> {
+            DataFrameAnalyticsState state = getAnalyticsStats(id).get(0).getState();
+            assertThat(state, is(anyOf(equalTo(DataFrameAnalyticsState.REINDEXING), equalTo(DataFrameAnalyticsState.ANALYZING),
+                equalTo(DataFrameAnalyticsState.STOPPED))));
+        });
+        stopAnalytics(id);
+        waitUntilAnalyticsIsStopped(id);
+
+        // Now let's start it again
+        try {
+            startAnalytics(id);
+        } catch (Exception e) {
+            if (e.getMessage().equals("Cannot start because the job has already finished")) {
+                // That means the job had managed to complete
+            } else {
+                throw e;
+            }
+        }
+
+        waitUntilAnalyticsIsStopped(id);
+
+        // Check we've got all docs
+        SearchResponse searchResponse = client().prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true).get();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) docCount));
+
+        // Check they all have an outlier_score
+        searchResponse = client().prepareSearch(config.getDest().getIndex())
+            .setTrackTotalHits(true)
+            .setQuery(QueryBuilders.existsQuery("custom_ml.outlier_score")).get();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) docCount));
+
+        assertProgress(id, 100, 100, 100, 100);
+        assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
     }
 }

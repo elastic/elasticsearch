@@ -1,5 +1,8 @@
 [[indices-shards-stores]]
-=== Indices Shard Stores
+=== Index shard stores API
+++++
+<titleabbrev>Index shard stores</titleabbrev>
+++++
 
 Provides store information for shard copies of indices.
 Store information reports on which nodes shard copies exist, the shard

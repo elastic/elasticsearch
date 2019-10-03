@@ -1,7 +1,7 @@
 [[indices-get-template]]
 === Get index template API
 ++++
-<titleabbrev>Get template index</titleabbrev>
+<titleabbrev>Get index template</titleabbrev>
 ++++
 
 Returns information about one or more index templates.

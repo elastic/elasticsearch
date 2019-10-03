@@ -193,8 +193,7 @@ Watcher::
 * Fixed the serialization of failed hipchat messages, such that it no longer
 tries to write the status field twice.
 * Fixed TransformInput toXContent serialization errors. For more information,
-see
-{stack-ov}/input-chain.html#_transforming_chained_input_data[Transforming Chained Input Data].
+see <<_transforming_chained_input_data>>.
 
 //[float]
 //=== Regressions
@@ -401,7 +400,7 @@ more information, see {stack-ov}/saml-realm.html[SAML authentication].
 
 Watcher::
 * Added a transform input for chained input. For more information, see
-{stack-ov}/input-chain.html#_transforming_chained_input_data[Transforming Chained Input Data].
+<<_transforming_chained_input_data>>.
 
 [float]
 === Enhancements

@@ -29,7 +29,7 @@ import java.util.Objects;
 
 public class TrainedModelConfig implements ToXContentObject, Writeable {
 
-    public static final String NAME = "trained_model_doc";
+    public static final String NAME = "trained_model_config";
 
     public static final ParseField MODEL_ID = new ParseField("model_id");
     public static final ParseField CREATED_BY = new ParseField("created_by");

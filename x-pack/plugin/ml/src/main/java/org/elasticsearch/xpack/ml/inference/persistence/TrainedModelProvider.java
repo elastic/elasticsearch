@@ -28,9 +28,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.DeleteByQueryAction;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -118,6 +121,30 @@ public class TrainedModelProvider {
                 listener::onFailure));
     }
 
+    public void deleteTrainedModel(String modelId, ActionListener<Boolean> listener) {
+        DeleteByQueryRequest request = new DeleteByQueryRequest().setAbortOnVersionConflict(false);
+
+        request.indices(InferenceIndexConstants.INDEX_PATTERN);
+        QueryBuilder query = QueryBuilders.termQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId);
+        request.setQuery(query);
+        request.setRefresh(true);
+
+        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, request, ActionListener.wrap(deleteResponse -> {
+            if (deleteResponse.getDeleted() == 0) {
+                listener.onFailure(new ResourceNotFoundException(
+                    Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId, 0L)));
+                return;
+            }
+            listener.onResponse(true);
+        }, e -> {
+            if (e.getClass() == IndexNotFoundException.class) {
+                listener.onFailure(new ResourceNotFoundException(
+                    Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId, 0L)));
+            } else {
+                listener.onFailure(e);
+            }
+        }));
+    }
 
     private void parseInferenceDocLenientlyFromSource(BytesReference source,
                                                       String modelId,

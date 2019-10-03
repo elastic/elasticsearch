@@ -29,7 +29,6 @@ For example, run the following command:
 --ca elastic-stack-ca.p12 \ <1>
 --multiple
 ----------------------------------------------------------------------
-// NOTCONSOLE
 <1> Use the certificate authority that you created in <<encrypting-communications-certificates>>.
 
 You are prompted for information about each new node. Specify `node-2` and
@@ -56,7 +55,6 @@ Archive:  certificate-bundle.zip
    creating: node-3/
   inflating: node-3/node-3.p12   
 ----------------------------------------------------------------------
-// NOTCONSOLE
   
 The `certificate-bundle.zip` file contains a folder for each of your nodes. Each
 folder contains a single PKCS#12 keystore that includes a node certificate,

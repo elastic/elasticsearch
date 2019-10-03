@@ -54,7 +54,7 @@ subprojects {
     apply plugin: 'elasticsearch.build'
   }
 
-  configurations.testRuntimeClasspath {
+  configurations.all {
     resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
   }
   dependencies {

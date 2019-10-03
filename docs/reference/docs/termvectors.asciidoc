@@ -15,9 +15,7 @@ GET /twitter/_termvectors/1
 [[docs-termvectors-api-request]]
 ==== {api-request-title}
 
-`GET <index>/_termvectors/<_id>`
-
-
+`GET /<index>/_termvectors/<_id>`
 
 [[docs-termvectors-api-desc]]
 ==== {api-description-title}
@@ -89,7 +87,7 @@ omit :
    each term in this field)
 
 [float]
-===== Terms Filtering
+===== Terms filtering
 
 With the parameter `filter`, the terms returned could also be filtered based
 on their tf-idf scores. This could be useful in order find out a good

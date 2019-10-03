@@ -5,7 +5,7 @@
 ++++
 
 Returns information about ongoing and completed index shard recoveries, similar
-to the <<indices-recovery, indices recovery>> API.
+to the <<indices-recovery, index recovery>> API.
 
 
 [[cat-recovery-api-request]]
@@ -21,7 +21,7 @@ to the <<indices-recovery, indices recovery>> API.
 
 The cat recovery API returns information about index shard recoveries, both
 ongoing and completed. It is a more compact view of the JSON
-<<indices-recovery,indices recovery>> API.
+<<indices-recovery,index recovery>> API.
 
 A recovery event occurs anytime an index shard moves to a different node in the
 cluster. This can happen during a snapshot recovery, a change in replication

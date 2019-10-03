@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -255,6 +256,87 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Creating destination index [regression_only_training_data_and_training_percent_is_fifty_source_index_results]",
             "Finished reindexing to destination index [regression_only_training_data_and_training_percent_is_fifty_source_index_results]",
             "Finished analysis");
+        assertModelStatePersisted(jobId);
+    }
+
+    public void testStopAndRestart() throws Exception {
+        String jobId = "regression_stop_and_restart";
+        String sourceIndex = jobId + "_source_index";
+
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        List<Double> featureValues = Arrays.asList(1.0, 2.0, 3.0);
+        List<Double> dependentVariableValues = Arrays.asList(10.0, 20.0, 30.0);
+
+        for (int i = 0; i < 350; i++) {
+            Double field = featureValues.get(i % 3);
+            Double value = dependentVariableValues.get(i % 3);
+
+            IndexRequest indexRequest = new IndexRequest(sourceIndex);
+            indexRequest.source("feature", field, "variable", value);
+            bulkRequestBuilder.add(indexRequest);
+        }
+        BulkResponse bulkResponse = bulkRequestBuilder.get();
+        if (bulkResponse.hasFailures()) {
+            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        }
+
+        String destIndex = sourceIndex + "_results";
+        DataFrameAnalyticsConfig config = buildRegressionAnalytics(jobId, new String[] {sourceIndex}, destIndex, null,
+            new Regression("variable"));
+        registerAnalytics(config);
+        putAnalytics(config);
+
+        assertState(jobId, DataFrameAnalyticsState.STOPPED);
+        assertProgress(jobId, 0, 0, 0, 0);
+
+        startAnalytics(jobId);
+
+        // Wait until state is one of REINDEXING or ANALYZING, or until it is STOPPED.
+        assertBusy(() -> {
+            DataFrameAnalyticsState state = getAnalyticsStats(jobId).get(0).getState();
+            assertThat(state, is(anyOf(equalTo(DataFrameAnalyticsState.REINDEXING), equalTo(DataFrameAnalyticsState.ANALYZING),
+                equalTo(DataFrameAnalyticsState.STOPPED))));
+        });
+        stopAnalytics(jobId);
+        waitUntilAnalyticsIsStopped(jobId);
+
+        // Now let's start it again
+        try {
+            startAnalytics(jobId);
+        } catch (Exception e) {
+            if (e.getMessage().equals("Cannot start because the job has already finished")) {
+                // That means the job had managed to complete
+            } else {
+                throw e;
+            }
+        }
+
+        waitUntilAnalyticsIsStopped(jobId);
+
+        SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
+        for (SearchHit hit : sourceData.getHits()) {
+            GetResponse destDocGetResponse = client().prepareGet().setIndex(config.getDest().getIndex()).setId(hit.getId()).get();
+            assertThat(destDocGetResponse.isExists(), is(true));
+            Map<String, Object> sourceDoc = hit.getSourceAsMap();
+            Map<String, Object> destDoc = destDocGetResponse.getSource();
+            for (String field : sourceDoc.keySet()) {
+                assertThat(destDoc.containsKey(field), is(true));
+                assertThat(destDoc.get(field), equalTo(sourceDoc.get(field)));
+            }
+            assertThat(destDoc.containsKey("ml"), is(true));
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> resultsObject = (Map<String, Object>) destDoc.get("ml");
+
+            assertThat(resultsObject.containsKey("variable_prediction"), is(true));
+            assertThat(resultsObject.containsKey("is_training"), is(true));
+            assertThat(resultsObject.get("is_training"), is(true));
+        }
+
+        assertProgress(jobId, 100, 100, 100, 100);
+        assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(jobId);
     }
 

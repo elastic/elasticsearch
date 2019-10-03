@@ -130,7 +130,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         ImmutableOpenMap<String, MappingMetaData> mappings = response.mappings();
         assertNotNull(mappings);
 
-        MappingMetaData metadata = mappings.get("_doc");
+        MappingMetaData metadata = mappings.get("test");
         assertNotNull(metadata);
         assertFalse(metadata.sourceAsMap().isEmpty());
     }
@@ -144,7 +144,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         ImmutableOpenMap<String, MappingMetaData> mappings = response.mappings();
         assertNotNull(mappings);
 
-        MappingMetaData metadata = mappings.get("_doc");
+        MappingMetaData metadata = mappings.get("test");
         assertNotNull(metadata);
         assertTrue(metadata.sourceAsMap().isEmpty());
     }
@@ -168,7 +168,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         ImmutableOpenMap<String, MappingMetaData> mappings = response.mappings();
         assertNotNull(mappings);
 
-        MappingMetaData metadata = mappings.get("_doc");
+        MappingMetaData metadata = mappings.get("test");
         assertNotNull(metadata);
         assertTrue(metadata.sourceAsMap().isEmpty());
     }

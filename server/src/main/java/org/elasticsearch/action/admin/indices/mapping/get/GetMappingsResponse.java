@@ -57,8 +57,16 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
                 assert valueSize == 1 : "Expected single mapping but got " + valueSize;
                 String type = in.readString();
                 assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] type but got [" + type + "]";
+                indexMapBuilder.put(key, new MappingMetaData(in));
             }
-            indexMapBuilder.put(key, new MappingMetaData(in));
+            else {
+                if (in.readBoolean()) {
+                    indexMapBuilder.put(key, new MappingMetaData(in));
+                }
+                else {
+                    indexMapBuilder.put(key, null);
+                }
+            }
         }
         mappings = indexMapBuilder.build();
     }
@@ -79,8 +87,14 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
             if (out.getVersion().before(Version.V_8_0_0)) {
                 out.writeVInt(1);
                 out.writeString(MapperService.SINGLE_MAPPING_NAME);
+                indexEntry.value.writeTo(out);
             }
-            indexEntry.value.writeTo(out);
+            else {
+                out.writeBoolean(indexEntry.value != null);
+                if (indexEntry.value != null) {
+                    indexEntry.value.writeTo(out);
+                }
+            }
         }
     }
 

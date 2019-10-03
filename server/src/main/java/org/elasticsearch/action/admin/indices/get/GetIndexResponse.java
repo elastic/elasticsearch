@@ -92,8 +92,16 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                 assert valueSize == 1 : "Expected single mapping but got " + valueSize;
                 String type = in.readString();
                 assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected type [_doc] but got " + type;
+                mappingsMapBuilder.put(key, new MappingMetaData(in));
             }
-            mappingsMapBuilder.put(key, new MappingMetaData(in));
+            else {
+                if (in.readBoolean()) {
+                    mappingsMapBuilder.put(key, new MappingMetaData(in));
+                }
+                else {
+                    mappingsMapBuilder.put(key, null);
+                }
+            }
         }
         mappings = mappingsMapBuilder.build();
 
@@ -204,8 +212,14 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
             if (out.getVersion().before(Version.V_8_0_0)) {
                 out.writeVInt(1);
                 out.writeString(MapperService.SINGLE_MAPPING_NAME);
+                mmd.writeTo(out);
             }
-            mmd.writeTo(out);
+            else {
+                out.writeBoolean(mmd != null);
+                if (mmd != null) {
+                    mmd.writeTo(out);
+                }
+            }
         }
         out.writeVInt(aliases.size());
         for (ObjectObjectCursor<String, List<AliasMetaData>> indexEntry : aliases) {

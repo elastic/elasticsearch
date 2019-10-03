@@ -10,10 +10,12 @@
 
 Updates certain properties of a {dfeed}.
 
+
 [[ml-update-datafeed-request]]
 ==== {api-request-title}
 
 `POST _ml/datafeeds/<feed_id>/_update`
+
 
 [[ml-update-datafeed-prereqs]]
 ==== {api-prereq-title}
@@ -22,17 +24,20 @@ Updates certain properties of a {dfeed}.
 cluster privileges to use this API. For more information, see
 {stack-ov}/security-privileges.html[Security privileges].
 
+
 [[ml-update-datafeed-desc]]
 ==== {api-description-title}
 
-NOTE: If you update the `delayed_data_check_config` property, you must stop and
-start the {dfeed} for the change to be applied.
+If you update a {datafeed} property, you must stop and start the {dfeed} for the 
+change to be applied.
+
 
 [[ml-update-datafeed-path-parms]]
 ==== {api-path-parms-title}
 
 `feed_id`::
   (Required, string) Identifier for the {dfeed}.
+
 
 [[ml-update-datafeed-request-body]]
 ==== {api-request-body-title}
@@ -71,6 +76,15 @@ The following properties can be updated after the {dfeed} is created:
   options that are supported by {es} can be used, as this object is
   passed verbatim to {es}. By default, this property has the following
   value: `{"match_all": {"boost": 1}}`.
++
+--
+WARNING: If you change the query, then the analyzed data will also be changed, 
+therefore the required time to learn might be long and the understandability of 
+the results is unpredictable.
+If you want to make significant changes to the source data, we would recommend 
+you clone it and create a second job containing the amendments. Let both run in 
+parallel and close one when you are satisfied with the results of the other job.
+--
 
 `query_delay`::
   (Optional, <<time-units, time units>>) The number of seconds behind real-time 
@@ -90,8 +104,8 @@ The following properties can be updated after the {dfeed} is created:
   (unsigned integer) The `size` parameter that is used in {es} searches.
   The default value is `1000`.
 
-For more information about these properties,
-see <<ml-datafeed-resource>>.
+For more information about these properties, see <<ml-datafeed-resource>>.
+
 
 [[ml-update-datafeed-security]]
 ==== Security Integration
@@ -99,6 +113,7 @@ see <<ml-datafeed-resource>>.
 When {es} {security-features} are enabled, your {dfeed} remembers which roles the
 user who updated it had at the time of update and runs the query using those
 same roles.
+
 
 [[ml-update-datafeed-example]]
 ==== {api-examples-title}

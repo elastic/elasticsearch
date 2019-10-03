@@ -19,9 +19,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.enrich.action.EnrichPolicyExecutionTask;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichPolicyExecutor;
-import org.elasticsearch.xpack.enrich.PolicyExecutionResult;
 
 import java.io.IOException;
 
@@ -61,8 +61,9 @@ public class TransportExecuteEnrichPolicyAction
                                    ActionListener<AcknowledgedResponse> listener) {
         executor.runPolicy(request, new ActionListener<>() {
             @Override
-            public void onResponse(PolicyExecutionResult policyExecutionResult) {
-                listener.onResponse(new AcknowledgedResponse(policyExecutionResult.isCompleted()));
+            public void onResponse(EnrichPolicyExecutionTask.Status executionStatus) {
+                // FIXHERE: Return response instead
+                listener.onResponse(new AcknowledgedResponse(executionStatus.isCompleted()));
             }
 
             @Override

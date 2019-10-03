@@ -66,7 +66,7 @@ public class EnrichPolicyRunner implements Runnable {
     private final String policyName;
     private final EnrichPolicy policy;
     private final EnrichPolicyExecutionTask task;
-    private final ActionListener<PolicyExecutionResult> listener;
+    private final ActionListener<EnrichPolicyExecutionTask.Status> listener;
     private final ClusterService clusterService;
     private final Client client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -74,7 +74,7 @@ public class EnrichPolicyRunner implements Runnable {
     private final int fetchSize;
 
     EnrichPolicyRunner(String policyName, EnrichPolicy policy, EnrichPolicyExecutionTask task,
-                       ActionListener<PolicyExecutionResult> listener, ClusterService clusterService, Client client,
+                       ActionListener<EnrichPolicyExecutionTask.Status> listener, ClusterService clusterService, Client client,
                        IndexNameExpressionResolver indexNameExpressionResolver, LongSupplier nowSupplier, int fetchSize) {
         this.policyName = policyName;
         this.policy = policy;
@@ -406,7 +406,8 @@ public class EnrichPolicyRunner implements Runnable {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 logger.info("Policy [{}]: Policy execution complete", policyName);
-                listener.onResponse(new PolicyExecutionResult(true));
+                task.setStatus(new EnrichPolicyExecutionTask.Status(EnrichPolicyExecutionTask.PolicyPhases.COMPLETE));
+                listener.onResponse(task.getStatus());
             }
 
             @Override

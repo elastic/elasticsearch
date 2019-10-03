@@ -35,9 +35,9 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
 
     private static ThreadPool testThreadPool;
     private static TaskManager testTaskManager;
-    private static final ActionListener<PolicyExecutionResult> noOpListener = new ActionListener<>() {
+    private static final ActionListener<EnrichPolicyExecutionTask.Status> noOpListener = new ActionListener<>() {
         @Override
-        public void onResponse(PolicyExecutionResult policyExecutionResult) { }
+        public void onResponse(EnrichPolicyExecutionTask.Status ignored) { }
 
         @Override
         public void onFailure(Exception e) { }
@@ -59,18 +59,23 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
      */
     private static class BlockingTestPolicyRunner implements Runnable {
         private final CountDownLatch latch;
-        private final ActionListener<PolicyExecutionResult> listener;
+        private final EnrichPolicyExecutionTask task;
+        private final ActionListener<EnrichPolicyExecutionTask.Status> listener;
 
-        BlockingTestPolicyRunner(CountDownLatch latch, ActionListener<PolicyExecutionResult> listener) {
+        BlockingTestPolicyRunner(CountDownLatch latch, EnrichPolicyExecutionTask task,
+                                 ActionListener<EnrichPolicyExecutionTask.Status> listener) {
             this.latch = latch;
+            this.task = task;
             this.listener = listener;
         }
 
         @Override
         public void run() {
             try {
+                task.setStatus(new EnrichPolicyExecutionTask.Status(EnrichPolicyExecutionTask.PolicyPhases.RUNNING));
                 latch.await();
-                listener.onResponse(new PolicyExecutionResult(true));
+                task.setStatus(new EnrichPolicyExecutionTask.Status(EnrichPolicyExecutionTask.PolicyPhases.COMPLETE));
+                listener.onResponse(task.getStatus());
             } catch (InterruptedException e) {
                 throw new RuntimeException("Interrupted waiting for test framework to continue the test", e);
             }
@@ -91,7 +96,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         }
 
         private CountDownLatch currentLatch;
-        CountDownLatch testRunPolicy(String policyName, EnrichPolicy policy, ActionListener<PolicyExecutionResult> listener) {
+        CountDownLatch testRunPolicy(String policyName, EnrichPolicy policy, ActionListener<EnrichPolicyExecutionTask.Status> listener) {
             currentLatch = new CountDownLatch(1);
             ExecuteEnrichPolicyAction.Request request = new ExecuteEnrichPolicyAction.Request(policyName);
             runPolicy(request, policy, listener);
@@ -100,11 +105,11 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
 
         @Override
         protected Runnable createPolicyRunner(String policyName, EnrichPolicy policy, EnrichPolicyExecutionTask task,
-                                              ActionListener<PolicyExecutionResult> listener) {
+                                              ActionListener<EnrichPolicyExecutionTask.Status> listener) {
             if (currentLatch == null) {
                 throw new IllegalStateException("Use the testRunPolicy method on this test instance");
             }
-            return new BlockingTestPolicyRunner(currentLatch, listener);
+            return new BlockingTestPolicyRunner(currentLatch, task, listener);
         }
     }
 

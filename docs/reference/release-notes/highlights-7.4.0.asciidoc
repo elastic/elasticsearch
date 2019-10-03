@@ -11,7 +11,7 @@
 [float]
 ==== Results pinning
 
-You can use the new <<query-dsl-pinned-query,pinned query>>
+You can use the new {ref}/query-dsl-pinned-query.html[pinned query]
 to define the first records
 (and the order in which they are returned)
 in a result set directly within {es}.
@@ -22,7 +22,7 @@ in a result set directly within {es}.
 [float]
 ==== New `shape` field type
 
-A new <<shape,`shape`>> field type has been added,
+A new {ref}/shape.html[`shape`] field type has been added,
 which allows you to position and query shapes
 in a geometry of your choosing.
 
@@ -32,7 +32,7 @@ in a geometry of your choosing.
 [float]
 ==== Circle ingest processor
 
-A new <<ingest-circle-processor, circle ingest processor>> has been added,
+A new {ref}/ingest-circle-processor.html[circle ingest processor] has been added,
 which translates circles into regular polygons (bounded by the circles).
 This makes ingesting, indexing, searching, and aggregating circles both easy and efficient.
 
@@ -42,9 +42,9 @@ This makes ingesting, indexing, searching, and aggregating circles both easy and
 [float]
 ==== Aggregations on range fields
 
-The <<search-aggregations-bucket-histogram-aggregation,histogram>>
-and <<search-aggregations-bucket-datehistogram-aggregation,Date Histogram>>
-aggregations now support the <<range,`range`>> field type.
+The {ref}/search-aggregations-bucket-histogram-aggregation.html[histogram]
+and {ref}/search-aggregations-bucket-datehistogram-aggregation.html[date histogram]
+aggregations now support the {ref}/range.html[`range`] field type.
 
 Range aggregations are useful
 when counting ranges that overlap with specific buckets
@@ -56,7 +56,7 @@ when counting ranges that overlap with specific buckets
 [float]
 ==== Cumulative cardinality aggregation
 
-A new <<search-aggregations-pipeline-cumulative-cardinality-aggregation,cumulative cardinality aggregation>>
+A new {ref}/search-aggregations-pipeline-cumulative-cardinality-aggregation.html[cumulative cardinality aggregation]
 has been added
 as part of our ongoing effort to provide advanced aggregations.
 
@@ -70,7 +70,7 @@ within a given time range.
 [float]
 ==== Snapshot lifecycle management
 
-We’re introducing <<getting-started-snapshot-lifecycle-management,snapshot lifecycle management (SLM)>>,
+We’re introducing {ref}/getting-started-snapshot-lifecycle-management.html[snapshot lifecycle management (SLM)],
 which allows an administrator to define policies, 
 via API or {kibana-ref}/index-lifecycle-policies.html[{kib} UI],
 that manage when and how often snapshots are taken.
@@ -99,7 +99,7 @@ while interacting with {es}.
 ==== TLS settings for email notifications
 
 Notifications may contain sensitive information that must be protected over the wire. This requires that communication with the mail server is encrypted and authenticated properly.
-{es} now supports custom <<ssl-notification-smtp-settings,TLS settings>> for email notifications,
+{es} now supports custom {ref}/notification-settings.html#ssl-notification-smtp-settings[TLS settings] for email notifications,
 allowing secure connections to servers with custom security configuration.
 
 // end::notable-highlights[]
@@ -148,9 +148,9 @@ Manhattan distance (L1 norm)
 and Euclidean distance (L2 norm)—
 have been added.
 Like the dot product and cosine similarity,
-the Euclidean and Manhattan distances are provided as <<vector-functions,predefined Painless functions>>
+the Euclidean and Manhattan distances are provided as {ref}/query-dsl-script-score-query.html#vector-functions[predefined Painless functions]
 so that they may be incorporated with other query elements
-as part of a <<query-dsl-script-score-query,script_score>> query.
+as part of a {ref}/query-dsl-script-score-query.html[script_score] query.
 
 // end::notable-highlights[]
 

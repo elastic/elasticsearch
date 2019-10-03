@@ -248,6 +248,21 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
     @Override
     public void start() {
+        commonNodeConfig();
+        nodes
+            .stream()
+            .filter(node -> {
+                if (node.getVersion().onOrAfter("6.5.0")) {
+                    return true;
+                } else {
+                    // We already started it to set seed nodes
+                    return node.equals(nodes.iterator().next()) == false;
+                }
+            })
+            .forEach(ElasticsearchNode::start);
+    }
+
+    private void commonNodeConfig() {
         final String nodeNames;
         if (nodes.stream().map(ElasticsearchNode::getName).anyMatch(name -> name == null)) {
             nodeNames = null;
@@ -290,6 +305,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                 if (firstNode == null) {
                     node.defaultConfig.put("discovery.zen.ping.unicast.hosts", "[]");
                 } else {
+                    firstNode.start();
                     firstNode.waitForAllConditions();
                     node.defaultConfig.put("discovery.zen.ping.unicast.hosts", "[\"" + firstNode.getTransportPortURI() + "\"]");
                 }

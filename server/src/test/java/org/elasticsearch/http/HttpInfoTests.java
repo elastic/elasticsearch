@@ -40,26 +40,11 @@ public class HttpInfoTests extends ESTestCase {
                 new BoundTransportAddress(
                     new TransportAddress[]{new TransportAddress(localhost, port)},
                     new TransportAddress(localhost, port)
-                ), 0L, false
+                ), 0L
             ), "localhost/" + NetworkAddress.format(localhost) + ':' + port
         );
     }
 
-    public void testDeprecatedWarningIfPropertySpecified() throws Exception {
-        InetAddress localhost = InetAddress.getByName("localhost");
-        int port = 9200;
-        assertPublishAddress(
-                new HttpInfo(
-                        new BoundTransportAddress(
-                                new TransportAddress[]{new TransportAddress(localhost, port)},
-                                new TransportAddress(localhost, port)
-                        ), 0L, true
-                ), "localhost/" + NetworkAddress.format(localhost) + ':' + port
-        );
-        assertWarnings(
-                "es.http.cname_in_publish_address system property is deprecated and no longer affects http.publish_address " +
-                "formatting. Remove this property to get rid of this deprecation warning.");
-    }
 
     public void testCorrectDisplayPublishedIp() throws Exception {
         InetAddress localhost = InetAddress.getByName(NetworkAddress.format(InetAddress.getByName("localhost")));
@@ -69,7 +54,7 @@ public class HttpInfoTests extends ESTestCase {
                 new BoundTransportAddress(
                     new TransportAddress[]{new TransportAddress(localhost, port)},
                     new TransportAddress(localhost, port)
-                ), 0L, false
+                ), 0L
             ), NetworkAddress.format(localhost) + ':' + port
         );
     }
@@ -80,7 +65,7 @@ public class HttpInfoTests extends ESTestCase {
             new TransportAddress(InetAddress.getByName(NetworkAddress.format(InetAddress.getByName("0:0:0:0:0:0:0:1"))), port);
         assertPublishAddress(
             new HttpInfo(
-                new BoundTransportAddress(new TransportAddress[]{localhost}, localhost), 0L, false
+                new BoundTransportAddress(new TransportAddress[]{localhost}, localhost), 0L
             ), localhost.toString()
         );
     }

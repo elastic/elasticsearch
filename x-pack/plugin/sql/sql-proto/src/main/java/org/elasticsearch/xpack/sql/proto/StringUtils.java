@@ -75,7 +75,7 @@ public final class StringUtils {
         if (value == null) {
             return "null";
         }
-
+        
         if (value instanceof ZonedDateTime) {
             return ((ZonedDateTime) value).format(ISO_DATE_WITH_MILLIS);
         }

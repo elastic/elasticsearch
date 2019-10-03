@@ -178,10 +178,4 @@ public class TriggerServiceTests extends ESTestCase {
         newActions.add(actionWrapper);
         when(watch.actions()).thenReturn(newActions);
     }
-
-    private void setTransform(Watch watch, String type) {
-        ExecutableTransform transform = mock(ExecutableTransform.class);
-        when(transform.type()).thenReturn(type);
-        when(watch.transform()).thenReturn(transform);
-    }
 }

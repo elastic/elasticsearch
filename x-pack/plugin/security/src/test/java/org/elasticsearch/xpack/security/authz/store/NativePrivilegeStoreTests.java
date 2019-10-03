@@ -189,7 +189,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
 
         final String query = Strings.toString(request.source().query());
-        assertThat(query, containsString("{\"bool\":{\"filter\":[{\"terms\":{\"application\":[\"yourapp\"]"));
+        assertThat(query, containsString("{\"bool\":{\"should\":[{\"terms\":{\"application\":[\"yourapp\"]"));
         assertThat(query, containsString("{\"prefix\":{\"application\":{\"value\":\"myapp-\""));
         assertThat(query, containsString("{\"term\":{\"type\":{\"value\":\"application-privilege\""));
 

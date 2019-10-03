@@ -53,6 +53,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -606,7 +607,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
             Settings.builder().putNull(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey())
         ));
 
-        ensureGreen();
+        ensureGreen(TimeValue.timeValueSeconds(60));
     }
 
     private int numShards(String... index) {

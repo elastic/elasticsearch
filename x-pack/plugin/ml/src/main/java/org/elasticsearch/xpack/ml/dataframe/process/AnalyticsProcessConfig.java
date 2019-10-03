@@ -46,6 +46,10 @@ public class AnalyticsProcessConfig implements ToXContentObject {
         this.analysis = Objects.requireNonNull(analysis);
     }
 
+    public String jobId() {
+        return jobId;
+    }
+
     public long rows() {
         return rows;
     }

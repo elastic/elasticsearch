@@ -399,6 +399,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       }
       return copySpec {
         from project.jdks."bundled_${platform}"
+        exclude "demo/**"
         eachFile { FileCopyDetails details ->
           if (details.relativePath.segments[-2] == 'bin' || details.relativePath.segments[-1] == 'jspawnhelper') {
             details.mode = 0755

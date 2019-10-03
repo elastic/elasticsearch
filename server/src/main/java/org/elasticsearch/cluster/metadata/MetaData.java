@@ -390,6 +390,9 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 Predicate<String> fieldPredicate = fieldFilter.apply(index);
                 indexMapBuilder.put(index, filterFields(indexMetaData.mapping(), fieldPredicate));
             }
+            else {
+                indexMapBuilder.put(index, null);
+            }
         }
         return indexMapBuilder.build();
     }

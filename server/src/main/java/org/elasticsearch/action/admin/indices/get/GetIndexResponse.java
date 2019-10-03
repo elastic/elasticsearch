@@ -201,7 +201,6 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         for (ObjectObjectCursor<String, MappingMetaData> indexEntry : mappings) {
             out.writeString(indexEntry.key);
             MappingMetaData mmd = indexEntry.value;
-            assert mmd != null;
             if (out.getVersion().before(Version.V_8_0_0)) {
                 out.writeVInt(1);
                 out.writeString(MapperService.SINGLE_MAPPING_NAME);

@@ -254,6 +254,8 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             }
             Builder builder = newBuilder(name, params);
 
+            TypeParsers.parseField(builder, name,  node, parserContext);
+
             if (params.containsKey(Names.COERCE.getPreferredName())) {
                 builder.coerce((Boolean)params.get(Names.COERCE.getPreferredName()));
             }

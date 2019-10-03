@@ -612,15 +612,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * If the _type name is _doc and there is no _doc top-level key then this means that we
-     * are handling a typeless call. In such a case, we override _doc with the actual type
-     * name in the mappings. This allows to use typeless APIs on typed indices.
-     */
-    public String getTypeForUpdate(String type, CompressedXContent mappingSource) {
-        return isMappingSourceTyped(type, mappingSource) == false ? resolveDocumentType(type) : type;
-    }
-
-    /**
      * Resolves a type from a mapping-related request into the type that should be used when
      * merging and updating mappings.
      *

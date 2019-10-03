@@ -334,6 +334,12 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     public static final String MACHINE_MEMORY_NODE_ATTR = "ml.machine_memory";
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS =
             Setting.intSetting("xpack.ml.node_concurrent_job_allocations", 2, 0, Property.Dynamic, Property.NodeScope);
+    /**
+     * The amount of memory needed to load the ML native code shared libraries. The assumption is that the first
+     * ML job to run on a given node will do this, and then subsequent ML jobs on the same node will reuse the
+     * same already-loaded code.
+     */
+    public static final ByteSizeValue NATIVE_EXECUTABLE_CODE_OVERHEAD = new ByteSizeValue(30, ByteSizeUnit.MB);
     // Values higher than 100% are allowed to accommodate use cases where swapping has been determined to be acceptable.
     // Anomaly detector jobs only use their full model memory during background persistence, and this is deliberately
     // staggered, so with large numbers of jobs few will generally be persisting state at the same time.

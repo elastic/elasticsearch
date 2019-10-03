@@ -39,7 +39,6 @@ If `inner_hits` is defined on a query that supports it then each search hit will
                  "total": ...,
                  "hits": [
                     {
-                       "_type": ...,
                        "_id": ...,
                        ...
                     },
@@ -142,7 +141,6 @@ An example of a response snippet that could be generated from the above search r
     "hits": [
       {
         "_index": "test",
-        "_type": "_doc",
         "_id": "1",
         "_score": 1.0,
         "_source": ...,
@@ -157,7 +155,6 @@ An example of a response snippet that could be generated from the above search r
               "hits": [
                 {
                   "_index": "test",
-                  "_type": "_doc",
                   "_id": "1",
                   "_nested": {
                     "field": "comments",
@@ -270,7 +267,6 @@ Response not included in text but tested for completeness sake.
     "hits": [
       {
         "_index": "test",
-        "_type": "_doc",
         "_id": "1",
         "_score": 1.0444684,
         "_source": ...,
@@ -285,7 +281,6 @@ Response not included in text but tested for completeness sake.
               "hits": [
                 {
                   "_index": "test",
-                  "_type": "_doc",
                   "_id": "1",
                   "_nested": {
                     "field": "comments",
@@ -388,7 +383,6 @@ Which would look like:
     "hits": [
       {
         "_index": "test",
-        "_type": "_doc",
         "_id": "1",
         "_score": 0.6931472,
         "_source": ...,
@@ -403,7 +397,6 @@ Which would look like:
               "hits": [
                 {
                   "_index": "test",
-                  "_type": "_doc",
                   "_id": "1",
                   "_nested": {
                     "field": "comments",
@@ -502,7 +495,6 @@ An example of a response snippet that could be generated from the above search r
         "hits": [
             {
                 "_index": "test",
-                "_type": "_doc",
                 "_id": "1",
                 "_score": 1.0,
                 "_source": {
@@ -520,7 +512,6 @@ An example of a response snippet that could be generated from the above search r
                             "hits": [
                                 {
                                     "_index": "test",
-                                    "_type": "_doc",
                                     "_id": "2",
                                     "_score": 1.0,
                                     "_routing": "1",

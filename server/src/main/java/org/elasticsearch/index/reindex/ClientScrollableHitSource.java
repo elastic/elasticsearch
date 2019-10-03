@@ -202,11 +202,6 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         }
 
         @Override
-        public String getType() {
-            return delegate.getType();
-        }
-
-        @Override
         public String getId() {
             return delegate.getId();
         }

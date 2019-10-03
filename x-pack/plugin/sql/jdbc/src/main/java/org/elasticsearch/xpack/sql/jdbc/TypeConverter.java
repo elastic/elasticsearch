@@ -248,6 +248,7 @@ final class TypeConverter {
                 return Duration.parse(v.toString());
             case GEO_POINT:
             case GEO_SHAPE:
+            case SHAPE:
                 try {
                     return WKT.fromWKT(v.toString());
                 } catch (IOException | ParseException ex) {

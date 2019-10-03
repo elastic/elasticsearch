@@ -275,13 +275,6 @@ public class Reindexer {
             // Copy the index from the request so we always write where it asked to write
             index.index(mainRequest.getDestination().index());
 
-            // If the request override's type then the user wants all documents in that type. Otherwise keep the doc's type.
-            if (mainRequest.getDestination().type() == null) {
-                index.type(doc.getType());
-            } else {
-                index.type(mainRequest.getDestination().type());
-            }
-
             /*
              * Internal versioning can just use what we copied from the destination request. Otherwise we assume we're using external
              * versioning and use the doc's version.
@@ -371,12 +364,6 @@ public class Reindexer {
             protected void scriptChangedIndex(RequestWrapper<?> request, Object to) {
                 requireNonNull(to, "Can't reindex without a destination index!");
                 request.setIndex(to.toString());
-            }
-
-            @Override
-            protected void scriptChangedType(RequestWrapper<?> request, Object to) {
-                requireNonNull(to, "Can't reindex without a destination type!");
-                request.setType(to.toString());
             }
 
             @Override

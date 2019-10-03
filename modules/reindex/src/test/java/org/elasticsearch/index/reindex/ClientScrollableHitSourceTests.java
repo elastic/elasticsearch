@@ -39,7 +39,6 @@ import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -276,7 +275,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
     }
 
     private SearchHit createSearchHit(LongSupplier seqNoGenerator) {
-        SearchHit hit = new SearchHit(0, "id", new Text("type"), emptyMap()).sourceRef(new BytesArray("{}"));
+        SearchHit hit = new SearchHit(0, "id", emptyMap()).sourceRef(new BytesArray("{}"));
         hit.setSeqNo(seqNoGenerator.getAsLong());
         return hit;
     }

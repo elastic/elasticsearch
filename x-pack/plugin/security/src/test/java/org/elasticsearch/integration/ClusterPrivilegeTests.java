@@ -184,10 +184,10 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         assertAccessIsDenied("user_d", restoreSnapshotRequest);
         assertAccessIsAllowed("user_a", restoreSnapshotRequest);
 
-        assertAccessIsDenied("user_a", "GET", "/someindex/bar/1");
-        assertAccessIsDenied("user_b", "GET", "/someindex/bar/1");
-        assertAccessIsDenied("user_d", "GET", "/someindex/bar/1");
-        assertAccessIsAllowed("user_c", "GET", "/someindex/bar/1");
+        assertAccessIsDenied("user_a", "GET", "/someindex/_doc/1");
+        assertAccessIsDenied("user_b", "GET", "/someindex/_doc/1");
+        assertAccessIsDenied("user_d", "GET", "/someindex/_doc/1");
+        assertAccessIsAllowed("user_c", "GET", "/someindex/_doc/1");
 
         assertAccessIsDenied("user_b", "DELETE", "/_snapshot/my-repo/my-snapshot");
         assertAccessIsDenied("user_c", "DELETE", "/_snapshot/my-repo/my-snapshot");

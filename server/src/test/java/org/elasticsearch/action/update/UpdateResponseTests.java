@@ -75,7 +75,7 @@ public class UpdateResponseTests extends ESTestCase {
 
             UpdateResponse updateResponse = new UpdateResponse(new ReplicationResponse.ShardInfo(3, 2),
                     new ShardId("books", "books_uuid", 2), "book", "1", 7, 17, 2, UPDATED);
-            updateResponse.setGetResult(new GetResult("books", "book", "1",0, 1, 2, true, source, fields, null));
+            updateResponse.setGetResult(new GetResult("books", "1",0, 1, 2, true, source, fields, null));
 
             String output = Strings.toString(updateResponse);
             assertEquals("{\"_index\":\"books\",\"_type\":\"book\",\"_id\":\"1\",\"_version\":2,\"result\":\"updated\"," +
@@ -154,7 +154,6 @@ public class UpdateResponseTests extends ESTestCase {
         GetResult expectedGetResult = getResults.v2();
 
         String index = actualGetResult.getIndex();
-        String type = actualGetResult.getType();
         String id = actualGetResult.getId();
         long version = actualGetResult.getVersion();
         DocWriteResponse.Result result = actualGetResult.isExists() ? DocWriteResponse.Result.UPDATED : DocWriteResponse.Result.NOT_FOUND;
@@ -173,11 +172,11 @@ public class UpdateResponseTests extends ESTestCase {
         if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
             Tuple<ReplicationResponse.ShardInfo, ReplicationResponse.ShardInfo> shardInfos = RandomObjects.randomShardInfo(random());
 
-            actual = new UpdateResponse(shardInfos.v1(), actualShardId, type, id, seqNo, primaryTerm, version, result);
-            expected = new UpdateResponse(shardInfos.v2(), expectedShardId, type, id, seqNo, primaryTerm, version, result);
+            actual = new UpdateResponse(shardInfos.v1(), actualShardId, "_doc", id, seqNo, primaryTerm, version, result);
+            expected = new UpdateResponse(shardInfos.v2(), expectedShardId, "_doc", id, seqNo, primaryTerm, version, result);
         } else {
-            actual = new UpdateResponse(actualShardId, type, id, seqNo, primaryTerm, version, result);
-            expected = new UpdateResponse(expectedShardId, type, id, seqNo, primaryTerm, version, result);
+            actual = new UpdateResponse(actualShardId, "_doc", id, seqNo, primaryTerm, version, result);
+            expected = new UpdateResponse(expectedShardId, "_doc", id, seqNo, primaryTerm, version, result);
         }
 
         if (actualGetResult.isExists()) {

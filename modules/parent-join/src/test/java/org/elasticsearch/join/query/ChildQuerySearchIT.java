@@ -564,7 +564,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertHitCount(searchResponse, 1L);
         assertThat(searchResponse.getHits().getAt(0).getExplanation().getDescription(), containsString("join value p1"));
 
-        ExplainResponse explainResponse = client().prepareExplain("test", "doc", parentId)
+        ExplainResponse explainResponse = client().prepareExplain("test", parentId)
                 .setQuery(hasChildQuery("child", termQuery("c_field", "1"), ScoreMode.Max))
                 .get();
         assertThat(explainResponse.isExists(), equalTo(true));

@@ -21,6 +21,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.painless.api.Augmentation;
 import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.script.ScriptException;
 import org.objectweb.asm.Handle;
@@ -100,6 +101,8 @@ public final class WriterConstants {
     public static final Method STRING_TO_CHAR = getAsmMethod(char.class, "StringTochar", String.class);
     public static final Method CHAR_TO_STRING = getAsmMethod(String.class, "charToString", char.class);
 
+    public static final Type FUNCTION_TABLE_TYPE = Type.getType(FunctionTable.class);
+
     // TODO: remove this when the transition from Joda to Java datetimes is completed
     public static final Method JCZDT_TO_ZONEDDATETIME =
             getAsmMethod(ZonedDateTime.class, "JCZDTToZonedDateTime", JodaCompatibleZonedDateTime.class);
@@ -125,7 +128,7 @@ public final class WriterConstants {
             DEF_BOOTSTRAP_METHOD.getDescriptor(), false);
     public static final Type DEF_BOOTSTRAP_DELEGATE_TYPE = Type.getType(DefBootstrap.class);
     public static final Method DEF_BOOTSTRAP_DELEGATE_METHOD = getAsmMethod(CallSite.class, "bootstrap", PainlessLookup.class,
-            Map.class, MethodHandles.Lookup.class, String.class, MethodType.class, int.class, int.class, Object[].class);
+            FunctionTable.class, MethodHandles.Lookup.class, String.class, MethodType.class, int.class, int.class, Object[].class);
 
     public static final Type DEF_UTIL_TYPE = Type.getType(Def.class);
 

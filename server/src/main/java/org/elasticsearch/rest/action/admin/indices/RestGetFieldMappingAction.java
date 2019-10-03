@@ -44,18 +44,13 @@ import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetFieldMappingAction extends BaseRestHandler {
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestGetFieldMappingAction.class));
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get " +
-        "field mapping requests is deprecated. The parameter will be removed in the next major version.";
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGetFieldMappingAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get "
+            + "field mapping requests is deprecated. The parameter will be removed in the next major version.";
 
     public RestGetFieldMappingAction(RestController controller) {
         controller.registerHandler(GET, "/_mapping/field/{fields}", this);
-        controller.registerHandler(GET, "/_mapping/{type}/field/{fields}", this);
         controller.registerHandler(GET, "/{index}/_mapping/field/{fields}", this);
-        controller.registerHandler(GET, "/{index}/{type}/_mapping/field/{fields}", this);
-        controller.registerHandler(GET, "/{index}/_mapping/{type}/field/{fields}", this);
     }
 
     @Override
@@ -66,20 +61,18 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
         final String[] fields = Strings.splitStringByCommaToArray(request.param("fields"));
 
-        boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
-        if (includeTypeName == false && types.length > 0) {
-            throw new IllegalArgumentException("Types cannot be specified unless include_type_name" +
-                " is set to true.");
-        }
         if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
+            boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+            if (includeTypeName) {
+                throw new IllegalArgumentException(INCLUDE_TYPE_NAME_PARAMETER + " no longer supports the value [true].");
+            }
             deprecationLogger.deprecatedAndMaybeLog("get_field_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 
         GetFieldMappingsRequest getMappingsRequest = new GetFieldMappingsRequest();
-        getMappingsRequest.indices(indices).types(types).fields(fields).includeDefaults(request.paramAsBoolean("include_defaults", false));
+        getMappingsRequest.indices(indices).fields(fields).includeDefaults(request.paramAsBoolean("include_defaults", false));
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
         getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
         return channel ->
@@ -88,7 +81,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
                     public RestResponse buildResponse(GetFieldMappingsResponse response, XContentBuilder builder) throws Exception {
                         Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappingsByIndex = response.mappings();
 
-                        boolean isPossibleSingleFieldRequest = indices.length == 1 && types.length == 1 && fields.length == 1;
+                boolean isPossibleSingleFieldRequest = indices.length == 1 && fields.length == 1;
                         if (isPossibleSingleFieldRequest && isFieldMappingMissingField(mappingsByIndex)) {
                             return new BytesRestResponse(OK, builder.startObject().endObject());
                         }

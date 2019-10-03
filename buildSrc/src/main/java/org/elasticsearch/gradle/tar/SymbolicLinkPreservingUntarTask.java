@@ -29,6 +29,7 @@ import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.TaskAction;
 
@@ -69,7 +70,7 @@ public class SymbolicLinkPreservingUntarTask extends DefaultTask {
 
     private Function<String, Path> transform;
 
-    @Input
+    @Internal
     public Function<String, Path> getTransform() {
         return transform;
     }

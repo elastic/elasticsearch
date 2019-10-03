@@ -206,6 +206,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 if (ignoreUnavailable) {
                     logger.warn(() -> new ParameterizedMessage("failed to get snapshot [{}]", snapshotId), ex);
                 } else {
+                    if (ex instanceof SnapshotException) {
+                        throw ex;
+                    }
                     throw new SnapshotException(repositoryName, snapshotId, "Snapshot could not be read", ex);
                 }
             }

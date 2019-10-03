@@ -37,7 +37,7 @@ public class EnrichPolicyExecutor {
     private final int maximumConcurrentPolicyExecutions;
     private final Semaphore policyExecutionPermits;
 
-    EnrichPolicyExecutor(Settings settings,
+    public EnrichPolicyExecutor(Settings settings,
                          ClusterService clusterService,
                          Client client,
                          TaskManager taskManager,

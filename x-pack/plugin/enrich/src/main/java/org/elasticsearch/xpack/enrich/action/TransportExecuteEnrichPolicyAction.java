@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -16,12 +17,14 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.action.EnrichPolicyExecutionTask;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichPolicyExecutor;
+import org.elasticsearch.xpack.enrich.EnrichPolicyLocks;
 
 import java.io.IOException;
 
@@ -31,15 +34,18 @@ public class TransportExecuteEnrichPolicyAction
     private final EnrichPolicyExecutor executor;
 
     @Inject
-    public TransportExecuteEnrichPolicyAction(TransportService transportService,
+    public TransportExecuteEnrichPolicyAction(Settings settings,
+                                              Client client,
+                                              TransportService transportService,
                                               ClusterService clusterService,
                                               ThreadPool threadPool,
                                               ActionFilters actionFilters,
                                               IndexNameExpressionResolver indexNameExpressionResolver,
-                                              EnrichPolicyExecutor executor) {
+                                              EnrichPolicyLocks enrichPolicyLocks) {
         super(ExecuteEnrichPolicyAction.NAME, transportService, clusterService, threadPool, actionFilters,
             ExecuteEnrichPolicyAction.Request::new, indexNameExpressionResolver);
-        this.executor = executor;
+        this.executor = new EnrichPolicyExecutor(settings, clusterService, client, transportService.getTaskManager(), threadPool,
+            new IndexNameExpressionResolver(), enrichPolicyLocks, System::currentTimeMillis);
     }
 
     @Override

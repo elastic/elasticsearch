@@ -6,9 +6,11 @@
 package org.elasticsearch.xpack.enrich;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -46,9 +48,13 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.EnrichPolicyExecutionTask;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -61,6 +67,20 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return List.of(ReindexPlugin.class, IngestCommonPlugin.class);
+    }
+
+    private static ThreadPool testThreadPool;
+    private static TaskManager testTaskManager;
+
+    @BeforeClass
+    public static void beforeCLass() {
+        testThreadPool = new TestThreadPool("EnrichPolicyRunnerTests");
+        testTaskManager = new TaskManager(Settings.EMPTY, testThreadPool, Collections.emptySet());
+    }
+
+    @AfterClass
+    public static void afterClass() {
+        ThreadPool.terminate(testThreadPool, 30, TimeUnit.SECONDS);
     }
 
     public void testRunner() throws Exception {
@@ -1115,22 +1135,21 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                                                   ActionListener<EnrichPolicyExecutionTask.Status> listener, Long createTime) {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         IndexNameExpressionResolver resolver = getInstanceFromNode(IndexNameExpressionResolver.class);
-        TaskManager taskManager = getInstanceFromNode(TaskManager.class);
         ExecuteEnrichPolicyAction.Request request = new ExecuteEnrichPolicyAction.Request(policyName);
-        EnrichPolicyExecutionTask task = ((EnrichPolicyExecutionTask) taskManager.register("enrich", "", request));
+        EnrichPolicyExecutionTask task = ((EnrichPolicyExecutionTask) testTaskManager.register("enrich", "", request));
         // The executor would wrap the listener in order to clean up the task in the
         // task manager, but we're just testing the runner, so we make sure to clean
         // up after ourselves.
         ActionListener<EnrichPolicyExecutionTask.Status> wrappedListener = new ActionListener<>() {
             @Override
             public void onResponse(EnrichPolicyExecutionTask.Status policyExecutionResult) {
-                taskManager.unregister(task);
+                testTaskManager.unregister(task);
                 listener.onResponse(policyExecutionResult);
             }
 
             @Override
             public void onFailure(Exception e) {
-                taskManager.unregister(task);
+                testTaskManager.unregister(task);
                 listener.onFailure(e);
             }
         };

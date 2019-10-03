@@ -1,8 +1,8 @@
 [role="xpack"]
 [[watcher-api-ack-watch]]
-=== Ack Watch API
+=== Ack watch API
 
-{xpack-ref}/actions.html#actions-ack-throttle[Acknowledging a watch] enables you
+<<actions-ack-throttle,Acknowledging a watch>> enables you
 to manually throttle execution of the watch's actions. An action's
 _acknowledgement state_ is stored in the `status.actions.<id>.ack.state`
 structure.
@@ -76,7 +76,7 @@ PUT _xpack/watcher/watch/my_watch
 // TESTSETUP
 
 The current status of a watch and the state of its actions is returned with the
-watch definition when you call the <<watcher-api-get-watch, Get Watch API>>:
+watch definition when you call the <<watcher-api-get-watch,get watch API>>:
 
 [source,js]
 --------------------------------------------------

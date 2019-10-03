@@ -1,12 +1,12 @@
 [[actions-hipchat]]
-=== HipChat Action
+=== HipChat action
 
 Use the `hipchat` action to send messages to https://www.hipchat.com[HipChat]
 rooms or users. To send HipChat messages, you must
-<<configuring-hipchat, configure at least one HipChat account>> in `elasticsearch.yml`. 
+<<configuring-hipchat,configure at least one HipChat account>> in `elasticsearch.yml`. 
 
 [[configuring-hipchat-actions]]
-==== Configuring HipChat Actions
+==== Configuring HipChat actions
 
 You configure HipChat actions in a `actions` array. Action-specific attributes
 are specified using the `hipchat` keyword. You must specify the `message`
@@ -15,7 +15,7 @@ message is sent using the default HipChat account configured in
 `elasticsearch.yml`.
 
 For example, the following action is configured to send messages using a HipChat
-account that uses the <<hipchat-api-integration, integration>> profile. Because
+account that uses the <<hipchat-api-integration,integration>> profile. Because
 this type of account can only send messages to a specific room, the only required
 attribute is the message itself:
 
@@ -41,7 +41,7 @@ attribute is the message itself:
 <1> The name of a HipChat account configured in `elasticsearch.yml`.
 <2> The message you want to send to HipChat.
 
-To send messages with a HipChat account that uses the <<hipchat-api-user, user>>
+To send messages with a HipChat account that uses the <<hipchat-api-user,user>>
 profile, you need to specify what rooms and users you want to send the message to.
 For example, the following action is configured to send messages to the
 `mission-control` and `devops` rooms as well as the user `website-admin@example.com`.
@@ -69,7 +69,7 @@ For example, the following action is configured to send messages to the
 --------------------------------------------------
 // NOTCONSOLE
 
-To send messages with a HipChat account that uses the <<hipchat-api-v1, v1>>
+To send messages with a HipChat account that uses the <<hipchat-api-v1,v1>>
 profile, you need to specify what room or rooms you want to send the message to.
 For example, the following action is configured to send messages to the
 `server-status` room. (To send to multiple rooms, specify an array of strings.)
@@ -97,7 +97,7 @@ For example, the following action is configured to send messages to the
 // NOTCONSOLE
 
 [[hipchat-action-attributes]]
-==== HipChat Action Attributes
+==== HipChat action attributes
 
 [cols=",^,,", options="header"]
 |======
@@ -136,7 +136,7 @@ For example, the following action is configured to send messages to the
 
 
 [[configuring-hipchat]]
-==== Configuring HipChat Accounts
+==== Configuring HipChat accounts
 
 You configure the accounts {watcher} can use to communicate with HipChat in the
 `xpack.notification.hipchat` namespace in `elasticsearch.yml`. Both
@@ -165,11 +165,11 @@ NOTE: The `v1` profile is provided because it is simple to set up and this API
 
 If you configure multiple HipChat accounts, you either need to set a default
 HipChat account or specify which account the notification should be sent with
-in the <<actions-hipchat, hipchat>> action.
+in the <<actions-hipchat,hipchat>> action.
 
 Storing the `auth_token` in the configuration file or using via updating the
 settings now is still supported, but you should use the keystore for this, see
-{ref}/secure-settings.html[secure settings]
+<<secure-settings>>.
 
 [source,yaml]
 --------------------------------------------------
@@ -184,7 +184,7 @@ xpack.notification.hipchat:
 
 
 [[hipchat-api-integration]]
-===== Using the Hipchat Integration Profile
+===== Using the Hipchat integration profile
 
 You can use the `integration` profile to send messages to specific rooms. When
 you set an account's profile to `integration`, the messages are sent through
@@ -194,11 +194,11 @@ Send room notification] API.
 When you use the `integration` profile, you need to configure a separate HipChat
 account for each room you want to send messages--the account configuration
 contains a room-specific authentication token. Alternatively, you can use the
-<<hipchat-api-user, `user`>> or <<hipchat-api-v1, `v1`>> profile to send messages
+<<hipchat-api-user,`user`>> or <<hipchat-api-v1,`v1`>> profile to send messages
 to multiple rooms.
 
 NOTE: The `integration` profile only supports sending messages to rooms, it does
-      not support sending private messages. Use the <<hipchat-api-user, `user`>>
+      not support sending private messages. Use the <<hipchat-api-user,`user`>>
       profile to notify a particular HipChat user.
 
 You need a room-specific authentication token to configure an `integration`
@@ -242,8 +242,8 @@ xpack.notification.hipchat:
       room: monitoring
 --------------------------------------------------
 
-You can also specify defaults for the {ref}/notification-settings.html#hipchat-account-attributes[
-message attributes]:
+You can also specify defaults for the
+<<hipchat-account-attributes,message attributes>>:
 
 [source,yaml]
 --------------------------------------------------
@@ -260,7 +260,7 @@ xpack.notification.hipchat:
 
 
 [[hipchat-api-user]]
-===== Using the HipChat User Profile
+===== Using the HipChat user profile
 
 You can use the `user` profile to send messages to rooms as well as individual
 HipChat users. When you set an account's profile to `user`, {watcher} sends
@@ -307,8 +307,8 @@ xpack.notification.hipchat:
       profile: user
 --------------------------------------------------
 
-You can also specify defaults for the <{ref}/notification-settings.html#hipchat-account-attributes[
-message attributes]:
+You can also specify defaults for the
+<<hipchat-account-attributes,message attributes>>:
 
 [source,shell]
 --------------------------------------------------
@@ -329,7 +329,7 @@ xpack.notification.hipchat:
 
 
 [[hipchat-api-v1]]
-===== Using the HipChat v1 Profile
+===== Using the HipChat v1 profile
 
 You can use the `v1` profile to send messages to particular rooms. When you set
 an account's profile to `v1`, messages are sent through HipChat's v1
@@ -339,7 +339,7 @@ WARNING:  The `v1` profile uses a deprecated API that is expected to be removed
           by HipChat in the future.
 
 The `v1` profile only supports sending messages to rooms, it does not support
-sending private messages. Use the <<hipchat-api-user, `user`>> profile to send
+sending private messages. Use the <<hipchat-api-user,`user`>> profile to send
 private messages to HipChat users.
 
 Before you can configure a `v1` account, you need to generate a `v1` API token:
@@ -379,8 +379,8 @@ xpack.notification.hipchat:
       profile: v1
 --------------------------------------------------
 
-You can also specify defaults for the {ref}/notification-settings.html#hipchat-account-attributes[
-message attributes].
+You can also specify defaults for the
+<<hipchat-account-attributes,message attributes>>.
 
 [source,yaml]
 --------------------------------------------------

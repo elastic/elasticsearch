@@ -182,9 +182,12 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assertPasswordProtectedKeystore();
 
         sh.getEnv().put("ES_KEYSTORE_PASSPHRASE_FILE", esKeystorePassphraseFile.toString());
-        if (distribution.isPackage()) {
-            sh.run("sudo systemctl set-environment ES_KEYSTORE_PASSPHRASE_FILE=$ES_KEYSTORE_PASSPHRASE_FILE");
-        }
+        distribution().packagingConditional()
+            .forPackage(
+                () -> sh.run("sudo systemctl set-environment ES_KEYSTORE_PASSPHRASE_FILE=$ES_KEYSTORE_PASSPHRASE_FILE")
+            )
+            .forArchive(Platforms.NO_ACTION)
+            .run();
 
         Files.createFile(esKeystorePassphraseFile);
         Files.write(esKeystorePassphraseFile,
@@ -202,9 +205,12 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assertPasswordProtectedKeystore();
 
         sh.getEnv().put("ES_KEYSTORE_PASSPHRASE_FILE", esKeystorePassphraseFile.toString());
-        if (distribution.isPackage()) {
-            sh.run("sudo systemctl set-environment ES_KEYSTORE_PASSPHRASE_FILE=$ES_KEYSTORE_PASSPHRASE_FILE");
-        }
+        distribution().packagingConditional()
+            .forPackage(
+                () -> sh.run("sudo systemctl set-environment ES_KEYSTORE_PASSPHRASE_FILE=$ES_KEYSTORE_PASSPHRASE_FILE")
+            )
+            .forArchive(Platforms.NO_ACTION)
+            .run();
 
         if (Files.exists(esKeystorePassphraseFile)) {
             rm(esKeystorePassphraseFile);
@@ -223,9 +229,10 @@ public class KeystoreManagementTests extends PackagingTestCase {
         Path keystore = installation.config("elasticsearch.keystore");
         final Installation.Executables bin = installation.executables();
         Platforms.onLinux(() -> {
-            selectOnPackaging(
-                () -> sh.run(bin.elasticsearchKeystore + " create"),
-                () -> sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " create"));
+            distribution().packagingConditional()
+                .forPackage(() -> sh.run(bin.elasticsearchKeystore + " create"))
+                .forArchive(() -> sh.run("sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " create"))
+                .run();
         });
 
         // this is a hack around the fact that we can't run a command in the same session as the same user but not as administrator.
@@ -252,13 +259,12 @@ public class KeystoreManagementTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
 
         // set the password by passing it to stdin twice
-        Platforms.onLinux(() ->
-            selectOnPackaging(
-                () -> sh.run("( echo \'" + password + "\' ; echo \'" + password + "\' ) | " +
-                    bin.elasticsearchKeystore + " passwd"),
-                () -> sh.run("( echo \'" + password + "\' ; echo \'" + password + "\' ) | " +
-                    "sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " passwd")
-            )
+        Platforms.onLinux(() -> distribution().packagingConditional()
+            .forPackage(() -> sh.run("( echo \'" + password + "\' ; echo \'" + password + "\' ) | " +
+                bin.elasticsearchKeystore + " passwd"))
+            .forArchive(() -> sh.run("( echo \'" + password + "\' ; echo \'" + password + "\' ) | " +
+                "sudo -u " + ARCHIVE_OWNER + " " + bin.elasticsearchKeystore + " passwd"))
+            .run()
         );
         Platforms.onWindows(() -> {
             sh.run("Invoke-Command -ScriptBlock {echo \'" + password + "\'; echo \'" + password + "\'} | "
@@ -271,25 +277,11 @@ public class KeystoreManagementTests extends PackagingTestCase {
         assertThat("keystore should be password protected", r.exitCode, is(0));
     }
 
-    @FunctionalInterface
-    private interface ExceptionalRunnable {
-        void run() throws Exception;
-    }
-
-    private static void selectOnPackaging(ExceptionalRunnable forPackage, ExceptionalRunnable forArchive) throws Exception {
-        assertTrue("Distribution must be package or archive",
-            distribution.isPackage() || distribution.isArchive());
-        if (distribution.isPackage()) {
-            forPackage.run();
-        } else {
-            forArchive.run();
-        }
-    }
-
     private void verifyKeystorePermissions() throws Exception {
         Path keystore = installation.config("elasticsearch.keystore");
-        selectOnPackaging(
-            () -> assertThat(keystore, file(File, "root", "elasticsearch", p660)),
-            () -> assertThat(keystore, file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660)));
+        distribution().packagingConditional()
+            .forPackage(() -> assertThat(keystore, file(File, "root", "elasticsearch", p660)))
+            .forArchive(() -> assertThat(keystore, file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660)))
+            .run();
     }
 }

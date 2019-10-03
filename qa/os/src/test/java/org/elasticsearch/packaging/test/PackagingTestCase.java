@@ -160,22 +160,24 @@ public abstract class PackagingTestCase extends Assert {
     }
 
     public void stopElasticsearch() throws Exception {
-        if (distribution.isPackage()) {
-            Packages.stopElasticsearch(sh);
-        } else {
-            assertThat(distribution().isArchive(), equalTo(true));
-            Archives.stopElasticsearch(installation, sh);
-        }
+        distribution().packagingConditional()
+            .forPackage(() -> Packages.stopElasticsearch(sh))
+            .forArchive(() ->  {
+                assertThat(distribution().isArchive(), equalTo(true));
+                Archives.stopElasticsearch(installation, sh);
+            })
+            .run();
     }
 
     public void awaitElasticsearchStartup(Shell.Result result) throws Exception {
         assertThat("Startup command should succeed", result.exitCode, equalTo(0));
-        if (distribution.isPackage()) {
-            Packages.assertElasticsearchStarted(sh);
-        } else {
-            assertThat(distribution().isArchive(), equalTo(true));
-            Archives.assertElasticsearchStarted(installation, sh);
-        }
+        distribution().packagingConditional()
+            .forPackage(() -> Packages.assertElasticsearchStarted(sh))
+            .forArchive(() -> {
+                assertThat(distribution().isArchive(), equalTo(true));
+                Archives.assertElasticsearchStarted(installation, sh);
+            })
+            .run();
     }
 
     public void assertElasticsearchFailure(Shell.Result result, String expectedMessage) {

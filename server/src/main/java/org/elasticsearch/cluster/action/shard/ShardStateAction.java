@@ -444,10 +444,10 @@ public class ShardStateAction {
             components.add("allocation id [" + allocationId + "]");
             components.add("primary term [" + primaryTerm + "]");
             components.add("message [" + message + "]");
-            if (failure != null) {
-                components.add("failure [" + ExceptionsHelper.detailedMessage(failure) + "]");
-            }
             components.add("markAsStale [" + markAsStale + "]");
+            if (failure != null) {
+                components.add("failure [" + ExceptionsHelper.stackTrace(failure) + "]");
+            }
             return String.join(", ", components);
         }
 

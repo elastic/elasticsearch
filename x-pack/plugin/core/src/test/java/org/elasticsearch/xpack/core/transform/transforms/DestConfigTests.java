@@ -12,7 +12,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 
-public class DestConfigTests extends AbstractSerializingDataFrameTestCase<DestConfig> {
+public class DestConfigTests extends AbstractSerializingTransformTestCase<DestConfig> {
 
     private boolean lenient;
 

@@ -19,6 +19,7 @@
 package org.elasticsearch.gradle.test
 
 import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -43,6 +44,7 @@ public class RestTestPlugin implements Plugin<Project> {
                 + 'elasticsearch.standalone-rest-test')
         }
 
+        project.pluginManager.apply(TestClustersPlugin)
         RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
         integTest.description = 'Runs rest tests against an elasticsearch cluster.'
         integTest.group = JavaBasePlugin.VERIFICATION_GROUP

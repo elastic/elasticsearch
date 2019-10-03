@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -64,6 +65,7 @@ import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.action.DeleteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotRetentionAction;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleStatsAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
@@ -95,24 +97,26 @@ import org.elasticsearch.xpack.slm.SnapshotRetentionService;
 import org.elasticsearch.xpack.slm.SnapshotRetentionTask;
 import org.elasticsearch.xpack.slm.action.RestDeleteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.RestExecuteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.slm.action.RestExecuteSnapshotRetentionAction;
 import org.elasticsearch.xpack.slm.action.RestGetSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.RestGetSnapshotLifecycleStatsAction;
 import org.elasticsearch.xpack.slm.action.RestPutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.TransportDeleteSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.TransportExecuteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.slm.action.TransportExecuteSnapshotRetentionAction;
 import org.elasticsearch.xpack.slm.action.TransportGetSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.TransportGetSnapshotLifecycleStatsAction;
 import org.elasticsearch.xpack.slm.action.TransportPutSnapshotLifecycleAction;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 
 public class IndexLifecycle extends Plugin implements ActionPlugin {
@@ -121,11 +125,13 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
     private final SetOnce<SnapshotRetentionService> snapshotRetentionService = new SetOnce<>();
     private final SetOnce<SnapshotHistoryStore> snapshotHistoryStore = new SetOnce<>();
     private Settings settings;
-    private boolean enabled;
+    private boolean ilmEnabled;
+    private boolean slmEnabled;
 
     public IndexLifecycle(Settings settings) {
         this.settings = settings;
-        this.enabled = XPackSettings.INDEX_LIFECYCLE_ENABLED.get(settings);
+        this.ilmEnabled = XPackSettings.INDEX_LIFECYCLE_ENABLED.get(settings);
+        this.slmEnabled = XPackSettings.SNAPSHOT_LIFECYCLE_ENABLED.get(settings);
     }
 
     // overridable by tests
@@ -138,10 +144,13 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         return Arrays.asList(
             LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING,
             LifecycleSettings.LIFECYCLE_NAME_SETTING,
+            LifecycleSettings.LIFECYCLE_ORIGINATION_DATE_SETTING,
+            LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING,
             LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING,
             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING,
             LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING,
-            LifecycleSettings.SLM_RETENTION_SCHEDULE_SETTING);
+            LifecycleSettings.SLM_RETENTION_SCHEDULE_SETTING,
+            LifecycleSettings.SLM_RETENTION_DURATION_SETTING);
     }
 
     @Override
@@ -149,22 +158,25 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-        if (enabled == false) {
-            return emptyList();
-        }
-        indexLifecycleInitialisationService.set(new IndexLifecycleService(settings, client, clusterService, threadPool,
+        final List<Object> components = new ArrayList<>();
+        if (ilmEnabled) {
+            indexLifecycleInitialisationService.set(new IndexLifecycleService(settings, client, clusterService, threadPool,
                 getClock(), System::currentTimeMillis, xContentRegistry));
-        SnapshotLifecycleTemplateRegistry templateRegistry = new SnapshotLifecycleTemplateRegistry(settings, clusterService, threadPool,
-            client, xContentRegistry);
-        snapshotHistoryStore.set(new SnapshotHistoryStore(settings, new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN), clusterService
-        ));
-        snapshotLifecycleService.set(new SnapshotLifecycleService(settings,
-            () -> new SnapshotLifecycleTask(client, clusterService, snapshotHistoryStore.get()), clusterService, getClock()));
-        snapshotRetentionService.set(new SnapshotRetentionService(settings,
-            () -> new SnapshotRetentionTask(client, clusterService, System::nanoTime, snapshotHistoryStore.get(), threadPool),
-            clusterService, getClock()));
-        return Arrays.asList(indexLifecycleInitialisationService.get(), snapshotLifecycleService.get(), snapshotHistoryStore.get(),
-            snapshotRetentionService.get());
+            components.add(indexLifecycleInitialisationService.get());
+        }
+        if (slmEnabled) {
+            SnapshotLifecycleTemplateRegistry templateRegistry = new SnapshotLifecycleTemplateRegistry(settings, clusterService, threadPool,
+                client, xContentRegistry);
+            snapshotHistoryStore.set(new SnapshotHistoryStore(settings, new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN),
+                clusterService));
+            snapshotLifecycleService.set(new SnapshotLifecycleService(settings,
+                () -> new SnapshotLifecycleTask(client, clusterService, snapshotHistoryStore.get()), clusterService, getClock()));
+            snapshotRetentionService.set(new SnapshotRetentionService(settings,
+                () -> new SnapshotRetentionTask(client, clusterService, System::nanoTime, snapshotHistoryStore.get(), threadPool),
+                clusterService, getClock()));
+            components.addAll(Arrays.asList(snapshotLifecycleService.get(), snapshotHistoryStore.get(), snapshotRetentionService.get()));
+        }
+        return components;
     }
 
     @Override
@@ -200,10 +212,9 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
-        if (enabled == false) {
-            return emptyList();
-        }
-        return Arrays.asList(
+        List<RestHandler> handlers = new ArrayList<>();
+        if (ilmEnabled) {
+            handlers.addAll(Arrays.asList(
                 new RestPutLifecycleAction(restController),
                 new RestGetLifecycleAction(restController),
                 new RestDeleteLifecycleAction(restController),
@@ -213,14 +224,20 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 new RestRetryAction(restController),
                 new RestStopAction(restController),
                 new RestStartILMAction(restController),
-                new RestGetStatusAction(restController),
-                // Snapshot lifecycle actions
+                new RestGetStatusAction(restController)
+            ));
+        }
+        if (slmEnabled) {
+            handlers.addAll(Arrays.asList(
                 new RestPutSnapshotLifecycleAction(restController),
                 new RestDeleteSnapshotLifecycleAction(restController),
                 new RestGetSnapshotLifecycleAction(restController),
                 new RestExecuteSnapshotLifecycleAction(restController),
-                new RestGetSnapshotLifecycleStatsAction(restController)
-            );
+                new RestGetSnapshotLifecycleStatsAction(restController),
+                new RestExecuteSnapshotRetentionAction(restController)
+            ));
+        }
+        return handlers;
     }
 
     @Override
@@ -229,10 +246,11 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             new ActionHandler<>(XPackUsageFeatureAction.INDEX_LIFECYCLE, IndexLifecycleUsageTransportAction.class);
         var infoAction =
             new ActionHandler<>(XPackInfoFeatureAction.INDEX_LIFECYCLE, IndexLifecycleInfoTransportAction.class);
-        if (enabled == false) {
-            return Arrays.asList(usageAction, infoAction);
-        }
-        return Arrays.asList(
+        List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
+        actions.add(usageAction);
+        actions.add(infoAction);
+        if (ilmEnabled) {
+            actions.addAll(Arrays.asList(
                 new ActionHandler<>(PutLifecycleAction.INSTANCE, TransportPutLifecycleAction.class),
                 new ActionHandler<>(GetLifecycleAction.INSTANCE, TransportGetLifecycleAction.class),
                 new ActionHandler<>(DeleteLifecycleAction.INSTANCE, TransportDeleteLifecycleAction.class),
@@ -242,15 +260,28 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 new ActionHandler<>(RetryAction.INSTANCE, TransportRetryAction.class),
                 new ActionHandler<>(StartILMAction.INSTANCE, TransportStartILMAction.class),
                 new ActionHandler<>(StopILMAction.INSTANCE, TransportStopILMAction.class),
-                new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class),
-                // Snapshot lifecycle actions
+                new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class)
+            ));
+        }
+        if (slmEnabled) {
+            actions.addAll(Arrays.asList(
                 new ActionHandler<>(PutSnapshotLifecycleAction.INSTANCE, TransportPutSnapshotLifecycleAction.class),
                 new ActionHandler<>(DeleteSnapshotLifecycleAction.INSTANCE, TransportDeleteSnapshotLifecycleAction.class),
                 new ActionHandler<>(GetSnapshotLifecycleAction.INSTANCE, TransportGetSnapshotLifecycleAction.class),
                 new ActionHandler<>(ExecuteSnapshotLifecycleAction.INSTANCE, TransportExecuteSnapshotLifecycleAction.class),
                 new ActionHandler<>(GetSnapshotLifecycleStatsAction.INSTANCE, TransportGetSnapshotLifecycleStatsAction.class),
-                usageAction,
-                infoAction);
+                new ActionHandler<>(ExecuteSnapshotRetentionAction.INSTANCE, TransportExecuteSnapshotRetentionAction.class)
+            ));
+        }
+        return actions;
+    }
+
+    @Override
+    public void onIndexModule(IndexModule indexModule) {
+        if (ilmEnabled) {
+            assert indexLifecycleInitialisationService.get() != null;
+            indexModule.addIndexEventListener(indexLifecycleInitialisationService.get());
+        }
     }
 
     @Override

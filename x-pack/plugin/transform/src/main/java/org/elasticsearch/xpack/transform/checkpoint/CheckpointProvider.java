@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.transform.checkpoint;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerPosition;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpoint;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformCheckpointingInfo;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameTransformProgress;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 
 /**
  * Interface for checkpoint creation, checking for changes and getting statistics about checkpoints
@@ -23,20 +23,20 @@ public interface CheckpointProvider {
      * @param lastCheckpoint the last checkpoint
      * @param listener listener to call after inner request returned
      */
-    void createNextCheckpoint(DataFrameTransformCheckpoint lastCheckpoint, ActionListener<DataFrameTransformCheckpoint> listener);
+    void createNextCheckpoint(TransformCheckpoint lastCheckpoint, ActionListener<TransformCheckpoint> listener);
 
     /**
-     * Determines whether the data frame needs updating
+     * Determines whether the transform needs updating
      *
      * @param lastCheckpoint the last checkpoint
      * @param listener listener to send the result to
      */
-    void sourceHasChanged(DataFrameTransformCheckpoint lastCheckpoint, ActionListener<Boolean> listener);
+    void sourceHasChanged(TransformCheckpoint lastCheckpoint, ActionListener<Boolean> listener);
 
     /**
      * Get checkpoint statistics for a running data frame
      *
-     * For running data frames most information is available in-memory.
+     * For running transforms most information is available in-memory.
      *
      * @param lastCheckpoint the last checkpoint
      * @param nextCheckpoint the next checkpoint
@@ -44,16 +44,16 @@ public interface CheckpointProvider {
      * @param nextCheckpointProgress progress for the next checkpoint
      * @param listener listener to retrieve the result
      */
-    void getCheckpointingInfo(DataFrameTransformCheckpoint lastCheckpoint,
-                              DataFrameTransformCheckpoint nextCheckpoint,
-                              DataFrameIndexerPosition nextCheckpointPosition,
-                              DataFrameTransformProgress nextCheckpointProgress,
-                              ActionListener<DataFrameTransformCheckpointingInfo> listener);
+    void getCheckpointingInfo(TransformCheckpoint lastCheckpoint,
+                              TransformCheckpoint nextCheckpoint,
+                              TransformIndexerPosition nextCheckpointPosition,
+                              TransformProgress nextCheckpointProgress,
+                              ActionListener<TransformCheckpointingInfo> listener);
 
     /**
      * Get checkpoint statistics for a stopped data frame
      *
-     * For stopped data frames we need to do lookups in the internal index.
+     * For stopped transforms we need to do lookups in the internal index.
      *
      * @param lastCheckpointNumber the last checkpoint number
      * @param nextCheckpointPosition position for the next checkpoint
@@ -61,7 +61,7 @@ public interface CheckpointProvider {
      * @param listener listener to retrieve the result
      */
     void getCheckpointingInfo(long lastCheckpointNumber,
-                              DataFrameIndexerPosition nextCheckpointPosition,
-                              DataFrameTransformProgress nextCheckpointProgress,
-                              ActionListener<DataFrameTransformCheckpointingInfo> listener);
+                              TransformIndexerPosition nextCheckpointPosition,
+                              TransformProgress nextCheckpointProgress,
+                              ActionListener<TransformCheckpointingInfo> listener);
 }

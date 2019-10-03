@@ -21,8 +21,8 @@ import org.elasticsearch.search.aggregations.metrics.GeoBounds;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
 import org.elasticsearch.search.aggregations.metrics.ScriptedMetric;
-import org.elasticsearch.xpack.core.transform.DataFrameField;
-import org.elasticsearch.xpack.core.transform.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.transform.transforms.IDGenerator;
 
@@ -64,7 +64,7 @@ public final class AggregationResultUtils {
                                                                                  Collection<AggregationBuilder> aggregationBuilders,
                                                                                  Collection<PipelineAggregationBuilder> pipelineAggs,
                                                                                  Map<String, String> fieldTypeMap,
-                                                                                 DataFrameIndexerTransformStats stats) {
+                                                                                 TransformIndexerStats stats) {
         return agg.getBuckets().stream().map(bucket -> {
             stats.incrementNumDocuments(bucket.getDocCount());
             Map<String, Object> document = new HashMap<>();
@@ -94,7 +94,7 @@ public final class AggregationResultUtils {
                 }
             }
 
-            document.put(DataFrameField.DOCUMENT_ID_FIELD, idGen.getID());
+            document.put(TransformField.DOCUMENT_ID_FIELD, idGen.getID());
 
             return document;
         });

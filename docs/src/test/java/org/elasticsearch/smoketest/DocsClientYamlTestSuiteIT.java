@@ -101,7 +101,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @After
     public void cleanup() throws Exception {
-        if (isMachineLearningTest() || isDataFrameTest()) {
+        if (isMachineLearningTest() || isTransformTest()) {
             ESRestTestCase.waitForPendingTasks(adminClient());
         }
     }
@@ -111,9 +111,9 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         return testName != null && (testName.contains("/ml/") || testName.contains("\\ml\\"));
     }
 
-    protected boolean isDataFrameTest() {
+    protected boolean isTransformTest() {
         String testName = getTestName();
-        return testName != null && (testName.contains("/data-frames/") || testName.contains("\\data-frames\\"));
+        return testName != null && (testName.contains("/transform/") || testName.contains("\\transform\\"));
     }
 
     /**

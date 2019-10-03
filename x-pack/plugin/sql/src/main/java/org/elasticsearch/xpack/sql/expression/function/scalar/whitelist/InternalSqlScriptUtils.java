@@ -9,6 +9,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePartProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTruncProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.sql.util.StringUtils;
 import java.time.Duration;
 import java.time.OffsetTime;
 import java.time.Period;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
@@ -371,7 +373,11 @@ public final class InternalSqlScriptUtils {
     }
 
     public static ZonedDateTime dateTrunc(String truncateTo, Object dateTime, String tzId) {
-        return (ZonedDateTime) DateTruncProcessor.process(truncateTo, asDateTime(dateTime) ,tzId);
+        return (ZonedDateTime) DateTruncProcessor.process(truncateTo, asDateTime(dateTime) , ZoneId.of(tzId));
+    }
+
+    public static Integer datePart(String dateField, Object dateTime, String tzId) {
+        return (Integer) DatePartProcessor.process(dateField, asDateTime(dateTime) , ZoneId.of(tzId));
     }
 
     public static ZonedDateTime asDateTime(Object dateTime) {
@@ -405,7 +411,7 @@ public final class InternalSqlScriptUtils {
         if (text == null || typeName == null) {
             return null;
         }
-        return new IntervalDayTime(Duration.parse(text), DataType.fromTypeName(typeName));
+        return new IntervalDayTime(Duration.parse(text), DataType.fromSqlOrEsType(typeName));
     }
 
     public static IntervalYearMonth intervalYearMonth(String text, String typeName) {
@@ -413,7 +419,7 @@ public final class InternalSqlScriptUtils {
             return null;
         }
 
-        return new IntervalYearMonth(Period.parse(text), DataType.fromTypeName(typeName));
+        return new IntervalYearMonth(Period.parse(text), DataType.fromSqlOrEsType(typeName));
     }
 
     public static OffsetTime asTime(String time) {
@@ -553,6 +559,6 @@ public final class InternalSqlScriptUtils {
     public static Object cast(Object value, String typeName) {
         // we call asDateTime here to make sure we handle JodaCompatibleZonedDateTime properly,
         // since casting works for ZonedDateTime objects only
-        return DataTypeConversion.convert(asDateTime(value, true), DataType.fromTypeName(typeName));
+        return DataTypeConversion.convert(asDateTime(value, true), DataType.fromSqlOrEsType(typeName));
     }
 }

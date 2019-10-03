@@ -117,9 +117,9 @@ the `http` exporter will not be deleted automatically.
 Configures where the agent stores monitoring data. By default, the agent uses a
 local exporter that indexes monitoring data on the cluster where it is installed.
 Use an HTTP exporter to send data to a separate monitoring cluster. For more
-information, see <<local-exporter-settings,Local Exporter Settings>>,
-<<http-exporter-settings,HTTP Exporter Settings>>, and
-{xpack-ref}/how-monitoring-works.html[How Monitoring Works].
+information, see <<local-exporter-settings,Local exporter settings>>,
+<<http-exporter-settings,HTTP exporter settings>>, and
+<<how-monitoring-works>>.
 
 [float]
 [[local-exporter-settings]]

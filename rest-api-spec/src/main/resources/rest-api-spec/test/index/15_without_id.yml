@@ -20,7 +20,6 @@
           id:     '$id'
 
  - match:   { _index:   test_1 }
- - match:   { _type: _doc }
  - match:   { _id:      $id    }
  - match:   { _version: 1      }
  - match:   { _source: { foo: bar }}

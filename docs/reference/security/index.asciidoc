@@ -1,0 +1,18 @@
+[[secure-cluster]]
+= Secure a cluster
+
+[partintro]
+--
+The {stack-security-features} enable you to easily secure a cluster. You can
+password-protect your data as well as implement more advanced security
+measures such as encrypting communications, role-based access control,
+IP filtering, and auditing.
+
+* <<elasticsearch-security>>
+* <<configuring-security>>
+
+--
+
+include::overview.asciidoc[]
+
+include::{xes-repo-dir}/security/configuring-es.asciidoc[]

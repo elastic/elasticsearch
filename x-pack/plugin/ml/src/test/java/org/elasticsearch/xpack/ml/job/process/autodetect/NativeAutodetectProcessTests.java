@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
-import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectStateProcessor;
+import org.elasticsearch.xpack.ml.process.IndexingStateProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
@@ -63,7 +63,7 @@ public class NativeAutodetectProcessTests extends ESTestCase {
                 mock(OutputStream.class), outputStream, mock(OutputStream.class),
                 NUMBER_FIELDS, null,
                 new ProcessResultsParser<>(AutodetectResult.PARSER), mock(Consumer.class))) {
-            process.start(executorService, mock(AutodetectStateProcessor.class), mock(InputStream.class));
+            process.start(executorService, mock(IndexingStateProcessor.class), mock(InputStream.class));
 
             ZonedDateTime startTime = process.getProcessStartTime();
             Thread.sleep(500);
@@ -86,7 +86,7 @@ public class NativeAutodetectProcessTests extends ESTestCase {
         try (NativeAutodetectProcess process = new NativeAutodetectProcess("foo", mock(NativeController.class), logStream,
                 bos, outputStream, mock(OutputStream.class), NUMBER_FIELDS, Collections.emptyList(),
                 new ProcessResultsParser<>(AutodetectResult.PARSER), mock(Consumer.class))) {
-            process.start(executorService, mock(AutodetectStateProcessor.class), mock(InputStream.class));
+            process.start(executorService, mock(IndexingStateProcessor.class), mock(InputStream.class));
 
             process.writeRecord(record);
             process.flushStream();
@@ -121,7 +121,7 @@ public class NativeAutodetectProcessTests extends ESTestCase {
         try (NativeAutodetectProcess process = new NativeAutodetectProcess("foo", mock(NativeController.class), logStream,
                 bos, outputStream, mock(OutputStream.class), NUMBER_FIELDS, Collections.emptyList(),
                 new ProcessResultsParser<>(AutodetectResult.PARSER), mock(Consumer.class))) {
-            process.start(executorService, mock(AutodetectStateProcessor.class), mock(InputStream.class));
+            process.start(executorService, mock(IndexingStateProcessor.class), mock(InputStream.class));
 
             FlushJobParams params = FlushJobParams.builder().build();
             process.flushJob(params);
@@ -171,7 +171,7 @@ public class NativeAutodetectProcessTests extends ESTestCase {
         try (NativeAutodetectProcess process = new NativeAutodetectProcess("foo", mock(NativeController.class), logStream,
                 bos, outputStream, mock(OutputStream.class), NUMBER_FIELDS, Collections.emptyList(),
                 new ProcessResultsParser<>(AutodetectResult.PARSER), mock(Consumer.class))) {
-            process.start(executorService, mock(AutodetectStateProcessor.class), mock(InputStream.class));
+            process.start(executorService, mock(IndexingStateProcessor.class), mock(InputStream.class));
 
             writeFunction.accept(process);
             process.writeUpdateModelPlotMessage(new ModelPlotConfig());

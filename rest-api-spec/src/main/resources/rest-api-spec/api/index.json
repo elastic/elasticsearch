@@ -10,8 +10,8 @@
         {
           "path":"/{index}/_doc/{id}",
           "methods":[
-            "POST",
-            "PUT"
+            "PUT",
+            "POST"
           ],
           "parts":{
             "id":{
@@ -60,8 +60,8 @@
         {
           "path":"/{index}/{type}/{id}",
           "methods":[
-            "POST",
-            "PUT"
+            "PUT",
+            "POST"
           ],
           "parts":{
             "id":{
@@ -96,8 +96,7 @@
           "index",
           "create"
         ],
-        "default":"index",
-        "description":"Explicit operation type"
+        "description":"Explicit operation type. Defaults to `index` for requests with an explicit document ID, and to `create`for requests without an explicit document ID"
       },
       "refresh":{
         "type":"enum",
@@ -125,8 +124,7 @@
         "options":[
           "internal",
           "external",
-          "external_gte",
-          "force"
+          "external_gte"
         ],
         "description":"Specific version type"
       },

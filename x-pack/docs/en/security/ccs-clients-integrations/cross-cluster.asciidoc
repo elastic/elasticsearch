@@ -150,4 +150,4 @@ GET two:logs-2017.04/_search <1>
 // TEST[skip:todo]
 //TBD: Is there a missing description of the <1> callout above?
 
-include::{kib-repo-dir}/security/cross-cluster-kibana.asciidoc[]
+include::{kib-repo-dir}/user/security/cross-cluster-kibana.asciidoc[]

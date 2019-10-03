@@ -67,20 +67,26 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
     }
 
     @Override
-    protected void doBuild(SearchContext context, InnerHitsContext innerHitsContext) throws IOException {
+    public void doValidate(QueryShardContext queryShardContext) {
+        if (ParentJoinFieldMapper.getMapper(queryShardContext.getMapperService()) == null
+                && innerHitBuilder.isIgnoreUnmapped() == false) {
+            throw new IllegalStateException("no join field has been configured");
+        }
+    }
+
+    @Override
+    public void build(SearchContext context, InnerHitsContext innerHitsContext) throws IOException {
         QueryShardContext queryShardContext = context.getQueryShardContext();
         ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context.mapperService());
-        if (joinFieldMapper != null) {
-            String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : typeName;
-            JoinFieldInnerHitSubContext joinFieldInnerHits = new JoinFieldInnerHitSubContext(name, context, typeName,
-                fetchChildInnerHits, joinFieldMapper);
-            setupInnerHitsContext(queryShardContext, joinFieldInnerHits);
-            innerHitsContext.addInnerHitDefinition(joinFieldInnerHits);
-        } else {
-            if (innerHitBuilder.isIgnoreUnmapped() == false) {
-                throw new IllegalStateException("no join field has been configured");
-            }
+        if (joinFieldMapper == null) {
+            assert innerHitBuilder.isIgnoreUnmapped() : "should be validated first";
+            return;
         }
+        String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : typeName;
+        JoinFieldInnerHitSubContext joinFieldInnerHits =
+            new JoinFieldInnerHitSubContext(name, context, typeName, fetchChildInnerHits, joinFieldMapper);
+        setupInnerHitsContext(queryShardContext, joinFieldInnerHits);
+        innerHitsContext.addInnerHitDefinition(joinFieldInnerHits);
     }
 
     static final class JoinFieldInnerHitSubContext extends InnerHitsContext.InnerHitSubContext {
@@ -88,8 +94,11 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
         private final boolean fetchChildInnerHits;
         private final ParentJoinFieldMapper joinFieldMapper;
 
-        JoinFieldInnerHitSubContext(String name, SearchContext context, String typeName, boolean fetchChildInnerHits,
-                                    ParentJoinFieldMapper joinFieldMapper) {
+        JoinFieldInnerHitSubContext(String name,
+                                        SearchContext context,
+                                        String typeName,
+                                        boolean fetchChildInnerHits,
+                                        ParentJoinFieldMapper joinFieldMapper) {
             super(name, context);
             this.typeName = typeName;
             this.fetchChildInnerHits = fetchChildInnerHits;
@@ -102,13 +111,13 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
             TopDocsAndMaxScore[] result = new TopDocsAndMaxScore[hits.length];
             for (int i = 0; i < hits.length; i++) {
                 SearchHit hit = hits[i];
-                String joinName = getSortedDocValue(joinFieldMapper.name(), context, hit.docId());
+                String joinName = getSortedDocValue(joinFieldMapper.name(), this, hit.docId());
                 if (joinName == null) {
                     result[i] = new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN);
                     continue;
                 }
 
-                QueryShardContext qsc = context.getQueryShardContext();
+                QueryShardContext qsc = getQueryShardContext();
                 ParentIdFieldMapper parentIdFieldMapper =
                     joinFieldMapper.getParentIdFieldMapper(typeName, fetchChildInnerHits == false);
                 if (parentIdFieldMapper == null) {
@@ -126,14 +135,14 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                         .add(joinFieldMapper.fieldType().termQuery(typeName, qsc), BooleanClause.Occur.FILTER)
                         .build();
                 } else {
-                    String parentId = getSortedDocValue(parentIdFieldMapper.name(), context, hit.docId());
-                    q = context.mapperService().fullName(IdFieldMapper.NAME).termQuery(parentId, qsc);
+                    String parentId = getSortedDocValue(parentIdFieldMapper.name(), this, hit.docId());
+                    q = mapperService().fullName(IdFieldMapper.NAME).termQuery(parentId, qsc);
                 }
 
-                Weight weight = context.searcher().createWeight(context.searcher().rewrite(q), ScoreMode.COMPLETE_NO_SCORES, 1f);
+                Weight weight = searcher().createWeight(searcher().rewrite(q), ScoreMode.COMPLETE_NO_SCORES, 1f);
                 if (size() == 0) {
                     TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
-                    for (LeafReaderContext ctx : context.searcher().getIndexReader().leaves()) {
+                    for (LeafReaderContext ctx : searcher().getIndexReader().leaves()) {
                         intersect(weight, innerHitQueryWeight, totalHitCountCollector, ctx);
                     }
                     result[i] = new TopDocsAndMaxScore(
@@ -142,7 +151,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                             Lucene.EMPTY_SCORE_DOCS
                         ), Float.NaN);
                 } else {
-                    int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
+                    int topN = Math.min(from() + size(), searcher().getIndexReader().maxDoc());
                     TopDocsCollector<?> topDocsCollector;
                     MaxScoreCollector maxScoreCollector = null;
                     if (sort() != null) {
@@ -155,7 +164,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                         maxScoreCollector = new MaxScoreCollector();
                     }
                     try {
-                        for (LeafReaderContext ctx : context.searcher().getIndexReader().leaves()) {
+                        for (LeafReaderContext ctx : searcher().getIndexReader().leaves()) {
                             intersect(weight, innerHitQueryWeight, MultiCollector.wrap(topDocsCollector, maxScoreCollector), ctx);
                         }
                     } finally {

@@ -22,7 +22,11 @@ answers for frequently asked questions.
 * <<trb-security-path>>
 
 
-include::{stack-repo-dir}/help.asciidoc[tag=get-help]
+For issues that you cannot fix yourself … we’re here to help.
+If you are an existing Elastic customer with a support contract, please create
+a ticket in the
+https://support.elastic.co/customers/s/login/[Elastic Support portal].
+Or post in the https://discuss.elastic.co/[Elastic forum].
 
 [[security-trb-settings]]
 === Some settings are not returned via the nodes settings API

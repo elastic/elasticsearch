@@ -1,6 +1,6 @@
 [role="xpack"]
 [[ciphers]]
-=== Enabling Cipher Suites for Stronger Encryption
+=== Enabling cipher suites for stronger encryption
 
 The TLS and SSL protocols use a cipher suite that determines the strength of
 encryption used to protect the data. You may want to increase the strength of

@@ -1,6 +1,6 @@
 --
 :api: put-transform
-:request: PutDataFrameTransformRequest
+:request: PutTransformRequest
 :response: AcknowledgedResponse
 --
 [role="xpack"]
@@ -29,7 +29,7 @@ such an error will not be visible until `_start` is called.
 [id="{upid}-{api}-config"]
 ==== {transform-cap} configuration
 
-The `DataFrameTransformConfig` object contains all the details about the
+The `TransformConfig` object contains all the details about the
 {transform} configuration and contains the following arguments:
 
 ["source","java",subs="attributes,callouts,macros"]

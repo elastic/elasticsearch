@@ -24,52 +24,10 @@
               "description":"A comma-separated list of index names"
             }
           }
-        },
-        {
-          "path":"/_mapping/{type}",
-          "methods":[
-            "GET"
-          ],
-          "parts":{
-            "type":{
-              "type":"list",
-              "description":"A comma-separated list of document types",
-              "deprecated":true
-            }
-          },
-          "deprecated":{
-            "version":"7.0.0",
-            "description":"Specifying types in urls has been deprecated"
-          }
-        },
-        {
-          "path":"/{index}/_mapping/{type}",
-          "methods":[
-            "GET"
-          ],
-          "parts":{
-            "index":{
-              "type":"list",
-              "description":"A comma-separated list of index names"
-            },
-            "type":{
-              "type":"list",
-              "description":"A comma-separated list of document types",
-              "deprecated":true
-            }
-          },
-          "deprecated":{
-            "version":"7.0.0",
-            "description":"Specifying types in urls has been deprecated"
-          }
         }
       ]
     },
     "params":{
-      "include_type_name":{
-        "type":"boolean",
-        "description":"Whether to add the type name to the response (default: false)"
-      },
       "ignore_unavailable":{
         "type":"boolean",
         "description":"Whether specified concrete indices should be ignored when unavailable (missing or closed)"

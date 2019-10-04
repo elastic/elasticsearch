@@ -40,7 +40,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.SearchHit;
 import org.hamcrest.Matcher;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -56,9 +55,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.fieldFromSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasIndex;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasProperty;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasType;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.either;
@@ -360,7 +357,6 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
                 Iterable<SearchHit> hits = searchAll(new SearchRequest("test").routing("routing"));
 
                 assertThat(hits, everyItem(hasProperty(fieldFromSource("fieldNameXYZ"), equalTo("valueXYZ"))));
-                assertThat(hits, everyItem(Matchers.allOf(hasIndex("test"), hasType(globalType))));
                 assertThat(hits, containsInAnyOrder(expectedIds(numDocs)));
             }
 
@@ -391,7 +387,6 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
                 Iterable<SearchHit> hits = searchAll(new SearchRequest("test").routing("routing"));
 
                 assertThat(hits, everyItem(hasProperty(fieldFromSource("fieldNameXYZ"), equalTo("valueXYZ"))));
-                assertThat(hits, everyItem(Matchers.allOf(hasIndex("test"), hasType(localType))));
                 assertThat(hits, containsInAnyOrder(expectedIds(numDocs)));
             }
         }
@@ -422,7 +417,6 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
                 Iterable<SearchHit> hits = searchAll(new SearchRequest("test").routing("routing"));
 
                 assertThat(hits, everyItem(hasProperty(fieldFromSource("fieldNameXYZ"), equalTo("valueXYZ"))));
-                assertThat(hits, everyItem(Matchers.allOf(hasIndex("test"), hasType(customType))));
                 assertThat(hits, containsInAnyOrder(expectedIds(numDocs)));
             }
         }

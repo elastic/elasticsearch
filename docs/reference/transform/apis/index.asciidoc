@@ -3,8 +3,6 @@
 [[transform-apis]]
 == {transform-cap} APIs
 
-See also {stack-ov}/ml-dataframes.html[{transforms-cap}].
-
 * <<put-transform>> 
 * <<update-transform>>
 * <<delete-transform>>

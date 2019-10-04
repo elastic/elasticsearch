@@ -31,9 +31,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
-import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformInternalIndexTests;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
@@ -136,7 +136,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
         metaData = new MetaData.Builder(cs.metaData());
         routingTable = new RoutingTable.Builder(cs.routingTable());
-        String indexToRemove = TransformInternalIndex.LATEST_INDEX_NAME;
+        String indexToRemove = TransformInternalIndexConstants.LATEST_INDEX_NAME;
         if (randomBoolean()) {
             routingTable.remove(indexToRemove);
         } else {
@@ -158,8 +158,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
     private void addIndices(MetaData.Builder metaData, RoutingTable.Builder routingTable) {
         List<String> indices = new ArrayList<>();
-        indices.add(TransformInternalIndex.AUDIT_INDEX);
-        indices.add(TransformInternalIndex.LATEST_INDEX_NAME);
+        indices.add(TransformInternalIndexConstants.AUDIT_INDEX);
+        indices.add(TransformInternalIndexConstants.LATEST_INDEX_NAME);
         for (String indexName : indices) {
             IndexMetaData.Builder indexMetaData = IndexMetaData.builder(indexName);
             indexMetaData.settings(Settings.builder()

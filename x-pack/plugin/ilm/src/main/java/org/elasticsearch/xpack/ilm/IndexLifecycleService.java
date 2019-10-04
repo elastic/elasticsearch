@@ -22,6 +22,8 @@ import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
@@ -39,11 +41,14 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.parseIndexNameAndExtractDate;
+import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.shouldParseIndexName;
+
 /**
  * A service which runs the {@link LifecyclePolicy}s associated with indexes.
  */
 public class IndexLifecycleService
-    implements ClusterStateListener, ClusterStateApplier, SchedulerEngine.Listener, Closeable, LocalNodeMasterListener {
+    implements ClusterStateListener, ClusterStateApplier, SchedulerEngine.Listener, Closeable, LocalNodeMasterListener, IndexEventListener {
     private static final Logger logger = LogManager.getLogger(IndexLifecycleService.class);
     private static final Set<String> IGNORE_STEPS_MAINTENANCE_REQUESTED = Collections.singleton(ShrinkStep.NAME);
     private volatile boolean isMaster = false;
@@ -146,6 +151,13 @@ public class IndexLifecycleService
     @Override
     public String executorName() {
         return ThreadPool.Names.MANAGEMENT;
+    }
+
+    @Override
+    public void beforeIndexAddedToCluster(Index index, Settings indexSettings) {
+        if (shouldParseIndexName(indexSettings)) {
+            parseIndexNameAndExtractDate(index.getName());
+        }
     }
 
     private void updatePollInterval(TimeValue newInterval) {

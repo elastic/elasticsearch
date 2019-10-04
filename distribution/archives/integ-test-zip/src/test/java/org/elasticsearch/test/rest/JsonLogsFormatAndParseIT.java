@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.is;
 public class JsonLogsFormatAndParseIT extends JsonLogsIntegTestCase {
     @Override
     protected Matcher<String> nodeNameMatcher() {
-        return is("node-0");
+        return is("integTest-0");
     }
 
     @Override

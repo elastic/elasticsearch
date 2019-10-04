@@ -185,25 +185,30 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     @Override
     public void setVersion(String version) {
         requireNonNull(version, "null version passed when configuring test cluster `" + this + "`");
+        checkFrozen();
+        distributions.clear();
+        doSetVersion(version);
+    }
+
+    @Override
+    public void setVersions(List<String> versions) {
+        requireNonNull(versions, "null version list passed when configuring test cluster `" + this + "`");
+        distributions.clear();
+        for (String version : versions) {
+            doSetVersion(version);
+        }
+    }
+
+    private void doSetVersion(String version) {
         String distroName = "testclusters" + path.replace(":", "-") + "-" + this.name + "-" + version + "-";
         NamedDomainObjectContainer<ElasticsearchDistribution> container = DistributionDownloadPlugin.getContainer(project);
-        if (container.findByName(distroName) == null){
+        if (container.findByName(distroName) == null) {
             container.create(distroName);
         }
         ElasticsearchDistribution distro = container.getByName(distroName);
         distro.setVersion(version);
         setDistributionType(distro, testDistribution);
         distributions.add(distro);
-    }
-
-    @Override
-    public void setVersions(List<String> versions) {
-        requireNonNull(versions, "null version list passed when configuring test cluster `" + this + "`");
-        checkFrozen();
-        distributions.clear();
-        for (String version : versions) {
-            setVersion(version);
-        }
     }
 
     @Internal
@@ -230,6 +235,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private void setDistributionType(ElasticsearchDistribution distribution, TestDistribution testDistribution) {
         if (testDistribution == TestDistribution.INTEG_TEST) {
             distribution.setType(ElasticsearchDistribution.Type.INTEG_TEST_ZIP);
+            // we change the underlying distribution when changing the test distribution of the cluster.
+            distribution.setFlavor(null);
+            distribution.setPlatform(null);
+            distribution.setBundledJdk(null);
         } else {
             distribution.setType(ElasticsearchDistribution.Type.ARCHIVE);
             if (testDistribution == TestDistribution.DEFAULT) {
@@ -408,6 +417,14 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             );
         }
 
+        if (getVersion().before("6.3.0") && testDistribution == TestDistribution.DEFAULT) {
+            LOGGER.info("emulating the {} flavor for {} by installing x-pack", testDistribution, getVersion());
+            runElaticsearchBinScript(
+                "elasticsearch-plugin",
+                "install", "--batch", "x-pack"
+            );
+        }
+
         if (keystoreSettings.isEmpty() == false || keystoreFiles.isEmpty() == false) {
             logToProcessStdout("Adding " + keystoreSettings.size() + " keystore settings and " + keystoreFiles.size() + " keystore files");
             runElaticsearchBinScript("elasticsearch-keystore", "create");
@@ -430,13 +447,17 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
         copyExtraConfigFiles();
 
-        if (isSettingMissingOrTrue("xpack.security.enabled")) {
-            logToProcessStdout("Setting up " + credentials.size() + " users");
+        if (isSettingTrue("xpack.security.enabled")) {
             if (credentials.isEmpty()) {
                 user(Collections.emptyMap());
             }
+        }
+
+        if (credentials.isEmpty() == false) {
+            logToProcessStdout("Setting up " + credentials.size() + " users");
+
             credentials.forEach(paramMap -> runElaticsearchBinScript(
-                "elasticsearch-users",
+                getVersion().onOrAfter("6.3.0") ? "elasticsearch-users" : "x-pack/users",
                 paramMap.entrySet().stream()
                     .flatMap(entry -> Stream.of(entry.getKey(), entry.getValue()))
                     .toArray(String[]::new)
@@ -469,19 +490,16 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         start();
     }
 
-    @Override
-    public void goToNextVersion() {
+    void goToNextVersion() {
         if (currentDistro + 1 >= distributions.size()) {
             throw new TestClustersException("Ran out of versions to go to for " + this);
         }
         logToProcessStdout("Switch version from " + getVersion() + " to " + distributions.get(currentDistro + 1).getVersion());
-        stop(false);
         currentDistro += 1;
         setting("node.attr.upgraded", "true");
-        start();
     }
 
-    private boolean isSettingMissingOrTrue(String name) {
+    private boolean isSettingTrue(String name) {
         return Boolean.valueOf(settings.getOrDefault(name, "false").toString());
     }
 
@@ -696,11 +714,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public List<String> getAllHttpSocketURI() {
+        waitForAllConditions();
         return getHttpPortInternal();
     }
 
     @Override
     public List<String> getAllTransportPortURI() {
+        waitForAllConditions();
         return getTransportPortInternal();
     }
 
@@ -739,6 +759,17 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             logFileContents("Standard error of node", esStderrFile);
         }
         esProcess = null;
+        // Clean up the ports file in case this is started again.
+        try {
+            if (Files.exists(httpPortsFile)) {
+                Files.delete(httpPortsFile);
+            }
+            if (Files.exists(transportPortFile)) {
+                Files.delete(transportPortFile);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     @Override
@@ -968,12 +999,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // Don't wait for state, just start up quickly. This will also allow new and old nodes in the BWC case to become the master
         defaultConfig.put("discovery.initial_state_timeout", "0s");
 
-        // TODO: Remove these once https://github.com/elastic/elasticsearch/issues/46091 is fixed
-        defaultConfig.put("logger.org.elasticsearch.action.support.master.TransportMasterNodeAction", "TRACE");
-        defaultConfig.put("logger.org.elasticsearch.cluster.metadata.MetaDataCreateIndexService", "TRACE");
-        defaultConfig.put("logger.org.elasticsearch.cluster.service", "DEBUG");
-        defaultConfig.put("logger.org.elasticsearch.cluster.coordination", "DEBUG");
-        defaultConfig.put("logger.org.elasticsearch.gateway.MetaStateService", "TRACE");
         if (getVersion().getMajor() >= 8) {
             defaultConfig.put("cluster.service.slow_task_logging_threshold", "5s");
             defaultConfig.put("cluster.service.slow_master_task_logging_threshold", "5s");

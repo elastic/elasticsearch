@@ -568,7 +568,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         }
 
         logger.info("--> verifying explain with id [2], with routing [0], should succeed");
-        ExplainResponse explainResponse = client().prepareExplain(indexOrAlias(), "type1", "2")
+        ExplainResponse explainResponse = client().prepareExplain(indexOrAlias(), "2")
                                                   .setQuery(QueryBuilders.matchAllQuery())
                                                   .setRouting(routingValue).get();
         assertThat(explainResponse.isExists(), equalTo(true));
@@ -576,7 +576,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
         logger.info("--> verifying explain with id [2], with no routing, should fail");
         try {
-            client().prepareExplain(indexOrAlias(), "type1", "2")
+            client().prepareExplain(indexOrAlias(), "2")
                     .setQuery(QueryBuilders.matchAllQuery()).get();
             fail();
         } catch (RoutingMissingException e) {

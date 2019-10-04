@@ -36,6 +36,11 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
 
     private final StreamInput streamInput;
 
+    InboundMessage(ThreadContext threadContext, Header header, StreamInput streamInput) {
+        super(threadContext, header);
+        this.streamInput = streamInput;
+    }
+
     InboundMessage(ThreadContext threadContext, Version version, byte status, long requestId, StreamInput streamInput) {
         super(threadContext, version, status, requestId);
         this.streamInput = streamInput;
@@ -55,6 +60,10 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
             this.version = version;
             this.namedWriteableRegistry = namedWriteableRegistry;
             this.threadContext = threadContext;
+        }
+
+        InboundMessage deserialize(AggregatedMessage aggregatedMessage) throws IOException {
+            return doDeserialize(aggregatedMessage);
         }
 
         InboundMessage deserialize(BytesReference reference) throws IOException {
@@ -109,6 +118,38 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
                 }
             }
         }
+
+        private InboundMessage doDeserialize(AggregatedMessage aggregatedMessage) throws IOException {
+            Header header = aggregatedMessage.getHeader();
+            StreamInput streamInput = aggregatedMessage.getContent().streamInput();
+            boolean success = false;
+            try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
+                Version remoteVersion = Version.fromId(streamInput.readInt());
+                ensureVersionCompatibility(remoteVersion, version, header.isHandshake());
+                streamInput = new NamedWriteableAwareStreamInput(streamInput, namedWriteableRegistry);
+                streamInput.setVersion(remoteVersion);
+
+                threadContext.readHeaders(streamInput);
+
+                InboundMessage message;
+                if (header.isRequest()) {
+                    if (remoteVersion.before(Version.V_8_0_0)) {
+                        // discard features
+                        streamInput.readStringArray();
+                    }
+                    final String action = streamInput.readString();
+                    message = new Request(threadContext, header, action, streamInput);
+                } else {
+                    message = new Response(threadContext, header, streamInput);
+                }
+                success = true;
+                return message;
+            } finally {
+                if (success == false) {
+                    IOUtils.closeWhileHandlingException(streamInput);
+                }
+            }
+        }
     }
 
     @Nullable
@@ -140,6 +181,11 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
 
         private final String actionName;
 
+        Request(ThreadContext threadContext, Header header, String actionName, StreamInput streamInput) {
+            super(threadContext, header, streamInput);
+            this.actionName = actionName;
+        }
+
         Request(ThreadContext threadContext, Version version, byte status, long requestId, String actionName,
                 StreamInput streamInput) {
             super(threadContext, version, status, requestId, streamInput);
@@ -153,6 +199,10 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
     }
 
     public static class Response extends InboundMessage {
+
+        Response(ThreadContext threadContext, Header header, StreamInput streamInput) {
+            super(threadContext, header, streamInput);
+        }
 
         Response(ThreadContext threadContext, Version version, byte status, long requestId, StreamInput streamInput) {
             super(threadContext, version, status, requestId, streamInput);

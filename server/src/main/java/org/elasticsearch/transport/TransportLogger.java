@@ -36,6 +36,17 @@ public final class TransportLogger {
     private static final Logger logger = LogManager.getLogger(TransportLogger.class);
     private static final int HEADER_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
 
+    static void logInboundMessage(TcpChannel channel, AggregatedMessage message) {
+        if (logger.isTraceEnabled()) {
+            try {
+                String logMessage = format(channel, null, "READ");
+                logger.trace("");
+            } catch (IOException e) {
+                logger.trace("an exception occurred formatting a READ trace message", e);
+            }
+        }
+    }
+
     static void logInboundMessage(TcpChannel channel, BytesReference message) {
         if (logger.isTraceEnabled()) {
             try {

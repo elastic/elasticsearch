@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -41,7 +42,7 @@ public class InboundAggregator {
 
     public void pingReceived(BytesReference ping) {
         assert ping.length() == 6;
-        this.messageConsumer.accept(new AggregatedMessage(null, null, true));
+        this.messageConsumer.accept(new AggregatedMessage(null, BytesArray.EMPTY, true));
     }
 
     public void headerReceived(Header header) {
@@ -64,10 +65,9 @@ public class InboundAggregator {
             for (ReleasableBytesReference reference : contentAggregation) {
                 references[i++] = reference.getReference();
             }
-            CompositeBytesReference compositeBytesReference = new CompositeBytesReference(references);
-            try (StreamInput input = compositeBytesReference.streamInput()) {
-//                currentHeader.finishParsing(input);
-//                messageConsumer.accept(new AggregatedMessage(currentHeader, input, false));
+            CompositeBytesReference aggregatedContent = new CompositeBytesReference(references);
+            try {
+                messageConsumer.accept(new AggregatedMessage(currentHeader, aggregatedContent, false));
             } finally {
                 Releasables.close(contentAggregation);
                 contentAggregation.clear();
@@ -75,5 +75,4 @@ public class InboundAggregator {
             }
         }
     }
-
 }

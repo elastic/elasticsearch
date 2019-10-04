@@ -670,6 +670,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
+    public void inboundMessage2(TcpChannel channel, AggregatedMessage message) {
+        try {
+            inboundHandler.inboundMessage(channel, null);
+        } catch (Exception e) {
+            onException(channel, e);
+        }
+    }
+
     /**
      * Consumes bytes that are available from network reads. This method returns the number of bytes consumed
      * in this call.

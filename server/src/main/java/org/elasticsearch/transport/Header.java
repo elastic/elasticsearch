@@ -11,22 +11,26 @@ import java.util.Set;
 
 public class Header {
 
-    private final Version remoteVersion;
+    private final Version version;
     private final long requestId;
     private final byte status;
 
-    Header(long requestId, byte status, Version remoteVersion) {
-        this.remoteVersion = remoteVersion;
+    Header(long requestId, byte status, Version version) {
+        this.version = version;
         this.requestId = requestId;
         this.status = status;
     }
 
     Version getVersion() {
-        return remoteVersion;
+        return version;
     }
 
     long getRequestId() {
         return requestId;
+    }
+
+    byte getStatus() {
+        return status;
     }
 
     boolean isRequest() {

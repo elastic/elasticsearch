@@ -104,6 +104,64 @@ public class InboundHandler {
         }
     }
 
+    void inboundMessage(TcpChannel channel, AggregatedMessage message) throws Exception {
+        channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
+        // TODO: Adjust content
+        TransportLogger.logInboundMessage(channel, message.getContent());
+//        readBytesMetric.inc(message.length() + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE);
+        // Message length of 0 is a ping
+        if (message.isPing()) {
+            keepAlive.receiveKeepAlive(channel);
+        } else {
+            messageReceived(message, channel);
+        }
+    }
+
+    private void messageReceived(AggregatedMessage aggregatedMessage, TcpChannel channel) throws IOException {
+        InetSocketAddress remoteAddress = channel.getRemoteAddress();
+
+        ThreadContext threadContext = threadPool.getThreadContext();
+        try (ThreadContext.StoredContext existing = threadContext.stashContext();
+             InboundMessage message = reader.deserialize(aggregatedMessage)) {
+            // Place the context with the headers from the message
+            message.getStoredContext().restore();
+            threadContext.putTransient("_remote_address", remoteAddress);
+            if (message.isRequest()) {
+                int contentLength = aggregatedMessage.getContent().length();
+                handleRequest(channel, (InboundMessage.Request) message, contentLength);
+            } else {
+                final TransportResponseHandler<?> handler;
+                long requestId = message.getRequestId();
+                if (message.isHandshake()) {
+                    handler = handshaker.removeHandlerForHandshake(requestId);
+                } else {
+                    TransportResponseHandler<? extends TransportResponse> theHandler =
+                        responseHandlers.onResponseReceived(requestId, messageListener);
+                    if (theHandler == null && message.isError()) {
+                        handler = handshaker.removeHandlerForHandshake(requestId);
+                    } else {
+                        handler = theHandler;
+                    }
+                }
+                // ignore if its null, the service logs it
+                if (handler != null) {
+                    if (message.isError()) {
+                        handlerResponseError(message.getStreamInput(), handler);
+                    } else {
+                        handleResponse(remoteAddress, message.getStreamInput(), handler);
+                    }
+                    // Check the entire message has been read
+                    final int nextByte = message.getStreamInput().read();
+                    // calling read() is useful to make sure the message is fully read, even if there is an EOS marker
+                    if (nextByte != -1) {
+                        throw new IllegalStateException("Message not fully read (response) for requestId [" + requestId + "], handler ["
+                            + handler + "], error [" + message.isError() + "]; resetting");
+                    }
+                }
+            }
+        }
+    }
+
     private void messageReceived(BytesReference reference, TcpChannel channel) throws IOException {
         InetSocketAddress remoteAddress = channel.getRemoteAddress();
 

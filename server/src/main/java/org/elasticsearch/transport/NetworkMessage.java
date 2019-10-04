@@ -42,6 +42,15 @@ public abstract class NetworkMessage {
         this.status = status;
     }
 
+    NetworkMessage(ThreadContext threadContext, Header header) {
+        this.threadContext = threadContext;
+        storedContext = threadContext.stashContext();
+        storedContext.restore();
+        this.version = header.getVersion();
+        this.requestId = header.getRequestId();
+        this.status = header.getStatus();
+    }
+
     public Version getVersion() {
         return version;
     }

@@ -152,7 +152,7 @@ command from the {es} directory:
 NOTE: If you already configured passwords for these users in other tutorials,
 you can skip this step.
 
-include::{stack-repo-dir}/security/get-started-builtin-users.asciidoc[tag=create-users]
+include::{xes-repo-dir}/security/get-started-builtin-users.asciidoc[tag=create-users]
 
 After you setup the password for the `kibana` built-in user,
 <<get-started-kibana-user,configure {kib} to use it>>.
@@ -160,7 +160,7 @@ After you setup the password for the `kibana` built-in user,
 For example, run the following commands to create the {kib} keystore and add the
 `kibana` built-in user and its password in secure settings:
 
-include::{stack-repo-dir}/security/get-started-kibana-users.asciidoc[tag=store-kibana-user]
+include::{xes-repo-dir}/security/get-started-kibana-users.asciidoc[tag=store-kibana-user]
 --
 
 . Start {kib}.

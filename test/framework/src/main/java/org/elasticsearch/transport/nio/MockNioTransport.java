@@ -27,13 +27,18 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.bytes.ByteBufferReference;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.BytesWriteHandler;
@@ -48,6 +53,8 @@ import org.elasticsearch.nio.Page;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.InboundAggregator;
+import org.elasticsearch.transport.InboundDecoder;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpServerChannel;
 import org.elasticsearch.transport.TcpTransport;
@@ -218,7 +225,7 @@ public class MockNioTransport extends TcpTransport {
                     return new Page(ByteBuffer.wrap(bytes.v(), 0, length), bytes::close);
                 }
             };
-            MockTcpReadWriteHandler readWriteHandler = new MockTcpReadWriteHandler(nioChannel, MockNioTransport.this);
+            MockTcpReadWriteHandler readWriteHandler = new MockTcpReadWriteHandler(nioChannel, pageCacheRecycler, MockNioTransport.this);
             BytesChannelContext context = new BytesChannelContext(nioChannel, selector, socketConfig, e -> exceptionCaught(nioChannel, e),
                 readWriteHandler, new InboundChannelBuffer(pageSupplier));
             nioChannel.setContext(context);
@@ -262,18 +269,21 @@ public class MockNioTransport extends TcpTransport {
 
     private static class MockTcpReadWriteHandler extends BytesWriteHandler {
 
-        private final MockSocketChannel channel;
-        private final TcpTransport transport;
+        private final InboundDecoder decoder;
 
-        private MockTcpReadWriteHandler(MockSocketChannel channel, TcpTransport transport) {
-            this.channel = channel;
-            this.transport = transport;
+        private MockTcpReadWriteHandler(MockSocketChannel channel, PageCacheRecycler recycler, TcpTransport transport) {
+            this.decoder = new InboundDecoder(new InboundAggregator(agg -> transport.inboundMessage2(channel, agg)), recycler);
         }
 
         @Override
         public int consumeReads(InboundChannelBuffer channelBuffer) throws IOException {
-            BytesReference bytesReference = BytesReference.fromByteBuffers(channelBuffer.sliceBuffersTo(channelBuffer.getIndex()));
-            return transport.consumeNetworkReads(channel, bytesReference);
+            Page[] pages = channelBuffer.sliceAndRetainPagesTo(channelBuffer.getIndex());
+            BytesReference[] references = new BytesReference[pages.length];
+            for (int i = 0; i < pages.length; ++i) {
+                references[i] = new ByteBufferReference(pages[i].byteBuffer());
+            }
+            Releasable releasable = () -> IOUtils.closeWhileHandlingException(pages);
+            return decoder.handle(new ReleasableBytesReference(new CompositeBytesReference(references), releasable));
         }
     }
 

@@ -65,7 +65,7 @@ public class InboundDecoder implements Closeable {
                     return 0;
                 } else {
                     networkMessageSize = expectedLength;
-                    Header header = parseHeader(releasable.getReference());
+                    Header header = parseHeader(networkMessageSize, releasable.getReference());
                     bytesConsumed += TcpHeader.HEADER_SIZE - 6;
                     if (header.isCompressed()) {
                         decompressor = new TransportDecompressor(recycler);
@@ -114,13 +114,13 @@ public class InboundDecoder implements Closeable {
         return bytesConsumed == networkMessageSize;
     }
 
-    private Header parseHeader(BytesReference bytesReference) throws IOException {
+    private Header parseHeader(int networkMessageSize, BytesReference bytesReference) throws IOException {
         try (StreamInput streamInput = bytesReference.streamInput()) {
             streamInput.skip(6);
             long requestId = streamInput.readLong();
             byte status = streamInput.readByte();
             Version remoteVersion = Version.fromId(streamInput.readInt());
-            return new Header(requestId, status, remoteVersion);
+            return new Header(networkMessageSize, requestId, status, remoteVersion);
         }
     }
 

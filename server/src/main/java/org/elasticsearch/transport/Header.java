@@ -11,14 +11,20 @@ import java.util.Set;
 
 public class Header {
 
+    private final int networkMessageSize;
     private final Version version;
     private final long requestId;
     private final byte status;
 
-    Header(long requestId, byte status, Version version) {
+    Header(int networkMessageSize, long requestId, byte status, Version version) {
+        this.networkMessageSize = networkMessageSize;
         this.version = version;
         this.requestId = requestId;
         this.status = status;
+    }
+
+    public int getNetworkMessageSize() {
+        return networkMessageSize;
     }
 
     Version getVersion() {

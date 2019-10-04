@@ -124,7 +124,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final TransportHandshaker handshaker;
     private final TransportKeepAlive keepAlive;
     private final OutboundHandler outboundHandler;
-    private final InboundHandler inboundHandler;
+    protected final InboundHandler inboundHandler;
 
     public TcpTransport(Settings settings, Version version, ThreadPool threadPool, PageCacheRecycler pageCacheRecycler,
                         CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
@@ -670,34 +670,17 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
+    /**
+     * Handles inbound message that has been decoded.
+     *
+     * @param channel the channel the message is from
+     * @param message the message
+     */
     public void inboundMessage2(TcpChannel channel, AggregatedMessage message) {
         try {
             inboundHandler.inboundMessage(channel, message);
         } catch (Exception e) {
             onException(channel, e);
-        }
-    }
-
-    /**
-     * Consumes bytes that are available from network reads. This method returns the number of bytes consumed
-     * in this call.
-     *
-     * @param channel        the channel read from
-     * @param bytesReference the bytes available to consume
-     * @return the number of bytes consumed
-     * @throws StreamCorruptedException              if the message header format is not recognized
-     * @throws HttpRequestOnTransportException       if the message header appears to be an HTTP message
-     * @throws IllegalArgumentException              if the message length is greater that the maximum allowed frame size.
-     *                                               This is dependent on the available memory.
-     */
-    public int consumeNetworkReads(TcpChannel channel, BytesReference bytesReference) throws IOException {
-        BytesReference message = decodeFrame(bytesReference);
-
-        if (message == null) {
-            return 0;
-        } else {
-            inboundMessage(channel, message);
-            return message.length() + BYTES_NEEDED_FOR_MESSAGE_SIZE;
         }
     }
 

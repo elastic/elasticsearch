@@ -32,6 +32,8 @@ import java.util.function.Consumer;
 
 public class InboundAggregator {
 
+    private static final AggregatedMessage PING_MESSAGE = new AggregatedMessage(null, BytesArray.EMPTY, true);
+
     private final Consumer<AggregatedMessage> messageConsumer;
     private final ArrayList<ReleasableBytesReference> contentAggregation = new ArrayList<>();
     private Header currentHeader;
@@ -42,7 +44,7 @@ public class InboundAggregator {
 
     public void pingReceived(BytesReference ping) {
         assert ping.length() == 6;
-        this.messageConsumer.accept(new AggregatedMessage(null, BytesArray.EMPTY, true));
+        this.messageConsumer.accept(PING_MESSAGE);
     }
 
     public void headerReceived(Header header) {
@@ -54,7 +56,7 @@ public class InboundAggregator {
         currentHeader = header;
     }
 
-    public void contentReceived(ReleasableBytesReference content) throws IOException {
+    public void contentReceived(ReleasableBytesReference content) {
         if (currentHeader == null) {
             throw new IllegalStateException("Received content without header");
         } else if (content.getReference().length() != 0) {

@@ -108,11 +108,12 @@ public class InboundHandler {
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         // TODO: Adjust content
 //        TransportLogger.logInboundMessage(channel, message.getContent());
-//        readBytesMetric.inc(message.length() + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE);
         // Message length of 0 is a ping
         if (message.isPing()) {
+            readBytesMetric.inc(TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE);
             keepAlive.receiveKeepAlive(channel);
         } else {
+            readBytesMetric.inc(message.getHeader().getNetworkMessageSize() + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE);
             messageReceived(message, channel);
         }
     }

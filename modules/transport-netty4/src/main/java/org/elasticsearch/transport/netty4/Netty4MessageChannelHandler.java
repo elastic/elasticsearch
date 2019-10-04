@@ -28,6 +28,11 @@ import io.netty.channel.ChannelPromise;
 import io.netty.util.Attribute;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.transport.InboundAggregator;
+import org.elasticsearch.transport.InboundDecoder;
 import org.elasticsearch.transport.Transports;
 
 import java.nio.channels.ClosedChannelException;
@@ -41,17 +46,19 @@ import java.util.Queue;
 final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
     private final Netty4Transport transport;
+    private final InboundDecoder decoder;
 
     private final Queue<WriteOperation> queuedWrites = new ArrayDeque<>();
 
     private WriteOperation currentWrite;
 
-    Netty4MessageChannelHandler(Netty4Transport transport) {
+    Netty4MessageChannelHandler(PageCacheRecycler pageCacheRecycler, Netty4Transport transport) {
         this.transport = transport;
+        this.decoder = new InboundDecoder(new InboundAggregator(agg -> transport.inboundMessage2(null, agg)), pageCacheRecycler);
     }
 
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) {
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         assert Transports.assertTransportThread();
         assert msg instanceof ByteBuf : "Expected message type ByteBuf, found: " + msg.getClass();
 
@@ -59,7 +66,12 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
         try {
             Channel channel = ctx.channel();
             Attribute<Netty4TcpChannel> channelAttribute = channel.attr(Netty4Transport.CHANNEL_KEY);
-            transport.inboundMessage(channelAttribute.get(), Netty4Utils.toBytesReference(buffer));
+            int bytesHandled = Integer.MAX_VALUE;
+            while (bytesHandled != 0) {
+                ByteBuf duplicate = buffer.retainedDuplicate();
+                bytesHandled = decoder.handle(new ReleasableBytesReference(Netty4Utils.toBytesReference(duplicate), duplicate::release));
+                buffer.readerIndex(buffer.readerIndex() + bytesHandled);
+            }
         } finally {
             buffer.release();
         }

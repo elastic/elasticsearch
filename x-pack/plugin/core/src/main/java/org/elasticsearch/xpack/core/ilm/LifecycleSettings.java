@@ -19,7 +19,6 @@ public class LifecycleSettings {
     public static final String LIFECYCLE_INDEXING_COMPLETE = "index.lifecycle.indexing_complete";
     public static final String LIFECYCLE_ORIGINATION_DATE = "index.lifecycle.origination_date";
     public static final String LIFECYCLE_PARSE_ORIGINATION_DATE = "index.lifecycle.parse_origination_date";
-    public static final String LIFECYCLE_ROLLOVER_SKIP_ROLLED = "index.lifecycle.rollover.skip_rolled";
 
     public static final String SLM_HISTORY_INDEX_ENABLED = "slm.history_index_enabled";
     public static final String SLM_RETENTION_SCHEDULE = "slm.retention_schedule";
@@ -36,8 +35,6 @@ public class LifecycleSettings {
         Setting.longSetting(LIFECYCLE_ORIGINATION_DATE, -1, -1, Setting.Property.Dynamic, Setting.Property.IndexScope);
     public static final Setting<Boolean> LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING = Setting.boolSetting(LIFECYCLE_PARSE_ORIGINATION_DATE,
         false, Setting.Property.Dynamic, Setting.Property.IndexScope);
-    public static final Setting<Boolean> LIFECYCLE_ROLLOVER_SKIP_ROLLED_SETTING = Setting.boolSetting(LIFECYCLE_ROLLOVER_SKIP_ROLLED,
-        true, Setting.Property.Dynamic, Setting.Property.IndexScope);
 
     public static final Setting<Boolean> SLM_HISTORY_INDEX_ENABLED_SETTING = Setting.boolSetting(SLM_HISTORY_INDEX_ENABLED, true,
         Setting.Property.NodeScope);

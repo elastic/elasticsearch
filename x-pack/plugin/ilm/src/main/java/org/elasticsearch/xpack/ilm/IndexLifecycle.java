@@ -143,7 +143,6 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             LifecycleSettings.LIFECYCLE_NAME_SETTING,
             LifecycleSettings.LIFECYCLE_ORIGINATION_DATE_SETTING,
             LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING,
-            LifecycleSettings.LIFECYCLE_ROLLOVER_SKIP_ROLLED_SETTING,
             LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING,
             RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING,
             LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING,

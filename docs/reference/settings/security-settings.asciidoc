@@ -242,7 +242,7 @@ Defaults to `ssha256`.
 
 `authentication.enabled`:: If set to `false`, disables authentication support in
 this realm, so that it only supports user lookups.
-(See the <<run-as-privilege.html,run as>> and
+(See the <<run-as-privilege,run as>> and
 <<authorization_realms,authorization realms>> features).
 Defaults to `true`.
 

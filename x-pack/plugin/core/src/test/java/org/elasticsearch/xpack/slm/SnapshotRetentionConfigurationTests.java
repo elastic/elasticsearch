@@ -165,7 +165,7 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
     }
 
     public void testFailuresNotCountedTowardsMinimum() {
-        SnapshotRetentionConfiguration conf = new SnapshotRetentionConfiguration(() -> TimeValue.timeValueDays(1).millis() + 2,
+        SnapshotRetentionConfiguration conf = new SnapshotRetentionConfiguration(() -> TimeValue.timeValueDays(1).millis() + 1,
             TimeValue.timeValueDays(1), 2, null);
         SnapshotInfo oldInfo = makeInfo(0);
         SnapshotInfo failureInfo = makeFailureInfo( 1);
@@ -182,15 +182,23 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         conf = new SnapshotRetentionConfiguration(() -> TimeValue.timeValueDays(1).millis() + 2,
             TimeValue.timeValueDays(1), 1, null);
         assertThat(conf.getSnapshotDeletionPredicate(infos).test(newInfo), equalTo(false));
-        assertThat(conf.getSnapshotDeletionPredicate(infos).test(newInfo), equalTo(true));
+        assertThat(conf.getSnapshotDeletionPredicate(infos).test(failureInfo), equalTo(true));
         assertThat(conf.getSnapshotDeletionPredicate(infos).test(oldInfo), equalTo(true));
     }
 
     private SnapshotInfo makeInfo(long startTime) {
         final Map<String, Object> meta = new HashMap<>();
         meta.put(SnapshotLifecyclePolicy.POLICY_ID_METADATA_FIELD, REPO);
+        final int totalShards = between(1,20);
         return new SnapshotInfo(new SnapshotId("snap-" + randomAlphaOfLength(3), "uuid"),
-            Collections.singletonList("foo"), startTime, false, meta);
+            Collections.singletonList("foo"),
+            startTime,
+            null,
+            startTime + between(1,10000),
+            totalShards,
+            new ArrayList<>(),
+            false,
+            meta);
     }
 
     private SnapshotInfo makeFailureInfo(long startTime) {
@@ -206,7 +214,7 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         return new SnapshotInfo(new SnapshotId("snap-fail-" + randomAlphaOfLength(3), "uuid-fail"),
             Collections.singletonList("foo-fail"),
             startTime,
-            null,
+            "forced-failure",
             startTime + between(1,10000),
             totalShards,
             failures,

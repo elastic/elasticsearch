@@ -133,12 +133,12 @@ public class EnrichPolicyExecutor {
         return policy;
     }
 
-    public void runPolicy(ExecuteEnrichPolicyAction.Request request, ActionListener<ExecuteEnrichPolicyStatus> listener) {
-        runPolicy(request, getPolicy(request), listener);
+    public Task runPolicy(ExecuteEnrichPolicyAction.Request request, ActionListener<ExecuteEnrichPolicyStatus> listener) {
+        return runPolicy(request, getPolicy(request), listener);
     }
 
-    public void runPolicy(ExecuteEnrichPolicyAction.Request request, TaskListener<ExecuteEnrichPolicyStatus> listener) {
-        runPolicy(request, getPolicy(request), listener);
+    public Task runPolicy(ExecuteEnrichPolicyAction.Request request, TaskListener<ExecuteEnrichPolicyStatus> listener) {
+        return runPolicy(request, getPolicy(request), listener);
     }
 
     public Task runPolicy(ExecuteEnrichPolicyAction.Request request, EnrichPolicy policy,

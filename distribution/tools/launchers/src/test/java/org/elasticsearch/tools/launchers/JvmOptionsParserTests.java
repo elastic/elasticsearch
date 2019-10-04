@@ -41,8 +41,9 @@ import static org.junit.Assert.fail;
 public class JvmOptionsParserTests extends LaunchersTestCase {
 
     public void testSubstitution() {
-        final List<String> jvmOptions =
-            JvmOptionsParser.substitutePlaceholders(List.of("-Djava.io.tmpdir=${ES_TMPDIR}"), Map.of("ES_TMPDIR", "/tmp/elasticsearch"));
+        final List<String> jvmOptions = JvmOptionsParser.substitutePlaceholders(
+            Collections.singletonList("-Djava.io.tmpdir=${ES_TMPDIR}"),
+            Collections.singletonMap("ES_TMPDIR", "/tmp/elasticsearch"));
         assertThat(jvmOptions, contains("-Djava.io.tmpdir=/tmp/elasticsearch"));
     }
 

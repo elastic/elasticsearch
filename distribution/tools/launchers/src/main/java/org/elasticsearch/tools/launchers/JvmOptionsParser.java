@@ -31,6 +31,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -87,7 +88,7 @@ final class JvmOptionsParser {
                         .collect(Collectors.toList()));
             }
             final List<String> substitutedJvmOptions =
-                substitutePlaceholders(jvmOptions, Map.of("ES_TMPDIR", System.getenv("ES_TMPDIR")));
+                substitutePlaceholders(jvmOptions, Collections.singletonMap("ES_TMPDIR", System.getenv("ES_TMPDIR")));
             final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions);
             substitutedJvmOptions.addAll(ergonomicJvmOptions);
             final String spaceDelimitedJvmOptions = spaceDelimitJvmOptions(substitutedJvmOptions);

@@ -20,7 +20,6 @@
 package org.elasticsearch.packaging.util;
 
 import org.apache.http.HttpResponse;
-import org.apache.http.NoHttpResponseException;
 import org.apache.http.client.fluent.Request;
 import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
@@ -28,7 +27,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
-import java.net.SocketException;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 

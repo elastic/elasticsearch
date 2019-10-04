@@ -195,7 +195,7 @@ subprojects { Project subProject ->
   if (subProject.name.contains('docker-export')) {
     apply plugin: 'distribution'
 
-    def oss = subProject.name.startsWith('oss')
+    final boolean oss = subProject.name.startsWith('oss')
 
     def exportTaskName = taskName("export", oss, "DockerImage")
     def buildTaskName = taskName("build", oss, "DockerImage")

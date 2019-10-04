@@ -64,10 +64,6 @@ public class Distribution {
         return packaging == Packaging.RPM || packaging == Packaging.DEB;
     }
 
-    public boolean isDocker() {
-        return packaging == Packaging.DOCKER;
-    }
-
     public enum Packaging {
 
         TAR(".tar.gz", Platforms.LINUX || Platforms.DARWIN),

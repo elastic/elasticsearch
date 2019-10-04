@@ -20,6 +20,7 @@
 package org.elasticsearch.packaging.test;
 
 import org.apache.http.client.fluent.Request;
+import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Docker.DockerShell;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.ServerUtils;
@@ -58,7 +59,7 @@ public class DockerTests extends PackagingTestCase {
 
     @BeforeClass
     public static void filterDistros() {
-        assumeTrue("only Docker", distribution.isDocker());
+        assumeTrue("only Docker", distribution.packaging == Distribution.Packaging.DOCKER);
 
         ensureImageIsLoaded(distribution);
     }
@@ -116,7 +117,7 @@ public class DockerTests extends PackagingTestCase {
      * is minimally functional.
      */
     public void test50BasicApiTests() throws Exception {
-        waitForElasticsearch();
+        waitForElasticsearch(installation);
 
         assertTrue(existsInContainer(installation.logs.resolve("gc.log")));
 
@@ -167,7 +168,7 @@ public class DockerTests extends PackagingTestCase {
                 "ES_JAVA_OPTS", "-XX:-UseCompressedOops"
             ));
 
-            waitForElasticsearch();
+            waitForElasticsearch(installation);
 
             final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));

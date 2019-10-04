@@ -19,7 +19,7 @@ To adjust how monitoring data is displayed in the monitoring UI, configure
 {kibana-ref}/monitoring-settings-kb.html[`xpack.monitoring` settings] in
 `kibana.yml`. To control how monitoring data is collected from
 Logstash, configure
-{logstash-ref}/configuring-logstash.html#monitoring-settings[`xpack.monitoring` settings]
+{logstash-ref}/monitoring-internal-collection.html#monitoring-settings[`xpack.monitoring` settings]
 in `logstash.yml`.
 
 For more information, see

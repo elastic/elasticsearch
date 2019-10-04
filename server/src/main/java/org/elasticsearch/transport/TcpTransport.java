@@ -672,7 +672,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     public void inboundMessage2(TcpChannel channel, AggregatedMessage message) {
         try {
-            inboundHandler.inboundMessage(channel, null);
+            inboundHandler.inboundMessage(channel, message);
         } catch (Exception e) {
             onException(channel, e);
         }

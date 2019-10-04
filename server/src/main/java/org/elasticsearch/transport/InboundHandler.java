@@ -107,7 +107,7 @@ public class InboundHandler {
     void inboundMessage(TcpChannel channel, AggregatedMessage message) throws Exception {
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
         // TODO: Adjust content
-        TransportLogger.logInboundMessage(channel, message.getContent());
+//        TransportLogger.logInboundMessage(channel, message.getContent());
 //        readBytesMetric.inc(message.length() + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE);
         // Message length of 0 is a ping
         if (message.isPing()) {

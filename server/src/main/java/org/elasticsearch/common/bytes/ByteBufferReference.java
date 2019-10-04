@@ -36,7 +36,7 @@ public class ByteBufferReference extends BytesReference {
     private final ByteBuffer buffer;
     private final int length;
 
-    ByteBufferReference(ByteBuffer buffer) {
+    public ByteBufferReference(ByteBuffer buffer) {
         this.buffer = buffer.slice();
         this.length = buffer.remaining();
     }

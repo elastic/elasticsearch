@@ -121,11 +121,11 @@ public abstract class InboundMessage extends NetworkMessage implements Closeable
 
         private InboundMessage doDeserialize(AggregatedMessage aggregatedMessage) throws IOException {
             Header header = aggregatedMessage.getHeader();
+            Version remoteVersion = header.getVersion();
             StreamInput streamInput = aggregatedMessage.getContent().streamInput();
             boolean success = false;
             try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
-                Version remoteVersion = Version.fromId(streamInput.readInt());
-                ensureVersionCompatibility(remoteVersion, version, header.isHandshake());
+                ensureVersionCompatibility(remoteVersion, this.version, header.isHandshake());
                 streamInput = new NamedWriteableAwareStreamInput(streamInput, namedWriteableRegistry);
                 streamInput.setVersion(remoteVersion);
 

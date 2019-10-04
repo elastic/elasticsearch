@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.dataframe.process.customprocessing;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -20,7 +19,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
-public class RegressionCustomProcessorTests extends ESTestCase {
+public class DatasetSplittingCustomProcessorTests extends ESTestCase {
 
     private List<String> fields;
     private int dependentVariableIndex;
@@ -38,7 +37,7 @@ public class RegressionCustomProcessorTests extends ESTestCase {
     }
 
     public void testProcess_GivenRowsWithoutDependentVariableValue() {
-        CustomProcessor customProcessor = new RegressionCustomProcessor(fields, regression(dependentVariable, 50.0));
+        CustomProcessor customProcessor = new DatasetSplittingCustomProcessor(fields, dependentVariable, 50.0);
 
         for (int i = 0; i < 100; i++) {
             String[] row = new String[fields.size()];
@@ -56,7 +55,7 @@ public class RegressionCustomProcessorTests extends ESTestCase {
     }
 
     public void testProcess_GivenRowsWithDependentVariableValue_AndTrainingPercentIsHundred() {
-        CustomProcessor customProcessor = new RegressionCustomProcessor(fields, regression(dependentVariable, 100.0));
+        CustomProcessor customProcessor = new DatasetSplittingCustomProcessor(fields, dependentVariable, 100.0);
 
         for (int i = 0; i < 100; i++) {
             String[] row = new String[fields.size()];
@@ -76,7 +75,7 @@ public class RegressionCustomProcessorTests extends ESTestCase {
     public void testProcess_GivenRowsWithDependentVariableValue_AndTrainingPercentIsRandom() {
         double trainingPercent = randomDoubleBetween(1.0, 100.0, true);
         double trainingFraction = trainingPercent / 100;
-        CustomProcessor customProcessor = new RegressionCustomProcessor(fields, regression(dependentVariable, trainingPercent));
+        CustomProcessor customProcessor = new DatasetSplittingCustomProcessor(fields, dependentVariable, trainingPercent);
 
         int runCount = 20;
         int rowsCount = 1000;
@@ -122,7 +121,7 @@ public class RegressionCustomProcessorTests extends ESTestCase {
     }
 
     public void testProcess_ShouldHaveAtLeastOneTrainingRow() {
-        CustomProcessor customProcessor = new RegressionCustomProcessor(fields, regression(dependentVariable, 1.0));
+        CustomProcessor customProcessor = new DatasetSplittingCustomProcessor(fields, dependentVariable, 1.0);
 
         // We have some non-training rows and then a training row to check
         // we maintain the first training row and not just the first row
@@ -141,9 +140,5 @@ public class RegressionCustomProcessorTests extends ESTestCase {
 
             assertThat(Arrays.equals(processedRow, row), is(true));
         }
-    }
-
-    private static Regression regression(String dependentVariable, double trainingPercent) {
-        return new Regression(dependentVariable, null, null, null, null, null, null, trainingPercent);
     }
 }

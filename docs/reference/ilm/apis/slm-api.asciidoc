@@ -377,6 +377,59 @@ Which now includes the successful snapshot information:
 
 It is a good idea to test policies using the execute API to ensure they work.
 
+[[slm-get-stats]]
+=== Get Snapshot Lifecycle Stats API
+
+SLM stores statistics on a global and per-policy level about actions taken. These stats can be
+retrieved by using the following API:
+
+==== Example
+
+[source,console]
+--------------------------------------------------
+GET /_slm/stats
+--------------------------------------------------
+// TEST[continued]
+
+Which returns a response similar to:
+
+[source,js]
+--------------------------------------------------
+{
+  "retention_runs": 13,
+  "retention_failed": 0,
+  "retention_timed_out": 0,
+  "retention_deletion_time": "1.4s",
+  "retention_deletion_time_millis": 1404,
+  "policy_stats": [ ],
+  "total_snapshots_taken": 1,
+  "total_snapshots_failed": 1,
+  "total_snapshots_deleted": 0,
+  "total_snapshot_deletion_failures": 0
+}
+--------------------------------------------------
+// TESTRESPONSE[s/runs": 13/runs": $body.retention_runs/ s/_failed": 0/_failed": $body.retention_failed/ s/_timed_out": 0/_timed_out": $body.retention_timed_out/ s/"1.4s"/$body.retention_deletion_time/ s/1404/$body.retention_deletion_time_millis/ s/total_snapshots_taken": 1/total_snapshots_taken": $body.total_snapshots_taken/ s/total_snapshots_failed": 1/total_snapshots_failed": $body.total_snapshots_failed/ s/"policy_stats": [.*]/"policy_stats": $body.policy_stats/]
+
+[[slm-api-delete]]
+=== Delete Snapshot Lifecycle Policy API
+
+A policy can be deleted by issuing a delete request with the policy id. Note
+that this prevents any future snapshots from being taken, but does not cancel
+any currently ongoing snapshots or remove any previously taken snapshots.
+
+==== Path Parameters
+
+`policy_id` (optional)::
+  (string) Id of the policy to remove.
+
+==== Example
+
+[source,console]
+--------------------------------------------------
+DELETE /_slm/policy/daily-snapshots
+--------------------------------------------------
+// TEST[continued]
+
 [[slm-api-execute-retention]]
 === Execute Snapshot Lifecycle Retention API
 
@@ -402,63 +455,3 @@ This API will immediately return, as retention will be run asynchronously in the
 }
 --------------------------------------------------
 
-[[slm-get-stats]]
-=== Get Snapshot Lifecycle Stats API
-
-SLM stores statistics on a global and per-policy level about actions taken. These stats can be
-retrieved by using the following API:
-
-==== Example
-
-[source,console]
---------------------------------------------------
-GET /_slm/stats
---------------------------------------------------
-// TEST[continued]
-
-Which returns a response similar to:
-
-[source,js]
---------------------------------------------------
-{
-  "retention_runs": 13,
-  "retention_failed": 0,
-  "retention_timed_out": 0,
-  "retention_deletion_time": "1.4s",
-  "retention_deletion_time_millis": 1404,
-  "policy_metrics": [
-    {
-      "policy": "daily-snapshots",
-      "snapshots_taken": 1,
-      "snapshots_failed": 1,
-      "snapshots_deleted": 0,
-      "snapshot_deletion_failures": 0
-    }
-  ],
-  "total_snapshots_taken": 1,
-  "total_snapshots_failed": 1,
-  "total_snapshots_deleted": 0,
-  "total_snapshot_deletion_failures": 0
-}
---------------------------------------------------
-// TESTRESPONSE[s/runs": 13/runs": $body.retention_runs/ s/_failed": 0/_failed": $body.retention_failed/ s/_timed_out": 0/_timed_out": $body.retention_timed_out/ s/"1.4s"/$body.retention_deletion_time/ s/1404/$body.retention_deletion_time_millis/]
-
-[[slm-api-delete]]
-=== Delete Snapshot Lifecycle Policy API
-
-A policy can be deleted by issuing a delete request with the policy id. Note
-that this prevents any future snapshots from being taken, but does not cancel
-any currently ongoing snapshots or remove any previously taken snapshots.
-
-==== Path Parameters
-
-`policy_id` (optional)::
-  (string) Id of the policy to remove.
-
-==== Example
-
-[source,console]
---------------------------------------------------
-DELETE /_slm/policy/daily-snapshots
---------------------------------------------------
-// TEST[continued]

@@ -92,7 +92,7 @@ Which returns a response
   "retention_timed_out": 0, <3>
   "retention_deletion_time": "1.4s", <4>
   "retention_deletion_time_millis": 1404,
-  "policy_metrics": [
+  "policy_stats": [
     {
       "policy": "daily-snapshots",
       "snapshots_taken": 1,

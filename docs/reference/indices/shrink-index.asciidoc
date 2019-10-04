@@ -25,11 +25,13 @@ POST /twitter/_shrink/shrunk-twitter-index
 [[shrink-index-api-prereqs]]
 ==== {api-prereq-title}
 
-In order to shrink an index, the index must be marked as read-only, and a
-(primary or replica) copy of every shard in the index must be relocated to the
-same node and have a <<cluster-health, cluster health>> status of `green`.
+Before you can shrink an index:
 
-These two conditions can be achieved with the following request:
+* The index must be read-only.
+* A copy of every shard in the index must reside on the same node.
+* The <<cluster-health, cluster health>> status must be green.
+
+These three conditions can be achieved with the following request:
 
 [source,console]
 --------------------------------------------------
@@ -67,19 +69,22 @@ of shards in the index is a prime number it can only be shrunk into a single
 primary shard. Before shrinking, a (primary or replica) copy of every shard
 in the index must be present on the same node.
 
-Shrinking works as follows:
+[[how-shrink-works]]
+===== How shrinking works
 
-* First, it creates a new target index with the same definition as the source
+A shrink operation:
+
+. Creates a new target index with the same definition as the source
   index, but with a smaller number of primary shards.
 
-* Then it hard-links segments from the source index into the target index. (If
+. Hard-links segments from the source index into the target index. (If
   the file system doesn't support hard-linking, then all segments are copied
   into the new index, which is a much more time consuming process. Also if using 
   multiple data paths, shards on different data paths require a full copy of 
   segment files if they are not on the same disk since hardlinks don’t work across
   disks)
 
-* Finally, it recovers the target index as though it were a closed index which
+. Recovers the target index as though it were a closed index which
   had just been re-opened.
 
 
@@ -179,7 +184,7 @@ replicas and may decide to relocate the primary shard to another node.
 
 
 [[shrink-wait-active-shards]]
-===== Wait For active shards
+===== Wait for active shards
 
 Because the shrink operation creates a new index to shrink the shards to,
 the <<create-index-wait-for-active-shards,wait for active shards>> setting

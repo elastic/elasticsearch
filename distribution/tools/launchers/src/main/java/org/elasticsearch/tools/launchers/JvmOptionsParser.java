@@ -117,22 +117,22 @@ final class JvmOptionsParser {
         }
     }
 
-    static List<String> substitutePlaceholders(final List<String> jvmOptions, Map<String, String> substitutions) {
+    static List<String> substitutePlaceholders(final List<String> jvmOptions, final Map<String, String> substitutions) {
         final Map<String, String> placeholderSubstitutions =
             substitutions.entrySet().stream().collect(Collectors.toMap(e -> "${" + e.getKey() + "}", Map.Entry::getValue));
-        final List<String> substitutedJvmOptions = new ArrayList<>(jvmOptions.size());
-        for (final String jvmOption : jvmOptions) {
-            if (jvmOption.matches(".*\\$\\{[^}]+\\}.*")) {
-                String actualJvmOption = jvmOption;
-                for (final Map.Entry<String, String> placeholderSubstitution : placeholderSubstitutions.entrySet()) {
-                   actualJvmOption = actualJvmOption.replace(placeholderSubstitution.getKey(), placeholderSubstitution.getValue());
-                }
-                substitutedJvmOptions.add(actualJvmOption);
-            } else {
-                substitutedJvmOptions.add(jvmOption);
-            }
-        }
-        return substitutedJvmOptions;
+        return jvmOptions.stream()
+            .map(
+                jvmOption -> {
+                    String actualJvmOption = jvmOption;
+                    int start = jvmOption.indexOf("${");
+                    if (start >= 0 && jvmOption.indexOf('}', start) > 0) {
+                        for (final Map.Entry<String, String> placeholderSubstitution : placeholderSubstitutions.entrySet()) {
+                            actualJvmOption = actualJvmOption.replace(placeholderSubstitution.getKey(), placeholderSubstitution.getValue());
+                        }
+                    }
+                    return actualJvmOption;
+                })
+            .collect(Collectors.toList());
     }
 
     /**

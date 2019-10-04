@@ -213,7 +213,8 @@ files (four rolled logs, and the active log).
 
 You can disable it in the `config/log4j2.properties` file by setting the deprecation
 log level to `error` like this:
-```
+[source,properties]
+--------------------------------------------------
 ...
 logger.deprecation.name = org.elasticsearch.deprecation
 logger.deprecation.level = error

@@ -27,17 +27,9 @@ KEYSTORE_PASSWORD=
 if ! echo $* | grep -E -q '(^-h |-h$| -h |--help$|--help |^-V |-V$| -V |--version$|--version )' \
     && "`dirname "$0"`"/elasticsearch-keystore has-passwd --silent
 then
-  if [ -e "$ES_KEYSTORE_PASSPHRASE_FILE" ] ; then
-    if ! read -s -r KEYSTORE_PASSWORD <"$ES_KEYSTORE_PASSPHRASE_FILE" ; then
-      echo "Failed to read passphrase from file: $ES_KEYSTORE_PASSPHRASE_FILE" 1>&2
-      exit 1
-    fi
-  else
-    if ! read -s -r -p "Elasticsearch keystore password: " KEYSTORE_PASSWORD ; then
-      echo "Failed to read keystore password on console" 1>&2
-      exit 1
-    fi
-    echo
+  if ! read -s -r -p "Elasticsearch keystore password: " KEYSTORE_PASSWORD ; then
+    echo "Failed to read keystore password on console" 1>&2
+    exit 1
   fi
 fi
 

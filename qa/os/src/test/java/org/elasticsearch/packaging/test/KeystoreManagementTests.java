@@ -172,6 +172,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
     }
 
     public void test50KeystorePasswordFromFile() throws Exception {
+        assumeTrue("only for systemd", Platforms.isSystemd() && distribution().isPackage());
         String password = "!@#$%^&*()|\\<>/?";
         Path esKeystorePassphraseFile = installation.config.resolve("eks");
 
@@ -200,6 +201,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
     }
 
     public void test51WrongKeystorePasswordFromFile() throws Exception {
+        assumeTrue("only for systemd", Platforms.isSystemd() && distribution().isPackage());
         Path esKeystorePassphraseFile = installation.config.resolve("eks");
 
         assertPasswordProtectedKeystore();

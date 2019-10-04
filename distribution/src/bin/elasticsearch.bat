@@ -60,19 +60,10 @@ SET KEYSTORE_PASSWORD=
 IF "%checkpassword%"=="Y" (
   CALL "%~dp0elasticsearch-keystore.bat" has-passwd --silent
   IF !ERRORLEVEL! EQU 0 (
-    IF DEFINED ES_KEYSTORE_PASSPHRASE_FILE (
-      IF EXIST "%ES_KEYSTORE_PASSPHRASE_FILE%" (
-        SET /P KEYSTORE_PASSWORD=<"%ES_KEYSTORE_PASSPHRASE_FILE%"
-      ) ELSE (
-        ECHO File not found: %ES_KEYSTORE_PASSPHRASE_FILE%
-        EXIT /B 1
-      )
-    ) ELSE (
-      SET /P KEYSTORE_PASSWORD=Elasticsearch keystore password:
-      IF !ERRORLEVEL! NEQ 0 (
-        ECHO Failed to read keystore password on standard input
-        EXIT /B !ERRORLEVEL!
-      )
+    SET /P KEYSTORE_PASSWORD=Elasticsearch keystore password:
+    IF !ERRORLEVEL! NEQ 0 (
+      ECHO Failed to read keystore password on standard input
+      EXIT /B !ERRORLEVEL!
     )
   )
 )

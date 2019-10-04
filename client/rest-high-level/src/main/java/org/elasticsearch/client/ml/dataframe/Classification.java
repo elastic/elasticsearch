@@ -28,9 +28,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
-public class Regression implements DataFrameAnalysis {
+public class Classification implements DataFrameAnalysis {
 
-    public static Regression fromXContent(XContentParser parser) {
+    public static Classification fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
@@ -38,7 +38,7 @@ public class Regression implements DataFrameAnalysis {
         return new Builder(dependentVariable);
     }
 
-    public static final ParseField NAME = new ParseField("regression");
+    public static final ParseField NAME = new ParseField("classification");
 
     static final ParseField DEPENDENT_VARIABLE = new ParseField("dependent_variable");
     static final ParseField LAMBDA = new ParseField("lambda");
@@ -49,11 +49,11 @@ public class Regression implements DataFrameAnalysis {
     static final ParseField PREDICTION_FIELD_NAME = new ParseField("prediction_field_name");
     static final ParseField TRAINING_PERCENT = new ParseField("training_percent");
 
-    private static final ConstructingObjectParser<Regression, Void> PARSER =
+    private static final ConstructingObjectParser<Classification, Void> PARSER =
         new ConstructingObjectParser<>(
             NAME.getPreferredName(),
             true,
-            a -> new Regression(
+            a -> new Classification(
                 (String) a[0],
                 (Double) a[1],
                 (Double) a[2],
@@ -83,9 +83,9 @@ public class Regression implements DataFrameAnalysis {
     private final String predictionFieldName;
     private final Double trainingPercent;
 
-    private Regression(String dependentVariable,  @Nullable Double lambda, @Nullable Double gamma, @Nullable Double eta,
-                       @Nullable Integer maximumNumberTrees, @Nullable Double featureBagFraction, @Nullable String predictionFieldName,
-                       @Nullable Double trainingPercent) {
+    private Classification(String dependentVariable, @Nullable Double lambda, @Nullable Double gamma, @Nullable Double eta,
+                           @Nullable Integer maximumNumberTrees, @Nullable Double featureBagFraction, @Nullable String predictionFieldName,
+                           @Nullable Double trainingPercent) {
         this.dependentVariable = Objects.requireNonNull(dependentVariable);
         this.lambda = lambda;
         this.gamma = gamma;
@@ -172,7 +172,7 @@ public class Regression implements DataFrameAnalysis {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        Regression that = (Regression) o;
+        Classification that = (Classification) o;
         return Objects.equals(dependentVariable, that.dependentVariable)
             && Objects.equals(lambda, that.lambda)
             && Objects.equals(gamma, that.gamma)
@@ -237,8 +237,8 @@ public class Regression implements DataFrameAnalysis {
             return this;
         }
 
-        public Regression build() {
-            return new Regression(dependentVariable, lambda, gamma, eta, maximumNumberTrees, featureBagFraction, predictionFieldName,
+        public Classification build() {
+            return new Classification(dependentVariable, lambda, gamma, eta, maximumNumberTrees, featureBagFraction, predictionFieldName,
                 trainingPercent);
         }
     }

@@ -170,8 +170,12 @@ public class Shell {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         } finally {
-           FileUtils.deleteIfExists(stdOut);
-           FileUtils.deleteIfExists(stdErr);
+            try {
+                FileUtils.deleteIfExists(stdOut);
+                FileUtils.deleteIfExists(stdErr);
+            } catch (UncheckedIOException e) {
+                logger.info("Cleanup of output files failed", e);
+            }
         }
     }
 

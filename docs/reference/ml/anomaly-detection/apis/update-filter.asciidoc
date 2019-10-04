@@ -18,7 +18,7 @@ Updates the description of a filter, adds items, or removes items.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-update-filter-path-parms]]
 ==== {api-path-parms-title}

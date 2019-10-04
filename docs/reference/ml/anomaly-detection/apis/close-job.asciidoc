@@ -26,7 +26,7 @@ operations, but you can still explore and navigate results.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-close-job-desc]]
 ==== {api-description-title}

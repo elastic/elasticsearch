@@ -195,7 +195,7 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable {
     public static class Input implements ToXContentObject, Writeable {
 
         public static final String NAME = "trained_mode_definition_input";
-        public static final ParseField COLUMNS = new ParseField("columns");
+        public static final ParseField FIELD_NAMES = new ParseField("field_names");
 
         public static final ConstructingObjectParser<Input, Void> LENIENT_PARSER = createParser(true);
         public static final ConstructingObjectParser<Input, Void> STRICT_PARSER = createParser(false);
@@ -205,7 +205,7 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable {
             ConstructingObjectParser<Input, Void> parser = new ConstructingObjectParser<>(NAME,
                 ignoreUnknownFields,
                 a -> new Input((List<String>)a[0]));
-            parser.declareStringArray(ConstructingObjectParser.constructorArg(), COLUMNS);
+            parser.declareStringArray(ConstructingObjectParser.constructorArg(), FIELD_NAMES);
             return parser;
         }
 
@@ -213,29 +213,29 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable {
             return lenient ? LENIENT_PARSER.parse(parser, null) : STRICT_PARSER.parse(parser, null);
         }
 
-        private final List<String> columns;
+        private final List<String> fieldNames;
 
-        public Input(List<String> columns) {
-            this.columns = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(columns, COLUMNS));
+        public Input(List<String> fieldNames) {
+            this.fieldNames = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(fieldNames, FIELD_NAMES));
         }
 
         public Input(StreamInput in) throws IOException {
-            this.columns = Collections.unmodifiableList(in.readStringList());
+            this.fieldNames = Collections.unmodifiableList(in.readStringList());
         }
 
-        public List<String> getColumns() {
-            return columns;
+        public List<String> getFieldNames() {
+            return fieldNames;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeStringCollection(columns);
+            out.writeStringCollection(fieldNames);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(COLUMNS.getPreferredName(), columns);
+            builder.field(FIELD_NAMES.getPreferredName(), fieldNames);
             builder.endObject();
             return builder;
         }
@@ -245,12 +245,12 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             TrainedModelDefinition.Input that = (TrainedModelDefinition.Input) o;
-            return Objects.equals(columns, that.columns);
+            return Objects.equals(fieldNames, that.fieldNames);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(columns);
+            return Objects.hash(fieldNames);
         }
 
     }

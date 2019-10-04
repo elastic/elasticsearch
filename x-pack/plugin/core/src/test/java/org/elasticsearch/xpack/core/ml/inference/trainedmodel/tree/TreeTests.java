@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -131,6 +132,13 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
         featureVector = Arrays.asList(0.3, 0.9);
         featureMap = zipObjMap(featureNames, featureVector);
         assertEquals(0.2, tree.infer(featureMap), 0.00001);
+
+        // This should handle missing values and take the default_left path
+        featureMap = new HashMap<>(2) {{
+            put("foo", 0.3);
+            put("bar", null);
+        }};
+        assertEquals(0.1, tree.infer(featureMap), 0.00001);
     }
 
     public void testTreeClassificationProbability() {
@@ -162,6 +170,13 @@ public class TreeTests extends AbstractSerializingTestCase<Tree> {
         featureVector = Arrays.asList(0.3, 0.9);
         featureMap = zipObjMap(featureNames, featureVector);
         assertEquals(Arrays.asList(1.0, 0.0), tree.classificationProbability(featureMap));
+
+        // This should handle missing values and take the default_left path
+        featureMap = new HashMap<>(2) {{
+            put("foo", 0.3);
+            put("bar", null);
+        }};
+        assertEquals(1.0, tree.infer(featureMap), 0.00001);
     }
 
     public void testTreeWithNullRoot() {

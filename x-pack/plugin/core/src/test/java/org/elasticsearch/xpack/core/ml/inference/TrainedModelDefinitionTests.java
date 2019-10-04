@@ -77,7 +77,7 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
     private static final String ENSEMBLE_MODEL = "" +
         "{\n" +
         "  \"input\": {\n" +
-        "    \"columns\": [\n" +
+        "    \"field_names\": [\n" +
         "      \"col1\",\n" +
         "      \"col2\",\n" +
         "      \"col3\",\n" +
@@ -204,7 +204,7 @@ public class TrainedModelDefinitionTests extends AbstractSerializingTestCase<Tra
     private static final String TREE_MODEL = "" +
         "{\n" +
         "  \"input\": {\n" +
-        "    \"columns\": [\n" +
+        "    \"field_names\": [\n" +
         "      \"col1\",\n" +
         "      \"col2\",\n" +
         "      \"col3\",\n" +

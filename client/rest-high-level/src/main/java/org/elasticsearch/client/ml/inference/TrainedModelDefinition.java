@@ -156,34 +156,34 @@ public class TrainedModelDefinition implements ToXContentObject {
     public static class Input implements ToXContentObject {
 
         public static final String NAME = "trained_mode_definition_input";
-        public static final ParseField COLUMNS = new ParseField("columns");
+        public static final ParseField FEATURE_NAMES = new ParseField("feature_names");
 
         @SuppressWarnings("unchecked")
         public static final ConstructingObjectParser<Input, Void> PARSER = new ConstructingObjectParser<>(NAME,
                 true,
                 a -> new Input((List<String>)a[0]));
         static {
-            PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), COLUMNS);
+            PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), FEATURE_NAMES);
         }
 
         public static Input fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
         }
 
-        private final List<String> columns;
+        private final List<String> featureNames;
 
-        public Input(List<String> columns) {
-            this.columns = columns;
+        public Input(List<String> featureNames) {
+            this.featureNames = featureNames;
         }
 
-        public List<String> getColumns() {
-            return columns;
+        public List<String> getFeatureNames() {
+            return featureNames;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(COLUMNS.getPreferredName(), columns);
+            builder.field(FEATURE_NAMES.getPreferredName(), featureNames);
             builder.endObject();
             return builder;
         }
@@ -193,12 +193,12 @@ public class TrainedModelDefinition implements ToXContentObject {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             TrainedModelDefinition.Input that = (TrainedModelDefinition.Input) o;
-            return Objects.equals(columns, that.columns);
+            return Objects.equals(featureNames, that.featureNames);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(columns);
+            return Objects.hash(featureNames);
         }
 
     }

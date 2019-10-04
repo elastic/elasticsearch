@@ -199,7 +199,7 @@ NOTE: Mappings may not be specified in the `_split` request.
 
 
 [[monitor-split]]
-==== Monitor the split process
+===== Monitor the split process
 
 The split process can be monitored with the <<cat-recovery,`_cat recovery`
 API>>, or the <<cluster-health, `cluster health` API>> can be used to wait
@@ -219,7 +219,7 @@ replicas and may decide to relocate the primary shard to another node.
 
 
 [[split-wait-active-shards]]
-==== Wait for active shards
+===== Wait for active shards
 
 Because the split operation creates a new index to split the shards to,
 the <<create-index-wait-for-active-shards,wait for active shards>> setting

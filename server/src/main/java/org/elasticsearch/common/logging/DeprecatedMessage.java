@@ -21,9 +21,6 @@ package org.elasticsearch.common.logging;
 
 import org.elasticsearch.common.Strings;
 
-import java.util.Collections;
-import java.util.Map;
-
 /**
  * A logger message used by {@link DeprecationLogger}.
  * Carries x-opaque-id field if provided in the headers. Will populate the x-opaque-id field in JSON logs.
@@ -31,15 +28,12 @@ import java.util.Map;
 public class DeprecatedMessage  {
     private static final String X_OPAQUE_ID_FIELD_NAME = "x-opaque-id";
 
-
-    public static  ParameterizedStructuredMessage of(String xOpaqueId, String messagePattern, Object... args){
+    public static ESLogMessage of(String xOpaqueId, String messagePattern, Object... args){
         if (Strings.isNullOrEmpty(xOpaqueId)) {
-            return ParameterizedStructuredMessage.of(messagePattern,args)
-                                                 .build();
+            return ESLogMessage.of(messagePattern,args);
         }
-        return ParameterizedStructuredMessage.of(messagePattern,args)
-                                      .field(X_OPAQUE_ID_FIELD_NAME, xOpaqueId)
-                                      .build();
-    }
 
+        return ESLogMessage.of(messagePattern,args)
+                           .with(X_OPAQUE_ID_FIELD_NAME, xOpaqueId);
+    }
 }

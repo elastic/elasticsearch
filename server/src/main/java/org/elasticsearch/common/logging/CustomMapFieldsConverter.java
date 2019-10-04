@@ -25,10 +25,7 @@ import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
-import org.apache.logging.log4j.util.StringBuilders;
-import org.elasticsearch.common.Strings;
 
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -63,8 +60,8 @@ public final class CustomMapFieldsConverter extends LogEventPatternConverter {
 
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
-        if(event.getMessage() instanceof ParameterizedStructuredMessage) {
-            ParameterizedStructuredMessage logMessage = (ParameterizedStructuredMessage) event.getMessage();
+        if(event.getMessage() instanceof ESLogMessage) {
+            ESLogMessage logMessage = (ESLogMessage) event.getMessage();
             logMessage.asJson(toAppendTo);
         }
     }

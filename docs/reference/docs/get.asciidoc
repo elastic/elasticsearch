@@ -8,7 +8,7 @@ Retrieves the specified JSON document from an index.
 
 [source,console]
 --------------------------------------------------
-GET twitter/_doc/0?_source=false
+GET twitter/_doc/0
 --------------------------------------------------
 // TEST[setup:twitter]
 

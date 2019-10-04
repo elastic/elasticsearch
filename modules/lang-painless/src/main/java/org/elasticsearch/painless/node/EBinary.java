@@ -31,6 +31,7 @@ import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.ScriptRoot;
 
 import java.util.Objects;
 import java.util.Set;
@@ -72,43 +73,43 @@ public final class EBinary extends AExpression {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         originallyExplicit = explicit;
 
         if (operation == Operation.MUL) {
-            analyzeMul(locals);
+            analyzeMul(scriptRoot, locals);
         } else if (operation == Operation.DIV) {
-            analyzeDiv(locals);
+            analyzeDiv(scriptRoot, locals);
         } else if (operation == Operation.REM) {
-            analyzeRem(locals);
+            analyzeRem(scriptRoot, locals);
         } else if (operation == Operation.ADD) {
-            analyzeAdd(locals);
+            analyzeAdd(scriptRoot, locals);
         } else if (operation == Operation.SUB) {
-            analyzeSub(locals);
+            analyzeSub(scriptRoot, locals);
         } else if (operation == Operation.FIND) {
-            analyzeRegexOp(locals);
+            analyzeRegexOp(scriptRoot, locals);
         } else if (operation == Operation.MATCH) {
-            analyzeRegexOp(locals);
+            analyzeRegexOp(scriptRoot, locals);
         } else if (operation == Operation.LSH) {
-            analyzeLSH(locals);
+            analyzeLSH(scriptRoot, locals);
         } else if (operation == Operation.RSH) {
-            analyzeRSH(locals);
+            analyzeRSH(scriptRoot, locals);
         } else if (operation == Operation.USH) {
-            analyzeUSH(locals);
+            analyzeUSH(scriptRoot, locals);
         } else if (operation == Operation.BWAND) {
-            analyzeBWAnd(locals);
+            analyzeBWAnd(scriptRoot, locals);
         } else if (operation == Operation.XOR) {
-            analyzeXor(locals);
+            analyzeXor(scriptRoot, locals);
         } else if (operation == Operation.BWOR) {
-            analyzeBWOr(locals);
+            analyzeBWOr(scriptRoot, locals);
         } else {
             throw createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 
-    private void analyzeMul(Locals variables) {
-        left.analyze(variables);
-        right.analyze(variables);
+    private void analyzeMul(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
@@ -131,8 +132,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         if (left.constant != null && right.constant != null) {
             if (promote == int.class) {
@@ -149,9 +150,9 @@ public final class EBinary extends AExpression {
         }
     }
 
-    private void analyzeDiv(Locals variables) {
-        left.analyze(variables);
-        right.analyze(variables);
+    private void analyzeDiv(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
@@ -175,8 +176,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         if (left.constant != null && right.constant != null) {
             try {
@@ -197,9 +198,9 @@ public final class EBinary extends AExpression {
         }
     }
 
-    private void analyzeRem(Locals variables) {
-        left.analyze(variables);
-        right.analyze(variables);
+    private void analyzeRem(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
@@ -223,8 +224,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         if (left.constant != null && right.constant != null) {
             try {
@@ -245,9 +246,9 @@ public final class EBinary extends AExpression {
         }
     }
 
-    private void analyzeAdd(Locals variables) {
-        left.analyze(variables);
-        right.analyze(variables);
+    private void analyzeAdd(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         promote = AnalyzerCaster.promoteAdd(left.actual, right.actual);
 
@@ -283,8 +284,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         if (left.constant != null && right.constant != null) {
             if (promote == int.class) {
@@ -304,9 +305,9 @@ public final class EBinary extends AExpression {
 
     }
 
-    private void analyzeSub(Locals variables) {
-        left.analyze(variables);
-        right.analyze(variables);
+    private void analyzeSub(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, true);
 
@@ -330,8 +331,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         if (left.constant != null && right.constant != null) {
             if (promote == int.class) {
@@ -348,23 +349,23 @@ public final class EBinary extends AExpression {
         }
     }
 
-    private void analyzeRegexOp(Locals variables) {
-        left.analyze(variables);
-        right.analyze(variables);
+    private void analyzeRegexOp(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         left.expected = String.class;
         right.expected = Pattern.class;
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         promote = boolean.class;
         actual = boolean.class;
     }
 
-    private void analyzeLSH(Locals variables) {
-        left.analyze(variables);
-        right.analyze(variables);
+    private void analyzeLSH(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         Class<?> lhspromote = AnalyzerCaster.promoteNumeric(left.actual, false);
         Class<?> rhspromote = AnalyzerCaster.promoteNumeric(right.actual, false);
@@ -396,8 +397,8 @@ public final class EBinary extends AExpression {
             }
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         if (left.constant != null && right.constant != null) {
             if (promote == int.class) {
@@ -410,9 +411,9 @@ public final class EBinary extends AExpression {
         }
     }
 
-    private void analyzeRSH(Locals variables) {
-        left.analyze(variables);
-        right.analyze(variables);
+    private void analyzeRSH(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         Class<?> lhspromote = AnalyzerCaster.promoteNumeric(left.actual, false);
         Class<?> rhspromote = AnalyzerCaster.promoteNumeric(right.actual, false);
@@ -444,8 +445,8 @@ public final class EBinary extends AExpression {
             }
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         if (left.constant != null && right.constant != null) {
             if (promote == int.class) {
@@ -458,9 +459,9 @@ public final class EBinary extends AExpression {
         }
     }
 
-    private void analyzeUSH(Locals variables) {
-        left.analyze(variables);
-        right.analyze(variables);
+    private void analyzeUSH(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         Class<?> lhspromote = AnalyzerCaster.promoteNumeric(left.actual, false);
         Class<?> rhspromote = AnalyzerCaster.promoteNumeric(right.actual, false);
@@ -492,8 +493,8 @@ public final class EBinary extends AExpression {
             }
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         if (left.constant != null && right.constant != null) {
             if (promote == int.class) {
@@ -506,9 +507,9 @@ public final class EBinary extends AExpression {
         }
     }
 
-    private void analyzeBWAnd(Locals variables) {
-        left.analyze(variables);
-        right.analyze(variables);
+    private void analyzeBWAnd(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, false);
 
@@ -532,8 +533,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         if (left.constant != null && right.constant != null) {
             if (promote == int.class) {
@@ -546,9 +547,9 @@ public final class EBinary extends AExpression {
         }
     }
 
-    private void analyzeXor(Locals variables) {
-        left.analyze(variables);
-        right.analyze(variables);
+    private void analyzeXor(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         promote = AnalyzerCaster.promoteXor(left.actual, right.actual);
 
@@ -571,8 +572,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         if (left.constant != null && right.constant != null) {
             if (promote == boolean.class) {
@@ -587,9 +588,9 @@ public final class EBinary extends AExpression {
         }
     }
 
-    private void analyzeBWOr(Locals variables) {
-        left.analyze(variables);
-        right.analyze(variables);
+    private void analyzeBWOr(ScriptRoot scriptRoot, Locals variables) {
+        left.analyze(scriptRoot, variables);
+        right.analyze(scriptRoot, variables);
 
         promote = AnalyzerCaster.promoteNumeric(left.actual, right.actual, false);
 
@@ -612,8 +613,8 @@ public final class EBinary extends AExpression {
             right.expected = promote;
         }
 
-        left = left.cast(variables);
-        right = right.cast(variables);
+        left = left.cast(scriptRoot, variables);
+        right = right.cast(scriptRoot, variables);
 
         if (left.constant != null && right.constant != null) {
             if (promote == int.class) {

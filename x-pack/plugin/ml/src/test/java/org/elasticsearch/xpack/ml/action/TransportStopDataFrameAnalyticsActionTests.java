@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -75,7 +76,7 @@ public class TransportStopDataFrameAnalyticsActionTests extends ESTestCase {
     private static void addAnalyticsTask(PersistentTasksCustomMetaData.Builder builder, String analyticsId, String nodeId,
                                          DataFrameAnalyticsState state) {
         builder.addTask(MlTasks.dataFrameAnalyticsTaskId(analyticsId), MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams(analyticsId, Version.CURRENT),
+            new StartDataFrameAnalyticsAction.TaskParams(analyticsId, Version.CURRENT, Collections.emptyList()),
             new PersistentTasksCustomMetaData.Assignment(nodeId, "test assignment"));
 
         builder.updateTaskState(MlTasks.dataFrameAnalyticsTaskId(analyticsId),

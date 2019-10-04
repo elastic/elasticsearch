@@ -309,7 +309,7 @@ public class SettingsTests extends ESTestCase {
         builder.put("a.b.c.d", "ab3");
 
 
-        Settings filteredSettings = builder.build().filter((k) -> k.startsWith("a.b"));
+        Settings filteredSettings = builder.build().filter(k -> k.startsWith("a.b"));
         assertEquals(3, filteredSettings.size());
         int numKeys = 0;
         for (String k : filteredSettings.keySet()) {
@@ -343,7 +343,7 @@ public class SettingsTests extends ESTestCase {
         }
         assertEquals("a.b.c.d", iterator.next());
         assertFalse(iterator.hasNext());
-        expectThrows(NoSuchElementException.class, () -> iterator.next());
+        expectThrows(NoSuchElementException.class, iterator::next);
 
     }
 

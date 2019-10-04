@@ -4,7 +4,7 @@
 <titleabbrev>Multi term vectors</titleabbrev>
 ++++
 
-Retrieves multiple termvectors with a single request. 
+Retrieves multiple term vectors with a single request. 
 
 [source,console]
 --------------------------------------------------
@@ -126,7 +126,6 @@ POST /twitter/_mtermvectors
 // TEST[setup:twitter]
 
 [[docs-multi-termvectors-artificial-doc]]
-[float]
 ===== Artificial documents
 
 You can also use `mtermvectors` to generate term vectors for _artificial_ documents provided

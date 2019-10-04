@@ -32,9 +32,9 @@ GET /twitter/_termvectors/1?fields=message
 --------------------------------------------------
 // TEST[setup:twitter]
 
-Fields can be specified using wildcards, similar to the <<query-dsl-multi-match-query,multi match query>>
+Fields can be specified using wildcards, similar to the <<query-dsl-multi-match-query,multi match query>>.
 
-Term vectors are <<realtime,realtime>> by default, not near realtime. 
+Term vectors are <<realtime,real-time>> by default, not near real-time. 
 This can be changed by setting `realtime` parameter to `false`.
 
 You can request three types of values: _term information_, _term statistics_

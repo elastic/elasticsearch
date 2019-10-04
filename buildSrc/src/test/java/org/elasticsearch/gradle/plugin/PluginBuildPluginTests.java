@@ -1,5 +1,6 @@
 package org.elasticsearch.gradle.plugin;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import org.elasticsearch.gradle.BwcVersions;
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
 import org.gradle.api.Project;
@@ -12,6 +13,8 @@ import org.mockito.Mockito;
 
 import java.util.stream.Collectors;
 
+// see https://github.com/elastic/elasticsearch/issues/47417 Gradle leaks threads on Mac
+@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class PluginBuildPluginTests extends GradleUnitTestCase {
 
     private Project project;

@@ -46,13 +46,15 @@ import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskAwareRequest;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.EnrichPolicyExecutionTask;
-import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -1135,8 +1137,26 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                                                   ActionListener<EnrichPolicyExecutionTask.Status> listener, Long createTime) {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         IndexNameExpressionResolver resolver = getInstanceFromNode(IndexNameExpressionResolver.class);
-        ExecuteEnrichPolicyAction.Request request = new ExecuteEnrichPolicyAction.Request(policyName);
-        EnrichPolicyExecutionTask task = ((EnrichPolicyExecutionTask) testTaskManager.register("enrich", "", request));
+        Task asyncTask = testTaskManager.register("enrich", "policy_execution", new TaskAwareRequest() {
+            @Override
+            public void setParentTask(TaskId taskId) {}
+
+            @Override
+            public TaskId getParentTask() {
+                return TaskId.EMPTY_TASK_ID;
+            }
+
+            @Override
+            public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                return new EnrichPolicyExecutionTask(id, type, action, getDescription(), parentTaskId, headers);
+            }
+
+            @Override
+            public String getDescription() {
+                return policyName;
+            }
+        });
+        EnrichPolicyExecutionTask task = ((EnrichPolicyExecutionTask) asyncTask);
         // The executor would wrap the listener in order to clean up the task in the
         // task manager, but we're just testing the runner, so we make sure to clean
         // up after ourselves.

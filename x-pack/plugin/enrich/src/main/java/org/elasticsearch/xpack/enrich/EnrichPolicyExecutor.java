@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.enrich;
 
+import java.util.Map;
 import java.util.concurrent.Semaphore;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
@@ -17,6 +18,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskAwareRequest;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -158,9 +161,29 @@ public class EnrichPolicyExecutor {
         }
     }
 
-    private Task runPolicyTask(ExecuteEnrichPolicyAction.Request request, EnrichPolicy policy,
+    private Task runPolicyTask(final ExecuteEnrichPolicyAction.Request request, EnrichPolicy policy,
                                BiConsumer<Task, EnrichPolicyExecutionTask.Status> onResponse, BiConsumer<Task, Exception> onFailure) {
-        Task asyncTask = taskManager.register("enrich", "", request);
+        Task asyncTask = taskManager.register("enrich", "policy_execution", new TaskAwareRequest() {
+            @Override
+            public void setParentTask(TaskId taskId) {
+                request.setParentTask(taskId);
+            }
+
+            @Override
+            public TaskId getParentTask() {
+                return request.getParentTask();
+            }
+
+            @Override
+            public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                return new EnrichPolicyExecutionTask(id, type, action, getDescription(), parentTaskId, headers);
+            }
+
+            @Override
+            public String getDescription() {
+                return request.getName();
+            }
+        });
         EnrichPolicyExecutionTask task = (EnrichPolicyExecutionTask) asyncTask;
         try {
             task.setStatus(new EnrichPolicyExecutionTask.Status(EnrichPolicyExecutionTask.PolicyPhases.SCHEDULED));

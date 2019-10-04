@@ -217,7 +217,7 @@ Spotless will write files to
 different copies of the formatted files, so that you can see how they
 differ and infer what is the problem.
 
-The `paddedCell() option is disabled for normal operation in order to
+The `paddedCell()` option is disabled for normal operation in order to
 detect any misbehaviour. You can enabled the option from the command line
 by running Gradle with `-Dspotless.paddedcell`.
 

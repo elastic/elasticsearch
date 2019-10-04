@@ -43,8 +43,7 @@ The operation that consists of making changes visible to search - called a
 <<indices-refresh,refresh>> - is costly, and calling it often while there is
 ongoing indexing activity can hurt indexing speed.
 
-By default, Elasticsearch runs this operation every second, but only on
-indices that have received one search request or more in the last 30 seconds.
+include::{docdir}/indices/refresh.asciidoc[tag=refresh-interval-default]
 This is the optimal configuration if you have no or very little search traffic
 (e.g. less than one search request every 5 minutes) and want to optimize for
 indexing speed. This behavior aims to automatically optimize bulk indexing in
@@ -55,7 +54,7 @@ On the other hand, if your index experiences regular search requests, this
 default behavior means that Elasticsearch will refresh your index every 1
 second. If you can afford to increase the amount of time between when a document
 gets indexed and when it becomes visible, increasing the
-<<dynamic-index-settings,`index.refresh_interval`>> to a larger value, e.g.
+<<index-refresh-interval-setting,`index.refresh_interval`>> to a larger value, e.g.
 `30s`, might help improve indexing speed.
 
 [float]

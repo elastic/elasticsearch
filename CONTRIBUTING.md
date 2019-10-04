@@ -109,17 +109,16 @@ and `JAVA11_HOME` available so that the tests can pass.
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
 using the wrapper via the `gradlew` script in the root of the repository.
 
-We support development in the Eclipse and IntelliJ IDEs. For Eclipse, the
-minimum version that we support is [Eclipse Oxygen][eclipse] (version 4.7). For
-IntelliJ, the minimum version that we support is [IntelliJ 2017.2][intellij].
+We support development in the Eclipse and IntelliJ IDEs. 
+For Eclipse, the minimum version that we support is [4.13][eclipse]. 
+For IntelliJ, the minimum version that we support is [IntelliJ 2017.2][intellij].
 
 ### Configuring IDEs And Running Tests
 
 Eclipse users can automatically configure their IDE: `./gradlew eclipse`
-then `File: Import: Existing Projects into Workspace`. Select the
-option `Search for nested projects`. Additionally you will want to
-ensure that Eclipse is using 2048m of heap by modifying `eclipse.ini`
-accordingly to avoid GC overhead errors.
+then `File: Import: Gradle : Existing Gradle Project`.
+Additionally you will want to ensure that Eclipse is using 2048m of heap by modifying 
+`eclipse.ini` accordingly to avoid GC overhead and OOM errors.
 
 IntelliJ users can automatically configure their IDE: `./gradlew idea`
 then `File->New Project From Existing Sources`. Point to the root of
@@ -155,19 +154,68 @@ For Eclipse, go to `Preferences->Java->Installed JREs` and add `-ea` to
 
 ### Java Language Formatting Guidelines
 
+Java files in the Elasticsearch codebase are formatted with the Eclipse JDT
+formatter, using the [Spotless
+Gradle](https://github.com/diffplug/spotless/tree/master/plugin-gradle)
+plugin. This plugin is configured on a project-by-project basis, via
+`build.gradle` in the root of the repository. So long as at least one
+project is configured, the formatting check can be run explicitly with:
+
+    ./gradlew spotlessJavaCheck
+
+The code can be formatted with:
+
+    ./gradlew spotlessApply
+
+These tasks can also be run for specific subprojects, e.g.
+
+    ./gradlew server:spotlessJavaCheck
+
 Please follow these formatting guidelines:
 
 * Java indent is 4 spaces
 * Line width is 140 characters
-* Lines of code surrounded by `// tag` and `// end` comments are included in the
-documentation and should only be 76 characters wide not counting
-leading indentation
-* The rest is left to Java coding standards
-* Disable “auto-format on save” to prevent unnecessary format changes. This makes reviews much harder as it generates unnecessary formatting changes. If your IDE supports formatting only modified chunks that is fine to do.
-* Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause the build to fail. This can be done automatically by your IDE:
- * Eclipse: `Preferences->Java->Code Style->Organize Imports`. There are two boxes labeled "`Number of (static )? imports needed for .*`". Set their values to 99999 or some other absurdly high value.
- * IntelliJ: `Preferences/Settings->Editor->Code Style->Java->Imports`. There are two configuration options: `Class count to use import with '*'` and `Names count to use static import with '*'`. Set their values to 99999 or some other absurdly high value.
-* Don't worry too much about import order. Try not to change it but don't worry about fighting your IDE to stop it from doing so.
+* Lines of code surrounded by `// tag` and `// end` comments are included
+  in the documentation and should only be 76 characters wide not counting
+  leading indentation
+* Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause
+  the build to fail. This can be done automatically by your IDE:
+   * Eclipse: `Preferences->Java->Code Style->Organize Imports`. There are
+     two boxes labeled "`Number of (static )? imports needed for .*`". Set
+     their values to 99999 or some other absurdly high value.
+   * IntelliJ: `Preferences/Settings->Editor->Code Style->Java->Imports`.
+     There are two configuration options: `Class count to use import with
+     '*'` and `Names count to use static import with '*'`. Set their values
+     to 99999 or some other absurdly high value.
+
+#### Editor / IDE Support
+
+Eclipse IDEs can import the file [elasticsearch.eclipseformat.xml]
+directly.
+
+IntelliJ IDEs can
+[import](https://blog.jetbrains.com/idea/2014/01/intellij-idea-13-importing-code-formatter-settings-from-eclipse/)
+the same settings file, and / or use the [Eclipse Code
+Formatter](https://plugins.jetbrains.com/plugin/6546-eclipse-code-formatter)
+plugin.
+
+You can also tell Spotless to [format a specific
+file](https://github.com/diffplug/spotless/tree/master/plugin-gradle#can-i-apply-spotless-to-specific-files)
+from the command line.
+
+#### Formatting failures
+
+Sometimes Spotless will report a "misbehaving rule which can't make up its
+mind" and will recommend enabling the `paddedCell()` setting. If you
+enabled this settings and run the format check again,
+Spotless will write files to
+`$PROJECT/build/spotless-diagnose-java/` to aid diagnosis. It writes
+different copies of the formatted files, so that you can see how they
+differ and infer what is the problem.
+
+The `paddedCell() option is disabled for normal operation in order to
+detect any misbehaviour. You can enabled the option from the command line
+by running Gradle with `-Dspotless.paddedcell`.
 
 ### License Headers
 
@@ -388,6 +436,6 @@ Finally, we require that you run `./gradlew check` before submitting a
 non-documentation contribution. This is mentioned above, but it is worth
 repeating in this section because it has come up in this context.
 
-[eclipse]: http://www.eclipse.org/community/eclipse_newsletter/2017/june/
+[eclipse]: https://download.eclipse.org/eclipse/downloads/drops4/R-4.13-201909161045/
 [intellij]: https://blog.jetbrains.com/idea/2017/07/intellij-idea-2017-2-is-here-smart-sleek-and-snappy/
 [shadow-plugin]: https://github.com/johnrengelman/shadow

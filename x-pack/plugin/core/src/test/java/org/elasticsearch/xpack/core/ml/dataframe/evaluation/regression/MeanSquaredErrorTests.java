@@ -49,8 +49,9 @@ public class MeanSquaredErrorTests extends AbstractSerializingTestCase<MeanSquar
         ));
 
         MeanSquaredError mse = new MeanSquaredError();
-        EvaluationMetricResult result = mse.evaluate(aggs);
+        mse.process(aggs);
 
+        EvaluationMetricResult result = mse.getResult().get();
         String expected = "{\"error\":0.8123}";
         assertThat(Strings.toString(result), equalTo(expected));
     }
@@ -61,7 +62,9 @@ public class MeanSquaredErrorTests extends AbstractSerializingTestCase<MeanSquar
         ));
 
         MeanSquaredError mse = new MeanSquaredError();
-        EvaluationMetricResult result = mse.evaluate(aggs);
+        mse.process(aggs);
+
+        EvaluationMetricResult result = mse.getResult().get();
         assertThat(result, equalTo(new MeanSquaredError.Result(0.0)));
     }
 

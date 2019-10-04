@@ -99,7 +99,7 @@ public class IngestRestartIT extends ESIntegTestCase {
             }
 
         });
-        
+
         checkPipelineExists.accept(pipelineIdWithoutScript);
         checkPipelineExists.accept(pipelineIdWithScript);
 
@@ -119,14 +119,11 @@ public class IngestRestartIT extends ESIntegTestCase {
         assertThat(exception.getHeader("processor_type"), equalTo(Arrays.asList("unknown")));
         assertThat(exception.getRootCause().getMessage(),
             equalTo("pipeline with id [" + pipelineIdWithScript + "] could not be loaded, caused by " +
-                "[ElasticsearchParseException[Error updating pipeline with id [" + pipelineIdWithScript + "]]; " +
-                "nested: ElasticsearchException[java.lang.IllegalArgumentException: cannot execute [inline] scripts]; " +
-                "nested: IllegalArgumentException[cannot execute [inline] scripts];; " +
-                "ElasticsearchException[java.lang.IllegalArgumentException: cannot execute [inline] scripts]; " +
-                "nested: IllegalArgumentException[cannot execute [inline] scripts];; java.lang.IllegalArgumentException: " +
-                "cannot execute [inline] scripts]"));
+                "[org.elasticsearch.ElasticsearchParseException: Error updating pipeline with id [" + pipelineIdWithScript + "]; " +
+                "org.elasticsearch.ElasticsearchException: java.lang.IllegalArgumentException: cannot execute [inline] scripts; " +
+                "java.lang.IllegalArgumentException: cannot execute [inline] scripts]"));
 
-        Map<String, Object> source = client().prepareGet("index", "doc", "1").get().getSource();
+        Map<String, Object> source = client().prepareGet("index", "1").get().getSource();
         assertThat(source.get("x"), equalTo(0));
         assertThat(source.get("y"), equalTo(0));
     }
@@ -153,7 +150,7 @@ public class IngestRestartIT extends ESIntegTestCase {
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
 
-        Map<String, Object> source = client().prepareGet("index", "doc", "1").get().getSource();
+        Map<String, Object> source = client().prepareGet("index", "1").get().getSource();
         assertThat(source.get("x"), equalTo(0));
         assertThat(source.get("y"), equalTo(0));
         assertThat(source.get("z"), equalTo(0));
@@ -171,7 +168,7 @@ public class IngestRestartIT extends ESIntegTestCase {
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
 
-        source = client().prepareGet("index", "doc", "2").get().getSource();
+        source = client().prepareGet("index", "2").get().getSource();
         assertThat(source.get("x"), equalTo(0));
         assertThat(source.get("y"), equalTo(0));
         assertThat(source.get("z"), equalTo(0));
@@ -197,7 +194,7 @@ public class IngestRestartIT extends ESIntegTestCase {
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
 
-        Map<String, Object> source = client().prepareGet("index", "doc", "1").get().getSource();
+        Map<String, Object> source = client().prepareGet("index", "1").get().getSource();
         assertThat(source.get("x"), equalTo(0));
         assertThat(source.get("y"), equalTo(0));
 
@@ -210,7 +207,7 @@ public class IngestRestartIT extends ESIntegTestCase {
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
 
-        source = client(ingestNode).prepareGet("index", "doc", "2").get().getSource();
+        source = client(ingestNode).prepareGet("index", "2").get().getSource();
         assertThat(source.get("x"), equalTo(0));
         assertThat(source.get("y"), equalTo(0));
     }

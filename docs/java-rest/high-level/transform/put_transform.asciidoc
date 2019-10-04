@@ -1,0 +1,124 @@
+--
+:api: put-transform
+:request: PutTransformRequest
+:response: AcknowledgedResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Put {transform} API
+
+Creates a new {transform}.
+
+The API accepts a +{request}+ object as a request and returns a +{response}+.
+
+[id="{upid}-{api}-request"]
+==== Put {transform} request
+
+A +{request}+ requires the following argument:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The configuration of the {transform} to create
+<2> Whether or not to wait to run deferrable validations until `_start` is called.
+This option should be used with care as the created {transform} will run
+with the privileges of the user creating it. Meaning, if they do not have privileges,
+such an error will not be visible until `_start` is called.
+
+[id="{upid}-{api}-config"]
+==== {transform-cap} configuration
+
+The `TransformConfig` object contains all the details about the
+{transform} configuration and contains the following arguments:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config]
+--------------------------------------------------
+<1> The {transform} ID
+<2> The source indices and query from which to gather data
+<3> The destination index and optional pipeline
+<4> How often to check for updates to the source indices
+<5> The PivotConfig
+<6> Optional free text description of the {transform}
+
+[id="{upid}-{api}-query-config"]
+
+==== SourceConfig
+
+The indices and the query from which to collect data.
+If query is not set, a `match_all` query is used by default.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-source-config]
+--------------------------------------------------
+
+==== DestConfig
+
+The index where to write the data and the optional pipeline
+through which the docs should be indexed
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-dest-config]
+--------------------------------------------------
+
+===== QueryConfig
+
+The query with which to select data from the source.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-query-config]
+--------------------------------------------------
+
+==== PivotConfig
+
+Defines the pivot function `group by` fields and the aggregation to reduce the data.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-pivot-config]
+--------------------------------------------------
+<1> The `GroupConfig` to use in the pivot
+<2> The aggregations to use
+<3> The maximum paging size for the {transform} when pulling data
+from the source. The size dynamically adjusts as the {transform}
+is running to recover from and prevent OOM issues.
+
+===== GroupConfig
+The grouping terms. Defines the group by and destination fields
+which are produced by the pivot function. There are 3 types of
+groups
+
+* Terms
+* Histogram
+* Date Histogram
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-group-config]
+--------------------------------------------------
+<1> The destination field
+<2> Group by values of the `user_id` field
+
+===== AggregationConfig
+
+Defines the aggregations for the group fields.
+// TODO link to the supported aggregations
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-agg-config]
+--------------------------------------------------
+<1> Aggregate the average star rating
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ acknowledges the successful creation of
+the new {transform} or an error if the configuration is invalid.

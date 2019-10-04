@@ -32,4 +32,14 @@ public interface DataFrameAnalysis extends ToXContentObject, NamedWriteable {
      * @return {@code true} if this analysis supports data frame rows with missing values
      */
     boolean supportsMissingValues();
+
+    /**
+     * @return {@code true} if this analysis persists state that can later be used to restore from a given point
+     */
+    boolean persistsState();
+
+    /**
+     * Returns the document id for the analysis state
+     */
+    String getStateDocId(String jobId);
 }

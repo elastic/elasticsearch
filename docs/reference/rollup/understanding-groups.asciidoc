@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[rollup-understanding-groups]]
-== Understanding Groups
+=== Understanding groups
 
 experimental[]
 
@@ -121,7 +121,7 @@ Ultimately, when configuring `groups` for a job, think in terms of how you might
 then include those in the config.  Because Rollup Search allows any order or combination of the grouped fields, you just need to decide
 if a field is useful for aggregating later, and how you might wish to use it (terms, histogram, etc)
 
-=== Grouping Limitations with heterogeneous indices
+==== Grouping limitations with heterogeneous indices
 
 There was previously a limitation in how Rollup could handle indices that had heterogeneous mappings (multiple, unrelated/non-overlapping
 mappings).  The recommendation at the time was to configure a separate job per data "type".  For example, you might configure a separate
@@ -192,7 +192,7 @@ PUT _rollup/job/combined
 --------------------------------------------------
 // NOTCONSOLE
 
-=== Doc counts and overlapping jobs
+==== Doc counts and overlapping jobs
 
 There was previously an issue with document counts on "overlapping" job configurations, driven by the same internal implementation detail.
 If there were  two Rollup jobs saving to the same index, where one job is a "subset" of another job, it was possible that document counts

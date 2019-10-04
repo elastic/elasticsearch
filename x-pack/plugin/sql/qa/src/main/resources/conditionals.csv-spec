@@ -1,3 +1,5 @@
+// To mute tests follow example in file: example.csv-spec
+
 caseField
 SELECT emp_no, CASE WHEN emp_no - 10000 < 10 THEN 'First 10' ELSE 'Second 10' END as "case" FROM test_emp WHERE emp_no >= 10005
 ORDER BY emp_no LIMIT 10;

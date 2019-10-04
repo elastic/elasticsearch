@@ -25,11 +25,9 @@
   - do:
       get:
         index: logs_search
-        type:  test
         id:    "1"
 
   - match: { _index:   logs-1 }
-  - match: { _type:    test   }
   - match: { _id:      "1"     }
   - match: { _source:  { foo: "hello world" } }
 

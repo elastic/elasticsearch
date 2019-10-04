@@ -53,14 +53,14 @@ Defaults to `false`.
 include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
-[[sample-api-query-params]]
-==== {api-query-parms-title}
+[[update-index-settings-api-request-body]]
+==== {api-request-body-title}
 
 `settings`::
 (Optional, <<index-modules-settings,index setting object>>) Configuration
 options for the index. See <<index-modules-settings>>.
 
-[[sample-api-example]]
+[[update-index-settings-api-example]]
 ==== {api-examples-title}
 
 [[reset-index-setting]]

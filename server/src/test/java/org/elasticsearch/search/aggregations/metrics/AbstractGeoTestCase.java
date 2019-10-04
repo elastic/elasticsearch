@@ -205,7 +205,6 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
         for (int i = 0; i < totalHits; i++) {
             SearchHit searchHit = response.getHits().getAt(i);
             assertThat("Hit " + i + " with id: " + searchHit.getId(), searchHit.getIndex(), equalTo("high_card_idx"));
-            assertThat("Hit " + i + " with id: " + searchHit.getId(), searchHit.getType(), equalTo("type"));
             DocumentField hitField = searchHit.field(NUMBER_FIELD_NAME);
 
             assertThat("Hit " + i + " has wrong number of values", hitField.getValues().size(), equalTo(1));

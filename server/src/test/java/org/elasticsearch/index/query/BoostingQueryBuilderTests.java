@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.queries.function.FunctionScoreQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -40,9 +39,9 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
     }
 
     @Override
-    protected void doAssertLuceneQuery(BoostingQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
-        Query positive = queryBuilder.positiveQuery().toQuery(context.getQueryShardContext());
-        Query negative = queryBuilder.negativeQuery().toQuery(context.getQueryShardContext());
+    protected void doAssertLuceneQuery(BoostingQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+        Query positive = queryBuilder.positiveQuery().toQuery(context);
+        Query negative = queryBuilder.negativeQuery().toQuery(context);
         if (positive == null || negative == null) {
             assertThat(query, nullValue());
         } else {

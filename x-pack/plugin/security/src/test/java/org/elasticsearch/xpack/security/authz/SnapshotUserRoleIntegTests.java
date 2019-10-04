@@ -131,7 +131,7 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
         // try destructive/revealing actions on all indices
         for (final String indexToTest : Arrays.asList(INTERNAL_SECURITY_MAIN_INDEX_7, SECURITY_MAIN_ALIAS, ordinaryIndex)) {
             assertThrowsAuthorizationException(() -> client.prepareSearch(indexToTest).get(), "indices:data/read/search", "snapshot_user");
-            assertThrowsAuthorizationException(() -> client.prepareGet(indexToTest, "doc", "1").get(), "indices:data/read/get",
+            assertThrowsAuthorizationException(() -> client.prepareGet(indexToTest, "1").get(), "indices:data/read/get",
                     "snapshot_user");
             assertThrowsAuthorizationException(() -> client.prepareIndex(indexToTest, "doc").setSource("term", "val").get(),
                     "indices:data/write/index", "snapshot_user");
@@ -144,5 +144,5 @@ public class SnapshotUserRoleIntegTests extends NativeRealmIntegTestCase {
                     "snapshot_user");
         }
     }
-    
+
 }

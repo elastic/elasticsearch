@@ -29,17 +29,37 @@ POST /twitter/_refresh
 ==== {api-description-title}
 
 Use the refresh API to explicitly refresh one or more indices.
-A *refresh* makes all operations performed on an index
+A _refresh_ makes all operations performed on an index
 since the last refresh
 available for search.
 
 // tag::refresh-interval-default[]
-By default, Elasticsearch refreshes indices every second, but only on
+By default, Elasticsearch periodically refreshes indices every second, but only on
 indices that have received one search request or more in the last 30 seconds.
 // end::refresh-interval-default[]
 You can change this default interval
 using the <<index-refresh-interval-setting,`index.refresh_interval`>> setting.
 
+[IMPORTANT]
+====
+Refreshes are a resource-intensive.
+To ensure good cluster performance,
+we recommend waiting for {es}'s periodic refresh 
+rather than performing an explicit refresh
+when possible.
+
+If your application workflow
+indexes documents and then runs a search
+to retrieve the indexed document,
+we recommend using the <<docs-index_,index API>>'s
+`refresh=wait_for` query parameter option.
+This option ensures the indexing operation waits
+for a periodic refresh
+before running the search.
+
+If required,
+we recommend performing an explicit refresh no more than once per second.
+====
 
 [[refresh-api-path-params]]
 ==== {api-path-parms-title}

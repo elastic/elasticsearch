@@ -231,7 +231,6 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
       fileMode 0644
     }
     into('/usr/local/bin') {
-      fileType CONFIG | NOREPLACE
       from "${packagingFiles}/systemd/elasticsearch-entrypoint.sh"
       fileMode 0755
     }

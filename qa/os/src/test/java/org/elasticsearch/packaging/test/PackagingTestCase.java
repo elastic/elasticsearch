@@ -170,7 +170,8 @@ public abstract class PackagingTestCase extends Assert {
     }
 
     public void awaitElasticsearchStartup(Shell.Result result) throws Exception {
-        assertThat("Startup command should succeed", result.exitCode, equalTo(0));
+        assertThat("Startup command should succeed but failed with output " + result.stderr + result.stdout,
+            result.exitCode, equalTo(0));
         distribution().packagingConditional()
             .forPackage(() -> Packages.assertElasticsearchStarted(sh))
             .forArchive(() -> {

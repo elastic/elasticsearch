@@ -255,7 +255,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
                 Platform platform = distribution.getPlatform();
                 projectName += platform.toString() + (platform == Platform.WINDOWS ? "-zip" : "-tar");
             } else {
-                projectName = "zip"; 
+                projectName = distribution.getFlavor().equals(Flavor.DEFAULT) ?"zip" : "oss-zip";
             }
         } else {
             projectName += distribution.getType();

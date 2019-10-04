@@ -273,37 +273,43 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         for (ElasticsearchNode node : nodes) {
             // Can only configure master nodes if we have node names defined
             if (nodeNames != null) {
-                if (node.getVersion().onOrAfter("7.0.0")) {
-                    node.defaultConfig.keySet().stream()
-                        .filter(name -> name.startsWith("discovery.zen."))
-                        .collect(Collectors.toList())
-                        .forEach(node.defaultConfig::remove);
-                    node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
-                    node.defaultConfig.put("discovery.seed_providers", "file");
-                    node.defaultConfig.put("discovery.seed_hosts", "[]");
-                } else {
-                    node.defaultConfig.put("discovery.zen.master_election.wait_for_joins_timeout", "5s");
-                    if (nodes.size() > 1) {
-                        node.defaultConfig.put("discovery.zen.minimum_master_nodes", Integer.toString(nodes.size() / 2 + 1));
-                    }
-                    if (node.getVersion().onOrAfter("6.5.0")) {
-                        node.defaultConfig.put("discovery.zen.hosts_provider", "file");
-                        node.defaultConfig.put("discovery.zen.ping.unicast.hosts", "[]");
-                    } else {
-                        if (firstNode == null) {
-                            node.defaultConfig.put("discovery.zen.ping.unicast.hosts", "[]");
-                        } else {
-                            firstNode.waitForAllConditions();
-                            node.defaultConfig.put("discovery.zen.ping.unicast.hosts", "[\"" + firstNode.getTransportPortURI() + "\"]");
-                        }
-                    }
-                }
+                commonNodeConfig(node, nodeNames, firstNode);
             }
             if (firstNode == null) {
                 firstNode = node;
                 if (node.getVersion().before("6.5.0")) {
                     // We need to start the first node early to be able to provide unicast.hosts
                     firstNode.start();
+                }
+            }
+        }
+    }
+
+    private void commonNodeConfig(ElasticsearchNode node, String nodeNames, ElasticsearchNode firstNode) {
+        if (node.getVersion().onOrAfter("7.0.0")) {
+            node.defaultConfig.keySet().stream()
+                .filter(name -> name.startsWith("discovery.zen."))
+                .collect(Collectors.toList())
+                .forEach(node.defaultConfig::remove);
+            if (nodeNames != null) {
+                node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
+            }
+            node.defaultConfig.put("discovery.seed_providers", "file");
+            node.defaultConfig.put("discovery.seed_hosts", "[]");
+        } else {
+            node.defaultConfig.put("discovery.zen.master_election.wait_for_joins_timeout", "5s");
+            if (nodes.size() > 1) {
+                node.defaultConfig.put("discovery.zen.minimum_master_nodes", Integer.toString(nodes.size() / 2 + 1));
+            }
+            if (node.getVersion().onOrAfter("6.5.0")) {
+                node.defaultConfig.put("discovery.zen.hosts_provider", "file");
+                node.defaultConfig.put("discovery.zen.ping.unicast.hosts", "[]");
+            } else {
+                if (firstNode == null) {
+                    node.defaultConfig.put("discovery.zen.ping.unicast.hosts", "[]");
+                } else {
+                    firstNode.waitForAllConditions();
+                    node.defaultConfig.put("discovery.zen.ping.unicast.hosts", "[\"" + firstNode.getTransportPortURI() + "\"]");
                 }
             }
         }
@@ -328,7 +334,24 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         ElasticsearchNode node = nodes.getByName(clusterName + "-" + nodeIndex);
         node.stop(false);
         node.goToNextVersion();
-        commonNodeConfig();
+        commonNodeConfig(node, null, null);
+        // We need to translate these settings there as there's no support to do per version config for testclusters yet
+        if (node.getVersion().onOrAfter("7.0.0")) {
+            if (node.settings.containsKey("xpack.security.authc.realms.file1.type")) {
+                node.settings.remove("xpack.security.authc.realms.file1.type");
+                node.settings.put(
+                    "xpack.security.authc.realms.file.file1.order",
+                    node.settings.remove("xpack.security.authc.realms.file1.order")
+                );
+            }
+            if (node.settings.containsKey("xpack.security.authc.realms.native1.type")) {
+                node.settings.remove("xpack.security.authc.realms.native1.type");
+                node.settings.put(
+                    "xpack.security.authc.realms.native.native1.order",
+                    node.settings.remove("xpack.security.authc.realms.native1.order")
+                );
+            }
+        }
         nodeIndex += 1;
         node.start();
     }

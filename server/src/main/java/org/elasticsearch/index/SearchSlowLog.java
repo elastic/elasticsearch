@@ -224,8 +224,6 @@ public final class SearchSlowLog implements SearchOperationListener {
             }
             return sb.toString();
         }
-
-
     }
 
     private void setQueryWarnThreshold(TimeValue warnThreshold) {

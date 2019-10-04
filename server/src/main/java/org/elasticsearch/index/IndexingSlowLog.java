@@ -173,14 +173,8 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             //message for json logs is provided by jsonFields
             String plaintextMessage = message(index, doc, tookInNanos, reformat, maxSourceCharsToLog);
 
-            return ESLogMessage.of(plaintextMessage)
-                                                      .withFields(jsonFields);
+            return ESLogMessage.of(plaintextMessage).withFields(jsonFields);
         }
-
-//        IndexingSlowLogMessage(Index index, ParsedDocument doc, long tookInNanos, boolean reformat, int maxSourceCharsToLog) {
-//            super(prepareMap(index,doc,tookInNanos,reformat,maxSourceCharsToLog),
-//                message(index,doc,tookInNanos,reformat,maxSourceCharsToLog));
-//        }
 
         private static Map<String, Object> prepareMap(Index index, ParsedDocument doc, long tookInNanos, boolean reformat,
                                                       int maxSourceCharsToLog) {

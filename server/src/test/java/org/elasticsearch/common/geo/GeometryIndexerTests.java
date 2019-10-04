@@ -72,7 +72,7 @@ public class GeometryIndexerTests extends ESTestCase {
             new Point(2, 1), new Point(4, 3),
             new MultiLine(Arrays.asList(
                 new Line(new double[]{160, 180}, new double[]{10, 15}),
-                new Line(new double[]{180, -160}, new double[]{15, 20}))
+                new Line(new double[]{-180, -160}, new double[]{15, 20}))
             ))
         );
         assertEquals(indexed, indexer.prepareForIndexing(collection));
@@ -87,7 +87,25 @@ public class GeometryIndexerTests extends ESTestCase {
         line = new Line(new double[]{160, 200}, new double[]{10, 20});
         indexed = new MultiLine(Arrays.asList(
             new Line(new double[]{160, 180}, new double[]{10, 15}),
-            new Line(new double[]{180, -160}, new double[]{15, 20}))
+            new Line(new double[]{-180, -160}, new double[]{15, 20}))
+        );
+
+        assertEquals(indexed, indexer.prepareForIndexing(line));
+
+        line = new Line(new double[]{200, 160}, new double[]{10, 20});
+        indexed = new MultiLine(Arrays.asList(
+            new Line(new double[]{-160, -180}, new double[]{10, 15}),
+            new Line(new double[]{180, 160}, new double[]{15, 20}))
+        );
+
+        assertEquals(indexed, indexer.prepareForIndexing(line));
+
+        line = new Line(new double[]{160, 200, 160}, new double[]{0, 10, 20});
+        indexed = new MultiLine(Arrays.asList(
+            new Line(new double[]{160, 180}, new double[]{0, 5}),
+            new Line(new double[]{-180, -160, -180}, new double[]{5, 10, 15}),
+            new Line(new double[]{180, 160}, new double[]{15, 20})
+            )
         );
 
         assertEquals(indexed, indexer.prepareForIndexing(line));
@@ -106,7 +124,7 @@ public class GeometryIndexerTests extends ESTestCase {
         indexed = new MultiLine(Arrays.asList(
             line,
             new Line(new double[]{160, 180}, new double[]{10, 15}),
-            new Line(new double[]{180, -160}, new double[]{15, 20}))
+            new Line(new double[]{-180, -160}, new double[]{15, 20}))
         );
 
         assertEquals(indexed, indexer.prepareForIndexing(multiLine));

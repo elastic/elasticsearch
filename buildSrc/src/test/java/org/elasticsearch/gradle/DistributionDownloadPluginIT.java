@@ -56,6 +56,11 @@ public class DistributionDownloadPluginIT extends GradleIntegrationTestCase {
     }
 
     public void testReleased() throws Exception {
+        doTestReleased("7.0.0", "/downloads/elasticsearch/elasticsearch-7.0.0-windows-x86_64.zip");
+        doTestReleased("6.5.0", "/downloads/elasticsearch/elasticsearch-6.5.0.zip");
+    }
+
+    private void doTestReleased(String version, String urlPath) throws IOException {
         WireMockServer wireMock = new WireMockServer(0);
         try {
             final byte[] filebytes;
@@ -63,12 +68,11 @@ public class DistributionDownloadPluginIT extends GradleIntegrationTestCase {
                      Files.newInputStream(Paths.get("src/testKit/distribution-download/distribution/files/fake_elasticsearch.zip"))) {
                 filebytes = stream.readAllBytes();
             }
-            String urlPath = "/downloads/elasticsearch/elasticsearch-1.0.0-windows-x86_64.zip";
             wireMock.stubFor(head(urlEqualTo(urlPath)).willReturn(aResponse().withStatus(200)));
             wireMock.stubFor(get(urlEqualTo(urlPath)).willReturn(aResponse().withStatus(200).withBody(filebytes)));
             wireMock.start();
 
-            assertExtractedDistro("1.0.0", "archive", "windows", null, null,
+            assertExtractedDistro(version, "archive", "windows", null, null,
                 "tests.download_service", wireMock.baseUrl());
         } catch (Exception e) {
             // for debugging
@@ -99,7 +103,6 @@ public class DistributionDownloadPluginIT extends GradleIntegrationTestCase {
         assert sysProps.length % 2 == 0;
         List<String> args = new ArrayList<>();
         args.add(taskname);
-        args.add("-Dlocal.repo.path=" + getLocalTestRepoPath());
         for (int i = 0; i < sysProps.length; i += 2) {
             args.add("-D" + sysProps[i] + "=" + sysProps[i + 1]);
         }

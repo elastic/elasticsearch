@@ -3,7 +3,7 @@
 :request: GetApiKeyRequest
 :response: GetApiKeyResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Get API Key information API
 

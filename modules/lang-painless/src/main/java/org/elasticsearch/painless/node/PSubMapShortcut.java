@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
@@ -26,6 +27,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.symbol.FunctionTable;
 
 import java.util.Objects;
 import java.util.Set;
@@ -59,7 +61,7 @@ final class PSubMapShortcut extends AStoreable {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(FunctionTable functions, Locals locals) {
         String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(targetClass);
 
         getter = locals.getPainlessLookup().lookupPainlessMethod(targetClass, false, "get", 1);
@@ -80,8 +82,8 @@ final class PSubMapShortcut extends AStoreable {
 
         if ((read || write) && (!read || getter != null) && (!write || setter != null)) {
             index.expected = setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0);
-            index.analyze(locals);
-            index = index.cast(locals);
+            index.analyze(functions, locals);
+            index = index.cast(functions, locals);
 
             actual = setter != null ? setter.typeParameters.get(1) : getter.returnType;
         } else {
@@ -90,14 +92,14 @@ final class PSubMapShortcut extends AStoreable {
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        index.write(writer, globals);
+    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        index.write(classWriter, methodWriter, globals);
 
-        writer.writeDebugInfo(location);
-        writer.invokeMethodCall(getter);
+        methodWriter.writeDebugInfo(location);
+        methodWriter.invokeMethodCall(getter);
 
         if (getter.returnType != getter.javaMethod.getReturnType()) {
-            writer.checkCast(MethodWriter.getType(getter.returnType));
+            methodWriter.checkCast(MethodWriter.getType(getter.returnType));
         }
     }
 
@@ -117,25 +119,25 @@ final class PSubMapShortcut extends AStoreable {
     }
 
     @Override
-    void setup(MethodWriter writer, Globals globals) {
-        index.write(writer, globals);
+    void setup(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        index.write(classWriter, methodWriter, globals);
     }
 
     @Override
-    void load(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
-        writer.invokeMethodCall(getter);
+    void load(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
+        methodWriter.invokeMethodCall(getter);
 
         if (getter.returnType != getter.javaMethod.getReturnType()) {
-            writer.checkCast(MethodWriter.getType(getter.returnType));
+            methodWriter.checkCast(MethodWriter.getType(getter.returnType));
         }
     }
 
     @Override
-    void store(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
-        writer.invokeMethodCall(setter);
-        writer.writePop(MethodWriter.getType(setter.returnType).getSize());
+    void store(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
+        methodWriter.writeDebugInfo(location);
+        methodWriter.invokeMethodCall(setter);
+        methodWriter.writePop(MethodWriter.getType(setter.returnType).getSize());
     }
 
     @Override

@@ -750,7 +750,7 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     protected Engine.Get newGet(boolean realtime, ParsedDocument doc) {
-        return new Engine.Get(realtime, false, doc.type(), doc.id(), newUid(doc));
+        return new Engine.Get(realtime, false, doc.id(), newUid(doc));
     }
 
     protected Engine.Index indexForDoc(ParsedDocument doc) {
@@ -802,9 +802,6 @@ public abstract class EngineTestCase extends ESTestCase {
                     break;
                 case EXTERNAL_GTE:
                     version = randomBoolean() ? Math.max(i - 1, 0) : i;
-                    break;
-                case FORCE:
-                    version = randomNonNegativeLong();
                     break;
                 default:
                     throw new UnsupportedOperationException("unknown version type: " + versionType);

@@ -22,13 +22,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -308,10 +307,10 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     }
 
     @Override
-    protected final ValuesSourceAggregatorFactory<VS> doBuild(SearchContext context, AggregatorFactory parent,
-            AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        ValuesSourceConfig<VS> config = resolveConfig(context);
-        ValuesSourceAggregatorFactory<VS> factory = innerBuild(context, config, parent, subFactoriesBuilder);
+    protected final ValuesSourceAggregatorFactory<VS> doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
+                                                              Builder subFactoriesBuilder) throws IOException {
+        ValuesSourceConfig<VS> config = resolveConfig(queryShardContext);
+        ValuesSourceAggregatorFactory<VS> factory = innerBuild(queryShardContext, config, parent, subFactoriesBuilder);
         return factory;
     }
 
@@ -336,14 +335,16 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         return valueType;
     }
 
-    protected ValuesSourceConfig<VS> resolveConfig(SearchContext context) {
+    protected ValuesSourceConfig<VS> resolveConfig(QueryShardContext queryShardContext) {
         ValueType valueType = this.valueType != null ? this.valueType : targetValueType;
-        return ValuesSourceConfig.resolve(context.getQueryShardContext(),
+        return ValuesSourceConfig.resolve(queryShardContext,
                 valueType, field, script, missing, timeZone, format, this::resolveScriptAny);
     }
 
-    protected abstract ValuesSourceAggregatorFactory<VS> innerBuild(SearchContext context, ValuesSourceConfig<VS> config,
-            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
+    protected abstract ValuesSourceAggregatorFactory<VS> innerBuild(QueryShardContext queryShardContext,
+                                                                        ValuesSourceConfig<VS> config,
+                                                                        AggregatorFactory parent,
+                                                                        Builder subFactoriesBuilder) throws IOException;
 
     @Override
     public final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {

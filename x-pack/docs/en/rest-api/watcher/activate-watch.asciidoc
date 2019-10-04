@@ -5,8 +5,7 @@
 <titleabbrev>Activate watch</titleabbrev>
 ++++
 
-A watch can be either
-{stack-ov}/how-watcher-works.html#watch-active-state[active or inactive]. This
+A watch can be either <<watch-active-state,active or inactive>>. This
 API enables you to activate a currently inactive watch.
 
 [[watcher-api-activate-watch-request]]

@@ -56,4 +56,10 @@ public class OutlierDetectionTests extends AbstractSerializingTestCase<OutlierDe
         assertThat((Double) params.get(OutlierDetection.FEATURE_INFLUENCE_THRESHOLD.getPreferredName()),
             is(closeTo(0.42, 1E-9)));
     }
+
+    public void testGetStateDocId() {
+        OutlierDetection outlierDetection = createRandom();
+        assertThat(outlierDetection.persistsState(), is(false));
+        expectThrows(UnsupportedOperationException.class, () -> outlierDetection.getStateDocId("foo"));
+    }
 }

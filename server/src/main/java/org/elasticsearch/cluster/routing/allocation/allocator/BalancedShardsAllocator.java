@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
@@ -115,7 +116,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     @Override
     public void allocate(RoutingAllocation allocation) {
         if (allocation.routingNodes().size() == 0) {
-            /* with no nodes this is pointless */
+            failAllocationOfNewPrimaries(allocation);
             return;
         }
         final Balancer balancer = new Balancer(logger, allocation, weightFunction, threshold);
@@ -139,6 +140,22 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
         }
         return new ShardAllocationDecision(allocateUnassignedDecision, moveDecision);
+    }
+
+    private void failAllocationOfNewPrimaries(RoutingAllocation allocation) {
+        RoutingNodes routingNodes = allocation.routingNodes();
+        assert routingNodes.size() == 0 : routingNodes;
+        final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = routingNodes.unassigned().iterator();
+        while (unassignedIterator.hasNext()) {
+            final ShardRouting shardRouting = unassignedIterator.next();
+            final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
+            if (shardRouting.primary() && unassignedInfo.getLastAllocationStatus() == AllocationStatus.NO_ATTEMPT) {
+                unassignedIterator.updateUnassigned(new UnassignedInfo(unassignedInfo.getReason(), unassignedInfo.getMessage(),
+                        unassignedInfo.getFailure(), unassignedInfo.getNumFailedAllocations(), unassignedInfo.getUnassignedTimeInNanos(),
+                        unassignedInfo.getUnassignedTimeInMillis(), unassignedInfo.isDelayed(), AllocationStatus.DECIDERS_NO),
+                    shardRouting.recoverySource(), allocation.changes());
+            }
+        }
     }
 
     /**

@@ -16,12 +16,8 @@ setup:
 ---
 "Snapshot/Restore with repository-azure":
   - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/47201"
-# BELOW 3 lines to be uncommented when un-muting
-#  - skip:
-#      version: " - 7.9.99"
-#      reason: "8.0 changes get snapshots response format"
+      version: " - 7.9.99"
+      reason: "8.0 changes get snapshots response format"
 
   # Get repository
   - do:

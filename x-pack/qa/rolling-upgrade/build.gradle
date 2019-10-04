@@ -58,10 +58,6 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
             setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
             setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
             setting 'http.content_type.required', 'true'
-            setting 'xpack.monitoring.exporters._http.type', 'http'
-            setting 'xpack.monitoring.exporters._http.enabled', 'false'
-            setting 'xpack.monitoring.exporters._http.auth.username', 'test_user'
-            setting 'xpack.monitoring.exporters._http.auth.password', 'x-pack-test-password'
             setting 'xpack.license.self_generated.type', 'trial'
             setting 'xpack.security.enabled', 'true'
             setting 'xpack.security.transport.ssl.enabled', 'true'

@@ -40,7 +40,7 @@ public class MappingsMergerTests extends ESTestCase {
         assertThat(mergedMappings.containsKey("_doc"), is(true));
         assertThat(mergedMappings.valuesIt().next().getSourceAsMap(), equalTo(index1Mappings));
     }
-    
+
     public void testMergeMappings_GivenFieldWithDifferentMapping() throws IOException {
         Map<String, Object> index1Mappings = Map.of("properties", Map.of("field_1", "field_1_mappings"));
         MappingMetaData index1MappingMetaData = new MappingMetaData("_doc", index1Mappings);

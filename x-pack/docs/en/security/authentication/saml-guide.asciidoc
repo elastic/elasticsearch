@@ -843,6 +843,7 @@ It is possible to have one or more {kib} instances that use SAML, while other
 instances use basic authentication against another realm type (e.g.
 <<native-realm, Native>> or <<ldap-realm, LDAP>>).
 
+[[saml-troubleshooting]]
 === Troubleshooting SAML Realm Configuration
 
 The SAML 2.0 specification offers a lot of options and flexibility for the implementers

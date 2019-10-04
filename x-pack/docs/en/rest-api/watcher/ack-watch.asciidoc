@@ -5,7 +5,7 @@
 <titleabbrev>Ack watch</titleabbrev>
 ++++
 
-{stack-ov}/actions.html#actions-ack-throttle[Acknowledging a watch] enables you
+<<actions-ack-throttle,Acknowledging a watch>> enables you
 to manually throttle execution of the watch's actions.
 
 [[watcher-api-ack-watch-request]]

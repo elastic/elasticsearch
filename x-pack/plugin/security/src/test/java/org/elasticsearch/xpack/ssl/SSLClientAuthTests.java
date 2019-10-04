@@ -88,6 +88,10 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
         return builder
                 // invert the require auth settings
                 .put("xpack.security.transport.ssl.client_authentication", SSLClientAuth.NONE)
+                // Due to the TLSv1.3 bug with session resumption when client authentication is not
+                // used, we need to set the protocols since we disabled client auth for transport
+                // to avoid failures on pre 11.0.3 JDKs. See #getProtocols
+                .putList("xpack.security.transport.ssl.supported_protocols", getProtocols())
                 .put("xpack.security.http.ssl.enabled", true)
                 .put("xpack.security.http.ssl.client_authentication", SSLClientAuth.REQUIRED)
                 .build();
@@ -98,7 +102,6 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
         return true;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/46230")
     public void testThatHttpFailsWithoutSslClientAuth() throws IOException {
         SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(SSLContexts.createDefault(), NoopHostnameVerifier.INSTANCE);
         try (RestClient restClient = createRestClient(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy), "https")) {
@@ -115,7 +118,6 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/46230")
     public void testThatHttpWorksWithSslClientAuth() throws IOException {
         SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(getSSLContext(), NoopHostnameVerifier.INSTANCE);
         try (RestClient restClient = createRestClient(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy), "https")) {

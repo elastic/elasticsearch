@@ -461,7 +461,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .setId(id)
             .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null))
             .setDest(new DataFrameAnalyticsDest(sourceIndex + "-results", null))
-            .setAnalysis(new OutlierDetection())
+            .setAnalysis(new OutlierDetection.Builder().build())
             .setModelMemoryLimit(modelMemoryLimit)
             .build();
 

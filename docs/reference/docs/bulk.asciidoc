@@ -56,7 +56,9 @@ and script and its options are specified on the next line.
 `delete` does not expect a source on the next line and 
 has the same semantics as the standard delete API.
 
-*NOTE*: The final line of data must end with a newline character `\n`. 
+[NOTE]
+====
+The final line of data must end with a newline character `\n`. 
 Each newline character may be preceded by a carriage return `\r`. 
 When sending requests to the `_bulk` endpoint,
 the `Content-Type` header should be set to `application/x-ndjson`.

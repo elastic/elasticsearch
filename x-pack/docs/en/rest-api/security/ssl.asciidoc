@@ -19,7 +19,7 @@ certificates that are used to encrypt communications in your {es} cluster.
 
 * If the {security-features} are enabled, you must have `monitor` cluster
 privileges to use this API. For more information, see
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[security-api-ssl-desc]]
 ==== {api-description-title}

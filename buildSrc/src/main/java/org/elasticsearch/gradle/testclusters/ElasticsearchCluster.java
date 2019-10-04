@@ -283,7 +283,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                 }
             }
         }
-        nodes.forEach(ElasticsearchNode::start);
     }
 
     private void commonNodeConfig(ElasticsearchNode node, String nodeNames, ElasticsearchNode firstNode) {

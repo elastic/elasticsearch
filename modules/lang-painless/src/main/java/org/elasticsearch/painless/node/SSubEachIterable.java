@@ -32,7 +32,7 @@ import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.symbol.FunctionTable;
+import org.elasticsearch.painless.ScriptRoot;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -77,7 +77,7 @@ final class SSubEachIterable extends AStatement {
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals locals) {
+    void analyze(ScriptRoot scriptRoot, Locals locals) {
         // We must store the iterator as a variable for securing a slot on the stack, and
         // also add the location offset to make the name unique in case of nested for each loops.
         iterator = locals.addVariable(location, Iterator.class, "#itr" + location.getOffset(), true);
@@ -85,7 +85,7 @@ final class SSubEachIterable extends AStatement {
         if (expression.actual == def.class) {
             method = null;
         } else {
-            method = locals.getPainlessLookup().lookupPainlessMethod(expression.actual, false, "iterator", 0);
+            method = scriptRoot.getPainlessLookup().lookupPainlessMethod(expression.actual, false, "iterator", 0);
 
             if (method == null) {
                     throw createError(new IllegalArgumentException(

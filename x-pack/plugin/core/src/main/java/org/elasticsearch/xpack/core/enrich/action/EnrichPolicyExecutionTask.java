@@ -23,11 +23,6 @@ public class EnrichPolicyExecutionTask extends Task {
         super(id, type, action, description, parentTask, headers);
     }
 
-    public EnrichPolicyExecutionTask(long id, String type, String action, String description, TaskId parentTask, long startTime,
-                                     long startTimeNanos, Map<String, String> headers) {
-        super(id, type, action, description, parentTask, startTime, startTimeNanos, headers);
-    }
-
     @Override
     public Status getStatus() {
         return status;

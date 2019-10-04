@@ -308,10 +308,6 @@ principal:: _(Required)_
     against this realm.
     The `principal` appears in places such as the {es} audit logs.
 
-NOTE: You can select to map the SAML `NamedID` value or any other SAML attribute value to the `principal` user
-property. Keep in mind, however, that if a SAML attribute is mapped, the <<saml-logout, Single Logout>> functionality is
-not available.
-
 groups:: _(Recommended)_
     If you wish to use your IdP's concept of groups or roles as the basis for a
     user's {es} privileges, you should map them with this attribute.

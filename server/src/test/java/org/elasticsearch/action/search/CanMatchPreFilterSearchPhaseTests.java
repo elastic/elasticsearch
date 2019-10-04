@@ -216,7 +216,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             timeProvider,
             0,
             null,
-            (iter) -> new AbstractSearchAsyncAction<>(
+            (iter) -> new AbstractSearchAsyncAction<SearchPhaseResult>(
                 "test",
                 logger,
                 transportService,

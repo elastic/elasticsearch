@@ -35,7 +35,7 @@ public abstract class Exporter implements AutoCloseable {
         "type",
         key -> Setting.simpleString(
             key,
-            new Setting.Validator<>() {
+            new Setting.Validator<String>() {
 
                 @Override
                 public void validate(final String value) {
@@ -69,7 +69,8 @@ public abstract class Exporter implements AutoCloseable {
                 public Iterator<Setting<?>> settings() {
                     final String namespace =
                         Exporter.TYPE_SETTING.getNamespace(Exporter.TYPE_SETTING.getConcreteSetting(key));
-                    final List<Setting<?>> settings = List.of(HttpExporter.HOST_SETTING.getConcreteSettingForNamespace(namespace));
+                    final List<Setting<?>> settings =
+                        Collections.singletonList(HttpExporter.HOST_SETTING.getConcreteSettingForNamespace(namespace));
                     return settings.iterator();
                 }
 

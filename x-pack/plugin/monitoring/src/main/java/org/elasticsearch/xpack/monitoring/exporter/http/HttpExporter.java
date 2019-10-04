@@ -87,7 +87,7 @@ public class HttpExporter extends Exporter {
                     key,
                     Collections.emptyList(),
                     Function.identity(),
-                    new Setting.Validator<>() {
+                    new Setting.Validator<List<String>>() {
 
                         @Override
                         public void validate(final List<String> value) {
@@ -144,7 +144,8 @@ public class HttpExporter extends Exporter {
                         public Iterator<Setting<?>> settings() {
                             final String namespace =
                                 HttpExporter.HOST_SETTING.getNamespace(HttpExporter.HOST_SETTING.getConcreteSetting(key));
-                            final List<Setting<?>> settings = List.of(Exporter.TYPE_SETTING.getConcreteSettingForNamespace(namespace));
+                            final List<Setting<?>> settings =
+                                Collections.singletonList(Exporter.TYPE_SETTING.getConcreteSettingForNamespace(namespace));
                             return settings.iterator();
                         }
 

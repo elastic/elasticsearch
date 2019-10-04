@@ -623,8 +623,8 @@ end::stats[]
 
 tag::stored_fields[]
 `stored_fields`::
-(Optional, boolean) Set to `true` to retrieve the document fields stored in the
-index rather than the document `_source` (default: `false`).
+(Optional, boolean) If `true`, retrieves the document fields stored in the
+index rather than the document `_source`. Defaults to `false`.
 end::stored_fields[]
 
 tag::target-index[]
@@ -711,6 +711,6 @@ end::wait_for_active_shards[]
 
 tag::wait_for_completion[]
 `wait_for_completion`::
-(Optional, boolean) Should the request block until the operation is 
-complete. Defaults to `true`.
+(Optional, boolean) If `true`, the request blocks until the operation is complete. 
+Defaults to `true`.
 end::wait_for_completion[]

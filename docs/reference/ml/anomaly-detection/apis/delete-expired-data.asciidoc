@@ -18,7 +18,7 @@ Deletes expired and unused machine learning data.
 
 * If the {es} {security-features} are enabled, you must have `manage_ml` or
 `manage` cluster privileges to use this API. See
-{stack-ov}/security-privileges.html[Security privileges].
+<<security-privileges>>.
 
 [[ml-delete-expired-data-desc]]
 ==== {api-description-title}

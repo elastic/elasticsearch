@@ -30,6 +30,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.lookup.PainlessLookup;
+import org.elasticsearch.painless.ScriptRoot;
 import org.elasticsearch.painless.symbol.FunctionTable;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.Label;
@@ -87,7 +88,7 @@ public final class SClass extends AStatement {
 
     private CompilerSettings settings;
 
-    private FunctionTable table;
+    private ScriptRoot table;
     private Locals mainMethod;
     private final Set<String> extractedVariables;
     private final List<org.objectweb.asm.commons.Method> getMethods;
@@ -134,30 +135,30 @@ public final class SClass extends AStatement {
     }
 
     public void analyze(PainlessLookup painlessLookup) {
-        table = new FunctionTable();
+        table = new ScriptRoot(painlessLookup, settings, scriptClassInfo, this);
 
         for (SFunction function : functions) {
             function.generateSignature(painlessLookup);
 
             String key = FunctionTable.buildLocalFunctionKey(function.name, function.parameters.size());
 
-            if (table.getFunction(key) != null) {
-                throw createError(new IllegalArgumentException("function [" + key + "] already defined"));
+            if (table.getFunctionTable().getFunction(key) != null) {
+                throw createError(new IllegalArgumentException("Illegal duplicate functions [" + key + "]."));
             }
 
-            table.addFunction(function.name, function.returnType, function.typeParameters, false);
+            table.getFunctionTable().addFunction(function.name, function.returnType, function.typeParameters, false);
         }
 
-        Locals locals = Locals.newProgramScope(scriptClassInfo, painlessLookup);
+        Locals locals = Locals.newProgramScope();
         analyze(table, locals);
     }
 
     @Override
-    void analyze(FunctionTable functions, Locals program) {
+    void analyze(ScriptRoot scriptRoot, Locals program) {
         for (SFunction function : this.functions) {
             Locals functionLocals =
                 Locals.newFunctionScope(program, function.returnType, function.parameters, settings.getMaxLoopCounter());
-            function.analyze(functions, functionLocals);
+            function.analyze(scriptRoot, functionLocals);
         }
 
         if (statements == null || statements.isEmpty()) {
@@ -188,8 +189,7 @@ public final class SClass extends AStatement {
             }
 
             statement.lastSource = statement == last;
-
-            statement.analyze(functions, mainMethod);
+            statement.analyze(scriptRoot, mainMethod);
 
             methodEscape = statement.methodEscape;
             allEscape = statement.allEscape;
@@ -348,7 +348,7 @@ public final class SClass extends AStatement {
         bytes = classWriter.getClassBytes();
 
         Map<String, Object> statics = new HashMap<>();
-        statics.put("$FUNCTIONS", table);
+        statics.put("$FUNCTIONS", table.getFunctionTable());
 
         for (Map.Entry<Object, String> instanceBinding : globals.getInstanceBindings().entrySet()) {
             statics.put(instanceBinding.getValue(), instanceBinding.getKey());

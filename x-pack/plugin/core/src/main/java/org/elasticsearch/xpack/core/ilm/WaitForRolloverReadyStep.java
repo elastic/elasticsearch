@@ -56,6 +56,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         if (indexMetaData.getRolloverInfos().get(rolloverAlias) != null) {
             logger.info("index [{}] was already rolled over for alias [{}], not attempting to roll over again",
                 indexMetaData.getIndex().getName(), rolloverAlias);
+            listener.onResponse(true, new WaitForRolloverReadyStep.EmptyInfo());
             return;
         }
 

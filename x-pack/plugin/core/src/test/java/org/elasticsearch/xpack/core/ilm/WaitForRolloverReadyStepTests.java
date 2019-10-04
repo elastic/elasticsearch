@@ -37,8 +37,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_ROLLOVER_SKIP_ROLLED;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForRolloverReadyStep> {
 
@@ -192,6 +192,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
+                assertThat(complete, is(true));
             }
 
             @Override
@@ -221,47 +222,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError("Unexpected method call", e);
-            }
-        });
-
-        Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
-    }
-
-    private IndicesAdminClient indicesAdminClientMock() {
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-        return indicesClient;
-    }
-
-    public void testSkippingRolledIndexesIsDisabledBySetting() {
-        String rolloverAlias = randomAlphaOfLength(5);
-        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
-            .putAlias(AliasMetaData.builder(rolloverAlias))
-            .settings(
-                settings(Version.CURRENT)
-                    .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias)
-                    .put(LIFECYCLE_ROLLOVER_SKIP_ROLLED, false)
-            )
-            .putRolloverInfo(new RolloverInfo(rolloverAlias,
-                Collections.singletonList(new MaxSizeCondition(new ByteSizeValue(2L))),
-                System.currentTimeMillis())
-            )
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-
-        WaitForRolloverReadyStep step = createRandomInstance();
-        IndicesAdminClient indicesClient = indicesAdminClientMock();
-
-        step.evaluateCondition(indexMetaData, new AsyncWaitStep.Listener() {
-
-            @Override
-            public void onResponse(boolean complete, ToXContentObject informationContext) {
+                assertThat(complete, is(true));
             }
 
             @Override
@@ -498,5 +459,13 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         assertThat(exceptionThrown.get().getMessage(), equalTo(String.format(Locale.ROOT,
             "%s [%s] does not point to index [%s]", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias,
             indexMetaData.getIndex().getName())));
+    }
+
+    private IndicesAdminClient indicesAdminClientMock() {
+        AdminClient adminClient = Mockito.mock(AdminClient.class);
+        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
+        Mockito.when(client.admin()).thenReturn(adminClient);
+        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
+        return indicesClient;
     }
 }

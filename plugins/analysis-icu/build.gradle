@@ -20,7 +20,7 @@ import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
  */
 
 esplugin {
-  description 'The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.'
+  description 'The ICU Analysis plugin integrates the Lucene ICU module into Elasticsearch, adding ICU-related analysis components.'
   classname 'org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin'
 }
 

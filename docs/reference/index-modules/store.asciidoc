@@ -83,7 +83,8 @@ setting is useful, for example, if you are in an environment where you can not
 control the ability to create a lot of memory maps so you need disable the
 ability to use memory-mapping.
 
-=== Pre-loading data into the file system cache
+[[preload-data-to-file-system-cache]]
+=== Preloading data into the file system cache
 
 NOTE: This is an expert setting, the details of which may change in the future.
 

@@ -19,17 +19,22 @@
 
 package org.elasticsearch.packaging.util;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.SuppressForbidden;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -37,11 +42,13 @@ import java.util.stream.Stream;
  */
 public class Shell {
 
-    final Map<String, String> env;
+    public static final int TAIL_WHEN_TOO_MUCH_OUTPUT = 1000;
+    protected final Logger logger =  LogManager.getLogger(getClass());
+
+    final Map<String, String> env = new HashMap<>();
     Path workingDirectory;
 
     public Shell() {
-        this.env = new HashMap<>();
         this.workingDirectory = null;
     }
 
@@ -68,6 +75,20 @@ public class Shell {
         return runScriptIgnoreExitCode(getScriptCommand(script));
     }
 
+    public void chown(Path path) throws Exception {
+        Platforms.onLinux(() -> run("chown -R elasticsearch:elasticsearch " + path));
+        Platforms.onWindows(() -> run(
+            "$account = New-Object System.Security.Principal.NTAccount '" + System.getenv("username")  + "'; " +
+                "$tempConf = Get-ChildItem '" + path + "' -Recurse; " +
+                "$tempConf += Get-Item '" + path + "'; " +
+                "$tempConf | ForEach-Object { " +
+                "$acl = Get-Acl $_.FullName; " +
+                "$acl.SetOwner($account); " +
+                "Set-Acl $_.FullName $acl " +
+                "}"
+        ));
+    }
+
     public Result run( String command, Object... args) {
         String formattedCommand = String.format(Locale.ROOT, command, args);
         return run(formattedCommand);
@@ -91,7 +112,7 @@ public class Shell {
     private Result runScript(String[] command) {
         Result result = runScriptIgnoreExitCode(command);
         if (result.isSuccess() == false) {
-            throw new RuntimeException("Command was not successful: [" + String.join(" ", command) + "] result: " + result.toString());
+            throw new RuntimeException("Command was not successful: [" + String.join(" ", command) + "]\n   result: " + result.toString());
         }
         return result;
     }
@@ -99,41 +120,79 @@ public class Shell {
     private Result runScriptIgnoreExitCode(String[] command) {
         ProcessBuilder builder = new ProcessBuilder();
         builder.command(command);
-
-
         if (workingDirectory != null) {
             setWorkingDirectory(builder, workingDirectory);
         }
-
-        if (env != null && env.isEmpty() == false) {
-            for (Map.Entry<String, String> entry : env.entrySet()) {
-                builder.environment().put(entry.getKey(), entry.getValue());
-            }
+        for (Map.Entry<String, String> entry : env.entrySet()) {
+            builder.environment().put(entry.getKey(), entry.getValue());
         }
+        final Path stdOut;
+        final Path stdErr;
+        try {
+            Path tmpDir = Paths.get(System.getProperty("java.io.tmpdir"));
+            Files.createDirectories(tmpDir);
+            stdOut = Files.createTempFile(tmpDir, getClass().getName(), ".out");
+            stdErr = Files.createTempFile(tmpDir, getClass().getName(), ".err");
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
+        redirectOutAndErr(builder, stdOut, stdErr);
 
         try {
-
             Process process = builder.start();
+            if (process.waitFor(10, TimeUnit.MINUTES) == false) {
+                if (process.isAlive()) {
+                    process.destroyForcibly();
+                }
+                Result result = new Result(
+                    -1,
+                    readFileIfExists(stdOut),
+                    readFileIfExists(stdErr)
+                );
+                throw new IllegalStateException(
+                    "Timed out running shell command: " + command + "\n" +
+                    "Result:\n" + result
+                );
+            }
 
-            StringBuilder stdout = new StringBuilder();
-            StringBuilder stderr = new StringBuilder();
+            Result result = new Result(
+                process.exitValue(),
+                readFileIfExists(stdOut),
+                readFileIfExists(stdErr)
+            );
+            logger.info("Ran: {} {}", Arrays.toString(command), result);
+            return result;
 
-            Thread stdoutThread = new Thread(new StreamCollector(process.getInputStream(), stdout));
-            Thread stderrThread = new Thread(new StreamCollector(process.getErrorStream(), stderr));
-
-            stdoutThread.start();
-            stderrThread.start();
-
-            stdoutThread.join();
-            stderrThread.join();
-
-            int exitCode = process.waitFor();
-
-            return new Result(exitCode, stdout.toString(), stderr.toString());
-
-        } catch (IOException | InterruptedException e) {
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new RuntimeException(e);
+        } finally {
+           FileUtils.deleteIfExists(stdOut);
+           FileUtils.deleteIfExists(stdErr);
         }
+    }
+
+    private String readFileIfExists(Path path) throws IOException {
+        if (Files.exists(path)) {
+            long size = Files.size(path);
+            if (size > 100 * 1024) {
+                return "<<Too large to read: " + size  + " bytes>>";
+            }
+            try (Stream<String> lines = Files.lines(path, StandardCharsets.UTF_8)) {
+                return lines.collect(Collectors.joining("\n"));
+            }
+        } else {
+            return "";
+        }
+    }
+
+    @SuppressForbidden(reason = "ProcessBuilder expects java.io.File")
+    private void redirectOutAndErr(ProcessBuilder builder, Path stdOut, Path stdErr) {
+        builder.redirectOutput(stdOut.toFile());
+        builder.redirectError(stdErr.toFile());
     }
 
     @SuppressForbidden(reason = "ProcessBuilder expects java.io.File")
@@ -143,8 +202,6 @@ public class Shell {
 
     public String toString() {
         return new StringBuilder()
-            .append("<")
-            .append(this.getClass().getName())
             .append(" ")
             .append("env = [")
             .append(env)
@@ -152,7 +209,6 @@ public class Shell {
             .append("workingDirectory = [")
             .append(workingDirectory)
             .append("]")
-            .append(">")
             .toString();
     }
 
@@ -173,53 +229,17 @@ public class Shell {
 
         public String toString() {
             return new StringBuilder()
-                .append("<")
-                .append(this.getClass().getName())
-                .append(" ")
                 .append("exitCode = [")
                 .append(exitCode)
-                .append("]")
-                .append(" ")
+                .append("] ")
                 .append("stdout = [")
-                .append(stdout)
-                .append("]")
-                .append(" ")
+                .append(stdout.trim())
+                .append("] ")
                 .append("stderr = [")
-                .append(stderr)
+                .append(stderr.trim())
                 .append("]")
-                .append(">")
                 .toString();
         }
     }
 
-    private static class StreamCollector implements Runnable {
-        private final InputStream input;
-        private final Appendable appendable;
-
-        StreamCollector(InputStream input, Appendable appendable) {
-            this.input = Objects.requireNonNull(input);
-            this.appendable = Objects.requireNonNull(appendable);
-        }
-
-        public void run() {
-            try {
-
-                BufferedReader reader = new BufferedReader(reader(input));
-                String line;
-
-                while ((line = reader.readLine()) != null) {
-                    appendable.append(line);
-                    appendable.append("\n");
-                }
-
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        @SuppressForbidden(reason = "the system's default character set is a best guess of what subprocesses will use")
-        private static InputStreamReader reader(InputStream inputStream) {
-            return new InputStreamReader(inputStream);
-        }
-    }
 }

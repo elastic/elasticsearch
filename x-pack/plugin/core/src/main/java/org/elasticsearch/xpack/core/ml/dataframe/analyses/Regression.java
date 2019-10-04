@@ -216,6 +216,11 @@ public class Regression implements DataFrameAnalysis {
     }
 
     @Override
+    public String getStateDocId(String jobId) {
+        return jobId + "_regression_state#1";
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(dependentVariable, lambda, gamma, eta, maximumNumberTrees, featureBagFraction, predictionFieldName,
             trainingPercent);

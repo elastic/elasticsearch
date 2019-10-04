@@ -432,12 +432,12 @@ public class Setting<T> implements ToXContentObject {
         try {
             T parsed = parser.apply(value);
             if (validate) {
-                final Iterator<Setting<T>> it = validator.settings();
-                final Map<Setting<T>, T> map;
+                final Iterator<Setting<?>> it = validator.settings();
+                final Map<Setting<?>, Object> map;
                 if (it.hasNext()) {
                     map = new HashMap<>();
                     while (it.hasNext()) {
-                        final Setting<T> setting = it.next();
+                        final Setting<?> setting = it.next();
                         map.put(setting, setting.get(settings, false)); // we have to disable validation or we will stack overflow
                     }
                 } else {
@@ -475,7 +475,7 @@ public class Setting<T> implements ToXContentObject {
      * Returns the raw (string) settings value. If the setting is not present in the given settings object the default value is returned
      * instead. This is useful if the value can't be parsed due to an invalid value to access the actual value.
      */
-    public final String getRaw(final Settings settings) {
+    private String getRaw(final Settings settings) {
         checkDeprecation(settings);
         return innerGetRaw(settings);
     }
@@ -864,7 +864,7 @@ public class Setting<T> implements ToXContentObject {
          * @param value    the value of this setting
          * @param settings a map from the settings specified by {@link #settings()}} to their values
          */
-        default void validate(T value, Map<Setting<T>, T> settings) {
+        default void validate(T value, Map<Setting<?>, Object> settings) {
         }
 
         /**
@@ -874,7 +874,7 @@ public class Setting<T> implements ToXContentObject {
          *
          * @return the settings on which the validity of this setting depends.
          */
-        default Iterator<Setting<T>> settings() {
+        default Iterator<Setting<?>> settings() {
             return Collections.emptyIterator();
         }
 

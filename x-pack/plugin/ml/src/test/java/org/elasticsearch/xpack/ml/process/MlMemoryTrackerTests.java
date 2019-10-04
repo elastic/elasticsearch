@@ -263,7 +263,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
     private
     PersistentTasksCustomMetaData.PersistentTask<StartDataFrameAnalyticsAction.TaskParams> makeTestDataFrameAnalyticsTask(String id) {
         return new PersistentTasksCustomMetaData.PersistentTask<>(MlTasks.dataFrameAnalyticsTaskId(id),
-            MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, new StartDataFrameAnalyticsAction.TaskParams(id, Version.CURRENT), 0,
-            PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT);
+            MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, new StartDataFrameAnalyticsAction.TaskParams(id, Version.CURRENT,
+            Collections.emptyList()), 0, PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT);
     }
 }

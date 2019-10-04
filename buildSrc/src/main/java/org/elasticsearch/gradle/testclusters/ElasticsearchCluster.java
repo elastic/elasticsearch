@@ -335,19 +335,22 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         node.stop(false);
         node.goToNextVersion();
         commonNodeConfig(node, null, null);
-        if (node.defaultConfig.containsKey("xpack.security.authc.realms.file1.type") && node.getVersion().onOrAfter("'7.0.0")) {
-            node.defaultConfig.remove("xpack.security.authc.realms.file1.type");
-            node.defaultConfig.put(
-                "xpack.security.authc.realms.file.file1.order",
-                node.defaultConfig.remove("xpack.security.authc.realms.file1.order")
-            );
-        }
-        if (node.defaultConfig.containsKey("xpack.security.authc.realms.native1.type") && node.getVersion().onOrAfter("'7.0.0")) {
-            node.defaultConfig.remove("xpack.security.authc.realms.native1.type");
-            node.defaultConfig.put(
-                "xpack.security.authc.realms.native.native1.order",
-                node.defaultConfig.remove("xpack.security.authc.realms.native1.order")
-            );
+        // We need to translate these settings there as there's no support to do per version config for testclusters yet
+        if (node.getVersion().onOrAfter("7.0.0")) {
+            if (node.settings.containsKey("xpack.security.authc.realms.file1.type")) {
+                node.settings.remove("xpack.security.authc.realms.file1.type");
+                node.settings.put(
+                    "xpack.security.authc.realms.file.file1.order",
+                    node.settings.remove("xpack.security.authc.realms.file1.order")
+                );
+            }
+            if (node.settings.containsKey("xpack.security.authc.realms.native1.type")) {
+                node.settings.remove("xpack.security.authc.realms.native1.type");
+                node.settings.put(
+                    "xpack.security.authc.realms.native.native1.order",
+                    node.settings.remove("xpack.security.authc.realms.native1.order")
+                );
+            }
         }
         nodeIndex += 1;
         node.start();

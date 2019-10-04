@@ -171,7 +171,20 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
         nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName() }")
         systemProperty 'tests.rest.suite', 'mixed_cluster'
         systemProperty 'tests.first_round', 'false'
-
+        def toBlackList = []
+        if (bwcVersion.before('7.2.0')) {
+            toBlackList.addAll([
+                    'mixed_cluster/80_data_frame_jobs_crud/Test put batch data frame transforms on mixed cluster',
+                    'mixed_cluster/80_data_frame_jobs_crud/Test GET, start, and stop old cluster batch transforms',
+                    'mixed_cluster/80_data_frame_jobs_crud/Test put continuous data frame transform on mixed cluster'
+            ])
+        }
+        if (bwcVersion.before('7.3.0')) {
+            toBlackList << 'mixed_cluster/80_data_frame_jobs_crud/Test GET, stop, start, old continuous transforms'
+        }
+        if (!toBlackList.empty) {
+            systemProperty 'tests.rest.blacklist', toBlackList.join(',')
+        }
         systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
     }
 
@@ -181,10 +194,21 @@ for (Version bwcVersion : bwcVersions.wireCompatible) {
         doFirst {
             testClusters."${baseName}".nextNodeToNextVersion()
         }
+
         nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",") }")
         nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName() }")
         systemProperty 'tests.rest.suite', 'upgraded_cluster'
         systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
+        def toBlackList = []
+        // Dataframe transforms were not added until 7.2.0
+        if (bwcVersion.before('7.2.0')) {
+            toBlackList << 'upgraded_cluster/80_data_frame_jobs_crud/Get start, stop, and delete old and mixed cluster batch data frame transforms'
+            toBlackList << 'upgraded_cluster/80_data_frame_jobs_crud/Test GET, stop, delete, old and mixed continuous transforms'
+
+        }
+        if (!toBlackList.empty) {
+            systemProperty 'tests.rest.blacklist', toBlackList.join(',')
+        }
     }
 
     tasks.register("${baseName}#bwcTest") {

@@ -21,7 +21,6 @@ package org.elasticsearch.search.query;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
@@ -55,7 +54,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
-            scripts.put("doc['field2'].value * param1", vars -> {
+            scripts.put("doc['field2'].value * param1", vars -> {   
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Doubles field2Values = (ScriptDocValues.Doubles) doc.get("field2");
                 Double param1 = (Double) vars.get("param1");
@@ -86,7 +85,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['field2'].value * param1", params);
         SearchResponse resp = client()
             .prepareSearch("test-index")
-            .setQuery(scriptScoreQuery(matchQuery("field1", "text0"), new ScriptScoreFunctionBuilder(script)))
+            .setQuery(scriptScoreQuery(matchQuery("field1", "text0"), script))
             .get();
         assertNoFailures(resp);
         assertOrderedSearchHits(resp, "10", "8", "6", "4", "2");
@@ -97,7 +96,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
         // applying min score
         resp = client()
             .prepareSearch("test-index")
-            .setQuery(scriptScoreQuery(matchQuery("field1", "text0"), new ScriptScoreFunctionBuilder(script)).setMinScore(0.6f))
+            .setQuery(scriptScoreQuery(matchQuery("field1", "text0"), script).setMinScore(0.6f))
             .get();
         assertNoFailures(resp);
         assertOrderedSearchHits(resp, "10", "8", "6");

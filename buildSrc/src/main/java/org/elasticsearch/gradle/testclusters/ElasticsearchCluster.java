@@ -248,22 +248,50 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
     @Override
     public void start() {
+        commonNodeConfig();
+        nodes.forEach(ElasticsearchNode::start);
+    }
+
+    private void commonNodeConfig() {
         final String nodeNames;
-        if (nodes.stream().map(ElasticsearchNode::getName).anyMatch( name -> name == null)) {
+        if (nodes.stream().map(ElasticsearchNode::getName).anyMatch(name -> name == null)) {
             nodeNames = null;
         } else {
             nodeNames = nodes.stream().map(ElasticsearchNode::getName).map(this::safeName).collect(Collectors.joining(","));
         }
+        ElasticsearchNode firstNode = null;
         for (ElasticsearchNode node : nodes) {
+            // Can only configure master nodes if we have node names defined
             if (nodeNames != null) {
-                // Can only configure master nodes if we have node names defined
-                if (node.getVersion().getMajor() >= 7) {
+                if (node.getVersion().onOrAfter("7.0.0")) {
+                    node.defaultConfig.keySet().stream()
+                        .filter(name -> name.startsWith("discovery.zen."))
+                        .collect(Collectors.toList())
+                        .forEach(node.defaultConfig::remove);
                     node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
                     node.defaultConfig.put("discovery.seed_providers", "file");
                     node.defaultConfig.put("discovery.seed_hosts", "[]");
+                } else {
+                    node.defaultConfig.put("discovery.zen.master_election.wait_for_joins_timeout", "5s");
+                    if (nodes.size() > 1) {
+                        node.defaultConfig.put("discovery.zen.minimum_master_nodes", Integer.toString(nodes.size() / 2 + 1));
+                    }
+                    if (node.getVersion().onOrAfter("6.5.0")) {
+                        node.defaultConfig.put("discovery.zen.hosts_provider", "file");
+                        node.defaultConfig.put("discovery.zen.ping.unicast.hosts", "[]");
+                    } else {
+                        if (firstNode == null) {
+                            node.defaultConfig.put("discovery.zen.ping.unicast.hosts", "[]");
+                        } else {
+                            firstNode.waitForAllConditions();
+                            node.defaultConfig.put("discovery.zen.ping.unicast.hosts", "[\"" + firstNode.getTransportPortURI() + "\"]");
+                        }
+                    }
                 }
             }
-            node.start();
+            if (firstNode == null) {
+                firstNode = node;
+            }
         }
     }
 
@@ -272,17 +300,23 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         nodes.forEach(ElasticsearchNode::restart);
     }
 
-    @Override
     public void goToNextVersion() {
+        stop(false);
         nodes.all(ElasticsearchNode::goToNextVersion);
+        start();
+        writeUnicastHostsFiles();
     }
 
     public void nextNodeToNextVersion() {
         if (nodeIndex + 1 > nodes.size()) {
             throw new TestClustersException("Ran out of nodes to take to the next version");
         }
-        nodes.getByName(clusterName + "-" + nodeIndex).goToNextVersion();
+        ElasticsearchNode node = nodes.getByName(clusterName + "-" + nodeIndex);
+        node.stop(false);
+        node.goToNextVersion();
+        commonNodeConfig();
         nodeIndex += 1;
+        node.start();
     }
 
     @Override
@@ -336,9 +370,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     public void waitForAllConditions() {
-        LOGGER.info("Waiting for nodes");
-        nodes.forEach(ElasticsearchNode::waitForAllConditions);
-
         writeUnicastHostsFiles();
 
         LOGGER.info("Starting to wait for cluster to form");

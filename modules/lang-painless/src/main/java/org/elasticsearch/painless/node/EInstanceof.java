@@ -26,6 +26,7 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.symbol.FunctionTable;
 
 import java.util.Objects;
 import java.util.Set;
@@ -60,7 +61,7 @@ public final class EInstanceof extends AExpression {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(FunctionTable functions, Locals locals) {
 
         // ensure the specified type is part of the definition
         Class<?> clazz = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
@@ -74,9 +75,9 @@ public final class EInstanceof extends AExpression {
                 PainlessLookupUtility.typeToJavaType(clazz);
 
         // analyze and cast the expression
-        expression.analyze(locals);
+        expression.analyze(functions, locals);
         expression.expected = expression.actual;
-        expression = expression.cast(locals);
+        expression = expression.cast(functions, locals);
 
         // record if the expression returns a primitive
         primitiveExpression = expression.actual.isPrimitive();

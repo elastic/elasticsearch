@@ -30,6 +30,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.FunctionTable;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
@@ -65,7 +66,7 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(FunctionTable functions, Locals locals) {
         captured = locals.getVariable(location, variable);
         if (expected == null) {
             if (captured.clazz == def.class) {
@@ -80,7 +81,7 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
             defPointer = null;
             // static case
             if (captured.clazz != def.class) {
-                ref = FunctionRef.create(locals.getPainlessLookup(), locals.getMethods(), location,
+                ref = FunctionRef.create(locals.getPainlessLookup(), functions, location,
                         expected, PainlessLookupUtility.typeToCanonicalTypeName(captured.clazz), call, 1);
             }
             actual = expected;

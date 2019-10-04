@@ -1,3 +1,5 @@
+// To mute tests follow example in file: example.csv-spec
+
 bitLengthGroupByAndOrderBy
 SELECT BIT_LENGTH(first_name), COUNT(*) count FROM "test_emp" GROUP BY BIT_LENGTH(first_name) ORDER BY BIT_LENGTH(first_name) LIMIT 10;
 

@@ -303,14 +303,14 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
         logger.info("percolating empty doc");
         SearchResponse response = client().prepareSearch()
-                .setQuery(new PercolateQueryBuilder("query", "test", "type", "1", null, null, null))
+                .setQuery(new PercolateQueryBuilder("query", "test", "1", null, null, null))
                 .get();
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
 
         logger.info("percolating doc with 1 field");
         response = client().prepareSearch()
-                .setQuery(new PercolateQueryBuilder("query", "test", "type", "5", null, null, null))
+                .setQuery(new PercolateQueryBuilder("query", "test", "5", null, null, null))
                 .addSort("_id", SortOrder.ASC)
                 .get();
         assertHitCount(response, 2);
@@ -319,7 +319,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
         logger.info("percolating doc with 2 fields");
         response = client().prepareSearch()
-                .setQuery(new PercolateQueryBuilder("query", "test", "type", "6", null, null, null))
+                .setQuery(new PercolateQueryBuilder("query", "test", "6", null, null, null))
                 .addSort("_id", SortOrder.ASC)
                 .get();
         assertHitCount(response, 3);
@@ -343,7 +343,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         logger.info("percolating empty doc with source disabled");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             client().prepareSearch()
-                .setQuery(new PercolateQueryBuilder("query", "test", "type", "1", null, null, null))
+                .setQuery(new PercolateQueryBuilder("query", "test", "1", null, null, null))
                 .get();
         });
         assertThat(e.getMessage(), containsString("source disabled"));
@@ -806,9 +806,9 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                 .setQuery(new PercolateQueryBuilder("query",
                     BytesReference.bytes(jsonBuilder().startObject().field("field1", "d").endObject()), XContentType.JSON)))
             .add(client().prepareSearch("test")
-                .setQuery(new PercolateQueryBuilder("query", "test", "type", "5", null, null, null)))
+                .setQuery(new PercolateQueryBuilder("query", "test", "5", null, null, null)))
             .add(client().prepareSearch("test") // non existing doc, so error element
-                .setQuery(new PercolateQueryBuilder("query", "test", "type", "6", null, null, null)))
+                .setQuery(new PercolateQueryBuilder("query", "test", "6", null, null, null)))
             .get();
 
         MultiSearchResponse.Item item = response.getResponses()[0];
@@ -839,7 +839,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         item = response.getResponses()[5];
         assertThat(item.getResponse(), nullValue());
         assertThat(item.getFailureMessage(), notNullValue());
-        assertThat(item.getFailureMessage(), containsString("[test/type/6] couldn't be found"));
+        assertThat(item.getFailureMessage(), containsString("[test/6] couldn't be found"));
     }
 
 }

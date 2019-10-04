@@ -26,6 +26,7 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.symbol.FunctionTable;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -62,14 +63,14 @@ public final class EBool extends AExpression {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(FunctionTable functions, Locals locals) {
         left.expected = boolean.class;
-        left.analyze(locals);
-        left = left.cast(locals);
+        left.analyze(functions, locals);
+        left = left.cast(functions, locals);
 
         right.expected = boolean.class;
-        right.analyze(locals);
-        right = right.cast(locals);
+        right.analyze(functions, locals);
+        right = right.cast(functions, locals);
 
         if (left.constant != null && right.constant != null) {
             if (operation == Operation.AND) {

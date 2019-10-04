@@ -27,6 +27,7 @@ import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.symbol.FunctionTable;
 
 import java.util.Objects;
 import java.util.Set;
@@ -60,7 +61,7 @@ final class PSubMapShortcut extends AStoreable {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(FunctionTable functions, Locals locals) {
         String canonicalClassName = PainlessLookupUtility.typeToCanonicalTypeName(targetClass);
 
         getter = locals.getPainlessLookup().lookupPainlessMethod(targetClass, false, "get", 1);
@@ -81,8 +82,8 @@ final class PSubMapShortcut extends AStoreable {
 
         if ((read || write) && (!read || getter != null) && (!write || setter != null)) {
             index.expected = setter != null ? setter.typeParameters.get(0) : getter.typeParameters.get(0);
-            index.analyze(locals);
-            index = index.cast(locals);
+            index.analyze(functions, locals);
+            index = index.cast(functions, locals);
 
             actual = setter != null ? setter.typeParameters.get(1) : getter.returnType;
         } else {

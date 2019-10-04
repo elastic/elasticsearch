@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.symbol.FunctionTable;
 import org.objectweb.asm.Label;
 
 import java.util.Set;
@@ -56,8 +57,8 @@ public class PSubNullSafeCallInvoke extends AExpression {
     }
 
     @Override
-    void analyze(Locals locals) {
-        guarded.analyze(locals);
+    void analyze(FunctionTable functions, Locals locals) {
+        guarded.analyze(functions, locals);
         actual = guarded.actual;
         if (actual.isPrimitive()) {
             throw new IllegalArgumentException("Result of null safe operator must be nullable");

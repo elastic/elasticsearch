@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.symbol.FunctionTable;
 import org.objectweb.asm.Label;
 
 import java.util.Collections;
@@ -70,7 +71,7 @@ public final class STry extends AStatement {
     }
 
     @Override
-    void analyze(Locals locals) {
+    void analyze(FunctionTable functions, Locals locals) {
         if (block == null) {
             throw createError(new IllegalArgumentException("Extraneous try statement."));
         }
@@ -79,7 +80,7 @@ public final class STry extends AStatement {
         block.inLoop = inLoop;
         block.lastLoop = lastLoop;
 
-        block.analyze(Locals.newLocalScope(locals));
+        block.analyze(functions, Locals.newLocalScope(locals));
 
         methodEscape = block.methodEscape;
         loopEscape = block.loopEscape;
@@ -94,7 +95,7 @@ public final class STry extends AStatement {
             catc.inLoop = inLoop;
             catc.lastLoop = lastLoop;
 
-            catc.analyze(Locals.newLocalScope(locals));
+            catc.analyze(functions, Locals.newLocalScope(locals));
 
             methodEscape &= catc.methodEscape;
             loopEscape &= catc.loopEscape;

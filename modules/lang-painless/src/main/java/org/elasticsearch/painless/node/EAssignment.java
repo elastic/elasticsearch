@@ -31,6 +31,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.symbol.FunctionTable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -83,26 +84,26 @@ public final class EAssignment extends AExpression {
     }
 
     @Override
-    void analyze(Locals locals) {
-        analyzeLHS(locals);
+    void analyze(FunctionTable functions, Locals locals) {
+        analyzeLHS(functions, locals);
         analyzeIncrDecr();
 
         if (operation != null) {
-            analyzeCompound(locals);
+            analyzeCompound(functions, locals);
         } else if (rhs != null) {
-            analyzeSimple(locals);
+            analyzeSimple(functions, locals);
         } else {
             throw new IllegalStateException("Illegal tree structure.");
         }
     }
 
-    private void analyzeLHS(Locals locals) {
+    private void analyzeLHS(FunctionTable functions, Locals locals) {
         if (lhs instanceof AStoreable) {
             AStoreable lhs = (AStoreable)this.lhs;
 
             lhs.read = read;
             lhs.write = true;
-            lhs.analyze(locals);
+            lhs.analyze(functions, locals);
         } else {
             throw new IllegalArgumentException("Left-hand side cannot be assigned a value.");
         }
@@ -146,8 +147,8 @@ public final class EAssignment extends AExpression {
         }
     }
 
-    private void analyzeCompound(Locals locals) {
-        rhs.analyze(locals);
+    private void analyzeCompound(FunctionTable functions, Locals locals) {
+        rhs.analyze(functions, locals);
 
         boolean shift = false;
 
@@ -210,7 +211,7 @@ public final class EAssignment extends AExpression {
             rhs.expected = promote;
         }
 
-        rhs = rhs.cast(locals);
+        rhs = rhs.cast(functions, locals);
 
         there = AnalyzerCaster.getLegalCast(location, lhs.actual, promote, false, false);
         back = AnalyzerCaster.getLegalCast(location, promote, lhs.actual, true, false);
@@ -219,12 +220,12 @@ public final class EAssignment extends AExpression {
         this.actual = read ? lhs.actual : void.class;
     }
 
-    private void analyzeSimple(Locals locals) {
+    private void analyzeSimple(FunctionTable functions, Locals locals) {
         AStoreable lhs = (AStoreable)this.lhs;
 
         // If the lhs node is a def optimized node we update the actual type to remove the need for a cast.
         if (lhs.isDefOptimized()) {
-            rhs.analyze(locals);
+            rhs.analyze(functions, locals);
 
             if (rhs.actual == void.class) {
                 throw createError(new IllegalArgumentException("Right-hand side cannot be a [void] type for assignment."));
@@ -235,10 +236,10 @@ public final class EAssignment extends AExpression {
         // Otherwise, we must adapt the rhs type to the lhs type with a cast.
         } else {
             rhs.expected = lhs.actual;
-            rhs.analyze(locals);
+            rhs.analyze(functions, locals);
         }
 
-        rhs = rhs.cast(locals);
+        rhs = rhs.cast(functions, locals);
 
         this.statement = true;
         this.actual = read ? lhs.actual : void.class;
